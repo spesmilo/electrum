@@ -1,0 +1,56 @@
+diff --git a/src/bitcoinrpc.cpp b/src/bitcoinrpc.cpp
+index 6e2eac5..8b60ebf 100644
+--- a/src/bitcoinrpc.cpp
++++ b/src/bitcoinrpc.cpp
+@@ -1355,7 +1355,43 @@ Value gettransaction(const Array& params, bool fHelp)
+     return entry;
+ }
+ 
++Value importtransaction(const Array& params, bool fHelp)
++{
++  string hexdump;
++  if (fHelp || params.size() != 1 || (hexdump=params[0].get_str()).size()&1)
++    throw runtime_error(
++            "importtransaction <hexdata>\n"
++            "Import an offline transaction to announce it into the network");
++
++  std::vector<unsigned char> rawtx;
++  for (int i=0; i<hexdump.size(); i+=2)
++    {
++      int v;
++      if (sscanf(hexdump.substr(i,2).c_str(), "%x", &v)!=1)
++	throw JSONRPCError(-4, "Error in hex data.");
++      rawtx.push_back((unsigned char)v);
++    }
++try
++  {
++    CDataStream ss(rawtx);
++    CTransaction tx;
++    ss >> tx;
++    CInv inv(MSG_TX, tx.GetHash());
++    if(! tx.AcceptToMemoryPool(true)) throw JSONRPCError(-4, "Transaction not accepted to memory pool.");
++    CDataStream msg(rawtx);
++    RelayMessage(inv, msg);
++    return tx.GetHash().GetHex();
++  }
++ catch (std::exception& e)
++   {
++     throw JSONRPCError(-4, "Exception while parsing the transaction data.");
++   }
++
++}
++
++
+ 
++  
+ Value backupwallet(const Array& params, bool fHelp)
+ {
+     if (fHelp || params.size() != 1)
+@@ -1850,6 +1886,7 @@ pair<string, rpcfn_type> pCallTable[] =
+     make_pair("settxfee",               &settxfee),
+     make_pair("getmemorypool",          &getmemorypool),
+     make_pair("listsinceblock",        &listsinceblock),
++    make_pair("importtransaction",      &importtransaction),
+ };
+ map<string, rpcfn_type> mapCallTable(pCallTable, pCallTable + sizeof(pCallTable)/sizeof(pCallTable[0]));
+ 
