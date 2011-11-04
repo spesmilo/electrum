@@ -1,7 +1,7 @@
 Electrum - a lightweight Bitcoin client and its server
 
 Licence: GNU GPL v3
-Author: thomasv1@gmx.de
+Author: thomasv@gitorious
 Language: Python
 
 Main features:
@@ -9,7 +9,7 @@ Main features:
 Client:
  * The client uses a deterministic wallet; if the wallet is lost, it can be recovered from its passphrase.
  * The client does not download the Bitcoin blockchain; it requests that information from the server
- * The client does not send its private keyes to the server.
+ * The client does not send its private keys to the server.
  * The client does not need to open a port, it simply polls the server for updates.
 
 Server:
@@ -31,7 +31,7 @@ Client:
 Server:
 
 1. patch and recompile the bitcoin daemon - bitcoinrpc.diff
-2. install bitcoin-abe
-3. install bitcoinrpc, patch it too
-3. launch the server: 
-   python server.py
+2. install bitcoin-abe : https://github.com/jtobey/bitcoin-abe
+3. install bitcoinrpc : https://gitorious.org/python-bitcoin
+     patch it too, see bitcoinrpc_connection.py.diff
+4. launch the server:  python server.py
