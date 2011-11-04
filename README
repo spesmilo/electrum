@@ -22,7 +22,7 @@ However, it should be possible to write clients capable of using several servers
 INSTALLATION
 
 Client:  
-1. install python-edcsa and pycrypto:
+1. install python-ecdsa and pycrypto:
    * sudo easy_install ecdsa
    * sudo easy_install pycrypto
 2. run the client:
