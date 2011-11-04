@@ -61,7 +61,7 @@ def init_wallet(wallet):
             r = dialog.run()
             passphrase = p_entry.get_text()
             dialog.destroy()
-            if r==-6: exit(1)
+            if r==gtk.RESPONSE_CANCEL: exit(1)
             if len(passphrase) < 20:
                 print len(passphrase)
                 passphrase = None
@@ -88,7 +88,7 @@ def init_wallet(wallet):
         thread.start_new_thread( recover_thread, ( wallet, dialog, None ) ) # no password
         r = dialog.run()
         dialog.destroy()
-        if r==-6: exit(1)
+        if r==gtk.RESPONSE_CANCEL: exit(1)
 
 def settings_dialog(wallet, is_recover):
 
@@ -96,23 +96,9 @@ def settings_dialog(wallet, is_recover):
         parent = None,
         flags = gtk.DIALOG_MODAL, 
         buttons = gtk.BUTTONS_OK_CANCEL, 
-        message_format = "Please indicate the server, and the gap limit if you are recovering a lost wallet." if is_recover else '' )
+        message_format = "Please indicate the server, and the gap limit if you are recovering a lost wallet." if is_recover else 'Settings')
 
-    if not is_recover:
-        dialog.get_image().hide()
-        dialog.set_title("settings")
-
-    pw = gtk.HBox()
-    if not is_recover:
-        pw_label = gtk.Label('Encryption: ')
-        pw_label.set_size_request(100,10)
-        pw_label.show()
-        pw.pack_start(pw_label,False, False, 10)
-        pw_button = gtk.Button( ('Yes' if wallet.use_encryption else 'No'))
-        pw_button.connect("clicked", change_password_dialog, wallet)
-        pw_button.show()
-        pw.pack_start(pw_button,False, False, 10)
-        pw.show()
+    dialog.set_default_response(gtk.RESPONSE_OK)
 
     gap = gtk.HBox()
     gap_label = gtk.Label('Max. gap:')
@@ -154,7 +140,6 @@ def settings_dialog(wallet, is_recover):
         fee.show()
 
     vbox = dialog.vbox
-    vbox.pack_start(pw, False, False, 5)
     vbox.pack_start(host, False,False, 5)
     vbox.pack_start(gap, False,False, 5)
     vbox.pack_start(fee, False, False, 5)    
@@ -220,11 +205,11 @@ def password_dialog():
     dialog.destroy()
     if result: return pw
 
-def change_password_dialog(button, wallet):
-    dialog = gtk.MessageDialog( None, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
-                                gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL,  'Change password')
+def change_password_dialog(button, wallet, icon):
+    dialog = gtk.MessageDialog( None, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, 
+                                'Your wallet is encrypted' if wallet.use_encryption else 'Your wallet is not encrypted')
     if wallet.use_encryption:
-        current_pw, current_pw_entry = password_line('Old password:')
+        current_pw, current_pw_entry = password_line('Current password:')
         dialog.vbox.pack_start(current_pw, False, True, 0)
 
     password, password_entry = password_line('New password:')
@@ -238,14 +223,14 @@ def change_password_dialog(button, wallet):
     new_password = password_entry.get_text()
     new_password2 = password2_entry.get_text()
     dialog.destroy()
-    if result == 0: 
+    if result == gtk.RESPONSE_CANCEL: 
         return
 
     try:
         passphrase = wallet.pw_decode( wallet.passphrase, password)
         private_keys = ast.literal_eval( wallet.pw_decode( wallet.private_keys, password) )
     except:
-        show_message("sorry")
+        show_message("Incorrect password")
         return
 
     if new_password != new_password2:
@@ -256,8 +241,12 @@ def change_password_dialog(button, wallet):
     wallet.passphrase = wallet.pw_encode( passphrase, new_password)
     wallet.private_keys = wallet.pw_encode( repr( private_keys ), new_password)
     wallet.save()
-    if button:
-        button.set_label('Yes' if wallet.use_encryption else 'No')
+
+    if icon:
+        if wallet.use_encryption:
+            icon.set_tooltip_text('wallet is encrypted')
+        else:
+            icon.set_tooltip_text('wallet is unencrypted')
 
 
 def add_help_button(hbox, message):
@@ -310,20 +299,34 @@ class BitcoinGUI:
         self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
         self.status_image.set_alignment(True, 0.5  )
         self.status_image.show()
-        self.status_bar.pack_end(self.status_image,False,False)
+        self.status_bar.pack_end(self.status_image, False, False)
 
         settings_icon = gtk.Image()
         settings_icon.set_from_stock(gtk.STOCK_PREFERENCES, gtk.ICON_SIZE_MENU)
-        settings_icon.set_alignment(True, False)
-        settings_icon.set_size_request(30,9 )
+        settings_icon.set_alignment(0.5, 0.5)
+        settings_icon.set_size_request(16,16 )
         settings_icon.show()
 
         prefs_button = gtk.Button()
         prefs_button.connect("clicked", run_settings_dialog, self.wallet, False)
         prefs_button.add(settings_icon)
         prefs_button.set_tooltip_text("Settings")
+        prefs_button.set_relief(gtk.RELIEF_NONE)
         prefs_button.show()
         self.status_bar.pack_end(prefs_button,False,False)
+
+        pw_icon = gtk.Image()
+        pw_icon.set_from_stock(gtk.STOCK_DIALOG_AUTHENTICATION, gtk.ICON_SIZE_MENU)
+        pw_icon.set_alignment(0.5, 0.5)
+        pw_icon.set_size_request(16,16 )
+        pw_icon.show()
+
+        password_button = gtk.Button()
+        password_button.connect("clicked", change_password_dialog, self.wallet, pw_icon)
+        password_button.add(pw_icon)
+        password_button.set_relief(gtk.RELIEF_NONE)
+        password_button.show()
+        self.status_bar.pack_end(password_button,False,False)
 
         self.window.add(vbox)
         self.window.show_all()
