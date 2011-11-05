@@ -300,7 +300,9 @@ class Wallet:
         # remove limit-1 addresses. [ this is ok, because change addresses are at the beginning of the list]
         n = self.gap_limit
         self.addresses = self.addresses[:-n]
-        self.keys = self.private_keys[:-n]
+        private_keys = ast.literal_eval( self.pw_decode( self.private_keys, password))
+        private_keys = private_keys[:-n]
+        self.private_keys = self.pw_encode( repr(private_keys), password)
 
         # history and addressbook
         self.update_tx_history()
