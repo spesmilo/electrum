@@ -561,7 +561,10 @@ class Wallet:
         out = self.send_tx(tx)
         if out != tx_hash:
             return False, "error: hash mismatch"
-        wallet.labels[tx_hash] = label
+        if to_address not in self.addressbook:
+            self.addressbook.append(to_address)
+        if label: 
+            wallet.labels[tx_hash] = label
         wallet.save()
         return True, tx_hash
 

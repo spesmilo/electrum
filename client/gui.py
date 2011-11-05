@@ -462,6 +462,7 @@ class BitcoinGUI:
             payto_entry.set_text("")
             label_entry.set_text("")
             amount_entry.set_text("")
+            self.update_sending_tab()
         else:
             show_message( msg )
 
