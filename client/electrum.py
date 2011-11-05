@@ -586,7 +586,6 @@ if __name__ == '__main__':
         gui.init_wallet(wallet)
         gui = gui.BitcoinGUI(wallet)
         gui.main()
-        exit(0)
 
     if not wallet.read():
         print no_wallet_message
