@@ -663,6 +663,7 @@ class BitcoinGUI:
     def update_receiving_tab(self):
         self.recv_list.clear()
         for address in self.wallet.addresses:
+            if self.wallet.is_change(address):continue
             label = self.wallet.labels.get(address)
             n = 0 
             h = self.wallet.history.get(address)
