@@ -217,7 +217,10 @@ def raw_tx( inputs, outputs, for_sig = None ):
 class InvalidPassword(Exception):
     pass
 
-wallet_path = os.environ["HOME"] + '/.bitcoin/electrum.dat'
+wallet_dir = os.environ["HOME"] + '/.bitcoin/'
+if not os.path.exists( wallet_dir ):
+    os.mkdir( wallet_dir ) 
+wallet_path = wallet_dir + '/electrum.dat'
 
 class Wallet:
     def __init__(self):
