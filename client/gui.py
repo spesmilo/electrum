@@ -39,16 +39,16 @@ def numbify(entry, is_int = False):
 def init_wallet(wallet):
 
     if not wallet.read():
-        passphrase = None
-        while not passphrase:
+        seed = None
+        while not seed:
             dialog = gtk.MessageDialog(
                 parent = None,
                 flags = gtk.DIALOG_MODAL, 
                 buttons = gtk.BUTTONS_OK_CANCEL, 
-                message_format = "Wallet not found. Please enter a passphrase to create or recover your wallet. Minimum length: 20 characters"  )
+                message_format = "Wallet not found. Please enter a seed to create or recover your wallet. Minimum length: 20 characters"  )
             
             p_box = gtk.HBox()
-            p_label = gtk.Label('Passphrase:')
+            p_label = gtk.Label('Seed:')
             p_label.show()
             p_box.pack_start(p_label)
             p_entry = gtk.Entry()
@@ -59,17 +59,17 @@ def init_wallet(wallet):
             
             dialog.show()
             r = dialog.run()
-            passphrase = p_entry.get_text()
+            seed = p_entry.get_text()
             dialog.destroy()
             if r==gtk.RESPONSE_CANCEL: exit(1)
-            if len(passphrase) < 20:
-                print len(passphrase)
-                passphrase = None
+            if len(seed) < 20:
+                print len(seed)
+                seed = None
 
         # disable password during recovery
         # change_password_dialog(None, wallet)
 
-        wallet.passphrase = passphrase
+        wallet.seed = seed
 
         run_settings_dialog( None, wallet, True)
 
@@ -110,7 +110,7 @@ def settings_dialog(wallet, is_recover):
     gap_entry.connect('changed', numbify, True)
     gap_entry.show()
     gap.pack_start(gap_entry,False,False, 10)
-    add_help_button(gap, 'The maximum gap that is allowed between unused addresses in your wallet. During wallet recovery, this parameter is used to decide when to stop the recovery process. If you increase this value, you will need to remember it in order to be able to recover your wallet from passphrase.')
+    add_help_button(gap, 'The maximum gap that is allowed between unused addresses in your wallet. During wallet recovery, this parameter is used to decide when to stop the recovery process. If you increase this value, you will need to remember it in order to be able to recover your wallet from seed.')
     gap.show()
 
     host = gtk.HBox()
@@ -227,7 +227,7 @@ def change_password_dialog(button, wallet, icon):
         return
 
     try:
-        passphrase = wallet.pw_decode( wallet.passphrase, password)
+        seed = wallet.pw_decode( wallet.seed, password)
         private_keys = ast.literal_eval( wallet.pw_decode( wallet.private_keys, password) )
     except:
         show_message("Incorrect password")
@@ -238,7 +238,7 @@ def change_password_dialog(button, wallet, icon):
         return
 
     wallet.use_encryption = (new_password != '')
-    wallet.passphrase = wallet.pw_encode( passphrase, new_password)
+    wallet.seed = wallet.pw_encode( seed, new_password)
     wallet.private_keys = wallet.pw_encode( repr( private_keys ), new_password)
     wallet.save()
 
