@@ -39,79 +39,116 @@ def numbify(entry, is_int = False):
 def init_wallet(wallet):
 
     if not wallet.read():
-        seed = None
-        while not seed:
+
+        # ask if the user wants to create a new wallet, or recover from a seed. 
+        # if he wants to recover, and nothing is found, do not create wallet
+        dialog = gtk.Dialog("electrum", parent=None, 
+                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_NO_SEPARATOR, 
+                            buttons= ("create", 0, "restore",1, "cancel",2)  )
+
+        label = gtk.Label("Wallet file not found.\nDo you want to create a new wallet,\n or to restore an existing one?"  )
+        label.show()
+        dialog.vbox.pack_start(label)
+        dialog.show()
+        r = dialog.run()
+        dialog.destroy()
+        if r==2:
+            exit(1)
+        
+        is_recovery = (r==1)
+
+        if not is_recovery:
+
+            wallet.new_seed(None)
+
+            # ask for the server.
+            run_settings_dialog(wallet, is_create=True, is_recovery=False)
+
+            # generate first key
+            wallet.create_new_address(False, None)
+
+            # run a dialog indicating the seed, ask the user to remember it
             dialog = gtk.MessageDialog(
                 parent = None,
                 flags = gtk.DIALOG_MODAL, 
-                buttons = gtk.BUTTONS_OK_CANCEL, 
-                message_format = "Wallet not found. Please enter a seed to create or recover your wallet. Minimum length: 20 characters"  )
-            
-            p_box = gtk.HBox()
-            p_label = gtk.Label('Seed:')
-            p_label.show()
-            p_box.pack_start(p_label)
-            p_entry = gtk.Entry()
-            p_entry.show()
-            p_box.pack_start(p_entry)
-            p_box.show()
-            dialog.vbox.pack_start(p_box, False, True, 0)
-            
+                buttons = gtk.BUTTONS_OK, 
+                message_format = "Your secret seed is:\n"+ wallet.seed+ "\n\nPlease keep it in a safe place; if you lose it, you will not be able to restore your wallet." )
+
             dialog.show()
             r = dialog.run()
-            seed = p_entry.get_text()
+            dialog.destroy()
+            
+            #ask for password
+            change_password_dialog(wallet, None)
+
+        else:
+            # ask for the server, seed and gap.
+            run_settings_dialog(wallet, is_create=True, is_recovery=True)
+
+            dialog = gtk.MessageDialog(
+                parent = None,
+                flags = gtk.DIALOG_MODAL, 
+                buttons = gtk.BUTTONS_CANCEL, 
+                message_format = "Please wait..."  )
+            dialog.show()
+
+            def recover_thread( wallet, dialog, password ):
+                wallet.is_found = wallet.recover( password )
+                if wallet.is_found:
+                    wallet.save()
+                gobject.idle_add( dialog.destroy )
+
+            thread.start_new_thread( recover_thread, ( wallet, dialog, None ) ) # no password
+            r = dialog.run()
             dialog.destroy()
             if r==gtk.RESPONSE_CANCEL: exit(1)
-            if len(seed) < 20:
-                print len(seed)
-                seed = None
+            if not wallet.is_found:
+                show_message("No transactions found for this seed")
 
-        # disable password during recovery
-        # change_password_dialog(None, wallet)
 
-        wallet.seed = seed
+def settings_dialog(wallet, is_create,  is_recovery):
 
-        run_settings_dialog( None, wallet, True)
-
+    if is_create:
         dialog = gtk.MessageDialog(
             parent = None,
             flags = gtk.DIALOG_MODAL, 
-            buttons = gtk.BUTTONS_CANCEL, 
-            message_format = "Please wait..."  )
-        dialog.show()
+            buttons = gtk.BUTTONS_OK_CANCEL, 
+            message_format = "Please indicate the server and port number" if not is_recovery else 'Please enter the seed, the server and gap')
+    else:
+        dialog = gtk.Dialog("settings", parent=None, 
+                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_NO_SEPARATOR, 
+                            buttons= ("cancel", 0, "ok", 1) )
 
-        def recover_thread( wallet, dialog, password ):
-            wallet.recover( password )
-            wallet.save()
-            gobject.idle_add( dialog.destroy )
-
-        thread.start_new_thread( recover_thread, ( wallet, dialog, None ) ) # no password
-        r = dialog.run()
-        dialog.destroy()
-        if r==gtk.RESPONSE_CANCEL: exit(1)
-
-def settings_dialog(wallet, is_recover):
-
-    dialog = gtk.MessageDialog(
-        parent = None,
-        flags = gtk.DIALOG_MODAL, 
-        buttons = gtk.BUTTONS_OK_CANCEL, 
-        message_format = "Please indicate the server, and the gap limit if you are recovering a lost wallet." if is_recover else 'Settings')
-
+    vbox = dialog.vbox
     dialog.set_default_response(gtk.RESPONSE_OK)
 
-    gap = gtk.HBox()
-    gap_label = gtk.Label('Max. gap:')
-    gap_label.set_size_request(100,10)
-    gap_label.show()
-    gap.pack_start(gap_label,False, False, 10)
-    gap_entry = gtk.Entry()
-    gap_entry.set_text("%d"%wallet.gap_limit)
-    gap_entry.connect('changed', numbify, True)
-    gap_entry.show()
-    gap.pack_start(gap_entry,False,False, 10)
-    add_help_button(gap, 'The maximum gap that is allowed between unused addresses in your wallet. During wallet recovery, this parameter is used to decide when to stop the recovery process. If you increase this value, you will need to remember it in order to be able to recover your wallet from seed.')
-    gap.show()
+    if is_recovery:
+        # ask seed, server and gap in the same dialog
+            
+        seed_box = gtk.HBox()
+        seed_label = gtk.Label('Seed:')
+        seed_label.show()
+        seed_box.pack_start(seed_label)
+        seed_entry = gtk.Entry()
+        seed_entry.show()
+        seed_box.pack_start(seed_entry)
+        seed_box.show()
+        vbox.pack_start(seed_box, False, False, 5)    
+
+    if is_recovery or (not is_create):
+        gap = gtk.HBox()
+        gap_label = gtk.Label('Max. gap:')
+        gap_label.set_size_request(100,10)
+        gap_label.show()
+        gap.pack_start(gap_label,False, False, 10)
+        gap_entry = gtk.Entry()
+        gap_entry.set_text("%d"%wallet.gap_limit)
+        gap_entry.connect('changed', numbify, True)
+        gap_entry.show()
+        gap.pack_start(gap_entry,False,False, 10)
+        add_help_button(gap, 'The maximum gap that is allowed between unused addresses in your wallet. During wallet recovery, this parameter is used to decide when to stop the recovery process. If you increase this value, you will need to remember it in order to be able to recover your wallet from seed.')
+        gap.show()
+        vbox.pack_start(gap, False,False, 5)
 
     host = gtk.HBox()
     host_label = gtk.Label('Server:')
@@ -124,10 +161,11 @@ def settings_dialog(wallet, is_recover):
     host.pack_start(host_entry,False,False, 10)
     add_help_button(host, 'The name and port number of your Bitcoin server, separated by a colon. Example: ecdsa.org:50000')
     host.show()
+    vbox.pack_start(host, False,False, 5)
 
-    fee = gtk.HBox()
-    fee_entry = gtk.Entry()
-    if not is_recover:
+    if not is_create:
+        fee = gtk.HBox()
+        fee_entry = gtk.Entry()
         fee_label = gtk.Label('Tx. fee:')
         fee_label.set_size_request(100,10)
         fee_label.show()
@@ -138,33 +176,41 @@ def settings_dialog(wallet, is_recover):
         fee.pack_start(fee_entry,False,False, 10)
         add_help_button(fee, 'Transaction fee. Recommended value:0.005')
         fee.show()
+        vbox.pack_start(fee, False,False, 5)
+            
+    if not is_create:
+        return dialog, fee_entry, gap_entry, host_entry
+    elif is_recovery:
+        return dialog, seed_entry, gap_entry, host_entry
+    else:
+        return dialog, host_entry
 
-    vbox = dialog.vbox
-    vbox.pack_start(host, False,False, 5)
-    vbox.pack_start(gap, False,False, 5)
-    vbox.pack_start(fee, False, False, 5)    
-    return dialog, gap_entry, host_entry, fee_entry
 
+def run_settings_dialog( wallet, is_create, is_recovery):
 
-def run_settings_dialog( widget, wallet, is_recovery):
-    dialog, gap_entry, host_entry, fee_entry = settings_dialog(wallet, is_recovery)
+    if not is_create:
+        dialog, fee_entry, gap_entry, host_entry = settings_dialog(wallet, is_create, is_recovery)
+    elif is_recovery:
+        dialog, seed_entry, gap_entry, host_entry = settings_dialog(wallet, is_create, is_recovery)
+    else:
+        dialog, host_entry, = settings_dialog(wallet, is_create, is_recovery)
+
     dialog.show()
     r = dialog.run()
-    gap = gap_entry.get_text()
     hh = host_entry.get_text()
-    fee = fee_entry.get_text()
+    if is_recovery:
+        gap = gap_entry.get_text()
+        seed = seed_entry.get_text()
     dialog.destroy()
     if r==-6:
-        if is_recovery: 
-            exit(1)
-        else:
-            return
+        exit(1)
     try:
         a, b = hh.split(':')
-        wallet.gap_limit = int(gap)
         wallet.host = a
         wallet.port = int(b)
-        wallet.fee = float(fee)
+        if is_recovery:
+            wallet.seed = seed
+            wallet.gap_limit = int(gap)
     except:
         pass
 
@@ -205,9 +251,14 @@ def password_dialog():
     dialog.destroy()
     if result: return pw
 
-def change_password_dialog(button, wallet, icon):
-    dialog = gtk.MessageDialog( None, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, 
-                                'Your wallet is encrypted' if wallet.use_encryption else 'Your wallet is not encrypted')
+def change_password_dialog(wallet, icon):
+    if icon:
+        msg = 'Your wallet is encrypted' if wallet.use_encryption else 'Your wallet is not encrypted'
+    else:
+        msg = "Please choose a password to encrypt your wallet keys"
+
+    dialog = gtk.MessageDialog( None, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, msg)
+        
     if wallet.use_encryption:
         current_pw, current_pw_entry = password_line('Current password:')
         dialog.vbox.pack_start(current_pw, False, True, 0)
@@ -308,7 +359,7 @@ class BitcoinGUI:
         settings_icon.show()
 
         prefs_button = gtk.Button()
-        prefs_button.connect("clicked", run_settings_dialog, self.wallet, False)
+        prefs_button.connect("clicked", lambda x: run_settings_dialog(self.wallet, False, False) )
         prefs_button.add(settings_icon)
         prefs_button.set_tooltip_text("Settings")
         prefs_button.set_relief(gtk.RELIEF_NONE)
@@ -322,7 +373,7 @@ class BitcoinGUI:
         pw_icon.show()
 
         password_button = gtk.Button()
-        password_button.connect("clicked", change_password_dialog, self.wallet, pw_icon)
+        password_button.connect("clicked", lambda x: change_password_dialog(self.wallet, pw_icon))
         password_button.add(pw_icon)
         password_button.set_relief(gtk.RELIEF_NONE)
         password_button.show()

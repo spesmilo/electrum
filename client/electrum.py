@@ -171,8 +171,6 @@ oid_secp256k1 = (1,3,132,0,10)
 SECP256k1 = ecdsa.curves.Curve("SECP256k1", curve_secp256k1, generator_secp256k1, oid_secp256k1 ) 
 
 
-no_wallet_message = "Wallet file not found.\nPlease provide a seed and a password. The seed will be to generate Bitcoin addresses. It should be long and random, and nobody should be able to guess it. Memorize it, or write it down and keep it in a vault. The password will be used to encrypt your local wallet file. You will need to enter your password everytime you use your wallet. If you lose your password, you can still recover your wallet with the seed."
-
 def filter(s): 
     out = re.sub('( [^\n]*|)\n','',s)
     out = out.replace(' ','')
@@ -228,6 +226,7 @@ class Wallet:
         self.host = 'ecdsa.org'
         self.port = 50000
         self.fee = 0.005
+        self.version = 1
 
         # saved fields
         self.use_encryption = False
@@ -245,6 +244,10 @@ class Wallet:
         self.message = ''
         self.tx_history = {}
 
+    def new_seed(self, password):
+        seed = "%032x"%ecdsa.util.randrange( pow(2,128) )
+        self.seed = wallet.pw_encode( seed, password)
+
     def is_mine(self, address):
         return address in self.addresses
 
@@ -260,6 +263,10 @@ class Wallet:
 
     def create_new_address(self, for_change, password):
         seed = self.pw_decode( self.seed, password)
+        # strenghtening
+        for i in range(100000):
+            oldseed = seed
+            seed = hashlib.sha512(seed + oldseed).digest()
         i = len( self.addresses ) - len(self.change_addresses) if not for_change else len(self.change_addresses)
         seed = Hash( "%d:%d:"%(i,for_change) + seed )
         order = generator_secp256k1.order()
@@ -283,22 +290,29 @@ class Wallet:
 
     def recover(self, password):
         seed = self.pw_decode( self.seed, password)
+
         # todo: recover receiving addresses from tx
-        num_gap = 0
+        is_found = False
         while True:
             addr = self.create_new_address(True, password)
-            print "recovering", addr
-            if self.status[addr] is None: break
+            #print "recovering", addr
+            if self.status[addr] is not None: 
+                is_found = True
+            else:
+                break
 
         num_gap = 0
         while True:
             addr = self.create_new_address(False, password)
-            print "recovering", addr
+            #print "recovering", addr
             if self.status[addr] is None:
                 num_gap += 1
                 if num_gap == self.gap_limit: break
             else:
+                is_found = True
                 num_gap = 0
+
+        if not is_found: return False
 
         # remove limit-1 addresses. [ this is ok, because change addresses are at the beginning of the list]
         n = self.gap_limit
@@ -316,9 +330,10 @@ class Wallet:
                         self.addressbook.append(i)
         # redo labels
         self.update_tx_labels()
+        return True
 
     def save(self):
-        s = repr( (self.use_encryption, self.fee, self.host, self.blocks,
+        s = repr( (self.version, self.use_encryption, self.fee, self.host, self.blocks,
                    self.seed, self.addresses, self.private_keys, 
                    self.change_addresses, self.status, self.history, 
                    self.labels, self.addressbook) )
@@ -334,11 +349,13 @@ class Wallet:
         except:
             return False
         try:
-            (self.use_encryption, self.fee, self.host, self.blocks, 
+            sequence = ast.literal_eval( data )
+            (self.version, self.use_encryption, self.fee, self.host, self.blocks, 
              self.seed, self.addresses, self.private_keys, 
              self.change_addresses, self.status, self.history, 
-             self.labels, self.addressbook) = ast.literal_eval( data )
+             self.labels, self.addressbook) = sequence
         except:
+            if len(sequence) == 12: raise BaseException("version error.")
             return False
         self.update_tx_history()
         return True
@@ -572,6 +589,10 @@ class Wallet:
         return True, tx_hash
 
 
+    
+
+
+
 if __name__ == '__main__':
     try:
         cmd = sys.argv[1]
@@ -591,11 +612,7 @@ if __name__ == '__main__':
         gui.main()
 
     if not wallet.read():
-        print no_wallet_message
-        seed = raw_input("Enter seed: ")
-        if len(seed)<20:
-            print "Seed too short. Please at least 20 characters"
-            exit(1)
+
         if has_encryption:
             password = getpass.getpass("Password (hit return if you do not wish to encrypt your wallet):")
             if password:
@@ -607,26 +624,30 @@ if __name__ == '__main__':
             password = None
             print "in order to use wallet encryption, please install pycrypto  (sudo easy_install pycrypto)"
 
-        wallet.seed = wallet.pw_encode( seed, password)
-
-        print "server name and port number (default: ecdsa.org:50000)"
-        host = raw_input("server:")
-        if not host: host = 'ecdsa.org'
-
-        port = raw_input("port:")
-        if not port: port = 50000
-        else: port = int(port)
-
-        print "default fee for transactions (default 0.005)"
-        fee = raw_input("default fee:")
-        if not fee: fee = 0.005 
-
-        wallet.fee = fee
+        host = raw_input("server (default:ecdsa.org):")
+        port = raw_input("port (default:50000):")
+        fee = raw_input("fee (default 0.005):")
+        if fee: wallet.fee = float(fee)
+        if host: wallet.host = host
+        if port: wallet.port = int(port)
+        seed = raw_input("if you are restoring an existing wallet, enter the seed. otherwise just press enter: ")
         wallet.gap_limit = 5
-        wallet.host = host
-        wallet.port = port
-        wallet.recover(password)
-        wallet.save()
+        if seed:
+            gap = raw_input("gap limit (default 5):")
+            if gap: wallet.gap_limit = int(gap)
+            print "recovering wallet..."
+            r = wallet.recover(password)
+            if r:
+                print "recovery successful"
+                wallet.save()
+            else:
+                print "no wallet found"
+        else:
+            wallet.new_seed(None)
+            print "Your seed is", wallet.seed
+            print "Please store it safely"
+            # generate first key
+            wallet.create_new_address(False, None)
 
     wallet.new_session()
     wallet.update()
