@@ -633,6 +633,7 @@ if __name__ == '__main__':
         seed = raw_input("if you are restoring an existing wallet, enter the seed. otherwise just press enter: ")
         wallet.gap_limit = 5
         if seed:
+            wallet.seed = seed
             gap = raw_input("gap limit (default 5):")
             if gap: wallet.gap_limit = int(gap)
             print "recovering wallet..."
