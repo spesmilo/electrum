@@ -1919,7 +1919,6 @@ words = [
 
 
 n = 1626
-print len(words)
 
 # Note about US patent no 5892470: Here each word does not represent a given digit.
 # Instead, the digit represented by a word is variable, it depends on the previous word.
@@ -1947,13 +1946,13 @@ def mn_decode( wlist ):
     return out
 
 
-key = '6a8657c1f2566290be460fd51bb9f7fc'
+
 
 if __name__ == '__main__':
     import sys
-    a = key
-    ss = mn_encode(a)
-    print a
+    key = '6a8657c1f2566290be460fd51bb9f7fc'
+    ss = mn_encode(key)
+    print key
     print ss
     print mn_decode(ss)
 
