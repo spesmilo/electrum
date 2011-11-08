@@ -567,7 +567,7 @@ class Wallet:
 
 
 
-    def send(self, to_address, amount, label, password):
+    def send(self, to_address, amount, label, password, do_send):
         try:
             inputs, outputs = wallet.choose_inputs_outputs( to_address, amount, self.fee, password )
         except InvalidPassword:  return False, "Wrong password"
@@ -579,15 +579,18 @@ class Wallet:
         tx = raw_tx( s_inputs, outputs )
         tx = filter( tx )
         tx_hash = Hash(tx.decode('hex') )[::-1].encode('hex')
-        out = self.send_tx(tx)
-        if out != tx_hash:
-            return False, "error: hash mismatch"
+        if do_send:
+            out = self.send_tx(tx)
+            if out != tx_hash:
+                return False, "error: hash mismatch"
+        else:
+            out = tx
         if to_address not in self.addressbook:
             self.addressbook.append(to_address)
         if label: 
             wallet.labels[tx_hash] = label
         wallet.save()
-        return True, tx_hash
+        return True, out
 
 
     
@@ -600,7 +603,7 @@ if __name__ == '__main__':
     except:
         cmd = "gui"
 
-    known_commands = ['balance', 'sendtoaddress', 'password', 'getnewaddress', 'addresses', 'history', 'label', 'gui', 'all_addresses']
+    known_commands = ['balance', 'sendtoaddress', 'password', 'getnewaddress', 'addresses', 'history', 'label', 'gui', 'all_addresses', 'gentx']
     if cmd not in known_commands:
         print "Known commands:", ', '.join(known_commands)
         exit(0)
@@ -651,11 +654,12 @@ if __name__ == '__main__':
             # generate first key
             wallet.create_new_address(False, None)
 
-    wallet.new_session()
-    wallet.update()
-    wallet.save()
+    if cmd not in ['password', 'gentx', 'history', 'label']:
+        wallet.new_session()
+        wallet.update()
+        wallet.save()
 
-    if cmd in ['sendtoaddress', 'password', 'getnewaddress']:
+    if cmd in ['sendtoaddress', 'password', 'getnewaddress','gentx']:
         password = getpass.getpass('Password:') if wallet.use_encryption else None
 
     if cmd == 'balance':
@@ -707,7 +711,7 @@ if __name__ == '__main__':
         wallet.labels[tx] = label
         wallet.save()
             
-    elif cmd == 'sendtoaddress':
+    elif cmd in ['sendtoaddress', 'gentx']:
         try:
             to_address = sys.argv[2]
             amount = float(sys.argv[3])
@@ -715,7 +719,7 @@ if __name__ == '__main__':
         except:
             print "syntax: send <recipient> <amount> [label]"
             exit(1)
-        r, h = wallet.send( to_address, amount, label, password )
+        r, h = wallet.send( to_address, amount, label, password, cmd=='sendtoaddress' )
         print h 
 
     elif cmd == 'getnewaddress':

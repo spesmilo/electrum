@@ -542,7 +542,7 @@ class BitcoinGUI:
 
         password = password_dialog() if self.wallet.use_encryption else None
 
-        status, msg = self.wallet.send( to_address, amount, label, password )
+        status, msg = self.wallet.send( to_address, amount, label, password, True )
         if status:
             show_message( "payment sent.\n" + msg )
             payto_entry.set_text("")
