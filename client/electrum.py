@@ -355,8 +355,9 @@ class Wallet:
              self.change_addresses, self.status, self.history, 
              self.labels, self.addressbook) = sequence
         except:
-            if len(sequence) == 12: raise BaseException("version error.")
-            return False
+            if len(sequence) == 12: 
+                raise BaseException("version error.")
+                return False
         self.update_tx_history()
         return True
         

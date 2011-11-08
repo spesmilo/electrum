@@ -36,6 +36,26 @@ def numbify(entry, is_int = False):
     s = ''.join([i for i in text if i in '0123456789.'])
     entry.set_text(s)
 
+
+def show_seed_dialog(wallet, password):
+    import mnemonic
+    try:
+        seed = wallet.pw_decode( wallet.seed, password)
+        private_keys = ast.literal_eval( wallet.pw_decode( wallet.private_keys, password) )
+    except:
+        show_message("Incorrect password")
+        return
+    dialog = gtk.MessageDialog(
+        parent = None,
+        flags = gtk.DIALOG_MODAL, 
+        buttons = gtk.BUTTONS_OK, 
+        message_format = "Your wallet generation seed is:\n\n" + seed \
+            + "\n\nPlease keep it in a safe place; if you lose it, you will not be able to restore your wallet.\n\n" \
+            + "Your wallet seed can also be stored and recovered with the following mnemonic code:\n\n\"" + ' '.join(mnemonic.mn_encode(seed)) + "\"" )
+    dialog.show()
+    dialog.run()
+    dialog.destroy()
+
 def init_wallet(wallet):
 
     if not wallet.read():
@@ -68,15 +88,7 @@ def init_wallet(wallet):
             wallet.create_new_address(False, None)
 
             # run a dialog indicating the seed, ask the user to remember it
-            dialog = gtk.MessageDialog(
-                parent = None,
-                flags = gtk.DIALOG_MODAL, 
-                buttons = gtk.BUTTONS_OK, 
-                message_format = "Your secret seed is:\n"+ wallet.seed+ "\n\nPlease keep it in a safe place; if you lose it, you will not be able to restore your wallet." )
-
-            dialog.show()
-            r = dialog.run()
-            dialog.destroy()
+            show_seed_dialog(wallet, None)
             
             #ask for password
             change_password_dialog(wallet, None)
@@ -113,32 +125,33 @@ def settings_dialog(wallet, is_create,  is_recovery):
             parent = None,
             flags = gtk.DIALOG_MODAL, 
             buttons = gtk.BUTTONS_OK_CANCEL, 
-            message_format = "Please indicate the server and port number" if not is_recovery else 'Please enter the seed, the server and gap')
+            message_format = "Please indicate the server and port number" if not is_recovery else 'Please enter your wallet seed or the corresponding mnemonic list of words, the server and the gap limit')
     else:
-        dialog = gtk.Dialog("settings", parent=None, 
-                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_NO_SEPARATOR, 
-                            buttons= ("cancel", 0, "ok", 1) )
+        dialog = gtk.MessageDialog( None, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+                                    gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL,  "Settings")
+        dialog.get_image().set_visible(False)
 
     vbox = dialog.vbox
     dialog.set_default_response(gtk.RESPONSE_OK)
 
     if is_recovery:
         # ask seed, server and gap in the same dialog
-            
         seed_box = gtk.HBox()
-        seed_label = gtk.Label('Seed:')
+        seed_label = gtk.Label('Seed or mnemonic:')
+        seed_label.set_size_request(150,10)
         seed_label.show()
-        seed_box.pack_start(seed_label)
+        seed_box.pack_start(seed_label, False, False, 10)
         seed_entry = gtk.Entry()
         seed_entry.show()
-        seed_box.pack_start(seed_entry)
+        seed_box.pack_start(seed_entry, False, False, 10)
+        add_help_button(seed_box, '.')
         seed_box.show()
         vbox.pack_start(seed_box, False, False, 5)    
 
     if is_recovery or (not is_create):
         gap = gtk.HBox()
-        gap_label = gtk.Label('Max. gap:')
-        gap_label.set_size_request(100,10)
+        gap_label = gtk.Label('Gap limit:')
+        gap_label.set_size_request(150,10)
         gap_label.show()
         gap.pack_start(gap_label,False, False, 10)
         gap_entry = gtk.Entry()
@@ -152,7 +165,7 @@ def settings_dialog(wallet, is_create,  is_recovery):
 
     host = gtk.HBox()
     host_label = gtk.Label('Server:')
-    host_label.set_size_request(100,10)
+    host_label.set_size_request(150,10)
     host_label.show()
     host.pack_start(host_label,False, False, 10)
     host_entry = gtk.Entry()
@@ -201,9 +214,17 @@ def run_settings_dialog( wallet, is_create, is_recovery):
     if is_recovery:
         gap = gap_entry.get_text()
         seed = seed_entry.get_text()
+        try:
+            seed.decode('hex')
+        except:
+            import mnemonic
+            print "not hex, trying decode"
+            seed = mnemonic.mn_decode( seed.split(' ') )
     dialog.destroy()
-    if r==-6:
-        exit(1)
+    if r==gtk.RESPONSE_CANCEL:
+        if is_create: exit(1)
+        else: return
+
     try:
         a, b = hh.split(':')
         wallet.host = a
@@ -240,7 +261,7 @@ def password_line(label):
 
 def password_dialog():
     dialog = gtk.MessageDialog( None, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
-                                gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL,  "Your wallet is encrypted.")
+                                gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL,  "Please enter your password.")
     dialog.get_image().set_visible(False)
     current_pw, current_pw_entry = password_line('Password:')
     current_pw_entry.connect("activate", lambda entry, dialog, response: dialog.response(response), dialog, gtk.RESPONSE_OK)
@@ -253,12 +274,13 @@ def password_dialog():
 
 def change_password_dialog(wallet, icon):
     if icon:
-        msg = 'Your wallet is encrypted' if wallet.use_encryption else 'Your wallet is not encrypted'
+        msg = 'Your wallet is encrypted. Use this dialog to change the password. To disable wallet encryption, enter an empty new password.' if wallet.use_encryption else 'Your wallet keys are not encrypted'
     else:
         msg = "Please choose a password to encrypt your wallet keys"
 
     dialog = gtk.MessageDialog( None, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, msg)
         
+
     if wallet.use_encryption:
         current_pw, current_pw_entry = password_line('Current password:')
         dialog.vbox.pack_start(current_pw, False, True, 0)
@@ -335,14 +357,11 @@ class BitcoinGUI:
         self.create_send_tab()
         self.create_recv_tab()
         self.create_book_tab()
-
         #self.add_tab( make_settings_box( self.wallet, False), 'Preferences')
         self.create_about_tab()
-
         self.notebook.show()
         vbox.pack_start(self.notebook, True, True, 2)
         
-        # status bar for balance, connection, blocks
         self.status_bar = gtk.Statusbar()
         vbox.pack_start(self.status_bar, False, False, 0)
 
@@ -351,6 +370,19 @@ class BitcoinGUI:
         self.status_image.set_alignment(True, 0.5  )
         self.status_image.show()
         self.status_bar.pack_end(self.status_image, False, False)
+
+
+        def seedb(w, wallet):
+            if wallet.use_encryption:
+                password = password_dialog()
+                if not password: return
+            else: password = None
+            show_seed_dialog(wallet, password)
+        button = gtk.Button('S')
+        button.connect("clicked", seedb, wallet )
+        button.set_relief(gtk.RELIEF_NONE)
+        button.show()
+        self.status_bar.pack_end(button,False, False)
 
         settings_icon = gtk.Image()
         settings_icon.set_from_stock(gtk.STOCK_PREFERENCES, gtk.ICON_SIZE_MENU)
@@ -404,6 +436,9 @@ class BitcoinGUI:
                 while True:
                     try:
                         u = self.wallet.update()
+                    except socket.gaierror:
+                        self.error = "Not connected"
+                        break
                     except:
                         self.error = "Not connected"
                         print "error"
