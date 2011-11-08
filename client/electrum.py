@@ -231,7 +231,7 @@ class Wallet:
         # saved fields
         self.use_encryption = False
         self.addresses = []
-        self.seed = ''         # encrypted
+        self.seed = ''               # encrypted
         self.private_keys = repr([]) # encrypted
         self.change_addresses = []   # index of addresses used as change
         self.status = {}             # current status of addresses

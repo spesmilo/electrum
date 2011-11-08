@@ -180,7 +180,7 @@ def settings_dialog(wallet, is_create,  is_recovery):
         fee = gtk.HBox()
         fee_entry = gtk.Entry()
         fee_label = gtk.Label('Tx. fee:')
-        fee_label.set_size_request(100,10)
+        fee_label.set_size_request(150,10)
         fee_label.show()
         fee.pack_start(fee_label,False, False, 10)
         fee_entry.set_text("%f"%(wallet.fee))
