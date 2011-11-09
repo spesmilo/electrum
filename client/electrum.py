@@ -144,7 +144,7 @@ def ASecretToSecret(key):
 
 
 def int_to_hex(i, length=1):
-    s = hex(i)[2:]
+    s = hex(i)[2:].rstrip('L')
     s = "0"*(2*length - len(s)) + s
     return s.decode('hex')[::-1].encode('hex')
 
