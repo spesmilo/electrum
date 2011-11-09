@@ -1864,15 +1864,11 @@ def mn_decode( wlist ):
     return out
 
 
-
-
 if __name__ == '__main__':
     import sys
-    print len(words)
-    key = '6a8657c1f2566290be460fd51bb9f7fc'
-    ss = mn_encode(key)
-    print key
-    print ss
-    print mn_decode(ss)
-
-
+    if len( sys.argv ) == 1:
+        print 'I need arguments: a hex string to encode, or a list of words to decode'
+    elif len( sys.argv ) == 2:
+        print ' '.join(mn_encode(sys.argv[1]))
+    else:
+        print mn_decode(sys.argv[1:])
