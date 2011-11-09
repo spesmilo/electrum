@@ -333,7 +333,7 @@ class Wallet:
         return True
 
     def save(self):
-        s = repr( (self.version, self.use_encryption, self.fee, self.host, self.blocks,
+        s = repr( (self.version, self.use_encryption, self.fee, self.host, self.port, self.blocks,
                    self.seed, self.addresses, self.private_keys, 
                    self.change_addresses, self.status, self.history, 
                    self.labels, self.addressbook) )
@@ -350,14 +350,12 @@ class Wallet:
             return False
         try:
             sequence = ast.literal_eval( data )
-            (self.version, self.use_encryption, self.fee, self.host, self.blocks, 
+            (self.version, self.use_encryption, self.fee, self.host, self.port, self.blocks, 
              self.seed, self.addresses, self.private_keys, 
              self.change_addresses, self.status, self.history, 
              self.labels, self.addressbook) = sequence
         except:
-            if len(sequence) == 12: 
-                raise BaseException("version error.")
-                return False
+            raise BaseException("version error.")
         self.update_tx_history()
         return True
         
@@ -397,8 +395,9 @@ class Wallet:
 
     def request(self, request ):
         import urllib
+        use_http = self.port in [80,81]
 
-        if self.port == 80:
+        if use_http:
             request2 = urllib.urlencode({'q':request})
             request = "GET /electrum.php?" + request2 + " HTTP/1.0\r\n\r\n"
         else:
@@ -414,7 +413,7 @@ class Wallet:
             else: break
         s.close()
 
-        if self.port == 80:
+        if use_http:
             out = out.split('\r\n')[-1]
 
         return out
@@ -617,6 +616,7 @@ if __name__ == '__main__':
         gui.init_wallet(wallet)
         gui = gui.BitcoinGUI(wallet)
         gui.main()
+        wallet.save()
         exit(0)
 
     if not wallet.read():
