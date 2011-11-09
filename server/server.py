@@ -397,9 +397,7 @@ if __name__ == '__main__':
     args.connect_args = {"database":"abe"}
     store = MyStore(args)
 
-    #thread.start_new_thread(listen_thread, (store,))
-    listen_thread(store)
-    exit(0)
+    thread.start_new_thread(listen_thread, (store,))
 
     while True:
         try:
