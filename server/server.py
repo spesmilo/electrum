@@ -289,31 +289,42 @@ def listen_thread(store):
 
 
 def client_thread(ipaddr,conn):
+    print "client thread", ipaddr
     try:
         ipaddr = ipaddr[0]
         msg = ''
         while 1:
             d = conn.recv(1024)
-            if d: msg+=d
-            try:
-                cmd, data = ast.literal_eval(msg)
+            msg += d
+            if d[-1]=='#':
                 break
-            except:
-                continue
-        
+
+        print msg
+
+        try:
+            cmd, data = ast.literal_eval(msg[:-1])
+        except:
+            print "syntax error", repr(msg)
+            conn.close()
+            return
 
         if cmd=='b':
             out = "%d"%store.get_block_number(1)
 
-        elif cmd=='watch':
+        elif cmd=='session':
+            import random, string
+            session_id = ''.join(random.choice(string.ascii_uppercase + string.digits) for x in range(10))
+            print "new session", ipaddr, session_id
+
             addresses = ast.literal_eval(data)
-            sessions[ipaddr] = {}
+            sessions[session_id] = {}
             for a in addresses:
-                sessions[ipaddr][a] = ''
-            out = SERVER_MESSAGE
+                sessions[session_id][a] = ''
+            out = repr( (session_id, SERVER_MESSAGE) )
 
         elif cmd=='poll': 
-            addresses = sessions.get(ipaddr)
+            session_id = data
+            addresses = sessions.get(session_id)
             if not addresses:
                 print "session not found", ipaddr
                 out = repr( (-1, {}))
@@ -321,9 +332,9 @@ def client_thread(ipaddr,conn):
                 ret = {}
                 for addr in addresses:
                     status = store.get_status( addr )
-                    last_status = sessions[ipaddr].get( addr )
+                    last_status = sessions[session_id].get( addr )
                     if last_status != status:
-                        sessions[ipaddr][addr] = status
+                        sessions[session_id][addr] = status
                         ret[addr] = status
                 out = repr( (store.get_block_number(1), ret ) )
 
@@ -386,7 +397,9 @@ if __name__ == '__main__':
     args.connect_args = {"database":"abe"}
     store = MyStore(args)
 
-    thread.start_new_thread(listen_thread, (store,))
+    #thread.start_new_thread(listen_thread, (store,))
+    listen_thread(store)
+    exit(0)
 
     while True:
         try:

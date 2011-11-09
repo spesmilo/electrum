@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import sys, base64, os, re, hashlib, socket, getpass, copy, operator, urllib2, ast
+import sys, base64, os, re, hashlib, socket, getpass, copy, operator, ast
 
 try:
     import ecdsa  
@@ -396,24 +396,27 @@ class Wallet:
         return conf, unconf
 
     def request(self, request ):
+        import urllib
 
         if self.port == 80:
-            try:
-                out = urllib2.urlopen('http://'+self.host+'/q/tw', request, timeout=5).read()
-            except:
-                out = ''
+            request2 = urllib.urlencode({'q':request})
+            request = "GET /electrum.php?" + request2 + " HTTP/1.0\r\n\r\n"
         else:
-            s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
-            s.connect(( self.host, self.port))
-            s.send(request)
-            out = ''
-            while 1:
-                msg = s.recv(1024)
-                if msg: out += msg
-                else: break
-            s.close()
+            request += "#"
 
-        if re.match('[^:]\s*\(', out): out = ''
+        s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
+        s.connect(( self.host, self.port))
+        s.send( request )
+        out = ''
+        while 1:
+            msg = s.recv(1024)
+            if msg: out += msg
+            else: break
+        s.close()
+
+        if self.port == 80:
+            out = out.split('\r\n')[-1]
+
         return out
 
     def retrieve_message(self):
@@ -427,10 +430,10 @@ class Wallet:
         return ast.literal_eval( self.request( repr ( ('h', address ))) )
 
     def poll(self):
-        return ast.literal_eval( self.request( repr ( ('poll', '' ))))
+        return ast.literal_eval( self.request( repr ( ('poll', self.session_id ))))
 
     def new_session(self):
-        self.message = self.request( repr ( ('watch', repr(self.addresses) )))
+        self.session_id, self.message = ast.literal_eval( self.request( repr ( ('session', repr(self.addresses) ))))
         
     def update(self):
         blocks, changed_addresses = self.poll()
