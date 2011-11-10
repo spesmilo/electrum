@@ -18,6 +18,7 @@
 
 import datetime
 import thread, time, ast, sys
+import socket, traceback
 import pygtk
 pygtk.require('2.0')
 import gtk, gobject
@@ -351,6 +352,7 @@ class BitcoinGUI:
     def __init__(self, wallet):
         self.error = ''
         self.wallet = wallet
+        self.period = 5
 
         self.update_time = 0 
         self.window = MyWindow(gtk.WINDOW_TOPLEVEL)
@@ -433,17 +435,18 @@ class BitcoinGUI:
                 time.sleep(0.5)
 
         def update_wallet_thread():
-            import socket, traceback, sys
             while True:
                 try:
                     self.wallet.new_session()
                 except:
                     self.error = "Not connected"
-                    time.sleep(5)
+                    time.sleep(self.period)
                     continue
+
                 self.info.set_text( self.wallet.message)
 
                 while True:
+                    self.period = 15 if self.wallet.use_http() else 5
                     try:
                         u = self.wallet.update()
                     except socket.gaierror:
@@ -459,7 +462,7 @@ class BitcoinGUI:
                     if u:
                         self.wallet.save()
                         gobject.idle_add( self.update_history_tab )
-                    time.sleep(5)
+                    time.sleep(self.period)
                     
         thread.start_new_thread(update_wallet_thread, ())
         thread.start_new_thread(update_status_bar_thread, ())
@@ -745,9 +748,9 @@ class BitcoinGUI:
     def update_status_bar(self):
         c, u = self.wallet.get_balance()
         dt = time.time() - self.update_time
-        if dt < 15:
+        if dt < 2*self.period:
             self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
-            self.status_image.set_tooltip_text("Connected to %s.\n%d blocks"%(self.wallet.host, self.wallet.blocks))
+            self.status_image.set_tooltip_text("Connected to %s.\n%d blocks\nrequest time: %f"%(self.wallet.host, self.wallet.blocks, self.wallet.rtime))
         else:
             self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
             self.status_image.set_tooltip_text("Trying to contact %s.\n%d blocks"%(self.wallet.host, self.wallet.blocks))

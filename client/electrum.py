@@ -254,6 +254,7 @@ class Wallet:
         # not saved
         self.message = ''
         self.tx_history = {}
+        self.rtime = 0
 
     def new_seed(self, password):
         seed = "%032x"%ecdsa.util.randrange( pow(2,128) )
@@ -404,11 +405,14 @@ class Wallet:
             unconf += u
         return conf, unconf
 
+    def use_http(self): 
+        return self.port in [80,8080]
+
     def request(self, request ):
+        import time
+        t1 = time.time()
 
-        use_http = self.port in [80,8080]
-
-        if use_http:
+        if self.use_http():
             import httplib, urllib
             params = urllib.urlencode({'q':request})
             headers = {"Content-type": "application/x-www-form-urlencoded", "Accept": "text/plain"}
@@ -419,7 +423,6 @@ class Wallet:
                 out = response.read()
             else: out = ''
             conn.close()
-
         else:
             request += "#"
             s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
@@ -432,6 +435,7 @@ class Wallet:
                 else: break
             s.close()
 
+        self.rtime = time.time() - t1
         return out
 
     def retrieve_message(self):
