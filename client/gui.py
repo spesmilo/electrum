@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import datetime
-import thread, time, ast
+import thread, time, ast, sys
 import pygtk
 pygtk.require('2.0')
 import gtk, gobject
@@ -73,7 +73,7 @@ def init_wallet(wallet):
         r = dialog.run()
         dialog.destroy()
         if r==2:
-            exit(1)
+            sys.exit(1)
         
         is_recovery = (r==1)
 
@@ -113,7 +113,7 @@ def init_wallet(wallet):
             thread.start_new_thread( recover_thread, ( wallet, dialog, None ) ) # no password
             r = dialog.run()
             dialog.destroy()
-            if r==gtk.RESPONSE_CANCEL: exit(1)
+            if r==gtk.RESPONSE_CANCEL: sys.exit(1)
             if not wallet.is_found:
                 show_message("No transactions found for this seed")
 
@@ -223,7 +223,7 @@ def run_settings_dialog( wallet, is_create, is_recovery):
             seed = mnemonic.mn_decode( seed.split(' ') )
     dialog.destroy()
     if r==gtk.RESPONSE_CANCEL:
-        if is_create: exit(1)
+        if is_create: sys.exit(1)
         else: return
 
     try:
@@ -233,6 +233,7 @@ def run_settings_dialog( wallet, is_create, is_recovery):
         if is_recovery:
             wallet.seed = seed
             wallet.gap_limit = int(gap)
+        wallet.save()
     except:
         pass
 

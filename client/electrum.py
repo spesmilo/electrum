@@ -23,7 +23,7 @@ try:
     import ecdsa  
 except:
     print "python-ecdsa does not seem to be installed. Try 'sudo easy_install ecdsa'"
-    exit(1)
+    sys.exit(1)
 
 try:
     import Crypto
@@ -215,9 +215,20 @@ def raw_tx( inputs, outputs, for_sig = None ):
 class InvalidPassword(Exception):
     pass
 
-wallet_dir = os.environ["HOME"] + '/.bitcoin/'
+
+if "HOME" in os.environ:
+    wallet_dir = os.environ["HOME"] + '/.bitcoin/'
+elif "LOCALAPPDATA" in os.environ:
+    wallet_dir = os.environ["LOCALAPPDATA"] + '/Bitcoin/'
+elif "APPDATA" in os.environ:
+    wallet_dir = os.environ["APPDATA"] + '/Bitcoin/'
+else:
+    print "No home directory found in environment variables."
+    raise
+
 if not os.path.exists( wallet_dir ):
     os.mkdir( wallet_dir ) 
+
 wallet_path = wallet_dir + '/electrum.dat'
 
 class Wallet:
@@ -608,7 +619,7 @@ if __name__ == '__main__':
     known_commands = ['balance', 'sendtoaddress', 'password', 'getnewaddress', 'addresses', 'history', 'label', 'gui', 'all_addresses', 'gentx']
     if cmd not in known_commands:
         print "Known commands:", ', '.join(known_commands)
-        exit(0)
+        sys.exit(0)
 
     wallet = Wallet()
     if cmd=='gui':
@@ -617,7 +628,7 @@ if __name__ == '__main__':
         gui = gui.BitcoinGUI(wallet)
         gui.main()
         wallet.save()
-        exit(0)
+        sys.exit(0)
 
     if not wallet.read():
 
@@ -627,7 +638,7 @@ if __name__ == '__main__':
                 password2 = getpass.getpass("Confirm password:")
                 if password != password2:
                     print "error"
-                    exit(1)
+                    sys.exit(1)
         else:
             password = None
             print "in order to use wallet encryption, please install pycrypto  (sudo easy_install pycrypto)"
@@ -711,7 +722,7 @@ if __name__ == '__main__':
             label = ' '.join(sys.argv[3:])
         except:
             print "syntax:  label <tx_hash> <text>"
-            exit(1)
+            sys.exit(1)
         wallet.labels[tx] = label
         wallet.save()
             
@@ -722,7 +733,7 @@ if __name__ == '__main__':
             label = ' '.join(sys.argv[4:])
         except:
             print "syntax: send <recipient> <amount> [label]"
-            exit(1)
+            sys.exit(1)
         r, h = wallet.send( to_address, amount, label, password, cmd=='sendtoaddress' )
         print h 
 
@@ -739,7 +750,7 @@ if __name__ == '__main__':
             private_keys = ast.literal_eval( wallet.pw_decode( wallet.private_keys, password) )
         except:
             print "sorry"
-            exit(1)
+            sys.exit(1)
         new_password = getpass.getpass('New password:')
         if new_password == getpass.getpass('Confirm new password:'):
             wallet.use_encryption = (new_password != '')
