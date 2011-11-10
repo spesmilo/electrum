@@ -2,7 +2,7 @@
 from distutils.core import setup
 
 setup(name = "Electrum",
-    version = "0.2",
+    version = "0.21",
     description = "Lightweight Bitcoin Wallet",
     author = "thomasv",
     license = "GNU GPLv3",
