@@ -173,7 +173,7 @@ def settings_dialog(wallet, is_create,  is_recovery):
     host_entry.set_text(wallet.host+":%d"%wallet.port)
     host_entry.show()
     host.pack_start(host_entry,False,False, 10)
-    add_help_button(host, 'The name and port number of your Bitcoin server, separated by a colon. Example: ecdsa.org:50000')
+    add_help_button(host, 'The name and port number of your Bitcoin server, separated by a colon. Example: "ecdsa.org:50000". If no port number is provided, the http port 80 will be tried.')
     host.show()
     vbox.pack_start(host, False,False, 5)
 
@@ -227,15 +227,23 @@ def run_settings_dialog( wallet, is_create, is_recovery):
         else: return
 
     try:
-        a, b = hh.split(':')
-        wallet.host = a
-        wallet.port = int(b)
-        if is_recovery:
-            wallet.seed = seed
-            wallet.gap_limit = int(gap)
-        wallet.save()
+        if ':' in hh:
+            host, port = hh.split(':')
+            port = int(port)
+        else:
+            host = hh
+            port = 80
+        if is_recovery: gap = int(gap)
     except:
-        pass
+        show_message("error")
+        return
+
+    wallet.host = host
+    wallet.port = port
+    if is_recovery:
+        wallet.seed = seed
+        wallet.gap_limit = gap
+    wallet.save()
 
 
 def show_message(message):
