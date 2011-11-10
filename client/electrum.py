@@ -406,7 +406,7 @@ class Wallet:
 
     def request(self, request ):
 
-        use_http = self.port in [80,81]
+        use_http = self.port in [80,8080]
 
         if use_http:
             import httplib, urllib
