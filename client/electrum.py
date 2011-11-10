@@ -217,11 +217,11 @@ class InvalidPassword(Exception):
 
 
 if "HOME" in os.environ:
-    wallet_dir = os.environ["HOME"] + '/.bitcoin/'
+    wallet_dir = os.environ["HOME"] + '/.electrum/'
 elif "LOCALAPPDATA" in os.environ:
-    wallet_dir = os.environ["LOCALAPPDATA"] + '/Bitcoin/'
+    wallet_dir = os.environ["LOCALAPPDATA"] + '/Electrum/'
 elif "APPDATA" in os.environ:
-    wallet_dir = os.environ["APPDATA"] + '/Bitcoin/'
+    wallet_dir = os.environ["APPDATA"] + '/Electrum/'
 else:
     print "No home directory found in environment variables."
     raise
