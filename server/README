@@ -1,0 +1,27 @@
+Electrum - server for the Electrum client
+
+Licence: GNU GPL v3
+Author: thomasv@gitorious
+Language: Python
+
+Features: 
+
+* The server uses a patched version of the Bitcoin daemon that can
+forward transactions, and bitcoin-abe * The server code is open
+source. Anyone can run a server, removing single points of failure
+concerns.
+
+* The server knows which set of Bitcoin addresses belong to the same
+wallet, which might raise concerns about anonymity. However, it should
+be possible to write clients capable of using several servers.
+
+
+INSTALL
+
+1. patch and recompile the bitcoin daemon - bitcoinrpc.diff
+2. install bitcoin-abe : https://github.com/jtobey/bitcoin-abe
+3. install bitcoinrpc : https://gitorious.org/python-bitcoin
+     patch it too, see bitcoinrpc_connection.py.diff
+4. launch the server:  nohup python -u server.py > /var/log/electrum.log &
+
+5. if you have a webserver, you can use electrum.php to forward http requests to the server

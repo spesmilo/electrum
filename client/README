@@ -1,0 +1,36 @@
+Electrum - lightweight Bitcoin client
+
+Licence: GNU GPL v3
+Author: thomasv@gitorious
+Language: Python
+
+Features:
+
+* Encrypted wallet: the file that contains your bitcoins is protected with a password. You are protected from thieves.
+* Deterministic key generation: If you lose your wallet, you can recover it from its seed. You are protected from your own mistakes.
+* No blockchain download: the client requests blockchain information from a server. No delays, always up-to-date.
+* Transactions are signed locally: Your private keys are not shared with the server. You do not have to trust the server with your money.
+* Privacy: The server does not know you, it does not store user accounts. You are not tied to a particular server.
+* No single point of failure: The server code is open source, anyone can run a server.
+* Firewall friendly: The client does not need to open a port, it simply polls the server for updates.
+* Open Source: Anyone can audit the code.
+* Python. Very compact code, easy to contribute.
+
+
+
+INSTALL
+
+You need install pygtk, python-ecdsa and pycrypto
+
+* sudo easy_install ecdsa
+* sudo easy_install pycrypto
+
+
+RUN
+
+python electrum.py
+
+if arguments are passed in the line arguments, Electrum will run in text mode.
+example:
+
+python electrum.py balance
