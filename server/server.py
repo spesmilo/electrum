@@ -289,7 +289,7 @@ def listen_thread(store):
 
 
 def client_thread(ipaddr,conn):
-    print "client thread", ipaddr
+    #print "client thread", ipaddr
     try:
         ipaddr = ipaddr[0]
         msg = ''
@@ -299,7 +299,7 @@ def client_thread(ipaddr,conn):
             if d[-1]=='#':
                 break
 
-        print msg
+        #print msg
 
         try:
             cmd, data = ast.literal_eval(msg[:-1])
@@ -314,7 +314,7 @@ def client_thread(ipaddr,conn):
         elif cmd=='session':
             import random, string
             session_id = ''.join(random.choice(string.ascii_uppercase + string.digits) for x in range(10))
-            print "new session", ipaddr, session_id
+            print "new session", ipaddr, session_id, data
 
             addresses = ast.literal_eval(data)
             sessions[session_id] = {}
@@ -383,7 +383,7 @@ def memorypool_update(store):
             pass
         else:
             store.import_tx(tx, False)
-            print tx['hash'][::-1].encode('hex')
+            #print tx['hash'][::-1].encode('hex')
     store.commit()
 
 import traceback
@@ -398,6 +398,8 @@ if __name__ == '__main__':
     store = MyStore(args)
 
     thread.start_new_thread(listen_thread, (store,))
+    #listen_thread(store)
+    #exit(0)
 
     while True:
         try:
