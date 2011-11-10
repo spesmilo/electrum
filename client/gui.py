@@ -51,7 +51,7 @@ def show_seed_dialog(wallet, password):
         buttons = gtk.BUTTONS_OK, 
         message_format = "Your wallet generation seed is:\n\n" + seed \
             + "\n\nPlease keep it in a safe place; if you lose it, you will not be able to restore your wallet.\n\n" \
-            + "Your wallet seed can also be stored and recovered with the following mnemonic code:\n\n\"" + ' '.join(mnemonic.mn_encode(seed)) + "\"" )
+            + "Alternatively, your wallet seed can be stored and recovered with the following mnemonic code:\n\n\"" + ' '.join(mnemonic.mn_encode(seed)) + "\"" )
     dialog.show()
     dialog.run()
     dialog.destroy()
@@ -358,7 +358,7 @@ class BitcoinGUI:
         self.window.connect("destroy", gtk.main_quit)
         self.window.set_border_width(0)
         self.window.connect('mykeypress', gtk.main_quit)
-        self.window.set_default_size(650, 350)
+        self.window.set_default_size(670, 350)
 
         vbox = gtk.VBox()
 

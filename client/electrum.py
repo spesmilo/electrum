@@ -405,27 +405,32 @@ class Wallet:
         return conf, unconf
 
     def request(self, request ):
-        import urllib
+
         use_http = self.port in [80,81]
 
         if use_http:
-            request2 = urllib.urlencode({'q':request})
-            request = "GET /electrum.php?" + request2 + " HTTP/1.0\r\n\r\n"
+            import httplib, urllib
+            params = urllib.urlencode({'q':request})
+            headers = {"Content-type": "application/x-www-form-urlencoded", "Accept": "text/plain"}
+            conn = httplib.HTTPConnection(self.host)
+            conn.request("POST", "/electrum.php", params, headers)
+            response = conn.getresponse()
+            if response.status == 200:
+                out = response.read()
+            else: out = ''
+            conn.close()
+
         else:
             request += "#"
-
-        s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
-        s.connect(( self.host, self.port))
-        s.send( request )
-        out = ''
-        while 1:
-            msg = s.recv(1024)
-            if msg: out += msg
-            else: break
-        s.close()
-
-        if use_http:
-            out = out.split('\r\n')[-1]
+            s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
+            s.connect(( self.host, self.port))
+            s.send( request )
+            out = ''
+            while 1:
+                msg = s.recv(1024)
+                if msg: out += msg
+                else: break
+            s.close()
 
         return out
 
@@ -447,7 +452,7 @@ class Wallet:
         
     def update(self):
         blocks, changed_addresses = self.poll()
-        self.blocks = blocks
+        self.blocks = int(blocks)
         for addr, blk_hash in changed_addresses.items():
             if self.status[addr] != blk_hash:
                 print "updating history for", addr
