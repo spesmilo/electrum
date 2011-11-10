@@ -1,5 +1,5 @@
 <?
-   $query = $_GET['q']. "#";
+   $query = $_POST['q']. "#";
 
    $socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
    if ($socket === false) {
