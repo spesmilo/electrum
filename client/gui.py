@@ -264,6 +264,7 @@ def password_line(label):
     password_label.show()
     password.pack_start(password_label,False, False, 10)
     password_entry = gtk.Entry()
+    password_entry.set_size_request(300,-1)
     password_entry.set_visibility(False)
     password_entry.show()
     password.pack_start(password_entry,False,False, 10)
