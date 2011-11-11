@@ -21,16 +21,9 @@ Todo:
    * improve txpoint sorting
 """
 
-SERVER_MESSAGE = """
-Welcome to ecdsa.org.
-
-This service is free. Support this node: 
-19mP9FKrXqL46Si58pHdhGKow88SUPy1V8
-
-The server code is free software; you may 
-download it and operate your own Electrum 
-node. See http://ecdsa.org/electrum
-"""
+f = open('/etc/electrum.conf','r')
+SERVER_MESSAGE = f.read()
+f.close()
 
 
 
