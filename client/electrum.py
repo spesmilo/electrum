@@ -625,7 +625,7 @@ if __name__ == '__main__':
     except:
         cmd = "gui"
 
-    known_commands = ['balance', 'sendtoaddress', 'password', 'getnewaddress', 'addresses', 'history', 'label', 'gui', 'all_addresses', 'gentx']
+    known_commands = ['balance', 'contacts', 'send', 'sendtoaddress', 'password', 'getnewaddress', 'addresses', 'history', 'label', 'gui', 'all_addresses', 'gentx']
     if cmd not in known_commands:
         print "Known commands:", ', '.join(known_commands)
         sys.exit(0)
@@ -683,6 +683,17 @@ if __name__ == '__main__':
         wallet.update()
         wallet.save()
 
+    # check syntax
+    if cmd in ['sendtoaddress', 'sendto', 'gentx']:
+        try:
+            to_address = sys.argv[2]
+            amount = float(sys.argv[3])
+            label = ' '.join(sys.argv[4:])
+        except:
+            print "syntax: send <recipient> <amount> [label]"
+            sys.exit(1)
+
+    # password
     if cmd in ['sendtoaddress', 'password', 'getnewaddress','gentx']:
         password = getpass.getpass('Password:') if wallet.use_encryption else None
 
@@ -692,6 +703,10 @@ if __name__ == '__main__':
             print c*1e-8, u*1e-8
         else:
             print c*1e-8
+
+    elif cmd in [ 'contacts', 'addressbook']:
+        for addr in wallet.addressbook:
+            print addr, "   ", wallet.labels.get(addr)
 
     elif cmd in [ 'addresses', 'all_addresses']:
         for addr in wallet.addresses:
@@ -736,13 +751,11 @@ if __name__ == '__main__':
         wallet.save()
             
     elif cmd in ['sendtoaddress', 'gentx']:
-        try:
-            to_address = sys.argv[2]
-            amount = float(sys.argv[3])
-            label = ' '.join(sys.argv[4:])
-        except:
-            print "syntax: send <recipient> <amount> [label]"
-            sys.exit(1)
+        for k, v in wallet.labels.items():
+            if v == to_address:
+                to_address = k
+                break
+            print "alias", to_address
         r, h = wallet.send( to_address, amount, label, password, cmd=='sendtoaddress' )
         print h 
 
