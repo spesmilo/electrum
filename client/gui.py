@@ -536,7 +536,7 @@ class BitcoinGUI:
         #tv.set_cursor_visible(False)
         #page.pack_start(tv)
         #self.info = tv.get_buffer()
-        self.add_tab(page, 'Board')
+        self.add_tab(page, 'Wall')
 
     def do_send(self, w, data):
         payto_entry, label_entry, amount_entry = data
