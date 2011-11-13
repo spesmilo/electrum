@@ -625,7 +625,7 @@ if __name__ == '__main__':
     except:
         cmd = "gui"
 
-    known_commands = ['balance', 'contacts', 'send', 'sendtoaddress', 'password', 'getnewaddress', 'addresses', 'history', 'label', 'gui', 'all_addresses', 'gentx']
+    known_commands = ['balance', 'keys', 'contacts', 'send', 'sendtoaddress', 'password', 'getnewaddress', 'addresses', 'history', 'label', 'gui', 'all_addresses', 'gentx']
     if cmd not in known_commands:
         print "Known commands:", ', '.join(known_commands)
         sys.exit(0)
@@ -694,7 +694,7 @@ if __name__ == '__main__':
             sys.exit(1)
 
     # password
-    if cmd in ['sendtoaddress', 'password', 'getnewaddress','gentx']:
+    if cmd in ['sendtoaddress', 'password', 'getnewaddress','gentx','keys']:
         password = getpass.getpass('Password:') if wallet.use_encryption else None
 
     if cmd == 'balance':
@@ -708,9 +708,10 @@ if __name__ == '__main__':
         for addr in wallet.addressbook:
             print addr, "   ", wallet.labels.get(addr)
 
-    elif cmd in [ 'addresses', 'all_addresses']:
+    elif cmd in [ 'addresses', 'all_addresses','keys']:
+        if cmd=='keys': private_keys = ast.literal_eval( wallet.pw_decode( wallet.private_keys, password ) )
         for addr in wallet.addresses:
-            if cmd == 'all_addresses' or not wallet.is_change(addr):
+            if cmd in ['keys', 'all_addresses'] or not wallet.is_change(addr):
                 label = wallet.labels.get(addr) if not wallet.is_change(addr) else "[change]"
                 if label is None: label = ''
                 h = wallet.history.get(addr)
@@ -718,7 +719,8 @@ if __name__ == '__main__':
                 for item in h:
                     if item['is_in']:  ni += 1
                     else:              no += 1
-                print addr, no, ni, wallet.get_addr_balance(addr)[0]*1e-8, label
+                pk = private_keys[wallet.addresses.index(addr)] if cmd=='keys' else ''
+                print addr, pk, no, ni, wallet.get_addr_balance(addr)[0]*1e-8, label
 
     if cmd == 'history':
         lines = wallet.get_tx_history()
