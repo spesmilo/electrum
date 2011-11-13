@@ -718,11 +718,20 @@ class BitcoinGUI:
 
         button = gtk.Button("Copy to clipboard")
         def copy2clipboard(w, treeview, liststore):
+            import platform
             path, col =  treeview.get_cursor()
             if path:
                 address =  liststore.get_value( liststore.get_iter(path), 0)
-                c = gtk.clipboard_get()
-                c.set_text( address )
+                if platform.system() == 'Windows':
+                    from Tkinter import Tk
+                    r = Tk()
+                    r.withdraw()
+                    r.clipboard_clear()
+                    r.clipboard_append( address )
+                    r.destroy()
+                else:
+                    c = gtk.clipboard_get()
+                    c.set_text( address )
         button.connect("clicked", copy2clipboard, treeview, liststore)
         button.show()
         hbox.pack_start(button,False)
