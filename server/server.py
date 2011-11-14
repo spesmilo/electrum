@@ -323,7 +323,6 @@ def client_thread(ipaddr,conn):
 
             print time.asctime(), "session", ipaddr, session_id, addresses[0], len(addresses)
 
-            clean_sessions()
             sessions[session_id] = {}
             for a in addresses:
                 sessions[session_id][a] = ''
@@ -352,6 +351,9 @@ def client_thread(ipaddr,conn):
             addr = data
             h = store.get_txpoints( addr )
             out = repr(h)
+
+        elif cmd == 'load': 
+            out = repr( len(sessions) )
 
         elif cmd =='tx':        
             # transaction
@@ -398,13 +400,15 @@ def memorypool_update(store):
 
 
 
-def clean_sessions():
-    t = time.time()
-    for k,t0 in sessions_last_time.items():
-        if t - t0 > 60:
-            print "lost session",k
-            sessions.pop(k)
-            sessions_last_time.pop(k)
+def clean_session_thread():
+    while 1:
+        time.sleep(30)
+        t = time.time()
+        for k,t0 in sessions_last_time.items():
+            if t - t0 > 60:
+                print "lost session",k
+                sessions.pop(k)
+                sessions_last_time.pop(k)
             
 
 
@@ -412,6 +416,22 @@ import traceback
 
 
 if __name__ == '__main__':
+
+    if len(sys.argv)>1:
+        request = sys.argv[1]
+        request += "#"
+        s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
+        s.connect(( HOST, PORT))
+        s.send( request )
+        out = ''
+        while 1:
+            msg = s.recv(1024)
+            if msg: out += msg
+            else: break
+        s.close()
+        print out
+        sys.exit(0)
+
 
     print "starting Electrum server"
     conf = DataStore.CONFIG_DEFAULTS
@@ -421,6 +441,7 @@ if __name__ == '__main__':
     store = MyStore(args)
 
     thread.start_new_thread(listen_thread, (store,))
+    thread.start_new_thread(clean_session_thread, ())
 
     while True:
         try:
