@@ -286,7 +286,7 @@ class Wallet:
         for i in range(100000):
             oldseed = seed
             seed = hashlib.sha512(seed + oldseed).digest()
-        i = len( self.addresses )
+        i = len( self.addresses ) - len(self.change_addresses) if not for_change else len(self.change_addresses)
         seed = Hash( "%d:%d:"%(i,for_change) + seed )
         order = generator_secp256k1.order()
         secexp = ecdsa.util.randrange_from_seed__trytryagain( seed, order )
@@ -301,7 +301,7 @@ class Wallet:
             raise InvalidPassword("")
         self.private_keys = self.pw_encode( repr(private_keys), password)
         self.addresses.append(address)
-        if for_change: self.change_addresses.append( i )
+        if for_change: self.change_addresses.append( len(self.addresses) - 1 )
         h = self.retrieve_history(address)
         self.history[address] = h
         self.status[address] = h[-1]['blk_hash'] if h else None
