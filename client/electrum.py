@@ -463,6 +463,7 @@ class Wallet:
         
     def update(self):
         blocks, changed_addresses = self.poll()
+        if blocks == -1: raise BaseException("session not found")
         self.blocks = int(blocks)
         for addr, blk_hash in changed_addresses.items():
             if self.status[addr] != blk_hash:
