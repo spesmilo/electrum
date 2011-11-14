@@ -216,23 +216,10 @@ class InvalidPassword(Exception):
     pass
 
 
-if "HOME" in os.environ:
-    wallet_dir = os.path.join( os.environ["HOME"], '.electrum')
-elif "LOCALAPPDATA" in os.environ:
-    wallet_dir = os.path.join( os.environ["LOCALAPPDATA"], 'Electrum' )
-elif "APPDATA" in os.environ:
-    wallet_dir = os.path.join( os.environ["APPDATA"],  'Electrum' )
-else:
-    print "No home directory found in environment variables."
-    raise
-
-if not os.path.exists( wallet_dir ):
-    os.mkdir( wallet_dir ) 
-
-wallet_path = os.path.join( wallet_dir, 'electrum.dat')
 
 class Wallet:
-    def __init__(self):
+    def __init__(self, wallet_dir):
+
         self.gap_limit = 5           # configuration
         self.host = 'ecdsa.org'
         self.port = 50000
@@ -255,6 +242,26 @@ class Wallet:
         self.message = ''
         self.tx_history = {}
         self.rtime = 0
+
+        self.init_path(wallet_dir)
+
+
+    def init_path(self, wallet_dir):
+        if wallet_dir is None:
+            if "HOME" in os.environ:
+                wallet_dir = os.path.join( os.environ["HOME"], '.electrum')
+            elif "LOCALAPPDATA" in os.environ:
+                wallet_dir = os.path.join( os.environ["LOCALAPPDATA"], 'Electrum' )
+            elif "APPDATA" in os.environ:
+                wallet_dir = os.path.join( os.environ["APPDATA"],  'Electrum' )
+            else:
+                print "No home directory found in environment variables."
+                raise
+
+        if not os.path.exists( wallet_dir ):
+            os.mkdir( wallet_dir ) 
+
+        self.path = os.path.join( wallet_dir, 'electrum.dat')
 
     def new_seed(self, password):
         seed = "%032x"%ecdsa.util.randrange( pow(2,128) )
@@ -279,7 +286,7 @@ class Wallet:
         for i in range(100000):
             oldseed = seed
             seed = hashlib.sha512(seed + oldseed).digest()
-        i = len( self.addresses ) - len(self.change_addresses) if not for_change else len(self.change_addresses)
+        i = len( self.addresses )
         seed = Hash( "%d:%d:"%(i,for_change) + seed )
         order = generator_secp256k1.order()
         secexp = ecdsa.util.randrange_from_seed__trytryagain( seed, order )
@@ -349,13 +356,13 @@ class Wallet:
                    self.seed, self.addresses, self.private_keys, 
                    self.change_addresses, self.status, self.history, 
                    self.labels, self.addressbook) )
-        f = open(wallet_path,"w")
+        f = open(self.path,"w")
         f.write(s)
         f.close()
 
     def read(self):
         try:
-            f = open(wallet_path,"r")
+            f = open(self.path,"r")
             data = f.read()
             f.close()
         except:
@@ -589,9 +596,10 @@ class Wallet:
 
 
 
-    def send(self, to_address, amount, label, password, do_send):
+    def send(self, to_address, amount, label, password, do_send, fee=None):
+        if fee is None: fee = self.fee
         try:
-            inputs, outputs = wallet.choose_inputs_outputs( to_address, amount, self.fee, password )
+            inputs, outputs = wallet.choose_inputs_outputs( to_address, amount, fee, password )
         except InvalidPassword:  return False, "Wrong password"
         if not inputs:  return False, "Not enough funds"
         try:
@@ -619,18 +627,31 @@ class Wallet:
 
 
 
+from optparse import OptionParser
+
 if __name__ == '__main__':
+    known_commands = ['balance', 'contacts', 'sendto', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed']
+
+    usage = "usage: %prog [options] command args\nCommands: "+ (', '.join(known_commands))
+
+    parser = OptionParser(usage=usage)
+    parser.add_option("-d", "--dir", dest="wallet_dir", help="wallet directory")
+    parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
+    parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance at listed addresses")
+    parser.add_option("-k", "--keys",action="store_true", dest="show_keys",default=False, help="show the private keys of listed addresses")
+    parser.add_option("-f", "--fee", dest="tx_fee", default=0.005, help="set tx fee")
+    options, args = parser.parse_args()
     try:
-        cmd = sys.argv[1]
+        cmd = args[0]
     except:
         cmd = "gui"
 
-    known_commands = ['balance', 'keys', 'contacts', 'send', 'sendtoaddress', 'password', 'getnewaddress', 'addresses', 'history', 'label', 'gui', 'all_addresses', 'gentx']
     if cmd not in known_commands:
         print "Known commands:", ', '.join(known_commands)
         sys.exit(0)
 
-    wallet = Wallet()
+    wallet = Wallet(options.wallet_dir)
+
     if cmd=='gui':
         import gui
         gui.init_wallet(wallet)
@@ -678,24 +699,29 @@ if __name__ == '__main__':
             # generate first key
             wallet.create_new_address(False, None)
 
-    if cmd not in ['password', 'gentx', 'history', 'label']:
+    # check syntax
+    if cmd in ['sendto', 'mktx']:
+        try:
+            to_address = args[1]
+            amount = float(args[2])
+            label = ' '.join(args[3:])
+        except:
+            print "syntax: sendto <recipient> <amount> [label]"
+            sys.exit(1)
+
+    # open session
+    if cmd not in ['password', 'mktx', 'history', 'label','contacts']:
         wallet.new_session()
         wallet.update()
         wallet.save()
 
-    # check syntax
-    if cmd in ['sendtoaddress', 'sendto', 'gentx']:
-        try:
-            to_address = sys.argv[2]
-            amount = float(sys.argv[3])
-            label = ' '.join(sys.argv[4:])
-        except:
-            print "syntax: send <recipient> <amount> [label]"
-            sys.exit(1)
-
-    # password
-    if cmd in ['sendtoaddress', 'password', 'getnewaddress','gentx','keys']:
+    # commands needing password
+    if cmd in ['sendto', 'password', 'newaddress','mktx','seed'] or ( cmd=='addresses' and options.show_keys):
         password = getpass.getpass('Password:') if wallet.use_encryption else None
+
+    if cmd == 'seed':
+        import mnemonic
+        print wallet.seed, '"'+' '.join(mnemonic.mn_encode(wallet.seed))+'"'
 
     if cmd == 'balance':
         c, u = wallet.get_balance()
@@ -704,23 +730,26 @@ if __name__ == '__main__':
         else:
             print c*1e-8
 
-    elif cmd in [ 'contacts', 'addressbook']:
+    elif cmd in [ 'contacts']:
         for addr in wallet.addressbook:
             print addr, "   ", wallet.labels.get(addr)
 
-    elif cmd in [ 'addresses', 'all_addresses','keys']:
-        if cmd=='keys': private_keys = ast.literal_eval( wallet.pw_decode( wallet.private_keys, password ) )
+    elif cmd in [ 'addresses']:
+        if options.show_keys: private_keys = ast.literal_eval( wallet.pw_decode( wallet.private_keys, password ) )
         for addr in wallet.addresses:
-            if cmd in ['keys', 'all_addresses'] or not wallet.is_change(addr):
+            if options.show_all or not wallet.is_change(addr):
                 label = wallet.labels.get(addr) if not wallet.is_change(addr) else "[change]"
                 if label is None: label = ''
-                h = wallet.history.get(addr)
-                ni = no = 0
-                for item in h:
-                    if item['is_in']:  ni += 1
-                    else:              no += 1
-                pk = private_keys[wallet.addresses.index(addr)] if cmd=='keys' else ''
-                print addr, pk, no, ni, wallet.get_addr_balance(addr)[0]*1e-8, label
+                if options.show_balance:
+                    h = wallet.history.get(addr)
+                    ni = no = 0
+                    for item in h:
+                        if item['is_in']:  ni += 1
+                        else:              no += 1
+                    b = "%d %d %f"%(no, ni, wallet.get_addr_balance(addr)[0]*1e-8)
+                else: b=''
+                pk = private_keys[wallet.addresses.index(addr)] if options.show_keys else ''
+                print addr, pk, b, label
 
     if cmd == 'history':
         lines = wallet.get_tx_history()
@@ -744,24 +773,24 @@ if __name__ == '__main__':
 
     elif cmd == 'label':
         try:
-            tx = sys.argv[2]
-            label = ' '.join(sys.argv[3:])
+            tx = args[1]
+            label = ' '.join(args[2:])
         except:
             print "syntax:  label <tx_hash> <text>"
             sys.exit(1)
         wallet.labels[tx] = label
         wallet.save()
             
-    elif cmd in ['sendtoaddress', 'gentx']:
+    elif cmd in ['sendto', 'mktx']:
         for k, v in wallet.labels.items():
             if v == to_address:
                 to_address = k
                 break
             print "alias", to_address
-        r, h = wallet.send( to_address, amount, label, password, cmd=='sendtoaddress' )
+        r, h = wallet.send( to_address, amount, label, password, cmd=='sendto', fee=options.tx_fee )
         print h 
 
-    elif cmd == 'getnewaddress':
+    elif cmd == 'newaddress':
         a = wallet.get_new_address()
         if a: 
             print a
