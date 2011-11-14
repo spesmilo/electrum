@@ -44,6 +44,7 @@ except:
 
 
 sessions = {}
+sessions_last_time = {}
 dblock = thread.allocate_lock()
 
 
@@ -322,10 +323,12 @@ def client_thread(ipaddr,conn):
 
             print time.asctime(), "session", ipaddr, session_id, addresses[0], len(addresses)
 
+            clean_sessions()
             sessions[session_id] = {}
             for a in addresses:
                 sessions[session_id][a] = ''
             out = repr( (session_id, SERVER_MESSAGE) )
+            sessions_last_time[session_id] = time.time()
 
         elif cmd=='poll': 
             session_id = data
@@ -334,6 +337,7 @@ def client_thread(ipaddr,conn):
                 print "session not found", ipaddr
                 out = repr( (-1, {}))
             else:
+                sessions_last_time[session_id] = time.time()
                 ret = {}
                 for addr in addresses:
                     status = store.get_status( addr )
@@ -391,6 +395,19 @@ def memorypool_update(store):
             #print tx['hash'][::-1].encode('hex')
     store.commit()
 
+
+
+
+def clean_sessions():
+    t = time.time()
+    for k,t0 in sessions_last_time.items():
+        if t - t0 > 60:
+            print "lost session",k
+            sessions.pop(k)
+            sessions_last_time.pop(k)
+            
+
+
 import traceback
 
 
@@ -404,8 +421,6 @@ if __name__ == '__main__':
     store = MyStore(args)
 
     thread.start_new_thread(listen_thread, (store,))
-    #listen_thread(store)
-    #exit(0)
 
     while True:
         try:
