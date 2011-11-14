@@ -21,20 +21,26 @@ Todo:
    * improve txpoint sorting
 """
 
-f = open('/etc/electrum.conf','r')
-SERVER_MESSAGE = f.read()
-f.close()
-
-
 
 import time, socket, operator, thread, ast, sys
-
 import psycopg2, binascii
 import bitcoinrpc
 
 from Abe.abe import hash_to_address, decode_check_address
 from Abe.DataStore import DataStore as Datastore_class
 from Abe import DataStore, readconf, BCDataStream,  deserialize, util, base58
+
+try:
+    f = open('/etc/electrum.conf','r')
+    data = f.read()
+    f.close()
+    HOST, PORT, SERVER_MESSAGE = ast.literal_eval(data)
+except:
+    print "could not read /etc/electrum.conf"
+    SERVER_MESSAGE = "Welcome to Electrum"
+    HOST = 'ecdsa.org'
+    PORT = 50000
+
 
 
 sessions = {}
@@ -274,7 +280,7 @@ def listen_thread(store):
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind(('ecdsa.org', 50000))
+    s.bind((HOST, PORT))
     s.listen(1)
     while True:
         conn, addr = s.accept()
@@ -307,9 +313,15 @@ def client_thread(ipaddr,conn):
         elif cmd=='session':
             import random, string
             session_id = ''.join(random.choice(string.ascii_uppercase + string.digits) for x in range(10))
-            print "new session", ipaddr, session_id, data
+            try:
+                addresses = ast.literal_eval(data)
+            except:
+                print "error"
+                conn.close()
+                return
 
-            addresses = ast.literal_eval(data)
+            print time.asctime(), "session", ipaddr, session_id, addresses[0], len(addresses)
+
             sessions[session_id] = {}
             for a in addresses:
                 sessions[session_id][a] = ''
@@ -384,6 +396,7 @@ import traceback
 
 if __name__ == '__main__':
 
+    print "starting Electrum server"
     conf = DataStore.CONFIG_DEFAULTS
     args, argv = readconf.parse_argv( [], conf)
     args.dbtype='psycopg2'
@@ -402,5 +415,6 @@ if __name__ == '__main__':
             dblock.release()
         except:
             traceback.print_exc(file=sys.stdout)
+            print "continuing..."
         time.sleep(10)
 
