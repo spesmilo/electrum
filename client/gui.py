@@ -760,7 +760,7 @@ class BitcoinGUI:
         dt = time.time() - self.update_time
         if dt < 2*self.period:
             self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
-            self.status_image.set_tooltip_text("Connected to %s.\n%d blocks\nrequest time: %f"%(self.wallet.host, self.wallet.blocks, self.wallet.rtime))
+            self.status_image.set_tooltip_text("Connected to %s.\n%d blocks\nresponse time: %f"%(self.wallet.host, self.wallet.blocks, self.wallet.rtime))
         else:
             self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
             self.status_image.set_tooltip_text("Trying to contact %s.\n%d blocks"%(self.wallet.host, self.wallet.blocks))

@@ -217,11 +217,11 @@ class InvalidPassword(Exception):
 
 
 if "HOME" in os.environ:
-    wallet_dir = os.environ["HOME"] + '/.electrum/'
+    wallet_dir = os.path.join( os.environ["HOME"], '.electrum')
 elif "LOCALAPPDATA" in os.environ:
-    wallet_dir = os.environ["LOCALAPPDATA"] + '/Electrum/'
+    wallet_dir = os.path.join( os.environ["LOCALAPPDATA"], 'Electrum' )
 elif "APPDATA" in os.environ:
-    wallet_dir = os.environ["APPDATA"] + '/Electrum/'
+    wallet_dir = os.path.join( os.environ["APPDATA"],  'Electrum' )
 else:
     print "No home directory found in environment variables."
     raise
@@ -229,7 +229,7 @@ else:
 if not os.path.exists( wallet_dir ):
     os.mkdir( wallet_dir ) 
 
-wallet_path = wallet_dir + '/electrum.dat'
+wallet_path = os.path.join( wallet_dir, 'electrum.dat')
 
 class Wallet:
     def __init__(self):
