@@ -705,6 +705,7 @@ if __name__ == '__main__':
             to_address = args[1]
             amount = float(args[2])
             label = ' '.join(args[3:])
+            if options.tx_fee: options.tx_fee = float(options.tx_fee)
         except:
             print "syntax: sendto <recipient> <amount> [label]"
             sys.exit(1)
@@ -787,7 +788,7 @@ if __name__ == '__main__':
                 to_address = k
                 break
             print "alias", to_address
-        r, h = wallet.send( to_address, amount, label, password, cmd=='sendto', fee=options.tx_fee )
+        r, h = wallet.send( to_address, amount, label, password, cmd=='sendto', fee = options.tx_fee )
         print h 
 
     elif cmd == 'newaddress':
