@@ -557,6 +557,7 @@ class BitcoinGUI:
         password = password_dialog() if self.wallet.use_encryption else None
 
         status, msg = self.wallet.send( to_address, amount, label, password, True )
+        self.wallet.new_session() # we created a new change address
         if status:
             show_message( "payment sent.\n" + msg )
             payto_entry.set_text("")
@@ -875,6 +876,7 @@ class BitcoinGUI:
         else:
                 password = password_dialog() if self.wallet.use_encryption else None
                 success, ret = self.wallet.get_new_address(password)
+                self.wallet.new_session() # we created a new address
                 if success:
                     address = ret
                     #if label:  self.wallet.labels[address] = label
