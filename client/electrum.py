@@ -665,8 +665,8 @@ if __name__ == '__main__':
         sys.exit(0)
 
     if not wallet.read() and cmd != 'help':
-        print "wallet not found."
-        print "type 'electrum.py create' to create a wallet, or provide the path to your wallet with the -d option"
+        print "Wallet file not found."
+        print "Type 'electrum.py create' to create a new wallet, or provide a path to a wallet with the -d option"
         sys.exit(0)
     
     if cmd == 'create':
