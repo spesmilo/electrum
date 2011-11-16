@@ -605,6 +605,12 @@ class Wallet:
         except InvalidPassword:
             return False, "Wrong password"
         tx = filter( raw_tx( s_inputs, outputs ) )
+        if to_address not in self.addressbook:
+            self.addressbook.append(to_address)
+        if label: 
+            tx_hash = Hash(tx.decode('hex') )[::-1].encode('hex')
+            wallet.labels[tx_hash] = label
+        wallet.save()
         return True, tx
 
     def sendtx(self, tx):
@@ -612,11 +618,6 @@ class Wallet:
         out = self.send_tx(tx)
         if out != tx_hash:
             return False, "error: " + out
-        if to_address not in self.addressbook:
-            self.addressbook.append(to_address)
-        if label: 
-            wallet.labels[tx_hash] = label
-        wallet.save()
         return True, out
 
 
