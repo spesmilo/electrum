@@ -631,7 +631,7 @@ class Wallet:
 from optparse import OptionParser
 
 if __name__ == '__main__':
-    known_commands = ['balance', 'contacts', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed']
+    known_commands = ['help', 'balance', 'contacts', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed']
 
     usage = "usage: %prog [options] command args\nCommands: "+ (', '.join(known_commands))
 
@@ -646,10 +646,13 @@ if __name__ == '__main__':
         cmd = args[0]
     except:
         cmd = "gui"
+    try:
+        firstarg = args[1]
+    except:
+        firstarg = ''
 
     if cmd not in known_commands:
-        print "Known commands:", ', '.join(known_commands)
-        sys.exit(0)
+        cmd = 'help'
 
     wallet = Wallet(options.wallet_dir)
 
@@ -662,7 +665,7 @@ if __name__ == '__main__':
         sys.exit(0)
 
     if not wallet.read():
-
+        print "wallet not found"
         if has_encryption:
             password = getpass.getpass("Password (hit return if you do not wish to encrypt your wallet):")
             if password:
@@ -708,11 +711,11 @@ if __name__ == '__main__':
             label = ' '.join(args[3:])
             if options.tx_fee: options.tx_fee = float(options.tx_fee)
         except:
-            print "syntax: payto <recipient> <amount> [label]"
-            sys.exit(1)
+            firstarg = cmd
+            cmd = 'help'
 
     # open session
-    if cmd not in ['password', 'mktx', 'history', 'label','contacts']:
+    if cmd not in ['password', 'mktx', 'history', 'label','contacts','help']:
         wallet.new_session()
         wallet.update()
         wallet.save()
@@ -721,7 +724,41 @@ if __name__ == '__main__':
     if cmd in ['payto', 'password', 'newaddress','mktx','seed'] or ( cmd=='addresses' and options.show_keys):
         password = getpass.getpass('Password:') if wallet.use_encryption else None
 
-    if cmd == 'seed':
+    if cmd=='help':
+        cmd2 = firstarg
+        if cmd2 not in known_commands:
+            print "known commands:", ', '.join(known_commands)
+            print "help <command> shows the help on a specific command"
+        elif cmd2 == 'balance':
+            print "display the balance of your wallet"
+        elif cmd2 == 'contacts':
+            print "show your list of contacts"
+        elif cmd2 == 'payto':
+            print "payto <recipient> <amount> [label]"
+            print "create and broadcast a transaction."
+            print "<recipient> can be a bitcoin address or a label"
+        elif cmd2== 'sendtx':
+            print "sendtx <tx>"
+            print "broadcast a transaction to the network. <tx> must be in hexadecimal"
+        elif cmd2 == 'password':
+            print "change your password"
+        elif cmd2 == 'newaddress':
+            print "create a new receiving address. password is needed."
+        elif cmd2 == 'addresses':
+            print "show your list of addresses. options: -a, -k, -b"
+        elif cmd2 == 'history':
+            print "show the transaction history"
+        elif cmd2 == 'label':
+            print "assign a label to an item"
+        elif cmd2 == 'gui':
+            print "start the GUI"
+        elif cmd2 == 'mktx':
+            print "create a signed transaction. password protected"
+            print "syntax: mktx <recipient> <amount> [label]"
+        elif cmd2 == 'seed':
+            print "show generation seed of your wallet. password protected."
+
+    elif cmd == 'seed':
         import mnemonic
         print wallet.seed, '"'+' '.join(mnemonic.mn_encode(wallet.seed))+'"'
 
