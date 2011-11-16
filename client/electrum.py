@@ -302,18 +302,20 @@ class Wallet:
         self.private_keys = self.pw_encode( repr(private_keys), password)
         self.addresses.append(address)
         if for_change: self.change_addresses.append( len(self.addresses) - 1 )
-        h = self.retrieve_history(address)
-        self.history[address] = h
-        self.status[address] = h[-1]['blk_hash'] if h else None
+        self.history[address] = []
+        self.status[address] = None
+        self.save()
         return address
+
 
     def recover(self, password):
         seed = self.pw_decode( self.seed, password)
-
         # todo: recover receiving addresses from tx
         is_found = False
         while True:
             addr = self.create_new_address(True, password)
+            self.history[addr] = h = self.retrieve_history(addr)
+            self.status[addr] = h[-1]['blk_hash'] if h else None
             #print "recovering", addr
             if self.status[addr] is not None: 
                 is_found = True
@@ -323,6 +325,8 @@ class Wallet:
         num_gap = 0
         while True:
             addr = self.create_new_address(False, password)
+            self.history[addr] = h = self.retrieve_history(addr)
+            self.status[addr] = h[-1]['blk_hash'] if h else None
             #print "recovering", addr
             if self.status[addr] is None:
                 num_gap += 1
@@ -595,27 +599,23 @@ class Wallet:
                             default_label = 'at: ' + o_addr
             tx['default_label'] = default_label
 
-
-
-    def send(self, to_address, amount, label, password, do_send, fee=None):
+    def mktx(self, to_address, amount, label, password, fee=None):
         if fee is None: fee = self.fee
         try:
             inputs, outputs = wallet.choose_inputs_outputs( to_address, amount, fee, password )
-        except InvalidPassword:  return False, "Wrong password"
-        if not inputs:  return False, "Not enough funds"
-        try:
+            if not inputs:
+                return False, "Not enough funds"
             s_inputs = wallet.sign_inputs( inputs, outputs, password )
         except InvalidPassword:
             return False, "Wrong password"
-        tx = raw_tx( s_inputs, outputs )
-        tx = filter( tx )
+        tx = filter( raw_tx( s_inputs, outputs ) )
+        return True, tx
+
+    def sendtx(self, tx):
         tx_hash = Hash(tx.decode('hex') )[::-1].encode('hex')
-        if do_send:
-            out = self.send_tx(tx)
-            if out != tx_hash:
-                return False, "error: hash mismatch"
-        else:
-            out = tx
+        out = self.send_tx(tx)
+        if out != tx_hash:
+            return False, "error: " + out
         if to_address not in self.addressbook:
             self.addressbook.append(to_address)
         if label: 
@@ -631,7 +631,7 @@ class Wallet:
 from optparse import OptionParser
 
 if __name__ == '__main__':
-    known_commands = ['balance', 'contacts', 'sendto', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed']
+    known_commands = ['balance', 'contacts', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed']
 
     usage = "usage: %prog [options] command args\nCommands: "+ (', '.join(known_commands))
 
@@ -701,14 +701,14 @@ if __name__ == '__main__':
             wallet.create_new_address(False, None)
 
     # check syntax
-    if cmd in ['sendto', 'mktx']:
+    if cmd in ['payto', 'mktx']:
         try:
             to_address = args[1]
             amount = float(args[2])
             label = ' '.join(args[3:])
             if options.tx_fee: options.tx_fee = float(options.tx_fee)
         except:
-            print "syntax: sendto <recipient> <amount> [label]"
+            print "syntax: payto <recipient> <amount> [label]"
             sys.exit(1)
 
     # open session
@@ -718,14 +718,14 @@ if __name__ == '__main__':
         wallet.save()
 
     # commands needing password
-    if cmd in ['sendto', 'password', 'newaddress','mktx','seed'] or ( cmd=='addresses' and options.show_keys):
+    if cmd in ['payto', 'password', 'newaddress','mktx','seed'] or ( cmd=='addresses' and options.show_keys):
         password = getpass.getpass('Password:') if wallet.use_encryption else None
 
     if cmd == 'seed':
         import mnemonic
         print wallet.seed, '"'+' '.join(mnemonic.mn_encode(wallet.seed))+'"'
 
-    if cmd == 'balance':
+    elif cmd == 'balance':
         c, u = wallet.get_balance()
         if u:
             print c*1e-8, u*1e-8
@@ -783,14 +783,23 @@ if __name__ == '__main__':
         wallet.labels[tx] = label
         wallet.save()
             
-    elif cmd in ['sendto', 'mktx']:
+    elif cmd in ['payto', 'mktx']:
         for k, v in wallet.labels.items():
             if v == to_address:
                 to_address = k
                 break
             print "alias", to_address
-        r, h = wallet.send( to_address, amount, label, password, cmd=='sendto', fee = options.tx_fee )
-        print h 
+        r, h = wallet.mktx( to_address, amount, label, password, fee = options.tx_fee )
+        if r and cmd=='payto': 
+            r, h = wallet.sendtx( tx )
+            print h
+        else:
+            print h 
+
+    elif cmd=='sendtx':
+        tx = args[1]
+        r, h = wallet.sendtx( tx )
+        print h
 
     elif cmd == 'newaddress':
         a = wallet.get_new_address()
