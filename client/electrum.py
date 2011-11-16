@@ -413,7 +413,7 @@ class Wallet:
         return conf, unconf
 
     def use_http(self): 
-        return self.port in [80,8080]
+        return self.port in [80,8080,443]
 
     def request(self, request ):
         import time
