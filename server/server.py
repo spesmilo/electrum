@@ -34,19 +34,22 @@ try:
     f = open('/etc/electrum.conf','r')
     data = f.read()
     f.close()
-    HOST, PORT, SERVER_MESSAGE = ast.literal_eval(data)
+    HOST, PORT, PASSWORD, SERVER_MESSAGE = ast.literal_eval(data)
 except:
     print "could not read /etc/electrum.conf"
     SERVER_MESSAGE = "Welcome to Electrum"
     HOST = 'ecdsa.org'
     PORT = 50000
+    PASSWORD = ''
 
 
+stopping = False
 
 sessions = {}
 sessions_last_time = {}
 dblock = thread.allocate_lock()
 
+peer_list = {}
 
 class MyStore(Datastore_class):
 
@@ -278,15 +281,17 @@ def send_tx(tx):
 
 
 def listen_thread(store):
-
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind((HOST, PORT))
     s.listen(1)
-    while True:
+    while not stopping:
         conn, addr = s.accept()
         thread.start_new_thread(client_thread, (addr, conn,))
 
+def random_string(N):
+    import random, string
+    return ''.join(random.choice(string.ascii_uppercase + string.digits) for x in range(N))
 
 def client_thread(ipaddr,conn):
     #print "client thread", ipaddr
@@ -312,8 +317,7 @@ def client_thread(ipaddr,conn):
             out = "%d"%store.get_block_number(1)
 
         elif cmd=='session':
-            import random, string
-            session_id = ''.join(random.choice(string.ascii_uppercase + string.digits) for x in range(10))
+            session_id = random_string(10)
             try:
                 addresses = ast.literal_eval(data)
             except:
@@ -353,11 +357,25 @@ def client_thread(ipaddr,conn):
             out = repr(h)
 
         elif cmd == 'load': 
-            out = repr( len(sessions) )
+            if PASSWORD == data:
+                out = repr( len(sessions) )
+            else:
+                out = 'wrong password'
 
         elif cmd =='tx':        
-            # transaction
             out = send_tx(data)
+
+        elif cmd == 'stop':
+            global stopping
+            if PASSWORD == data:
+                stopping = True
+                out = 'ok'
+            else:
+                out = 'wrong password'
+
+        elif cmd == 'peers':
+            out = repr(peer_list.values())
+
         else:
             out = None
 
@@ -401,7 +419,7 @@ def memorypool_update(store):
 
 
 def clean_session_thread():
-    while 1:
+    while not stopping:
         time.sleep(30)
         t = time.time()
         for k,t0 in sessions_last_time.items():
@@ -411,6 +429,42 @@ def clean_session_thread():
                 sessions_last_time.pop(k)
             
 
+def irc_thread():
+    global peer_list
+    NICK = 'E_'+random_string(10)
+    while not stopping:
+        try:
+            s = socket.socket()
+            s.connect(('irc.freenode.net', 6667))
+            s.send('USER '+NICK+' '+NICK+' bla :'+NICK+'\n') 
+            s.send('NICK '+NICK+'\n') 
+            s.send('JOIN #electrum\n')
+            t = 0
+            while not stopping:
+                line = s.recv(2048)
+                line = line.rstrip('\r\n')
+                line = line.split()
+                if line[0]=='PING': 
+                    s.send('PONG '+line[1]+'\n')
+                elif '353' in line: # answer to /names
+                    k = line.index('353')
+                    k2 = line.index('366')
+                    for item in line[k+1:k2]:
+                        if item[0:2] == 'E_':
+                            s.send('USERHOST %s\n'%item)
+                elif '302' in line: # answer to /userhost
+                    k = line.index('302')
+                    name = line[k+1]
+                    host = line[k+2].split('@')[1]
+                    peer_list[name] = host
+                elif time.time() - t > 5*60:
+                    s.send('NAMES #electrum\n')
+                    t = time.time()
+        except:
+            traceback.print_exc(file=sys.stdout)
+        finally:
+            s.close()
+
 
 import traceback
 
@@ -418,8 +472,14 @@ import traceback
 if __name__ == '__main__':
 
     if len(sys.argv)>1:
-        request = sys.argv[1]
-        request += "#"
+        cmd = sys.argv[1]
+        if cmd == 'load':
+            request = "('load','%s')#"%PASSWORD
+        elif cmd == 'peers':
+            request = "('peers','')#"
+        elif cmd == 'stop':
+            request = "('stop','%s')#"%PASSWORD
+
         s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
         s.connect(( HOST, PORT))
         s.send( request )
@@ -442,8 +502,9 @@ if __name__ == '__main__':
 
     thread.start_new_thread(listen_thread, (store,))
     thread.start_new_thread(clean_session_thread, ())
+    thread.start_new_thread(irc_thread, ())
 
-    while True:
+    while not stopping:
         try:
             dblock.acquire()
             store.catch_up()
@@ -451,6 +512,7 @@ if __name__ == '__main__':
             dblock.release()
         except:
             traceback.print_exc(file=sys.stdout)
-            print "continuing..."
         time.sleep(10)
+
+    print "server stopped"
 
