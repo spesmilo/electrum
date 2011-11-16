@@ -664,7 +664,7 @@ if __name__ == '__main__':
         wallet.save()
         sys.exit(0)
 
-    if not wallet.read():
+    if not wallet.read() and cmd != 'help':
         print "wallet not found"
         if has_encryption:
             password = getpass.getpass("Password (hit return if you do not wish to encrypt your wallet):")
