@@ -631,7 +631,7 @@ class Wallet:
 from optparse import OptionParser
 
 if __name__ == '__main__':
-    known_commands = ['help', 'balance', 'contacts', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed']
+    known_commands = ['help', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed']
 
     usage = "usage: %prog [options] command args\nCommands: "+ (', '.join(known_commands))
 
@@ -656,7 +656,7 @@ if __name__ == '__main__':
 
     wallet = Wallet(options.wallet_dir)
 
-    if cmd=='gui':
+    if cmd == 'gui':
         import gui
         gui.init_wallet(wallet)
         gui = gui.BitcoinGUI(wallet)
@@ -665,7 +665,14 @@ if __name__ == '__main__':
         sys.exit(0)
 
     if not wallet.read() and cmd != 'help':
-        print "wallet not found"
+        print "wallet not found."
+        print "type 'electrum.py create' to create a wallet, or provide the path to your wallet with the -d option"
+        sys.exit(0)
+    
+    if cmd == 'create':
+        if wallet.read():
+            print "remove the existing wallet first!"
+            sys.exit(0)
         if has_encryption:
             password = getpass.getpass("Password (hit return if you do not wish to encrypt your wallet):")
             if password:
