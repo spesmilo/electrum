@@ -278,7 +278,9 @@ class Wallet:
 
     def is_valid(self,addr):
         ADDRESS_RE = re.compile('[1-9A-HJ-NP-Za-km-z]{26,}\\Z')
-        return ADDRESS_RE.match(addr)
+        if not ADDRESS_RE.match(addr): return False
+        h = bc_address_to_hash_160(addr)
+        return addr == hash_160_to_bc_address(h)
 
     def create_new_address(self, for_change, password):
         seed = self.pw_decode( self.seed, password)
@@ -600,6 +602,8 @@ class Wallet:
             tx['default_label'] = default_label
 
     def mktx(self, to_address, amount, label, password, fee=None):
+        if not self.is_valid(to_address):
+            return False, "Invalid address"
         if fee is None: fee = self.fee
         try:
             inputs, outputs = wallet.choose_inputs_outputs( to_address, amount, fee, password )
@@ -625,14 +629,11 @@ class Wallet:
         return True, out
 
 
-    
-
-
 
 from optparse import OptionParser
 
 if __name__ == '__main__':
-    known_commands = ['help', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed']
+    known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed']
 
     usage = "usage: %prog [options] command args\nCommands: "+ (', '.join(known_commands))
 
@@ -723,7 +724,7 @@ if __name__ == '__main__':
             cmd = 'help'
 
     # open session
-    if cmd not in ['password', 'mktx', 'history', 'label','contacts','help']:
+    if cmd not in ['password', 'mktx', 'history', 'label','contacts','help','validateaddress']:
         wallet.new_session()
         wallet.update()
         wallet.save()
@@ -769,6 +770,10 @@ if __name__ == '__main__':
     elif cmd == 'seed':
         import mnemonic
         print wallet.seed, '"'+' '.join(mnemonic.mn_encode(wallet.seed))+'"'
+
+    elif cmd == 'validateaddress':
+        addr = args[1]
+        print wallet.is_valid(addr)
 
     elif cmd == 'balance':
         c, u = wallet.get_balance()
@@ -832,8 +837,8 @@ if __name__ == '__main__':
         for k, v in wallet.labels.items():
             if v == to_address:
                 to_address = k
+                print "alias", to_address
                 break
-            print "alias", to_address
         r, h = wallet.mktx( to_address, amount, label, password, fee = options.tx_fee )
         if r and cmd=='payto': 
             r, h = wallet.sendtx( tx )
