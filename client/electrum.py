@@ -429,7 +429,7 @@ class Wallet:
             import httplib, urllib
             params = urllib.urlencode({'q':request})
             headers = {"Content-type": "application/x-www-form-urlencoded", "Accept": "text/plain"}
-            conn = httplib.HTTPConnection(self.host)
+            conn = httplib.HTTPSConnection(self.host) if self.port == 443 else httplib.HTTPConnection(self.host)
             conn.request("POST", "/electrum.php", params, headers)
             response = conn.getresponse()
             if response.status == 200:
