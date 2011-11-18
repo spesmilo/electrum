@@ -44,7 +44,7 @@ except:
 
 
 stopping = False
-
+block_number = -1
 sessions = {}
 sessions_last_time = {}
 dblock = thread.allocate_lock()
@@ -314,8 +314,7 @@ def client_thread(ipaddr,conn):
             return
 
         if cmd=='b':
-            out = "%d"%store.get_block_number(1)
-
+            out = "%d"%block_number
         elif cmd=='session':
             session_id = random_string(10)
             try:
@@ -348,7 +347,7 @@ def client_thread(ipaddr,conn):
                     if last_status != status:
                         sessions[session_id][addr] = status
                         ret[addr] = status
-                out = repr( (store.get_block_number(1), ret ) )
+                out = repr( (block_number, ret ) )
 
         elif cmd == 'h': 
             # history
@@ -509,6 +508,7 @@ if __name__ == '__main__':
             dblock.acquire()
             store.catch_up()
             memorypool_update(store)
+            block_number = store.get_block_number(1)
             dblock.release()
         except:
             traceback.print_exc(file=sys.stdout)
