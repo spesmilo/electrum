@@ -451,10 +451,6 @@ class Wallet:
         self.rtime = time.time() - t1
         return out
 
-    def retrieve_message(self):
-        if not self.message:
-            self.message = self.request( repr ( ('msg', '')))
-
     def send_tx(self, data):
         return self.request( repr ( ('tx', data )))
 

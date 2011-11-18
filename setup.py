@@ -5,7 +5,7 @@
 
 from distutils.core import setup
 
-version = "0.26"
+version = "0.26b"
 
 setup(name = "Electrum",
     version = version,
