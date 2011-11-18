@@ -765,7 +765,8 @@ if __name__ == '__main__':
 
     elif cmd == 'seed':
         import mnemonic
-        print wallet.seed, '"'+' '.join(mnemonic.mn_encode(wallet.seed))+'"'
+        seed = wallet.pw_decode( wallet.seed, password)
+        print seed, '"'+' '.join(mnemonic.mn_encode(seed))+'"'
 
     elif cmd == 'validateaddress':
         addr = args[1]
