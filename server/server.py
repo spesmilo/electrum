@@ -447,7 +447,10 @@ def irc_thread():
                     s.send('PONG '+line[1]+'\n')
                 elif '353' in line: # answer to /names
                     k = line.index('353')
-                    k2 = line.index('366')
+                    try:
+                        k2 = line.index('366')
+                    except:
+                        continue
                     for item in line[k+1:k2]:
                         if item[0:2] == 'E_':
                             s.send('USERHOST %s\n'%item)
