@@ -456,7 +456,7 @@ def irc_thread():
                             s.send('USERHOST %s\n'%item)
                 elif '302' in line: # answer to /userhost
                     k = line.index('302')
-                    name = line[k+1]
+                    name = line[k+2].split('=')[0]
                     host = line[k+2].split('@')[1]
                     peer_list[name] = host
                 elif time.time() - t > 5*60:
