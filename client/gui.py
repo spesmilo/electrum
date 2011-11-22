@@ -581,30 +581,18 @@ class BitcoinGUI:
                 treeview.parent.grab_focus()
                 treeview.set_cursor((0,))
         elif event.keyval == gtk.keysyms.Return and treeview == self.history_treeview:
-            tx_hash = self.history_list.get_value( self.history_list.get_iter(c), 0)
-            tx = self.wallet.tx_history.get(tx_hash)
-            # print "tx details:\n"+repr(tx)
-            inputs = '\n-'.join(tx['inputs'])
-            outputs = '\n-'.join(tx['outputs'])
-            msg = tx_hash + "\n\ninputs:\n-"+ inputs + "\noutputs:\n-"+ outputs + "\n"
-            show_message(msg)
+            tx_details = self.history_list.get_value( self.history_list.get_iter(c), 8)
+            show_message(tx_details)
         return False
 
     def create_history_tab(self):
 
-        self.history_list = gtk.ListStore(str, str, str, str, 'gboolean',  str, str,str)
+        self.history_list = gtk.ListStore(str, str, str, str, 'gboolean',  str, str, str, str)
         treeview = gtk.TreeView(model=self.history_list)
         self.history_treeview = treeview
         treeview.set_tooltip_column(7)
         treeview.show()
         treeview.connect('key-press-event', self.treeview_key_press)
-
-        tvcolumn = gtk.TreeViewColumn('tx_id')
-        treeview.append_column(tvcolumn)
-        cell = gtk.CellRendererText()
-        tvcolumn.pack_start(cell, False)
-        tvcolumn.add_attribute(cell, 'text', 0)
-        tvcolumn.set_visible(False)
 
         tvcolumn = gtk.TreeViewColumn('')
         treeview.append_column(tvcolumn)
@@ -851,8 +839,17 @@ class BitcoinGUI:
             is_default_label = (label == '') or (label is None)
             if is_default_label: label = tx['default_label']
             tooltip = tx_hash + "\n%d confirmations"%conf 
-            self.history_list.prepend( [tx_hash, conf_icon, time_str, label, is_default_label, 
-                                        ('+' if v>0 else '') + format_satoshis(v), format_satoshis(balance), tooltip] )
+
+            tx = self.wallet.tx_history.get(tx_hash)
+            details = "Transaction Details:\n\n"
+            details+= "Transaction ID:\n" + tx_hash + "\n\n"
+            details+= "Status: %d confirmations\n\n"%conf
+            details+= "Date: %s\n\n"%time_str
+            details+= "Inputs:\n-"+ '\n-'.join(tx['inputs']) + "\n\n"
+            details+= "Outputs:\n-"+ '\n-'.join(tx['outputs'])
+
+            self.history_list.prepend( [tx_hash, conf_icon, time_str, label, is_default_label,
+                                        ('+' if v>0 else '') + format_satoshis(v), format_satoshis(balance), tooltip, details] )
         if cursor: self.history_treeview.set_cursor( cursor )
 
 
