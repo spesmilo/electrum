@@ -743,7 +743,7 @@ class BitcoinGUI:
             area.set_size_request(size, size)
             area.connect("expose-event", area_expose_cb)
             area.show()
-            dialog = gtk.Dialog("QR Code", parent=self.window, flags=gtk.DIALOG_MODAL|gtk.DIALOG_NO_SEPARATOR, buttons = ("ok",1))
+            dialog = gtk.Dialog(address, parent=self.window, flags=gtk.DIALOG_MODAL|gtk.DIALOG_NO_SEPARATOR, buttons = ("ok",1))
             dialog.vbox.add(area)
             dialog.run()
             dialog.destroy()

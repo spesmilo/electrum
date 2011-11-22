@@ -1,4 +1,3 @@
-include 
 include client/README client/LICENCE
 include server/README server/LICENCE
 include server/electrum.php
