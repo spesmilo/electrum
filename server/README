@@ -28,3 +28,9 @@ INSTALL
 4. launch the server:  nohup python -u server.py > /var/log/electrum.log &
 
 5. if you have a webserver, you can use electrum.php to forward http requests to the server
+
+
+Note: 
+You do not want to run bitcoin-abe and the server simultaneously, because they will both try to update the database. 
+If you want bitcoin-abe to be available on your website, run it with the --no-update option
+
