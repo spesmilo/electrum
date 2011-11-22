@@ -419,7 +419,7 @@ def memorypool_update(store):
 
 def clean_session_thread():
     while not stopping:
-        time.sleep(30)
+        time.sleep(3)
         t = time.time()
         for k,t0 in sessions_last_time.items():
             if t - t0 > 60:
