@@ -22,6 +22,7 @@ import socket, traceback
 import pygtk
 pygtk.require('2.0')
 import gtk, gobject
+import pyqrnative
 
 gtk.gdk.threads_init()
 APP_NAME = "Electrum"
@@ -719,6 +720,36 @@ class BitcoinGUI:
         hbox = gtk.HBox()
         button = gtk.Button("New address")
         button.connect("clicked", self.newaddress_dialog, is_recv)
+        button.show()
+        hbox.pack_start(button,False)
+
+        def showqrcode(w, treeview, liststore):
+            path, col = treeview.get_cursor()
+            if not path: return
+            address = liststore.get_value(liststore.get_iter(path), 0)
+            qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.H)
+            qr.addData(address)
+            qr.make()
+            boxsize = 7
+            size = qr.getModuleCount()*boxsize
+            def area_expose_cb(area, event):
+                style = area.get_style()
+                k = qr.getModuleCount()
+                for r in range(k):
+                    for c in range(k):
+                        gc = style.black_gc if qr.isDark(r, c) else style.white_gc
+                        area.window.draw_rectangle(gc, True, c*boxsize, r*boxsize, boxsize, boxsize)
+            area = gtk.DrawingArea()
+            area.set_size_request(size, size)
+            area.connect("expose-event", area_expose_cb)
+            area.show()
+            dialog = gtk.Dialog("QR Code", parent=self.window, flags=gtk.DIALOG_MODAL|gtk.DIALOG_NO_SEPARATOR, buttons = ("ok",1))
+            dialog.vbox.add(area)
+            dialog.run()
+            dialog.destroy()
+
+        button = gtk.Button("QR")
+        button.connect("clicked", showqrcode, treeview, liststore)
         button.show()
         hbox.pack_start(button,False)
 
