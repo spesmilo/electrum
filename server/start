@@ -1,0 +1,2 @@
+#!/bin/bash
+nohup /usr/bin/python -u server.py &>> /var/log/electrum.log &
