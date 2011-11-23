@@ -442,7 +442,7 @@ def irc_thread():
         try:
             s = socket.socket()
             s.connect(('irc.freenode.net', 6667))
-            s.send('USER '+HOST+' '+NICK+' bla :'+NICK+'\n') 
+            s.send('USER '+config.get('server','host')+' '+NICK+' bla :'+NICK+'\n') 
             s.send('NICK '+NICK+'\n')
             s.send('JOIN #electrum\n')
             t = 0
