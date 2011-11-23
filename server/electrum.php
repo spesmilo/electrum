@@ -21,7 +21,7 @@
    return $buf;
  }
 
-   $pass='';
+   $pass = '';
 
    $query = $_POST['q'];
    if( !$query ) {
@@ -31,14 +31,15 @@
 
    echo "Server status:<br/>";
    echo "Number of blocks: ". do_query( "('b','')" ) ."<br/>";
-   echo "Current load: ". do_query( "('load',$pass)" ) ."<br/><br/>";
+   echo "Current load: ". do_query( "('load','$pass')" ) ."<br/><br/>";
 
    echo "List of active servers:<br/>\n";
    $str = do_query( "('peers','')" );
-   preg_match_all("/(\d+\.\d+\.\d+\.\d+)/",$str,$matches,PREG_SET_ORDER);
+// preg_match_all("/\('(.*?)', '(\d+\.\d+\.\d+\.\d+)'\)/",$str,$matches,PREG_SET_ORDER);
+   preg_match_all("/\('(.*?)', '(.*?)'\)/", $str, $matches, PREG_SET_ORDER);
    echo "<ul>";
-   foreach( $matches as $ip){
-     echo "<li><a href=\"http://" . $ip[0] . "/electrum.php\">" . $ip[0] . "</a></li>";
+   foreach( $matches as $m){
+     echo "<li><a href=\"http://" . $m[2] . "/electrum.php\">" . $m[2]."</a> <small>[".$m[1]."]</small></li>";
    } 
    echo "</ul>";
 

@@ -22,7 +22,7 @@ Todo:
 """
 
 
-import time, socket, operator, thread, ast, sys
+import time, socket, operator, thread, ast, sys,re
 import psycopg2, binascii
 import bitcoinrpc
 
@@ -435,8 +435,8 @@ def irc_thread():
         try:
             s = socket.socket()
             s.connect(('irc.freenode.net', 6667))
-            s.send('USER '+NICK+' '+NICK+' bla :'+NICK+'\n') 
-            s.send('NICK '+NICK+'\n') 
+            s.send('USER '+HOST+' '+NICK+' bla :'+NICK+'\n') 
+            s.send('NICK '+NICK+'\n')
             s.send('JOIN #electrum\n')
             t = 0
             while not stopping:
@@ -456,9 +456,12 @@ def irc_thread():
                             s.send('USERHOST %s\n'%item)
                 elif '302' in line: # answer to /userhost
                     k = line.index('302')
-                    name = line[k+2].split('=')[0]
-                    host = line[k+2].split('@')[1]
-                    peer_list[name] = host
+                    m = re.match( "^:(.*?)=\+~(.*?)@(.*?)$", line[k+2] )
+                    if m:
+                        name = m.group(1)
+                        host = m.group(2)
+                        ip = m.group(3)
+                        peer_list[name] = (ip,host)
                 elif time.time() - t > 5*60:
                     s.send('NAMES #electrum\n')
                     t = time.time()
