@@ -24,24 +24,31 @@ Todo:
 
 import time, socket, operator, thread, ast, sys,re
 import psycopg2, binascii
-import bitcoinrpc
+import bitcoin
 
 from Abe.abe import hash_to_address, decode_check_address
 from Abe.DataStore import DataStore as Datastore_class
 from Abe import DataStore, readconf, BCDataStream,  deserialize, util, base58
 
+import ConfigParser
+
+config = ConfigParser.ConfigParser()
+# set some defaults, which will be overwritten by the config file
+config.add_section('server')
+config.set('server','banner', 'Welcome to Electrum!')
+config.set('server', 'host', 'ecdsa.org')
+config.set('server', 'port', 50000)
+config.set('server', 'password', '')
+config.add_section('database')
+config.set('database', 'type', 'psycopg2')
+config.set('database', 'database', 'abe')
+
 try:
     f = open('/etc/electrum.conf','r')
-    data = f.read()
+    config.readfp(f)
     f.close()
-    HOST, PORT, PASSWORD, SERVER_MESSAGE = ast.literal_eval(data)
 except:
-    print "could not read /etc/electrum.conf"
-    SERVER_MESSAGE = "Welcome to Electrum"
-    HOST = 'ecdsa.org'
-    PORT = 50000
-    PASSWORD = ''
-
+    print "Could not read electrum.conf. I will use the dafault values."
 
 stopping = False
 block_number = -1
@@ -271,8 +278,8 @@ class MyStore(Datastore_class):
 
 
 def send_tx(tx):
-    import bitcoinrpc
-    conn = bitcoinrpc.connect_to_local()
+    import bitcoin
+    conn = bitcoin.connect_to_local()
     try:
         v = conn.importtransaction(tx)
     except:
@@ -283,7 +290,7 @@ def send_tx(tx):
 def listen_thread(store):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind((HOST, PORT))
+    s.bind((config.get('server','host'), config.getint('server','port')))
     s.listen(1)
     while not stopping:
         conn, addr = s.accept()
@@ -329,7 +336,7 @@ def client_thread(ipaddr,conn):
             sessions[session_id] = {}
             for a in addresses:
                 sessions[session_id][a] = ''
-            out = repr( (session_id, SERVER_MESSAGE) )
+            out = repr( (session_id, config.get('server','banner')) )
             sessions_last_time[session_id] = time.time()
 
         elif cmd=='poll': 
@@ -356,7 +363,7 @@ def client_thread(ipaddr,conn):
             out = repr(h)
 
         elif cmd == 'load': 
-            if PASSWORD == data:
+            if config.get('server','password') == data:
                 out = repr( len(sessions) )
             else:
                 out = 'wrong password'
@@ -366,7 +373,7 @@ def client_thread(ipaddr,conn):
 
         elif cmd == 'stop':
             global stopping
-            if PASSWORD == data:
+            if config.get('server','password') == data:
                 stopping = True
                 out = 'ok'
             else:
@@ -394,7 +401,7 @@ ds = BCDataStream.BCDataStream()
 
 def memorypool_update(store):
 
-    conn = bitcoinrpc.connect_to_local()
+    conn = bitcoin.connect_to_local()
     try:
         v = conn.getmemorypool()
     except:
@@ -419,7 +426,7 @@ def memorypool_update(store):
 
 def clean_session_thread():
     while not stopping:
-        time.sleep(3)
+        time.sleep(30)
         t = time.time()
         for k,t0 in sessions_last_time.items():
             if t - t0 > 60:
@@ -479,14 +486,14 @@ if __name__ == '__main__':
     if len(sys.argv)>1:
         cmd = sys.argv[1]
         if cmd == 'load':
-            request = "('load','%s')#"%PASSWORD
+            request = "('load','%s')#"%config.get('server','password')
         elif cmd == 'peers':
             request = "('peers','')#"
         elif cmd == 'stop':
-            request = "('stop','%s')#"%PASSWORD
+            request = "('stop','%s')#"%config.get('server','password')
 
         s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
-        s.connect(( HOST, PORT))
+        s.connect((config.get('server','host'), config.getint('server','port')))
         s.send( request )
         out = ''
         while 1:
@@ -501,8 +508,8 @@ if __name__ == '__main__':
     print "starting Electrum server"
     conf = DataStore.CONFIG_DEFAULTS
     args, argv = readconf.parse_argv( [], conf)
-    args.dbtype='psycopg2'
-    args.connect_args = {"database":"abe"}
+    args.dbtype= config.get('database','type')
+    args.connect_args = {'database' : config.get('database','database') }
     store = MyStore(args)
 
     thread.start_new_thread(listen_thread, (store,))

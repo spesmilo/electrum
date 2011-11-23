@@ -1,0 +1,9 @@
+[server]
+host = 127.0.0.1
+port = 50000
+password = secret
+banner = Welcome to Electrum!
+
+[database]
+type = sqlite3
+database = electrum.sqlite
