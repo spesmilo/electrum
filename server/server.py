@@ -336,7 +336,7 @@ def client_thread(ipaddr,conn):
             sessions[session_id] = {}
             for a in addresses:
                 sessions[session_id][a] = ''
-            out = repr( (session_id, config.get('server','banner')) )
+            out = repr( (session_id, config.get('server','banner').replace('\\n','\n') ) )
             sessions_last_time[session_id] = time.time()
 
         elif cmd=='poll': 
