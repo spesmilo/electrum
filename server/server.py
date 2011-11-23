@@ -60,10 +60,10 @@ peer_list = {}
 
 class MyStore(Datastore_class):
 
-    def safe_sql(self,sql):
+    def safe_sql(self,sql, params=()):
         try:
             dblock.acquire()
-            ret = self.selectall(sql)
+            ret = self.selectall(sql,params)
             dblock.release()
             return ret
         except:
@@ -123,8 +123,8 @@ class MyStore(Datastore_class):
               JOIN txin ON (txin.tx_id = tx.tx_id)
               JOIN txout prevout ON (txin.txout_id = prevout.txout_id)
               JOIN pubkey ON (pubkey.pubkey_id = prevout.pubkey_id)
-             WHERE pubkey.pubkey_hash = '%s'
-               AND cc.in_longest = 1"""%dbhash)
+             WHERE pubkey.pubkey_hash = ?
+               AND cc.in_longest = 1""", (dbhash,))
 
     def get_address_out_rows_memorypool(self, dbhash):
         return self.safe_sql(""" SELECT
@@ -137,7 +137,7 @@ class MyStore(Datastore_class):
               JOIN txin ON (txin.tx_id = tx.tx_id)
               JOIN txout prevout ON (txin.txout_id = prevout.txout_id)
               JOIN pubkey ON (pubkey.pubkey_id = prevout.pubkey_id)
-             WHERE pubkey.pubkey_hash ='%s' """%(dbhash))
+             WHERE pubkey.pubkey_hash = ? """, (dbhash,))
 
     def get_address_in_rows(self, dbhash):
         return self.safe_sql(""" SELECT
@@ -156,8 +156,8 @@ class MyStore(Datastore_class):
               JOIN tx ON (tx.tx_id = block_tx.tx_id)
               JOIN txout ON (txout.tx_id = tx.tx_id)
               JOIN pubkey ON (pubkey.pubkey_id = txout.pubkey_id)
-             WHERE pubkey.pubkey_hash = '%s'
-               AND cc.in_longest = 1"""%(dbhash))
+             WHERE pubkey.pubkey_hash = ?
+               AND cc.in_longest = 1""", (dbhash,))
 
     def get_address_in_rows_memorypool(self, dbhash):
         return self.safe_sql( """ SELECT
@@ -169,7 +169,7 @@ class MyStore(Datastore_class):
               FROM tx
               JOIN txout ON (txout.tx_id = tx.tx_id)
               JOIN pubkey ON (pubkey.pubkey_id = txout.pubkey_id)
-             WHERE pubkey.pubkey_hash = '%s' """%(dbhash))
+             WHERE pubkey.pubkey_hash = ? """, (dbhash,))
 
     def get_txpoints(self, addr):
         version, binaddr = decode_check_address(addr)
