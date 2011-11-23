@@ -24,7 +24,7 @@ Todo:
 
 import time, socket, operator, thread, ast, sys
 import psycopg2, binascii
-import bitcoinrpc
+import bitcoin
 
 from Abe.abe import hash_to_address, decode_check_address
 from Abe.DataStore import DataStore as Datastore_class
@@ -271,8 +271,8 @@ class MyStore(Datastore_class):
 
 
 def send_tx(tx):
-    import bitcoinrpc
-    conn = bitcoinrpc.connect_to_local()
+    import bitcoin
+    conn = bitcoin.connect_to_local()
     try:
         v = conn.importtransaction(tx)
     except:
@@ -394,7 +394,7 @@ ds = BCDataStream.BCDataStream()
 
 def memorypool_update(store):
 
-    conn = bitcoinrpc.connect_to_local()
+    conn = bitcoin.connect_to_local()
     try:
         v = conn.getmemorypool()
     except:
