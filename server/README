@@ -22,7 +22,7 @@ INSTALL
 
 2. install bitcoin-abe : https://github.com/jtobey/bitcoin-abe
 
-3. download bitcoin-python: https://github.com/toomanysecrets0/bitcoin-python
+3. download bitcoin-python: https://github.com/laanwj/bitcoin-python
    patch it with bitcoinrpc_connection.py.diff
 
 4. launch the server:  nohup python -u server.py > /var/log/electrum.log &
