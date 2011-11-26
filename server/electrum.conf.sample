@@ -1,5 +1,5 @@
 [server]
-host = 127.0.0.1
+host = localhost
 port = 50000
 password = secret
 banner = Welcome to Electrum!
@@ -7,3 +7,11 @@ banner = Welcome to Electrum!
 [database]
 type = sqlite3
 database = electrum.sqlite
+
+# type = MySQLdb
+# database = electrum
+# username = electrum
+# password = secret
+
+# type = psycopg2
+# database = electrum
