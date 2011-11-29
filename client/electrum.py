@@ -216,7 +216,7 @@ class InvalidPassword(Exception):
 
 
 class Wallet:
-    def __init__(self, wallet_dir):
+    def __init__(self, wallet_dir, wallet_name):
 
         self.gap_limit = 5           # configuration
         self.host = 'ecdsa.org'
@@ -241,10 +241,10 @@ class Wallet:
         self.tx_history = {}
         self.rtime = 0
 
-        self.init_path(wallet_dir)
+        self.init_path(wallet_dir, wallet_name)
 
 
-    def init_path(self, wallet_dir):
+    def init_path(self, wallet_dir, wallet_name):
         if wallet_dir is None:
             if "HOME" in os.environ:
                 wallet_dir = os.path.join( os.environ["HOME"], '.electrum')
@@ -259,7 +259,7 @@ class Wallet:
         if not os.path.exists( wallet_dir ):
             os.mkdir( wallet_dir ) 
 
-        self.path = os.path.join( wallet_dir, 'electrum.dat')
+        self.path = os.path.join( wallet_dir, wallet_name)
 
     def new_seed(self, password):
         seed = "%032x"%ecdsa.util.randrange( pow(2,128) )
@@ -633,6 +633,7 @@ if __name__ == '__main__':
 
     parser = OptionParser(usage=usage)
     parser.add_option("-d", "--dir", dest="wallet_dir", help="wallet directory")
+    parser.add_option("-w", "--wallet", dest="wallet_name", default="electrum.dat", help="wallet file name (default: electrum.dat)")
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
     parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance at listed addresses")
     parser.add_option("-k", "--keys",action="store_true", dest="show_keys",default=False, help="show the private keys of listed addresses")
@@ -650,7 +651,7 @@ if __name__ == '__main__':
     if cmd not in known_commands:
         cmd = 'help'
 
-    wallet = Wallet(options.wallet_dir)
+    wallet = Wallet(options.wallet_dir, options.wallet_name)
 
     if cmd == 'gui':
         import gui

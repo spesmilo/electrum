@@ -39,6 +39,7 @@ config.set('server','banner', 'Welcome to Electrum!')
 config.set('server', 'host', 'ecdsa.org')
 config.set('server', 'port', 50000)
 config.set('server', 'password', '')
+config.set('server', 'irc', 'yes')
 config.add_section('database')
 config.set('database', 'type', 'psycopg2')
 config.set('database', 'database', 'abe')
@@ -519,7 +520,8 @@ if __name__ == '__main__':
 
     thread.start_new_thread(listen_thread, (store,))
     thread.start_new_thread(clean_session_thread, ())
-    thread.start_new_thread(irc_thread, ())
+    if (config.get('server','irc') == 'yes' ):
+	thread.start_new_thread(irc_thread, ())
 
     while not stopping:
         try:
