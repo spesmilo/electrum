@@ -3,7 +3,7 @@ import electrum, getpass, base64,ast,sys
 
 try:
     path = sys.argv[1]
-else:
+except:
     path = None
 wallet = electrum.Wallet(path)
 try:
