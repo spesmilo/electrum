@@ -258,14 +258,9 @@ class Wallet:
                 wallet_dir = os.path.join( os.environ["APPDATA"],  'Electrum' )
             else:
                 raise BaseException("No home directory found in environment variables.")
-            self.path = os.path.join( wallet_dir, 'electrum.dat')
 
-            if not os.path.exists( self.path ):
-                if "HOME" in os.environ:
-                    self.path = os.path.join( os.environ["HOME"], 'electrum.dat')
-                else:
-                    self.path = os.path.join( os.getcwd(), 'electrum.dat' )
-            print self.path
+            if not os.path.exists( wallet_dir ): os.mkdir( wallet_dir )
+            self.path = os.path.join( wallet_dir, 'electrum.dat')
 
     def new_seed(self, password):
         seed = "%032x"%ecdsa.util.randrange( pow(2,128) )
