@@ -26,10 +26,11 @@ except:
     sys.exit(1)
 
 try:
-    import Crypto
-    has_encryption = True
+    import aes
 except:
-    has_encryption = False
+    print "AES does not seem to be installed. Try 'sudo easy_install slowaes'"
+    sys.exit(1)
+
 
 
 ############ functions from pywallet ##################### 
@@ -149,13 +150,10 @@ def int_to_hex(i, length=1):
     return s.decode('hex')[::-1].encode('hex')
 
 
-# password encryption
-from Crypto.Cipher import AES
-BLOCK_SIZE = 32
-PADDING = '{'
-pad = lambda s: s + (BLOCK_SIZE - len(s) % BLOCK_SIZE) * PADDING
-EncodeAES = lambda c, s: base64.b64encode(c.encrypt(pad(s)))
-DecodeAES = lambda c, e: c.decrypt(base64.b64decode(e)).rstrip(PADDING)
+
+EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
+DecodeAES = lambda secret, e: aes.decryptData(secret, base64.b64decode(e))
+
 
 
 # secp256k1, http://www.oid-info.com/get/1.3.132.0.10
@@ -224,7 +222,7 @@ class Wallet:
         self.host = 'ecdsa.org'
         self.port = 50000
         self.fee = 0.005
-        self.version = 1
+        self.version = 2             # bump this everytime the wallet format is modified
 
         # saved fields
         self.use_encryption = False
@@ -381,6 +379,8 @@ class Wallet:
              self.labels, self.addressbook) = sequence
         except:
             raise BaseException("version error.")
+        if self.version == 1 and self.use_encryption:
+            raise BaseException("version error: please upgrade your wallet first")
         self.update_tx_history()
         return True
         
@@ -529,16 +529,14 @@ class Wallet:
     def pw_encode(self, s, password):
         if password:
             secret = Hash(password)
-            cipher = AES.new(secret)
-            return EncodeAES(cipher, s)
+            return EncodeAES(secret, s)
         else:
             return s
 
     def pw_decode(self, s, password):
         if password:
             secret = Hash(password)
-            cipher = AES.new(secret)
-            return DecodeAES(cipher, s)
+            return DecodeAES(secret, s)
         else:
             return s
 
@@ -671,13 +669,12 @@ if __name__ == '__main__':
         if wallet.read():
             print "remove the existing wallet first!"
             sys.exit(0)
-        if has_encryption:
-            password = getpass.getpass("Password (hit return if you do not wish to encrypt your wallet):")
-            if password:
-                password2 = getpass.getpass("Confirm password:")
-                if password != password2:
-                    print "error"
-                    sys.exit(1)
+        password = getpass.getpass("Password (hit return if you do not wish to encrypt your wallet):")
+        if password:
+            password2 = getpass.getpass("Confirm password:")
+            if password != password2:
+                print "error"
+                sys.exit(1)
         else:
             password = None
             print "in order to use wallet encryption, please install pycrypto  (sudo easy_install pycrypto)"
