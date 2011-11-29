@@ -513,7 +513,7 @@ if __name__ == '__main__':
     if args.dbtype == 'sqlite3':
 	args.connect_args = { 'database' : config.get('database','database') }
     elif args.dbtype == 'MySQLdb':
-	args.connect_args = { 'db' : config.get('database','database'), 'user' : config.get('database','user'), 'passwd' : config.get('database','pass') }
+	args.connect_args = { 'db' : config.get('database','database'), 'user' : config.get('database','username'), 'passwd' : config.get('database','password') }
     elif args.dbtype == 'psycopg2':
 	args.connect_args = { 'database' : config.get('database','database') }
     store = MyStore(args)
