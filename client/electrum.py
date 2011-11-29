@@ -216,7 +216,7 @@ class InvalidPassword(Exception):
 
 
 class Wallet:
-    def __init__(self, wallet_dir, wallet_name):
+    def __init__(self, wallet_path):
 
         self.gap_limit = 5           # configuration
         self.host = 'ecdsa.org'
@@ -241,11 +241,15 @@ class Wallet:
         self.tx_history = {}
         self.rtime = 0
 
-        self.init_path(wallet_dir, wallet_name)
+        self.init_path(wallet_path)
 
 
-    def init_path(self, wallet_dir, wallet_name):
-        if wallet_dir is None:
+    def init_path(self, wallet_path):
+
+        if wallet_path is not None:
+            self.path = wallet_path
+        else:
+            # backward compatibility: look for wallet file in the default data directory
             if "HOME" in os.environ:
                 wallet_dir = os.path.join( os.environ["HOME"], '.electrum')
             elif "LOCALAPPDATA" in os.environ:
@@ -253,13 +257,12 @@ class Wallet:
             elif "APPDATA" in os.environ:
                 wallet_dir = os.path.join( os.environ["APPDATA"],  'Electrum' )
             else:
-                print "No home directory found in environment variables."
-                raise
+                raise BaseException("No home directory found in environment variables.")
 
-        if not os.path.exists( wallet_dir ):
-            os.mkdir( wallet_dir ) 
-
-        self.path = os.path.join( wallet_dir, wallet_name)
+            self.path = os.path.join( wallet_dir, 'electrum.dat')
+            if not os.path.exists( self.path ):
+                self.path = os.path.join( os.getcwd(), 'electrum.dat' )
+            print self.path
 
     def new_seed(self, password):
         seed = "%032x"%ecdsa.util.randrange( pow(2,128) )
@@ -632,8 +635,7 @@ if __name__ == '__main__':
     usage = "usage: %prog [options] command args\nCommands: "+ (', '.join(known_commands))
 
     parser = OptionParser(usage=usage)
-    parser.add_option("-d", "--dir", dest="wallet_dir", help="wallet directory")
-    parser.add_option("-w", "--wallet", dest="wallet_name", default="electrum.dat", help="wallet file name (default: electrum.dat)")
+    parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
     parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance at listed addresses")
     parser.add_option("-k", "--keys",action="store_true", dest="show_keys",default=False, help="show the private keys of listed addresses")
@@ -651,7 +653,7 @@ if __name__ == '__main__':
     if cmd not in known_commands:
         cmd = 'help'
 
-    wallet = Wallet(options.wallet_dir, options.wallet_name)
+    wallet = Wallet(options.wallet_path)
 
     if cmd == 'gui':
         import gui
