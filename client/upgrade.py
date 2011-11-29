@@ -1,6 +1,11 @@
-import electrum, getpass, base64,ast
+import electrum, getpass, base64,ast,sys
 
-wallet = electrum.Wallet(None)
+
+try:
+    path = sys.argv[1]
+else:
+    path = None
+wallet = electrum.Wallet(path)
 try:
     wallet.read()
     print "ok"
@@ -15,8 +20,7 @@ except BaseException:
         EncodeAES = lambda secret, s: base64.b64encode(AES.new(secret).encrypt(pad(s)))
         DecodeAES = lambda secret, e: AES.new(secret).decrypt(base64.b64decode(e)).rstrip(PADDING)
 
-        print "encrypted seed", wallet.seed
-        print "please provide your password"
+        print "please enter your password"
         password = getpass.getpass("Password:")
         secret = electrum.Hash(password)
         try:
@@ -25,10 +29,8 @@ except BaseException:
         except:
             print "sorry"
             exit(1)
-        print seed
-        print private_keys
         wallet.version = 2
         wallet.seed = wallet.pw_encode( seed, password)
         wallet.private_keys = wallet.pw_encode( repr( private_keys ), password)
         wallet.save()
-        print "wallet was upgraded"
+        print "upgrade successful"
