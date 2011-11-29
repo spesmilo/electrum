@@ -20,10 +20,11 @@ Features:
 
 INSTALL
 
-You need install pygtk, python-ecdsa and pycrypto
+You will need pygtk to use the gui
 
+If you have installed from git, you will need to install python-ecdsa and slowaes:
 * sudo easy_install ecdsa
-* sudo easy_install pycrypto
+* sudo easy_install slowaes
 
 
 RUN

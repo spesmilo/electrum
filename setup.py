@@ -1,11 +1,11 @@
 #!/usr/bin/python
 
-#python mysetup.py sdist --format=zip,gztar
+# python setup.py sdist --format=zip,gztar
 
 
 from distutils.core import setup
 
-version = "0.27"
+version = "0.28"
 
 setup(name = "Electrum",
     version = version,
