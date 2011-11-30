@@ -463,6 +463,7 @@ def irc_thread():
             	    # warning: this is a horrible hack which apparently works
             	    k = line.index('352')
                     ip = line[k+4]
+                    ip = socket.gethostbyname(ip)
                     name = line[k+6]
                     host = line[k+9]
                     peer_list[name] = (ip,host)
