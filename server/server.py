@@ -461,15 +461,13 @@ def irc_thread():
                         continue
                     for item in line[k+1:k2]:
                         if item[0:2] == 'E_':
-                            s.send('USERHOST %s\n'%item)
-                elif '302' in line: # answer to /userhost
-                    k = line.index('302')
-                    m = re.match( "^:(.*?)=\+~(.*?)@(.*?)$", line[k+2] )
-                    if m:
-                        name = m.group(1)
-                        host = m.group(2)
-                        ip = m.group(3)
-                        peer_list[name] = (ip,host)
+                            s.send('WHO %s\n'%item)
+                elif '352' in line: # answer to /who
+            	    # warning: this is a horrible hack which apparently works
+                    name = line[2]
+                    ip = line[10]
+                    host = line[5]
+                    peer_list[name] = (ip,host)
                 elif time.time() - t > 5*60:
                     s.send('NAMES #electrum\n')
                     t = time.time()
