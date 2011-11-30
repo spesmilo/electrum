@@ -443,30 +443,28 @@ def irc_thread():
         try:
             s = socket.socket()
             s.connect(('irc.freenode.net', 6667))
-            s.send('USER electrum 0 * '+config.get('server','host')+' '+config.get('server','ircname')+'\n')
+            s.send('USER electrum 0 * :'+config.get('server','host')+' '+config.get('server','ircname')+'\n')
             s.send('NICK '+NICK+'\n')
             s.send('JOIN #electrum\n')
+            sf = s.makefile('r', 0)
             t = 0
             while not stopping:
-                line = s.recv(2048)
+                line = sf.readline()
                 line = line.rstrip('\r\n')
                 line = line.split()
                 if line[0]=='PING': 
                     s.send('PONG '+line[1]+'\n')
                 elif '353' in line: # answer to /names
                     k = line.index('353')
-                    try:
-                        k2 = line.index('366')
-                    except:
-                        continue
-                    for item in line[k+1:k2]:
+                    for item in line[k+1:]:
                         if item[0:2] == 'E_':
                             s.send('WHO %s\n'%item)
                 elif '352' in line: # answer to /who
             	    # warning: this is a horrible hack which apparently works
-                    name = line[2]
-                    ip = line[10]
-                    host = line[5]
+            	    k = line.index('352')
+                    ip = line[k+4]
+                    name = line[k+6]
+                    host = line[k+9]
                     peer_list[name] = (ip,host)
                 elif time.time() - t > 5*60:
                     s.send('NAMES #electrum\n')
@@ -474,6 +472,7 @@ def irc_thread():
         except:
             traceback.print_exc(file=sys.stdout)
         finally:
+    	    sf.close()
             s.close()
 
 
