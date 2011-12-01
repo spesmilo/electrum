@@ -49,7 +49,7 @@ try:
     config.readfp(f)
     f.close()
 except:
-    print "Could not read electrum.conf. I will use the dafault values."
+    print "Could not read electrum.conf. I will use the default values."
 
 stopping = False
 block_number = -1
