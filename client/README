@@ -36,5 +36,6 @@ RUN
 python electrum.py
 
 If arguments are passed to the command line, Electrum will run in text mode.
-Example:
+Examples:
   python electrum.py balance
+  python electrum.py help
