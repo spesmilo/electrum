@@ -279,7 +279,7 @@ def run_network_dialog( wallet ):
     treeview = gtk.TreeView(model=server_list)
     treeview.show()
 
-    tvcolumn = gtk.TreeViewColumn('hostname')
+    tvcolumn = gtk.TreeViewColumn('Servers')
     treeview.append_column(tvcolumn)
     cell = gtk.CellRendererText()
     tvcolumn.pack_start(cell, False)
@@ -442,7 +442,6 @@ class BitcoinGUI:
         self.create_send_tab()
         self.create_recv_tab()
         self.create_book_tab()
-        #self.add_tab( make_settings_box( self.wallet, False), 'Preferences')
         self.create_about_tab()
         self.notebook.show()
         vbox.pack_start(self.notebook, True, True, 2)
@@ -455,15 +454,12 @@ class BitcoinGUI:
         self.status_image.set_alignment(True, 0.5  )
         self.status_image.show()
 
-        network_button = gtk.Button()
-        network_button.connect("clicked", lambda x: run_network_dialog( self.wallet ) )
-        network_button.add(self.status_image)
-        #network_button.set_tooltip_text("Network")
-        network_button.set_relief(gtk.RELIEF_NONE)
-        network_button.show()
-        self.status_bar.pack_end(network_button, False, False)
-        #self.status_bar.pack_end(self.status_image, False, False)
-
+        self.network_button = gtk.Button()
+        self.network_button.connect("clicked", lambda x: run_network_dialog( self.wallet ) )
+        self.network_button.add(self.status_image)
+        self.network_button.set_relief(gtk.RELIEF_NONE)
+        self.network_button.show()
+        self.status_bar.pack_end(self.network_button, False, False)
 
         def seedb(w, wallet):
             if wallet.use_encryption:
@@ -521,6 +517,7 @@ class BitcoinGUI:
                     self.wallet.new_session()
                 except:
                     self.error = "Not connected"
+                    traceback.print_exc(file=sys.stdout)
                     time.sleep(self.period)
                     continue
 
@@ -865,10 +862,10 @@ class BitcoinGUI:
         dt = time.time() - self.update_time
         if dt < 2*self.period:
             self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
-            self.status_image.set_tooltip_text("Connected to %s.\n%d blocks\nresponse time: %f"%(self.wallet.host, self.wallet.blocks, self.wallet.rtime))
+            self.network_button.set_tooltip_text("Connected to %s.\n%d blocks\nresponse time: %f"%(self.wallet.host, self.wallet.blocks, self.wallet.rtime))
         else:
             self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
-            self.status_image.set_tooltip_text("Trying to contact %s.\n%d blocks"%(self.wallet.host, self.wallet.blocks))
+            self.network_button.set_tooltip_text("Trying to contact %s.\n%d blocks"%(self.wallet.host, self.wallet.blocks))
         text =  "Balance: %s "%( format_satoshis(c) )
         if u: text +=  "[+ %s unconfirmed]"%( format_satoshis(u) )
         if self.error: text = self.error
