@@ -17,14 +17,18 @@ Features:
 * Python. Very compact code, easy to contribute.
 
 
-
 INSTALL
 
-You will need pygtk to use the gui
-
-If you have installed from git, you will need to install python-ecdsa and slowaes:
+If you use the source from git, you will need to install python-ecdsa and slowaes:
 * sudo easy_install ecdsa
 * sudo easy_install slowaes
+These packages are included in the tar.gz and zip archives.
+
+
+In order to use the gui, you need pygtk and tk.
+* apt-get install python-gtk2
+* apt-get install python-tk
+
 
 
 RUN
