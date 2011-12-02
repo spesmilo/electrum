@@ -166,18 +166,19 @@ def settings_dialog(wallet, is_create,  is_recovery):
         gap.show()
         vbox.pack_start(gap, False,False, 5)
 
-    host = gtk.HBox()
-    host_label = gtk.Label('Server:')
-    host_label.set_size_request(150,10)
-    host_label.show()
-    host.pack_start(host_label,False, False, 10)
-    host_entry = gtk.Entry()
-    host_entry.set_text(wallet.host+":%d"%wallet.port)
-    host_entry.show()
-    host.pack_start(host_entry,False,False, 10)
-    add_help_button(host, 'The name and port number of your Bitcoin server, separated by a colon. Example: "ecdsa.org:50000". If no port number is provided, the http port 80 will be tried.')
-    host.show()
-    vbox.pack_start(host, False,False, 5)
+    if is_recovery or is_create:
+        host = gtk.HBox()
+        host_label = gtk.Label('Server:')
+        host_label.set_size_request(150,-1)
+        host_label.show()
+        host.pack_start(host_label,False, False, 10)
+        host_entry = gtk.Entry()
+        host_entry.set_text(wallet.host+":%d"%wallet.port)
+        host_entry.show()
+        host.pack_start(host_entry,False,False, 10)
+        add_help_button(host, 'The name and port number of your Electrum server, separated by a colon. Example: "ecdsa.org:50000". If no port number is provided, the http port 80 will be tried.')
+        host.show()
+        vbox.pack_start(host, False,False, 5)
 
     if not is_create:
         fee = gtk.HBox()
@@ -195,7 +196,7 @@ def settings_dialog(wallet, is_create,  is_recovery):
         vbox.pack_start(fee, False,False, 5)
             
     if not is_create:
-        return dialog, fee_entry, gap_entry, host_entry
+        return dialog, fee_entry, gap_entry
     elif is_recovery:
         return dialog, seed_entry, gap_entry, host_entry
     else:
@@ -205,7 +206,7 @@ def settings_dialog(wallet, is_create,  is_recovery):
 def run_settings_dialog( wallet, is_create, is_recovery):
 
     if not is_create:
-        dialog, fee_entry, gap_entry, host_entry = settings_dialog(wallet, is_create, is_recovery)
+        dialog, fee_entry, gap_entry = settings_dialog(wallet, is_create, is_recovery)
     elif is_recovery:
         dialog, seed_entry, gap_entry, host_entry = settings_dialog(wallet, is_create, is_recovery)
     else:
@@ -213,7 +214,8 @@ def run_settings_dialog( wallet, is_create, is_recovery):
 
     dialog.show()
     r = dialog.run()
-    hh = host_entry.get_text()
+    if is_create:
+        hh = host_entry.get_text()
     if is_recovery:
         gap = gap_entry.get_text()
         seed = seed_entry.get_text()
@@ -229,12 +231,13 @@ def run_settings_dialog( wallet, is_create, is_recovery):
         else: return
 
     try:
-        if ':' in hh:
-            host, port = hh.split(':')
-            port = int(port)
-        else:
-            host = hh
-            port = 80
+        if is_create:
+            if ':' in hh:
+                host, port = hh.split(':')
+                port = int(port)
+            else:
+                host = hh
+                port = 80
         if is_recovery: gap = int(gap)
     except:
         show_message("error")
@@ -245,6 +248,74 @@ def run_settings_dialog( wallet, is_create, is_recovery):
     if is_recovery:
         wallet.seed = seed
         wallet.gap_limit = gap
+    wallet.save()
+
+
+def run_network_dialog( wallet ):
+    dialog = gtk.MessageDialog( None, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+                                gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL,  "")
+    dialog.get_image().set_visible(False)
+    dialog.set_default_response(gtk.RESPONSE_OK)
+    
+    vbox = dialog.vbox
+    host = gtk.HBox()
+    host_label = gtk.Label('Server:')
+    host_label.set_size_request(100,-1)
+    host_label.show()
+    host.pack_start(host_label,False, False, 10)
+    host_entry = gtk.Entry()
+    host_entry.set_size_request(200,-1)
+    host_entry.set_text(wallet.host+":%d"%wallet.port)
+    host_entry.show()
+    host.pack_start(host_entry,False,False, 10)
+    add_help_button(host, 'The name and port number of your Electrum server, separated by a colon. Example: "ecdsa.org:50000". If no port number is provided, the http port 80 will be tried.')
+    host.show()
+    vbox.pack_start(host, False,False, 5)
+
+    server_list = gtk.ListStore(str)
+    for item in wallet.servers:
+        server_list.append([item])
+    
+    treeview = gtk.TreeView(model=server_list)
+    treeview.show()
+
+    tvcolumn = gtk.TreeViewColumn('hostname')
+    treeview.append_column(tvcolumn)
+    cell = gtk.CellRendererText()
+    tvcolumn.pack_start(cell, False)
+    tvcolumn.add_attribute(cell, 'text', 0)
+
+    scroll = gtk.ScrolledWindow()
+    scroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+    scroll.add(treeview)
+    scroll.show()
+    vbox.pack_start(scroll)
+
+    def my_treeview_cb(treeview, path, view_column):
+        host = server_list.get_value( server_list.get_iter(path), 0)
+        host_entry.set_text(host+":50000")
+    treeview.connect('row-activated', my_treeview_cb)
+
+    dialog.show()
+    r = dialog.run()
+    hh = host_entry.get_text()
+    dialog.destroy()
+    if r==gtk.RESPONSE_CANCEL:
+        return
+    print hh
+    try:
+        if ':' in hh:
+            host, port = hh.split(':')
+            port = int(port)
+        else:
+            host = hh
+            port = 50000
+    except:
+        show_message("error")
+        return
+
+    wallet.host = host
+    wallet.port = port
     wallet.save()
 
 
@@ -383,7 +454,15 @@ class BitcoinGUI:
         self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
         self.status_image.set_alignment(True, 0.5  )
         self.status_image.show()
-        self.status_bar.pack_end(self.status_image, False, False)
+
+        network_button = gtk.Button()
+        network_button.connect("clicked", lambda x: run_network_dialog( self.wallet ) )
+        network_button.add(self.status_image)
+        #network_button.set_tooltip_text("Network")
+        network_button.set_relief(gtk.RELIEF_NONE)
+        network_button.show()
+        self.status_bar.pack_end(network_button, False, False)
+        #self.status_bar.pack_end(self.status_image, False, False)
 
 
         def seedb(w, wallet):
@@ -445,6 +524,7 @@ class BitcoinGUI:
                     time.sleep(self.period)
                     continue
 
+                wallet.get_servers()
                 self.info.set_text( self.wallet.message)
 
                 while True:

@@ -224,6 +224,8 @@ class Wallet:
         self.fee = 0.005
         self.version = 2             # bump this everytime the wallet format is modified
 
+        self.servers = ['ecdsa.org','electrum.novit.ro']  # list of default servers
+
         # saved fields
         self.use_encryption = False
         self.addresses = []
@@ -463,6 +465,9 @@ class Wallet:
 
     def new_session(self):
         self.session_id, self.message = ast.literal_eval( self.request( repr ( ('session', repr(self.addresses) ))))
+
+    def get_servers(self):
+        self.servers = map( lambda x:x[1], ast.literal_eval( self.request( repr ( ('peers', '' )))) )
         
     def update(self):
         blocks, changed_addresses = self.poll()
