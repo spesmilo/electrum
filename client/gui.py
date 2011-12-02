@@ -53,7 +53,7 @@ def show_seed_dialog(wallet, password):
         buttons = gtk.BUTTONS_OK, 
         message_format = "Your wallet generation seed is:\n\n" + seed \
             + "\n\nPlease keep it in a safe place; if you lose it, you will not be able to restore your wallet.\n\n" \
-            + "Alternatively, your wallet seed can be stored and recovered with the following mnemonic code:\n\n\"" + ' '.join(mnemonic.mn_encode(seed)) + "\"" )
+            + "Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:\n\n\"" + ' '.join(mnemonic.mn_encode(seed)) + "\"" )
     dialog.show()
     dialog.run()
     dialog.destroy()
