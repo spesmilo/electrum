@@ -394,7 +394,7 @@ class BitcoinGUI:
         vbox.pack_start(self.status_bar, False, False, 0)
 
         self.status_image = gtk.Image()
-        self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
+        self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
         self.status_image.set_alignment(True, 0.5  )
         self.status_image.show()
 
