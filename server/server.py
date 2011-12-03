@@ -19,6 +19,7 @@
 Todo:
    * server should check and return bitcoind status..
    * improve txpoint sorting
+   * command to check cache
 """
 
 
@@ -40,6 +41,7 @@ config.set('server', 'host', 'ecdsa.org')
 config.set('server', 'port', 50000)
 config.set('server', 'password', '')
 config.set('server', 'irc', 'yes')
+config.set('server', 'cache', 'yes') 
 config.set('server', 'ircname', 'Electrum server')
 config.add_section('database')
 config.set('database', 'type', 'psycopg2')
@@ -66,7 +68,7 @@ class MyStore(Datastore_class):
 
     def import_tx(self, tx, is_coinbase):
         tx_id = super(MyStore, self).import_tx(tx, is_coinbase)
-        self.update_tx_cache(tx_id)
+        if config.get('server', 'cache') == 'yes': self.update_tx_cache(tx_id)
 
     def update_tx_cache(self, txid):
         inrows = self.get_tx_inputs(txid, False)
@@ -74,14 +76,14 @@ class MyStore(Datastore_class):
             _hash = store.binout(row[6])
             address = hash_to_address(chr(0), _hash)
             if self.tx_cache.has_key(address):
-                print "cache: popping", address
+                #print "cache: popping", address, self.ismempool
                 self.tx_cache.pop(address)
         outrows = self.get_tx_outputs(txid, False)
         for row in outrows:
             _hash = store.binout(row[6])
             address = hash_to_address(chr(0), _hash)
             if self.tx_cache.has_key(address):
-                print "cache: popping", address
+                #print "cache: popping", address, self.ismempool
                 self.tx_cache.pop(address)
 
     def safe_sql(self,sql, params=(), lock=True):
@@ -196,8 +198,11 @@ class MyStore(Datastore_class):
              WHERE pubkey.pubkey_hash = ? """, (dbhash,))
 
     def get_txpoints(self, addr):
-
-        cached_version = self.tx_cache.get( addr ) 
+        
+        if config.get('server','cache') == 'yes':
+            cached_version = self.tx_cache.get( addr ) 
+            if cached_version is not None: 
+                return cached_version
 
         version, binaddr = decode_check_address(addr)
         if binaddr is None:
@@ -248,7 +253,7 @@ class MyStore(Datastore_class):
             #print "mempool", tx_hash
             txpoint = {
                     "nTime":    0,
-                    "chain_id": 1,
+                    #"chain_id": 1,
                     "height":   0,
                     "is_in":    int(is_in),
                     "blk_hash": 'mempool',
@@ -291,15 +296,11 @@ class MyStore(Datastore_class):
                 if row:
                     if not row[4]: txpoint['raw_scriptPubKey'] = row[1]
 
-
-        if cached_version is None:
-            #print "cache: adding", addr
+        # cache result
+        if config.get('server','cache') == 'yes':
             self.tx_cache[addr] = txpoints
-            return txpoints
-        else:
-            if cached_version != txpoints: 
-                print "cache error: ", addr
-            return txpoints
+        
+        return txpoints
 
 
     def get_status(self, addr):
@@ -552,6 +553,7 @@ if __name__ == '__main__':
 	args.connect_args = { 'database' : config.get('database','database') }
     store = MyStore(args)
     store.tx_cache = {}
+    store.ismempool = False
 
     thread.start_new_thread(listen_thread, (store,))
     thread.start_new_thread(clean_session_thread, ())
@@ -562,7 +564,9 @@ if __name__ == '__main__':
         try:
             dblock.acquire()
             store.catch_up()
+            store.ismempool = True
             memorypool_update(store)
+            store.ismempool = False
             block_number = store.get_block_number(1)
             dblock.release()
         except:
