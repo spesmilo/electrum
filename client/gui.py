@@ -948,7 +948,7 @@ class BitcoinGUI:
             image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
             status = "Connected to %s.\n%d blocks\nresponse time: %f"%(wallet.host, wallet.blocks, wallet.rtime)
         else:
-            image.set_from_stock(gtk.STOCK_FALSE, gtk.ICON_SIZE_MENU)
+            image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
             status = "Not connected"
 
         dialog = gtk.MessageDialog( self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
