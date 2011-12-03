@@ -471,6 +471,7 @@ def irc_thread():
                 elif time.time() - t > 5*60:
                     s.send('NAMES #electrum\n')
                     t = time.time()
+                    peer_list = {}
         except:
             traceback.print_exc(file=sys.stdout)
         finally:
