@@ -956,7 +956,6 @@ class BitcoinGUI:
         dialog.set_title("Server")
         dialog.set_image(image)
         image.show()
-        dialog.set_default_response(gtk.RESPONSE_OK)
     
         vbox = dialog.vbox
         host = gtk.HBox()
