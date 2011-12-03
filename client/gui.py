@@ -130,9 +130,14 @@ def settings_dialog(wallet, is_create,  is_recovery):
             message_format = "Please indicate the server and port number" if not is_recovery else 'Please enter your wallet seed or the corresponding mnemonic list of words, the server and the gap limit')
     else:
         dialog = gtk.MessageDialog( None, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
-                                    gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL,  None)
+                                    gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "These are the settings of your wallet. For more explanations, click on the question mark buttons next to each input field.")
         dialog.get_image().set_visible(False)
         dialog.set_title("Settings")
+
+    image = gtk.Image()
+    image.set_from_stock(gtk.STOCK_PREFERENCES, gtk.ICON_SIZE_DIALOG)
+    image.show()
+    dialog.set_image(image)
 
     vbox = dialog.vbox
     dialog.set_default_response(gtk.RESPONSE_OK)
@@ -184,7 +189,7 @@ def settings_dialog(wallet, is_create,  is_recovery):
     if not is_create:
         fee = gtk.HBox()
         fee_entry = gtk.Entry()
-        fee_label = gtk.Label('Tx. fee:')
+        fee_label = gtk.Label('Transaction fee:')
         fee_label.set_size_request(150,10)
         fee_label.show()
         fee.pack_start(fee_label,False, False, 10)
@@ -192,7 +197,7 @@ def settings_dialog(wallet, is_create,  is_recovery):
         fee_entry.connect('changed', numbify, False)
         fee_entry.show()
         fee.pack_start(fee_entry,False,False, 10)
-        add_help_button(fee, 'Transaction fee. Recommended value:0.005')
+        add_help_button(fee, 'Transaction fee. Recommended value:0.005. Note that this fee is per transaction, not per kilobyte. Size-dependent fees still need to be implemented.')
         fee.show()
         vbox.pack_start(fee, False,False, 5)
             
@@ -299,6 +304,10 @@ def change_password_dialog(wallet, icon):
 
     dialog = gtk.MessageDialog( None, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, msg)
     dialog.set_title("Change password")
+    image = gtk.Image()
+    image.set_from_stock(gtk.STOCK_DIALOG_AUTHENTICATION, gtk.ICON_SIZE_DIALOG)
+    image.show()
+    dialog.set_image(image)
 
     if wallet.use_encryption:
         current_pw, current_pw_entry = password_line('Current password:')
@@ -945,10 +954,10 @@ class BitcoinGUI:
         wallet = self.wallet
         image = gtk.Image()
         if self.is_connected:
-            image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
+            image.set_from_stock(gtk.STOCK_NETWORK, gtk.ICON_SIZE_DIALOG)
             status = "Connected to %s.\n%d blocks\nresponse time: %f"%(wallet.host, wallet.blocks, wallet.rtime)
         else:
-            image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
+            image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_DIALOG)
             status = "Not connected"
 
         dialog = gtk.MessageDialog( self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
@@ -968,7 +977,7 @@ class BitcoinGUI:
         host_entry.set_text(wallet.host+":%d"%wallet.port)
         host_entry.show()
         host.pack_start(host_entry, False, False, 10)
-        add_help_button(host, 'The name and port number of your Electrum server, separated by a colon. Example: "ecdsa.org:50000". If no port number is provided, the http port 80 will be tried.')
+        add_help_button(host, 'The name and port number of your Electrum server, separated by a colon. Example: "ecdsa.org:50000". If no port number is provided, port 50000 will be tried. Some servers allow you to connect through http (port 80) or https (port 443)')
         host.show()
         
         server_list = gtk.ListStore(str)
