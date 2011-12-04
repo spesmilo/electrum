@@ -37,7 +37,7 @@ config = ConfigParser.ConfigParser()
 # set some defaults, which will be overwritten by the config file
 config.add_section('server')
 config.set('server','banner', 'Welcome to Electrum!')
-config.set('server', 'host', 'ecdsa.org')
+config.set('server', 'host', 'localhost')
 config.set('server', 'port', 50000)
 config.set('server', 'password', '')
 config.set('server', 'irc', 'yes')
