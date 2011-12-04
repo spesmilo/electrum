@@ -504,7 +504,7 @@ def irc_thread():
                     name = line[k+6]
                     host = line[k+9]
                     peer_list[name] = (ip,host)
-                elif time.time() - t > 5*60:
+                if time.time() - t > 5*60:
                     s.send('NAMES #electrum\n')
                     t = time.time()
                     peer_list = {}
