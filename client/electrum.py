@@ -404,6 +404,7 @@ class Wallet:
 
     def get_addr_balance(self, addr):
         h = self.history.get(addr)
+        if not h: return 0,0
         c = u = 0
         for item in h:
             v = item['value']
@@ -474,7 +475,7 @@ class Wallet:
         if blocks == -1: raise BaseException("session not found")
         self.blocks = int(blocks)
         for addr, blk_hash in changed_addresses.items():
-            if self.status[addr] != blk_hash:
+            if self.status.get(addr) != blk_hash:
                 print "updating history for", addr
                 self.history[addr] = self.retrieve_history(addr)
                 self.status[addr] = blk_hash
@@ -568,7 +569,9 @@ class Wallet:
     def update_tx_history(self):
         self.tx_history= {}
         for addr in self.addresses:
-            for tx in self.history[addr]:
+            h = self.history.get(addr)
+            if h is None: continue
+            for tx in h:
                 tx_hash = tx['tx_hash']
                 line = self.tx_history.get(tx_hash)
                 if not line:
