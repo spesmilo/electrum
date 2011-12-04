@@ -1029,7 +1029,6 @@ class BitcoinGUI:
             wallet.port = port
             wallet.save()
             self.is_connected = False
-            wallet.new_session()
 
 
     def main(self):
