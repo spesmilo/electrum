@@ -1024,9 +1024,12 @@ class BitcoinGUI:
             show_message("error")
             return
 
-        wallet.host = host
-        wallet.port = port
-        wallet.save()
+        if host!= wallet.host or port!=wallet.port:
+            wallet.host = host
+            wallet.port = port
+            wallet.save()
+            self.is_connected = False
+            wallet.new_session()
 
 
     def main(self):
