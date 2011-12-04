@@ -1001,10 +1001,11 @@ class BitcoinGUI:
         vbox.pack_start(host, False,False, 5)
         vbox.pack_start(scroll)
 
-        def my_treeview_cb(treeview, path, view_column):
+        def my_treeview_cb(treeview):
+            path, view_column = treeview.get_cursor()
             host = server_list.get_value( server_list.get_iter(path), 0)
             host_entry.set_text(host+":50000")
-        treeview.connect('row-activated', my_treeview_cb)
+        treeview.connect('cursor-changed', my_treeview_cb)
 
         dialog.show()
         r = dialog.run()
