@@ -530,6 +530,8 @@ if __name__ == '__main__':
             request = "('stop','%s')#"%config.get('server','password')
         elif cmd == 'h':
             request = "('h','%s')#"%sys.argv[2]
+        elif cmd == 'b':
+            request = "('b','')#"
 
         s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
         s.connect((config.get('server','host'), config.getint('server','port')))
