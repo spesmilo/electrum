@@ -41,7 +41,7 @@ config.set('server', 'host', 'ecdsa.org')
 config.set('server', 'port', 50000)
 config.set('server', 'password', '')
 config.set('server', 'irc', 'yes')
-config.set('server', 'cache', 'yes') 
+config.set('server', 'cache', 'no') 
 config.set('server', 'ircname', 'Electrum server')
 config.add_section('database')
 config.set('database', 'type', 'psycopg2')
@@ -76,14 +76,14 @@ class MyStore(Datastore_class):
             _hash = store.binout(row[6])
             address = hash_to_address(chr(0), _hash)
             if self.tx_cache.has_key(address):
-                #print "cache: popping", address, self.ismempool
+                #print "cache: invalidating", address, self.ismempool
                 self.tx_cache.pop(address)
         outrows = self.get_tx_outputs(txid, False)
         for row in outrows:
             _hash = store.binout(row[6])
             address = hash_to_address(chr(0), _hash)
             if self.tx_cache.has_key(address):
-                #print "cache: popping", address, self.ismempool
+                #print "cache: invalidating", address, self.ismempool
                 self.tx_cache.pop(address)
 
     def safe_sql(self,sql, params=(), lock=True):
@@ -245,6 +245,7 @@ class MyStore(Datastore_class):
         rows = []
         rows += self.get_address_in_rows_memorypool( dbhash )
         rows += self.get_address_out_rows_memorypool( dbhash )
+        address_has_no_mempool = (rows == [])
         for row in rows:
             is_in, tx_hash, tx_id, pos, value = row
             tx_hash = self.hashout_hex(tx_hash)
@@ -297,7 +298,7 @@ class MyStore(Datastore_class):
                     if not row[4]: txpoint['raw_scriptPubKey'] = row[1]
 
         # cache result
-        if config.get('server','cache') == 'yes':
+        if config.get('server','cache') == 'yes' and address_has_no_mempool:
             self.tx_cache[addr] = txpoints
         
         return txpoints
@@ -527,6 +528,8 @@ if __name__ == '__main__':
             request = "('peers','')#"
         elif cmd == 'stop':
             request = "('stop','%s')#"%config.get('server','password')
+        elif cmd == 'h':
+            request = "('h','%s')#"%sys.argv[2]
 
         s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
         s.connect((config.get('server','host'), config.getint('server','port')))
