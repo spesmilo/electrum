@@ -59,9 +59,7 @@ block_number = -1
 sessions = {}
 sessions_last_time = {}
 dblock = thread.allocate_lock()
-
 peer_list = {}
-
 
 
 class MyStore(Datastore_class):
@@ -76,14 +74,14 @@ class MyStore(Datastore_class):
             _hash = store.binout(row[6])
             address = hash_to_address(chr(0), _hash)
             if self.tx_cache.has_key(address):
-                #print "cache: invalidating", address, self.ismempool
+                print "cache: invalidating", address, self.ismempool
                 self.tx_cache.pop(address)
         outrows = self.get_tx_outputs(txid, False)
         for row in outrows:
             _hash = store.binout(row[6])
             address = hash_to_address(chr(0), _hash)
             if self.tx_cache.has_key(address):
-                #print "cache: invalidating", address, self.ismempool
+                print "cache: invalidating", address, self.ismempool
                 self.tx_cache.pop(address)
 
     def safe_sql(self,sql, params=(), lock=True):
@@ -245,12 +243,15 @@ class MyStore(Datastore_class):
         rows = []
         rows += self.get_address_in_rows_memorypool( dbhash )
         rows += self.get_address_out_rows_memorypool( dbhash )
-        address_has_no_mempool = (rows == [])
+        address_has_mempool = False
+
         for row in rows:
             is_in, tx_hash, tx_id, pos, value = row
             tx_hash = self.hashout_hex(tx_hash)
             if tx_hash in known_tx:
                 continue
+
+            address_has_mempool = True
             #print "mempool", tx_hash
             txpoint = {
                     "nTime":    0,
@@ -298,7 +299,7 @@ class MyStore(Datastore_class):
                     if not row[4]: txpoint['raw_scriptPubKey'] = row[1]
 
         # cache result
-        if config.get('server','cache') == 'yes' and address_has_no_mempool:
+        if config.get('server','cache') == 'yes' and not address_has_mempool:
             self.tx_cache[addr] = txpoints
         
         return txpoints
@@ -378,19 +379,27 @@ def client_thread(ipaddr,conn):
         elif cmd=='poll': 
             session_id = data
             addresses = sessions.get(session_id)
-            if not addresses:
-                print "session not found", ipaddr
+            if addresses is None:
+                print time.asctime(), " Session not found", session_id, ipaddr
                 out = repr( (-1, {}))
             else:
+                t1 = time.time()
                 sessions_last_time[session_id] = time.time()
                 ret = {}
+                k = 0
                 for addr in addresses:
+                    if store.tx_cache.get( addr ) is not None: k += 1
                     status = store.get_status( addr )
                     last_status = addresses.get( addr )
                     if last_status != status:
-                        sessions[session_id][addr] = status
+                        addresses[addr] = status
                         ret[addr] = status
+                if ret:
+                    sessions[session_id] = addresses
                 out = repr( (block_number, ret ) )
+                t2 = time.time() - t1 
+                if t2 > 10:
+                    print "high load:", session_id, "%d/%d"%(k,len(addresses)), t2
 
         elif cmd == 'h': 
             # history
@@ -467,8 +476,8 @@ def clean_session_thread():
         time.sleep(30)
         t = time.time()
         for k,t0 in sessions_last_time.items():
-            if t - t0 > 60:
-                print "lost session",k
+            if t - t0 > 5*60:
+                print time.asctime(), "lost session",k
                 sessions.pop(k)
                 sessions_last_time.pop(k)
             
@@ -547,6 +556,8 @@ if __name__ == '__main__':
 
 
     print "starting Electrum server"
+    print "cache:", config.get('server', 'cache')
+
     conf = DataStore.CONFIG_DEFAULTS
     args, argv = readconf.parse_argv( [], conf)
     args.dbtype= config.get('database','type')
