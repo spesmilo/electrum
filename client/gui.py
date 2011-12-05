@@ -460,16 +460,19 @@ class BitcoinGUI:
                 try:
                     self.wallet.new_session()
                     self.is_connected = True
+                    self.info.set_text( self.wallet.message)
                 except:
                     self.is_connected = False
                     traceback.print_exc(file=sys.stdout)
                     time.sleep(self.period)
                     continue
 
-                wallet.get_servers()
-                self.info.set_text( self.wallet.message)
-
+                get_servers_time = 0
                 while True:
+                    if time.time() - get_servers_time > 5*60:
+                        wallet.get_servers()
+                        get_servers_time = time.time()
+                        
                     self.period = 15 if self.wallet.use_http() else 5
                     try:
                         u = self.wallet.update()
@@ -953,11 +956,10 @@ class BitcoinGUI:
     def network_dialog( self, w ):
         wallet = self.wallet
         image = gtk.Image()
+        image.set_from_stock(gtk.STOCK_NETWORK, gtk.ICON_SIZE_DIALOG)
         if self.is_connected:
-            image.set_from_stock(gtk.STOCK_NETWORK, gtk.ICON_SIZE_DIALOG)
             status = "Connected to %s.\n%d blocks\nresponse time: %f"%(wallet.host, wallet.blocks, wallet.rtime)
         else:
-            image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_DIALOG)
             status = "Not connected"
 
         dialog = gtk.MessageDialog( self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
