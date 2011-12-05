@@ -367,7 +367,7 @@ def client_thread(ipaddr,conn):
                 conn.close()
                 return
 
-            print time.asctime(), "session", ipaddr, session_id, addresses[0], len(addresses)
+            print time.asctime(), "session", ipaddr, session_id, addresses[0] if addresses else addresses, len(addresses)
 
             sessions[session_id] = {}
             for a in addresses:
@@ -386,7 +386,7 @@ def client_thread(ipaddr,conn):
                 ret = {}
                 for addr in addresses:
                     status = store.get_status( addr )
-                    last_status = sessions[session_id].get( addr )
+                    last_status = addresses.get( addr )
                     if last_status != status:
                         sessions[session_id][addr] = status
                         ret[addr] = status
