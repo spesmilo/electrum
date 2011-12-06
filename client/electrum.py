@@ -18,6 +18,7 @@
 
 
 import sys, base64, os, re, hashlib, socket, getpass, copy, operator, ast
+from decimal import Decimal
 
 try:
     import ecdsa  
@@ -383,7 +384,9 @@ class Wallet:
              self.change_addresses, self.status, self.history, 
              self.labels, self.addressbook) = sequence
         except:
-            raise BaseException("version error.")
+            # it is safer to exit immediately
+            print "Error; could not parse wallet."
+            exit(1)
         if self.version != WALLET_VERSION:
             raise BaseException("Wallet version error.\nPlease move your balance to a new wallet.\nSee the release notes for more informations.")
         self.update_tx_history()
@@ -490,8 +493,6 @@ class Wallet:
     def choose_inputs_outputs( self, to_addr, amount, fee, password):
         """ todo: minimize tx size """
 
-        amount = int( 1e8*amount )
-        fee = int( 1e8*fee )
         total = 0 
         inputs = []
         for addr in self.addresses:
@@ -609,7 +610,7 @@ class Wallet:
     def mktx(self, to_address, amount, label, password, fee=None):
         if not self.is_valid(to_address):
             return False, "Invalid address"
-        if fee is None: fee = self.fee
+        if fee is None: fee = int( self.fee )
         try:
             inputs, outputs = wallet.choose_inputs_outputs( to_address, amount, fee, password )
             if not inputs:
@@ -720,9 +721,9 @@ if __name__ == '__main__':
     if cmd in ['payto', 'mktx']:
         try:
             to_address = args[1]
-            amount = float(args[2])
+            amount = int( 100000000 * Decimal(args[2]) )
             label = ' '.join(args[3:])
-            if options.tx_fee: options.tx_fee = float(options.tx_fee)
+            if options.tx_fee: options.tx_fee = int( 100000000 * Decimal(options.tx_fee) )
         except:
             firstarg = cmd
             cmd = 'help'

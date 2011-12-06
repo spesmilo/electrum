@@ -23,14 +23,17 @@ import pygtk
 pygtk.require('2.0')
 import gtk, gobject
 import pyqrnative
+from decimal import Decimal
 
 gtk.gdk.threads_init()
 APP_NAME = "Electrum"
 
 def format_satoshis(x):
-    xx = ("%f"%(x*1e-8)).rstrip('0')
-    if xx[-1] =='.': xx+="00"
-    if xx[-2] =='.': xx+="0"
+    xx = str( Decimal(x) /100000000 )
+    #xx = ("%f"%(x*1e-8)).rstrip('0')
+    if not '.' in xx: xx = xx + '.'
+    if len(xx) > 0 and xx[-1] =='.': xx+="00"
+    if len(xx) > 1 and xx[-2] =='.': xx+="0"
     return xx
 
 def numbify(entry, is_int = False):
@@ -201,7 +204,7 @@ def run_settings_dialog(wallet, is_create, is_recovery, parent):
         fee_label.set_size_request(150,10)
         fee_label.show()
         fee.pack_start(fee_label,False, False, 10)
-        fee_entry.set_text("%f"%(wallet.fee))
+        fee_entry.set_text( str( Decimal(wallet.fee) /100000000 ) )
         fee_entry.connect('changed', numbify, False)
         fee_entry.show()
         fee.pack_start(fee_entry,False,False, 10)
@@ -243,7 +246,7 @@ def run_settings_dialog(wallet, is_create, is_recovery, parent):
         if is_recovery:
             gap = int(gap)
         if not is_create:
-            fee = float(fee)
+            fee = int( 100000000 * Decimal(fee) )
             gap = int(gap)
     except:
         show_message("error")
@@ -582,7 +585,7 @@ class BitcoinGUI:
             return
 
         try:
-            amount = float(amount_entry.get_text())
+            amount = int( Decimal(amount_entry.get_text()) * 100000000 )
         except:
             show_message( "invalid amount" )
             return
