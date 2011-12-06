@@ -225,7 +225,7 @@ class Wallet:
         self.gap_limit = 5           # configuration
         self.host = 'ecdsa.org'
         self.port = 50000
-        self.fee = 0.005
+        self.fee = 50000
         self.version = WALLET_VERSION
         self.servers = ['ecdsa.org','electrum.novit.ro']  # list of default servers
 
@@ -383,12 +383,13 @@ class Wallet:
              self.seed, self.addresses, self.private_keys, 
              self.change_addresses, self.status, self.history, 
              self.labels, self.addressbook) = sequence
+            self.fee = int(self.fee)
         except:
             # it is safer to exit immediately
             print "Error; could not parse wallet."
             exit(1)
         if self.version != WALLET_VERSION:
-            raise BaseException("Wallet version error.\nPlease move your balance to a new wallet.\nSee the release notes for more informations.")
+            raise BaseException("Wallet version error.\nPlease move your balance to a new wallet.\nSee the release notes for more information.")
         self.update_tx_history()
         return True
         
@@ -610,7 +611,7 @@ class Wallet:
     def mktx(self, to_address, amount, label, password, fee=None):
         if not self.is_valid(to_address):
             return False, "Invalid address"
-        if fee is None: fee = int( self.fee )
+        if fee is None: fee = self.fee
         try:
             inputs, outputs = wallet.choose_inputs_outputs( to_address, amount, fee, password )
             if not inputs:
