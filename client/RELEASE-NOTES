@@ -1,0 +1,24 @@
+
+Version 0.31
+------------
+
+version 0.31 fixes a vulnerability in the key generation function.
+Unfortunately, this means that wallets created prior to 0.31 are
+incompatible with newer versions. We apologize for the
+inconvenience. We try to keep this kind of upgrades as rare as
+possible.
+
+If you use an older wallet, you will see a message asking you to
+create a new wallet and to move your balance to the new wallet.
+
+Here are the steps that you need to follow:
+* create a new wallet: electrum.py -w my_new_wallet.dat
+* copy a receiving address from the new wallet
+* open your old wallet: 
+* move your entire balance to the new address.
+
+Note that you may keep your current seed. For this, all you need to do
+is to create the new wallet using the wallet recovery procedure. You
+will not recover your old wallet with the new software, but you will
+get a new wallet instead.
+
