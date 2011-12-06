@@ -61,8 +61,13 @@ def show_seed_dialog(wallet, password, parent):
 
 def init_wallet(wallet):
 
-    if not wallet.read():
+    try:
+        found = wallet.read()
+    except BaseException, e:
+        show_message(e.message)
+        exit(1)
 
+    if not found: 
         # ask if the user wants to create a new wallet, or recover from a seed. 
         # if he wants to recover, and nothing is found, do not create wallet
         dialog = gtk.Dialog("electrum", parent=None, 

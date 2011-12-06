@@ -215,6 +215,9 @@ class InvalidPassword(Exception):
 
 
 
+WALLET_VERSION = 3       # bump this everytime the wallet format is modified
+
+
 class Wallet:
     def __init__(self, wallet_path):
 
@@ -222,8 +225,7 @@ class Wallet:
         self.host = 'ecdsa.org'
         self.port = 50000
         self.fee = 0.005
-        self.version = 2             # bump this everytime the wallet format is modified
-
+        self.version = WALLET_VERSION
         self.servers = ['ecdsa.org','electrum.novit.ro']  # list of default servers
 
         # saved fields
@@ -286,8 +288,8 @@ class Wallet:
     def create_new_address(self, for_change, password):
         seed = self.pw_decode( self.seed, password)
         # strenghtening
+        oldseed = seed
         for i in range(100000):
-            oldseed = seed
             seed = hashlib.sha512(seed + oldseed).digest()
         i = len( self.addresses ) - len(self.change_addresses) if not for_change else len(self.change_addresses)
         seed = Hash( "%d:%d:"%(i,for_change) + seed )
@@ -382,8 +384,8 @@ class Wallet:
              self.labels, self.addressbook) = sequence
         except:
             raise BaseException("version error.")
-        if self.version == 1 and self.use_encryption:
-            raise BaseException("version error: please upgrade your wallet first")
+        if self.version != WALLET_VERSION:
+            raise BaseException("Wallet version error. Please use the upgrade script.")
         self.update_tx_history()
         return True
         

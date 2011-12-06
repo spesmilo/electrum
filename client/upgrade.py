@@ -1,15 +1,7 @@
 import electrum, getpass, base64,ast,sys
 
 
-try:
-    path = sys.argv[1]
-except:
-    path = None
-wallet = electrum.Wallet(path)
-try:
-    wallet.read()
-    print "ok"
-except BaseException:
+def upgrade_wallet(wallet):
     if wallet.version == 1 and wallet.use_encryption:
         # version 1 used pycrypto for wallet encryption
         import Crypto
@@ -33,4 +25,30 @@ except BaseException:
         wallet.seed = wallet.pw_encode( seed, password)
         wallet.private_keys = wallet.pw_encode( repr( private_keys ), password)
         wallet.save()
-        print "upgrade successful"
+        print "upgraded to version 2"
+    if wallet.version < 3:
+        print """
+Your wallet is deprecated; its regeneration seed will not work with versions 0.31 and above.
+In order to upgrade, you need to create a new wallet (you may use your current seed), and to
+send your bitcoins to the new wallet, using a compatible version of Electrum ( http://ecdsa.org/electrum/Electrum-0.30.zip )
+
+We apologize for the inconvenience. We try to keep this kind of upgrades as rare as possible.
+"""
+
+
+if __name__ == "__main__":
+    try:
+        path = sys.argv[1]
+    except:
+        path = None
+    wallet = electrum.Wallet(path)
+    try:
+        found = wallet.read()
+        if found:
+            print wallet.path
+        else:
+            print "wallet not found."
+    except BaseException:
+        upgrade_wallet(wallet)
+        
+
