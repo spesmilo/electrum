@@ -39,7 +39,7 @@ def numbify(entry, is_int = False):
     entry.set_text(s)
 
 
-def show_seed_dialog(wallet, password):
+def show_seed_dialog(wallet, password, parent):
     import mnemonic
     try:
         seed = wallet.pw_decode( wallet.seed, password)
@@ -48,12 +48,13 @@ def show_seed_dialog(wallet, password):
         show_message("Incorrect password")
         return
     dialog = gtk.MessageDialog(
-        parent = None,
+        parent = parent,
         flags = gtk.DIALOG_MODAL, 
         buttons = gtk.BUTTONS_OK, 
         message_format = "Your wallet generation seed is:\n\n" + seed \
             + "\n\nPlease keep it in a safe place; if you lose it, you will not be able to restore your wallet.\n\n" \
             + "Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:\n\n\"" + ' '.join(mnemonic.mn_encode(seed)) + "\"" )
+    dialog.set_title("Seed")
     dialog.show()
     dialog.run()
     dialog.destroy()
@@ -84,20 +85,20 @@ def init_wallet(wallet):
             wallet.new_seed(None)
 
             # ask for the server.
-            run_settings_dialog(wallet, is_create=True, is_recovery=False)
+            run_settings_dialog(wallet, is_create=True, is_recovery=False, parent=None)
 
             # generate first key
             wallet.create_new_address(False, None)
 
             # run a dialog indicating the seed, ask the user to remember it
-            show_seed_dialog(wallet, None)
+            show_seed_dialog(wallet, None, None)
             
             #ask for password
-            change_password_dialog(wallet, None)
+            change_password_dialog(wallet, None, None)
 
         else:
             # ask for the server, seed and gap.
-            run_settings_dialog(wallet, is_create=True, is_recovery=True)
+            run_settings_dialog(wallet, is_create=True, is_recovery=True, parent=None)
 
             dialog = gtk.MessageDialog(
                 parent = None,
@@ -120,24 +121,26 @@ def init_wallet(wallet):
                 show_message("No transactions found for this seed")
 
 
-def settings_dialog(wallet, is_create,  is_recovery):
+def run_settings_dialog(wallet, is_create, is_recovery, parent):
 
-    if is_create:
-        dialog = gtk.MessageDialog(
-            parent = None,
-            flags = gtk.DIALOG_MODAL, 
-            buttons = gtk.BUTTONS_OK_CANCEL, 
-            message_format = "Please indicate the server and port number" if not is_recovery else 'Please enter your wallet seed or the corresponding mnemonic list of words, the server and the gap limit')
+    if is_recovery:
+        message = "Please enter your wallet seed or the corresponding mnemonic list of words, the server and the gap limit"
+    elif is_create:
+        message = "Please indicate the server and port number"
     else:
-        dialog = gtk.MessageDialog( None, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
-                                    gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "These are the settings of your wallet. For more explanations, click on the question mark buttons next to each input field.")
-        dialog.get_image().set_visible(False)
-        dialog.set_title("Settings")
+        message = "These are the settings of your wallet. For more explanations, click on the question mark buttons next to each input field."
+        
+    dialog = gtk.MessageDialog(
+        parent = parent,
+        flags = gtk.DIALOG_MODAL, 
+        buttons = gtk.BUTTONS_OK_CANCEL,
+        message_format = message)
 
     image = gtk.Image()
     image.set_from_stock(gtk.STOCK_PREFERENCES, gtk.ICON_SIZE_DIALOG)
     image.show()
     dialog.set_image(image)
+    dialog.set_title("Settings")
 
     vbox = dialog.vbox
     dialog.set_default_response(gtk.RESPONSE_OK)
@@ -201,22 +204,6 @@ def settings_dialog(wallet, is_create,  is_recovery):
         fee.show()
         vbox.pack_start(fee, False,False, 5)
             
-    if not is_create:
-        return dialog, fee_entry, gap_entry
-    elif is_recovery:
-        return dialog, seed_entry, gap_entry, host_entry
-    else:
-        return dialog, host_entry
-
-
-def run_settings_dialog( wallet, is_create, is_recovery):
-
-    if not is_create:
-        dialog, fee_entry, gap_entry = settings_dialog(wallet, is_create, is_recovery)
-    elif is_recovery:
-        dialog, seed_entry, gap_entry, host_entry = settings_dialog(wallet, is_create, is_recovery)
-    else:
-        dialog, host_entry, = settings_dialog(wallet, is_create, is_recovery)
 
     dialog.show()
     r = dialog.run()
@@ -231,6 +218,10 @@ def run_settings_dialog( wallet, is_create, is_recovery):
             import mnemonic
             print "not hex, trying decode"
             seed = mnemonic.mn_decode( seed.split(' ') )
+    if not is_create:
+        fee = fee_entry.get_text()
+        gap = gap_entry.get_text()
+        
     dialog.destroy()
     if r==gtk.RESPONSE_CANCEL:
         if is_create: sys.exit(1)
@@ -243,16 +234,24 @@ def run_settings_dialog( wallet, is_create, is_recovery):
                 port = int(port)
             else:
                 host = hh
-                port = 80
-        if is_recovery: gap = int(gap)
+                port = 50000
+        if is_recovery:
+            gap = int(gap)
+        if not is_create:
+            fee = float(fee)
+            gap = int(gap)
     except:
         show_message("error")
         return
 
-    wallet.host = host
-    wallet.port = port
+    if is_create:
+        wallet.host = host
+        wallet.port = port
     if is_recovery:
         wallet.seed = seed
+        wallet.gap_limit = gap
+    if not is_create:
+        wallet.fee = fee
         wallet.gap_limit = gap
     wallet.save()
 
@@ -296,13 +295,13 @@ def password_dialog():
     dialog.destroy()
     if result: return pw
 
-def change_password_dialog(wallet, icon):
-    if icon:
+def change_password_dialog(wallet, parent, icon):
+    if parent:
         msg = 'Your wallet is encrypted. Use this dialog to change the password. To disable wallet encryption, enter an empty new password.' if wallet.use_encryption else 'Your wallet keys are not encrypted'
     else:
         msg = "Please choose a password to encrypt your wallet keys"
 
-    dialog = gtk.MessageDialog( None, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, msg)
+    dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, msg)
     dialog.set_title("Change password")
     image = gtk.Image()
     image.set_from_stock(gtk.STOCK_DIALOG_AUTHENTICATION, gtk.ICON_SIZE_DIALOG)
@@ -410,7 +409,7 @@ class BitcoinGUI:
                 password = password_dialog()
                 if not password: return
             else: password = None
-            show_seed_dialog(wallet, password)
+            show_seed_dialog(wallet, password, self.window)
         button = gtk.Button('S')
         button.connect("clicked", seedb, wallet )
         button.set_relief(gtk.RELIEF_NONE)
@@ -424,7 +423,7 @@ class BitcoinGUI:
         settings_icon.show()
 
         prefs_button = gtk.Button()
-        prefs_button.connect("clicked", lambda x: run_settings_dialog(self.wallet, False, False) )
+        prefs_button.connect("clicked", lambda x: run_settings_dialog(self.wallet, False, False, self.window) )
         prefs_button.add(settings_icon)
         prefs_button.set_tooltip_text("Settings")
         prefs_button.set_relief(gtk.RELIEF_NONE)
@@ -438,7 +437,7 @@ class BitcoinGUI:
         pw_icon.show()
 
         password_button = gtk.Button()
-        password_button.connect("clicked", lambda x: change_password_dialog(self.wallet, pw_icon))
+        password_button.connect("clicked", lambda x: change_password_dialog(self.wallet, self.window, pw_icon))
         password_button.add(pw_icon)
         password_button.set_relief(gtk.RELIEF_NONE)
         password_button.show()
@@ -557,14 +556,14 @@ class BitcoinGUI:
     def create_about_tab(self):
         page = gtk.VBox()
         page.show()
-        self.info = gtk.Label('')  
-        self.info.set_selectable(True)
-        page.pack_start(self.info)
-        #tv = gtk.TextView()
-        #tv.set_editable(False)
-        #tv.set_cursor_visible(False)
-        #page.pack_start(tv)
-        #self.info = tv.get_buffer()
+        #self.info = gtk.Label('')  
+        #self.info.set_selectable(True)
+        #page.pack_start(self.info)
+        tv = gtk.TextView()
+        tv.set_editable(False)
+        tv.set_cursor_visible(False)
+        page.pack_start(tv)
+        self.info = tv.get_buffer()
         self.add_tab(page, 'Wall')
 
     def do_send(self, w, data):
