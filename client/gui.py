@@ -65,7 +65,7 @@ def init_wallet(wallet):
         found = wallet.read()
     except BaseException, e:
         show_message(e.message)
-        exit(1)
+        found = 1
 
     if not found: 
         # ask if the user wants to create a new wallet, or recover from a seed. 

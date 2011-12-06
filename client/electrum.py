@@ -385,7 +385,7 @@ class Wallet:
         except:
             raise BaseException("version error.")
         if self.version != WALLET_VERSION:
-            raise BaseException("Wallet version error. Please use the upgrade script.")
+            raise BaseException("Wallet version error.\nPlease move your balance to a new wallet.\nSee the release notes for more informations.")
         self.update_tx_history()
         return True
         
