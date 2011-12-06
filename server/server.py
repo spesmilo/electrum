@@ -345,6 +345,8 @@ def client_thread(ipaddr,conn):
         while 1:
             d = conn.recv(1024)
             msg += d
+            if not d: 
+                break
             if d[-1]=='#':
                 break
 
