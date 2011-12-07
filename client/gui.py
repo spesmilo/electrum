@@ -41,6 +41,17 @@ def numbify(entry, is_int = False):
     s = ''.join([i for i in text if i in '0123456789.'])
     entry.set_text(s)
 
+    #entry.set_text( str( Decimal( amount ) / 100000000 ) )
+
+    if not is_int:
+        try:
+            amount = int( Decimal(entry.get_text()) * 100000000 )
+        except:
+            amount = 0
+    return amount
+
+
+
 
 def show_seed_dialog(wallet, password, parent):
     import mnemonic
@@ -208,7 +219,7 @@ def run_settings_dialog(wallet, is_create, is_recovery, parent):
         fee_entry.connect('changed', numbify, False)
         fee_entry.show()
         fee.pack_start(fee_entry,False,False, 10)
-        add_help_button(fee, 'Transaction fee. Recommended value:0.005. Note that this fee is per transaction, not per kilobyte. Size-dependent fees still need to be implemented.')
+        add_help_button(fee, 'Fee per transaction input. Transactions involving multiple inputs tend to have a higher fee. Recommended value:0.0005')
         fee.show()
         vbox.pack_start(fee, False,False, 5)
             
@@ -266,9 +277,9 @@ def run_settings_dialog(wallet, is_create, is_recovery, parent):
 
 
 
-def show_message(message):
+def show_message(message, parent=None):
     dialog = gtk.MessageDialog(
-        parent = None,
+        parent = parent,
         flags = gtk.DIALOG_MODAL, 
         buttons = gtk.BUTTONS_CLOSE, 
         message_format = message )
@@ -373,6 +384,9 @@ gtk.binding_entry_add_signal(MyWindow, gtk.keysyms.Q, gtk.gdk.CONTROL_MASK, 'myk
 
 class BitcoinGUI:
 
+    def show_message(self, msg):
+        show_message(msg, self.window)
+
     def __init__(self, wallet):
         self.error = ''
         self.is_connected = False
@@ -384,7 +398,7 @@ class BitcoinGUI:
         self.window.connect("destroy", gtk.main_quit)
         self.window.set_border_width(0)
         self.window.connect('mykeypress', gtk.main_quit)
-        self.window.set_default_size(670, 350)
+        self.window.set_default_size(720, 350)
 
         vbox = gtk.VBox()
 
@@ -453,6 +467,7 @@ class BitcoinGUI:
 
         self.window.add(vbox)
         self.window.show_all()
+        self.fee_box.hide()
 
         self.context_id = self.status_bar.get_context_id("statusbar")
         self.update_status_bar()
@@ -539,22 +554,56 @@ class BitcoinGUI:
         label.pack_start(label_entry, False)
         vbox.pack_start(label, False, False, 5)
 
-        amount = gtk.HBox()
+        amount_box = gtk.HBox()
         amount_label = gtk.Label('Amount:')
-        amount_label.set_size_request(100,10)
+        amount_label.set_size_request(100,-1)
         amount_label.show()
-        amount.pack_start(amount_label, False)
+        amount_box.pack_start(amount_label, False)
         amount_entry = gtk.Entry()
-        amount_entry.set_size_request(100, 26) 
-        amount_entry.connect('changed', numbify)
+        amount_entry.set_size_request(120, -1)
         amount_entry.show()
-        amount.pack_start(amount_entry, False)
-        vbox.pack_start(amount, False, False, 5)
+        amount_box.pack_start(amount_entry, False)
+        vbox.pack_start(amount_box, False, False, 5)
 
-        button = gtk.Button("Send")
-        button.connect("clicked", self.do_send, (payto_entry, label_entry, amount_entry))
-        button.show()
-        amount.pack_start(button, False, False, 5)
+        send_button = gtk.Button("Send")
+        send_button.show()
+        amount_box.pack_start(send_button, False, False, 5)
+
+        self.fee_box = fee_box = gtk.HBox()
+        fee_label = gtk.Label('Fee:')
+        fee_label.set_size_request(100,10)
+        fee_box.pack_start(fee_label, False)
+        fee_entry = gtk.Entry()
+        fee_entry.set_size_request(120, 26)
+        fee_entry.set_has_frame(False)
+        fee_entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#eeeeee"))
+        fee_box.pack_start(fee_entry, False)
+
+        send_button.connect("clicked", self.do_send, (payto_entry, label_entry, amount_entry, fee_entry))
+        vbox.pack_start(fee_box, False, False, 5)
+
+        self.user_fee = False
+
+        def entry_changed( entry, is_fee ):
+            amount = numbify(amount_entry)
+            fee = numbify(fee_entry)
+            if not is_fee: fee = None
+            inputs, total, fee = self.wallet.choose_tx_inputs( amount, fee )
+            if not is_fee:
+                fee_entry.set_text( str( Decimal( fee ) / 100000000 ) )
+                self.fee_box.show()
+            if inputs:
+                amount_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#000000"))
+                fee_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#000000"))
+                send_button.set_sensitive(True)
+            else:
+                send_button.set_sensitive(False)
+                amount_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#cc0000"))
+                fee_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#cc0000"))
+                self.error = 'Not enough funds'
+
+        amount_entry.connect('changed', entry_changed, False)
+        fee_entry.connect('changed', entry_changed, True)
 
         self.payto_entry = payto_entry
         self.payto_amount_entry = amount_entry
@@ -575,38 +624,45 @@ class BitcoinGUI:
         self.add_tab(page, 'Wall')
 
     def do_send(self, w, data):
-        payto_entry, label_entry, amount_entry = data
+        payto_entry, label_entry, amount_entry, fee_entry = data
         
         label = label_entry.get_text()
 
         to_address = payto_entry.get_text()
         if not self.wallet.is_valid(to_address):
-            show_message( "invalid bitcoin address" )
+            self.show_message( "invalid bitcoin address")
             return
 
         try:
             amount = int( Decimal(amount_entry.get_text()) * 100000000 )
         except:
-            show_message( "invalid amount" )
+            self.show_message( "invalid amount")
+            return
+        try:
+            fee = int( Decimal(fee_entry.get_text()) * 100000000 )
+        except:
+            self.show_message( "invalid fee")
             return
 
         password = password_dialog() if self.wallet.use_encryption else None
 
-        status, tx = self.wallet.mktx( to_address, amount, label, password )
+        status, tx = self.wallet.mktx( to_address, amount, label, password, fee )
         self.wallet.new_session() # we created a new change address
         if not status:
-            show_message(tx)
+            self.show_message(tx)
             return
 
         status, msg = self.wallet.sendtx( tx )
         if status:
-            show_message( "payment sent.\n" + msg )
+            self.show_message( "payment sent.\n" + msg )
             payto_entry.set_text("")
             label_entry.set_text("")
             amount_entry.set_text("")
+            fee_entry.set_text("")
+            self.fee_box.hide()
             self.update_sending_tab()
         else:
-            show_message( msg )
+            self.show_message( msg )
 
 
     def treeview_key_press(self, treeview, event):
@@ -617,7 +673,7 @@ class BitcoinGUI:
                 treeview.set_cursor((0,))
         elif event.keyval == gtk.keysyms.Return and treeview == self.history_treeview:
             tx_details = self.history_list.get_value( self.history_list.get_iter(c), 8)
-            show_message(tx_details)
+            self.show_message(tx_details)
         return False
 
     def create_history_tab(self):
@@ -1031,7 +1087,7 @@ class BitcoinGUI:
                 host = hh
                 port = 50000
         except:
-            show_message("error")
+            self.show_message("error")
             return
 
         if host!= wallet.host or port!=wallet.port:

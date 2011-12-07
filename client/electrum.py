@@ -491,9 +491,8 @@ class Wallet:
         else:
             return False
 
-    def choose_inputs_outputs( self, to_addr, amount, fee, password):
+    def choose_tx_inputs( self, amount, fixed_fee ):
         """ todo: minimize tx size """
-
         total = 0 
         inputs = []
         for addr in self.addresses:
@@ -503,11 +502,18 @@ class Wallet:
                     v = item.get('value')
                     total += v
                     inputs.append((addr, v, item['tx_hash'], item['pos'], item['raw_scriptPubKey'], None, None) )
+                    if fixed_fee is not None:
+                        fee = fixed_fee
+                    else:
+                        fee = self.fee * len(inputs)
                     if total >= amount + fee: break
             if total >= amount + fee: break
         else:
-            print "not enough funds: %d %d"%(total, fee)
-            return False, "not enough funds: %d %d"%(total, fee)
+            #print "not enough funds: %d %d"%(total, fee)
+            inputs = []
+        return inputs, total, fee
+
+    def choose_tx_outputs( self, to_addr, amount, fee, total, password ):
         outputs = [ (to_addr, amount) ]
         change_amount = total - ( amount + fee )
         if change_amount != 0:
@@ -522,7 +528,7 @@ class Wallet:
                 change_address = self.create_new_address(True, password)
                 print "new change address", change_address
             outputs.append( (change_address,  change_amount) )
-        return inputs, outputs
+        return outputs
 
     def sign_inputs( self, inputs, outputs, password ):
         s_inputs = []
@@ -611,11 +617,10 @@ class Wallet:
     def mktx(self, to_address, amount, label, password, fee=None):
         if not self.is_valid(to_address):
             return False, "Invalid address"
-        if fee is None: fee = self.fee
         try:
-            inputs, outputs = wallet.choose_inputs_outputs( to_address, amount, fee, password )
-            if not inputs:
-                return False, "Not enough funds"
+            inputs, total, fee = wallet.choose_tx_inputs( amount, fee )
+            if not inputs: return False, "Not enough funds %d %d"%(total, fee)
+            outputs = wallet.choose_tx_outputs( to_address, amount, fee, total, password )
             s_inputs = wallet.sign_inputs( inputs, outputs, password )
         except InvalidPassword:
             return False, "Wrong password"
