@@ -38,12 +38,21 @@ def format_satoshis(x):
 
 def numbify(entry, is_int = False):
     text = entry.get_text().strip()
-    s = ''.join([i for i in text if i in '0123456789.'])
+    chars = '0123456789'
+    if not is_int: chars +='.'
+    s = ''.join([i for i in text if i in chars])
     if not is_int:
-        p = s.find(".")
-        s = s[:p+9]
+        if '.' in s:
+            p = s.find('.')
+            s = s.replace('.','')
+            s = s[:p] + '.' + s[p:p+8]
         try:
             amount = int( Decimal(s) * 100000000 )
+        except:
+            amount = None
+    else:
+        try:
+            amount = int( s )
         except:
             amount = None
     entry.set_text(s)
