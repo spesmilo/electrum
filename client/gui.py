@@ -45,7 +45,7 @@ def numbify(entry, is_int = False):
         try:
             amount = int( Decimal(s) * 100000000 )
         except:
-            amount = 0
+            amount = None
     entry.set_text(s)
     return amount
 
@@ -587,6 +587,8 @@ class BitcoinGUI:
             amount = numbify(amount_entry)
             fee = numbify(fee_entry)
             if not is_fee: fee = None
+            if amount is None: 
+                self.fee_box.hide(); return
             inputs, total, fee = self.wallet.choose_tx_inputs( amount, fee )
             if not is_fee:
                 fee_entry.set_text( str( Decimal( fee ) / 100000000 ) )
@@ -595,6 +597,7 @@ class BitcoinGUI:
                 amount_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#000000"))
                 fee_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#000000"))
                 send_button.set_sensitive(True)
+                self.error = ''
             else:
                 send_button.set_sensitive(False)
                 amount_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#cc0000"))
