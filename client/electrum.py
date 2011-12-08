@@ -864,11 +864,8 @@ if __name__ == '__main__':
         print h
 
     elif cmd == 'newaddress':
-        a = wallet.get_new_address()
-        if a: 
-            print a
-        else:
-            print "Maximum gap reached. Increase gap in order to create more addresses."
+        s, a = wallet.get_new_address(password)
+        print a
 
     elif cmd == 'password':
         try:
