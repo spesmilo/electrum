@@ -361,6 +361,7 @@ def client_thread(ipaddr,conn):
 
         if cmd=='b':
             out = "%d"%block_number
+
         elif cmd=='session':
             session_id = random_string(10)
             try:
@@ -370,7 +371,7 @@ def client_thread(ipaddr,conn):
                 conn.close()
                 return
 
-            print time.asctime(), "session", ipaddr, session_id, addresses[0] if addresses else addresses, len(addresses)
+            print time.asctime(), "new session", ipaddr, session_id, addresses[0] if addresses else addresses, len(addresses)
 
             sessions[session_id] = {}
             for a in addresses:
@@ -378,11 +379,27 @@ def client_thread(ipaddr,conn):
             out = repr( (session_id, config.get('server','banner').replace('\\n','\n') ) )
             sessions_last_time[session_id] = time.time()
 
+        elif cmd=='update_session':
+            try:
+                session_id, addresses = ast.literal_eval(data)
+            except:
+                print "error"
+                conn.close()
+                return
+
+            print time.asctime(), "update session", ipaddr, session_id, addresses[0] if addresses else addresses, len(addresses)
+
+            sessions[session_id] = {}
+            for a in addresses:
+                sessions[session_id][a] = ''
+            out = 'ok'
+            sessions_last_time[session_id] = time.time()
+
         elif cmd=='poll': 
             session_id = data
             addresses = sessions.get(session_id)
             if addresses is None:
-                print time.asctime(), " Session not found", session_id, ipaddr
+                print time.asctime(), "session not found", session_id, ipaddr
                 out = repr( (-1, {}))
             else:
                 t1 = time.time()
