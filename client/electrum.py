@@ -473,6 +473,9 @@ class Wallet:
     def new_session(self):
         self.session_id, self.message = ast.literal_eval( self.request( repr ( ('session', repr(self.addresses) ))))
 
+    def update_session(self):
+        return self.request( repr ( ('update_session', repr((self.session_id,self.addresses)))))
+
     def get_servers(self):
         self.servers = map( lambda x:x[1], ast.literal_eval( self.request( repr ( ('peers', '' )))) )
         

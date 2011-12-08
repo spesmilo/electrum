@@ -490,6 +490,7 @@ class BitcoinGUI:
                 try:
                     self.wallet.new_session()
                     self.is_connected = True
+                    self.update_session = False
                     self.info.set_text( self.wallet.message)
                 except:
                     self.is_connected = False
@@ -499,6 +500,10 @@ class BitcoinGUI:
 
                 get_servers_time = 0
                 while True:
+                    if self.is_connected and self.update_session:
+                        self.wallet.update_session()
+                        self.update_session = False
+
                     if time.time() - get_servers_time > 5*60:
                         wallet.get_servers()
                         get_servers_time = time.time()
@@ -658,7 +663,7 @@ class BitcoinGUI:
         password = password_dialog() if self.wallet.use_encryption else None
 
         status, tx = self.wallet.mktx( to_address, amount, label, password, fee )
-        self.wallet.new_session() # we created a new change address
+        self.update_session = True # we created a new change address
         if not status:
             self.show_message(tx)
             return
@@ -1010,7 +1015,7 @@ class BitcoinGUI:
         else:
                 password = password_dialog() if self.wallet.use_encryption else None
                 success, ret = self.wallet.get_new_address(password)
-                self.wallet.new_session() # we created a new address
+                self.update_session = True # we created a new address
                 if success:
                     address = ret
                     #if label:  self.wallet.labels[address] = label
@@ -1026,6 +1031,7 @@ class BitcoinGUI:
                     errorDialog.show()
                     errorDialog.run()
                     errorDialog.destroy()
+
     
     def network_dialog( self, w ):
         wallet = self.wallet
