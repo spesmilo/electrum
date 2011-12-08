@@ -493,7 +493,8 @@ class Wallet:
 
     def choose_tx_inputs( self, amount, fixed_fee ):
         """ todo: minimize tx size """
-        total = fee = 0
+        total = 0
+        fee = self.fee if fixed_fee is None else fixed_fee
         inputs = []
         for addr in self.addresses:
             h = self.history.get(addr)
@@ -502,10 +503,7 @@ class Wallet:
                     v = item.get('value')
                     total += v
                     inputs.append((addr, v, item['tx_hash'], item['pos'], item['raw_scriptPubKey'], None, None) )
-                    if fixed_fee is not None:
-                        fee = fixed_fee
-                    else:
-                        fee = self.fee * len(inputs)
+                    fee = self.fee*len(inputs) if fixed_fee is None else fixed_fee
                     if total >= amount + fee: break
             if total >= amount + fee: break
         else:
