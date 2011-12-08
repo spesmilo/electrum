@@ -493,7 +493,7 @@ class Wallet:
 
     def choose_tx_inputs( self, amount, fixed_fee ):
         """ todo: minimize tx size """
-        total = 0 
+        total = fee = 0
         inputs = []
         for addr in self.addresses:
             h = self.history.get(addr)
