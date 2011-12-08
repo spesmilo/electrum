@@ -417,6 +417,27 @@ def client_thread(ipaddr,conn):
         elif cmd =='tx':        
             out = send_tx(data)
 
+        elif cmd =='clear_cache':
+            if config.get('server','password') == data:
+                self.tx_cache = {}
+                out = 'ok'
+            else:
+                out = 'wrong password'
+
+        elif cmd =='get_cache':
+            try:
+                pw, addr = data
+            except:
+                addr = None
+            if addr:
+                if config.get('server','password') == pw:
+                    out = store.tx_cache.get(addr)
+                    out = repr(out)
+                else:
+                    out = 'wrong password'
+            else:
+                out = "error: "+ repr(data)
+
         elif cmd == 'stop':
             global stopping
             if config.get('server','password') == data:
@@ -539,6 +560,10 @@ if __name__ == '__main__':
             request = "('peers','')#"
         elif cmd == 'stop':
             request = "('stop','%s')#"%config.get('server','password')
+        elif cmd == 'clear_cache':
+            request = "('clear_cache','%s')#"%config.get('server','password')
+        elif cmd == 'get_cache':
+            request = "('get_cache',('%s','%s'))#"%(config.get('server','password'),sys.argv[2])
         elif cmd == 'h':
             request = "('h','%s')#"%sys.argv[2]
         elif cmd == 'b':
