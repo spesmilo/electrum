@@ -57,7 +57,6 @@ except:
 stopping = False
 block_number = -1
 sessions = {}
-sessions_last_time = {}
 dblock = thread.allocate_lock()
 peer_list = {}
 
@@ -258,7 +257,7 @@ class MyStore(Datastore_class):
                     #"chain_id": 1,
                     "height":   0,
                     "is_in":    int(is_in),
-                    "blk_hash": 'mempool',
+                    "blk_hash": 'mempool', 
                     "tx_hash":  tx_hash,
                     "tx_id":    int(tx_id),
                     "pos":      int(pos),
@@ -305,13 +304,6 @@ class MyStore(Datastore_class):
         return txpoints
 
 
-    def get_status(self, addr):
-        # last block for an address.
-        tx_points = self.get_txpoints(addr)
-        if not tx_points:
-            return None
-        else:
-            return tx_points[-1]['blk_hash']
 
 
 def send_tx(tx):
@@ -362,22 +354,26 @@ def client_thread(ipaddr,conn):
         if cmd=='b':
             out = "%d"%block_number
 
-        elif cmd=='session':
+        elif cmd in ['session','new_session']:
             session_id = random_string(10)
             try:
-                addresses = ast.literal_eval(data)
+                if cmd == 'session':
+                    addresses = ast.literal_eval(data)
+                    version = "old"
+                else:
+                    version, addresses = ast.literal_eval(data)
             except:
                 print "error"
                 conn.close()
                 return
 
-            print time.asctime(), "new session", ipaddr, session_id, addresses[0] if addresses else addresses, len(addresses)
+            print time.asctime(), "new session", version, ipaddr, session_id, addresses[0] if addresses else addresses, len(addresses)
 
-            sessions[session_id] = {}
+            sessions[session_id] = { 'addresses':{}, 'version':version }
             for a in addresses:
-                sessions[session_id][a] = ''
+                sessions[session_id]['addresses'][a] = ''
             out = repr( (session_id, config.get('server','banner').replace('\\n','\n') ) )
-            sessions_last_time[session_id] = time.time()
+            sessions[session_id]['last_time'] = time.time()
 
         elif cmd=='update_session':
             try:
@@ -389,32 +385,44 @@ def client_thread(ipaddr,conn):
 
             print time.asctime(), "update session", ipaddr, session_id, addresses[0] if addresses else addresses, len(addresses)
 
-            sessions[session_id] = {}
+            sessions[session_id]['addresses'] = {}
             for a in addresses:
-                sessions[session_id][a] = ''
+                sessions[session_id]['addresses'][a] = ''
             out = 'ok'
-            sessions_last_time[session_id] = time.time()
+            sessions[session_id]['last_time'] = time.time()
 
         elif cmd=='poll': 
             session_id = data
-            addresses = sessions.get(session_id)
-            if addresses is None:
+            session = sessions.get(session_id)
+            if session is None:
                 print time.asctime(), "session not found", session_id, ipaddr
                 out = repr( (-1, {}))
             else:
                 t1 = time.time()
-                sessions_last_time[session_id] = time.time()
+                addresses = session['addresses']
+                session['last_time'] = time.time()
                 ret = {}
                 k = 0
                 for addr in addresses:
                     if store.tx_cache.get( addr ) is not None: k += 1
-                    status = store.get_status( addr )
+
+                    # get addtess status, i.e. the last block for that address.
+                    tx_points = store.get_txpoints(addr)
+                    if not tx_points:
+                        status = None
+                    else:
+                        lastpoint = tx_points[-1]
+                        status = lastpoint['blk_hash']
+                        # this is a temporary hack; move it up once old clients have disappeared
+                        if status == 'mempool' and session['version'] != "old":
+                            status = status + ':%s'% lastpoint['tx_hash']
+
                     last_status = addresses.get( addr )
                     if last_status != status:
                         addresses[addr] = status
                         ret[addr] = status
                 if ret:
-                    sessions[session_id] = addresses
+                    sessions[session_id]['addresses'] = addresses
                 out = repr( (block_number, ret ) )
                 t2 = time.time() - t1 
                 if t2 > 10:
@@ -433,6 +441,7 @@ def client_thread(ipaddr,conn):
 
         elif cmd =='tx':        
             out = send_tx(data)
+            print "sent tx:", out
 
         elif cmd =='clear_cache':
             if config.get('server','password') == data:
@@ -497,13 +506,11 @@ def memorypool_update(store):
         ds.clear()
         ds.write(hextx.decode('hex'))
         tx = deserialize.parse_Transaction(ds)
-        #print "new tx",tx
-
         tx['hash'] = util.double_sha256(tx['tx'])
-            
         if store.tx_find_id_and_value(tx):
             pass
         else:
+            #print "new tx", tx['hash'][::-1].encode('hex')
             store.import_tx(tx, False)
 
     store.commit()
@@ -515,11 +522,11 @@ def clean_session_thread():
     while not stopping:
         time.sleep(30)
         t = time.time()
-        for k,t0 in sessions_last_time.items():
+        for k,s in sessions.items():
+            t0 = s['last_time']
             if t - t0 > 5*60:
                 print time.asctime(), "lost session",k
                 sessions.pop(k)
-                sessions_last_time.pop(k)
             
 
 def irc_thread():
