@@ -590,7 +590,7 @@ class Wallet:
                     line = self.tx_history.get(tx_hash)
                 else:
                     line['value'] += tx['value']
-                if line['blk_hash'] == 'mempool':
+                if line['height'] == 0:
                     line['nTime'] = 1e12
         self.update_tx_labels()
 
@@ -618,9 +618,9 @@ class Wallet:
     def mktx(self, to_address, amount, label, password, fee=None):
         if not self.is_valid(to_address):
             return False, "Invalid address"
+        inputs, total, fee = wallet.choose_tx_inputs( amount, fee )
+        if not inputs: return False, "Not enough funds %d %d"%(total, fee)
         try:
-            inputs, total, fee = wallet.choose_tx_inputs( amount, fee )
-            if not inputs: return False, "Not enough funds %d %d"%(total, fee)
             outputs = wallet.choose_tx_outputs( to_address, amount, fee, total, password )
             s_inputs = wallet.sign_inputs( inputs, outputs, password )
         except InvalidPassword:
