@@ -29,12 +29,11 @@ gtk.gdk.threads_init()
 APP_NAME = "Electrum"
 
 def format_satoshis(x):
-    xx = str( Decimal(x) /100000000 )
-    #xx = ("%f"%(x*1e-8)).rstrip('0')
-    if not '.' in xx: xx = xx + '.'
-    if len(xx) > 0 and xx[-1] =='.': xx+="00"
-    if len(xx) > 1 and xx[-2] =='.': xx+="0"
-    return xx
+    s = str( Decimal(x) /100000000 )
+    if not '.' in s: s += '.'
+    p = s.find('.')
+    s += " "*( 8 - ( len(s) - p ))
+    return s
 
 def numbify(entry, is_int = False):
     text = entry.get_text().strip()
@@ -737,6 +736,7 @@ class BitcoinGUI:
         treeview.append_column(tvcolumn)
         cell = gtk.CellRendererText()
         cell.set_alignment(1, 0.5)
+        cell.set_property('family', 'monospace')
         tvcolumn.pack_start(cell, False)
         tvcolumn.add_attribute(cell, 'text', 5)
 
@@ -744,6 +744,7 @@ class BitcoinGUI:
         treeview.append_column(tvcolumn)
         cell = gtk.CellRendererText()
         cell.set_alignment(1, 0.5)
+        cell.set_property('family', 'monospace')
         tvcolumn.pack_start(cell, False)
         tvcolumn.add_attribute(cell, 'text', 6)
 
