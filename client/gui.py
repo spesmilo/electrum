@@ -320,7 +320,7 @@ def password_dialog():
     result = dialog.run()
     pw = current_pw_entry.get_text()
     dialog.destroy()
-    if result: return pw
+    if result != gtk.RESPONSE_CANCEL: return pw
 
 def change_password_dialog(wallet, parent, icon):
     if parent:
