@@ -1,2 +1,5 @@
 include README LICENCE RELEASE-NOTES
-recursive-include *.py
+include *.py
+exclude setup.py
+recursive-include ecdsa *.py
+recursive-include aes *.py
