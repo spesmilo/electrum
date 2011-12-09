@@ -2,13 +2,11 @@
 
 # python setup.py sdist --format=zip,gztar
 
-
 from distutils.core import setup
-
-version = "0.32"
+from version import ELECTRUM_VERSION
 
 setup(name = "Electrum",
-    version = version,
+    version = ELECTRUM_VERSION,
     description = "Lightweight Bitcoin Wallet",
     author = "thomasv",
     license = "GNU GPLv3",

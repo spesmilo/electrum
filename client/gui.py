@@ -402,7 +402,7 @@ class BitcoinGUI:
         self.period = 5
 
         self.window = MyWindow(gtk.WINDOW_TOPLEVEL)
-        self.window.set_title(APP_NAME)
+        self.window.set_title(APP_NAME + " " + self.wallet.electrum_version)
         self.window.connect("destroy", gtk.main_quit)
         self.window.set_border_width(0)
         self.window.connect('mykeypress', gtk.main_quit)

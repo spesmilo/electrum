@@ -33,7 +33,6 @@ except:
     sys.exit(1)
 
 
-
 ############ functions from pywallet ##################### 
 
 addrtype = 0
@@ -216,17 +215,20 @@ class InvalidPassword(Exception):
 
 
 
-WALLET_VERSION = 3       # bump this everytime the wallet format is modified
+SEED_VERSION = 3  # bump this everytime the seed generation is modified
+from version import ELECTRUM_VERSION
 
 
 class Wallet:
     def __init__(self, wallet_path):
 
+        self.electrum_version = ELECTRUM_VERSION
+        self.seed_version = SEED_VERSION
+
         self.gap_limit = 5           # configuration
         self.host = 'ecdsa.org'
         self.port = 50000
         self.fee = 50000
-        self.version = WALLET_VERSION
         self.servers = ['ecdsa.org','electrum.novit.ro']  # list of default servers
 
         # saved fields
@@ -362,7 +364,7 @@ class Wallet:
         return True
 
     def save(self):
-        s = repr( (self.version, self.use_encryption, self.fee, self.host, self.port, self.blocks,
+        s = repr( (self.seed_version, self.use_encryption, self.fee, self.host, self.port, self.blocks,
                    self.seed, self.addresses, self.private_keys, 
                    self.change_addresses, self.status, self.history, 
                    self.labels, self.addressbook) )
@@ -379,7 +381,7 @@ class Wallet:
             return False
         try:
             sequence = ast.literal_eval( data )
-            (self.version, self.use_encryption, self.fee, self.host, self.port, self.blocks, 
+            (self.seed_version, self.use_encryption, self.fee, self.host, self.port, self.blocks, 
              self.seed, self.addresses, self.private_keys, 
              self.change_addresses, self.status, self.history, 
              self.labels, self.addressbook) = sequence
@@ -388,8 +390,8 @@ class Wallet:
             # it is safer to exit immediately
             print "Error; could not parse wallet."
             exit(1)
-        if self.version != WALLET_VERSION:
-            raise BaseException("Wallet version error.\nPlease move your balance to a new wallet.\nSee the release notes for more information.")
+        if self.seed_version != SEED_VERSION:
+            raise BaseException("Seed version mismatch.\nPlease move your balance to a new wallet.\nSee the release notes for more information.")
         self.update_tx_history()
         return True
         
@@ -471,7 +473,7 @@ class Wallet:
         return ast.literal_eval( self.request( repr ( ('poll', self.session_id ))))
 
     def new_session(self):
-        self.session_id, self.message = ast.literal_eval( self.request( repr ( ('session', repr(self.addresses) ))))
+        self.session_id, self.message = ast.literal_eval( self.request( repr ( ('session', repr(self.addresses)) )))
 
     def update_session(self):
         return self.request( repr ( ('update_session', repr((self.session_id,self.addresses)))))

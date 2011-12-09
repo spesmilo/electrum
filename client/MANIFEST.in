@@ -1,6 +1,2 @@
-include client/README client/LICENCE
-include server/README server/LICENCE
-include server/electrum.php
-recursive-include client *.py
-recursive-include server *.py
-recursive-include server/patches *
+include README LICENCE RELEASE-NOTES
+recursive-include *.py
