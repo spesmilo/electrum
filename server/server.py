@@ -257,7 +257,7 @@ class MyStore(Datastore_class):
                     #"chain_id": 1,
                     "height":   0,
                     "is_in":    int(is_in),
-                    "blk_hash": 'mempool', #':%s'%tx_hash,
+                    "blk_hash": 'mempool', 
                     "tx_hash":  tx_hash,
                     "tx_id":    int(tx_id),
                     "pos":      int(pos),
@@ -304,13 +304,6 @@ class MyStore(Datastore_class):
         return txpoints
 
 
-    def get_status(self, addr):
-        # last block for an address.
-        tx_points = self.get_txpoints(addr)
-        if not tx_points:
-            return None
-        else:
-            return tx_points[-1]['blk_hash']
 
 
 def send_tx(tx):
@@ -412,7 +405,18 @@ def client_thread(ipaddr,conn):
                 k = 0
                 for addr in addresses:
                     if store.tx_cache.get( addr ) is not None: k += 1
-                    status = store.get_status( addr )
+
+                    # get addtess status, i.e. the last block for that address.
+                    tx_points = store.get_txpoints(addr)
+                    if not tx_points:
+                        status = None
+                    else:
+                        lastpoint = tx_points[-1]
+                        status = lastpoint['blk_hash']
+                        # this is a temporary hack; move it up once old clients have disappeared
+                        if status == 'mempool' and session['version'] != "old":
+                            status = status + ':%s'% lastpoint['tx_hash']
+
                     last_status = addresses.get( addr )
                     if last_status != status:
                         addresses[addr] = status
