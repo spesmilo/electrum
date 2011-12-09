@@ -473,7 +473,7 @@ class Wallet:
         return ast.literal_eval( self.request( repr ( ('poll', self.session_id ))))
 
     def new_session(self):
-        self.session_id, self.message = ast.literal_eval( self.request( repr ( ('session', repr(self.addresses)) )))
+        self.session_id, self.message = ast.literal_eval( self.request( repr ( ('new_session', repr( (self.electrum_version, self.addresses)) ))))
 
     def update_session(self):
         return self.request( repr ( ('update_session', repr((self.session_id,self.addresses)))))
