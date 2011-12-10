@@ -367,9 +367,9 @@ def client_thread(ipaddr,conn):
                 conn.close()
                 return
 
-            print time.asctime(), "new session", version, ipaddr, session_id, addresses[0] if addresses else addresses, len(addresses)
+            print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "new session", ipaddr, addresses[0] if addresses else addresses, len(addresses), "v"+version
 
-            sessions[session_id] = { 'addresses':{}, 'version':version }
+            sessions[session_id] = { 'addresses':{}, 'version':version, 'ip':ipaddr }
             for a in addresses:
                 sessions[session_id]['addresses'][a] = ''
             out = repr( (session_id, config.get('server','banner').replace('\\n','\n') ) )
@@ -383,7 +383,7 @@ def client_thread(ipaddr,conn):
                 conn.close()
                 return
 
-            print time.asctime(), "update session", ipaddr, session_id, addresses[0] if addresses else addresses, len(addresses)
+            print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "update session", ipaddr, addresses[0] if addresses else addresses, len(addresses)
 
             sessions[session_id]['addresses'] = {}
             for a in addresses:
@@ -525,7 +525,7 @@ def clean_session_thread():
         for k,s in sessions.items():
             t0 = s['last_time']
             if t - t0 > 5*60:
-                print time.asctime(), "lost session",k
+                print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "end session", s['ip']
                 sessions.pop(k)
             
 
