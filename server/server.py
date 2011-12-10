@@ -20,6 +20,8 @@ Todo:
    * server should check and return bitcoind status..
    * improve txpoint sorting
    * command to check cache
+
+ mempool transactions do not need to be added to the database; it slows it down
 """
 
 
@@ -73,14 +75,14 @@ class MyStore(Datastore_class):
             _hash = store.binout(row[6])
             address = hash_to_address(chr(0), _hash)
             if self.tx_cache.has_key(address):
-                print "cache: invalidating", address, self.ismempool
+                #print "cache: invalidating", address
                 self.tx_cache.pop(address)
         outrows = self.get_tx_outputs(txid, False)
         for row in outrows:
             _hash = store.binout(row[6])
             address = hash_to_address(chr(0), _hash)
             if self.tx_cache.has_key(address):
-                print "cache: invalidating", address, self.ismempool
+                #print "cache: invalidating", address
                 self.tx_cache.pop(address)
 
     def safe_sql(self,sql, params=(), lock=True):
@@ -623,7 +625,6 @@ if __name__ == '__main__':
 	args.connect_args = { 'database' : config.get('database','database') }
     store = MyStore(args)
     store.tx_cache = {}
-    store.ismempool = False
     store.mempool_keys = {}
 
     thread.start_new_thread(listen_thread, (store,))
@@ -635,9 +636,7 @@ if __name__ == '__main__':
         try:
             dblock.acquire()
             store.catch_up()
-            store.ismempool = True
             memorypool_update(store)
-            store.ismempool = False
             block_number = store.get_block_number(1)
             dblock.release()
         except:
