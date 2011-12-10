@@ -1,0 +1,20 @@
+diff --git a/src/main.cpp b/src/main.cpp
+index 45de76a..6cd304f 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -414,6 +414,7 @@ bool CTransaction::AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs, bool* pfMi
+             return error("AcceptToMemoryPool() : ConnectInputs failed %s", hash.ToString().substr(0,10).c_str());
+         }
+ 
++	/*
+         // Don't accept it if it can't get into a block
+         if (nFees < GetMinFee(1000, true, true))
+             return error("AcceptToMemoryPool() : not enough fees");
+@@ -442,6 +443,7 @@ bool CTransaction::AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs, bool* pfMi
+                 dFreeCount += nSize;
+             }
+         }
++	*/
+     }
+ 
+     // Store transaction in memory
