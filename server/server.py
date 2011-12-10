@@ -249,6 +249,8 @@ class MyStore(Datastore_class):
             tx_hash = self.hashout_hex(tx_hash)
             if tx_hash in known_tx:
                 continue
+            if tx_hash not in self.mempool_keys:
+                continue
 
             address_has_mempool = True
             #print "mempool", tx_hash
@@ -362,12 +364,13 @@ def client_thread(ipaddr,conn):
                     version = "old"
                 else:
                     version, addresses = ast.literal_eval(data)
+                    version = "v"+version
             except:
-                print "error"
+                print "error", data
                 conn.close()
                 return
 
-            print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "new session", ipaddr, addresses[0] if addresses else addresses, len(addresses), "v"+version
+            print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "new session", ipaddr, addresses[0] if addresses else addresses, len(addresses), version
 
             sessions[session_id] = { 'addresses':{}, 'version':version, 'ip':ipaddr }
             for a in addresses:
@@ -439,7 +442,7 @@ def client_thread(ipaddr,conn):
             else:
                 out = 'wrong password'
 
-        elif cmd =='tx':        
+        elif cmd =='tx':
             out = send_tx(data)
             print "sent tx:", out
 
@@ -495,6 +498,7 @@ ds = BCDataStream.BCDataStream()
 
 
 def memorypool_update(store):
+    store.mempool_keys = []
     conn = bitcoinrpc.connect_to_local()
     try:
         v = conn.getmemorypool()
@@ -507,14 +511,13 @@ def memorypool_update(store):
         ds.write(hextx.decode('hex'))
         tx = deserialize.parse_Transaction(ds)
         tx['hash'] = util.double_sha256(tx['tx'])
+        store.mempool_keys.append(tx['hash'][::-1].encode('hex'))
         if store.tx_find_id_and_value(tx):
             pass
-        else:
-            #print "new tx", tx['hash'][::-1].encode('hex')
+        else:            
             store.import_tx(tx, False)
 
     store.commit()
-
 
 
 
@@ -621,6 +624,7 @@ if __name__ == '__main__':
     store = MyStore(args)
     store.tx_cache = {}
     store.ismempool = False
+    store.mempool_keys = {}
 
     thread.start_new_thread(listen_thread, (store,))
     thread.start_new_thread(clean_session_thread, ())
