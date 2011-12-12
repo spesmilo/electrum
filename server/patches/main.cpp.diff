@@ -1,20 +1,28 @@
 diff --git a/src/main.cpp b/src/main.cpp
-index 45de76a..6cd304f 100644
+index 45de76a..8a9002f 100644
 --- a/src/main.cpp
 +++ b/src/main.cpp
-@@ -414,6 +414,7 @@ bool CTransaction::AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs, bool* pfMi
-             return error("AcceptToMemoryPool() : ConnectInputs failed %s", hash.ToString().substr(0,10).c_str());
-         }
+@@ -2787,16 +2787,19 @@ CBlock* CreateNewBlock(CReserveKey& reservekey)
  
-+	/*
-         // Don't accept it if it can't get into a block
-         if (nFees < GetMinFee(1000, true, true))
-             return error("AcceptToMemoryPool() : not enough fees");
-@@ -442,6 +443,7 @@ bool CTransaction::AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs, bool* pfMi
-                 dFreeCount += nSize;
-             }
-         }
-+	*/
-     }
+             // Size limits
+             unsigned int nTxSize = ::GetSerializeSize(tx, SER_NETWORK);
+-            if (nBlockSize + nTxSize >= MAX_BLOCK_SIZE_GEN)
+-                continue;
++            //if (nBlockSize + nTxSize >= MAX_BLOCK_SIZE_GEN)
++            //    continue;
+             int nTxSigOps = tx.GetSigOpCount();
+-            if (nBlockSigOps + nTxSigOps >= MAX_BLOCK_SIGOPS)
+-                continue;
++            //if (nBlockSigOps + nTxSigOps >= MAX_BLOCK_SIGOPS)
++            //    continue;
  
-     // Store transaction in memory
+             // Transaction fee required depends on block size
+             bool fAllowFree = (nBlockSize + nTxSize < 4000 || CTransaction::AllowFree(dPriority));
+             int64 nMinFee = tx.GetMinFee(nBlockSize, fAllowFree, true);
+ 
++	    // electrum server: do not check fees
++	    nMinFee = 0;
++
+             // Connecting shouldn't fail due to dependency on other memory pool transactions
+             // because we're already processing them in order of dependency
+             map<uint256, CTxIndex> mapTestPoolTmp(mapTestPool);
