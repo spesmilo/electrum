@@ -75,14 +75,14 @@ class MyStore(Datastore_class):
             _hash = store.binout(row[6])
             address = hash_to_address(chr(0), _hash)
             if self.tx_cache.has_key(address):
-                #print "cache: invalidating", address
+                print "cache: invalidating", address
                 self.tx_cache.pop(address)
         outrows = self.get_tx_outputs(txid, False)
         for row in outrows:
             _hash = store.binout(row[6])
             address = hash_to_address(chr(0), _hash)
             if self.tx_cache.has_key(address):
-                #print "cache: invalidating", address
+                print "cache: invalidating", address
                 self.tx_cache.pop(address)
 
     def safe_sql(self,sql, params=(), lock=True):
@@ -251,10 +251,14 @@ class MyStore(Datastore_class):
             tx_hash = self.hashout_hex(tx_hash)
             if tx_hash in known_tx:
                 continue
+
+            # this means that pending transactions were added to the db, even if they are not returned by getmemorypool
+            address_has_mempool = True
+
+            # this means pending transactions are returned by getmemorypool
             if tx_hash not in self.mempool_keys:
                 continue
 
-            address_has_mempool = True
             #print "mempool", tx_hash
             txpoint = {
                     "nTime":    0,
@@ -351,7 +355,7 @@ def client_thread(ipaddr,conn):
         try:
             cmd, data = ast.literal_eval(msg[:-1])
         except:
-            print "syntax error", repr(msg)
+            print "syntax error", repr(msg), ipaddr
             conn.close()
             return
 
@@ -450,7 +454,7 @@ def client_thread(ipaddr,conn):
 
         elif cmd =='clear_cache':
             if config.get('server','password') == data:
-                self.tx_cache = {}
+                store.tx_cache = {}
                 out = 'ok'
             else:
                 out = 'wrong password'
@@ -513,10 +517,11 @@ def memorypool_update(store):
         ds.write(hextx.decode('hex'))
         tx = deserialize.parse_Transaction(ds)
         tx['hash'] = util.double_sha256(tx['tx'])
-        store.mempool_keys.append(tx['hash'][::-1].encode('hex'))
+        tx_hash = tx['hash'][::-1].encode('hex')
+        store.mempool_keys.append(tx_hash)
         if store.tx_find_id_and_value(tx):
             pass
-        else:            
+        else:
             store.import_tx(tx, False)
 
     store.commit()
