@@ -32,7 +32,7 @@ def format_satoshis(x):
     s = str( Decimal(x) /100000000 )
     if not '.' in s: s += '.'
     p = s.find('.')
-    s += " "*( 8 - ( len(s) - p ))
+    s += " "*( 9 - ( len(s) - p ))
     return s
 
 def numbify(entry, is_int = False):
