@@ -313,7 +313,6 @@ class MyStore(Datastore_class):
 
 
 
-
 def send_tx(tx):
     import bitcoinrpc
     conn = bitcoinrpc.connect_to_local()
@@ -370,7 +369,7 @@ def client_thread(ipaddr,conn):
                     version = "old"
                 else:
                     version, addresses = ast.literal_eval(data)
-                    version = "v"+version
+                    if version[0]=="0": version = "v" + version
             except:
                 print "error", data
                 conn.close()
@@ -498,12 +497,12 @@ def client_thread(ipaddr,conn):
         conn.close()
     
 
-ds = BCDataStream.BCDataStream()
 
 
 
 
 def memorypool_update(store):
+    ds = BCDataStream.BCDataStream()
     store.mempool_keys = []
     conn = bitcoinrpc.connect_to_local()
     try:
@@ -588,16 +587,17 @@ if __name__ == '__main__':
 
     if len(sys.argv)>1:
         cmd = sys.argv[1]
+        pw = config.get('server','password')
         if cmd == 'load':
-            request = "('load','%s')#"%config.get('server','password')
+            request = "('load','%s')#"%pw
         elif cmd == 'peers':
             request = "('peers','')#"
         elif cmd == 'stop':
-            request = "('stop','%s')#"%config.get('server','password')
+            request = "('stop','%s')#"%pw
         elif cmd == 'clear_cache':
-            request = "('clear_cache','%s')#"%config.get('server','password')
+            request = "('clear_cache','%s')#"%pw
         elif cmd == 'get_cache':
-            request = "('get_cache',('%s','%s'))#"%(config.get('server','password'),sys.argv[2])
+            request = "('get_cache',('%s','%s'))#"%(pw,sys.argv[2])
         elif cmd == 'h':
             request = "('h','%s')#"%sys.argv[2]
         elif cmd == 'b':
