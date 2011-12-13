@@ -487,30 +487,33 @@ class BitcoinGUI:
         def update_wallet_thread():
             while True:
                 try:
+                    self.is_connected = False
                     self.wallet.new_session()
                     self.is_connected = True
                     self.update_session = False
                     self.info.set_text( self.wallet.message)
                 except:
-                    self.is_connected = False
                     traceback.print_exc(file=sys.stdout)
                     time.sleep(self.period)
                     continue
 
                 get_servers_time = 0
                 while True:
-                    if self.is_connected and self.update_session:
-                        self.wallet.update_session()
-                        self.update_session = False
+                    try:
+                        if self.is_connected and self.update_session:
+                            self.wallet.update_session()
+                            self.update_session = False
 
-                    if time.time() - get_servers_time > 5*60:
-                        wallet.get_servers()
+                        if time.time() - get_servers_time > 5*60:
+                            wallet.get_servers()
                         get_servers_time = time.time()
                         
-                    self.period = 15 if self.wallet.use_http() else 5
-                    try:
+                        self.period = 15 if self.wallet.use_http() else 5
                         u = self.wallet.update()
-                        self.is_connected = True
+                        if u:
+                            self.wallet.save()
+                            gobject.idle_add( self.update_history_tab )
+                        time.sleep(self.period)
                     except BaseException:
                         print "starting new session"
                         break
@@ -522,11 +525,7 @@ class BitcoinGUI:
                         print "error"
                         traceback.print_exc(file=sys.stdout)
                         break
-                    self.error = '' if self.is_connected else "Not connected"
-                    if u:
-                        self.wallet.save()
-                        gobject.idle_add( self.update_history_tab )
-                    time.sleep(self.period)
+                self.error = '' if self.is_connected else "Not connected"
                     
         thread.start_new_thread(update_wallet_thread, ())
         thread.start_new_thread(update_status_bar_thread, ())
