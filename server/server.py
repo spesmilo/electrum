@@ -20,6 +20,8 @@ Todo:
    * server should check and return bitcoind status..
    * improve txpoint sorting
    * command to check cache
+
+ mempool transactions do not need to be added to the database; it slows it down
 """
 
 
@@ -73,14 +75,14 @@ class MyStore(Datastore_class):
             _hash = store.binout(row[6])
             address = hash_to_address(chr(0), _hash)
             if self.tx_cache.has_key(address):
-                print "cache: invalidating", address, self.ismempool
+                print "cache: invalidating", address
                 self.tx_cache.pop(address)
         outrows = self.get_tx_outputs(txid, False)
         for row in outrows:
             _hash = store.binout(row[6])
             address = hash_to_address(chr(0), _hash)
             if self.tx_cache.has_key(address):
-                print "cache: invalidating", address, self.ismempool
+                print "cache: invalidating", address
                 self.tx_cache.pop(address)
 
     def safe_sql(self,sql, params=(), lock=True):
@@ -250,7 +252,13 @@ class MyStore(Datastore_class):
             if tx_hash in known_tx:
                 continue
 
+            # this means that pending transactions were added to the db, even if they are not returned by getmemorypool
             address_has_mempool = True
+
+            # this means pending transactions are returned by getmemorypool
+            if tx_hash not in self.mempool_keys:
+                continue
+
             #print "mempool", tx_hash
             txpoint = {
                     "nTime":    0,
@@ -347,7 +355,7 @@ def client_thread(ipaddr,conn):
         try:
             cmd, data = ast.literal_eval(msg[:-1])
         except:
-            print "syntax error", repr(msg)
+            print "syntax error", repr(msg), ipaddr
             conn.close()
             return
 
@@ -362,14 +370,15 @@ def client_thread(ipaddr,conn):
                     version = "old"
                 else:
                     version, addresses = ast.literal_eval(data)
+                    version = "v"+version
             except:
-                print "error"
+                print "error", data
                 conn.close()
                 return
 
-            print time.asctime(), "new session", version, ipaddr, session_id, addresses[0] if addresses else addresses, len(addresses)
+            print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "new session", ipaddr, addresses[0] if addresses else addresses, len(addresses), version
 
-            sessions[session_id] = { 'addresses':{}, 'version':version }
+            sessions[session_id] = { 'addresses':{}, 'version':version, 'ip':ipaddr }
             for a in addresses:
                 sessions[session_id]['addresses'][a] = ''
             out = repr( (session_id, config.get('server','banner').replace('\\n','\n') ) )
@@ -383,7 +392,7 @@ def client_thread(ipaddr,conn):
                 conn.close()
                 return
 
-            print time.asctime(), "update session", ipaddr, session_id, addresses[0] if addresses else addresses, len(addresses)
+            print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "update session", ipaddr, addresses[0] if addresses else addresses, len(addresses)
 
             sessions[session_id]['addresses'] = {}
             for a in addresses:
@@ -439,13 +448,13 @@ def client_thread(ipaddr,conn):
             else:
                 out = 'wrong password'
 
-        elif cmd =='tx':        
+        elif cmd =='tx':
             out = send_tx(data)
             print "sent tx:", out
 
         elif cmd =='clear_cache':
             if config.get('server','password') == data:
-                self.tx_cache = {}
+                store.tx_cache = {}
                 out = 'ok'
             else:
                 out = 'wrong password'
@@ -495,6 +504,7 @@ ds = BCDataStream.BCDataStream()
 
 
 def memorypool_update(store):
+    store.mempool_keys = []
     conn = bitcoinrpc.connect_to_local()
     try:
         v = conn.getmemorypool()
@@ -507,14 +517,14 @@ def memorypool_update(store):
         ds.write(hextx.decode('hex'))
         tx = deserialize.parse_Transaction(ds)
         tx['hash'] = util.double_sha256(tx['tx'])
+        tx_hash = tx['hash'][::-1].encode('hex')
+        store.mempool_keys.append(tx_hash)
         if store.tx_find_id_and_value(tx):
             pass
         else:
-            #print "new tx", tx['hash'][::-1].encode('hex')
             store.import_tx(tx, False)
 
     store.commit()
-
 
 
 
@@ -525,7 +535,7 @@ def clean_session_thread():
         for k,s in sessions.items():
             t0 = s['last_time']
             if t - t0 > 5*60:
-                print time.asctime(), "lost session",k
+                print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "end session", s['ip']
                 sessions.pop(k)
             
 
@@ -620,7 +630,7 @@ if __name__ == '__main__':
 	args.connect_args = { 'database' : config.get('database','database') }
     store = MyStore(args)
     store.tx_cache = {}
-    store.ismempool = False
+    store.mempool_keys = {}
 
     thread.start_new_thread(listen_thread, (store,))
     thread.start_new_thread(clean_session_thread, ())
@@ -631,9 +641,7 @@ if __name__ == '__main__':
         try:
             dblock.acquire()
             store.catch_up()
-            store.ismempool = True
             memorypool_update(store)
-            store.ismempool = False
             block_number = store.get_block_number(1)
             dblock.release()
         except:
