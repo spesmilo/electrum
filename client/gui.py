@@ -680,6 +680,12 @@ class BitcoinGUI:
             self.show_message( msg )
 
 
+    def treeview_button_press(self, treeview, event):
+        if event.type == gtk.gdk._2BUTTON_PRESS:
+            c = treeview.get_cursor()[0]
+            tx_details = self.history_list.get_value( self.history_list.get_iter(c), 8)
+            self.show_message(tx_details)
+
     def treeview_key_press(self, treeview, event):
         c = treeview.get_cursor()[0]
         if event.keyval == gtk.keysyms.Up:
@@ -699,6 +705,7 @@ class BitcoinGUI:
         treeview.set_tooltip_column(7)
         treeview.show()
         treeview.connect('key-press-event', self.treeview_key_press)
+        treeview.connect('button-press-event', self.treeview_button_press)
 
         tvcolumn = gtk.TreeViewColumn('')
         treeview.append_column(tvcolumn)
