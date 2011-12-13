@@ -762,7 +762,7 @@ class BitcoinGUI:
         tvcolumn.set_visible(False)
 
         scroll = gtk.ScrolledWindow()
-        scroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scroll.set_policy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
         scroll.add(treeview)
 
         self.add_tab(scroll, 'History')
