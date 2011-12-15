@@ -3,7 +3,7 @@ import electrum, getpass, base64,ast,sys
 
 
 def upgrade_wallet(wallet):
-    if wallet.version == 1 and wallet.use_encryption:
+    if wallet.seed_version == 1 and wallet.use_encryption:
         # version 1 used pycrypto for wallet encryption
         import Crypto
         from Crypto.Cipher import AES
