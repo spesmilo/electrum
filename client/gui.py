@@ -64,7 +64,6 @@ def show_seed_dialog(wallet, password, parent):
     import mnemonic
     try:
         seed = wallet.pw_decode( wallet.seed, password)
-        private_keys = ast.literal_eval( wallet.pw_decode( wallet.private_keys, password) )
     except:
         show_message("Incorrect password")
         return
@@ -85,8 +84,13 @@ def init_wallet(wallet):
     try:
         found = wallet.read()
     except BaseException, e:
-        show_message(e.message)
+        show_message(e.args[0])
+        if e.args[1] == 0: exit(1)
         found = 1
+    except:
+        exit()
+
+
 
     if not found: 
         # ask if the user wants to create a new wallet, or recover from a seed. 
@@ -114,7 +118,7 @@ def init_wallet(wallet):
             run_settings_dialog(wallet, is_create=True, is_recovery=False, parent=None)
 
             # generate first key
-            wallet.create_new_address(False, None)
+            wallet.create_new_address2(False)
 
             # run a dialog indicating the seed, ask the user to remember it
             show_seed_dialog(wallet, None, None)
@@ -133,13 +137,14 @@ def init_wallet(wallet):
                 message_format = "Please wait..."  )
             dialog.show()
 
-            def recover_thread( wallet, dialog, password ):
-                wallet.is_found = wallet.recover( password )
+            def recover_thread( wallet, dialog ):
+                wallet.init_mpk( wallet.seed ) # not encrypted at this point
+                wallet.is_found = wallet.recover()
                 if wallet.is_found:
                     wallet.save()
                 gobject.idle_add( dialog.destroy )
 
-            thread.start_new_thread( recover_thread, ( wallet, dialog, None ) ) # no password
+            thread.start_new_thread( recover_thread, ( wallet, dialog ) )
             r = dialog.run()
             dialog.destroy()
             if r==gtk.RESPONSE_CANCEL: sys.exit(1)
@@ -354,7 +359,6 @@ def change_password_dialog(wallet, parent, icon):
 
     try:
         seed = wallet.pw_decode( wallet.seed, password)
-        private_keys = ast.literal_eval( wallet.pw_decode( wallet.private_keys, password) )
     except:
         show_message("Incorrect password")
         return
@@ -365,7 +369,6 @@ def change_password_dialog(wallet, parent, icon):
 
     wallet.use_encryption = (new_password != '')
     wallet.seed = wallet.pw_encode( seed, new_password)
-    wallet.private_keys = wallet.pw_encode( repr( private_keys ), new_password)
     wallet.save()
 
     if icon:
@@ -487,30 +490,33 @@ class BitcoinGUI:
         def update_wallet_thread():
             while True:
                 try:
+                    self.is_connected = False
                     self.wallet.new_session()
                     self.is_connected = True
                     self.update_session = False
                     self.info.set_text( self.wallet.message)
                 except:
-                    self.is_connected = False
                     traceback.print_exc(file=sys.stdout)
                     time.sleep(self.period)
                     continue
 
                 get_servers_time = 0
                 while True:
-                    if self.is_connected and self.update_session:
-                        self.wallet.update_session()
-                        self.update_session = False
+                    try:
+                        if self.is_connected and self.update_session:
+                            self.wallet.update_session()
+                            self.update_session = False
 
-                    if time.time() - get_servers_time > 5*60:
-                        wallet.get_servers()
+                        if time.time() - get_servers_time > 5*60:
+                            wallet.get_servers()
                         get_servers_time = time.time()
                         
-                    self.period = 15 if self.wallet.use_http() else 5
-                    try:
+                        self.period = 15 if self.wallet.use_http() else 5
                         u = self.wallet.update()
-                        self.is_connected = True
+                        if u:
+                            self.wallet.save()
+                            gobject.idle_add( self.update_history_tab )
+                        time.sleep(self.period)
                     except BaseException:
                         print "starting new session"
                         break
@@ -522,11 +528,7 @@ class BitcoinGUI:
                         print "error"
                         traceback.print_exc(file=sys.stdout)
                         break
-                    self.error = '' if self.is_connected else "Not connected"
-                    if u:
-                        self.wallet.save()
-                        gobject.idle_add( self.update_history_tab )
-                    time.sleep(self.period)
+                self.error = '' if self.is_connected else "Not connected"
                     
         thread.start_new_thread(update_wallet_thread, ())
         thread.start_new_thread(update_status_bar_thread, ())
@@ -680,6 +682,12 @@ class BitcoinGUI:
             self.show_message( msg )
 
 
+    def treeview_button_press(self, treeview, event):
+        if event.type == gtk.gdk._2BUTTON_PRESS:
+            c = treeview.get_cursor()[0]
+            tx_details = self.history_list.get_value( self.history_list.get_iter(c), 8)
+            self.show_message(tx_details)
+
     def treeview_key_press(self, treeview, event):
         c = treeview.get_cursor()[0]
         if event.keyval == gtk.keysyms.Up:
@@ -699,6 +707,7 @@ class BitcoinGUI:
         treeview.set_tooltip_column(7)
         treeview.show()
         treeview.connect('key-press-event', self.treeview_key_press)
+        treeview.connect('button-press-event', self.treeview_button_press)
 
         tvcolumn = gtk.TreeViewColumn('')
         treeview.append_column(tvcolumn)
@@ -756,7 +765,7 @@ class BitcoinGUI:
         tvcolumn.set_visible(False)
 
         scroll = gtk.ScrolledWindow()
-        scroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scroll.set_policy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
         scroll.add(treeview)
 
         self.add_tab(scroll, 'History')
@@ -1014,8 +1023,7 @@ class BitcoinGUI:
                     errorDialog.run()
                     errorDialog.destroy()
         else:
-                password = password_dialog() if self.wallet.use_encryption else None
-                success, ret = self.wallet.get_new_address(password)
+                success, ret = self.wallet.get_new_address()
                 self.update_session = True # we created a new address
                 if success:
                     address = ret
