@@ -196,7 +196,7 @@ class MyStore(Datastore_class):
               JOIN pubkey ON (pubkey.pubkey_id = txout.pubkey_id)
              WHERE pubkey.pubkey_hash = ? """, (dbhash,))
 
-    def get_txpoints(self, addr):
+    def get_history(self, addr):
         
         if config.get('server','cache') == 'yes':
             cached_version = self.tx_cache.get( addr ) 
@@ -205,7 +205,8 @@ class MyStore(Datastore_class):
 
         version, binaddr = decode_check_address(addr)
         if binaddr is None:
-            return "err"
+            return None
+
         dbhash = self.binin(binaddr)
         rows = []
         rows += self.get_address_out_rows( dbhash )
@@ -415,7 +416,7 @@ def client_thread(ipaddr,conn):
                     if store.tx_cache.get( addr ) is not None: k += 1
 
                     # get addtess status, i.e. the last block for that address.
-                    tx_points = store.get_txpoints(addr)
+                    tx_points = store.get_history(addr)
                     if not tx_points:
                         status = None
                     else:
@@ -423,7 +424,7 @@ def client_thread(ipaddr,conn):
                         status = lastpoint['blk_hash']
                         # this is a temporary hack; move it up once old clients have disappeared
                         if status == 'mempool' and session['version'] != "old":
-                            status = status + ':%s'% lastpoint['tx_hash']
+                            status = status + ':%d'% len(tx_points)
 
                     last_status = addresses.get( addr )
                     if last_status != status:
@@ -439,7 +440,7 @@ def client_thread(ipaddr,conn):
         elif cmd == 'h': 
             # history
             address = data
-            out = repr( store.get_txpoints( address ) )
+            out = repr( store.get_history( address ) )
 
         elif cmd == 'load': 
             if config.get('server','password') == data:
