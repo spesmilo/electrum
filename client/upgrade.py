@@ -1,9 +1,12 @@
-import electrum, getpass, base64,ast,sys
+import electrum, getpass, base64,ast,sys,os
+from version import SEED_VERSION
 
 
 
 def upgrade_wallet(wallet):
-    if wallet.version == 1 and wallet.use_encryption:
+    print "walet path:",wallet.path
+    print "seed version:", wallet.seed_version
+    if wallet.seed_version == 1 and wallet.use_encryption:
         # version 1 used pycrypto for wallet encryption
         import Crypto
         from Crypto.Cipher import AES
@@ -27,21 +30,65 @@ def upgrade_wallet(wallet):
         wallet.private_keys = wallet.pw_encode( repr( private_keys ), password)
         wallet.save()
         print "upgraded to version 2"
-    if wallet.version < 3:
-        print """
-Your wallet is deprecated; its generation seed will not work with versions 0.31 and above.
-In order to upgrade, you need to create a new wallet (you may use your current seed), and
-to send your bitcoins to the new wallet.
+        exit(1)
 
-We apologize for the inconvenience. We try to keep this kind of upgrades as rare as possible.
-"""
+    if wallet.seed_version < SEED_VERSION:
+        print """Note: your wallet seed is deprecated. Please create a new wallet, and move your coins to the new wallet."""
 
 
 if __name__ == "__main__":
     try:
         path = sys.argv[1]
     except:
-        path = None
+        # backward compatibility: look for wallet file in the default data directory
+        if "HOME" in os.environ:
+            wallet_dir = os.path.join( os.environ["HOME"], '.electrum')
+        elif "LOCALAPPDATA" in os.environ:
+            wallet_dir = os.path.join( os.environ["LOCALAPPDATA"], 'Electrum' )
+        elif "APPDATA" in os.environ:
+            wallet_dir = os.path.join( os.environ["APPDATA"],  'Electrum' )
+        else:
+            raise BaseException("No home directory found in environment variables.")
+        path = os.path.join( wallet_dir, 'electrum.dat')
+
+    try:
+        f = open(path,"r")
+        data = f.read()
+        f.close()
+    except:
+        print "file not found", path
+        exit(1)
+
+    try:
+        x = ast.literal_eval(data)
+    except:
+        print "error: could not parse wallet"
+        exit(1)
+
+    if type(x) == tuple:
+        seed_version, use_encryption, fee, host, port, blocks, seed, addresses, private_keys, change_addresses, status, history, labels, addressbook = x
+        s = {
+            'seed_version':seed_version,
+            'use_encryption':use_encryption,
+            'master_public_key':None,
+            'fee':fee,
+            'host':host,
+            'port':port,
+            'blocks':blocks,
+            'seed':seed,
+            'addresses':addresses,
+            'change_addresses':change_addresses,
+            'status':status,
+            'history':history, 
+            'labels':labels,
+            'contacts':addressbook
+            }
+        f = open(path,"w")
+        f.write( repr(s) )
+        f.close()
+        print "wallet format was upgraded."
+        exit(1)
+    
     wallet = electrum.Wallet(path)
     try:
         found = wallet.read()

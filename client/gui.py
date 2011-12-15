@@ -64,7 +64,6 @@ def show_seed_dialog(wallet, password, parent):
     import mnemonic
     try:
         seed = wallet.pw_decode( wallet.seed, password)
-        private_keys = ast.literal_eval( wallet.pw_decode( wallet.private_keys, password) )
     except:
         show_message("Incorrect password")
         return
@@ -85,8 +84,13 @@ def init_wallet(wallet):
     try:
         found = wallet.read()
     except BaseException, e:
-        show_message(e.message)
+        show_message(e.args[0])
+        if e.args[1] == 0: exit(1)
         found = 1
+    except:
+        exit()
+
+
 
     if not found: 
         # ask if the user wants to create a new wallet, or recover from a seed. 
@@ -114,7 +118,7 @@ def init_wallet(wallet):
             run_settings_dialog(wallet, is_create=True, is_recovery=False, parent=None)
 
             # generate first key
-            wallet.create_new_address(False, None)
+            wallet.create_new_address2(False)
 
             # run a dialog indicating the seed, ask the user to remember it
             show_seed_dialog(wallet, None, None)
@@ -133,13 +137,14 @@ def init_wallet(wallet):
                 message_format = "Please wait..."  )
             dialog.show()
 
-            def recover_thread( wallet, dialog, password ):
-                wallet.is_found = wallet.recover( password )
+            def recover_thread( wallet, dialog ):
+                wallet.init_mpk( wallet.seed ) # not encrypted at this point
+                wallet.is_found = wallet.recover()
                 if wallet.is_found:
                     wallet.save()
                 gobject.idle_add( dialog.destroy )
 
-            thread.start_new_thread( recover_thread, ( wallet, dialog, None ) ) # no password
+            thread.start_new_thread( recover_thread, ( wallet, dialog ) )
             r = dialog.run()
             dialog.destroy()
             if r==gtk.RESPONSE_CANCEL: sys.exit(1)
@@ -354,7 +359,6 @@ def change_password_dialog(wallet, parent, icon):
 
     try:
         seed = wallet.pw_decode( wallet.seed, password)
-        private_keys = ast.literal_eval( wallet.pw_decode( wallet.private_keys, password) )
     except:
         show_message("Incorrect password")
         return
@@ -365,7 +369,6 @@ def change_password_dialog(wallet, parent, icon):
 
     wallet.use_encryption = (new_password != '')
     wallet.seed = wallet.pw_encode( seed, new_password)
-    wallet.private_keys = wallet.pw_encode( repr( private_keys ), new_password)
     wallet.save()
 
     if icon:
@@ -1020,8 +1023,7 @@ class BitcoinGUI:
                     errorDialog.run()
                     errorDialog.destroy()
         else:
-                password = password_dialog() if self.wallet.use_encryption else None
-                success, ret = self.wallet.get_new_address(password)
+                success, ret = self.wallet.get_new_address()
                 self.update_session = True # we created a new address
                 if success:
                     address = ret

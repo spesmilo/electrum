@@ -19,6 +19,7 @@
 
 import sys, base64, os, re, hashlib, socket, getpass, copy, operator, ast
 from decimal import Decimal
+from ecdsa.util import string_to_number
 
 try:
     import ecdsa  
@@ -215,8 +216,7 @@ class InvalidPassword(Exception):
 
 
 
-SEED_VERSION = 3  # bump this everytime the seed generation is modified
-from version import ELECTRUM_VERSION
+from version import ELECTRUM_VERSION, SEED_VERSION
 
 
 class Wallet:
@@ -230,13 +230,13 @@ class Wallet:
         self.port = 50000
         self.fee = 50000
         self.servers = ['ecdsa.org','electrum.novit.ro']  # list of default servers
+        self.master_public_key = None
 
         # saved fields
         self.use_encryption = False
-        self.addresses = []
+        self.addresses = []          # receiving addresses visible for user
+        self.change_addresses = []   # addresses used as change
         self.seed = ''               # encrypted
-        self.private_keys = repr([]) # encrypted
-        self.change_addresses = []   # index of addresses used as change
         self.status = {}             # current status of addresses
         self.history = {}
         self.labels = {}             # labels for addresses and transactions
@@ -262,25 +262,31 @@ class Wallet:
             elif "LOCALAPPDATA" in os.environ:
                 wallet_dir = os.path.join( os.environ["LOCALAPPDATA"], 'Electrum' )
             elif "APPDATA" in os.environ:
-                wallet_dir = os.path.join( os.environ["APPDATA"],  'Electrum' )
+                wallet_dir = os.path.join( os.environ["APPDATA"], 'Electrum' )
             else:
                 raise BaseException("No home directory found in environment variables.")
 
             if not os.path.exists( wallet_dir ): os.mkdir( wallet_dir )
-            self.path = os.path.join( wallet_dir, 'electrum.dat')
+            self.path = os.path.join( wallet_dir, 'electrum.dat' )
 
     def new_seed(self, password):
         seed = "%032x"%ecdsa.util.randrange( pow(2,128) )
-        self.seed = wallet.pw_encode( seed, password)
+        self.init_mpk(seed)
+        # encrypt
+        self.seed = wallet.pw_encode( seed, password )
+
+    def init_mpk(self,seed):
+        # public key
+        curve = SECP256k1
+        secexp = self.stretch_key(seed)
+        master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
+        self.master_public_key = master_private_key.get_verifying_key().to_string()
 
     def is_mine(self, address):
-        return address in self.addresses
+        return address in self.addresses or address in self.change_addresses
 
     def is_change(self, address):
-        if not self.is_mine(address): 
-            return False
-        k = self.addresses.index(address)
-        return k in self.change_addresses
+        return address in self.change_addresses
 
     def is_valid(self,addr):
         ADDRESS_RE = re.compile('[1-9A-HJ-NP-Za-km-z]{26,}\\Z')
@@ -288,43 +294,61 @@ class Wallet:
         h = bc_address_to_hash_160(addr)
         return addr == hash_160_to_bc_address(h)
 
-    def create_new_address(self, for_change, password):
-        seed = self.pw_decode( self.seed, password)
-        # strenghtening
+    def stretch_key(self,seed):
         oldseed = seed
         for i in range(100000):
-            seed = hashlib.sha512(seed + oldseed).digest()
-        i = len( self.addresses ) - len(self.change_addresses) if not for_change else len(self.change_addresses)
-        seed = Hash( "%d:%d:"%(i,for_change) + seed )
+            seed = hashlib.sha256(seed + oldseed).digest()
+        return string_to_number( seed )
+
+    def get_sequence(self,n,for_change):
+        return string_to_number( Hash( "%d:%d:"%(n,for_change) + self.master_public_key ) )
+
+    def get_private_key2(self, address, password):
+        """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
+        if address in self.addresses:
+            n = self.addresses.index(address)
+            for_change = False
+        elif address in self.change_addresses:
+            n = self.change_addresses.index(address)
+            for_change = True
+        else:
+            raise BaseException("unknown address")
+
+        seed = self.pw_decode( self.seed, password)
+        secexp = self.stretch_key(seed)
         order = generator_secp256k1.order()
-        secexp = ecdsa.util.randrange_from_seed__trytryagain( seed, order )
-        secret = SecretToASecret( ('%064x' % secexp).decode('hex') )
-        private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
-        public_key = private_key.get_verifying_key()
-        address = public_key_to_bc_address( '04'.decode('hex') + public_key.to_string() )
-        try:
-            private_keys = ast.literal_eval( self.pw_decode( self.private_keys, password) )
-            private_keys.append(secret)
-        except:
-            raise InvalidPassword("")
-        self.private_keys = self.pw_encode( repr(private_keys), password)
-        self.addresses.append(address)
-        if for_change: self.change_addresses.append( len(self.addresses) - 1 )
-        self.history[address] = []
-        self.status[address] = None
+        privkey_number = ( secexp + self.get_sequence(n,for_change) ) % order
+        private_key = ecdsa.SigningKey.from_secret_exponent( privkey_number, curve = SECP256k1 )
+        # sanity check
+        #public_key = private_key.get_verifying_key()
+        #assert address == public_key_to_bc_address( '04'.decode('hex') + public_key.to_string() )
+        return private_key
+
+
+    def create_new_address2(self, for_change):
+        """   Publickey(type,n) = Master_public_key + H(n|S|type)*point  """
+        curve = SECP256k1
+        n = len(self.change_addresses) if for_change else len(self.addresses)
+        z = self.get_sequence(n,for_change)
+        master_public_key = ecdsa.VerifyingKey.from_string( self.master_public_key, curve = SECP256k1 )
+        pubkey_point = master_public_key.pubkey.point + z*curve.generator
+        public_key2 = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
+        address = public_key_to_bc_address( '04'.decode('hex') + public_key2.to_string() )
+        if for_change:
+            self.change_addresses.append(address)
+        else:
+            self.addresses.append(address)
         self.save()
         return address
-
-
-    def recover(self, password):
-        seed = self.pw_decode( self.seed, password)
+        
+    def recover(self):
         # todo: recover receiving addresses from tx
         is_found = False
         while True:
-            addr = self.create_new_address(True, password)
+            addr = self.create_new_address2(True)
             self.history[addr] = h = self.retrieve_history(addr)
             self.status[addr] = h[-1]['blk_hash'] if h else None
-            #print "recovering", addr
+            print "recovering", addr
             if self.status[addr] is not None: 
                 is_found = True
             else:
@@ -332,10 +356,10 @@ class Wallet:
 
         num_gap = 0
         while True:
-            addr = self.create_new_address(False, password)
+            addr = self.create_new_address2(False)
             self.history[addr] = h = self.retrieve_history(addr)
             self.status[addr] = h[-1]['blk_hash'] if h else None
-            #print "recovering", addr
+            print "recovering", addr
             if self.status[addr] is None:
                 num_gap += 1
                 if num_gap == self.gap_limit: break
@@ -345,12 +369,9 @@ class Wallet:
 
         if not is_found: return False
 
-        # remove limit-1 addresses. [ this is ok, because change addresses are at the beginning of the list]
+        # remove limit-1 addresses.
         n = self.gap_limit
         self.addresses = self.addresses[:-n]
-        private_keys = ast.literal_eval( self.pw_decode( self.private_keys, password))
-        private_keys = private_keys[:-n]
-        self.private_keys = self.pw_encode( repr(private_keys), password)
 
         # history and addressbook
         self.update_tx_history()
@@ -364,12 +385,24 @@ class Wallet:
         return True
 
     def save(self):
-        s = repr( (self.seed_version, self.use_encryption, self.fee, self.host, self.port, self.blocks,
-                   self.seed, self.addresses, self.private_keys, 
-                   self.change_addresses, self.status, self.history, 
-                   self.labels, self.addressbook) )
+        s = {
+            'seed_version':self.seed_version,
+            'use_encryption':self.use_encryption,
+            'master_public_key': self.master_public_key,
+            'fee':self.fee,
+            'host':self.host,
+            'port':self.port,
+            'blocks':self.blocks,
+            'seed':self.seed,
+            'addresses':self.addresses,
+            'change_addresses':self.change_addresses,
+            'status':self.status,
+            'history':self.history, 
+            'labels':self.labels,
+            'contacts':self.addressbook
+            }
         f = open(self.path,"w")
-        f.write(s)
+        f.write( repr(s) )
         f.close()
 
     def read(self):
@@ -380,32 +413,41 @@ class Wallet:
         except:
             return False
         try:
-            sequence = ast.literal_eval( data )
-            (self.seed_version, self.use_encryption, self.fee, self.host, self.port, self.blocks, 
-             self.seed, self.addresses, self.private_keys, 
-             self.change_addresses, self.status, self.history, 
-             self.labels, self.addressbook) = sequence
-            self.fee = int(self.fee)
+            d = ast.literal_eval( data )
+            self.seed_version = d.get('seed_version')
+            self.master_public_key = d.get('master_public_key')
+            self.use_encryption = d.get('use_encryption')
+            self.fee = int( d.get('fee') )
+            self.host = d.get('host')
+            self.port = d.get('port')
+            self.blocks = d.get('blocks')
+            self.seed = d.get('seed')
+            self.addresses = d.get('addresses')
+            self.change_addresses = d.get('change_addresses')
+            self.status = d.get('status')
+            self.history = d.get('history')
+            self.labels = d.get('labels')
+            self.addressbook = d.get('contacts')
         except:
-            # it is safer to exit immediately
-            print "Error; could not parse wallet."
-            exit(1)
+            raise BaseException("Error; could not parse wallet. If this is an old wallet format, please use upgrade.py.",0)
         if self.seed_version != SEED_VERSION:
-            raise BaseException("Seed version mismatch.\nPlease move your balance to a new wallet.\nSee the release notes for more information.")
+            raise BaseException("""Seed version mismatch: your wallet seed is deprecated.
+Please create a new wallet, and send your coins to the new wallet.
+We apologize for the inconvenience. We try to keep this kind of upgrades as rare as possible.
+See the release notes for more information.""",1)
+
+
         self.update_tx_history()
         return True
         
-    def get_new_address(self, password):
+    def get_new_address(self):
         n = 0 
         for addr in self.addresses[-self.gap_limit:]:
-            if self.history[addr] == []: 
+            if not self.history.get(addr): 
                 n = n + 1
         if n < self.gap_limit:
-            try:
-                new_address = self.create_new_address(False, password)
-            except InvalidPassword:
-                return False, "wrong password"
-            self.save()
+            new_address = self.create_new_address2(False)
+            self.history[new_address] = [] #get from server
             return True, new_address
         else:
             return False, "The last %d addresses in your list have never been used. You should use them first, or increase the allowed gap size in your preferences. "%self.gap_limit
@@ -516,19 +558,17 @@ class Wallet:
             inputs = []
         return inputs, total, fee
 
-    def choose_tx_outputs( self, to_addr, amount, fee, total, password ):
+    def choose_tx_outputs( self, to_addr, amount, fee, total ):
         outputs = [ (to_addr, amount) ]
         change_amount = total - ( amount + fee )
         if change_amount != 0:
             # first look for unused change addresses 
-            for addr in self.addresses:
-                i = self.addresses.index(addr)
-                if i not in self.change_addresses: continue
+            for addr in self.change_addresses:
                 if self.history.get(addr): continue
                 change_address = addr
                 break
             else:
-                change_address = self.create_new_address(True, password)
+                change_address = self.create_new_address2(True)
                 print "new change address", change_address
             outputs.append( (change_address,  change_amount) )
         return outputs
@@ -537,7 +577,7 @@ class Wallet:
         s_inputs = []
         for i in range(len(inputs)):
             addr, v, p_hash, p_pos, p_scriptPubKey, _, _ = inputs[i]
-            private_key = self.get_private_key(addr, password)
+            private_key = self.get_private_key2(addr, password)
             public_key = private_key.get_verifying_key()
             pubkey = public_key.to_string()
             tx = filter( raw_tx( inputs, outputs, for_sig = i ) )
@@ -556,23 +596,14 @@ class Wallet:
     def pw_decode(self, s, password):
         if password:
             secret = Hash(password)
-            return DecodeAES(secret, s)
+            d = DecodeAES(secret, s)
+            try:
+                d.decode('hex')
+            except:
+                raise InvalidPassword()
+            return d
         else:
             return s
-
-    def get_private_key( self, addr, password ):
-        try:
-            private_keys = ast.literal_eval( self.pw_decode( self.private_keys, password ) )
-        except:
-            raise InvalidPassword("")
-        k = self.addresses.index(addr)
-        secret = private_keys[k]
-        b = ASecretToSecret(secret)
-        secexp = int( b.encode('hex'), 16)
-        private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve=SECP256k1 )
-        public_key = private_key.get_verifying_key()
-        assert addr == public_key_to_bc_address( chr(4) + public_key.to_string() )
-        return private_key
 
     def get_tx_history(self):
         lines = self.tx_history.values()
@@ -623,7 +654,7 @@ class Wallet:
         inputs, total, fee = wallet.choose_tx_inputs( amount, fee )
         if not inputs: return False, "Not enough funds %d %d"%(total, fee)
         try:
-            outputs = wallet.choose_tx_outputs( to_address, amount, fee, total, password )
+            outputs = wallet.choose_tx_outputs( to_address, amount, fee, total )
             s_inputs = wallet.sign_inputs( inputs, outputs, password )
         except InvalidPassword:
             return False, "Wrong password"
@@ -648,7 +679,7 @@ class Wallet:
 from optparse import OptionParser
 
 if __name__ == '__main__':
-    known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed']
+    known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed','t2']
 
     usage = "usage: %prog [options] command args\nCommands: "+ (', '.join(known_commands))
 
@@ -713,7 +744,7 @@ if __name__ == '__main__':
             gap = raw_input("gap limit (default 5):")
             if gap: wallet.gap_limit = int(gap)
             print "recovering wallet..."
-            r = wallet.recover(password)
+            r = wallet.recover()
             if r:
                 print "recovery successful"
                 wallet.save()
@@ -724,7 +755,7 @@ if __name__ == '__main__':
             print "Your seed is", wallet.seed
             print "Please store it safely"
             # generate first key
-            wallet.create_new_address(False, None)
+            wallet.create_new_address2(False)
 
     # check syntax
     if cmd in ['payto', 'mktx']:
@@ -738,13 +769,13 @@ if __name__ == '__main__':
             cmd = 'help'
 
     # open session
-    if cmd not in ['password', 'mktx', 'history', 'label','contacts','help','validateaddress']:
+    if cmd not in ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress']:
         wallet.new_session()
         wallet.update()
         wallet.save()
 
     # commands needing password
-    if cmd in ['payto', 'password', 'newaddress','mktx','seed'] or ( cmd=='addresses' and options.show_keys):
+    if cmd in ['payto', 'password', 'mktx', 'seed' ] or ( cmd=='addresses' and options.show_keys):
         password = getpass.getpass('Password:') if wallet.use_encryption else None
 
     if cmd=='help':
@@ -789,6 +820,9 @@ if __name__ == '__main__':
     elif cmd == 'validateaddress':
         addr = args[1]
         print wallet.is_valid(addr)
+
+    elif cmd == 't2':
+        wallet.create_t2_address(password)
 
     elif cmd == 'balance':
         c, u = wallet.get_balance()
@@ -861,19 +895,18 @@ if __name__ == '__main__':
         else:
             print h 
 
-    elif cmd=='sendtx':
+    elif cmd == 'sendtx':
         tx = args[1]
         r, h = wallet.sendtx( tx )
         print h
 
     elif cmd == 'newaddress':
-        s, a = wallet.get_new_address(password)
+        s, a = wallet.get_new_address()
         print a
 
     elif cmd == 'password':
         try:
             seed = wallet.pw_decode( wallet.seed, password)
-            private_keys = ast.literal_eval( wallet.pw_decode( wallet.private_keys, password) )
         except:
             print "sorry"
             sys.exit(1)
@@ -881,7 +914,6 @@ if __name__ == '__main__':
         if new_password == getpass.getpass('Confirm new password:'):
             wallet.use_encryption = (new_password != '')
             wallet.seed = wallet.pw_encode( seed, new_password)
-            wallet.private_keys = wallet.pw_encode( repr( private_keys ), new_password)
             wallet.save()
         else:
             print "error: mismatch"
