@@ -84,13 +84,8 @@ def init_wallet(wallet):
     try:
         found = wallet.read()
     except BaseException, e:
-        show_message(e.args[0])
-        if e.args[1] == 0: exit(1)
-        found = 1
-    except:
-        exit()
-
-
+        show_message(e.message)
+        exit(1)
 
     if not found: 
         # ask if the user wants to create a new wallet, or recover from a seed. 
@@ -662,11 +657,13 @@ class BitcoinGUI:
 
         password = password_dialog() if self.wallet.use_encryption else None
 
-        status, tx = self.wallet.mktx( to_address, amount, label, password, fee )
-        self.update_session = True # we created a new change address
-        if not status:
-            self.show_message(tx)
+        try:
+            tx = self.wallet.mktx( to_address, amount, label, password, fee )
+        except BaseException, e:
+            self.show_message(e.message)
             return
+            
+        self.update_session = True # we created a new change address
 
         status, msg = self.wallet.sendtx( tx )
         if status:

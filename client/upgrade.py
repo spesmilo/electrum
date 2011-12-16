@@ -67,33 +67,8 @@ if __name__ == "__main__":
 
     if type(x) == tuple:
         seed_version, use_encryption, fee, host, port, blocks, seed, all_addresses, private_keys, change_indexes, status, history, labels, addressbook = x
-        addresses = []
-        change_addresses = []
-        for i in range(len(all_addresses)):
-            if i in change_indexes:
-                change_addresses.append(all_addresses[i])
-            else:
-                addresses.append(all_addresses[i])
-        s = {
-            'seed_version':seed_version,
-            'use_encryption':use_encryption,
-            'master_public_key':None,
-            'fee':fee,
-            'host':host,
-            'port':port,
-            'blocks':blocks,
-            'seed':seed,
-            'addresses':addresses,
-            'change_addresses':change_addresses,
-            'status':status,
-            'history':history, 
-            'labels':labels,
-            'contacts':addressbook
-            }
-        f = open(path,"w")
-        f.write( repr(s) )
-        f.close()
-        print "wallet format was upgraded."
+        print """This wallet is deprecated.
+Please create a new wallet, open the old wallet with Electrum 0.33, and send your coins to your new wallet"""
         exit(1)
     
     wallet = electrum.Wallet(path)

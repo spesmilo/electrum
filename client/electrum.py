@@ -211,8 +211,6 @@ def raw_tx( inputs, outputs, for_sig = None ):
     if for_sig is not None: s += int_to_hex(1, 4)            # hash type
     return s
 
-class InvalidPassword(Exception):
-    pass
 
 
 
@@ -330,6 +328,9 @@ class Wallet:
 
     def create_new_address2(self, for_change):
         """   Publickey(type,n) = Master_public_key + H(n|S|type)*point  """
+        if self.master_public_key is None:
+            raise BaseException("Cannot create new addresses with this wallet.\nIf this is an old wallet, please move your complete balance to a new wallet.")
+
         curve = SECP256k1
         n = len(self.change_addresses) if for_change else len(self.addresses)
         z = self.get_sequence(n,for_change)
@@ -351,7 +352,8 @@ class Wallet:
 
 
     def synchronize(self):
-
+        if self.master_public_key is None: return False # will be None if we read an older format
+        
         while True:
             if self.change_addresses == []:
                 self.create_new_address2(True)
@@ -408,6 +410,7 @@ class Wallet:
         f.close()
 
     def read(self):
+        upgrade_msg = """This wallet seed is deprecated. Please run upgrade.py for a diagnostic."""
         try:
             f = open(self.path,"r")
             data = f.read()
@@ -431,15 +434,12 @@ class Wallet:
             self.labels = d.get('labels')
             self.addressbook = d.get('contacts')
         except:
-            raise BaseException("Error; could not parse wallet. If this is an old wallet format, please use upgrade.py.",0)
+            raise BaseException(upgrade_msg)
 
         self.update_tx_history()
 
         if self.seed_version != SEED_VERSION:
-            raise BaseException("""Seed version mismatch: your wallet seed is deprecated.
-Please create a new wallet, and send your coins to the new wallet.
-We apologize for the inconvenience. We try to keep this kind of upgrades as rare as possible.
-See the release notes for more information.""",1)
+            raise BaseException(upgrade_msg)
 
         return True
         
@@ -612,7 +612,7 @@ See the release notes for more information.""",1)
             try:
                 d.decode('hex')
             except:
-                raise InvalidPassword()
+                raise BaseException("Invalid password")
             return d
         else:
             return s
@@ -662,14 +662,13 @@ See the release notes for more information.""",1)
 
     def mktx(self, to_address, amount, label, password, fee=None):
         if not self.is_valid(to_address):
-            return False, "Invalid address"
+            raise BaseException("Invalid address")
         inputs, total, fee = wallet.choose_tx_inputs( amount, fee )
-        if not inputs: return False, "Not enough funds %d %d"%(total, fee)
-        try:
-            outputs = wallet.choose_tx_outputs( to_address, amount, fee, total )
-            s_inputs = wallet.sign_inputs( inputs, outputs, password )
-        except InvalidPassword:
-            return False, "Wrong password"
+        if not inputs:
+            raise BaseException("Not enough funds")
+        outputs = wallet.choose_tx_outputs( to_address, amount, fee, total )
+        s_inputs = wallet.sign_inputs( inputs, outputs, password )
+
         tx = filter( raw_tx( s_inputs, outputs ) )
         if to_address not in self.addressbook:
             self.addressbook.append(to_address)
@@ -677,7 +676,7 @@ See the release notes for more information.""",1)
             tx_hash = Hash(tx.decode('hex') )[::-1].encode('hex')
             wallet.labels[tx_hash] = label
         wallet.save()
-        return True, tx
+        return tx
 
     def sendtx(self, tx):
         tx_hash = Hash(tx.decode('hex') )[::-1].encode('hex')
@@ -848,7 +847,6 @@ if __name__ == '__main__':
             print addr, "   ", wallet.labels.get(addr)
 
     elif cmd in [ 'addresses']:
-        if options.show_keys: private_keys = ast.literal_eval( wallet.pw_decode( wallet.private_keys, password ) )
         for addr in wallet.addresses:
             if options.show_all or not wallet.is_change(addr):
                 label = wallet.labels.get(addr) if not wallet.is_change(addr) else "[change]"
@@ -861,8 +859,7 @@ if __name__ == '__main__':
                         else:              no += 1
                     b = "%d %d %f"%(no, ni, wallet.get_addr_balance(addr)[0]*1e-8)
                 else: b=''
-                pk = private_keys[wallet.addresses.index(addr)] if options.show_keys else ''
-                print addr, pk, b, label
+                print addr, b, label
 
     if cmd == 'history':
         lines = wallet.get_tx_history()
