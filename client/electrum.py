@@ -228,7 +228,7 @@ class Wallet:
         self.port = 50000
         self.fee = 100000
         self.servers = ['ecdsa.org','electrum.novit.ro']  # list of default servers
-        self.master_public_key = None
+        self.master_public_key = ''
 
         # saved fields
         self.use_encryption = False
@@ -387,7 +387,7 @@ class Wallet:
         s = {
             'seed_version':self.seed_version,
             'use_encryption':self.use_encryption,
-            'master_public_key': self.master_public_key,
+            'master_public_key': self.master_public_key.encode('hex'),
             'fee':self.fee,
             'host':self.host,
             'port':self.port,
@@ -415,7 +415,7 @@ class Wallet:
         try:
             d = ast.literal_eval( data )
             self.seed_version = d.get('seed_version')
-            self.master_public_key = d.get('master_public_key')
+            self.master_public_key = d.get('master_public_key').decode('hex')
             self.use_encryption = d.get('use_encryption')
             self.fee = int( d.get('fee') )
             self.host = d.get('host')
