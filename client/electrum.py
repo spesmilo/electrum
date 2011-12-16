@@ -328,9 +328,6 @@ class Wallet:
 
     def create_new_address2(self, for_change):
         """   Publickey(type,n) = Master_public_key + H(n|S|type)*point  """
-        if self.master_public_key is None:
-            raise BaseException("Cannot create new addresses with this wallet.\nIf this is an old wallet, please move your complete balance to a new wallet.")
-
         curve = SECP256k1
         n = len(self.change_addresses) if for_change else len(self.addresses)
         z = self.get_sequence(n,for_change)
@@ -352,8 +349,6 @@ class Wallet:
 
 
     def synchronize(self):
-        if self.master_public_key is None: return False # will be None if we read an older format
-        
         while True:
             if self.change_addresses == []:
                 self.create_new_address2(True)

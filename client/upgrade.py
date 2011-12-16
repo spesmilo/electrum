@@ -68,7 +68,8 @@ if __name__ == "__main__":
     if type(x) == tuple:
         seed_version, use_encryption, fee, host, port, blocks, seed, all_addresses, private_keys, change_indexes, status, history, labels, addressbook = x
         print """This wallet is deprecated.
-Please create a new wallet, open the old wallet with Electrum 0.33, and send your coins to your new wallet"""
+Please create a new wallet, open the old wallet with Electrum 0.33, and send your coins to your new wallet.
+We apologize for the inconvenience. We try to keep this kind of upgrades as rare as possible."""
         exit(1)
     
     wallet = electrum.Wallet(path)
