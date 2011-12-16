@@ -191,7 +191,7 @@ def run_settings_dialog(wallet, is_create, is_recovery, parent):
         seed_box.show()
         vbox.pack_start(seed_box, False, False, 5)    
 
-    if is_recovery or (not is_create):
+    if is_recovery:
         gap = gtk.HBox()
         gap_label = gtk.Label('Gap limit:')
         gap_label.set_size_request(150,10)
@@ -251,7 +251,6 @@ def run_settings_dialog(wallet, is_create, is_recovery, parent):
             seed = mnemonic.mn_decode( seed.split(' ') )
     if not is_create:
         fee = fee_entry.get_text()
-        gap = gap_entry.get_text()
         
     dialog.destroy()
     if r==gtk.RESPONSE_CANCEL:
@@ -270,7 +269,6 @@ def run_settings_dialog(wallet, is_create, is_recovery, parent):
             gap = int(gap)
         if not is_create:
             fee = int( 100000000 * Decimal(fee) )
-            gap = int(gap)
     except:
         show_message("error")
         return
@@ -283,7 +281,6 @@ def run_settings_dialog(wallet, is_create, is_recovery, parent):
         wallet.gap_limit = gap
     if not is_create:
         wallet.fee = fee
-        wallet.gap_limit = gap
     wallet.save()
 
 
