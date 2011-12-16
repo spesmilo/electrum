@@ -18,7 +18,7 @@ be possible to write clients capable of using several servers.
 
 INSTALL
 
-1. patch and recompile the bitcoin daemon - bitcoinrpc.diff
+1. patch and recompile the bitcoin daemon: see bitcoinrpc.cpp.diff and main.cpp.diff
 
 2. install bitcoin-abe : https://github.com/jtobey/bitcoin-abe
 

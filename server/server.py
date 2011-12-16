@@ -196,7 +196,7 @@ class MyStore(Datastore_class):
               JOIN pubkey ON (pubkey.pubkey_id = txout.pubkey_id)
              WHERE pubkey.pubkey_hash = ? """, (dbhash,))
 
-    def get_txpoints(self, addr):
+    def get_history(self, addr):
         
         if config.get('server','cache') == 'yes':
             cached_version = self.tx_cache.get( addr ) 
@@ -205,7 +205,8 @@ class MyStore(Datastore_class):
 
         version, binaddr = decode_check_address(addr)
         if binaddr is None:
-            return "err"
+            return None
+
         dbhash = self.binin(binaddr)
         rows = []
         rows += self.get_address_out_rows( dbhash )
@@ -313,7 +314,6 @@ class MyStore(Datastore_class):
 
 
 
-
 def send_tx(tx):
     import bitcoinrpc
     conn = bitcoinrpc.connect_to_local()
@@ -370,7 +370,7 @@ def client_thread(ipaddr,conn):
                     version = "old"
                 else:
                     version, addresses = ast.literal_eval(data)
-                    version = "v"+version
+                    if version[0]=="0": version = "v" + version
             except:
                 print "error", data
                 conn.close()
@@ -416,7 +416,7 @@ def client_thread(ipaddr,conn):
                     if store.tx_cache.get( addr ) is not None: k += 1
 
                     # get addtess status, i.e. the last block for that address.
-                    tx_points = store.get_txpoints(addr)
+                    tx_points = store.get_history(addr)
                     if not tx_points:
                         status = None
                     else:
@@ -424,7 +424,7 @@ def client_thread(ipaddr,conn):
                         status = lastpoint['blk_hash']
                         # this is a temporary hack; move it up once old clients have disappeared
                         if status == 'mempool' and session['version'] != "old":
-                            status = status + ':%s'% lastpoint['tx_hash']
+                            status = status + ':%d'% len(tx_points)
 
                     last_status = addresses.get( addr )
                     if last_status != status:
@@ -440,7 +440,7 @@ def client_thread(ipaddr,conn):
         elif cmd == 'h': 
             # history
             address = data
-            out = repr( store.get_txpoints( address ) )
+            out = repr( store.get_history( address ) )
 
         elif cmd == 'load': 
             if config.get('server','password') == data:
@@ -498,12 +498,12 @@ def client_thread(ipaddr,conn):
         conn.close()
     
 
-ds = BCDataStream.BCDataStream()
 
 
 
 
 def memorypool_update(store):
+    ds = BCDataStream.BCDataStream()
     store.mempool_keys = []
     conn = bitcoinrpc.connect_to_local()
     try:
@@ -588,16 +588,17 @@ if __name__ == '__main__':
 
     if len(sys.argv)>1:
         cmd = sys.argv[1]
+        pw = config.get('server','password')
         if cmd == 'load':
-            request = "('load','%s')#"%config.get('server','password')
+            request = "('load','%s')#"%pw
         elif cmd == 'peers':
             request = "('peers','')#"
         elif cmd == 'stop':
-            request = "('stop','%s')#"%config.get('server','password')
+            request = "('stop','%s')#"%pw
         elif cmd == 'clear_cache':
-            request = "('clear_cache','%s')#"%config.get('server','password')
+            request = "('clear_cache','%s')#"%pw
         elif cmd == 'get_cache':
-            request = "('get_cache',('%s','%s'))#"%(config.get('server','password'),sys.argv[2])
+            request = "('get_cache',('%s','%s'))#"%(pw,sys.argv[2])
         elif cmd == 'h':
             request = "('h','%s')#"%sys.argv[2]
         elif cmd == 'b':
