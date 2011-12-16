@@ -1,3 +1,11 @@
+Version 0.34
+------------
+
+The key derivation was changed again in version 0.34, in order to
+offer "type 2 wallet" capabilities. If you use an older wallet, you
+will need to create a new wallet and move your coins. The procedure is
+described below (version 0.31).
+
 
 Version 0.31
 ------------
