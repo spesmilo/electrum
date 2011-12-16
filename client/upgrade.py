@@ -3,38 +3,6 @@ from version import SEED_VERSION
 
 
 
-def upgrade_wallet(wallet):
-    print "walet path:",wallet.path
-    print "seed version:", wallet.seed_version
-    if wallet.seed_version == 1 and wallet.use_encryption:
-        # version 1 used pycrypto for wallet encryption
-        import Crypto
-        from Crypto.Cipher import AES
-        BLOCK_SIZE = 32
-        PADDING = '{'
-        pad = lambda s: s + (BLOCK_SIZE - len(s) % BLOCK_SIZE) * PADDING
-        EncodeAES = lambda secret, s: base64.b64encode(AES.new(secret).encrypt(pad(s)))
-        DecodeAES = lambda secret, e: AES.new(secret).decrypt(base64.b64decode(e)).rstrip(PADDING)
-
-        print "please enter your password"
-        password = getpass.getpass("Password:")
-        secret = electrum.Hash(password)
-        try:
-            seed = DecodeAES( secret, wallet.seed )
-            private_keys = ast.literal_eval( DecodeAES( secret, wallet.private_keys ) )
-        except:
-            print "sorry"
-            exit(1)
-        wallet.version = 2
-        wallet.seed = wallet.pw_encode( seed, password)
-        wallet.private_keys = wallet.pw_encode( repr( private_keys ), password)
-        wallet.save()
-        print "upgraded to version 2"
-        exit(1)
-
-    if wallet.seed_version < SEED_VERSION:
-        print """Note: your wallet seed is deprecated. Please create a new wallet, and move your coins to the new wallet."""
-
 
 if __name__ == "__main__":
     try:
@@ -65,21 +33,43 @@ if __name__ == "__main__":
         print "error: could not parse wallet"
         exit(1)
 
+    # version <= 0.33 uses a tuple
     if type(x) == tuple:
         seed_version, use_encryption, fee, host, port, blocks, seed, all_addresses, private_keys, change_indexes, status, history, labels, addressbook = x
+
+        print "walet path =",path
+        print "seed version =", seed_version
+
+        if seed_version == 1 and use_encryption:
+            # version 1 used pycrypto for wallet encryption
+            import Crypto
+            from Crypto.Cipher import AES
+            BLOCK_SIZE = 32
+            PADDING = '{'
+            pad = lambda s: s + (BLOCK_SIZE - len(s) % BLOCK_SIZE) * PADDING
+            EncodeAES = lambda secret, s: base64.b64encode(AES.new(secret).encrypt(pad(s)))
+            DecodeAES = lambda secret, e: AES.new(secret).decrypt(base64.b64decode(e)).rstrip(PADDING)
+
+            print "please enter your password"
+            password = getpass.getpass("Password:")
+            secret = electrum.Hash(password)
+            try:
+                seed = DecodeAES( secret, wallet.seed )
+                private_keys = ast.literal_eval( DecodeAES( secret, wallet.private_keys ) )
+            except:
+                print "sorry"
+                exit(1)
+            seed_version = 2
+            s = repr( (seed_version, use_encryption, fee, host, port, blocks, seed, all_addresses, private_keys, change_indexes, status, history, labels, addressbook ))
+            f = open(path,"w")
+            data = f.read()
+            f.close()
+            print "Wallet is now unencrypted."
+
         print """This wallet is deprecated.
 Please create a new wallet, open the old wallet with Electrum 0.33, and send your coins to your new wallet.
 We apologize for the inconvenience. We try to keep this kind of upgrades as rare as possible."""
-        exit(1)
+
     
-    wallet = electrum.Wallet(path)
-    try:
-        found = wallet.read()
-        if found:
-            print wallet.path
-        else:
-            print "wallet not found."
-    except BaseException:
-        upgrade_wallet(wallet)
         
 
