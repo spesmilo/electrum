@@ -228,7 +228,7 @@ class Wallet:
         self.gap_limit = 5           # configuration
         self.host = 'ecdsa.org'
         self.port = 50000
-        self.fee = 50000
+        self.fee = 100000
         self.servers = ['ecdsa.org','electrum.novit.ro']  # list of default servers
         self.master_public_key = None
 
