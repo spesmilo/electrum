@@ -514,8 +514,10 @@ class BitcoinGUI:
                         self.period = 15 if self.wallet.use_http() else 5
                         u = self.wallet.update()
                         if u:
-                            self.wallet.save()
                             gobject.idle_add( self.update_history_tab )
+                            gobject.idle_add( self.update_receiving_tab )
+                            # addressbook too...
+
                         time.sleep(self.period)
                     except BaseException:
                         print "starting new session"
@@ -823,10 +825,11 @@ class BitcoinGUI:
         scroll.add(treeview)
 
         hbox = gtk.HBox()
-        button = gtk.Button("New address")
-        button.connect("clicked", self.newaddress_dialog, is_recv)
-        button.show()
-        hbox.pack_start(button,False)
+        if not is_recv:
+            button = gtk.Button("New address")
+            button.connect("clicked", self.newaddress_dialog, is_recv)
+            button.show()
+            hbox.pack_start(button,False)
 
         def showqrcode(w, treeview, liststore):
             path, col = treeview.get_cursor()
@@ -922,7 +925,7 @@ class BitcoinGUI:
                 for item in h:
                     if not item['is_in'] : n=n+1
             tx = "None" if n==0 else "%d"%n
-            self.recv_list.prepend((address, label, tx ))
+            self.recv_list.append((address, label, tx ))
 
     def update_sending_tab(self):
         # detect addresses that are not mine in history, add them here...

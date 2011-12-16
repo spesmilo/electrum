@@ -341,40 +341,39 @@ class Wallet:
             self.change_addresses.append(address)
         else:
             self.addresses.append(address)
+
+        # updates
+        print address
+        self.history[address] = h = self.retrieve_history(address)
+        self.status[address] = h[-1]['blk_hash'] if h else None
         self.save()
         return address
-        
-    def recover(self):
-        # todo: recover receiving addresses from tx
-        is_found = False
+
+
+    def synchronize(self):
+
         while True:
-            addr = self.create_new_address2(True)
-            self.history[addr] = h = self.retrieve_history(addr)
-            self.status[addr] = h[-1]['blk_hash'] if h else None
-            print "recovering", addr
-            if self.status[addr] is not None: 
-                is_found = True
+            if self.change_addresses == []:
+                self.create_new_address2(True)
+                continue
+            a = self.change_addresses[-1]
+            if self.history.get(a):
+                self.create_new_address2(True)
             else:
                 break
 
-        num_gap = 0
-        while True:
-            addr = self.create_new_address2(False)
-            self.history[addr] = h = self.retrieve_history(addr)
-            self.status[addr] = h[-1]['blk_hash'] if h else None
-            print "recovering", addr
-            if self.status[addr] is None:
-                num_gap += 1
-                if num_gap == self.gap_limit: break
-            else:
-                is_found = True
-                num_gap = 0
-
-        if not is_found: return False
-
-        # remove limit-1 addresses.
         n = self.gap_limit
-        self.addresses = self.addresses[:-n]
+        while True:
+            if len(self.addresses) < n:
+                self.create_new_address2(False)
+                continue
+            if map( lambda a: self.history.get(a), self.addresses[-n:] ) == n*[[]]:
+                break
+            else:
+                self.create_new_address2(False)
+
+        is_found = (len(self.change_addresses) > 1 ) or ( len(self.addresses) > self.gap_limit )
+        if not is_found: return False
 
         # history and addressbook
         self.update_tx_history()
@@ -526,7 +525,7 @@ See the release notes for more information.""",1)
 
     def get_servers(self):
         self.servers = map( lambda x:x[1], ast.literal_eval( self.request( repr ( ('peers', '' )))) )
-        
+
     def update(self):
         blocks, changed_addresses = self.poll()
         if blocks == -1: raise BaseException("session not found")
@@ -536,8 +535,10 @@ See the release notes for more information.""",1)
                 print "updating history for", addr
                 self.history[addr] = self.retrieve_history(addr)
                 self.status[addr] = blk_hash
-        self.update_tx_history()
+
         if changed_addresses:
+            self.synchronize()
+            self.save()
             return True
         else:
             return False
@@ -755,7 +756,7 @@ if __name__ == '__main__':
             gap = raw_input("gap limit (default 5):")
             if gap: wallet.gap_limit = int(gap)
             print "recovering wallet..."
-            r = wallet.recover()
+            r = wallet.synchronize()
             if r:
                 print "recovery successful"
                 wallet.save()
