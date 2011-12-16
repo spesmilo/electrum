@@ -282,7 +282,7 @@ class Wallet:
         master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
         self.master_public_key = master_private_key.get_verifying_key().to_string()
 
-    def all_addresses():
+    def all_addresses(self):
         return self.addresses + self.change_addresses
 
     def is_mine(self, address):
