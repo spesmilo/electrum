@@ -139,7 +139,7 @@ def init_wallet(wallet):
 
             def recover_thread( wallet, dialog ):
                 wallet.init_mpk( wallet.seed ) # not encrypted at this point
-                wallet.is_found = wallet.recover()
+                wallet.is_found = wallet.synchronize()
                 if wallet.is_found:
                     wallet.save()
                 gobject.idle_add( dialog.destroy )
