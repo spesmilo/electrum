@@ -469,7 +469,7 @@ See the release notes for more information.""",1)
 
     def get_balance(self):
         conf = unconf = 0
-        for addr in self.addresses: 
+        for addr in self.all_addresses(): 
             c, u = self.get_addr_balance(addr)
             conf += c
             unconf += u
