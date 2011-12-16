@@ -546,16 +546,23 @@ See the release notes for more information.""",1)
         """ todo: minimize tx size """
         total = 0
         fee = self.fee if fixed_fee is None else fixed_fee
-        inputs = []
+
+        coins = []
         for addr in self.all_addresses():
             h = self.history.get(addr)
+            if h is None: continue
             for item in h:
                 if item.get('raw_scriptPubKey'):
-                    v = item.get('value')
-                    total += v
-                    inputs.append((addr, v, item['tx_hash'], item['pos'], item['raw_scriptPubKey'], None, None) )
-                    fee = self.fee*len(inputs) if fixed_fee is None else fixed_fee
-                    if total >= amount + fee: break
+                    coins.append( (addr,item))
+
+        coins = sorted( coins, key = lambda x: x[1]['nTime'] )
+        inputs = []
+        for c in coins: 
+            addr, item = c
+            v = item.get('value')
+            total += v
+            inputs.append((addr, v, item['tx_hash'], item['pos'], item['raw_scriptPubKey'], None, None) )
+            fee = self.fee*len(inputs) if fixed_fee is None else fixed_fee
             if total >= amount + fee: break
         else:
             #print "not enough funds: %d %d"%(total, fee)
