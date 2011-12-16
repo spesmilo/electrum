@@ -433,14 +433,15 @@ class Wallet:
             self.addressbook = d.get('contacts')
         except:
             raise BaseException("Error; could not parse wallet. If this is an old wallet format, please use upgrade.py.",0)
+
+        self.update_tx_history()
+
         if self.seed_version != SEED_VERSION:
             raise BaseException("""Seed version mismatch: your wallet seed is deprecated.
 Please create a new wallet, and send your coins to the new wallet.
 We apologize for the inconvenience. We try to keep this kind of upgrades as rare as possible.
 See the release notes for more information.""",1)
 
-
-        self.update_tx_history()
         return True
         
     def get_new_address(self):
