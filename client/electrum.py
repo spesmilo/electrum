@@ -282,8 +282,11 @@ class Wallet:
         master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
         self.master_public_key = master_private_key.get_verifying_key().to_string()
 
+    def all_addresses():
+        return self.addresses + self.change_addresses
+
     def is_mine(self, address):
-        return address in self.addresses or address in self.change_addresses
+        return address in self.all_addresses()
 
     def is_change(self, address):
         return address in self.change_addresses
@@ -515,10 +518,10 @@ See the release notes for more information.""",1)
         return ast.literal_eval( self.request( repr ( ('poll', self.session_id ))))
 
     def new_session(self):
-        self.session_id, self.message = ast.literal_eval( self.request( repr ( ('new_session', repr( (self.electrum_version, self.addresses)) ))))
+        self.session_id, self.message = ast.literal_eval( self.request( repr ( ('new_session', repr( (self.electrum_version, self.all_addresses())) ))))
 
     def update_session(self):
-        return self.request( repr ( ('update_session', repr((self.session_id,self.addresses)))))
+        return self.request( repr ( ('update_session', repr((self.session_id, self.all_addresses())))))
 
     def get_servers(self):
         self.servers = map( lambda x:x[1], ast.literal_eval( self.request( repr ( ('peers', '' )))) )
@@ -543,7 +546,7 @@ See the release notes for more information.""",1)
         total = 0
         fee = self.fee if fixed_fee is None else fixed_fee
         inputs = []
-        for addr in self.addresses:
+        for addr in self.all_addresses():
             h = self.history.get(addr)
             for item in h:
                 if item.get('raw_scriptPubKey'):
@@ -612,7 +615,7 @@ See the release notes for more information.""",1)
 
     def update_tx_history(self):
         self.tx_history= {}
-        for addr in self.addresses:
+        for addr in self.all_addresses():
             h = self.history.get(addr)
             if h is None: continue
             for tx in h:
