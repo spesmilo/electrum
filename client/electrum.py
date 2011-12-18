@@ -248,6 +248,8 @@ class Wallet:
 
         self.init_path(wallet_path)
 
+        self.imported_addresses = {}
+
 
     def init_path(self, wallet_path):
 
@@ -281,7 +283,7 @@ class Wallet:
         self.master_public_key = master_private_key.get_verifying_key().to_string()
 
     def all_addresses(self):
-        return self.addresses + self.change_addresses
+        return self.addresses + self.change_addresses + self.imported_addresses.keys()
 
     def is_mine(self, address):
         return address in self.all_addresses()
@@ -306,25 +308,29 @@ class Wallet:
 
     def get_private_key2(self, address, password):
         """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
-        if address in self.addresses:
-            n = self.addresses.index(address)
-            for_change = False
-        elif address in self.change_addresses:
-            n = self.change_addresses.index(address)
-            for_change = True
+        if address in self.imported_addresses.keys():
+            b = ASecretToSecret( self.imported_addresses[address] )
+            secexp = int( b.encode('hex'), 16)
+            private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve=SECP256k1 )
         else:
-            raise BaseException("unknown address")
+            if address in self.addresses:
+                n = self.addresses.index(address)
+                for_change = False
+            elif address in self.change_addresses:
+                n = self.change_addresses.index(address)
+                for_change = True
+            else:
+                raise BaseException("unknown address")
+            seed = self.pw_decode( self.seed, password)
+            secexp = self.stretch_key(seed)
+            order = generator_secp256k1.order()
+            privkey_number = ( secexp + self.get_sequence(n,for_change) ) % order
+            private_key = ecdsa.SigningKey.from_secret_exponent( privkey_number, curve = SECP256k1 )
 
-        seed = self.pw_decode( self.seed, password)
-        secexp = self.stretch_key(seed)
-        order = generator_secp256k1.order()
-        privkey_number = ( secexp + self.get_sequence(n,for_change) ) % order
-        private_key = ecdsa.SigningKey.from_secret_exponent( privkey_number, curve = SECP256k1 )
         # sanity check
-        #public_key = private_key.get_verifying_key()
-        #assert address == public_key_to_bc_address( '04'.decode('hex') + public_key.to_string() )
+        public_key = private_key.get_verifying_key()
+        assert address == public_key_to_bc_address( '04'.decode('hex') + public_key.to_string() )
         return private_key
-
 
     def create_new_address2(self, for_change):
         """   Publickey(type,n) = Master_public_key + H(n|S|type)*point  """
@@ -694,7 +700,7 @@ if __name__ == '__main__':
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
     parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance at listed addresses")
     parser.add_option("-k", "--keys",action="store_true", dest="show_keys",default=False, help="show the private keys of listed addresses")
-    parser.add_option("-f", "--fee", dest="tx_fee", default=0.005, help="set tx fee")
+    parser.add_option("-f", "--fee", dest="tx_fee", default="0.005", help="set tx fee")
     options, args = parser.parse_args()
     try:
         cmd = args[0]
@@ -769,7 +775,8 @@ if __name__ == '__main__':
             to_address = args[1]
             amount = int( 100000000 * Decimal(args[2]) )
             label = ' '.join(args[3:])
-            if options.tx_fee: options.tx_fee = int( 100000000 * Decimal(options.tx_fee) )
+            if options.tx_fee: 
+                options.tx_fee = int( 100000000 * Decimal(options.tx_fee) )
         except:
             firstarg = cmd
             cmd = 'help'
@@ -842,7 +849,7 @@ if __name__ == '__main__':
             print addr, "   ", wallet.labels.get(addr)
 
     elif cmd in [ 'addresses']:
-        for addr in wallet.addresses:
+        for addr in wallet.all_addresses():
             if options.show_all or not wallet.is_change(addr):
                 label = wallet.labels.get(addr) if not wallet.is_change(addr) else "[change]"
                 if label is None: label = ''
@@ -892,12 +899,17 @@ if __name__ == '__main__':
                 to_address = k
                 print "alias", to_address
                 break
-        r, h = wallet.mktx( to_address, amount, label, password, fee = options.tx_fee )
-        if r and cmd=='payto': 
+        try:
+            tx = wallet.mktx( to_address, amount, label, password, fee = options.tx_fee )
+        except BaseException, e:
+            print e
+            tx = None
+
+        if tx and cmd=='payto': 
             r, h = wallet.sendtx( tx )
             print h
         else:
-            print h 
+            print tx
 
     elif cmd == 'sendtx':
         tx = args[1]
