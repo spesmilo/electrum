@@ -113,7 +113,7 @@ def init_wallet(wallet):
             run_settings_dialog(wallet, is_create=True, is_recovery=False, parent=None)
 
             # generate first key
-            wallet.create_new_address2(False)
+            wallet.synchronize()
 
             # run a dialog indicating the seed, ask the user to remember it
             show_seed_dialog(wallet, None, None)

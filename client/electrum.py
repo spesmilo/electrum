@@ -767,7 +767,7 @@ if __name__ == '__main__':
             print "Your seed is", wallet.seed
             print "Please store it safely"
             # generate first key
-            wallet.create_new_address2(False)
+            wallet.synchronize()
 
     # check syntax
     if cmd in ['payto', 'mktx']:
