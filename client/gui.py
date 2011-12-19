@@ -820,8 +820,8 @@ class BitcoinGUI:
 
         hbox = gtk.HBox()
         if not is_recv:
-            button = gtk.Button("New address")
-            button.connect("clicked", self.newaddress_dialog, is_recv)
+            button = gtk.Button("New")
+            button.connect("clicked", self.newaddress_dialog)
             button.show()
             hbox.pack_start(button,False)
 
@@ -967,76 +967,56 @@ class BitcoinGUI:
 
 
 
-    def newaddress_dialog(self, w, is_recv):
+    def newaddress_dialog(self, w):
 
-        if not is_recv:
+        title = "New sending address" 
+        dialog = gtk.Dialog(title, parent=self.window, 
+                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_NO_SEPARATOR, 
+                            buttons= ("cancel", 0, "ok",1)  )
+        dialog.show()
 
-            title = "New sending address" 
-            dialog = gtk.Dialog(title, parent=self.window, 
-                                flags=gtk.DIALOG_MODAL|gtk.DIALOG_NO_SEPARATOR, 
-                                buttons= ("cancel", 0, "ok",1)  )
-            dialog.show()
+        label = gtk.HBox()
+        label_label = gtk.Label('Label:')
+        label_label.set_size_request(120,10)
+        label_label.show()
+        label.pack_start(label_label)
+        label_entry = gtk.Entry()
+        label_entry.show()
+        label.pack_start(label_entry)
+        label.show()
+        dialog.vbox.pack_start(label, False, True, 5)
 
-            label = gtk.HBox()
-            label_label = gtk.Label('Label:')
-            label_label.set_size_request(120,10)
-            label_label.show()
-            label.pack_start(label_label)
-            label_entry = gtk.Entry()
-            label_entry.show()
-            label.pack_start(label_entry)
-            label.show()
-            dialog.vbox.pack_start(label, False, True, 5)
+        address = gtk.HBox()
+        address_label = gtk.Label('Address:')
+        address_label.set_size_request(120,10)
+        address_label.show()
+        address.pack_start(address_label)
+        address_entry = gtk.Entry()
+        address_entry.show()
+        address.pack_start(address_entry)
+        address.show()
+        dialog.vbox.pack_start(address, False, True, 5)
+        
+        result = dialog.run()
+        address = address_entry.get_text()
+        label = label_entry.get_text()
+        dialog.destroy()
 
-            address = gtk.HBox()
-            address_label = gtk.Label('Address:')
-            address_label.set_size_request(120,10)
-            address_label.show()
-            address.pack_start(address_label)
-            address_entry = gtk.Entry()
-            address_entry.show()
-            address.pack_start(address_entry)
-            address.show()
-            dialog.vbox.pack_start(address, False, True, 5)
-
-            result = dialog.run()
-            address = address_entry.get_text()
-            label = label_entry.get_text()
-            dialog.destroy()
-
-            if result == 1:
-                if self.wallet.is_valid(address):
-                    self.wallet.addressbook.append(address)
-                    if label:  self.wallet.labels[address] = label
-                    self.wallet.save()
-                    self.update_sending_tab()
-                else:
-                    errorDialog = gtk.MessageDialog(
-                        parent=self.window,
-                        flags=gtk.DIALOG_MODAL, 
-                        buttons= gtk.BUTTONS_CLOSE, 
-                        message_format = "Invalid address")
-                    errorDialog.show()
-                    errorDialog.run()
-                    errorDialog.destroy()
-        else:
-                success, ret = self.wallet.get_new_address()
-                self.update_session = True # we created a new address
-                if success:
-                    address = ret
-                    #if label:  self.wallet.labels[address] = label
-                    self.wallet.save()
-                    self.update_receiving_tab()
-                else:
-                    msg = ret
-                    errorDialog = gtk.MessageDialog(
-                        parent=self.window,
-                        flags=gtk.DIALOG_MODAL, 
-                        buttons= gtk.BUTTONS_CLOSE, 
-                        message_format = msg)
-                    errorDialog.show()
-                    errorDialog.run()
-                    errorDialog.destroy()
+        if result == 1:
+            if self.wallet.is_valid(address):
+                self.wallet.addressbook.append(address)
+                if label:  self.wallet.labels[address] = label
+                self.wallet.save()
+                self.update_sending_tab()
+            else:
+                errorDialog = gtk.MessageDialog(
+                    parent=self.window,
+                    flags=gtk.DIALOG_MODAL, 
+                    buttons= gtk.BUTTONS_CLOSE, 
+                    message_format = "Invalid address")
+                errorDialog.show()
+                errorDialog.run()
+                errorDialog.destroy()
 
     
     def network_dialog( self, w ):
