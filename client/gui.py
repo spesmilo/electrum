@@ -134,9 +134,15 @@ def init_wallet(wallet):
 
             def recover_thread( wallet, dialog ):
                 wallet.init_mpk( wallet.seed ) # not encrypted at this point
-                wallet.is_found = wallet.synchronize()
-                if wallet.is_found:
+                wallet.synchronize()
+
+                if wallet.is_found():
+                    # history and addressbook
+                    wallet.update_tx_history()
+                    wallet.fill_addressbook()
+                    print "recovery successful"
                     wallet.save()
+
                 gobject.idle_add( dialog.destroy )
 
             thread.start_new_thread( recover_thread, ( wallet, dialog ) )
@@ -504,8 +510,8 @@ class BitcoinGUI:
                         get_servers_time = time.time()
                         
                         self.period = 15 if self.wallet.use_http() else 5
-                        u = self.wallet.update()
-                        if u:
+                        if self.wallet.update():
+                            self.wallet.update_session()
                             gobject.idle_add( self.update_history_tab )
                             gobject.idle_add( self.update_receiving_tab )
                             # addressbook too...

@@ -355,13 +355,16 @@ class Wallet:
 
 
     def synchronize(self):
+        is_new = False
         while True:
             if self.change_addresses == []:
                 self.create_new_address2(True)
+                is_new = True
                 continue
             a = self.change_addresses[-1]
             if self.history.get(a):
                 self.create_new_address2(True)
+                is_new = True
             else:
                 break
 
@@ -369,17 +372,19 @@ class Wallet:
         while True:
             if len(self.addresses) < n:
                 self.create_new_address2(False)
+                is_new = True
                 continue
             if map( lambda a: self.history.get(a), self.addresses[-n:] ) == n*[[]]:
                 break
             else:
                 self.create_new_address2(False)
+                is_new = True
 
-        is_found = (len(self.change_addresses) > 1 ) or ( len(self.addresses) > self.gap_limit )
-        if not is_found: return False
 
-        # history and addressbook
-        self.update_tx_history()
+    def is_found(self):
+        return (len(self.change_addresses) > 1 ) or ( len(self.addresses) > self.gap_limit )
+
+    def fill_addressbook(self):
         for tx in self.tx_history.values():
             if tx['value']<0:
                 for i in tx['outputs']:
@@ -387,7 +392,7 @@ class Wallet:
                         self.addressbook.append(i)
         # redo labels
         self.update_tx_labels()
-        return True
+
 
     def save(self):
         s = {
@@ -528,6 +533,7 @@ class Wallet:
         self.servers = map( lambda x:x[1], ast.literal_eval( self.request( repr ( ('peers', '' )))) )
 
     def update(self):
+        is_new = False
         blocks, changed_addresses = self.poll()
         if blocks == -1: raise BaseException("session not found")
         self.blocks = int(blocks)
@@ -536,9 +542,11 @@ class Wallet:
                 print "updating history for", addr
                 self.history[addr] = self.retrieve_history(addr)
                 self.status[addr] = blk_hash
+                is_new = True
 
-        if changed_addresses:
+        if is_new:
             self.synchronize()
+            self.update_tx_history()
             self.save()
             return True
         else:
@@ -756,10 +764,11 @@ if __name__ == '__main__':
             gap = raw_input("gap limit (default 5):")
             if gap: wallet.gap_limit = int(gap)
             print "recovering wallet..."
-            r = wallet.synchronize()
-            if r:
-                print "recovery successful"
+            wallet.synchronize()
+            if wallet.is_found():
+                wallet.fill_addressbook()
                 wallet.save()
+                print "recovery successful"
             else:
                 print "no wallet found"
         else:
