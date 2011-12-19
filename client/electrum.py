@@ -218,7 +218,7 @@ from version import ELECTRUM_VERSION, SEED_VERSION
 
 
 class Wallet:
-    def __init__(self, wallet_path):
+    def __init__(self):
 
         self.electrum_version = ELECTRUM_VERSION
         self.seed_version = SEED_VERSION
@@ -246,12 +246,10 @@ class Wallet:
         self.tx_history = {}
         self.rtime = 0
 
-        self.init_path(wallet_path)
-
         self.imported_addresses = {}
 
 
-    def init_path(self, wallet_path):
+    def set_path(self, wallet_path):
 
         if wallet_path is not None:
             self.path = wallet_path
@@ -268,6 +266,16 @@ class Wallet:
 
             if not os.path.exists( wallet_dir ): os.mkdir( wallet_dir )
             self.path = os.path.join( wallet_dir, 'electrum.dat' )
+
+    def import_keys(self, path):
+        try:
+            f = open(path,"r")
+            data = f.read()
+            f.close()
+        except:
+            return False
+        self.imported_addresses = ast.literal_eval( data )
+
 
     def new_seed(self, password):
         seed = "%032x"%ecdsa.util.randrange( pow(2,128) )
@@ -705,6 +713,7 @@ if __name__ == '__main__':
 
     parser = OptionParser(usage=usage)
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
+    parser.add_option("-i", "--import", dest="import_keys", help="imported keys")
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
     parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance at listed addresses")
     parser.add_option("-k", "--keys",action="store_true", dest="show_keys",default=False, help="show the private keys of listed addresses")
@@ -722,7 +731,10 @@ if __name__ == '__main__':
     if cmd not in known_commands:
         cmd = 'help'
 
-    wallet = Wallet(options.wallet_path)
+    wallet = Wallet()
+    wallet.set_path(options.wallet_path)
+    if options.import_keys:
+        wallet.import_keys(options.import_keys)
 
     if cmd == 'gui':
         import gui
