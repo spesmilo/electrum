@@ -361,7 +361,6 @@ class Wallet:
         print address
         self.history[address] = h = self.retrieve_history(address)
         self.status[address] = h[-1]['blk_hash'] if h else None
-        self.save()
         return address
 
 
