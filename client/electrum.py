@@ -628,7 +628,7 @@ class Wallet:
             return s
 
     def pw_decode(self, s, password):
-        if password:
+        if password is not None:
             secret = Hash(password)
             d = DecodeAES(secret, s)
             if s == self.seed:
