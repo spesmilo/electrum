@@ -62,6 +62,7 @@ sessions = {}
 dblock = thread.allocate_lock()
 peer_list = {}
 
+wallets = {} # for ultra-light clients such as bccapi
 
 class MyStore(Datastore_class):
 
@@ -347,13 +348,11 @@ def client_thread(ipaddr,conn):
             msg += d
             if not d: 
                 break
-            if d[-1]=='#':
+            if '#' in msg:
+                msg = msg.split('#', 1)[0]
                 break
-
-        #print msg
-
         try:
-            cmd, data = ast.literal_eval(msg[:-1])
+            cmd, data = ast.literal_eval(msg)
         except:
             print "syntax error", repr(msg), ipaddr
             conn.close()
@@ -400,6 +399,33 @@ def client_thread(ipaddr,conn):
             out = 'ok'
             sessions[session_id]['last_time'] = time.time()
 
+        elif cmd == 'bccapi_login':
+            import electrum
+            print "data",data
+            v, k = ast.literal_eval(data)
+            master_public_key = k.decode('hex') # todo: sanitize. no need to decode twice...
+            print master_public_key
+            wallet_id = random_string(10)
+            w = electrum.Wallet()
+            w.master_public_key = master_public_key.decode('hex')
+            w.synchronize()
+            wallets[wallet_id] = w
+            out = wallet_id
+            print "wallets", wallets
+
+        elif cmd == 'bccapi_getAccountInfo':
+            import electrum
+            v, wallet_id = ast.literal_eval(data)
+            w = wallets.get(wallet_id)
+            if w is not None:
+                num = len(w.addresses)
+                c, u = w.get_balance()
+                out = electrum.int_to_hex(num,4) + electrum.int_to_hex(c,8) + electrum.int_to_hex( c+u, 8 )
+                out = out.decode('hex')
+            else:
+                print "error",data
+                out = "error"
+            
         elif cmd=='poll': 
             session_id = data
             session = sessions.get(session_id)
