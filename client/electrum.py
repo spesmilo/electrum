@@ -19,7 +19,7 @@
 
 import sys, base64, os, re, hashlib, socket, getpass, copy, operator, ast
 from decimal import Decimal
-from ecdsa.util import string_to_number
+from ecdsa.util import string_to_number, number_to_string
 
 try:
     import ecdsa  
@@ -319,11 +319,12 @@ class Wallet:
 
     def get_private_key2(self, address, password):
         """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
+        order = generator_secp256k1.order()
+        
         if address in self.imported_keys.keys():
             b = self.pw_decode( self.imported_keys[address], password )
             b = ASecretToSecret( b )
             secexp = int( b.encode('hex'), 16)
-            private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve=SECP256k1 )
         else:
             if address in self.addresses:
                 n = self.addresses.index(address)
@@ -335,14 +336,12 @@ class Wallet:
                 raise BaseException("unknown address")
             seed = self.pw_decode( self.seed, password)
             secexp = self.stretch_key(seed)
-            order = generator_secp256k1.order()
-            privkey_number = ( secexp + self.get_sequence(n,for_change) ) % order
-            private_key = ecdsa.SigningKey.from_secret_exponent( privkey_number, curve = SECP256k1 )
+            secexp = ( secexp + self.get_sequence(n,for_change) ) % order
 
-        # sanity check
-        public_key = private_key.get_verifying_key()
-        assert address == public_key_to_bc_address( '04'.decode('hex') + public_key.to_string() )
-        return private_key
+        pk = number_to_string(secexp,order)
+        return pk
+            
+            
 
     def create_new_address2(self, for_change):
         """   Publickey(type,n) = Master_public_key + H(n|S|type)*point  """
@@ -612,7 +611,7 @@ class Wallet:
         s_inputs = []
         for i in range(len(inputs)):
             addr, v, p_hash, p_pos, p_scriptPubKey, _, _ = inputs[i]
-            private_key = self.get_private_key2(addr, password)
+            private_key = ecdsa.SigningKey.from_string( self.get_private_key2(addr, password), curve = SECP256k1 )
             public_key = private_key.get_verifying_key()
             pubkey = public_key.to_string()
             tx = filter( raw_tx( inputs, outputs, for_sig = i ) )
@@ -897,6 +896,9 @@ if __name__ == '__main__':
                         else:              no += 1
                     b = "%d %d %f"%(no, ni, wallet.get_addr_balance(addr)[0]*1e-8)
                 else: b=''
+                if options.show_keys:
+                    pk = wallet.get_private_key2(addr, password)
+                    addr = addr + ':' + SecretToASecret(pk)
                 print addr, b, label
 
     if cmd == 'history':
