@@ -246,7 +246,7 @@ class Wallet:
         self.tx_history = {}
         self.rtime = 0
 
-        self.imported_addresses = {}
+        self.imported_keys = {}
 
 
     def set_path(self, wallet_path):
@@ -267,15 +267,18 @@ class Wallet:
             if not os.path.exists( wallet_dir ): os.mkdir( wallet_dir )
             self.path = os.path.join( wallet_dir, 'electrum.dat' )
 
-    def import_keys(self, path):
-        try:
-            f = open(path,"r")
-            data = f.read()
-            f.close()
-        except:
-            return False
-        self.imported_addresses = ast.literal_eval( data )
-
+    def import_key(self, keypair, password):
+        address, key = keypair.split(':')
+        if not self.is_valid(address): return False
+        b = ASecretToSecret( key )
+        if not b: return False
+        secexp = int( b.encode('hex'), 16)
+        private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve=SECP256k1 )
+        # sanity check
+        public_key = private_key.get_verifying_key()
+        if not address == public_key_to_bc_address( '04'.decode('hex') + public_key.to_string() ): return False
+        self.imported_keys[address] = self.pw_encode( key, password )
+        return True
 
     def new_seed(self, password):
         seed = "%032x"%ecdsa.util.randrange( pow(2,128) )
@@ -291,7 +294,7 @@ class Wallet:
         self.master_public_key = master_private_key.get_verifying_key().to_string()
 
     def all_addresses(self):
-        return self.addresses + self.change_addresses + self.imported_addresses.keys()
+        return self.addresses + self.change_addresses + self.imported_keys.keys()
 
     def is_mine(self, address):
         return address in self.all_addresses()
@@ -316,8 +319,9 @@ class Wallet:
 
     def get_private_key2(self, address, password):
         """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
-        if address in self.imported_addresses.keys():
-            b = ASecretToSecret( self.imported_addresses[address] )
+        if address in self.imported_keys.keys():
+            b = self.pw_decode( self.imported_keys[address], password )
+            b = ASecretToSecret( b )
             secexp = int( b.encode('hex'), 16)
             private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve=SECP256k1 )
         else:
@@ -417,7 +421,8 @@ class Wallet:
             'status':self.status,
             'history':self.history, 
             'labels':self.labels,
-            'contacts':self.addressbook
+            'contacts':self.addressbook,
+            'imported_keys':self.imported_keys,
             }
         f = open(self.path,"w")
         f.write( repr(s) )
@@ -447,6 +452,7 @@ class Wallet:
             self.history = d.get('history')
             self.labels = d.get('labels')
             self.addressbook = d.get('contacts')
+            self.imported_keys = d.get('imported_keys',{})
         except:
             raise BaseException(upgrade_msg)
 
@@ -626,10 +632,11 @@ class Wallet:
         if password:
             secret = Hash(password)
             d = DecodeAES(secret, s)
-            try:
-                d.decode('hex')
-            except:
-                raise BaseException("Invalid password")
+            if s == self.seed:
+                try:
+                    d.decode('hex')
+                except:
+                    raise BaseException("Invalid password")
             return d
         else:
             return s
@@ -707,13 +714,12 @@ class Wallet:
 from optparse import OptionParser
 
 if __name__ == '__main__':
-    known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed','t2']
+    known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed','import']
 
     usage = "usage: %prog [options] command args\nCommands: "+ (', '.join(known_commands))
 
     parser = OptionParser(usage=usage)
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
-    parser.add_option("-i", "--import", dest="import_keys", help="imported keys")
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
     parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance at listed addresses")
     parser.add_option("-k", "--keys",action="store_true", dest="show_keys",default=False, help="show the private keys of listed addresses")
@@ -733,8 +739,6 @@ if __name__ == '__main__':
 
     wallet = Wallet()
     wallet.set_path(options.wallet_path)
-    if options.import_keys:
-        wallet.import_keys(options.import_keys)
 
     if cmd == 'gui':
         import gui
@@ -809,8 +813,22 @@ if __name__ == '__main__':
         wallet.save()
 
     # commands needing password
-    if cmd in ['payto', 'password', 'mktx', 'seed' ] or ( cmd=='addresses' and options.show_keys):
+    if cmd in ['payto', 'password', 'mktx', 'seed', 'import' ] or ( cmd=='addresses' and options.show_keys):
         password = getpass.getpass('Password:') if wallet.use_encryption else None
+
+    if cmd == 'import':
+        # decode seed in order to check password
+        try:
+            seed = wallet.pw_decode( wallet.seed, password)
+        except:
+            print "invalid password"
+            exit(1)
+        keypair = args[1]
+        if wallet.import_key(keypair,password):
+            print "keypair imported"
+        else:
+            print "error"
+        wallet.save()
 
     if cmd=='help':
         cmd2 = firstarg
@@ -951,6 +969,11 @@ if __name__ == '__main__':
         if new_password == getpass.getpass('Confirm new password:'):
             wallet.use_encryption = (new_password != '')
             wallet.seed = wallet.pw_encode( seed, new_password)
+            for k in wallet.imported_keys.keys():
+                a = wallet.imported_keys[k]
+                b = wallet.pw_decode(a, password)
+                c = wallet.pw_encode(b, new_password)
+                wallet.imported_keys[k] = c
             wallet.save()
         else:
             print "error: mismatch"

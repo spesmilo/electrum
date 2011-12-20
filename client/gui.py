@@ -367,6 +367,11 @@ def change_password_dialog(wallet, parent, icon):
 
     wallet.use_encryption = (new_password != '')
     wallet.seed = wallet.pw_encode( seed, new_password)
+    for k in wallet.imported_keys.keys():
+        a = wallet.imported_keys[k]
+        b = wallet.pw_decode(a, password)
+        c = wallet.pw_encode(b, new_password)
+        wallet.imported_keys[k] = c
     wallet.save()
 
     if icon:
