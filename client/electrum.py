@@ -873,9 +873,6 @@ if __name__ == '__main__':
         addr = args[1]
         print wallet.is_valid(addr)
 
-    elif cmd == 't2':
-        wallet.create_t2_address(password)
-
     elif cmd == 'balance':
         c, u = wallet.get_balance()
         if u:
