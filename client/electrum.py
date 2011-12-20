@@ -814,14 +814,14 @@ if __name__ == '__main__':
     # commands needing password
     if cmd in ['payto', 'password', 'mktx', 'seed', 'import' ] or ( cmd=='addresses' and options.show_keys):
         password = getpass.getpass('Password:') if wallet.use_encryption else None
-
-    if cmd == 'import':
-        # decode seed in order to check password
+        # check password
         try:
-            seed = wallet.pw_decode( wallet.seed, password)
+            wallet.pw_decode( wallet.seed, password)
         except:
             print "invalid password"
             exit(1)
+
+    if cmd == 'import':
         keypair = args[1]
         if wallet.import_key(keypair,password):
             print "keypair imported"
