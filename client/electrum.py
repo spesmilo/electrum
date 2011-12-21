@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import sys, base64, os, re, hashlib, socket, getpass, copy, operator, ast
+import sys, base64, os, re, hashlib, socket, getpass, copy, operator, ast, random
 from decimal import Decimal
 
 try:
@@ -224,10 +224,10 @@ class Wallet:
         self.seed_version = SEED_VERSION
 
         self.gap_limit = 5           # configuration
-        self.host = 'ecdsa.org'
         self.port = 50000
         self.fee = 100000
         self.servers = ['ecdsa.org','electrum.novit.ro']  # list of default servers
+        self.host = random.choice( self.servers )         # random choice when the wallet is created
         self.master_public_key = ''
 
         # saved fields
@@ -765,9 +765,9 @@ if __name__ == '__main__':
             password = None
             print "in order to use wallet encryption, please install pycrypto  (sudo easy_install pycrypto)"
 
-        host = raw_input("server (default:ecdsa.org):")
-        port = raw_input("port (default:50000):")
-        fee = raw_input("fee (default 0.005):")
+        host = raw_input("server (default:%s):"%wallet.host)
+        port = raw_input("port (default:%d):"%wallet.port)
+        fee = raw_input("fee (default:%f):"%(wallet.fee*1e-8))
         if fee: wallet.fee = float(fee)
         if host: wallet.host = host
         if port: wallet.port = int(port)
