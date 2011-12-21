@@ -19,10 +19,10 @@
 
 import sys, base64, os, re, hashlib, socket, getpass, copy, operator, ast
 from decimal import Decimal
-from ecdsa.util import string_to_number, number_to_string
 
 try:
     import ecdsa  
+    from ecdsa.util import string_to_number, number_to_string
 except:
     print "python-ecdsa does not seem to be installed. Try 'sudo easy_install ecdsa'"
     sys.exit(1)
