@@ -921,14 +921,13 @@ class BitcoinGUI:
 
     def update_receiving_tab(self):
         self.recv_list.clear()
-        for address in self.wallet.addresses:
+        for address in self.wallet.all_addresses():
             if self.wallet.is_change(address):continue
             label = self.wallet.labels.get(address)
             n = 0 
-            h = self.wallet.history.get(address)
-            if h:
-                for item in h:
-                    if not item['is_in'] : n=n+1
+            h = self.wallet.history.get(address,[])
+            for item in h:
+                if not item['is_in'] : n=n+1
             tx = "None" if n==0 else "%d"%n
             self.recv_list.append((address, label, tx ))
 
