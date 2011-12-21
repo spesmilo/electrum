@@ -885,7 +885,10 @@ if __name__ == '__main__':
     elif cmd in [ 'addresses']:
         for addr in wallet.all_addresses():
             if options.show_all or not wallet.is_change(addr):
-                label = wallet.labels.get(addr) if not wallet.is_change(addr) else "[change]"
+                label = wallet.labels.get(addr)
+                _type = ''
+                if wallet.is_change(addr): _type = "[change]"
+                if addr in wallet.imported_keys.keys(): _type = "[imported]"
                 if label is None: label = ''
                 if options.show_balance:
                     h = wallet.history.get(addr)
@@ -898,7 +901,7 @@ if __name__ == '__main__':
                 if options.show_keys:
                     pk = wallet.get_private_key2(addr, password)
                     addr = addr + ':' + SecretToASecret(pk)
-                print addr, b, label
+                print addr, b, _type, label
 
     if cmd == 'history':
         lines = wallet.get_tx_history()
