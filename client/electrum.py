@@ -891,7 +891,7 @@ if __name__ == '__main__':
                 if addr in wallet.imported_keys.keys(): _type = "[imported]"
                 if label is None: label = ''
                 if options.show_balance:
-                    h = wallet.history.get(addr)
+                    h = wallet.history.get(addr,[])
                     ni = no = 0
                     for item in h:
                         if item['is_in']:  ni += 1
