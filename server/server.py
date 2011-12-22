@@ -372,6 +372,34 @@ def client_thread(ipaddr,conn):
         conn.close()
     
 
+def cmd_stop(data):
+    global stopping
+    if password == data:
+        stopping = True
+        return 'ok'
+    else:
+        return 'wrong password'
+
+def cmd_load(pw):
+    if password == pw:
+        return repr( len(sessions) )
+    else:
+        return 'wrong password'
+
+
+def clear_cache(pw):
+    if password == pw:
+        store.tx_cache = {}
+        return 'ok'
+    else:
+        return 'wrong password'
+
+def get_cache(pw,addr):
+    if password == pw:
+        return store.tx_cache.get(addr)
+    else:
+        return 'wrong password'
+
 
 def do_command(cmd, data, ipaddr):
 
@@ -504,43 +532,14 @@ def do_command(cmd, data, ipaddr):
         out = repr( store.get_history( address ) )
 
     elif cmd == 'load': 
-        if password == data:
-            out = repr( len(sessions) )
-        else:
-            out = 'wrong password'
+        out = cmd_load(data)
 
     elif cmd =='tx':
         out = send_tx(data)
         print "sent tx:", out
 
-    elif cmd =='clear_cache':
-        if password == data:
-            store.tx_cache = {}
-            out = 'ok'
-        else:
-            out = 'wrong password'
-
-    elif cmd =='get_cache':
-        try:
-            pw, addr = data
-        except:
-            addr = None
-        if addr:
-            if password == pw:
-                out = store.tx_cache.get(addr)
-                out = repr(out)
-            else:
-                out = 'wrong password'
-        else:
-            out = "error: "+ repr(data)
-
     elif cmd == 'stop':
-        global stopping
-        if password == data:
-            stopping = True
-            out = 'ok'
-        else:
-            out = 'wrong password'
+        out = cmd_stop(data)
 
     elif cmd == 'peers':
         out = repr(peer_list.values())
@@ -549,8 +548,6 @@ def do_command(cmd, data, ipaddr):
         out = None
 
     return out
-
-
 
 
 
@@ -634,37 +631,44 @@ def irc_thread():
             s.close()
 
 
+
+def jsonrpc_thread(store):
+    # see http://code.google.com/p/jsonrpclib/
+    from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
+    server = SimpleJSONRPCServer(('localhost', 8080))
+    server.register_function(store.get_history, 'history')
+    server.register_function(lambda : peer_list.values(), 'peers')
+    server.register_function(cmd_stop, 'stop')
+    server.register_function(cmd_load, 'load')
+    server.register_function(lambda : block_number, 'blocks')
+    server.register_function(clear_cache, 'clear_cache')
+    server.register_function(get_cache, 'get_cache')
+    server.serve_forever()
+
+
 import traceback
 
 
 if __name__ == '__main__':
 
     if len(sys.argv)>1:
+        import jsonrpclib
+        server = jsonrpclib.Server('http://localhost:8080')
         cmd = sys.argv[1]
         if cmd == 'load':
-            request = "('load','%s')#"%password
+            out = server.load(password)
         elif cmd == 'peers':
-            request = "('peers','')#"
+            out = server.peers()
         elif cmd == 'stop':
-            request = "('stop','%s')#"%password
+            out = server.stop(password)
         elif cmd == 'clear_cache':
-            request = "('clear_cache','%s')#"%password
+            out = server.clear_cache(password)
         elif cmd == 'get_cache':
-            request = "('get_cache',('%s','%s'))#"%(password,sys.argv[2])
+            out = server.get_cache(password,sys.argv[2])
         elif cmd == 'h':
-            request = "('h','%s')#"%sys.argv[2]
+            out = server.history(sys.argv[2])
         elif cmd == 'b':
-            request = "('b','')#"
-
-        s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((config.get('server','host'), config.getint('server','port')))
-        s.send( request )
-        out = ''
-        while 1:
-            msg = s.recv(1024)
-            if msg: out += msg
-            else: break
-        s.close()
+            out = server.blocks()
         print out
         sys.exit(0)
 
@@ -686,6 +690,7 @@ if __name__ == '__main__':
     store.mempool_keys = {}
 
     thread.start_new_thread(listen_thread, (store,))
+    thread.start_new_thread(jsonrpc_thread, (store,))
     thread.start_new_thread(clean_session_thread, ())
     if (config.get('server','irc') == 'yes' ):
 	thread.start_new_thread(irc_thread, ())
