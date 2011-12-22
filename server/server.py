@@ -358,161 +358,7 @@ def client_thread(ipaddr,conn):
             conn.close()
             return
 
-        if cmd=='b':
-            out = "%d"%block_number
-
-        elif cmd in ['session','new_session']:
-            session_id = random_string(10)
-            try:
-                if cmd == 'session':
-                    addresses = ast.literal_eval(data)
-                    version = "old"
-                else:
-                    version, addresses = ast.literal_eval(data)
-                    if version[0]=="0": version = "v" + version
-            except:
-                print "error", data
-                conn.close()
-                return
-
-            print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "new session", ipaddr, addresses[0] if addresses else addresses, len(addresses), version
-
-            sessions[session_id] = { 'addresses':{}, 'version':version, 'ip':ipaddr }
-            for a in addresses:
-                sessions[session_id]['addresses'][a] = ''
-            out = repr( (session_id, config.get('server','banner').replace('\\n','\n') ) )
-            sessions[session_id]['last_time'] = time.time()
-
-        elif cmd=='update_session':
-            try:
-                session_id, addresses = ast.literal_eval(data)
-            except:
-                print "error"
-                conn.close()
-                return
-
-            print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "update session", ipaddr, addresses[0] if addresses else addresses, len(addresses)
-
-            sessions[session_id]['addresses'] = {}
-            for a in addresses:
-                sessions[session_id]['addresses'][a] = ''
-            out = 'ok'
-            sessions[session_id]['last_time'] = time.time()
-
-        elif cmd == 'bccapi_login':
-            import electrum
-            print "data",data
-            v, k = ast.literal_eval(data)
-            master_public_key = k.decode('hex') # todo: sanitize. no need to decode twice...
-            print master_public_key
-            wallet_id = random_string(10)
-            w = electrum.Wallet()
-            w.master_public_key = master_public_key.decode('hex')
-            w.synchronize()
-            wallets[wallet_id] = w
-            out = wallet_id
-            print "wallets", wallets
-
-        elif cmd == 'bccapi_getAccountInfo':
-            import electrum
-            v, wallet_id = ast.literal_eval(data)
-            w = wallets.get(wallet_id)
-            if w is not None:
-                num = len(w.addresses)
-                c, u = w.get_balance()
-                out = electrum.int_to_hex(num,4) + electrum.int_to_hex(c,8) + electrum.int_to_hex( c+u, 8 )
-                out = out.decode('hex')
-            else:
-                print "error",data
-                out = "error"
-            
-        elif cmd=='poll': 
-            session_id = data
-            session = sessions.get(session_id)
-            if session is None:
-                print time.asctime(), "session not found", session_id, ipaddr
-                out = repr( (-1, {}))
-            else:
-                t1 = time.time()
-                addresses = session['addresses']
-                session['last_time'] = time.time()
-                ret = {}
-                k = 0
-                for addr in addresses:
-                    if store.tx_cache.get( addr ) is not None: k += 1
-
-                    # get addtess status, i.e. the last block for that address.
-                    tx_points = store.get_history(addr)
-                    if not tx_points:
-                        status = None
-                    else:
-                        lastpoint = tx_points[-1]
-                        status = lastpoint['blk_hash']
-                        # this is a temporary hack; move it up once old clients have disappeared
-                        if status == 'mempool' and session['version'] != "old":
-                            status = status + ':%d'% len(tx_points)
-
-                    last_status = addresses.get( addr )
-                    if last_status != status:
-                        addresses[addr] = status
-                        ret[addr] = status
-                if ret:
-                    sessions[session_id]['addresses'] = addresses
-                out = repr( (block_number, ret ) )
-                t2 = time.time() - t1 
-                if t2 > 10:
-                    print "high load:", session_id, "%d/%d"%(k,len(addresses)), t2
-
-        elif cmd == 'h': 
-            # history
-            address = data
-            out = repr( store.get_history( address ) )
-
-        elif cmd == 'load': 
-            if config.get('server','password') == data:
-                out = repr( len(sessions) )
-            else:
-                out = 'wrong password'
-
-        elif cmd =='tx':
-            out = send_tx(data)
-            print "sent tx:", out
-
-        elif cmd =='clear_cache':
-            if config.get('server','password') == data:
-                store.tx_cache = {}
-                out = 'ok'
-            else:
-                out = 'wrong password'
-
-        elif cmd =='get_cache':
-            try:
-                pw, addr = data
-            except:
-                addr = None
-            if addr:
-                if config.get('server','password') == pw:
-                    out = store.tx_cache.get(addr)
-                    out = repr(out)
-                else:
-                    out = 'wrong password'
-            else:
-                out = "error: "+ repr(data)
-
-        elif cmd == 'stop':
-            global stopping
-            if config.get('server','password') == data:
-                stopping = True
-                out = 'ok'
-            else:
-                out = 'wrong password'
-
-        elif cmd == 'peers':
-            out = repr(peer_list.values())
-
-        else:
-            out = None
-
+        out = do_command(cmd, data, ipaddr)
         if out:
             #print ipaddr, cmd, len(out)
             try:
@@ -523,6 +369,185 @@ def client_thread(ipaddr,conn):
     finally:
         conn.close()
     
+
+
+def do_command(cmd, data, ipaddr):
+
+    if cmd=='b':
+        out = "%d"%block_number
+
+    elif cmd in ['session','new_session']:
+        session_id = random_string(10)
+        try:
+            if cmd == 'session':
+                addresses = ast.literal_eval(data)
+                version = "old"
+            else:
+                version, addresses = ast.literal_eval(data)
+                if version[0]=="0": version = "v" + version
+        except:
+            print "error", data
+            return None
+
+        print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "new session", ipaddr, addresses[0] if addresses else addresses, len(addresses), version
+
+        sessions[session_id] = { 'addresses':{}, 'version':version, 'ip':ipaddr }
+        for a in addresses:
+            sessions[session_id]['addresses'][a] = ''
+        out = repr( (session_id, config.get('server','banner').replace('\\n','\n') ) )
+        sessions[session_id]['last_time'] = time.time()
+
+    elif cmd=='update_session':
+        try:
+            session_id, addresses = ast.literal_eval(data)
+        except:
+            print "error"
+            return None
+
+        print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "update session", ipaddr, addresses[0] if addresses else addresses, len(addresses)
+
+        sessions[session_id]['addresses'] = {}
+        for a in addresses:
+            sessions[session_id]['addresses'][a] = ''
+        out = 'ok'
+        sessions[session_id]['last_time'] = time.time()
+
+    elif cmd == 'bccapi_login':
+        import electrum
+        print "data",data
+        v, k = ast.literal_eval(data)
+        master_public_key = k.decode('hex') # todo: sanitize. no need to decode twice...
+        print master_public_key
+        wallet_id = random_string(10)
+        w = electrum.Wallet()
+        w.master_public_key = master_public_key.decode('hex')
+        w.synchronize()
+        wallets[wallet_id] = w
+        out = wallet_id
+        print "wallets", wallets
+
+    elif cmd == 'bccapi_getAccountInfo':
+        from electrum import int_to_hex
+        v, wallet_id = ast.literal_eval(data)
+        w = wallets.get(wallet_id)
+        if w is not None:
+            num = len(w.addresses)
+            c, u = w.get_balance()
+            out = int_to_hex(num,4) + int_to_hex(c,8) + int_to_hex( c+u, 8 )
+            out = out.decode('hex')
+        else:
+            print "error",data
+            out = "error"
+
+    elif cmd == 'bccapi_getAccountStatement':
+        from electrum import int_to_hex
+        v, wallet_id = ast.literal_eval(data)
+        w = wallets.get(wallet_id)
+        if w is not None:
+            num = len(w.addresses)
+            c, u = w.get_balance()
+            total_records = num_records = 0
+            out = int_to_hex(num,4) + int_to_hex(c,8) + int_to_hex( c+u, 8 ) + int_to_hex( total_records ) + int_to_hex( num_records )
+            out = out.decode('hex')
+        else:
+            print "error",data
+            out = "error"
+
+    elif cmd == 'bccapi_getSendCoinForm':
+        out = ''
+
+    elif cmd == 'bccapi_submitTransaction':
+        out = ''
+            
+    elif cmd=='poll': 
+        session_id = data
+        session = sessions.get(session_id)
+        if session is None:
+            print time.asctime(), "session not found", session_id, ipaddr
+            out = repr( (-1, {}))
+        else:
+            t1 = time.time()
+            addresses = session['addresses']
+            session['last_time'] = time.time()
+            ret = {}
+            k = 0
+            for addr in addresses:
+                if store.tx_cache.get( addr ) is not None: k += 1
+
+                # get addtess status, i.e. the last block for that address.
+                tx_points = store.get_history(addr)
+                if not tx_points:
+                    status = None
+                else:
+                    lastpoint = tx_points[-1]
+                    status = lastpoint['blk_hash']
+                    # this is a temporary hack; move it up once old clients have disappeared
+                    if status == 'mempool' and session['version'] != "old":
+                        status = status + ':%d'% len(tx_points)
+
+                last_status = addresses.get( addr )
+                if last_status != status:
+                    addresses[addr] = status
+                    ret[addr] = status
+            if ret:
+                sessions[session_id]['addresses'] = addresses
+            out = repr( (block_number, ret ) )
+            t2 = time.time() - t1 
+            if t2 > 10:
+                print "high load:", session_id, "%d/%d"%(k,len(addresses)), t2
+
+    elif cmd == 'h': 
+        # history
+        address = data
+        out = repr( store.get_history( address ) )
+
+    elif cmd == 'load': 
+        if config.get('server','password') == data:
+            out = repr( len(sessions) )
+        else:
+            out = 'wrong password'
+
+    elif cmd =='tx':
+        out = send_tx(data)
+        print "sent tx:", out
+
+    elif cmd =='clear_cache':
+        if config.get('server','password') == data:
+            store.tx_cache = {}
+            out = 'ok'
+        else:
+            out = 'wrong password'
+
+    elif cmd =='get_cache':
+        try:
+            pw, addr = data
+        except:
+            addr = None
+        if addr:
+            if config.get('server','password') == pw:
+                out = store.tx_cache.get(addr)
+                out = repr(out)
+            else:
+                out = 'wrong password'
+        else:
+            out = "error: "+ repr(data)
+
+    elif cmd == 'stop':
+        global stopping
+        if config.get('server','password') == data:
+            stopping = True
+            out = 'ok'
+        else:
+            out = 'wrong password'
+
+    elif cmd == 'peers':
+        out = repr(peer_list.values())
+
+    else:
+        out = None
+
+    return out
+
 
 
 
