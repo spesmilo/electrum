@@ -56,6 +56,8 @@ try:
 except:
     print "Could not read electrum.conf. I will use the default values."
 
+password = config.get('server','password')
+
 stopping = False
 block_number = -1
 sessions = {}
@@ -502,7 +504,7 @@ def do_command(cmd, data, ipaddr):
         out = repr( store.get_history( address ) )
 
     elif cmd == 'load': 
-        if config.get('server','password') == data:
+        if password == data:
             out = repr( len(sessions) )
         else:
             out = 'wrong password'
@@ -512,7 +514,7 @@ def do_command(cmd, data, ipaddr):
         print "sent tx:", out
 
     elif cmd =='clear_cache':
-        if config.get('server','password') == data:
+        if password == data:
             store.tx_cache = {}
             out = 'ok'
         else:
@@ -524,7 +526,7 @@ def do_command(cmd, data, ipaddr):
         except:
             addr = None
         if addr:
-            if config.get('server','password') == pw:
+            if password == pw:
                 out = store.tx_cache.get(addr)
                 out = repr(out)
             else:
@@ -534,7 +536,7 @@ def do_command(cmd, data, ipaddr):
 
     elif cmd == 'stop':
         global stopping
-        if config.get('server','password') == data:
+        if password == data:
             stopping = True
             out = 'ok'
         else:
@@ -639,17 +641,16 @@ if __name__ == '__main__':
 
     if len(sys.argv)>1:
         cmd = sys.argv[1]
-        pw = config.get('server','password')
         if cmd == 'load':
-            request = "('load','%s')#"%pw
+            request = "('load','%s')#"%password
         elif cmd == 'peers':
             request = "('peers','')#"
         elif cmd == 'stop':
-            request = "('stop','%s')#"%pw
+            request = "('stop','%s')#"%password
         elif cmd == 'clear_cache':
-            request = "('clear_cache','%s')#"%pw
+            request = "('clear_cache','%s')#"%password
         elif cmd == 'get_cache':
-            request = "('get_cache',('%s','%s'))#"%(pw,sys.argv[2])
+            request = "('get_cache',('%s','%s'))#"%(password,sys.argv[2])
         elif cmd == 'h':
             request = "('h','%s')#"%sys.argv[2]
         elif cmd == 'b':
