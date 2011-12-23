@@ -17,3 +17,10 @@ database = electrum.sqlite
 
 # type = psycopg2
 # database = electrum
+
+[bitcoind]
+host = localhost
+port = 8332
+# user and password from bitcoin.conf
+user = user 
+password = password
