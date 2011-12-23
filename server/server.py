@@ -654,8 +654,10 @@ def irc_thread():
 
 def jsonrpc_thread(store):
     # see http://code.google.com/p/jsonrpclib/
+    from SocketServer import ThreadingMixIn
     from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
-    server = SimpleJSONRPCServer(('localhost', 8080))
+    class SimpleThreadedJSONRPCServer(ThreadingMixIn, SimpleJSONRPCServer): pass
+    server = SimpleThreadedJSONRPCServer(('localhost', 8080))
     server.register_function(lambda : peer_list.values(), 'peers')
     server.register_function(cmd_stop, 'stop')
     server.register_function(cmd_load, 'load')
