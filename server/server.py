@@ -405,26 +405,21 @@ def cmd_poll(session_id):
         return out
 
 
-def new_session(addresses, version, ipaddr):
+def new_session(addresses, version):
     session_id = random_string(10)
-
-    print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "new session", ipaddr, addresses[0] if addresses else addresses, len(addresses), version
-
-    sessions[session_id] = { 'addresses':{}, 'version':version, 'ip':ipaddr }
+    sessions[session_id] = { 'addresses':{}, 'version':version }
     for a in addresses:
         sessions[session_id]['addresses'][a] = ''
     out = repr( (session_id, config.get('server','banner').replace('\\n','\n') ) )
     sessions[session_id]['last_time'] = time.time()
     return out
 
-def update_session(session_id,addresses,ipaddr):
-    print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "update session", ipaddr, addresses[0] if addresses else addresses, len(addresses)
+def update_session(session_id,addresses):
     sessions[session_id]['addresses'] = {}
     for a in addresses:
         sessions[session_id]['addresses'][a] = ''
-    out = 'ok'
     sessions[session_id]['last_time'] = time.time()
-
+    return 'ok'
 
 def listen_thread(store):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -485,7 +480,8 @@ def do_command(cmd, data, ipaddr):
         except:
             print "error", data
             return None
-        out = new_session(addresses, version, ipaddr)
+        print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "new session", ipaddr, addresses[0] if addresses else addresses, len(addresses), version
+        out = new_session(addresses, version)
 
     elif cmd=='update_session':
         try:
@@ -493,8 +489,8 @@ def do_command(cmd, data, ipaddr):
         except:
             print "error"
             return None
-        out = update_session(session_id,addresses,ipaddr)
-
+        print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "update session", ipaddr, addresses[0] if addresses else addresses, len(addresses)
+        out = update_session(session_id,addresses)
 
     elif cmd == 'bccapi_login':
         import electrum
