@@ -27,13 +27,14 @@ Todo:
 
 import time, socket, operator, thread, ast, sys,re
 import psycopg2, binascii
-import bitcoinrpc
 
 from Abe.abe import hash_to_address, decode_check_address
 from Abe.DataStore import DataStore as Datastore_class
 from Abe import DataStore, readconf, BCDataStream,  deserialize, util, base58
 
 import ConfigParser
+from json import dumps, loads
+import urllib
 
 config = ConfigParser.ConfigParser()
 # set some defaults, which will be overwritten by the config file
@@ -57,6 +58,7 @@ except:
     print "Could not read electrum.conf. I will use the default values."
 
 password = config.get('server','password')
+bitcoind_url = 'http://%s:%s@%s:%s/' % ( config.get('bitcoind','user'), config.get('bitcoind','password'), config.get('bitcoind','host'), config.get('bitcoind','port'))
 
 stopping = False
 block_number = -1
@@ -317,14 +319,17 @@ class MyStore(Datastore_class):
 
 
 
+
 def send_tx(tx):
-    import bitcoinrpc
-    conn = bitcoinrpc.connect_to_local()
+    postdata = dumps({"method": 'importtransaction', 'params': [tx], 'id':'jsonrpc'})
+    respdata = urllib.urlopen(bitcoind_url, postdata).read()
     try:
-        v = conn.importtransaction(tx)
+        v = loads(respdata)['result']
     except:
         v = "error: transaction rejected by memorypool"
     return v
+
+
 
 def random_string(N):
     import random, string
@@ -364,7 +369,7 @@ def get_cache(pw,addr):
 def cmd_poll(session_id):
     session = sessions.get(session_id)
     if session is None:
-        print time.asctime(), "session not found", session_id, ipaddr
+        print time.asctime(), "session not found", session_id
         out = repr( (-1, {}))
     else:
         t1 = time.time()
@@ -412,7 +417,7 @@ def new_session(addresses, version, ipaddr):
     sessions[session_id]['last_time'] = time.time()
     return out
 
-def update_session(session_id,addresses):
+def update_session(session_id,addresses,ipaddr):
     print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "update session", ipaddr, addresses[0] if addresses else addresses, len(addresses)
     sessions[session_id]['addresses'] = {}
     for a in addresses:
@@ -488,7 +493,7 @@ def do_command(cmd, data, ipaddr):
         except:
             print "error"
             return None
-        out = update_session(session_id,addresses)
+        out = update_session(session_id,addresses,ipaddr)
 
 
     elif cmd == 'bccapi_login':
@@ -570,12 +575,12 @@ def do_command(cmd, data, ipaddr):
 def memorypool_update(store):
     ds = BCDataStream.BCDataStream()
     store.mempool_keys = []
-    conn = bitcoinrpc.connect_to_local()
-    try:
-        v = conn.getmemorypool()
-    except:
-        print "cannot contact bitcoin daemon"
-        return
+
+    postdata = dumps({"method": 'getmemorypool', 'params': [], 'id':'jsonrpc'})
+    respdata = urllib.urlopen(bitcoind_url, postdata).read()
+    v = loads(respdata)['result']
+
+
     v = v['transactions']
     for hextx in v:
         ds.clear()
@@ -651,13 +656,14 @@ def jsonrpc_thread(store):
     # see http://code.google.com/p/jsonrpclib/
     from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
     server = SimpleJSONRPCServer(('localhost', 8080))
-    server.register_function(store.get_history, 'history')
     server.register_function(lambda : peer_list.values(), 'peers')
     server.register_function(cmd_stop, 'stop')
     server.register_function(cmd_load, 'load')
     server.register_function(lambda : block_number, 'blocks')
     server.register_function(clear_cache, 'clear_cache')
     server.register_function(get_cache, 'get_cache')
+    server.register_function(send_tx, 'blockchain.transaction.broadcast')
+    server.register_function(store.get_history, 'blockchain.address.get_history')
     server.serve_forever()
 
 
@@ -681,7 +687,9 @@ if __name__ == '__main__':
         elif cmd == 'get_cache':
             out = server.get_cache(password,sys.argv[2])
         elif cmd == 'h':
-            out = server.history(sys.argv[2])
+            out = server.blockchain.address.get_history(sys.argv[2])
+        elif cmd == 'tx':
+            out = server.blockchain.transaction.broadcast(sys.argv[2])
         elif cmd == 'b':
             out = server.blocks()
         print out

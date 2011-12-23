@@ -7,9 +7,10 @@ Language: Python
 Features: 
 
 * The server uses a patched version of the Bitcoin daemon that can
-forward transactions, and bitcoin-abe * The server code is open
-source. Anyone can run a server, removing single points of failure
-concerns.
+forward transactions, and bitcoin-abe 
+
+* The server code is open source. Anyone can run a server, removing
+single points of failure concerns.
 
 * The server knows which set of Bitcoin addresses belong to the same
 wallet, which might raise concerns about anonymity. However, it should
@@ -22,8 +23,7 @@ INSTALL
 
 2. install bitcoin-abe : https://github.com/jtobey/bitcoin-abe
 
-3. download bitcoin-python: https://github.com/laanwj/bitcoin-python
-   patch it with bitcoinrpc_connection.py.diff
+3. install jsonrpclib: code.google.com/p/jsonrpclib/
 
 4. launch the server:  nohup python -u server.py > /var/log/electrum.log &
 
