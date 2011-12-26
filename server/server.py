@@ -323,11 +323,8 @@ class MyStore(Datastore_class):
 def send_tx(tx):
     postdata = dumps({"method": 'importtransaction', 'params': [tx], 'id':'jsonrpc'})
     respdata = urllib.urlopen(bitcoind_url, postdata).read()
-    try:
-        v = loads(respdata)['result']
-    except:
-        v = "error: transaction rejected by memorypool"
-    return v
+    r = loads(respdata)
+    return r 
 
 
 
@@ -551,7 +548,11 @@ def do_command(cmd, data, ipaddr):
         out = cmd_load(data)
 
     elif cmd =='tx':
-        out = send_tx(data)
+        r = send_tx(data)
+        if r['error'] != None:
+            out = "error: transaction rejected by memorypool"
+        else:
+            out = r['result']
         print "sent tx:", out
 
     elif cmd == 'stop':
@@ -574,10 +575,11 @@ def memorypool_update(store):
 
     postdata = dumps({"method": 'getmemorypool', 'params': [], 'id':'jsonrpc'})
     respdata = urllib.urlopen(bitcoind_url, postdata).read()
-    v = loads(respdata)['result']
+    r = loads(respdata)
+    if r['error'] != None:
+        return
 
-
-    v = v['transactions']
+    v = r['result'].get('transactions')
     for hextx in v:
         ds.clear()
         ds.write(hextx.decode('hex'))
@@ -601,7 +603,6 @@ def clean_session_thread():
         for k,s in sessions.items():
             t0 = s['last_time']
             if t - t0 > 5*60:
-                print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "end session", s['ip']
                 sessions.pop(k)
             
 
@@ -653,7 +654,7 @@ def jsonrpc_thread(store):
     from SocketServer import ThreadingMixIn
     from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
     class SimpleThreadedJSONRPCServer(ThreadingMixIn, SimpleJSONRPCServer): pass
-    server = SimpleThreadedJSONRPCServer(('localhost', 8080))
+    server = SimpleThreadedJSONRPCServer(( config.get('server','host'), 8081))
     server.register_function(lambda : peer_list.values(), 'peers')
     server.register_function(cmd_stop, 'stop')
     server.register_function(cmd_load, 'load')
@@ -662,6 +663,7 @@ def jsonrpc_thread(store):
     server.register_function(get_cache, 'get_cache')
     server.register_function(send_tx, 'blockchain.transaction.broadcast')
     server.register_function(store.get_history, 'blockchain.address.get_history')
+    server.register_function(new_session, 'new_session')
     server.serve_forever()
 
 
@@ -672,7 +674,7 @@ if __name__ == '__main__':
 
     if len(sys.argv)>1:
         import jsonrpclib
-        server = jsonrpclib.Server('http://localhost:8080')
+        server = jsonrpclib.Server('http://%s:8081'%config.get('server','host'))
         cmd = sys.argv[1]
         if cmd == 'load':
             out = server.load(password)
