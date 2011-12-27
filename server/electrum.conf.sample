@@ -7,20 +7,22 @@ irc = yes
 ircname = public Electrum server
 
 [database]
-type = sqlite3
-database = electrum.sqlite
-
-# type = MySQLdb
-# database = electrum
-# username = electrum
-# password = secret
-
+type = MySQLdb
+database = electrum
+username = electrum
+password = secret
+#
+# [database]
 # type = psycopg2
 # database = electrum
+#
+# [database]
+# type = sqlite3
+# database = electrum.sqlite
 
 [bitcoind]
 host = localhost
 port = 8332
 # user and password from bitcoin.conf
-user = user 
+user = user
 password = password
