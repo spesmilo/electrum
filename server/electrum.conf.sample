@@ -5,6 +5,7 @@ password = secret
 banner = Welcome to Electrum!
 irc = yes
 ircname = public Electrum server
+cache = no
 
 [database]
 type = MySQLdb
