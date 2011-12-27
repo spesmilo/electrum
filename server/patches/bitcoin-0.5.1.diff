@@ -1,0 +1,82 @@
+diff -ur bitcoin-0.5.1/src/bitcoinrpc.cpp bitcoin-0.5.1-electrum/src/bitcoinrpc.cpp
+--- bitcoin-0.5.1/src/bitcoinrpc.cpp	2011-12-13 22:56:26.000000000 +0200
++++ bitcoin-0.5.1-electrum/src/bitcoinrpc.cpp	2011-12-27 22:44:06.494789148 +0200
+@@ -1362,7 +1362,43 @@
+     return entry;
+ }
+ 
++Value importtransaction(const Array& params, bool fHelp)
++{
++  string hexdump;
++  if (fHelp || params.size() != 1 || (hexdump=params[0].get_str()).size()&1)
++    throw runtime_error(
++            "importtransaction <hexdata>\n"
++            "Import an offline transaction to announce it into the network");
++
++  std::vector<unsigned char> rawtx;
++  for (int i=0; i<hexdump.size(); i+=2)
++    {
++      int v;
++      if (sscanf(hexdump.substr(i,2).c_str(), "%x", &v)!=1)
++	throw JSONRPCError(-4, "Error in hex data.");
++      rawtx.push_back((unsigned char)v);
++    }
++try
++  {
++    CDataStream ss(rawtx);
++    CTransaction tx;
++    ss >> tx;
++    CInv inv(MSG_TX, tx.GetHash());
++    if(! tx.AcceptToMemoryPool(true)) throw JSONRPCError(-4, "Transaction not accepted to memory pool.");
++    CDataStream msg(rawtx);
++    RelayMessage(inv, msg);
++    return tx.GetHash().GetHex();
++  }
++ catch (std::exception& e)
++   {
++     throw JSONRPCError(-4, "Exception while parsing the transaction data.");
++   }
++
++}
++
++
+ 
++  
+ Value backupwallet(const Array& params, bool fHelp)
+ {
+     if (fHelp || params.size() != 1)
+@@ -1846,6 +1882,7 @@
+     make_pair("settxfee",               &settxfee),
+     make_pair("getmemorypool",          &getmemorypool),
+     make_pair("listsinceblock",        &listsinceblock),
++    make_pair("importtransaction",      &importtransaction),
+ };
+ map<string, rpcfn_type> mapCallTable(pCallTable, pCallTable + sizeof(pCallTable)/sizeof(pCallTable[0]));
+ 
+diff -ur bitcoin-0.5.1/src/main.cpp bitcoin-0.5.1-electrum/src/main.cpp
+--- bitcoin-0.5.1/src/main.cpp	2011-12-13 22:56:26.000000000 +0200
++++ bitcoin-0.5.1-electrum/src/main.cpp	2011-12-27 22:44:18.714789152 +0200
+@@ -2820,16 +2820,19 @@
+ 
+             // Size limits
+             unsigned int nTxSize = ::GetSerializeSize(tx, SER_NETWORK);
+-            if (nBlockSize + nTxSize >= MAX_BLOCK_SIZE_GEN)
+-                continue;
++            //if (nBlockSize + nTxSize >= MAX_BLOCK_SIZE_GEN)
++            //    continue;
+             int nTxSigOps = tx.GetSigOpCount();
+-            if (nBlockSigOps + nTxSigOps >= MAX_BLOCK_SIGOPS)
+-                continue;
++            //if (nBlockSigOps + nTxSigOps >= MAX_BLOCK_SIGOPS)
++            //    continue;
+ 
+             // Transaction fee required depends on block size
+             bool fAllowFree = (nBlockSize + nTxSize < 4000 || CTransaction::AllowFree(dPriority));
+             int64 nMinFee = tx.GetMinFee(nBlockSize, fAllowFree, true);
+ 
++	    // electrum server: do not check fees
++	    nMinFee = 0;
++
+             // Connecting shouldn't fail due to dependency on other memory pool transactions
+             // because we're already processing them in order of dependency
+             map<uint256, CTxIndex> mapTestPoolTmp(mapTestPool);
