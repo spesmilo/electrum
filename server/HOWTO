@@ -74,8 +74,9 @@ $ $EDITOR ~/.bitcoin/bitcoin.conf
 
 	rpcuser=<rpc-username>
 	rpcpassword=<rpc-password>
+	daemon=1
 
-$ bitcoind &
+$ bitcoind
 
 Allow some time to pass, so bitcoind connects to the network and starts downloading blocks. You can check its progress by running:
 
@@ -138,7 +139,7 @@ Abe will now start to import blocks. You will see a lot of lines like this: 'blo
 
 Listening on http://localhost:2750
 
-It means the blockchain is imported and you can exit Abe by pressing CTRL-C.
+It means the blockchain is imported and you can exit Abe by pressing CTRL-C. You will not need to run Abe again after this step, Electrum server will update the blockchain by itsself. We only used Abe because it is much faster for the initial import.
 
 Important notice: This is a *very* long process. Even on fast machines you can expect it to take hours. Here are some benchmarks for importing ~159.400 blocks (size of the Bitcoin blockchain at the time of this writing):
 
