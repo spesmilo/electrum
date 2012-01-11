@@ -253,6 +253,7 @@ class Interface:
     def send_tx(self, data):
         if self.use_http():
             out = self.http_json_server.blockchain.transaction.broadcast(data)
+            out = out.get("result")
         else:
             out = self.request( repr ( ('tx', data )))
         return out
