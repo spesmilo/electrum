@@ -516,7 +516,7 @@ class BitcoinGUI:
                         
                         self.period = 15 if self.wallet.interface.use_http() else 5
                         if self.wallet.update():
-                            self.wallet.interface.update_session()
+                            self.wallet.interface.update_session( self.wallet.all_addresses() )
                             gobject.idle_add( self.update_history_tab )
                             gobject.idle_add( self.update_receiving_tab )
                             # addressbook too...
