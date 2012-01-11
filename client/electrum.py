@@ -286,7 +286,7 @@ class Interface:
         if self.use_http():
             out = self.http_json_server.session.update(self.session_id, addresses)
         else:
-            out = self.request( repr ( ('update_session', repr((self.session_id, self.all_addresses())))))
+            out = self.request( repr ( ('update_session', repr((self.session_id, addresses)))))
         return out
     
     def get_servers(self):
