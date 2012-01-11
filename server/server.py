@@ -363,7 +363,7 @@ def get_cache(pw,addr):
         return 'wrong password'
 
 
-def cmd_poll(session_id):
+def poll_session(session_id):
     session = sessions.get(session_id)
     if session is None:
         print time.asctime(), "session not found", session_id
@@ -537,7 +537,7 @@ def do_command(cmd, data, ipaddr):
         out = ''
             
     elif cmd=='poll': 
-        out = cmd_poll(data)
+        out = poll_session(data)
 
     elif cmd == 'h': 
         # history
@@ -663,7 +663,9 @@ def jsonrpc_thread(store):
     server.register_function(get_cache, 'get_cache')
     server.register_function(send_tx, 'blockchain.transaction.broadcast')
     server.register_function(store.get_history, 'blockchain.address.get_history')
-    server.register_function(new_session, 'new_session')
+    server.register_function(new_session, 'session.new')
+    server.register_function(update_session, 'session.update')
+    server.register_function(poll_session, 'session.poll')
     server.serve_forever()
 
 
