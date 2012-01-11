@@ -490,7 +490,7 @@ class Wallet:
             'fee':self.fee,
             'host':self.interface.host,
             'port':self.interface.port,
-            'blocks':self.blocks,
+            'blocks':self.interface.blocks,
             'seed':self.seed,
             'addresses':self.addresses,
             'change_addresses':self.change_addresses,
@@ -520,7 +520,7 @@ class Wallet:
             self.fee = int( d.get('fee') )
             self.interface.host = d.get('host')
             self.interface.set_port( d.get('port') )
-            self.blocks = d.get('blocks')
+            self.interface.blocks = d.get('blocks')
             self.seed = d.get('seed')
             self.addresses = d.get('addresses')
             self.change_addresses = d.get('change_addresses')

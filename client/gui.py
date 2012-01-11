@@ -910,10 +910,10 @@ class BitcoinGUI:
         c, u = self.wallet.get_balance()
         if self.is_connected:
             self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
-            self.network_button.set_tooltip_text("Connected to %s.\n%d blocks\nresponse time: %f"%(self.wallet.interface.host, self.wallet.blocks, self.wallet.interface.rtime))
+            self.network_button.set_tooltip_text("Connected to %s.\n%d blocks\nresponse time: %f"%(self.wallet.interface.host, self.wallet.interface.blocks, self.wallet.interface.rtime))
         else:
             self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
-            self.network_button.set_tooltip_text("Trying to contact %s.\n%d blocks"%(self.wallet.interface.host, self.wallet.blocks))
+            self.network_button.set_tooltip_text("Trying to contact %s.\n%d blocks"%(self.wallet.interface.host, self.wallet.interface.blocks))
         text =  "Balance: %s "%( format_satoshis(c) )
         if u: text +=  "[+ %s unconfirmed]"%( format_satoshis(u) )
         if self.error: text = self.error
@@ -950,7 +950,7 @@ class BitcoinGUI:
         for tx in self.wallet.get_tx_history():
             tx_hash = tx['tx_hash']
             if tx['height']:
-                conf = self.wallet.blocks - tx['height'] + 1
+                conf = self.wallet.interface.blocks - tx['height'] + 1
                 time_str = datetime.datetime.fromtimestamp( tx['nTime']).isoformat(' ')[:-3]
                 conf_icon = gtk.STOCK_APPLY
             else:
@@ -1035,7 +1035,7 @@ class BitcoinGUI:
         image = gtk.Image()
         image.set_from_stock(gtk.STOCK_NETWORK, gtk.ICON_SIZE_DIALOG)
         if self.is_connected:
-            status = "Connected to %s.\n%d blocks\nresponse time: %f"%(wallet.interface.host, wallet.blocks, wallet.interface.rtime)
+            status = "Connected to %s.\n%d blocks\nresponse time: %f"%(wallet.interface.host, wallet.interface.blocks, wallet.interface.rtime)
         else:
             status = "Not connected"
 
