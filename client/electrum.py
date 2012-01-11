@@ -216,6 +216,88 @@ def raw_tx( inputs, outputs, for_sig = None ):
 
 from version import ELECTRUM_VERSION, SEED_VERSION
 
+class Interface:
+    def __init__(self):
+        self.servers = ['ecdsa.org','electrum.novit.ro']  # list of default servers
+        self.host = random.choice( self.servers )         # random choice when the wallet is created
+        self.rtime = 0
+        self.blocks = 0 
+        self.message = ''
+        self.set_port(50000)
+
+    def set_port(self, port_number):
+        self.port = port_number
+        if self.use_http():
+            import jsonrpclib
+            self.http_json_server = jsonrpclib.Server('http://%s:%d'%(self.host,self.port))
+
+    def use_http(self): 
+        return self.port in [80,81,8080,8081]
+
+    def request(self, request ):
+        import time
+        t1 = time.time()
+        request += "#"
+        s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
+        s.connect(( self.host, self.port))
+        s.send( request )
+        out = ''
+        while 1:
+            msg = s.recv(1024)
+            if msg: out += msg
+            else: break
+        s.close()
+        self.rtime = time.time() - t1
+        return out
+
+    def send_tx(self, data):
+        if self.use_http():
+            out = self.http_json_server.blockchain.transaction.broadcast(data)
+        else:
+            out = self.request( repr ( ('tx', data )))
+        return out
+
+    def retrieve_history(self, address):
+        if self.use_http():
+            out = self.http_json_server.blockchain.address.get_history(address)
+        else:
+            out = ast.literal_eval( self.request( repr ( ('h', address ))) )
+        return out
+
+    def poll(self):
+        if self.use_http():
+            out = ast.literal_eval( self.http_json_server.session.poll( self.session_id ) )
+        else:
+            out = ast.literal_eval( self.request( repr ( ('poll', self.session_id ))))
+
+        blocks, changed_addr = out
+        if blocks == -1: raise BaseException("session not found")
+        self.blocks = int(blocks)
+        return changed_addr
+
+    def new_session(self, addresses, version):
+        if self.use_http():
+            out = ast.literal_eval( self.http_json_server.session.new(addresses, version) )
+        else:
+            out = ast.literal_eval( self.request( repr ( ('new_session', repr( ( version, addresses)) ))))
+        self.session_id, self.message = out
+
+    def update_session(self):
+        if self.use_http():
+            out = self.http_json_server.session.update(self.session_id, self.all_addresses())
+        else:
+            out = self.request( repr ( ('update_session', repr((self.session_id, self.all_addresses())))))
+        return out
+    
+    def get_servers(self):
+        if self.use_http():
+            out = self.http_json_server.peers()
+        else:
+            out = ast.literal_eval( self.request( repr ( ('peers', '' ))))
+        self.servers = map( lambda x:x[1], out )
+
+
+
 
 class Wallet:
     def __init__(self):
@@ -224,10 +306,7 @@ class Wallet:
         self.seed_version = SEED_VERSION
 
         self.gap_limit = 5           # configuration
-        self.port = 50000
         self.fee = 100000
-        self.servers = ['ecdsa.org','electrum.novit.ro']  # list of default servers
-        self.host = random.choice( self.servers )         # random choice when the wallet is created
         self.master_public_key = ''
 
         # saved fields
@@ -239,14 +318,13 @@ class Wallet:
         self.history = {}
         self.labels = {}             # labels for addresses and transactions
         self.addressbook = []        # outgoing addresses, for payments
-        self.blocks = 0 
 
         # not saved
-        self.message = ''
         self.tx_history = {}
-        self.rtime = 0
 
         self.imported_keys = {}
+
+        self.interface = Interface()
 
 
     def set_path(self, wallet_path):
@@ -359,7 +437,7 @@ class Wallet:
 
         # updates
         print address
-        self.history[address] = h = self.retrieve_history(address)
+        self.history[address] = h = self.interface.retrieve_history(address)
         self.status[address] = h[-1]['blk_hash'] if h else None
         return address
 
@@ -410,8 +488,8 @@ class Wallet:
             'use_encryption':self.use_encryption,
             'master_public_key': self.master_public_key.encode('hex'),
             'fee':self.fee,
-            'host':self.host,
-            'port':self.port,
+            'host':self.interface.host,
+            'port':self.interface.port,
             'blocks':self.blocks,
             'seed':self.seed,
             'addresses':self.addresses,
@@ -440,8 +518,8 @@ class Wallet:
             self.master_public_key = d.get('master_public_key').decode('hex')
             self.use_encryption = d.get('use_encryption')
             self.fee = int( d.get('fee') )
-            self.host = d.get('host')
-            self.port = d.get('port')
+            self.interface.host = d.get('host')
+            self.interface.set_port( d.get('port') )
             self.blocks = d.get('blocks')
             self.seed = d.get('seed')
             self.addresses = d.get('addresses')
@@ -493,66 +571,13 @@ class Wallet:
             unconf += u
         return conf, unconf
 
-    def use_http(self): 
-        return self.port in [80,8080,443]
-
-    def request(self, request ):
-        import time
-        t1 = time.time()
-
-        if self.use_http():
-            import httplib, urllib
-            params = urllib.urlencode({'q':request})
-            headers = {"Content-type": "application/x-www-form-urlencoded", "Accept": "text/plain"}
-            conn = httplib.HTTPSConnection(self.host) if self.port == 443 else httplib.HTTPConnection(self.host)
-            conn.request("POST", "/electrum.php", params, headers)
-            response = conn.getresponse()
-            if response.status == 200:
-                out = response.read()
-            else: out = ''
-            conn.close()
-        else:
-            request += "#"
-            s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
-            s.connect(( self.host, self.port))
-            s.send( request )
-            out = ''
-            while 1:
-                msg = s.recv(1024)
-                if msg: out += msg
-                else: break
-            s.close()
-
-        self.rtime = time.time() - t1
-        return out
-
-    def send_tx(self, data):
-        return self.request( repr ( ('tx', data )))
-
-    def retrieve_history(self, address):
-        return ast.literal_eval( self.request( repr ( ('h', address ))) )
-
-    def poll(self):
-        return ast.literal_eval( self.request( repr ( ('poll', self.session_id ))))
-
-    def new_session(self):
-        self.session_id, self.message = ast.literal_eval( self.request( repr ( ('new_session', repr( (self.electrum_version, self.all_addresses())) ))))
-
-    def update_session(self):
-        return self.request( repr ( ('update_session', repr((self.session_id, self.all_addresses())))))
-
-    def get_servers(self):
-        self.servers = map( lambda x:x[1], ast.literal_eval( self.request( repr ( ('peers', '' )))) )
-
     def update(self):
         is_new = False
-        blocks, changed_addresses = self.poll()
-        if blocks == -1: raise BaseException("session not found")
-        self.blocks = int(blocks)
+        changed_addresses = self.interface.poll()
         for addr, blk_hash in changed_addresses.items():
             if self.status.get(addr) != blk_hash:
                 print "updating history for", addr
-                self.history[addr] = self.retrieve_history(addr)
+                self.history[addr] = self.interface.retrieve_history(addr)
                 self.status[addr] = blk_hash
                 is_new = True
 
@@ -702,7 +727,7 @@ class Wallet:
 
     def sendtx(self, tx):
         tx_hash = Hash(tx.decode('hex') )[::-1].encode('hex')
-        out = self.send_tx(tx)
+        out = self.interface.send_tx(tx)
         if out != tx_hash:
             return False, "error: " + out
         return True, out
@@ -806,7 +831,7 @@ if __name__ == '__main__':
 
     # open session
     if cmd not in ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress']:
-        wallet.new_session()
+        wallet.interface.new_session(wallet.all_addresses(), wallet.electrum_version)
         wallet.update()
         wallet.save()
 

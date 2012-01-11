@@ -214,7 +214,7 @@ def run_settings_dialog(wallet, is_create, is_recovery, parent):
         host_label.show()
         host.pack_start(host_label,False, False, 10)
         host_entry = gtk.Entry()
-        host_entry.set_text(wallet.host+":%d"%wallet.port)
+        host_entry.set_text(wallet.interface.host+":%d"%wallet.interface.port)
         host_entry.show()
         host.pack_start(host_entry,False,False, 10)
         add_help_button(host, 'The name and port number of your Electrum server, separated by a colon. Example: "ecdsa.org:50000". If no port number is provided, the http port 80 will be tried.')
@@ -275,8 +275,8 @@ def run_settings_dialog(wallet, is_create, is_recovery, parent):
         return
 
     if is_create:
-        wallet.host = host
-        wallet.port = port
+        wallet.interface.host = host
+        wallet.interface.port = port
     if is_recovery:
         wallet.seed = seed
         wallet.gap_limit = gap
@@ -494,10 +494,10 @@ class BitcoinGUI:
             while True:
                 try:
                     self.is_connected = False
-                    self.wallet.new_session()
+                    self.wallet.interface.new_session(self.wallet.all_addresses(), self.wallet.electrum_version)
                     self.is_connected = True
                     self.update_session = False
-                    self.info.set_text( self.wallet.message)
+                    self.info.set_text( self.wallet.interface.message)
                 except:
                     traceback.print_exc(file=sys.stdout)
                     time.sleep(self.period)
@@ -507,22 +507,23 @@ class BitcoinGUI:
                 while True:
                     try:
                         if self.is_connected and self.update_session:
-                            self.wallet.update_session()
+                            self.wallet.interface.update_session()
                             self.update_session = False
 
                         if time.time() - get_servers_time > 5*60:
-                            wallet.get_servers()
+                            wallet.interface.get_servers()
                         get_servers_time = time.time()
                         
-                        self.period = 15 if self.wallet.use_http() else 5
+                        self.period = 15 if self.wallet.interface.use_http() else 5
                         if self.wallet.update():
-                            self.wallet.update_session()
+                            self.wallet.interface.update_session()
                             gobject.idle_add( self.update_history_tab )
                             gobject.idle_add( self.update_receiving_tab )
                             # addressbook too...
 
                         time.sleep(self.period)
                     except BaseException:
+                        traceback.print_exc(file=sys.stdout)
                         print "starting new session"
                         break
                     except socket.gaierror:
@@ -909,10 +910,10 @@ class BitcoinGUI:
         c, u = self.wallet.get_balance()
         if self.is_connected:
             self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
-            self.network_button.set_tooltip_text("Connected to %s.\n%d blocks\nresponse time: %f"%(self.wallet.host, self.wallet.blocks, self.wallet.rtime))
+            self.network_button.set_tooltip_text("Connected to %s.\n%d blocks\nresponse time: %f"%(self.wallet.interface.host, self.wallet.blocks, self.wallet.interface.rtime))
         else:
             self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
-            self.network_button.set_tooltip_text("Trying to contact %s.\n%d blocks"%(self.wallet.host, self.wallet.blocks))
+            self.network_button.set_tooltip_text("Trying to contact %s.\n%d blocks"%(self.wallet.interface.host, self.wallet.blocks))
         text =  "Balance: %s "%( format_satoshis(c) )
         if u: text +=  "[+ %s unconfirmed]"%( format_satoshis(u) )
         if self.error: text = self.error
@@ -1034,7 +1035,7 @@ class BitcoinGUI:
         image = gtk.Image()
         image.set_from_stock(gtk.STOCK_NETWORK, gtk.ICON_SIZE_DIALOG)
         if self.is_connected:
-            status = "Connected to %s.\n%d blocks\nresponse time: %f"%(wallet.host, wallet.blocks, wallet.rtime)
+            status = "Connected to %s.\n%d blocks\nresponse time: %f"%(wallet.interface.host, wallet.blocks, wallet.interface.rtime)
         else:
             status = "Not connected"
 
@@ -1052,14 +1053,14 @@ class BitcoinGUI:
         host.pack_start(host_label, False, False, 10)
         host_entry = gtk.Entry()
         host_entry.set_size_request(200,-1)
-        host_entry.set_text(wallet.host+":%d"%wallet.port)
+        host_entry.set_text(wallet.interface.host+":%d"%wallet.interface.port)
         host_entry.show()
         host.pack_start(host_entry, False, False, 10)
         add_help_button(host, 'The name and port number of your Electrum server, separated by a colon. Example: "ecdsa.org:50000". If no port number is provided, port 50000 will be tried. Some servers allow you to connect through http (port 80) or https (port 443)')
         host.show()
         
         server_list = gtk.ListStore(str)
-        for item in wallet.servers:
+        for item in wallet.interface.servers:
             server_list.append([item])
     
         treeview = gtk.TreeView(model=server_list)
@@ -1103,9 +1104,9 @@ class BitcoinGUI:
             self.show_message("error")
             return
 
-        if host!= wallet.host or port!=wallet.port:
-            wallet.host = host
-            wallet.port = port
+        if host!= wallet.interface.host or port!=wallet.interface.port:
+            wallet.interface.host = host
+            wallet.interface.set_port( port )
             wallet.save()
             self.is_connected = False
 
