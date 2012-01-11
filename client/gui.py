@@ -507,7 +507,7 @@ class BitcoinGUI:
                 while True:
                     try:
                         if self.is_connected and self.update_session:
-                            self.wallet.interface.update_session()
+                            self.wallet.interface.update_session( self.wallet.all_addresses() )
                             self.update_session = False
 
                         if time.time() - get_servers_time > 5*60:
