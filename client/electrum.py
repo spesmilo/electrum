@@ -259,7 +259,7 @@ class Interface:
 
     def retrieve_history(self, address):
         if self.use_http():
-            out = self.http_json_server.blockchain.address.get_history(params)
+            out = self.http_json_server.blockchain.address.get_history(address)
         else:
             out = ast.literal_eval( self.request( repr ( ('h', address ))) )
         return out
