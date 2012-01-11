@@ -276,7 +276,7 @@ def run_settings_dialog(wallet, is_create, is_recovery, parent):
 
     if is_create:
         wallet.interface.host = host
-        wallet.interface.port = port
+        wallet.interface.set_port( port )
     if is_recovery:
         wallet.seed = seed
         wallet.gap_limit = gap
