@@ -258,7 +258,7 @@ class Interface:
             else: break
         s.close()
         self.rtime = time.time() - t1
-        if cmd == 'peers':
+        if cmd in[ 'peers','h']:
             out = ast.literal_eval( out )
         return out
 
@@ -284,7 +284,7 @@ class Interface:
 
     def retrieve_history(self, address):
         out = self.handler('blockchain.address.get_history', address )
-        return ast.literal_eval( out )
+        return out
 
     def poll(self):
         out = self.handler('session.poll', self.session_id )
