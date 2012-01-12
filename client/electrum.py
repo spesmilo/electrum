@@ -799,7 +799,6 @@ if __name__ == '__main__':
                 sys.exit(1)
         else:
             password = None
-            print "in order to use wallet encryption, please install pycrypto  (sudo easy_install pycrypto)"
 
         host = raw_input("server (default:%s):"%wallet.interface.host)
         port = raw_input("port (default:%d):"%wallet.interface.port)
