@@ -228,14 +228,14 @@ class Interface:
     def set_port(self, port_number):
         self.port = port_number
         if self.use_http():
-            self.handler = self.http_json_request
+            self.handler = self.http_json_handler
         else:
-            self.handler = self.native_request
+            self.handler = self.native_handler
 
     def use_http(self): 
         return self.port in [80,81,8080,8081]
 
-    def native_request(self, method, params = ''):
+    def native_handler(self, method, params = ''):
         import time
         cmds = {'session.new':'new_session',
                 'peers':'peers',
@@ -262,7 +262,7 @@ class Interface:
             out = ast.literal_eval( out )
         return out
 
-    def http_json_request(self, method, params = []):
+    def http_json_handler(self, method, params = []):
         import urllib2, json, time
         if type(params) != type([]): params = [ params ]
         t1 = time.time()
