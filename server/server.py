@@ -324,7 +324,11 @@ def send_tx(tx):
     postdata = dumps({"method": 'importtransaction', 'params': [tx], 'id':'jsonrpc'})
     respdata = urllib.urlopen(bitcoind_url, postdata).read()
     r = loads(respdata)
-    return r 
+    if r['error'] != None:
+        out = "error: transaction rejected by memorypool"
+    else:
+        out = r['result']
+    return out
 
 
 
@@ -402,7 +406,7 @@ def poll_session(session_id):
         return out
 
 
-def new_session(addresses, version):
+def new_session(version, addresses):
     session_id = random_string(10)
     sessions[session_id] = { 'addresses':{}, 'version':version }
     for a in addresses:
@@ -478,7 +482,7 @@ def do_command(cmd, data, ipaddr):
             print "error", data
             return None
         print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "new session", ipaddr, addresses[0] if addresses else addresses, len(addresses), version
-        out = new_session(addresses, version)
+        out = new_session(version, addresses)
 
     elif cmd=='update_session':
         try:
@@ -549,10 +553,6 @@ def do_command(cmd, data, ipaddr):
 
     elif cmd =='tx':
         r = send_tx(data)
-        if r['error'] != None:
-            out = "error: transaction rejected by memorypool"
-        else:
-            out = r['result']
         print "sent tx:", out
 
     elif cmd == 'stop':
