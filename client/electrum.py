@@ -224,6 +224,7 @@ class Interface:
         self.blocks = 0 
         self.message = ''
         self.set_port(50000)
+        self.is_connected = False
 
     def set_port(self, port_number):
         self.port = port_number
@@ -309,7 +310,7 @@ class Interface:
 
 
 class Wallet:
-    def __init__(self):
+    def __init__(self, interface):
 
         self.electrum_version = ELECTRUM_VERSION
         self.seed_version = SEED_VERSION
@@ -333,7 +334,7 @@ class Wallet:
 
         self.imported_keys = {}
 
-        self.interface = Interface()
+        self.interface = interface
 
 
     def set_path(self, wallet_path):
@@ -769,7 +770,8 @@ if __name__ == '__main__':
     if cmd not in known_commands:
         cmd = 'help'
 
-    wallet = Wallet()
+    interface = Interface()
+    wallet = Wallet(interface)
     wallet.set_path(options.wallet_path)
 
     if cmd == 'gui':

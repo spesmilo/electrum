@@ -110,7 +110,7 @@ def init_wallet(wallet):
             wallet.new_seed(None)
 
             # ask for the server.
-            run_settings_dialog(wallet, is_create=True, is_recovery=False, parent=None)
+            run_network_dialog( wallet, parent=None )
 
             # generate first key
             wallet.synchronize()
@@ -122,8 +122,11 @@ def init_wallet(wallet):
             change_password_dialog(wallet, None, None)
 
         else:
-            # ask for the server, seed and gap.
-            run_settings_dialog(wallet, is_create=True, is_recovery=True, parent=None)
+            # ask for the server.
+            run_network_dialog( wallet, parent=None )
+
+            # ask for seed and gap.
+            run_recovery_dialog( wallet )
 
             dialog = gtk.MessageDialog(
                 parent = None,
@@ -153,14 +156,75 @@ def init_wallet(wallet):
                 show_message("No transactions found for this seed")
 
 
-def run_settings_dialog(wallet, is_create, is_recovery, parent):
+def run_recovery_dialog(wallet):
+    message = "Please enter your wallet seed or the corresponding mnemonic list of words, and the gap limit of your wallet."
+    dialog = gtk.MessageDialog(
+        parent = None,
+        flags = gtk.DIALOG_MODAL, 
+        buttons = gtk.BUTTONS_OK_CANCEL,
+        message_format = message)
 
-    if is_recovery:
-        message = "Please enter your wallet seed or the corresponding mnemonic list of words, the server and the gap limit"
-    elif is_create:
-        message = "Please indicate the server and port number"
-    else:
-        message = "These are the settings of your wallet. For more explanations, click on the question mark buttons next to each input field."
+    vbox = dialog.vbox
+    dialog.set_default_response(gtk.RESPONSE_OK)
+
+    # ask seed, server and gap in the same dialog
+    seed_box = gtk.HBox()
+    seed_label = gtk.Label('Seed or mnemonic:')
+    seed_label.set_size_request(150,-1)
+    seed_box.pack_start(seed_label, False, False, 10)
+    seed_label.show()
+    seed_entry = gtk.Entry()
+    seed_entry.show()
+    seed_entry.set_size_request(450,-1)
+    seed_box.pack_start(seed_entry, False, False, 10)
+    add_help_button(seed_box, '.')
+    seed_box.show()
+    vbox.pack_start(seed_box, False, False, 5)    
+
+    gap = gtk.HBox()
+    gap_label = gtk.Label('Gap limit:')
+    gap_label.set_size_request(150,10)
+    gap_label.show()
+    gap.pack_start(gap_label,False, False, 10)
+    gap_entry = gtk.Entry()
+    gap_entry.set_text("%d"%wallet.gap_limit)
+    gap_entry.connect('changed', numbify, True)
+    gap_entry.show()
+    gap.pack_start(gap_entry,False,False, 10)
+    add_help_button(gap, 'The maximum gap that is allowed between unused addresses in your wallet. During wallet recovery, this parameter is used to decide when to stop the recovery process. If you increase this value, you will need to remember it in order to be able to recover your wallet from seed.')
+    gap.show()
+    vbox.pack_start(gap, False,False, 5)
+
+    dialog.show()
+    r = dialog.run()
+    gap = gap_entry.get_text()        
+    dialog.destroy()
+
+    if r==gtk.RESPONSE_CANCEL:
+        sys.exit(1)
+    try:
+        gap = int(gap)
+    except:
+        show_message("error")
+        sys.exit(1)
+
+    seed = seed_entry.get_text()
+    try:
+        seed.decode('hex')
+    except:
+        import mnemonic
+        print "not hex, trying decode"
+        seed = mnemonic.mn_decode( seed.split(' ') )
+        
+    wallet.seed = seed
+    wallet.gap_limit = gap
+    wallet.save()
+
+
+
+def run_settings_dialog(wallet, parent):
+
+    message = "These are the settings of your wallet. For more explanations, click on the question mark buttons next to each input field."
         
     dialog = gtk.MessageDialog(
         parent = parent,
@@ -177,113 +241,117 @@ def run_settings_dialog(wallet, is_create, is_recovery, parent):
     vbox = dialog.vbox
     dialog.set_default_response(gtk.RESPONSE_OK)
 
-    if is_recovery:
-        # ask seed, server and gap in the same dialog
-        seed_box = gtk.HBox()
-        seed_label = gtk.Label('Seed or mnemonic:')
-        seed_label.set_size_request(150,-1)
-        seed_box.pack_start(seed_label, False, False, 10)
-        seed_label.show()
-        seed_entry = gtk.Entry()
-        seed_entry.show()
-        seed_entry.set_size_request(450,-1)
-        seed_box.pack_start(seed_entry, False, False, 10)
-        add_help_button(seed_box, '.')
-        seed_box.show()
-        vbox.pack_start(seed_box, False, False, 5)    
-
-    if is_recovery:
-        gap = gtk.HBox()
-        gap_label = gtk.Label('Gap limit:')
-        gap_label.set_size_request(150,10)
-        gap_label.show()
-        gap.pack_start(gap_label,False, False, 10)
-        gap_entry = gtk.Entry()
-        gap_entry.set_text("%d"%wallet.gap_limit)
-        gap_entry.connect('changed', numbify, True)
-        gap_entry.show()
-        gap.pack_start(gap_entry,False,False, 10)
-        add_help_button(gap, 'The maximum gap that is allowed between unused addresses in your wallet. During wallet recovery, this parameter is used to decide when to stop the recovery process. If you increase this value, you will need to remember it in order to be able to recover your wallet from seed.')
-        gap.show()
-        vbox.pack_start(gap, False,False, 5)
-
-    if is_recovery or is_create:
-        host = gtk.HBox()
-        host_label = gtk.Label('Server:')
-        host_label.set_size_request(150,-1)
-        host_label.show()
-        host.pack_start(host_label,False, False, 10)
-        host_entry = gtk.Entry()
-        host_entry.set_text(wallet.interface.host+":%d"%wallet.interface.port)
-        host_entry.show()
-        host.pack_start(host_entry,False,False, 10)
-        add_help_button(host, 'The name and port number of your Electrum server, separated by a colon. Example: "ecdsa.org:50000". If no port number is provided, the http port 80 will be tried.')
-        host.show()
-        vbox.pack_start(host, False,False, 5)
-
-    if not is_create:
-        fee = gtk.HBox()
-        fee_entry = gtk.Entry()
-        fee_label = gtk.Label('Transaction fee:')
-        fee_label.set_size_request(150,10)
-        fee_label.show()
-        fee.pack_start(fee_label,False, False, 10)
-        fee_entry.set_text( str( Decimal(wallet.fee) /100000000 ) )
-        fee_entry.connect('changed', numbify, False)
-        fee_entry.show()
-        fee.pack_start(fee_entry,False,False, 10)
-        add_help_button(fee, 'Fee per transaction input. Transactions involving multiple inputs tend to have a higher fee. Recommended value:0.0005')
-        fee.show()
-        vbox.pack_start(fee, False,False, 5)
+    fee = gtk.HBox()
+    fee_entry = gtk.Entry()
+    fee_label = gtk.Label('Transaction fee:')
+    fee_label.set_size_request(150,10)
+    fee_label.show()
+    fee.pack_start(fee_label,False, False, 10)
+    fee_entry.set_text( str( Decimal(wallet.fee) /100000000 ) )
+    fee_entry.connect('changed', numbify, False)
+    fee_entry.show()
+    fee.pack_start(fee_entry,False,False, 10)
+    add_help_button(fee, 'Fee per transaction input. Transactions involving multiple inputs tend to have a higher fee. Recommended value:0.0005')
+    fee.show()
+    vbox.pack_start(fee, False,False, 5)
             
-
     dialog.show()
     r = dialog.run()
-    if is_create:
-        hh = host_entry.get_text()
-    if is_recovery:
-        gap = gap_entry.get_text()
-        seed = seed_entry.get_text()
-        try:
-            seed.decode('hex')
-        except:
-            import mnemonic
-            print "not hex, trying decode"
-            seed = mnemonic.mn_decode( seed.split(' ') )
-    if not is_create:
-        fee = fee_entry.get_text()
+    fee = fee_entry.get_text()
         
     dialog.destroy()
     if r==gtk.RESPONSE_CANCEL:
-        if is_create: sys.exit(1)
-        else: return
+        return
 
     try:
-        if is_create:
-            if ':' in hh:
-                host, port = hh.split(':')
-                port = int(port)
-            else:
-                host = hh
-                port = 50000
-        if is_recovery:
-            gap = int(gap)
-        if not is_create:
-            fee = int( 100000000 * Decimal(fee) )
+        fee = int( 100000000 * Decimal(fee) )
     except:
         show_message("error")
         return
 
-    if is_create:
-        wallet.interface.host = host
-        wallet.interface.set_port( port )
-    if is_recovery:
-        wallet.seed = seed
-        wallet.gap_limit = gap
-    if not is_create:
-        wallet.fee = fee
+    wallet.fee = fee
     wallet.save()
 
+
+
+def run_network_dialog( wallet, parent ):
+    image = gtk.Image()
+    image.set_from_stock(gtk.STOCK_NETWORK, gtk.ICON_SIZE_DIALOG)
+    if wallet.interface.is_connected:
+        status = "Connected to %s.\n%d blocks\nresponse time: %f"%(wallet.interface.host, wallet.interface.blocks, wallet.interface.rtime)
+    else:
+        status = "Not connected"
+
+    dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+                                    gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, status)
+    dialog.set_title("Server")
+    dialog.set_image(image)
+    image.show()
+    
+    vbox = dialog.vbox
+    host = gtk.HBox()
+    host_label = gtk.Label('Connect to:')
+    host_label.set_size_request(100,-1)
+    host_label.show()
+    host.pack_start(host_label, False, False, 10)
+    host_entry = gtk.Entry()
+    host_entry.set_size_request(200,-1)
+    host_entry.set_text(wallet.interface.host+":%d"%wallet.interface.port)
+    host_entry.show()
+    host.pack_start(host_entry, False, False, 10)
+    add_help_button(host, 'The name and port number of your Electrum server, separated by a colon. Example: "ecdsa.org:50000". If no port number is provided, port 50000 will be tried. Some servers allow you to connect through http (port 80) or https (port 443)')
+    host.show()
+        
+    server_list = gtk.ListStore(str)
+    for item in wallet.interface.servers:
+        server_list.append([item])
+    
+    treeview = gtk.TreeView(model=server_list)
+    treeview.show()
+
+    tvcolumn = gtk.TreeViewColumn('Active servers')
+    treeview.append_column(tvcolumn)
+    cell = gtk.CellRendererText()
+    tvcolumn.pack_start(cell, False)
+    tvcolumn.add_attribute(cell, 'text', 0)
+
+    scroll = gtk.ScrolledWindow()
+    scroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+    scroll.add(treeview)
+    scroll.show()
+
+    vbox.pack_start(host, False,False, 5)
+    vbox.pack_start(scroll)
+
+    def my_treeview_cb(treeview):
+        path, view_column = treeview.get_cursor()
+        host = server_list.get_value( server_list.get_iter(path), 0)
+        host_entry.set_text(host+":50000")
+    treeview.connect('cursor-changed', my_treeview_cb)
+
+    dialog.show()
+    r = dialog.run()
+    hh = host_entry.get_text()
+    dialog.destroy()
+    if r==gtk.RESPONSE_CANCEL:
+        return
+    print hh
+    try:
+        if ':' in hh:
+            host, port = hh.split(':')
+            port = int(port)
+        else:
+            host = hh
+            port = 50000
+    except:
+        self.show_message("error")
+        return
+
+    if host!= wallet.interface.host or port!=wallet.interface.port:
+        wallet.interface.host = host
+        wallet.interface.set_port( port )
+        wallet.save()
+        wallet.interface.is_connected = False
 
 
 
@@ -402,8 +470,8 @@ class BitcoinGUI:
 
     def __init__(self, wallet):
         self.error = ''
-        self.is_connected = False
         self.wallet = wallet
+        self.wallet.interface.is_connected = False
         self.period = 5
 
         self.window = MyWindow(gtk.WINDOW_TOPLEVEL)
@@ -433,7 +501,7 @@ class BitcoinGUI:
         self.status_image.show()
 
         self.network_button = gtk.Button()
-        self.network_button.connect("clicked", self.network_dialog )
+        self.network_button.connect("clicked", lambda x: run_network_dialog(self.wallet, self.window) )
         self.network_button.add(self.status_image)
         self.network_button.set_relief(gtk.RELIEF_NONE)
         self.network_button.show()
@@ -458,7 +526,7 @@ class BitcoinGUI:
         settings_icon.show()
 
         prefs_button = gtk.Button()
-        prefs_button.connect("clicked", lambda x: run_settings_dialog(self.wallet, False, False, self.window) )
+        prefs_button.connect("clicked", lambda x: run_settings_dialog(self.wallet, self.window) )
         prefs_button.add(settings_icon)
         prefs_button.set_tooltip_text("Settings")
         prefs_button.set_relief(gtk.RELIEF_NONE)
@@ -493,9 +561,9 @@ class BitcoinGUI:
         def update_wallet_thread():
             while True:
                 try:
-                    self.is_connected = False
+                    self.wallet.interface.is_connected = False
                     self.wallet.interface.new_session(self.wallet.all_addresses(), self.wallet.electrum_version)
-                    self.is_connected = True
+                    self.wallet.interface.is_connected = True
                     self.update_session = False
                     self.info.set_text( self.wallet.interface.message)
                 except:
@@ -506,7 +574,7 @@ class BitcoinGUI:
                 get_servers_time = 0
                 while True:
                     try:
-                        if self.is_connected and self.update_session:
+                        if self.wallet.interface.is_connected and self.update_session:
                             self.wallet.interface.update_session( self.wallet.all_addresses() )
                             self.update_session = False
 
@@ -527,14 +595,14 @@ class BitcoinGUI:
                         print "starting new session"
                         break
                     except socket.gaierror:
-                        self.is_connected = False
+                        self.wallet.interface.is_connected = False
                         break
                     except:
-                        self.is_connected = False
+                        self.wallet.interface.is_connected = False
                         print "error"
                         traceback.print_exc(file=sys.stdout)
                         break
-                self.error = '' if self.is_connected else "Not connected"
+                self.error = '' if self.wallet.interface.is_connected else "Not connected"
                     
         thread.start_new_thread(update_wallet_thread, ())
         thread.start_new_thread(update_status_bar_thread, ())
@@ -908,7 +976,7 @@ class BitcoinGUI:
 
     def update_status_bar(self):
         c, u = self.wallet.get_balance()
-        if self.is_connected:
+        if self.wallet.interface.is_connected:
             self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
             self.network_button.set_tooltip_text("Connected to %s.\n%d blocks\nresponse time: %f"%(self.wallet.interface.host, self.wallet.interface.blocks, self.wallet.interface.rtime))
         else:
@@ -1030,87 +1098,6 @@ class BitcoinGUI:
                 errorDialog.destroy()
 
     
-    def network_dialog( self, w ):
-        wallet = self.wallet
-        image = gtk.Image()
-        image.set_from_stock(gtk.STOCK_NETWORK, gtk.ICON_SIZE_DIALOG)
-        if self.is_connected:
-            status = "Connected to %s.\n%d blocks\nresponse time: %f"%(wallet.interface.host, wallet.interface.blocks, wallet.interface.rtime)
-        else:
-            status = "Not connected"
-
-        dialog = gtk.MessageDialog( self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
-                                    gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, status)
-        dialog.set_title("Server")
-        dialog.set_image(image)
-        image.show()
-    
-        vbox = dialog.vbox
-        host = gtk.HBox()
-        host_label = gtk.Label('Connect to:')
-        host_label.set_size_request(100,-1)
-        host_label.show()
-        host.pack_start(host_label, False, False, 10)
-        host_entry = gtk.Entry()
-        host_entry.set_size_request(200,-1)
-        host_entry.set_text(wallet.interface.host+":%d"%wallet.interface.port)
-        host_entry.show()
-        host.pack_start(host_entry, False, False, 10)
-        add_help_button(host, 'The name and port number of your Electrum server, separated by a colon. Example: "ecdsa.org:50000". If no port number is provided, port 50000 will be tried. Some servers allow you to connect through http (port 80) or https (port 443)')
-        host.show()
-        
-        server_list = gtk.ListStore(str)
-        for item in wallet.interface.servers:
-            server_list.append([item])
-    
-        treeview = gtk.TreeView(model=server_list)
-        treeview.show()
-
-        tvcolumn = gtk.TreeViewColumn('Active servers')
-        treeview.append_column(tvcolumn)
-        cell = gtk.CellRendererText()
-        tvcolumn.pack_start(cell, False)
-        tvcolumn.add_attribute(cell, 'text', 0)
-
-        scroll = gtk.ScrolledWindow()
-        scroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-        scroll.add(treeview)
-        scroll.show()
-
-        vbox.pack_start(host, False,False, 5)
-        vbox.pack_start(scroll)
-
-        def my_treeview_cb(treeview):
-            path, view_column = treeview.get_cursor()
-            host = server_list.get_value( server_list.get_iter(path), 0)
-            host_entry.set_text(host+":50000")
-        treeview.connect('cursor-changed', my_treeview_cb)
-
-        dialog.show()
-        r = dialog.run()
-        hh = host_entry.get_text()
-        dialog.destroy()
-        if r==gtk.RESPONSE_CANCEL:
-            return
-        print hh
-        try:
-            if ':' in hh:
-                host, port = hh.split(':')
-                port = int(port)
-            else:
-                host = hh
-                port = 50000
-        except:
-            self.show_message("error")
-            return
-
-        if host!= wallet.interface.host or port!=wallet.interface.port:
-            wallet.interface.host = host
-            wallet.interface.set_port( port )
-            wallet.save()
-            self.is_connected = False
-
-
     def main(self):
         gtk.main()
 
