@@ -253,6 +253,7 @@ class Interface:
     def send_tx(self, data):
         if self.use_http():
             out = self.http_json_server.blockchain.transaction.broadcast(data)
+            out = out.get("result")
         else:
             out = self.request( repr ( ('tx', data )))
         return out
@@ -282,11 +283,11 @@ class Interface:
             out = ast.literal_eval( self.request( repr ( ('new_session', repr( ( version, addresses)) ))))
         self.session_id, self.message = out
 
-    def update_session(self):
+    def update_session(self, addresses):
         if self.use_http():
-            out = self.http_json_server.session.update(self.session_id, self.all_addresses())
+            out = self.http_json_server.session.update(self.session_id, addresses)
         else:
-            out = self.request( repr ( ('update_session', repr((self.session_id, self.all_addresses())))))
+            out = self.request( repr ( ('update_session', repr((self.session_id, addresses)))))
         return out
     
     def get_servers(self):
@@ -490,7 +491,7 @@ class Wallet:
             'fee':self.fee,
             'host':self.interface.host,
             'port':self.interface.port,
-            'blocks':self.blocks,
+            'blocks':self.interface.blocks,
             'seed':self.seed,
             'addresses':self.addresses,
             'change_addresses':self.change_addresses,
@@ -520,7 +521,7 @@ class Wallet:
             self.fee = int( d.get('fee') )
             self.interface.host = d.get('host')
             self.interface.set_port( d.get('port') )
-            self.blocks = d.get('blocks')
+            self.interface.blocks = d.get('blocks')
             self.seed = d.get('seed')
             self.addresses = d.get('addresses')
             self.change_addresses = d.get('change_addresses')
