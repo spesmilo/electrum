@@ -801,12 +801,12 @@ if __name__ == '__main__':
             password = None
             print "in order to use wallet encryption, please install pycrypto  (sudo easy_install pycrypto)"
 
-        host = raw_input("server (default:%s):"%wallet.host)
-        port = raw_input("port (default:%d):"%wallet.port)
+        host = raw_input("server (default:%s):"%wallet.interface.host)
+        port = raw_input("port (default:%d):"%wallet.interface.port)
         fee = raw_input("fee (default:%f):"%(wallet.fee*1e-8))
         if fee: wallet.fee = float(fee)
-        if host: wallet.host = host
-        if port: wallet.port = int(port)
+        if host: wallet.interface.host = host
+        if port: wallet.interface.port = int(port)
         seed = raw_input("if you are restoring an existing wallet, enter the seed. otherwise just press enter: ")
         wallet.gap_limit = 5
         if seed:
