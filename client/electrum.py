@@ -259,6 +259,7 @@ class Interface:
             else: break
         s.close()
         self.rtime = time.time() - t1
+        self.is_connected = True
         if cmd in[ 'peers','h']:
             out = ast.literal_eval( out )
         return out
@@ -277,6 +278,7 @@ class Interface:
         if not out:
             print response
         self.rtime = time.time() - t1
+        self.is_connected = True
         return out
 
     def send_tx(self, data):

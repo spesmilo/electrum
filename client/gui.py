@@ -110,6 +110,7 @@ def init_wallet(wallet):
             wallet.new_seed(None)
 
             # ask for the server.
+            wallet.interface.get_servers()
             run_network_dialog( wallet, parent=None )
 
             # generate first key
@@ -215,6 +216,9 @@ def run_recovery_dialog(wallet):
         import mnemonic
         print "not hex, trying decode"
         seed = mnemonic.mn_decode( seed.split(' ') )
+    if not seed:
+        show_message("no seed")
+        sys.exit(1)
         
     wallet.seed = seed
     wallet.gap_limit = gap
@@ -277,10 +281,14 @@ def run_settings_dialog(wallet, parent):
 def run_network_dialog( wallet, parent ):
     image = gtk.Image()
     image.set_from_stock(gtk.STOCK_NETWORK, gtk.ICON_SIZE_DIALOG)
-    if wallet.interface.is_connected:
-        status = "Connected to %s.\n%d blocks\nresponse time: %f"%(wallet.interface.host, wallet.interface.blocks, wallet.interface.rtime)
+
+    if parent:
+        if wallet.interface.is_connected:
+            status = "Connected to %s.\n%d blocks\nresponse time: %f"%(wallet.interface.host, wallet.interface.blocks, wallet.interface.rtime)
+        else:
+            status = "Not connected"
     else:
-        status = "Not connected"
+        status = "Please choose a server."
 
     dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                                     gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, status)
@@ -333,9 +341,13 @@ def run_network_dialog( wallet, parent ):
     r = dialog.run()
     hh = host_entry.get_text()
     dialog.destroy()
+
     if r==gtk.RESPONSE_CANCEL:
-        return
-    print hh
+        if parent == None:
+            sys.exit(1)
+        else:
+            return
+
     try:
         if ':' in hh:
             host, port = hh.split(':')
@@ -344,8 +356,11 @@ def run_network_dialog( wallet, parent ):
             host = hh
             port = 50000
     except:
-        self.show_message("error")
-        return
+        show_message("error")
+        if parent == None:
+            sys.exit(1)
+        else:
+            return
 
     if host!= wallet.interface.host or port!=wallet.interface.port:
         wallet.interface.host = host
@@ -563,7 +578,6 @@ class BitcoinGUI:
                 try:
                     self.wallet.interface.is_connected = False
                     self.wallet.interface.new_session(self.wallet.all_addresses(), self.wallet.electrum_version)
-                    self.wallet.interface.is_connected = True
                     self.update_session = False
                     self.info.set_text( self.wallet.interface.message)
                 except:
