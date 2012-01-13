@@ -287,8 +287,13 @@ def run_network_dialog( wallet, parent ):
             status = "Connected to %s.\n%d blocks\nresponse time: %f"%(wallet.interface.host, wallet.interface.blocks, wallet.interface.rtime)
         else:
             status = "Not connected"
+        host = wallet.interface.host
+        port = wallet.interface.port
     else:
+        import random
         status = "Please choose a server."
+        host = random.choice( wallet.interface.servers )
+        port = 50000
 
     dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                                     gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, status)
@@ -297,18 +302,18 @@ def run_network_dialog( wallet, parent ):
     image.show()
     
     vbox = dialog.vbox
-    host = gtk.HBox()
+    host_box = gtk.HBox()
     host_label = gtk.Label('Connect to:')
     host_label.set_size_request(100,-1)
     host_label.show()
-    host.pack_start(host_label, False, False, 10)
+    host_box.pack_start(host_label, False, False, 10)
     host_entry = gtk.Entry()
     host_entry.set_size_request(200,-1)
-    host_entry.set_text(wallet.interface.host+":%d"%wallet.interface.port)
+    host_entry.set_text(host+":%d"%port)
     host_entry.show()
-    host.pack_start(host_entry, False, False, 10)
-    add_help_button(host, 'The name and port number of your Electrum server, separated by a colon. Example: "ecdsa.org:50000". If no port number is provided, port 50000 will be tried. Some servers allow you to connect through http (port 80) or https (port 443)')
-    host.show()
+    host_box.pack_start(host_entry, False, False, 10)
+    add_help_button(host_box, 'The name and port number of your Electrum server, separated by a colon. Example: "ecdsa.org:50000". If no port number is provided, port 50000 will be tried. Some servers allow you to connect through http (port 80) or https (port 443)')
+    host_box.show()
         
     server_list = gtk.ListStore(str)
     for item in wallet.interface.servers:
@@ -328,7 +333,7 @@ def run_network_dialog( wallet, parent ):
     scroll.add(treeview)
     scroll.show()
 
-    vbox.pack_start(host, False,False, 5)
+    vbox.pack_start(host_box, False,False, 5)
     vbox.pack_start(scroll)
 
     def my_treeview_cb(treeview):
