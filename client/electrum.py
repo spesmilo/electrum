@@ -151,7 +151,11 @@ def int_to_hex(i, length=1):
     return s.decode('hex')[::-1].encode('hex')
 
 
+# URL decode
+_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
+urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
+# AES
 EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
 DecodeAES = lambda secret, e: aes.decryptData(secret, base64.b64decode(e))
 
@@ -762,20 +766,33 @@ if __name__ == '__main__':
     except:
         firstarg = ''
 
-    if cmd not in known_commands:
-        cmd = 'help'
-
     interface = Interface()
     wallet = Wallet(interface)
     wallet.set_path(options.wallet_path)
 
-    if cmd == 'gui':
+    if cmd == 'gui' or re.match('^bitcoin:', cmd):
         import gui
         gui.init_wallet(wallet)
         gui = gui.BitcoinGUI(wallet)
+        if re.match('^bitcoin:', cmd):
+            address, params = cmd[8:].split('?')
+            params = params.split('&')
+            cmd = 'gui'
+            amount = ''
+            label = ''
+            for p in params:
+                k,v = p.split('=')
+                if k=='amount': amount = v
+                if k=='label': label = urldecode(v)
+                
+            gui.set_send_tab(address, amount, label)
+
         gui.main()
         wallet.save()
         sys.exit(0)
+
+    if cmd not in known_commands:
+        cmd = 'help'
 
     if not wallet.read() and cmd not in ['help','create']:
         print "Wallet file not found."

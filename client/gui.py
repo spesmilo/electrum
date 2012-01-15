@@ -720,6 +720,12 @@ class BitcoinGUI:
         self.payto_label_entry = label_entry
         self.add_tab(page, 'Send')
 
+    def set_send_tab(self, address, amount, label):
+        self.notebook.set_current_page(1)
+        self.payto_entry.set_text(address)
+        self.payto_label_entry.set_text(label)
+        self.payto_amount_entry.set_text(amount)
+
     def create_about_tab(self):
         page = gtk.VBox()
         page.show()
