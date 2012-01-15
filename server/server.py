@@ -36,6 +36,11 @@ import ConfigParser
 from json import dumps, loads
 import urllib
 
+# we need to import electrum
+sys.path.append('../client/')
+import electrum
+
+
 config = ConfigParser.ConfigParser()
 # set some defaults, which will be overwritten by the config file
 config.add_section('server')
@@ -319,6 +324,21 @@ class MyStore(Datastore_class):
 
 
 
+class Direct_Interface(electrum.Interface):
+    def __init__(self):
+        pass
+
+    def handler(self, method, params = ''):
+        cmds = {'session.new':new_session,
+                'session.poll':poll_session,
+                'session.update':update_session,
+                'blockchain.transaction.broadcast':send_tx,
+                'blockchain.address.get_history':store.get_history
+                }
+        func = cmds[method]
+        return func( params )
+
+
 
 def send_tx(tx):
     postdata = dumps({"method": 'importtransaction', 'params': [tx], 'id':'jsonrpc'})
@@ -500,7 +520,7 @@ def do_command(cmd, data, ipaddr):
         master_public_key = k.decode('hex') # todo: sanitize. no need to decode twice...
         print master_public_key
         wallet_id = random_string(10)
-        w = electrum.Wallet()
+        w = electrum.Wallet( Direct_Interface() )
         w.master_public_key = master_public_key.decode('hex')
         w.synchronize()
         wallets[wallet_id] = w
