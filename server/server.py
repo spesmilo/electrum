@@ -552,7 +552,7 @@ def do_command(cmd, data, ipaddr):
         out = cmd_load(data)
 
     elif cmd =='tx':
-        r = send_tx(data)
+        out = send_tx(data)
         print "sent tx:", out
 
     elif cmd == 'stop':
