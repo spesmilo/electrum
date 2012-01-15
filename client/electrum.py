@@ -632,15 +632,8 @@ class Wallet:
         outputs = [ (to_addr, amount) ]
         change_amount = total - ( amount + fee )
         if change_amount != 0:
-            # first look for unused change addresses 
-            for addr in self.change_addresses:
-                if self.history.get(addr): continue
-                change_address = addr
-                break
-            else:
-                change_address = self.create_new_address2(True)
-                print "new change address", change_address
-            outputs.append( (change_address,  change_amount) )
+            # normally, the update thread should ensure that the last change address is unused
+            outputs.append( ( self.change_addresses[-1],  change_amount) )
         return outputs
 
     def sign_inputs( self, inputs, outputs, password ):
