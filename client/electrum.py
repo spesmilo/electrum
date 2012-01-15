@@ -399,7 +399,10 @@ class Wallet:
     def is_valid(self,addr):
         ADDRESS_RE = re.compile('[1-9A-HJ-NP-Za-km-z]{26,}\\Z')
         if not ADDRESS_RE.match(addr): return False
-        h = bc_address_to_hash_160(addr)
+        try:
+            h = bc_address_to_hash_160(addr)
+        except:
+            return False
         return addr == hash_160_to_bc_address(h)
 
     def stretch_key(self,seed):
