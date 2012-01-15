@@ -199,6 +199,7 @@ def run_recovery_dialog(wallet):
     dialog.show()
     r = dialog.run()
     gap = gap_entry.get_text()        
+    seed = seed_entry.get_text()
     dialog.destroy()
 
     if r==gtk.RESPONSE_CANCEL:
@@ -209,7 +210,6 @@ def run_recovery_dialog(wallet):
         show_message("error")
         sys.exit(1)
 
-    seed = seed_entry.get_text()
     try:
         seed.decode('hex')
     except:
