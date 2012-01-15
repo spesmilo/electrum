@@ -775,8 +775,12 @@ if __name__ == '__main__':
         gui.init_wallet(wallet)
         gui = gui.BitcoinGUI(wallet)
         if re.match('^bitcoin:', cmd):
-            address, params = cmd[8:].split('?')
-            params = params.split('&')
+            o = cmd[8:].split('?')
+            address = o[0]
+            if len(o)>1:
+                params = o[1].split('&')
+            else:
+                params = []
             cmd = 'gui'
             amount = ''
             label = ''
