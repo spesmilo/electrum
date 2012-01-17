@@ -487,6 +487,8 @@ def client_thread(ipaddr,conn):
 
 def do_command(cmd, data, ipaddr):
 
+    timestr = time.strftime("[%d/%m/%Y-%H:%M:%S]")
+
     if cmd=='b':
         out = "%d"%block_number
 
@@ -501,7 +503,7 @@ def do_command(cmd, data, ipaddr):
         except:
             print "error", data
             return None
-        print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "new session", ipaddr, addresses[0] if addresses else addresses, len(addresses), version
+        print timestr, "new session", ipaddr, addresses[0] if addresses else addresses, len(addresses), version
         out = new_session(version, addresses)
 
     elif cmd=='update_session':
@@ -510,7 +512,7 @@ def do_command(cmd, data, ipaddr):
         except:
             print "error"
             return None
-        print time.strftime("[%d/%m/%Y-%H:%M:%S]"), "update session", ipaddr, addresses[0] if addresses else addresses, len(addresses)
+        print timestr, "update session", ipaddr, addresses[0] if addresses else addresses, len(addresses)
         out = update_session(session_id,addresses)
 
     elif cmd == 'bccapi_login':
@@ -573,7 +575,7 @@ def do_command(cmd, data, ipaddr):
 
     elif cmd =='tx':
         out = send_tx(data)
-        print "sent tx:", out
+        print timestr, "sent tx:", ipaddr, out
 
     elif cmd == 'stop':
         out = cmd_stop(data)
