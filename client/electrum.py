@@ -571,7 +571,10 @@ class Wallet:
             return False, "The last %d addresses in your list have never been used. You should use them first, or increase the allowed gap size in your preferences. "%self.gap_limit
 
     def get_addr_balance(self, addr):
-        h = self.history.get(addr)
+        if addr in self.addresses:
+            h = self.history.get(addr)
+        else:
+            h = self.interface.retrieve_history(addr)
         if not h: return 0,0
         c = u = 0
         for item in h:
@@ -890,7 +893,8 @@ if __name__ == '__main__':
             print "known commands:", ', '.join(known_commands)
             print "help <command> shows the help on a specific command"
         elif cmd2 == 'balance':
-            print "display the balance of your wallet"
+            print "Display the balance of your wallet or a specific address. The address does not have to be a owned address (you know the private key)."
+            print "syntax: balance [<address>]"
         elif cmd2 == 'contacts':
             print "show your list of contacts"
         elif cmd2 == 'payto':
@@ -928,11 +932,23 @@ if __name__ == '__main__':
         print wallet.is_valid(addr)
 
     elif cmd == 'balance':
-        c, u = wallet.get_balance()
-        if u:
-            print c*1e-8, u*1e-8
+        try:
+            addrs = args[1:]
+        except:
+            pass
+        if addrs == []:
+            c, u = wallet.get_balance()
+            if u:
+                print c*1e-8, u*1e-8
+            else:
+                print c*1e-8
         else:
-            print c*1e-8
+            for addr in addrs:
+                c, u = wallet.get_addr_balance(addr)
+                if u:
+                    print "%s %s, %s" % (addr, c*1e-8, u*1e-8)
+                else:
+                    print "%s %s" % (addr, c*1e-8)
 
     elif cmd in [ 'contacts']:
         for addr in wallet.addressbook:
