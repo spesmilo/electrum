@@ -789,8 +789,10 @@ if __name__ == '__main__':
             label = ''
             for p in params:
                 k,v = p.split('=')
+                v = urldecode(v)
                 if k=='amount': amount = v
-                if k=='label': label = urldecode(v)
+                elif k=='label': label = v
+                else: print k,v
                 
             gui.set_send_tab(address, amount, label)
 
