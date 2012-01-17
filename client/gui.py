@@ -760,7 +760,12 @@ class BitcoinGUI:
             self.show_message( "invalid fee")
             return
 
-        password = password_dialog() if self.wallet.use_encryption else None
+        if self.wallet.use_encryption:
+            password = password_dialog()
+            if not password:
+                return
+        else:
+            password = None
 
         try:
             tx = self.wallet.mktx( to_address, amount, label, password, fee )
