@@ -151,9 +151,6 @@ def int_to_hex(i, length=1):
     return s.decode('hex')[::-1].encode('hex')
 
 
-# URL decode
-_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
-urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
 # AES
 EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))

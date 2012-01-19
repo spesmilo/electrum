@@ -23,6 +23,12 @@ from optparse import OptionParser
 from wallet import Wallet
 from interface import Interface
 
+
+# URL decode
+_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
+urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
+
+
 if __name__ == '__main__':
     known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed','import']
 
