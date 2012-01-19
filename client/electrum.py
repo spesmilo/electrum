@@ -571,7 +571,7 @@ class Wallet:
             return False, "The last %d addresses in your list have never been used. You should use them first, or increase the allowed gap size in your preferences. "%self.gap_limit
 
     def get_addr_balance(self, addr):
-        if addr in self.addresses:
+        if self.is_mine(addr):
             h = self.history.get(addr)
         else:
             h = self.interface.retrieve_history(addr)
