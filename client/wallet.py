@@ -284,7 +284,7 @@ class Wallet:
         seed = "%032x"%ecdsa.util.randrange( pow(2,128) )
         self.init_mpk(seed)
         # encrypt
-        self.seed = wallet.pw_encode( seed, password )
+        self.seed = self.pw_encode( seed, password )
 
     def init_mpk(self,seed):
         # public key
