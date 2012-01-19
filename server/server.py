@@ -38,7 +38,8 @@ import urllib
 
 # we need to import electrum
 sys.path.append('../client/')
-import electrum
+from wallet import Wallet
+from interface import Interface
 
 
 config = ConfigParser.ConfigParser()
@@ -324,7 +325,7 @@ class MyStore(Datastore_class):
 
 
 
-class Direct_Interface(electrum.Interface):
+class Direct_Interface(Interface):
     def __init__(self):
         pass
 
@@ -522,7 +523,7 @@ def do_command(cmd, data, ipaddr):
         master_public_key = k.decode('hex') # todo: sanitize. no need to decode twice...
         print master_public_key
         wallet_id = random_string(10)
-        w = electrum.Wallet( Direct_Interface() )
+        w = Wallet( Direct_Interface() )
         w.master_public_key = master_public_key.decode('hex')
         w.synchronize()
         wallets[wallet_id] = w
@@ -530,7 +531,7 @@ def do_command(cmd, data, ipaddr):
         print "wallets", wallets
 
     elif cmd == 'bccapi_getAccountInfo':
-        from electrum import int_to_hex
+        from wallet import int_to_hex
         v, wallet_id = ast.literal_eval(data)
         w = wallets.get(wallet_id)
         if w is not None:
@@ -543,7 +544,7 @@ def do_command(cmd, data, ipaddr):
             out = "error"
 
     elif cmd == 'bccapi_getAccountStatement':
-        from electrum import int_to_hex
+        from wallet import int_to_hex
         v, wallet_id = ast.literal_eval(data)
         w = wallets.get(wallet_id)
         if w is not None:
