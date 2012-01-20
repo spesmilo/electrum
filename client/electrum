@@ -66,15 +66,20 @@ if __name__ == '__main__':
             else:
                 params = []
             cmd = 'gui'
-            amount = ''
-            label = ''
+            amount = label = signature = signer = ''
             for p in params:
                 k,v = p.split('=')
                 v = urldecode(v)
                 if k=='amount': amount = v
                 elif k=='label': label = v
+                elif k =='signature': signature = v
+                elif k =='signer': signer = v
                 else: print k,v
                 
+                if signature:
+                    message = p.replace('signer=%s'%signer,'').replace('signature=%s'%signature,'')
+                    wallet.verify_message(signer, signature,message)
+
             gui.set_send_tab(address, amount, label)
 
         gui.main()

@@ -345,6 +345,10 @@ class Wallet:
         return pk
             
             
+    def verify_message(self, signing_address, signature, message):
+        """ recover public key from signature; """
+        pass
+    
 
     def create_new_address2(self, for_change):
         """   Publickey(type,n) = Master_public_key + H(n|S|type)*point  """
@@ -631,19 +635,19 @@ class Wallet:
     def mktx(self, to_address, amount, label, password, fee=None):
         if not self.is_valid(to_address):
             raise BaseException("Invalid address")
-        inputs, total, fee = wallet.choose_tx_inputs( amount, fee )
+        inputs, total, fee = self.choose_tx_inputs( amount, fee )
         if not inputs:
             raise BaseException("Not enough funds")
-        outputs = wallet.choose_tx_outputs( to_address, amount, fee, total )
-        s_inputs = wallet.sign_inputs( inputs, outputs, password )
+        outputs = self.choose_tx_outputs( to_address, amount, fee, total )
+        s_inputs = self.sign_inputs( inputs, outputs, password )
 
         tx = filter( raw_tx( s_inputs, outputs ) )
         if to_address not in self.addressbook:
             self.addressbook.append(to_address)
         if label: 
             tx_hash = Hash(tx.decode('hex') )[::-1].encode('hex')
-            wallet.labels[tx_hash] = label
-        wallet.save()
+            self.labels[tx_hash] = label
+        self.save()
         return tx
 
     def sendtx(self, tx):
