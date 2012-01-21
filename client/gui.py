@@ -124,6 +124,7 @@ def init_wallet(wallet):
 
         else:
             # ask for the server.
+            wallet.interface.get_servers()
             run_network_dialog( wallet, parent=None )
 
             # ask for seed and gap.
@@ -370,8 +371,9 @@ def run_network_dialog( wallet, parent ):
     if host!= wallet.interface.host or port!=wallet.interface.port:
         wallet.interface.host = host
         wallet.interface.set_port( port )
-        wallet.save()
         wallet.interface.is_connected = False
+        if parent:
+            wallet.save()
 
 
 
