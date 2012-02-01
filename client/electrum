@@ -148,7 +148,7 @@ if __name__ == '__main__':
             cmd = 'help'
 
     # open session
-    if cmd not in ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress']:
+    if cmd not in ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage']:
         wallet.interface.new_session(wallet.all_addresses(), wallet.electrum_version)
         wallet.update()
         wallet.save()
