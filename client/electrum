@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import re,sys
+import re, sys, getpass
 
 from optparse import OptionParser
 
@@ -30,7 +30,7 @@ urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
 
 if __name__ == '__main__':
-    known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed','import']
+    known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed','import','signmessage','verifymessage']
 
     usage = "usage: %prog [options] command args\nCommands: "+ (', '.join(known_commands))
 
@@ -65,20 +65,21 @@ if __name__ == '__main__':
                 params = o[1].split('&')
             else:
                 params = []
-            cmd = 'gui'
+
             amount = label = signature = signer = ''
             for p in params:
                 k,v = p.split('=')
-                v = urldecode(v)
-                if k=='amount': amount = v
-                elif k=='label': label = v
-                elif k =='signature': signature = v
-                elif k =='signer': signer = v
+                uv = urldecode(v)
+                if k=='amount': amount = uv
+                elif k=='label': label = uv
+                elif k =='signature': signature = uv
+                elif k =='signer': signer = uv
                 else: print k,v
-                
+                if k in ['signer','signature']:
+                    cmd = cmd.replace('&%s=%s'%(k,v),'')
+                    
                 if signature:
-                    message = p.replace('signer=%s'%signer,'').replace('signature=%s'%signature,'')
-                    wallet.verify_message(signer, signature,message)
+                    wallet.verify_message(signer, signature, cmd )
 
             gui.set_send_tab(address, amount, label)
 
@@ -153,7 +154,7 @@ if __name__ == '__main__':
         wallet.save()
 
     # commands needing password
-    if cmd in ['payto', 'password', 'mktx', 'seed', 'import' ] or ( cmd=='addresses' and options.show_keys):
+    if cmd in ['payto', 'password', 'mktx', 'seed', 'import','signmessage' ] or ( cmd=='addresses' and options.show_keys):
         password = getpass.getpass('Password:') if wallet.use_encryption else None
         # check password
         try:
@@ -333,4 +334,12 @@ if __name__ == '__main__':
             wallet.save()
         else:
             print "error: mismatch"
+
+    elif cmd == 'signmessage':
+        address, message = args[1:3]
+        print wallet.sign_message(address, message, password)
+
+    elif cmd == 'verifymessage':
+        address, signature, message = args[1:4]
+        print wallet.verify_message(address, signature, message)
 
