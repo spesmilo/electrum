@@ -76,13 +76,13 @@ if __name__ == '__main__':
                 elif k =='signer':
                     signer = uv
                     if not wallet.is_valid(signer):
-                        print signer
-                        print "trying canonical URL"
                         import urllib
                         url = 'http://'+signer+'/bitcoin.id'
-                        print url
-                        signer = urllib.urlopen(url).read().strip()
-                        print repr(signer)
+                        try:
+                            signer = urllib.urlopen(url).read().strip()
+                        except:
+                            # no need to display something, the signature verification will fail anyway
+                            pass
                     
                 else: print k,v
                 if k in ['signer','signature']:
