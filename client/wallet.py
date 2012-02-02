@@ -218,7 +218,6 @@ from version import ELECTRUM_VERSION, SEED_VERSION
 
 
 
-
 class Wallet:
     def __init__(self, interface):
 
@@ -342,11 +341,14 @@ class Wallet:
         pk = number_to_string(secexp,order)
         return pk
 
+    def msg_magic(self, message):
+        return "\x18Bitcoin Signed Message:\n" + chr( len(message) ) + message
+
     def sign_message(self, address, message, password):
         private_key = ecdsa.SigningKey.from_string( self.get_private_key2(address, password), curve = SECP256k1 )
         public_key = private_key.get_verifying_key()
-        signature = private_key.sign_digest( Hash( message ), sigencode = ecdsa.util.sigencode_string )
-        assert public_key.verify_digest( signature, Hash( message ), sigdecode = ecdsa.util.sigdecode_string)
+        signature = private_key.sign_digest( Hash( self.msg_magic( message ) ), sigencode = ecdsa.util.sigencode_string )
+        assert public_key.verify_digest( signature, Hash( self.msg_magic( message ) ), sigdecode = ecdsa.util.sigdecode_string)
         for i in range(4):
             sig = base64.b64encode( chr(27+i) + signature )
             if self.verify_message( address, sig, message):
@@ -357,20 +359,17 @@ class Wallet:
             
     def verify_message(self, address, signature, message):
         """ See http://www.secg.org/download/aid-780/sec1-v2.pdf for the math """
-        
         from ecdsa import numbertheory, ellipticcurve, util
         import msqr
         curve = curve_secp256k1
         G = generator_secp256k1
         order = G.order()
 
+        # extract r,s from signature
         sig = base64.b64decode(signature)
         if len(sig) != 65: raise BaseException("error")
-        recid = ord(sig[0]) - 27
-        # print "recid", recid
-
-        # extract r,s from signature
         r,s = util.sigdecode_string(sig[1:], order)
+        recid = ord(sig[0]) - 27
 
         # 1.1
         x = r + (recid/2) * order
@@ -388,7 +387,7 @@ class Wallet:
             return False
 
         # 1.5 compute e from message:
-        h = Hash(message)
+        h = Hash( self.msg_magic( message ) )
         e = string_to_number(h)
         minus_e = -e % order
 
