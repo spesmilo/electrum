@@ -646,6 +646,8 @@ class BitcoinGUI:
         payto_label.set_size_request(100,10)
         payto_label.show()
         payto.pack_start(payto_label, False)
+        payto_id = gtk.Label('')
+        payto.pack_start(payto_id, False)
         payto_entry = gtk.Entry()
         payto_entry.set_size_request(350, 26)
         payto_entry.show()
@@ -674,10 +676,6 @@ class BitcoinGUI:
         amount_box.pack_start(amount_entry, False)
         vbox.pack_start(amount_box, False, False, 5)
 
-        send_button = gtk.Button("Send")
-        send_button.show()
-        amount_box.pack_start(send_button, False, False, 5)
-
         self.fee_box = fee_box = gtk.HBox()
         fee_label = gtk.Label('Fee:')
         fee_label.set_size_request(100,10)
@@ -687,9 +685,22 @@ class BitcoinGUI:
         fee_entry.set_has_frame(False)
         fee_entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#eeeeee"))
         fee_box.pack_start(fee_entry, False)
+        vbox.pack_start(fee_box, False, False, 5)
+
+        end_box = gtk.HBox()
+        empty_label = gtk.Label('')
+        empty_label.set_size_request(100,10)
+        end_box.pack_start(empty_label, False)
+        send_button = gtk.Button("Send")
+        send_button.show()
+        end_box.pack_start(send_button, False, False, 5)
+        clear_button = gtk.Button("Clear")
+        clear_button.show()
+        end_box.pack_start(clear_button, False, False, 5)
 
         send_button.connect("clicked", self.do_send, (payto_entry, label_entry, amount_entry, fee_entry))
-        vbox.pack_start(fee_box, False, False, 5)
+        clear_button.connect("clicked", self.do_clear, (payto_entry, label_entry, amount_entry, fee_entry))
+        vbox.pack_start(end_box, False, False, 5)
 
         self.user_fee = False
 
@@ -718,13 +729,18 @@ class BitcoinGUI:
         fee_entry.connect('changed', entry_changed, True)
 
         self.payto_entry = payto_entry
+        self.payto_fee_entry = fee_entry
+        self.payto_id = payto_id
         self.payto_amount_entry = amount_entry
         self.payto_label_entry = label_entry
         self.add_tab(page, 'Send')
 
-    def set_send_tab(self, address, amount, label):
+    def set_send_tab(self, address, amount, label, identity):
         self.notebook.set_current_page(1)
         self.payto_entry.set_text(address)
+        if identity:
+            self.payto_id.set_text(address + '@' + identity)
+            self.payto_entry.set_visible(False)
         self.payto_label_entry.set_text(label)
         self.payto_amount_entry.set_text(amount)
 
@@ -740,6 +756,15 @@ class BitcoinGUI:
         page.pack_start(tv)
         self.info = tv.get_buffer()
         self.add_tab(page, 'Wall')
+
+    def do_clear(self, w, data):
+        self.payto_entry.set_text('')
+        self.payto_entry.set_visible(True)
+        self.payto_id.set_visible(False)
+        self.payto_label_entry.set_text('')
+        self.payto_amount_entry.set_text('')
+        self.payto_fee_entry.set_text('')
+        
 
     def do_send(self, w, data):
         payto_entry, label_entry, amount_entry, fee_entry = data
