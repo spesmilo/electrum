@@ -739,7 +739,7 @@ class BitcoinGUI:
         self.notebook.set_current_page(1)
         self.payto_entry.set_text(address)
         if identity:
-            self.payto_id.set_text(address + '@' + identity)
+            self.payto_id.set_text(identity + '  [' + address + ']')
             self.payto_entry.set_visible(False)
         self.payto_label_entry.set_text(label)
         self.payto_amount_entry.set_text(amount)
