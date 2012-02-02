@@ -73,15 +73,25 @@ if __name__ == '__main__':
                 if k=='amount': amount = uv
                 elif k=='label': label = uv
                 elif k =='signature': signature = uv
-                elif k =='signer': signer = uv
+                elif k =='signer':
+                    signer = uv
+                    if not wallet.is_valid(signer):
+                        print signer
+                        print "trying canonical URL"
+                        import urllib
+                        url = 'http://'+signer+'/bitcoin.id'
+                        print url
+                        signer = urllib.urlopen(url).read().strip()
+                        print repr(signer)
+                    
                 else: print k,v
                 if k in ['signer','signature']:
                     cmd = cmd.replace('&%s=%s'%(k,v),'')
                     
-                if signature:
-                    wallet.verify_message(signer, signature, cmd )
-
             gui.set_send_tab(address, amount, label)
+            if signature:
+                if not wallet.verify_message(signer, signature, cmd ):
+                    gui.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.\nPay at your own risks!')
 
         gui.main()
         wallet.save()
