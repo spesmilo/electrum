@@ -66,31 +66,31 @@ if __name__ == '__main__':
             else:
                 params = []
 
-            amount = label = signature = signer = ''
+            amount = label = signature = identity = ''
             for p in params:
                 k,v = p.split('=')
                 uv = urldecode(v)
                 if k=='amount': amount = uv
                 elif k=='label': label = uv
                 elif k =='signature': signature = uv
-                elif k =='signer':
-                    signer = uv
-                    if not wallet.is_valid(signer):
+                elif k =='identity':
+                    identity = uv
+                    if not wallet.is_valid(identity):
                         import urllib
-                        url = 'http://'+signer+'/bitcoin.id'
+                        url = 'http://'+identity+'/bitcoin.id'
                         try:
-                            signer = urllib.urlopen(url).read().strip()
+                            identity = urllib.urlopen(url).read().strip()
                         except:
                             # no need to display something, the signature verification will fail anyway
                             pass
                     
                 else: print k,v
-                if k in ['signer','signature']:
+                if k in ['identity','signature']:
                     cmd = cmd.replace('&%s=%s'%(k,v),'')
                     
             gui.set_send_tab(address, amount, label)
             if signature:
-                if not wallet.verify_message(signer, signature, cmd ):
+                if not wallet.verify_message(identity, signature, cmd ):
                     gui.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.\nPay at your own risks!')
 
         gui.main()
