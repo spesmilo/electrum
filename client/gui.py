@@ -766,7 +766,7 @@ class BitcoinGUI:
             self.set_frozen(self.payto_entry,True)
             self.set_frozen(self.payto_amount_entry,True)
             self.set_frozen(self.payto_label_entry,True)
-            self.payto_sig_id.set_text( '      This transaction URI was signed by ' + identity )
+            self.payto_sig_id.set_text( '      The bitcoin URI was signed by ' + identity )
         else:
             self.payto_sig.set_visible(False)
 

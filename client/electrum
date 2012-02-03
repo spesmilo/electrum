@@ -105,9 +105,10 @@ if __name__ == '__main__':
                     wallet.verify_message(signing_address, signature, cmd )
                 except:
                     gui.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.\nContinue at your own risks!')
-                    signature = identity = ''
+                    address = amount = label = identity = ''
 
-            gui.set_send_tab(address, amount, label, identity)
+            if address:
+                gui.set_send_tab(address, amount, label, identity)
 
         gui.main()
         wallet.save()
