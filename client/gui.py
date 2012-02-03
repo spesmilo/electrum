@@ -570,7 +570,7 @@ class BitcoinGUI:
 
         self.window.add(vbox)
         self.window.show_all()
-        self.fee_box.hide()
+        #self.fee_box.hide()
 
         self.context_id = self.status_bar.get_context_id("statusbar")
         self.update_status_bar()
@@ -637,26 +637,29 @@ class BitcoinGUI:
 
 
     def create_send_tab(self):
+        
+        # cases:
+        # no alias                  bitcoin:address
+        # alias                     bitcoin:name@domain
+        # alias + signature         bitcoin:address?id=name@domain&sig=signature
 
         page = vbox = gtk.VBox()
         page.show()
 
         payto = gtk.HBox()
         payto_label = gtk.Label('Pay to:')
-        payto_label.set_size_request(100,10)
+        payto_label.set_size_request(100,-1)
         payto_label.show()
         payto.pack_start(payto_label, False)
-        payto_id = gtk.Label('')
-        payto.pack_start(payto_id, False)
         payto_entry = gtk.Entry()
         payto_entry.set_size_request(350, 26)
         payto_entry.show()
         payto.pack_start(payto_entry, False)
         vbox.pack_start(payto, False, False, 5)
-        
+
         label = gtk.HBox()
         label_label = gtk.Label('Label:')
-        label_label.set_size_request(100,10)
+        label_label.set_size_request(100,-1)
         label_label.show()
         label.pack_start(label_label, False)
         label_entry = gtk.Entry()
@@ -678,18 +681,17 @@ class BitcoinGUI:
 
         self.fee_box = fee_box = gtk.HBox()
         fee_label = gtk.Label('Fee:')
-        fee_box.set_size_request(220,10)
+        fee_label.set_size_request(100,-1)
+        fee_box.pack_start(fee_label, False)
         fee_entry = gtk.Entry()
         fee_entry.set_size_request(60, 26)
-        fee_entry.set_has_frame(False)
-        fee_entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#eeeeee"))
-        fee_box.pack_end(fee_entry, False)
-        fee_box.pack_end(fee_label, False)
-        amount_box.pack_start(fee_box, False, False, 5)
+        fee_box.pack_start(fee_entry, False)
 
         end_box = gtk.HBox()
+        end_box.pack_start(fee_box, False, False, 5)
+
         empty_label = gtk.Label('')
-        empty_label.set_size_request(100,10)
+        empty_label.set_size_request(100,-1)
         end_box.pack_start(empty_label, False)
         send_button = gtk.Button("Send")
         send_button.show()
@@ -697,10 +699,17 @@ class BitcoinGUI:
         clear_button = gtk.Button("Clear")
         clear_button.show()
         end_box.pack_start(clear_button, False, False, 5)
-
         send_button.connect("clicked", self.do_send, (payto_entry, label_entry, amount_entry, fee_entry))
         clear_button.connect("clicked", self.do_clear, (payto_entry, label_entry, amount_entry, fee_entry))
+
         vbox.pack_start(end_box, False, False, 5)
+
+        # display this line only if there is a signature
+        payto_sig = gtk.HBox()
+        payto_sig_id = gtk.Label('')
+        payto_sig.pack_start(payto_sig_id, False)
+        vbox.pack_start(payto_sig, True, True, 5)
+        
 
         self.user_fee = False
 
@@ -709,7 +718,8 @@ class BitcoinGUI:
             fee = numbify(fee_entry)
             if not is_fee: fee = None
             if amount is None: 
-                self.fee_box.hide(); return
+                #self.fee_box.hide();
+                return
             inputs, total, fee = self.wallet.choose_tx_inputs( amount, fee )
             if not is_fee:
                 fee_entry.set_text( str( Decimal( fee ) / 100000000 ) )
@@ -730,19 +740,35 @@ class BitcoinGUI:
 
         self.payto_entry = payto_entry
         self.payto_fee_entry = fee_entry
-        self.payto_id = payto_id
+        self.payto_sig_id = payto_sig_id
+        self.payto_sig = payto_sig
         self.payto_amount_entry = amount_entry
         self.payto_label_entry = label_entry
         self.add_tab(page, 'Send')
 
+    def set_frozen(self,entry,frozen):
+        if frozen:
+            entry.set_editable(False)
+            entry.set_has_frame(False)
+            entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#eeeeee"))
+        else:
+            entry.set_editable(True)
+            entry.set_has_frame(True)
+            entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#ffffff"))
+
+
     def set_send_tab(self, address, amount, label, identity):
         self.notebook.set_current_page(1)
         self.payto_entry.set_text(address)
-        if identity:
-            self.payto_id.set_text(identity + '  [' + address + ']')
-            self.payto_entry.set_visible(False)
         self.payto_label_entry.set_text(label)
         self.payto_amount_entry.set_text(amount)
+        if identity:
+            self.set_frozen(self.payto_entry,True)
+            self.set_frozen(self.payto_amount_entry,True)
+            self.set_frozen(self.payto_label_entry,True)
+            self.payto_sig_id.set_text( '      This transaction URI was signed by ' + identity )
+        else:
+            self.payto_sig.set_visible(False)
 
     def create_about_tab(self):
         page = gtk.VBox()
@@ -758,12 +784,10 @@ class BitcoinGUI:
         self.add_tab(page, 'Wall')
 
     def do_clear(self, w, data):
-        self.payto_entry.set_text('')
-        self.payto_entry.set_visible(True)
-        self.payto_id.set_visible(False)
-        self.payto_label_entry.set_text('')
-        self.payto_amount_entry.set_text('')
-        self.payto_fee_entry.set_text('')
+        self.payto_sig.set_visible(False)
+        for entry in [self.payto_entry,self.payto_amount_entry,self.payto_label_entry]:
+            self.set_frozen(entry,False)
+            entry.set_text('')
         
 
     def do_send(self, w, data):
@@ -809,7 +833,7 @@ class BitcoinGUI:
             label_entry.set_text("")
             amount_entry.set_text("")
             fee_entry.set_text("")
-            self.fee_box.hide()
+            #self.fee_box.hide()
             self.update_sending_tab()
         else:
             self.show_message( msg )

@@ -93,20 +93,21 @@ if __name__ == '__main__':
                 uv = urldecode(v)
                 if k == 'amount': amount = uv
                 elif k == 'label': label = uv
-                elif k == 'signature': signature = uv
-                elif k == 'identity':
-                    identity = uv
+                elif k == 'signature':
+                    identity, signature = uv.split(':')
                     signing_address = alias(identity)
+                    cmd = cmd.replace('&%s=%s'%(k,v),'')
                 else: 
                     print k,v
 
-                if k in ['identity','signature']:
-                    cmd = cmd.replace('&%s=%s'%(k,v),'')
-                    
-            gui.set_send_tab(address, amount, label, identity)
             if signature:
-                if not wallet.verify_message(signing_address, signature, cmd ):
-                    gui.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.\nPay at your own risks!')
+                try:
+                    wallet.verify_message(signing_address, signature, cmd )
+                except:
+                    gui.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.\nContinue at your own risks!')
+                    signature = identity = ''
+
+            gui.set_send_tab(address, amount, label, identity)
 
         gui.main()
         wallet.save()
@@ -366,5 +367,10 @@ if __name__ == '__main__':
 
     elif cmd == 'verifymessage':
         address, signature, message = args[1:4]
-        print wallet.verify_message(address, signature, message)
+        try:
+            wallet.verify_message(address, signature, message)
+            print True
+        except:
+            print False
+        
 

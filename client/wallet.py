@@ -351,8 +351,11 @@ class Wallet:
         assert public_key.verify_digest( signature, Hash( self.msg_magic( message ) ), sigdecode = ecdsa.util.sigdecode_string)
         for i in range(4):
             sig = base64.b64encode( chr(27+i) + signature )
-            if self.verify_message( address, sig, message):
+            try:
+                self.verify_message( address, sig, message)
                 return sig
+            except:
+                continue
         else:
             raise BaseException("error: cannot sign message")
         
@@ -364,49 +367,33 @@ class Wallet:
         curve = curve_secp256k1
         G = generator_secp256k1
         order = G.order()
-
         # extract r,s from signature
         sig = base64.b64decode(signature)
         if len(sig) != 65: raise BaseException("error")
         r,s = util.sigdecode_string(sig[1:], order)
         recid = ord(sig[0]) - 27
-
         # 1.1
         x = r + (recid/2) * order
-
         # 1.3
         alpha = ( x * x * x  + curve.a() * x + curve.b() ) % curve.p()
         beta = msqr.modular_sqrt(alpha, curve.p())
         y = beta if (beta - recid) % 2 == 0 else curve.p() - beta
-
         # 1.4 the constructor checks that nR is at infinity
-        try:
-            R = ellipticcurve.Point(curve, x, y, order)
-        except:
-            print "not in curve"
-            return False
-
+        R = ellipticcurve.Point(curve, x, y, order)
         # 1.5 compute e from message:
         h = Hash( self.msg_magic( message ) )
         e = string_to_number(h)
         minus_e = -e % order
-
         # 1.6 compute Q = r^-1 (sR - eG)
         inv_r = numbertheory.inverse_mod(r,order)
         Q = inv_r * ( s * R + minus_e * G )
         public_key = ecdsa.VerifyingKey.from_public_point( Q, curve = SECP256k1 )
-
         # check that Q is the public key
-        try:
-            public_key.verify_digest( sig[1:], h, sigdecode = ecdsa.util.sigdecode_string)
-        except:
-            print "wrong key"
-            return False
-
+        public_key.verify_digest( sig[1:], h, sigdecode = ecdsa.util.sigdecode_string)
         # check that we get the original signing address
         addr = public_key_to_bc_address( '04'.decode('hex') + public_key.to_string() )
         # print addr
-        return address == addr
+        assert address == addr
     
 
     def create_new_address2(self, for_change):
