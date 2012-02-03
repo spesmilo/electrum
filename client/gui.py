@@ -779,8 +779,9 @@ class BitcoinGUI:
                 self.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.')
                 payto = amount = label = identity = ''
 
-        if label and payto:
-            self.labels[payto] = label
+        # redundant with aliases
+        #if label and payto:
+        #    self.labels[payto] = label
 
         self.notebook.set_current_page(1)
         self.payto_entry.set_text(payto)
@@ -797,9 +798,6 @@ class BitcoinGUI:
     def create_about_tab(self):
         page = gtk.VBox()
         page.show()
-        #self.info = gtk.Label('')  
-        #self.info.set_selectable(True)
-        #page.pack_start(self.info)
         tv = gtk.TextView()
         tv.set_editable(False)
         tv.set_cursor_visible(False)
