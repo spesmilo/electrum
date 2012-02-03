@@ -585,6 +585,8 @@ class BitcoinGUI:
             old_r = ''
             while True:
                 time.sleep(0.5)
+                if self.payto_entry.is_focus():
+                    continue
                 r = self.payto_entry.get_text()
                 if r != old_r:
                     old_r = r
