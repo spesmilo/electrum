@@ -660,44 +660,33 @@ class BitcoinGUI:
 
     def create_send_tab(self):
         
-        # cases:
-        # no alias                  bitcoin:address
-        # alias                     bitcoin:name@domain
-        # alias + signature         bitcoin:address?id=name@domain&sig=signature
-
         page = vbox = gtk.VBox()
         page.show()
 
         payto = gtk.HBox()
         payto_label = gtk.Label('Pay to:')
         payto_label.set_size_request(100,-1)
-        #payto_label.show()
         payto.pack_start(payto_label, False)
         payto_entry = gtk.Entry()
         payto_entry.set_size_request(450, 26)
-        payto_entry.show()
         payto.pack_start(payto_entry, False)
         vbox.pack_start(payto, False, False, 5)
 
-        label = gtk.HBox()
-        label_label = gtk.Label('Label:')
-        label_label.set_size_request(100,-1)
-        label_label.show()
-        label.pack_start(label_label, False)
-        label_entry = gtk.Entry()
-        label_entry.set_size_request(450, 26)
-        label_entry.show()
-        label.pack_start(label_entry, False)
-        vbox.pack_start(label, False, False, 5)
+        message = gtk.HBox()
+        message_label = gtk.Label('Message:')
+        message_label.set_size_request(100,-1)
+        message.pack_start(message_label, False)
+        message_entry = gtk.Entry()
+        message_entry.set_size_request(450, 26)
+        message.pack_start(message_entry, False)
+        vbox.pack_start(message, False, False, 5)
 
         amount_box = gtk.HBox()
         amount_label = gtk.Label('Amount:')
         amount_label.set_size_request(100,-1)
-        amount_label.show()
         amount_box.pack_start(amount_label, False)
         amount_entry = gtk.Entry()
         amount_entry.set_size_request(120, -1)
-        amount_entry.show()
         amount_box.pack_start(amount_entry, False)
         vbox.pack_start(amount_box, False, False, 5)
 
@@ -708,21 +697,20 @@ class BitcoinGUI:
         fee_entry = gtk.Entry()
         fee_entry.set_size_request(60, 26)
         fee_box.pack_start(fee_entry, False)
+        vbox.pack_start(fee_box, False, False, 5)
 
         end_box = gtk.HBox()
-        end_box.pack_start(fee_box, False, False, 5)
-
         empty_label = gtk.Label('')
         empty_label.set_size_request(100,-1)
         end_box.pack_start(empty_label, False)
         send_button = gtk.Button("Send")
         send_button.show()
-        end_box.pack_start(send_button, False, False, 5)
+        end_box.pack_start(send_button, False, False, 0)
         clear_button = gtk.Button("Clear")
         clear_button.show()
-        end_box.pack_start(clear_button, False, False, 5)
-        send_button.connect("clicked", self.do_send, (payto_entry, label_entry, amount_entry, fee_entry))
-        clear_button.connect("clicked", self.do_clear, (payto_entry, label_entry, amount_entry, fee_entry))
+        end_box.pack_start(clear_button, False, False, 15)
+        send_button.connect("clicked", self.do_send, (payto_entry, message_entry, amount_entry, fee_entry))
+        clear_button.connect("clicked", self.do_clear, (payto_entry, message_entry, amount_entry, fee_entry))
 
         vbox.pack_start(end_box, False, False, 5)
 
@@ -764,8 +752,8 @@ class BitcoinGUI:
         self.payto_fee_entry = fee_entry
         self.payto_sig_id = payto_sig_id
         self.payto_sig = payto_sig
-        self.payto_amount_entry = amount_entry
-        self.payto_label_entry = label_entry
+        self.amount_entry = amount_entry
+        self.message_entry = message_entry
         self.add_tab(page, 'Send')
 
     def set_frozen(self,entry,frozen):
@@ -779,7 +767,7 @@ class BitcoinGUI:
             entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#ffffff"))
 
 
-    def set_send_tab(self, payto, amount, label, identity, signature, cmd):
+    def set_send_tab(self, payto, amount, message, label, identity, signature, cmd):
         if signature:
             signing_address = self.get_alias(identity)
             if not signing_address:
@@ -791,14 +779,17 @@ class BitcoinGUI:
                 self.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.')
                 payto = amount = label = identity = ''
 
+        if label and payto:
+            self.labels[payto] = label
+
         self.notebook.set_current_page(1)
         self.payto_entry.set_text(payto)
-        self.payto_label_entry.set_text(label)
-        self.payto_amount_entry.set_text(amount)
+        self.message_entry.set_text(message)
+        self.amount_entry.set_text(amount)
         if identity:
             self.set_frozen(self.payto_entry,True)
-            self.set_frozen(self.payto_amount_entry,True)
-            self.set_frozen(self.payto_label_entry,True)
+            self.set_frozen(self.amount_entry,True)
+            self.set_frozen(self.message_entry,True)
             self.payto_sig_id.set_text( '      The bitcoin URI was signed by ' + identity )
         else:
             self.payto_sig.set_visible(False)
@@ -818,7 +809,7 @@ class BitcoinGUI:
 
     def do_clear(self, w, data):
         self.payto_sig.set_visible(False)
-        for entry in [self.payto_entry,self.payto_amount_entry,self.payto_label_entry]:
+        for entry in [self.payto_entry,self.amount_entry,self.message_entry]:
             self.set_frozen(entry,False)
             entry.set_text('')
 
@@ -1108,7 +1099,7 @@ class BitcoinGUI:
                     address =  liststore.get_value( liststore.get_iter(path), 0)
                     self.payto_entry.set_text( address )
                     self.notebook.set_current_page(1)
-                    self.payto_amount_entry.grab_focus()
+                    self.amount_entry.grab_focus()
 
             button.connect("clicked", payto, treeview, liststore)
             button.show()

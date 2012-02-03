@@ -68,11 +68,12 @@ if __name__ == '__main__':
             else:
                 params = []
 
-            amount = label = signature = identity = ''
+            amount = label = message = signature = identity = ''
             for p in params:
                 k,v = p.split('=')
                 uv = urldecode(v)
                 if k == 'amount': amount = uv
+                elif k == 'message': message = uv
                 elif k == 'label': label = uv
                 elif k == 'signature':
                     identity, signature = uv.split(':')
@@ -80,7 +81,7 @@ if __name__ == '__main__':
                 else: 
                     print k,v
 
-            gui.set_send_tab(address, amount, label, identity, signature, cmd)
+            gui.set_send_tab(address, amount, message, label, identity, signature, cmd)
 
         gui.main()
         wallet.save()
