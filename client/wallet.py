@@ -238,6 +238,8 @@ class Wallet:
         self.history = {}
         self.labels = {}             # labels for addresses and transactions
         self.aliases = {}            # aliases for addresses
+        self.receipts = {}           # signed URIs
+        self.receipt = None          # next receipt
         self.addressbook = []        # outgoing addresses, for payments
 
         # not saved
@@ -477,6 +479,7 @@ class Wallet:
             'contacts':self.addressbook,
             'imported_keys':self.imported_keys,
             'aliases':self.aliases,
+            'receipts':self.receipts,
             }
         f = open(self.path,"w")
         f.write( repr(s) )
@@ -508,6 +511,7 @@ class Wallet:
             self.addressbook = d.get('contacts')
             self.imported_keys = d.get('imported_keys',{})
             self.aliases = d.get('aliases',{})
+            self.receipts = d.get('receipts',{})
         except:
             raise BaseException(upgrade_msg)
 
@@ -705,6 +709,9 @@ class Wallet:
         out = self.interface.send_tx(tx)
         if out != tx_hash:
             return False, "error: " + out
+        if self.receipt:
+            self.receipts[tx_hash] = self.receipt
+            self.receipt = None
         return True, out
 
     def get_alias(self, x):

@@ -786,6 +786,7 @@ class BitcoinGUI:
                 return
             try:
                 self.wallet.verify_message(signing_address, signature, cmd )
+                self.wallet.receipt = (signing_address, signature, cmd)
             except:
                 self.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.')
                 payto = amount = label = identity = ''
