@@ -733,7 +733,7 @@ class Wallet:
             s = self.aliases.get(x)
             if s:
                 if s != xx:
-                    raise BaseException("error:alias does not match previous value")
+                    raise BaseException( xx )
             else:
                 self.aliases[x] = xx
             

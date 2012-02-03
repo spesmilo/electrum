@@ -781,15 +781,14 @@ class BitcoinGUI:
 
     def set_send_tab(self, payto, amount, label, identity, signature, cmd):
         if signature:
-            try:
-                signing_address = self.wallet.get_alias(identity)
-            except:
-                self.show_message('Warning: the key of the recipient has changed since last visit.\nContinue at your own risks!')
+            signing_address = self.get_alias(identity)
+            if not signing_address:
+                return
             try:
                 self.wallet.verify_message(signing_address, signature, cmd )
             except:
-                self.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.\nContinue at your own risks!')
-                address = amount = label = identity = ''
+                self.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.')
+                payto = amount = label = identity = ''
 
         self.notebook.set_current_page(1)
         self.payto_entry.set_text(payto)
@@ -823,24 +822,43 @@ class BitcoinGUI:
             entry.set_text('')
 
 
+    def get_alias(self, r):
+        try:
+            to_address = self.wallet.get_alias(r)
+        except BaseException, e:
+            to_address = None
+            msg = "Warning: the key corresponding to %s does not match its previously known value.\nDo you wish to accept the new key?"%r
+            dialog = gtk.MessageDialog( self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, msg)
+            dialog.show()
+            result = dialog.run()
+            dialog.destroy()
+            if result != gtk.RESPONSE_CANCEL:
+                print e.message
+                to_address = e.message
+                self.wallet.aliases[r] = to_address
+
+        return to_address
+            
+
+
     def do_send(self, w, data):
         payto_entry, label_entry, amount_entry, fee_entry = data
         label = label_entry.get_text()
         r = payto_entry.get_text()
-
         r = r.strip()
-        if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r):
-            try:
-                to_address = self.wallet.get_alias(r)
-            except:
-                self.show_message('Warning: the key of the recipient has changed since last visit.')
-                return
 
-        m = re.match('(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+) \<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
-        if m:
-            to_address = m.group(5)
+        m1 = re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r)
+        m2 = re.match('(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+) \<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
+        
+        if m1:
+            to_address = self.get_alias(r)
+            if not to_address:
+                return
+        elif m2:
+            to_address = m2.group(5)
         else:
             to_address = r
+
         if not self.wallet.is_valid(to_address):
             self.show_message( "invalid bitcoin address:\n"+to_address)
             return
