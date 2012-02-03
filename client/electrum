@@ -19,7 +19,6 @@
 import re, sys, getpass
 
 from optparse import OptionParser
-
 from wallet import Wallet
 from interface import Interface
 
@@ -28,6 +27,26 @@ from interface import Interface
 _ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
 urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
+
+def alias(x):
+    import urllib
+    if wallet.is_valid(x):
+        xx = x
+    else:
+        m = re.match('([\w\-\.]+)@((\w[\w\-]+\.)+[\w\-]+)', x)
+        if m:
+            url = 'http://' + m.group(2) + '/bitcoin.id/' + m.group(1) 
+        else:
+            url = 'http://' + x + '/bitcoin.id'
+        print url
+        try:
+            xx = urllib.urlopen(url).read().strip()
+        except:
+            xx = ''
+        if not wallet.is_valid(xx):
+            xx = ''
+    return xx
+        
 
 if __name__ == '__main__':
     known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed','import','signmessage','verifymessage']
@@ -58,9 +77,11 @@ if __name__ == '__main__':
         import gui
         gui.init_wallet(wallet)
         gui = gui.BitcoinGUI(wallet)
+
         if re.match('^bitcoin:', cmd):
+
             o = cmd[8:].split('?')
-            address = o[0]
+            address = alias(o[0])
             if len(o)>1:
                 params = o[1].split('&')
             else:
@@ -70,23 +91,15 @@ if __name__ == '__main__':
             for p in params:
                 k,v = p.split('=')
                 uv = urldecode(v)
-                if k=='amount': amount = uv
-                elif k=='label': label = uv
-                elif k =='signature': signature = uv
-                elif k =='identity':
+                if k == 'amount': amount = uv
+                elif k == 'label': label = uv
+                elif k == 'signature': signature = uv
+                elif k == 'identity':
                     identity = uv
-                    if wallet.is_valid(identity):
-                        signing_address = identity
-                    else:
-                        import urllib
-                        url = 'http://'+identity+'/bitcoin.id'
-                        try:
-                            signing_address = urllib.urlopen(url).read().strip()
-                        except:
-                            # no need to display anything since verification will fail
-                            signing_address = ''
-                    
-                else: print k,v
+                    signing_address = alias(identity)
+                else: 
+                    print k,v
+
                 if k in ['identity','signature']:
                     cmd = cmd.replace('&%s=%s'%(k,v),'')
                     
