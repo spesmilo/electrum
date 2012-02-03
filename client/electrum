@@ -28,25 +28,6 @@ _ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
 urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
 
-def alias(x):
-    import urllib
-    if wallet.is_valid(x):
-        xx = x
-    else:
-        m = re.match('([\w\-\.]+)@((\w[\w\-]+\.)+[\w\-]+)', x)
-        if m:
-            url = 'http://' + m.group(2) + '/bitcoin.id/' + m.group(1) 
-        else:
-            url = 'http://' + x + '/bitcoin.id'
-        print url
-        try:
-            xx = urllib.urlopen(url).read().strip()
-        except:
-            xx = ''
-        if not wallet.is_valid(xx):
-            xx = ''
-    return xx
-        
 
 if __name__ == '__main__':
     known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed','import','signmessage','verifymessage']
@@ -81,7 +62,7 @@ if __name__ == '__main__':
         if re.match('^bitcoin:', cmd):
 
             o = cmd[8:].split('?')
-            address = alias(o[0])
+            address = o[0]
             if len(o)>1:
                 params = o[1].split('&')
             else:
@@ -95,20 +76,11 @@ if __name__ == '__main__':
                 elif k == 'label': label = uv
                 elif k == 'signature':
                     identity, signature = uv.split(':')
-                    signing_address = alias(identity)
                     cmd = cmd.replace('&%s=%s'%(k,v),'')
                 else: 
                     print k,v
 
-            if signature:
-                try:
-                    wallet.verify_message(signing_address, signature, cmd )
-                except:
-                    gui.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.\nContinue at your own risks!')
-                    address = amount = label = identity = ''
-
-            if address:
-                gui.set_send_tab(address, amount, label, identity)
+            gui.set_send_tab(address, amount, label, identity, signature, cmd)
 
         gui.main()
         wallet.save()

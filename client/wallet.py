@@ -218,6 +218,7 @@ from version import ELECTRUM_VERSION, SEED_VERSION
 
 
 
+
 class Wallet:
     def __init__(self, interface):
 
@@ -703,3 +704,25 @@ class Wallet:
             return False, "error: " + out
         return True, out
 
+    def get_alias(self, x):
+        # this might not be the right place for this function.
+        import urllib
+        if self.is_valid(x):
+            return x
+        else:
+            m1 = re.match('([\w\-\.]+)@((\w[\w\-]+\.)+[\w\-]+)', x)
+            m2 = re.match('((\w[\w\-]+\.)+[\w\-]+)', x)
+            if m1:
+                url = 'http://' + m1.group(2) + '/bitcoin.id/' + m1.group(1) 
+            elif m2:
+                url = 'http://' + x + '/bitcoin.id'
+            else:
+                return ''
+            try:
+                print url
+                xx = urllib.urlopen(url).read().strip()
+            except:
+                return ''
+            if not self.is_valid(xx):
+                return ''
+            return xx

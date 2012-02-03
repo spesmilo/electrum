@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import datetime
-import thread, time, ast, sys
+import thread, time, ast, sys, re
 import socket, traceback
 import pygtk
 pygtk.require('2.0')
@@ -580,6 +580,21 @@ class BitcoinGUI:
                 gobject.idle_add( self.update_status_bar )
                 time.sleep(0.5)
 
+
+        def check_recipient_thread():
+            old_r = ''
+            while True:
+                time.sleep(0.5)
+                r = self.payto_entry.get_text()
+                if r != old_r:
+                    old_r = r
+                    if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r):
+                        to_address = self.wallet.get_alias(r)
+                        if to_address:
+                            s = r+ ' <'+to_address+'>'
+                            gobject.idle_add( lambda: self.payto_entry.set_text(s) )
+                
+
         def update_wallet_thread():
             while True:
                 try:
@@ -627,6 +642,7 @@ class BitcoinGUI:
                     
         thread.start_new_thread(update_wallet_thread, ())
         thread.start_new_thread(update_status_bar_thread, ())
+        thread.start_new_thread(check_recipient_thread, ())
         self.notebook.set_current_page(0)
 
 
@@ -649,10 +665,10 @@ class BitcoinGUI:
         payto = gtk.HBox()
         payto_label = gtk.Label('Pay to:')
         payto_label.set_size_request(100,-1)
-        payto_label.show()
+        #payto_label.show()
         payto.pack_start(payto_label, False)
         payto_entry = gtk.Entry()
-        payto_entry.set_size_request(350, 26)
+        payto_entry.set_size_request(450, 26)
         payto_entry.show()
         payto.pack_start(payto_entry, False)
         vbox.pack_start(payto, False, False, 5)
@@ -663,7 +679,7 @@ class BitcoinGUI:
         label_label.show()
         label.pack_start(label_label, False)
         label_entry = gtk.Entry()
-        label_entry.set_size_request(350, 26)
+        label_entry.set_size_request(450, 26)
         label_entry.show()
         label.pack_start(label_entry, False)
         vbox.pack_start(label, False, False, 5)
@@ -736,7 +752,7 @@ class BitcoinGUI:
                 self.error = 'Not enough funds'
 
         amount_entry.connect('changed', entry_changed, False)
-        fee_entry.connect('changed', entry_changed, True)
+        fee_entry.connect('changed', entry_changed, True)        
 
         self.payto_entry = payto_entry
         self.payto_fee_entry = fee_entry
@@ -757,9 +773,17 @@ class BitcoinGUI:
             entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#ffffff"))
 
 
-    def set_send_tab(self, address, amount, label, identity):
+    def set_send_tab(self, payto, amount, label, identity, signature, cmd):
+        if signature:
+            try:
+                signing_address = self.wallet.get_alias(identity)
+                self.wallet.verify_message(signing_address, signature, cmd )
+            except:
+                self.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.\nContinue at your own risks!')
+                address = amount = label = identity = ''
+
         self.notebook.set_current_page(1)
-        self.payto_entry.set_text(address)
+        self.payto_entry.set_text(payto)
         self.payto_label_entry.set_text(label)
         self.payto_amount_entry.set_text(amount)
         if identity:
@@ -788,16 +812,19 @@ class BitcoinGUI:
         for entry in [self.payto_entry,self.payto_amount_entry,self.payto_label_entry]:
             self.set_frozen(entry,False)
             entry.set_text('')
-        
+
 
     def do_send(self, w, data):
         payto_entry, label_entry, amount_entry, fee_entry = data
-        
         label = label_entry.get_text()
-
-        to_address = payto_entry.get_text()
+        r = payto_entry.get_text()
+        m = re.match('(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+) \<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
+        if m:
+            to_address = m.group(5)
+        else:
+            to_address = r
         if not self.wallet.is_valid(to_address):
-            self.show_message( "invalid bitcoin address")
+            self.show_message( "invalid bitcoin address:\n"+to_address)
             return
 
         try:
