@@ -592,7 +592,10 @@ class BitcoinGUI:
                     old_r = r
                     r = r.strip()
                     if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r):
-                        to_address = self.wallet.get_alias(r)
+                        try:
+                            to_address = self.wallet.get_alias(r)
+                        except:
+                            continue
                         if to_address:
                             s = r + ' <' + to_address + '>'
                             gobject.idle_add( lambda: self.payto_entry.set_text(s) )
@@ -780,6 +783,9 @@ class BitcoinGUI:
         if signature:
             try:
                 signing_address = self.wallet.get_alias(identity)
+            except:
+                self.show_message('Warning: the key of the recipient has changed since last visit.\nContinue at your own risks!')
+            try:
                 self.wallet.verify_message(signing_address, signature, cmd )
             except:
                 self.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.\nContinue at your own risks!')
@@ -821,6 +827,15 @@ class BitcoinGUI:
         payto_entry, label_entry, amount_entry, fee_entry = data
         label = label_entry.get_text()
         r = payto_entry.get_text()
+
+        r = r.strip()
+        if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r):
+            try:
+                to_address = self.wallet.get_alias(r)
+            except:
+                self.show_message('Warning: the key of the recipient has changed since last visit.')
+                return
+
         m = re.match('(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+) \<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
         if m:
             to_address = m.group(5)

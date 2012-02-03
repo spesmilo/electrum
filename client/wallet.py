@@ -237,6 +237,7 @@ class Wallet:
         self.status = {}             # current status of addresses
         self.history = {}
         self.labels = {}             # labels for addresses and transactions
+        self.aliases = {}            # aliases for addresses
         self.addressbook = []        # outgoing addresses, for payments
 
         # not saved
@@ -475,6 +476,7 @@ class Wallet:
             'labels':self.labels,
             'contacts':self.addressbook,
             'imported_keys':self.imported_keys,
+            'aliases':self.aliases,
             }
         f = open(self.path,"w")
         f.write( repr(s) )
@@ -505,6 +507,7 @@ class Wallet:
             self.labels = d.get('labels')
             self.addressbook = d.get('contacts')
             self.imported_keys = d.get('imported_keys',{})
+            self.aliases = d.get('aliases',{})
         except:
             raise BaseException(upgrade_msg)
 
@@ -725,4 +728,13 @@ class Wallet:
                 return ''
             if not self.is_valid(xx):
                 return ''
+            self.labels[xx] = x
+
+            s = self.aliases.get(x)
+            if s:
+                if s != xx:
+                    raise BaseException("error:alias does not match previous value")
+            else:
+                self.aliases[x] = xx
+            
             return xx
