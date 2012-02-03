@@ -590,10 +590,11 @@ class BitcoinGUI:
                 r = self.payto_entry.get_text()
                 if r != old_r:
                     old_r = r
+                    r = r.strip()
                     if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r):
                         to_address = self.wallet.get_alias(r)
                         if to_address:
-                            s = r+ ' <'+to_address+'>'
+                            s = r + ' <' + to_address + '>'
                             gobject.idle_add( lambda: self.payto_entry.set_text(s) )
                 
 
