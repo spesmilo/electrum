@@ -673,7 +673,7 @@ class BitcoinGUI:
         vbox.pack_start(payto, False, False, 5)
 
         message = gtk.HBox()
-        message_label = gtk.Label('Message:')
+        message_label = gtk.Label('Label:')
         message_label.set_size_request(100,-1)
         message.pack_start(message_label, False)
         message_entry = gtk.Entry()
