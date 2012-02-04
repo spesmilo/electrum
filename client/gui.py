@@ -673,7 +673,7 @@ class BitcoinGUI:
         vbox.pack_start(payto, False, False, 5)
 
         message = gtk.HBox()
-        message_label = gtk.Label('Label:')
+        message_label = gtk.Label('Description:')
         message_label.set_size_request(100,-1)
         message.pack_start(message_label, False)
         message_entry = gtk.Entry()
@@ -931,7 +931,7 @@ class BitcoinGUI:
         tvcolumn.pack_start(cell, False)
         tvcolumn.add_attribute(cell, 'text', 2)
 
-        tvcolumn = gtk.TreeViewColumn('Label')
+        tvcolumn = gtk.TreeViewColumn('Description')
         treeview.append_column(tvcolumn)
         cell = gtk.CellRendererText()
         cell.set_property('foreground', 'grey')
