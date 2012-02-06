@@ -764,7 +764,12 @@ class BitcoinGUI:
 
     def set_send_tab(self, payto, amount, message, label, identity, signature, cmd):
         if signature:
-            signing_address = self.get_alias(identity, interactive = True)
+            if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', identity):
+                signing_address = self.get_alias(identity, interactive = True)
+            elif self.wallet.is_valid(identity):
+                signing_address = identity
+            else:
+                signing_address = None
             if not signing_address:
                 return
             try:
@@ -827,8 +832,8 @@ class BitcoinGUI:
         if auth_name is None:
             a = self.wallet.aliases.get(alias)
             if not a:
-                if interactive and self.question( "Warning: the alias is self-signed. Do you want to trust address %s ?"%to_address ):
-                    self.wallet.aliases[r] = signing_address
+                if interactive and self.question( "Warning: the alias '%s' is self-signed. Do you want to trust address %s ?"%(alias,signing_address) ):
+                    self.wallet.aliases[alias] = signing_address
                 else:
                     target = None
             else:

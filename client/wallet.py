@@ -734,44 +734,42 @@ class Wallet:
     def read_alias(self, alias):
         # this might not be the right place for this function.
         import urllib
-        if self.is_valid(alias):
-            return alias
+
+        m1 = re.match('([\w\-\.]+)@((\w[\w\-]+\.)+[\w\-]+)', alias)
+        m2 = re.match('((\w[\w\-]+\.)+[\w\-]+)', alias)
+        if m1:
+            url = 'http://' + m1.group(2) + '/bitcoin.id/' + m1.group(1) 
+        elif m2:
+            url = 'http://' + alias + '/bitcoin.id'
         else:
-            m1 = re.match('([\w\-\.]+)@((\w[\w\-]+\.)+[\w\-]+)', alias)
-            m2 = re.match('((\w[\w\-]+\.)+[\w\-]+)', alias)
-            if m1:
-                url = 'http://' + m1.group(2) + '/bitcoin.id/' + m1.group(1) 
-            elif m2:
-                url = 'http://' + alias + '/bitcoin.id'
-            else:
-                return ''
-            try:
-                lines = urllib.urlopen(url).readlines()
-            except:
-                return ''
+            return ''
+        try:
+            lines = urllib.urlopen(url).readlines()
+        except:
+            return ''
 
-            # line 0
-            line = lines[0].strip().split(':')
-            if len(line) == 1:
-                auth_name = None
-                target = signing_addr = line[0]
-            else:
-                target, auth_name, signing_addr, signature = line
-                msg = "alias:%s:%s:%s"%(alias,target,auth_name)
-                print msg, signature
-                self.verify_message(signing_addr, signature, msg)
+        # line 0
+        line = lines[0].strip().split(':')
+        if len(line) == 1:
+            auth_name = None
+            target = signing_addr = line[0]
+        else:
+            target, auth_name, signing_addr, signature = line
+            msg = "alias:%s:%s:%s"%(alias,target,auth_name)
+            print msg, signature
+            self.verify_message(signing_addr, signature, msg)
+        
+        # other lines are signed updates
+        for line in lines[1:]:
+            line = line.strip()
+            if not line: continue
+            line = line.split(':')
+            previous = target
+            print repr(line)
+            target, signature = line
+            self.verify_message(previous, signature, "alias:%s:%s"%(alias,target))
 
-            # other lines are signed updates
-            for line in lines[1:]:
-                line = line.strip()
-                if not line: continue
-                line = line.split(':')
-                previous = target
-                print repr(line)
-                target, signature = line
-                self.verify_message(previous, signature, "alias:%s:%s"%(alias,target))
+        if not self.is_valid(target):
+            raise BaseException("Invalid bitcoin address")
 
-            if not self.is_valid(target):
-                raise BaseException("Invalid bitcoin address")
-
-            return target, signing_addr, auth_name
+        return target, signing_addr, auth_name
