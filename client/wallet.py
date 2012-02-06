@@ -410,6 +410,7 @@ class Wallet:
         addr = public_key_to_bc_address( '04'.decode('hex') + public_key.to_string() )
         # print addr
         if address != addr:
+            print "bad signature"
             raise BaseException("Bad signature")
     
 

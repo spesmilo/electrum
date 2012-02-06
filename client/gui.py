@@ -588,7 +588,7 @@ class BitcoinGUI:
                     r = r.strip()
                     if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r):
                         try:
-                            to_address = self.wallet.read_alias(r)[0]
+                            to_address = self.get_alias(r, interactive=False)
                         except:
                             continue
                         if to_address:
@@ -764,7 +764,7 @@ class BitcoinGUI:
 
     def set_send_tab(self, payto, amount, message, label, identity, signature, cmd):
         if signature:
-            signing_address = self.get_alias(identity)
+            signing_address = self.get_alias(identity, interactive = True)
             if not signing_address:
                 return
             try:
@@ -814,31 +814,33 @@ class BitcoinGUI:
         dialog.destroy()
         return result == gtk.RESPONSE_OK
 
-    def get_alias(self, r):
+    def get_alias(self, alias, interactive = False):
         try:
-            target, signing_address, auth_name = self.wallet.read_alias(r)
+            target, signing_address, auth_name = self.wallet.read_alias(alias)
         except BaseException, e:
             # raise exception if verify fails (verify the chain)
             self.show_message("Alias error: " + e.message)
             return
 
+        print target, signing_address, auth_name
+
         if auth_name is None:
-            a = self.wallet.aliases.get(r)
+            a = self.wallet.aliases.get(alias)
             if not a:
-                if self.question( "Warning: the alias is self-signed. Do you want to trust address %s ?"%to_address ):
+                if interactive and self.question( "Warning: the alias is self-signed. Do you want to trust address %s ?"%to_address ):
                     self.wallet.aliases[r] = signing_address
                 else:
                     target = None
             else:
                 if signing_address != a:
-                    if self.question( "Warning: the signing key of %s does not match its previously known value! It is possible that someone is trying to do something nasty!!!\nDo you wish to accept the new key?"%r ):
-                        self.wallet.aliases[r] = signing_address
+                    if interactive and self.question( "Warning: the signing key of %s does not match its previously known value! It is possible that someone is trying to do something nasty!!!\nDo you wish to accept the new key?"%alias ):
+                        self.wallet.aliases[alias] = signing_address
                     else:
                         target = None
         else:
             if signing_address not in self.wallet.authorities.keys():
-                if self.question( "Warning: the alias '%s' was signed by %s [%s].\n\nDo you want to add this key to your list of trusted keys?"\
-                                  %(r,auth_name,signing_address)):
+                if interactive and self.question( "The alias: '%s' links to %s\n\nWarning: this alias was signed by an unknown key.\nSigning authority: %s\nSigning address: %s\n\nDo you want to add this key to your list of trusted keys?"\
+                                  %(alias,target,auth_name,signing_address)):
                     self.wallet.authorities[signing_address] = auth_name
                 else:
                     target = None
@@ -857,7 +859,7 @@ class BitcoinGUI:
         m2 = re.match('(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+) \<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
         
         if m1:
-            to_address = self.get_alias(r)
+            to_address = self.get_alias(r, interactive = True)
             if not to_address:
                 return
         elif m2:

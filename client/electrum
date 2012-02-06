@@ -243,6 +243,7 @@ if __name__ == '__main__':
 
     elif cmd == 'eval':
         print eval(args[1])
+        wallet.save()
 
     elif cmd in [ 'addresses']:
         for addr in wallet.all_addresses():
