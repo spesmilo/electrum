@@ -396,8 +396,8 @@ def password_line(label):
     password.show()
     return password, password_entry
 
-def password_dialog():
-    dialog = gtk.MessageDialog( None, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+def password_dialog(parent):
+    dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                                 gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL,  "Please enter your password.")
     dialog.get_image().set_visible(False)
     current_pw, current_pw_entry = password_line('Password:')
@@ -526,7 +526,7 @@ class BitcoinGUI:
 
         def seedb(w, wallet):
             if wallet.use_encryption:
-                password = password_dialog()
+                password = password_dialog(self.window)
                 if not password: return
             else: password = None
             show_seed_dialog(wallet, password, self.window)
@@ -881,7 +881,7 @@ class BitcoinGUI:
             return
 
         if self.wallet.use_encryption:
-            password = password_dialog()
+            password = password_dialog(self.window)
             if not password:
                 return
         else:
