@@ -31,7 +31,7 @@ urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 from wallet import format_satoshis
 
 if __name__ == '__main__':
-    known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed','import','signmessage','verifymessage','list']
+    known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed','import','signmessage','verifymessage','eval']
 
     usage = "usage: %prog [options] command args\nCommands: "+ (', '.join(known_commands))
 
@@ -149,7 +149,7 @@ if __name__ == '__main__':
             cmd = 'help'
 
     # open session
-    if cmd not in ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'list']:
+    if cmd not in ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval']:
         wallet.interface.new_session(wallet.all_addresses(), wallet.electrum_version)
         wallet.update()
         wallet.save()
@@ -206,6 +206,8 @@ if __name__ == '__main__':
             print "syntax: mktx <recipient> <amount> [label]"
         elif cmd2 == 'seed':
             print "show generation seed of your wallet. password protected."
+        elif cmd2 == 'eval':
+            print "run python eval on an object"
 
     elif cmd == 'seed':
         import mnemonic
@@ -239,10 +241,8 @@ if __name__ == '__main__':
         for addr in wallet.addressbook:
             print addr, "   ", wallet.labels.get(addr)
 
-    elif cmd == 'list':
-        objname = args[1]
-        obj = eval("wallet."+objname)
-        print obj
+    elif cmd == 'eval':
+        print eval(args[1])
 
     elif cmd in [ 'addresses']:
         for addr in wallet.all_addresses():
