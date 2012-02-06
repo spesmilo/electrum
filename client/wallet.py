@@ -248,6 +248,8 @@ class Wallet:
         self.history = {}
         self.labels = {}             # labels for addresses and transactions
         self.aliases = {}            # aliases for addresses
+        self.authorities = {}        # trusted addresses
+        
         self.receipts = {}           # signed URIs
         self.receipt = None          # next receipt
         self.addressbook = []        # outgoing addresses, for payments
@@ -383,7 +385,7 @@ class Wallet:
         order = G.order()
         # extract r,s from signature
         sig = base64.b64decode(signature)
-        if len(sig) != 65: raise BaseException("error")
+        if len(sig) != 65: raise BaseException("Wrong encoding")
         r,s = util.sigdecode_string(sig[1:], order)
         recid = ord(sig[0]) - 27
         # 1.1
@@ -407,7 +409,10 @@ class Wallet:
         # check that we get the original signing address
         addr = public_key_to_bc_address( '04'.decode('hex') + public_key.to_string() )
         # print addr
-        assert address == addr
+        try:
+            assert address == addr
+        except:
+            raise BaseException("Bad signature")
     
 
     def create_new_address2(self, for_change):
@@ -489,6 +494,7 @@ class Wallet:
             'contacts':self.addressbook,
             'imported_keys':self.imported_keys,
             'aliases':self.aliases,
+            'authorities':self.authorities,
             'receipts':self.receipts,
             }
         f = open(self.path,"w")
@@ -521,6 +527,7 @@ class Wallet:
             self.addressbook = d.get('contacts')
             self.imported_keys = d.get('imported_keys',{})
             self.aliases = d.get('aliases',{})
+            self.authorities = d.get('authorities',{})
             self.receipts = d.get('receipts',{})
         except:
             raise BaseException(upgrade_msg)
@@ -724,34 +731,47 @@ class Wallet:
             self.receipt = None
         return True, out
 
-    def get_alias(self, x):
+
+    def read_alias(self, alias):
         # this might not be the right place for this function.
         import urllib
-        if self.is_valid(x):
-            return x
+        if self.is_valid(alias):
+            return alias
         else:
-            m1 = re.match('([\w\-\.]+)@((\w[\w\-]+\.)+[\w\-]+)', x)
-            m2 = re.match('((\w[\w\-]+\.)+[\w\-]+)', x)
+            m1 = re.match('([\w\-\.]+)@((\w[\w\-]+\.)+[\w\-]+)', alias)
+            m2 = re.match('((\w[\w\-]+\.)+[\w\-]+)', alias)
             if m1:
                 url = 'http://' + m1.group(2) + '/bitcoin.id/' + m1.group(1) 
             elif m2:
-                url = 'http://' + x + '/bitcoin.id'
+                url = 'http://' + alias + '/bitcoin.id'
             else:
                 return ''
             try:
-                print url
-                xx = urllib.urlopen(url).read().strip()
+                lines = urllib.urlopen(url).readlines()
             except:
                 return ''
-            if not self.is_valid(xx):
-                return ''
-            self.labels[xx] = x
 
-            s = self.aliases.get(x)
-            if s:
-                if s != xx:
-                    raise BaseException( xx )
+            # line 0
+            line = lines[0].strip().split(':')
+            if len(line) == 1:
+                auth_name = None
+                target = signing_addr = line[0]
             else:
-                self.aliases[x] = xx
-            
-            return xx
+                target, auth_name, signing_addr, signature = line
+                msg = "alias:%s:%s:%s"%(alias,target,auth_name)
+                print msg, signature
+                self.verify_message(signing_addr, signature, msg)
+
+            # other lines are signed updates
+            for line in lines[1:]:
+                line = line.strip()
+                if not line: continue
+                line = line.split(':')
+                previous = target
+                print repr(line)
+                target, signature = line
+                self.verify_message(previous, signature, "alias:%s:%s"%(alias,target))
+
+            assert self.is_valid(target)
+
+            return target, signing_addr, auth_name

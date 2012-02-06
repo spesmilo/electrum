@@ -588,7 +588,7 @@ class BitcoinGUI:
                     r = r.strip()
                     if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r):
                         try:
-                            to_address = self.wallet.get_alias(r)
+                            to_address = self.wallet.read_alias(r)[0]
                         except:
                             continue
                         if to_address:
@@ -807,22 +807,43 @@ class BitcoinGUI:
             entry.set_text('')
 
 
+    def question(self,msg):
+        dialog = gtk.MessageDialog( self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, msg)
+        dialog.show()
+        result = dialog.run()
+        dialog.destroy()
+        return result == gtk.RESPONSE_OK
+
     def get_alias(self, r):
         try:
-            to_address = self.wallet.get_alias(r)
+            target, signing_address, auth_name = self.wallet.read_alias(r)
         except BaseException, e:
-            to_address = None
-            msg = "Warning: the key corresponding to %s does not match its previously known value.\nDo you wish to accept the new key?"%r
-            dialog = gtk.MessageDialog( self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, msg)
-            dialog.show()
-            result = dialog.run()
-            dialog.destroy()
-            if result != gtk.RESPONSE_CANCEL:
-                print e.message
-                to_address = e.message
-                self.wallet.aliases[r] = to_address
+            # raise exception if verify fails (verify the chain)
+            self.show_message("Alias error: " + e.message)
+            return
 
-        return to_address
+        if auth_name is None:
+            a = self.wallet.aliases.get(r)
+            if not a:
+                if self.question( "Warning: the alias is self-signed. Do you want to trust address %s ?"%to_address ):
+                    self.wallet.aliases[r] = signing_address
+                else:
+                    target = None
+            else:
+                if signing_address != a:
+                    if self.question( "Warning: the signing key of %s does not match its previously known value! It is possible that someone is trying to do something nasty!!!\nDo you wish to accept the new key?"%r ):
+                        self.wallet.aliases[r] = signing_address
+                    else:
+                        target = None
+        else:
+            if signing_address not in self.wallet.authorities.keys():
+                if self.question( "Warning: the alias '%s' was signed by %s [%s].\n\nDo you want to add this key to your list of trusted keys?"\
+                                  %(r,auth_name,signing_address)):
+                    self.wallet.authorities[signing_address] = auth_name
+                else:
+                    target = None
+            
+        return target
             
 
 
