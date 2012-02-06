@@ -213,9 +213,19 @@ def raw_tx( inputs, outputs, for_sig = None ):
 
 
 
+def format_satoshis(x, is_diff=False):
+    from decimal import Decimal
+    s = str( Decimal(x) /100000000 )
+    if is_diff and x>0:
+        s = "+" + s
+    if not '.' in s: s += '.'
+    p = s.find('.')
+    s += " "*( 9 - ( len(s) - p ))
+    s = " "*( 5 - ( p )) + s
+    return s
+
+
 from version import ELECTRUM_VERSION, SEED_VERSION
-
-
 
 
 
