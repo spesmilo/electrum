@@ -409,9 +409,7 @@ class Wallet:
         # check that we get the original signing address
         addr = public_key_to_bc_address( '04'.decode('hex') + public_key.to_string() )
         # print addr
-        try:
-            assert address == addr
-        except:
+        if address != addr:
             raise BaseException("Bad signature")
     
 
@@ -772,6 +770,7 @@ class Wallet:
                 target, signature = line
                 self.verify_message(previous, signature, "alias:%s:%s"%(alias,target))
 
-            assert self.is_valid(target)
+            if not self.is_valid(target):
+                raise BaseException("Invalid bitcoin address")
 
             return target, signing_addr, auth_name
