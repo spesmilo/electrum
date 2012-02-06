@@ -28,12 +28,7 @@ from decimal import Decimal
 gtk.gdk.threads_init()
 APP_NAME = "Electrum"
 
-def format_satoshis(x):
-    s = str( Decimal(x) /100000000 )
-    if not '.' in s: s += '.'
-    p = s.find('.')
-    s += " "*( 9 - ( len(s) - p ))
-    return s
+from wallet import format_satoshis
 
 def numbify(entry, is_int = False):
     text = entry.get_text().strip()
@@ -1117,7 +1112,7 @@ class BitcoinGUI:
             self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
             self.network_button.set_tooltip_text("Trying to contact %s.\n%d blocks"%(self.wallet.interface.host, self.wallet.interface.blocks))
         text =  "Balance: %s "%( format_satoshis(c) )
-        if u: text +=  "[+ %s unconfirmed]"%( format_satoshis(u) )
+        if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True) )
         if self.error: text = self.error
         self.status_bar.pop(self.context_id) 
         self.status_bar.push(self.context_id, text) 
@@ -1175,7 +1170,7 @@ class BitcoinGUI:
             details+= "Outputs:\n-"+ '\n-'.join(tx['outputs'])
 
             self.history_list.prepend( [tx_hash, conf_icon, time_str, label, is_default_label,
-                                        ('+' if v>0 else '') + format_satoshis(v), format_satoshis(balance), tooltip, details] )
+                                        format_satoshis(v,True), format_satoshis(balance), tooltip, details] )
         if cursor: self.history_treeview.set_cursor( cursor )
 
 

@@ -21,13 +21,14 @@ import re, sys, getpass
 from optparse import OptionParser
 from wallet import Wallet
 from interface import Interface
-
+from decimal import Decimal
 
 # URL decode
 _ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
 urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
 
+from wallet import format_satoshis
 
 if __name__ == '__main__':
     known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed','import','signmessage','verifymessage','list']
@@ -110,7 +111,7 @@ if __name__ == '__main__':
 
         host = raw_input("server (default:%s):"%wallet.interface.host)
         port = raw_input("port (default:%d):"%wallet.interface.port)
-        fee = raw_input("fee (default:%f):"%(wallet.fee*1e-8))
+        fee = raw_input("fee (default:%s):"%( str(Decimal(wallet.fee)/100000000)) )
         if fee: wallet.fee = float(fee)
         if host: wallet.interface.host = host
         if port: wallet.interface.port = int(port)
@@ -223,16 +224,16 @@ if __name__ == '__main__':
         if addrs == []:
             c, u = wallet.get_balance()
             if u:
-                print c*1e-8, u*1e-8
+                print Decimal( c ) / 100000000 , Decimal( u ) / 100000000
             else:
-                print c*1e-8
+                print Decimal( c ) / 100000000
         else:
             for addr in addrs:
                 c, u = wallet.get_addr_balance(addr)
                 if u:
-                    print "%s %s, %s" % (addr, c*1e-8, u*1e-8)
+                    print "%s %s, %s" % (addr, str(Decimal(c)/100000000), str(Decimal(u)/100000000))
                 else:
-                    print "%s %s" % (addr, c*1e-8)
+                    print "%s %s" % (addr, str(Decimal(c)/100000000))
 
     elif cmd in [ 'contacts']:
         for addr in wallet.addressbook:
@@ -257,7 +258,7 @@ if __name__ == '__main__':
                     for item in h:
                         if item['is_in']:  ni += 1
                         else:              no += 1
-                    b = "%d %d %f"%(no, ni, wallet.get_addr_balance(addr)[0]*1e-8)
+                    b = "%d %d %s"%(no, ni, str(Decimal(wallet.get_addr_balance(addr)[0])/100000000))
                 else: b=''
                 if options.show_keys:
                     pk = wallet.get_private_key2(addr, password)
@@ -269,9 +270,8 @@ if __name__ == '__main__':
         b = 0 
         for line in lines:
             import datetime
-            v = 1.*line['value']/1e8
+            v = line['value'] 
             b += v
-            v_str = "%f"%v if v<0 else "+%f"%v
             try:
                 time_str = datetime.datetime.fromtimestamp( line['nTime']) 
             except:
@@ -281,8 +281,8 @@ if __name__ == '__main__':
             if not label: label = line['tx_hash']
             else: label = label + ' '*(64 - len(label) )
 
-            print time_str, " ", label, " ", v_str, " ", "%f"%b
-        print "# balance: ", b
+            print time_str , "  " + label + "  " + format_satoshis(v)+ "  "+ format_satoshis(b)
+        print "# balance: ", format_satoshis(b)
 
     elif cmd == 'label':
         try:
