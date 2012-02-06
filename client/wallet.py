@@ -333,7 +333,7 @@ class Wallet:
     def get_sequence(self,n,for_change):
         return string_to_number( Hash( "%d:%d:"%(n,for_change) + self.master_public_key ) )
 
-    def get_private_key2(self, address, password):
+    def get_private_key(self, address, password):
         """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
         order = generator_secp256k1.order()
         
@@ -361,7 +361,7 @@ class Wallet:
         return "\x18Bitcoin Signed Message:\n" + chr( len(message) ) + message
 
     def sign_message(self, address, message, password):
-        private_key = ecdsa.SigningKey.from_string( self.get_private_key2(address, password), curve = SECP256k1 )
+        private_key = ecdsa.SigningKey.from_string( self.get_private_key(address, password), curve = SECP256k1 )
         public_key = private_key.get_verifying_key()
         signature = private_key.sign_digest( Hash( self.msg_magic( message ) ), sigencode = ecdsa.util.sigencode_string )
         assert public_key.verify_digest( signature, Hash( self.msg_magic( message ) ), sigdecode = ecdsa.util.sigdecode_string)
@@ -413,7 +413,7 @@ class Wallet:
             raise BaseException("Bad signature")
     
 
-    def create_new_address2(self, for_change):
+    def create_new_address(self, for_change):
         """   Publickey(type,n) = Master_public_key + H(n|S|type)*point  """
         curve = SECP256k1
         n = len(self.change_addresses) if for_change else len(self.addresses)
@@ -438,12 +438,12 @@ class Wallet:
         is_new = False
         while True:
             if self.change_addresses == []:
-                self.create_new_address2(True)
+                self.create_new_address(True)
                 is_new = True
                 continue
             a = self.change_addresses[-1]
             if self.history.get(a):
-                self.create_new_address2(True)
+                self.create_new_address(True)
                 is_new = True
             else:
                 break
@@ -451,13 +451,13 @@ class Wallet:
         n = self.gap_limit
         while True:
             if len(self.addresses) < n:
-                self.create_new_address2(False)
+                self.create_new_address(False)
                 is_new = True
                 continue
             if map( lambda a: self.history.get(a), self.addresses[-n:] ) == n*[[]]:
                 break
             else:
-                self.create_new_address2(False)
+                self.create_new_address(False)
                 is_new = True
 
 
@@ -543,7 +543,7 @@ class Wallet:
             if not self.history.get(addr): 
                 n = n + 1
         if n < self.gap_limit:
-            new_address = self.create_new_address2(False)
+            new_address = self.create_new_address(False)
             self.history[new_address] = [] #get from server
             return True, new_address
         else:
@@ -629,7 +629,7 @@ class Wallet:
         s_inputs = []
         for i in range(len(inputs)):
             addr, v, p_hash, p_pos, p_scriptPubKey, _, _ = inputs[i]
-            private_key = ecdsa.SigningKey.from_string( self.get_private_key2(addr, password), curve = SECP256k1 )
+            private_key = ecdsa.SigningKey.from_string( self.get_private_key(addr, password), curve = SECP256k1 )
             public_key = private_key.get_verifying_key()
             pubkey = public_key.to_string()
             tx = filter( raw_tx( inputs, outputs, for_sig = i ) )
