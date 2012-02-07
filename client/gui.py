@@ -784,9 +784,10 @@ class BitcoinGUI:
         # redundant with aliases
         #if label and payto:
         #    self.labels[payto] = label
-        payto_address = self.get_alias(payto, interactive=True)
-        if payto_address:
-            payto = payto + ' <' + payto_address + '>'
+        if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', payto):
+            payto_address = self.get_alias(payto, interactive=True)
+            if payto_address:
+                payto = payto + ' <' + payto_address + '>'
 
         self.payto_entry.set_text(payto)
         self.message_entry.set_text(message)
