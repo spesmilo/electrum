@@ -840,14 +840,14 @@ class BitcoinGUI:
             if not a:
                 msg = "Warning: the alias '%s' is self-signed. Do you want to trust the address %s for this alias?"%(alias,signing_address)
                 if interactive and self.question( msg ):
-                    self.wallet.aliases[alias] = signing_address
+                    self.wallet.aliases[alias] = (signing_address, target)
                 else:
                     target = None
             else:
-                if signing_address != a:
+                if signing_address != a[0]:
                     msg = "Warning: the key of alias '%s' has changed since your last visit! It is possible that someone is trying to do something nasty!!!\nDo you accept to change your trusted key?"%alias
                     if interactive and self.question( msg ):
-                        self.wallet.aliases[alias] = signing_address
+                        self.wallet.aliases[alias] = (signing_address, target)
                     else:
                         target = None
         else:
@@ -859,10 +859,9 @@ class BitcoinGUI:
                     target = None
 
         if target:
-            # do this only if there's a tx
-            if target not in self.wallet.addressbook:
-                self.wallet.addressbook.append(target)
-            self.wallet.labels[target] = alias
+            self.wallet.aliases[alias] = (signing_address, target)
+            self.update_sending_tab()
+
             
         return target
             
@@ -932,8 +931,14 @@ class BitcoinGUI:
     def treeview_button_press(self, treeview, event):
         if event.type == gtk.gdk._2BUTTON_PRESS:
             c = treeview.get_cursor()[0]
-            tx_details = self.history_list.get_value( self.history_list.get_iter(c), 8)
-            self.show_message(tx_details)
+            if treeview == self.history_treeview:
+                tx_details = self.history_list.get_value( self.history_list.get_iter(c), 8)
+                self.show_message(tx_details)
+            elif treeview == self.contacts_treeview:
+                m = self.addressbook_list.get_value( self.addressbook_list.get_iter(c), 0)
+                a = self.wallet.aliases.get(m)
+                if a: self.show_message('Alias:'+ m + '\n\nTarget: '+ a[1] + '\nSigned by: ' + a[0])
+            
 
     def treeview_key_press(self, treeview, event):
         c = treeview.get_cursor()[0]
@@ -941,9 +946,15 @@ class BitcoinGUI:
             if c and c[0] == 0:
                 treeview.parent.grab_focus()
                 treeview.set_cursor((0,))
-        elif event.keyval == gtk.keysyms.Return and treeview == self.history_treeview:
-            tx_details = self.history_list.get_value( self.history_list.get_iter(c), 8)
-            self.show_message(tx_details)
+        elif event.keyval == gtk.keysyms.Return:
+            if treeview == self.history_treeview:
+                tx_details = self.history_list.get_value( self.history_list.get_iter(c), 8)
+                self.show_message(tx_details)
+            elif treeview == self.contacts_treeview:
+                m = self.addressbook_list.get_value( self.addressbook_list.get_iter(c), 0)
+                a = self.wallet.aliases.get(m)
+                if a: self.show_message('Alias:'+ m + '\n\nTarget: '+ a[1] + '\nSigned by: ' + a[0])
+
         return False
 
     def create_history_tab(self):
@@ -1033,7 +1044,10 @@ class BitcoinGUI:
         liststore = self.recv_list if is_recv else self.addressbook_list
         treeview = gtk.TreeView(model= liststore)
         treeview.connect('key-press-event', self.treeview_key_press)
+        treeview.connect('button-press-event', self.treeview_button_press)
         treeview.show()
+        if not is_recv:
+            self.contacts_treeview = treeview
 
         tvcolumn = gtk.TreeViewColumn('Address')
         treeview.append_column(tvcolumn)
@@ -1174,6 +1188,11 @@ class BitcoinGUI:
     def update_sending_tab(self):
         # detect addresses that are not mine in history, add them here...
         self.addressbook_list.clear()
+        for alias, v in self.wallet.aliases.items():
+            s, target = v
+            label = self.wallet.labels.get(alias)
+            self.addressbook_list.append((alias, label, '-'))
+            
         for address in self.wallet.addressbook:
             label = self.wallet.labels.get(address)
             n = 0 
