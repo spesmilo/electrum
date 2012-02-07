@@ -837,14 +837,14 @@ class BitcoinGUI:
         if auth_name is None:
             a = self.wallet.aliases.get(alias)
             if not a:
-                if interactive and self.question( "Warning: the alias '%s' is unsigned. Do you want to trust the address %s ?"%(alias,signing_address) ):
+                if interactive and self.question( "Warning: the alias '%s' is unsigned. Do you want to trust the address %s for this alias?"%(alias,signing_address) ):
                     self.wallet.aliases[alias] = signing_address
                     self.wallet.labels[target] = alias
                 else:
                     target = None
             else:
                 if signing_address != a:
-                    if interactive and self.question( "Warning: the signing key of %s does not match its previously known value! It is possible that someone is trying to do something nasty!!!\nDo you wish to accept the new key?"%alias ):
+                    if interactive and self.question( "Warning: the key of alias '%s' has changed since your last visit! It is possible that someone is trying to do something nasty!!!\nDo you accept to change your trusted key?"%alias ):
                         self.wallet.aliases[alias] = signing_address
                         self.wallet.labels[target] = alias
                     else:
