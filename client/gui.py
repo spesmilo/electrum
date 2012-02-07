@@ -1245,8 +1245,8 @@ class BitcoinGUI:
             r = self.wallet.receipts.get(tx_hash)
             if r:
                 details += "\n_______________________________________" \
-                           + "\n\nURI signed by: " + r[0] \
-                           + '\n\nSigned data: ' + r[2] \
+                           + '\n\nSigned URI: ' + r[2] \
+                           + "\n\nSigned by: " + r[0] \
                            + '\n\nSignature: ' + r[1]
                 
 
