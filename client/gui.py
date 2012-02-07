@@ -838,26 +838,31 @@ class BitcoinGUI:
         if auth_name is None:
             a = self.wallet.aliases.get(alias)
             if not a:
-                if interactive and self.question( "Warning: the alias '%s' is unsigned. Do you want to trust the address %s for this alias?"%(alias,signing_address) ):
+                msg = "Warning: the alias '%s' is unsigned. Do you want to trust the address %s for this alias?"%(alias,signing_address)
+                if interactive and self.question( msg ):
                     self.wallet.aliases[alias] = signing_address
-                    self.wallet.labels[target] = alias
                 else:
                     target = None
             else:
                 if signing_address != a:
-                    if interactive and self.question( "Warning: the key of alias '%s' has changed since your last visit! It is possible that someone is trying to do something nasty!!!\nDo you accept to change your trusted key?"%alias ):
+                    msg = "Warning: the key of alias '%s' has changed since your last visit! It is possible that someone is trying to do something nasty!!!\nDo you accept to change your trusted key?"%alias
+                    if interactive and self.question( msg ):
                         self.wallet.aliases[alias] = signing_address
-                        self.wallet.labels[target] = alias
                     else:
                         target = None
         else:
             if signing_address not in self.wallet.authorities.keys():
-                if interactive and self.question( "The alias: '%s' links to %s\n\nWarning: this alias was signed by an unknown key.\nSigning authority: %s\nSigning address: %s\n\nDo you want to add this key to your list of trusted keys?"\
-                                  %(alias,target,auth_name,signing_address)):
+                msg = "The alias: '%s' links to %s\n\nWarning: this alias was signed by an unknown key.\nSigning authority: %s\nSigning address: %s\n\nDo you want to add this key to your list of trusted keys?"%(alias,target,auth_name,signing_address)
+                if interactive and self.question( msg ):
                     self.wallet.authorities[signing_address] = auth_name
-                    self.wallet.labels[target] = alias
                 else:
                     target = None
+
+        if target:
+            # do this only if there's a tx
+            if target not in self.wallet.addressbook:
+                self.wallet.addressbook.append(target)
+            self.wallet.labels[target] = alias
             
         return target
             
