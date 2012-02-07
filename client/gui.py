@@ -830,7 +830,8 @@ class BitcoinGUI:
             target, signing_address, auth_name = self.wallet.read_alias(alias)
         except BaseException, e:
             # raise exception if verify fails (verify the chain)
-            self.show_message("Alias error: " + e.message)
+            if interactive:
+                self.show_message("Alias error: " + e.message)
             return
 
         print target, signing_address, auth_name
