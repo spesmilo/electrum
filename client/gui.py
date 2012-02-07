@@ -1245,10 +1245,10 @@ class BitcoinGUI:
             r = self.wallet.receipts.get(tx_hash)
             if r:
                 details += "\n_______________________________________" \
-                            + "\n\nSigned by: " + r[0] \
-                            + '\n\nSigned data: ' + r[2] \
-                            + '\n\nSignature: ' + r[1]
-            
+                           + "\n\nURI signed by: " + r[0] \
+                           + '\n\nSigned data: ' + r[2] \
+                           + '\n\nSignature: ' + r[1]
+                
 
             self.history_list.prepend( [tx_hash, conf_icon, time_str, label, is_default_label,
                                         format_satoshis(v,True), format_satoshis(balance), tooltip, details] )
