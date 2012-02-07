@@ -937,7 +937,13 @@ class BitcoinGUI:
             elif treeview == self.contacts_treeview:
                 m = self.addressbook_list.get_value( self.addressbook_list.get_iter(c), 0)
                 a = self.wallet.aliases.get(m)
-                if a: self.show_message('Alias:'+ m + '\n\nTarget: '+ a[1] + '\nSigned by: ' + a[0])
+                if a:
+                    if a[0] in self.wallet.authorities.keys():
+                        s = self.wallet.authorities.get(a[0])
+                    else:
+                        s = "self"
+                    msg = 'Alias:'+ m + '\n\nTarget: '+ a[1] + '\nSigned by: ' + s + '\nSigning address:' + a[0]
+                    self.show_message(msg)
             
 
     def treeview_key_press(self, treeview, event):
@@ -953,7 +959,13 @@ class BitcoinGUI:
             elif treeview == self.contacts_treeview:
                 m = self.addressbook_list.get_value( self.addressbook_list.get_iter(c), 0)
                 a = self.wallet.aliases.get(m)
-                if a: self.show_message('Alias:'+ m + '\n\nTarget: '+ a[1] + '\nSigned by: ' + a[0])
+                if a:
+                    if a[0] in self.wallet.authorities.keys():
+                        s = self.wallet.authorities.get(a[0])
+                    else:
+                        s = "self"
+                    msg = 'Alias:'+ m + '\n\nTarget: '+ a[1] + '\nSigned by: ' + s + '\nSigning address:' + a[0]
+                    self.show_message(msg)
 
         return False
 
