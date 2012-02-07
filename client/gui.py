@@ -1235,13 +1235,20 @@ class BitcoinGUI:
             if is_default_label: label = tx['default_label']
             tooltip = tx_hash + "\n%d confirmations"%conf 
 
-            tx = self.wallet.tx_history.get(tx_hash)
-            details = "Transaction Details:\n\n"
-            details+= "Transaction ID:\n" + tx_hash + "\n\n"
-            details+= "Status: %d confirmations\n\n"%conf
-            details+= "Date: %s\n\n"%time_str
-            details+= "Inputs:\n-"+ '\n-'.join(tx['inputs']) + "\n\n"
-            details+= "Outputs:\n-"+ '\n-'.join(tx['outputs'])
+            # tx = self.wallet.tx_history.get(tx_hash)
+            details = "Transaction Details:\n\n" \
+                      + "Transaction ID:\n" + tx_hash + "\n\n" \
+                      + "Status: %d confirmations\n\n"%conf  \
+                      + "Date: %s\n\n"%time_str \
+                      + "Inputs:\n-"+ '\n-'.join(tx['inputs']) + "\n\n" \
+                      + "Outputs:\n-"+ '\n-'.join(tx['outputs'])
+            r = self.wallet.receipts.get(tx_hash)
+            if r:
+                details += "\n_______________________________________" \
+                            + "\n\nSigned by: " + r[0] \
+                            + '\n\nSigned data: ' + r[2] \
+                            + '\n\nSignature: ' + r[1]
+            
 
             self.history_list.prepend( [tx_hash, conf_icon, time_str, label, is_default_label,
                                         format_satoshis(v,True), format_satoshis(balance), tooltip, details] )
