@@ -19,6 +19,9 @@
 
 import random, socket, ast
 
+        
+
+
 class Interface:
     def __init__(self):
         self.servers = ['ecdsa.org','electrum.novit.ro']  # list of default servers

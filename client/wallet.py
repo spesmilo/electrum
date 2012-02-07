@@ -17,8 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import sys, base64, os, re, hashlib, socket, getpass, copy, operator, ast, random
-from decimal import Decimal
+import sys, base64, os, re, hashlib, copy, operator, ast
 
 try:
     import ecdsa  
@@ -151,10 +150,6 @@ def int_to_hex(i, length=1):
     return s.decode('hex')[::-1].encode('hex')
 
 
-# URL decode
-_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
-urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
-
 # AES
 EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
 DecodeAES = lambda secret, e: aes.decryptData(secret, base64.b64decode(e))
@@ -218,9 +213,19 @@ def raw_tx( inputs, outputs, for_sig = None ):
 
 
 
+def format_satoshis(x, is_diff=False):
+    from decimal import Decimal
+    s = str( Decimal(x) /100000000 )
+    if is_diff and x>0:
+        s = "+" + s
+    if not '.' in s: s += '.'
+    p = s.find('.')
+    s += " "*( 9 - ( len(s) - p ))
+    s = " "*( 5 - ( p )) + s
+    return s
+
+
 from version import ELECTRUM_VERSION, SEED_VERSION
-
-
 
 
 
@@ -242,6 +247,11 @@ class Wallet:
         self.status = {}             # current status of addresses
         self.history = {}
         self.labels = {}             # labels for addresses and transactions
+        self.aliases = {}            # aliases for addresses
+        self.authorities = {}        # trusted addresses
+        
+        self.receipts = {}           # signed URIs
+        self.receipt = None          # next receipt
         self.addressbook = []        # outgoing addresses, for payments
 
         # not saved
@@ -287,7 +297,7 @@ class Wallet:
         seed = "%032x"%ecdsa.util.randrange( pow(2,128) )
         self.init_mpk(seed)
         # encrypt
-        self.seed = wallet.pw_encode( seed, password )
+        self.seed = self.pw_encode( seed, password )
 
     def init_mpk(self,seed):
         # public key
@@ -323,7 +333,7 @@ class Wallet:
     def get_sequence(self,n,for_change):
         return string_to_number( Hash( "%d:%d:"%(n,for_change) + self.master_public_key ) )
 
-    def get_private_key2(self, address, password):
+    def get_private_key(self, address, password):
         """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
         order = generator_secp256k1.order()
         
@@ -346,10 +356,65 @@ class Wallet:
 
         pk = number_to_string(secexp,order)
         return pk
-            
-            
 
-    def create_new_address2(self, for_change):
+    def msg_magic(self, message):
+        return "\x18Bitcoin Signed Message:\n" + chr( len(message) ) + message
+
+    def sign_message(self, address, message, password):
+        private_key = ecdsa.SigningKey.from_string( self.get_private_key(address, password), curve = SECP256k1 )
+        public_key = private_key.get_verifying_key()
+        signature = private_key.sign_digest( Hash( self.msg_magic( message ) ), sigencode = ecdsa.util.sigencode_string )
+        assert public_key.verify_digest( signature, Hash( self.msg_magic( message ) ), sigdecode = ecdsa.util.sigdecode_string)
+        for i in range(4):
+            sig = base64.b64encode( chr(27+i) + signature )
+            try:
+                self.verify_message( address, sig, message)
+                return sig
+            except:
+                continue
+        else:
+            raise BaseException("error: cannot sign message")
+        
+            
+    def verify_message(self, address, signature, message):
+        """ See http://www.secg.org/download/aid-780/sec1-v2.pdf for the math """
+        from ecdsa import numbertheory, ellipticcurve, util
+        import msqr
+        curve = curve_secp256k1
+        G = generator_secp256k1
+        order = G.order()
+        # extract r,s from signature
+        sig = base64.b64decode(signature)
+        if len(sig) != 65: raise BaseException("Wrong encoding")
+        r,s = util.sigdecode_string(sig[1:], order)
+        recid = ord(sig[0]) - 27
+        # 1.1
+        x = r + (recid/2) * order
+        # 1.3
+        alpha = ( x * x * x  + curve.a() * x + curve.b() ) % curve.p()
+        beta = msqr.modular_sqrt(alpha, curve.p())
+        y = beta if (beta - recid) % 2 == 0 else curve.p() - beta
+        # 1.4 the constructor checks that nR is at infinity
+        R = ellipticcurve.Point(curve, x, y, order)
+        # 1.5 compute e from message:
+        h = Hash( self.msg_magic( message ) )
+        e = string_to_number(h)
+        minus_e = -e % order
+        # 1.6 compute Q = r^-1 (sR - eG)
+        inv_r = numbertheory.inverse_mod(r,order)
+        Q = inv_r * ( s * R + minus_e * G )
+        public_key = ecdsa.VerifyingKey.from_public_point( Q, curve = SECP256k1 )
+        # check that Q is the public key
+        public_key.verify_digest( sig[1:], h, sigdecode = ecdsa.util.sigdecode_string)
+        # check that we get the original signing address
+        addr = public_key_to_bc_address( '04'.decode('hex') + public_key.to_string() )
+        # print addr
+        if address != addr:
+            print "bad signature"
+            raise BaseException("Bad signature")
+    
+
+    def create_new_address(self, for_change):
         """   Publickey(type,n) = Master_public_key + H(n|S|type)*point  """
         curve = SECP256k1
         n = len(self.change_addresses) if for_change else len(self.addresses)
@@ -374,12 +439,12 @@ class Wallet:
         is_new = False
         while True:
             if self.change_addresses == []:
-                self.create_new_address2(True)
+                self.create_new_address(True)
                 is_new = True
                 continue
             a = self.change_addresses[-1]
             if self.history.get(a):
-                self.create_new_address2(True)
+                self.create_new_address(True)
                 is_new = True
             else:
                 break
@@ -387,13 +452,13 @@ class Wallet:
         n = self.gap_limit
         while True:
             if len(self.addresses) < n:
-                self.create_new_address2(False)
+                self.create_new_address(False)
                 is_new = True
                 continue
             if map( lambda a: self.history.get(a), self.addresses[-n:] ) == n*[[]]:
                 break
             else:
-                self.create_new_address2(False)
+                self.create_new_address(False)
                 is_new = True
 
 
@@ -427,6 +492,9 @@ class Wallet:
             'labels':self.labels,
             'contacts':self.addressbook,
             'imported_keys':self.imported_keys,
+            'aliases':self.aliases,
+            'authorities':self.authorities,
+            'receipts':self.receipts,
             }
         f = open(self.path,"w")
         f.write( repr(s) )
@@ -457,6 +525,9 @@ class Wallet:
             self.labels = d.get('labels')
             self.addressbook = d.get('contacts')
             self.imported_keys = d.get('imported_keys',{})
+            self.aliases = d.get('aliases',{})
+            self.authorities = d.get('authorities',{})
+            self.receipts = d.get('receipts',{})
         except:
             raise BaseException(upgrade_msg)
 
@@ -473,7 +544,7 @@ class Wallet:
             if not self.history.get(addr): 
                 n = n + 1
         if n < self.gap_limit:
-            new_address = self.create_new_address2(False)
+            new_address = self.create_new_address(False)
             self.history[new_address] = [] #get from server
             return True, new_address
         else:
@@ -559,7 +630,7 @@ class Wallet:
         s_inputs = []
         for i in range(len(inputs)):
             addr, v, p_hash, p_pos, p_scriptPubKey, _, _ = inputs[i]
-            private_key = ecdsa.SigningKey.from_string( self.get_private_key2(addr, password), curve = SECP256k1 )
+            private_key = ecdsa.SigningKey.from_string( self.get_private_key(addr, password), curve = SECP256k1 )
             public_key = private_key.get_verifying_key()
             pubkey = public_key.to_string()
             tx = filter( raw_tx( inputs, outputs, for_sig = i ) )
@@ -634,19 +705,19 @@ class Wallet:
     def mktx(self, to_address, amount, label, password, fee=None):
         if not self.is_valid(to_address):
             raise BaseException("Invalid address")
-        inputs, total, fee = wallet.choose_tx_inputs( amount, fee )
+        inputs, total, fee = self.choose_tx_inputs( amount, fee )
         if not inputs:
             raise BaseException("Not enough funds")
-        outputs = wallet.choose_tx_outputs( to_address, amount, fee, total )
-        s_inputs = wallet.sign_inputs( inputs, outputs, password )
+        outputs = self.choose_tx_outputs( to_address, amount, fee, total )
+        s_inputs = self.sign_inputs( inputs, outputs, password )
 
         tx = filter( raw_tx( s_inputs, outputs ) )
         if to_address not in self.addressbook:
             self.addressbook.append(to_address)
         if label: 
             tx_hash = Hash(tx.decode('hex') )[::-1].encode('hex')
-            wallet.labels[tx_hash] = label
-        wallet.save()
+            self.labels[tx_hash] = label
+        self.save()
         return tx
 
     def sendtx(self, tx):
@@ -654,5 +725,51 @@ class Wallet:
         out = self.interface.send_tx(tx)
         if out != tx_hash:
             return False, "error: " + out
+        if self.receipt:
+            self.receipts[tx_hash] = self.receipt
+            self.receipt = None
         return True, out
 
+
+    def read_alias(self, alias):
+        # this might not be the right place for this function.
+        import urllib
+
+        m1 = re.match('([\w\-\.]+)@((\w[\w\-]+\.)+[\w\-]+)', alias)
+        m2 = re.match('((\w[\w\-]+\.)+[\w\-]+)', alias)
+        if m1:
+            url = 'http://' + m1.group(2) + '/bitcoin.id/' + m1.group(1) 
+        elif m2:
+            url = 'http://' + alias + '/bitcoin.id'
+        else:
+            return ''
+        try:
+            lines = urllib.urlopen(url).readlines()
+        except:
+            return ''
+
+        # line 0
+        line = lines[0].strip().split(':')
+        if len(line) == 1:
+            auth_name = None
+            target = signing_addr = line[0]
+        else:
+            target, auth_name, signing_addr, signature = line
+            msg = "alias:%s:%s:%s"%(alias,target,auth_name)
+            print msg, signature
+            self.verify_message(signing_addr, signature, msg)
+        
+        # other lines are signed updates
+        for line in lines[1:]:
+            line = line.strip()
+            if not line: continue
+            line = line.split(':')
+            previous = target
+            print repr(line)
+            target, signature = line
+            self.verify_message(previous, signature, "alias:%s:%s"%(alias,target))
+
+        if not self.is_valid(target):
+            raise BaseException("Invalid bitcoin address")
+
+        return target, signing_addr, auth_name

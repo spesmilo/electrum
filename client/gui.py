@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import datetime
-import thread, time, ast, sys
+import thread, time, ast, sys, re
 import socket, traceback
 import pygtk
 pygtk.require('2.0')
@@ -28,12 +28,7 @@ from decimal import Decimal
 gtk.gdk.threads_init()
 APP_NAME = "Electrum"
 
-def format_satoshis(x):
-    s = str( Decimal(x) /100000000 )
-    if not '.' in s: s += '.'
-    p = s.find('.')
-    s += " "*( 9 - ( len(s) - p ))
-    return s
+from wallet import format_satoshis
 
 def numbify(entry, is_int = False):
     text = entry.get_text().strip()
@@ -124,6 +119,7 @@ def init_wallet(wallet):
 
         else:
             # ask for the server.
+            wallet.interface.get_servers()
             run_network_dialog( wallet, parent=None )
 
             # ask for seed and gap.
@@ -370,8 +366,9 @@ def run_network_dialog( wallet, parent ):
     if host!= wallet.interface.host or port!=wallet.interface.port:
         wallet.interface.host = host
         wallet.interface.set_port( port )
-        wallet.save()
         wallet.interface.is_connected = False
+        if parent:
+            wallet.save()
 
 
 
@@ -399,8 +396,8 @@ def password_line(label):
     password.show()
     return password, password_entry
 
-def password_dialog():
-    dialog = gtk.MessageDialog( None, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+def password_dialog(parent):
+    dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                                 gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL,  "Please enter your password.")
     dialog.get_image().set_visible(False)
     current_pw, current_pw_entry = password_line('Password:')
@@ -529,7 +526,7 @@ class BitcoinGUI:
 
         def seedb(w, wallet):
             if wallet.use_encryption:
-                password = password_dialog()
+                password = password_dialog(self.window)
                 if not password: return
             else: password = None
             show_seed_dialog(wallet, password, self.window)
@@ -568,7 +565,7 @@ class BitcoinGUI:
 
         self.window.add(vbox)
         self.window.show_all()
-        self.fee_box.hide()
+        #self.fee_box.hide()
 
         self.context_id = self.status_bar.get_context_id("statusbar")
         self.update_status_bar()
@@ -577,6 +574,27 @@ class BitcoinGUI:
             while True:
                 gobject.idle_add( self.update_status_bar )
                 time.sleep(0.5)
+
+
+        def check_recipient_thread():
+            old_r = ''
+            while True:
+                time.sleep(0.5)
+                if self.payto_entry.is_focus():
+                    continue
+                r = self.payto_entry.get_text()
+                if r != old_r:
+                    old_r = r
+                    r = r.strip()
+                    if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r):
+                        try:
+                            to_address = self.get_alias(r, interactive=False)
+                        except:
+                            continue
+                        if to_address:
+                            s = r + ' <' + to_address + '>'
+                            gobject.idle_add( lambda: self.payto_entry.set_text(s) )
+                
 
         def update_wallet_thread():
             while True:
@@ -625,6 +643,7 @@ class BitcoinGUI:
                     
         thread.start_new_thread(update_wallet_thread, ())
         thread.start_new_thread(update_status_bar_thread, ())
+        thread.start_new_thread(check_recipient_thread, ())
         self.notebook.set_current_page(0)
 
 
@@ -635,59 +654,67 @@ class BitcoinGUI:
 
 
     def create_send_tab(self):
-
+        
         page = vbox = gtk.VBox()
         page.show()
 
         payto = gtk.HBox()
         payto_label = gtk.Label('Pay to:')
-        payto_label.set_size_request(100,10)
-        payto_label.show()
+        payto_label.set_size_request(100,-1)
         payto.pack_start(payto_label, False)
         payto_entry = gtk.Entry()
-        payto_entry.set_size_request(350, 26)
-        payto_entry.show()
+        payto_entry.set_size_request(450, 26)
         payto.pack_start(payto_entry, False)
         vbox.pack_start(payto, False, False, 5)
-        
-        label = gtk.HBox()
-        label_label = gtk.Label('Label:')
-        label_label.set_size_request(100,10)
-        label_label.show()
-        label.pack_start(label_label, False)
-        label_entry = gtk.Entry()
-        label_entry.set_size_request(350, 26)
-        label_entry.show()
-        label.pack_start(label_entry, False)
-        vbox.pack_start(label, False, False, 5)
+
+        message = gtk.HBox()
+        message_label = gtk.Label('Description:')
+        message_label.set_size_request(100,-1)
+        message.pack_start(message_label, False)
+        message_entry = gtk.Entry()
+        message_entry.set_size_request(450, 26)
+        message.pack_start(message_entry, False)
+        vbox.pack_start(message, False, False, 5)
 
         amount_box = gtk.HBox()
         amount_label = gtk.Label('Amount:')
         amount_label.set_size_request(100,-1)
-        amount_label.show()
         amount_box.pack_start(amount_label, False)
         amount_entry = gtk.Entry()
         amount_entry.set_size_request(120, -1)
-        amount_entry.show()
         amount_box.pack_start(amount_entry, False)
         vbox.pack_start(amount_box, False, False, 5)
 
-        send_button = gtk.Button("Send")
-        send_button.show()
-        amount_box.pack_start(send_button, False, False, 5)
-
         self.fee_box = fee_box = gtk.HBox()
         fee_label = gtk.Label('Fee:')
-        fee_label.set_size_request(100,10)
+        fee_label.set_size_request(100,-1)
         fee_box.pack_start(fee_label, False)
         fee_entry = gtk.Entry()
-        fee_entry.set_size_request(120, 26)
-        fee_entry.set_has_frame(False)
-        fee_entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#eeeeee"))
+        fee_entry.set_size_request(60, 26)
         fee_box.pack_start(fee_entry, False)
-
-        send_button.connect("clicked", self.do_send, (payto_entry, label_entry, amount_entry, fee_entry))
         vbox.pack_start(fee_box, False, False, 5)
+
+        end_box = gtk.HBox()
+        empty_label = gtk.Label('')
+        empty_label.set_size_request(100,-1)
+        end_box.pack_start(empty_label, False)
+        send_button = gtk.Button("Send")
+        send_button.show()
+        end_box.pack_start(send_button, False, False, 0)
+        clear_button = gtk.Button("Clear")
+        clear_button.show()
+        end_box.pack_start(clear_button, False, False, 15)
+        send_button.connect("clicked", self.do_send, (payto_entry, message_entry, amount_entry, fee_entry))
+        clear_button.connect("clicked", self.do_clear, (payto_entry, message_entry, amount_entry, fee_entry))
+
+        vbox.pack_start(end_box, False, False, 5)
+
+        # display this line only if there is a signature
+        payto_sig = gtk.HBox()
+        payto_sig_id = gtk.Label('')
+        payto_sig.pack_start(payto_sig_id, False)
+        vbox.pack_start(payto_sig, True, True, 5)
+        
 
         self.user_fee = False
 
@@ -696,7 +723,8 @@ class BitcoinGUI:
             fee = numbify(fee_entry)
             if not is_fee: fee = None
             if amount is None: 
-                self.fee_box.hide(); return
+                #self.fee_box.hide();
+                return
             inputs, total, fee = self.wallet.choose_tx_inputs( amount, fee )
             if not is_fee:
                 fee_entry.set_text( str( Decimal( fee ) / 100000000 ) )
@@ -713,25 +741,68 @@ class BitcoinGUI:
                 self.error = 'Not enough funds'
 
         amount_entry.connect('changed', entry_changed, False)
-        fee_entry.connect('changed', entry_changed, True)
+        fee_entry.connect('changed', entry_changed, True)        
 
         self.payto_entry = payto_entry
-        self.payto_amount_entry = amount_entry
-        self.payto_label_entry = label_entry
+        self.payto_fee_entry = fee_entry
+        self.payto_sig_id = payto_sig_id
+        self.payto_sig = payto_sig
+        self.amount_entry = amount_entry
+        self.message_entry = message_entry
         self.add_tab(page, 'Send')
 
-    def set_send_tab(self, address, amount, label):
+    def set_frozen(self,entry,frozen):
+        if frozen:
+            entry.set_editable(False)
+            entry.set_has_frame(False)
+            entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#eeeeee"))
+        else:
+            entry.set_editable(True)
+            entry.set_has_frame(True)
+            entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#ffffff"))
+
+
+    def set_send_tab(self, payto, amount, message, label, identity, signature, cmd):
         self.notebook.set_current_page(1)
-        self.payto_entry.set_text(address)
-        self.payto_label_entry.set_text(label)
-        self.payto_amount_entry.set_text(amount)
+
+        if signature:
+            if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', identity):
+                signing_address = self.get_alias(identity, interactive = True)
+            elif self.wallet.is_valid(identity):
+                signing_address = identity
+            else:
+                signing_address = None
+            if not signing_address:
+                return
+            try:
+                self.wallet.verify_message(signing_address, signature, cmd )
+                self.wallet.receipt = (signing_address, signature, cmd)
+            except:
+                self.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.')
+                payto = amount = label = identity = message = ''
+
+        # redundant with aliases
+        #if label and payto:
+        #    self.labels[payto] = label
+        if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', payto):
+            payto_address = self.get_alias(payto, interactive=True)
+            if payto_address:
+                payto = payto + ' <' + payto_address + '>'
+
+        self.payto_entry.set_text(payto)
+        self.message_entry.set_text(message)
+        self.amount_entry.set_text(amount)
+        if identity:
+            self.set_frozen(self.payto_entry,True)
+            self.set_frozen(self.amount_entry,True)
+            self.set_frozen(self.message_entry,True)
+            self.payto_sig_id.set_text( '      The bitcoin URI was signed by ' + identity )
+        else:
+            self.payto_sig.set_visible(False)
 
     def create_about_tab(self):
         page = gtk.VBox()
         page.show()
-        #self.info = gtk.Label('')  
-        #self.info.set_selectable(True)
-        #page.pack_start(self.info)
         tv = gtk.TextView()
         tv.set_editable(False)
         tv.set_cursor_visible(False)
@@ -739,14 +810,84 @@ class BitcoinGUI:
         self.info = tv.get_buffer()
         self.add_tab(page, 'Wall')
 
+    def do_clear(self, w, data):
+        self.payto_sig.set_visible(False)
+        self.payto_fee_entry.set_text('')
+        for entry in [self.payto_entry,self.amount_entry,self.message_entry]:
+            self.set_frozen(entry,False)
+            entry.set_text('')
+
+
+    def question(self,msg):
+        dialog = gtk.MessageDialog( self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, msg)
+        dialog.show()
+        result = dialog.run()
+        dialog.destroy()
+        return result == gtk.RESPONSE_OK
+
+    def get_alias(self, alias, interactive = False):
+        try:
+            target, signing_address, auth_name = self.wallet.read_alias(alias)
+        except BaseException, e:
+            # raise exception if verify fails (verify the chain)
+            if interactive:
+                self.show_message("Alias error: " + e.message)
+            return
+
+        print target, signing_address, auth_name
+
+        if auth_name is None:
+            a = self.wallet.aliases.get(alias)
+            if not a:
+                msg = "Warning: the alias '%s' is self-signed. The signing address is %s. Do you want to trust this alias?"%(alias,signing_address)
+                if interactive and self.question( msg ):
+                    self.wallet.aliases[alias] = (signing_address, target)
+                else:
+                    target = None
+            else:
+                if signing_address != a[0]:
+                    msg = "Warning: the key of alias '%s' has changed since your last visit! It is possible that someone is trying to do something nasty!!!\nDo you accept to change your trusted key?"%alias
+                    if interactive and self.question( msg ):
+                        self.wallet.aliases[alias] = (signing_address, target)
+                    else:
+                        target = None
+        else:
+            if signing_address not in self.wallet.authorities.keys():
+                msg = "The alias: '%s' links to %s\n\nWarning: this alias was signed by an unknown key.\nSigning authority: %s\nSigning address: %s\n\nDo you want to add this key to your list of trusted keys?"%(alias,target,auth_name,signing_address)
+                if interactive and self.question( msg ):
+                    self.wallet.authorities[signing_address] = auth_name
+                else:
+                    target = None
+
+        if target:
+            self.wallet.aliases[alias] = (signing_address, target)
+            self.update_sending_tab()
+
+            
+        return target
+            
+
+
     def do_send(self, w, data):
         payto_entry, label_entry, amount_entry, fee_entry = data
-        
         label = label_entry.get_text()
+        r = payto_entry.get_text()
+        r = r.strip()
 
-        to_address = payto_entry.get_text()
+        m1 = re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r)
+        m2 = re.match('(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+) \<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
+        
+        if m1:
+            to_address = self.get_alias(r, interactive = True)
+            if not to_address:
+                return
+        elif m2:
+            to_address = m2.group(5)
+        else:
+            to_address = r
+
         if not self.wallet.is_valid(to_address):
-            self.show_message( "invalid bitcoin address")
+            self.show_message( "invalid bitcoin address:\n"+to_address)
             return
 
         try:
@@ -761,7 +902,7 @@ class BitcoinGUI:
             return
 
         if self.wallet.use_encryption:
-            password = password_dialog()
+            password = password_dialog(self.window)
             if not password:
                 return
         else:
@@ -782,7 +923,7 @@ class BitcoinGUI:
             label_entry.set_text("")
             amount_entry.set_text("")
             fee_entry.set_text("")
-            self.fee_box.hide()
+            #self.fee_box.hide()
             self.update_sending_tab()
         else:
             self.show_message( msg )
@@ -791,8 +932,20 @@ class BitcoinGUI:
     def treeview_button_press(self, treeview, event):
         if event.type == gtk.gdk._2BUTTON_PRESS:
             c = treeview.get_cursor()[0]
-            tx_details = self.history_list.get_value( self.history_list.get_iter(c), 8)
-            self.show_message(tx_details)
+            if treeview == self.history_treeview:
+                tx_details = self.history_list.get_value( self.history_list.get_iter(c), 8)
+                self.show_message(tx_details)
+            elif treeview == self.contacts_treeview:
+                m = self.addressbook_list.get_value( self.addressbook_list.get_iter(c), 0)
+                a = self.wallet.aliases.get(m)
+                if a:
+                    if a[0] in self.wallet.authorities.keys():
+                        s = self.wallet.authorities.get(a[0])
+                    else:
+                        s = "self"
+                    msg = 'Alias:'+ m + '\n\nTarget: '+ a[1] + '\nSigned by: ' + s + '\nSigning address:' + a[0]
+                    self.show_message(msg)
+            
 
     def treeview_key_press(self, treeview, event):
         c = treeview.get_cursor()[0]
@@ -800,9 +953,21 @@ class BitcoinGUI:
             if c and c[0] == 0:
                 treeview.parent.grab_focus()
                 treeview.set_cursor((0,))
-        elif event.keyval == gtk.keysyms.Return and treeview == self.history_treeview:
-            tx_details = self.history_list.get_value( self.history_list.get_iter(c), 8)
-            self.show_message(tx_details)
+        elif event.keyval == gtk.keysyms.Return:
+            if treeview == self.history_treeview:
+                tx_details = self.history_list.get_value( self.history_list.get_iter(c), 8)
+                self.show_message(tx_details)
+            elif treeview == self.contacts_treeview:
+                m = self.addressbook_list.get_value( self.addressbook_list.get_iter(c), 0)
+                a = self.wallet.aliases.get(m)
+                if a:
+                    if a[0] in self.wallet.authorities.keys():
+                        s = self.wallet.authorities.get(a[0])
+                    else:
+                        s = "self"
+                    msg = 'Alias:'+ m + '\n\nTarget: '+ a[1] + '\nSigned by: ' + s + '\nSigning address:' + a[0]
+                    self.show_message(msg)
+
         return False
 
     def create_history_tab(self):
@@ -827,7 +992,7 @@ class BitcoinGUI:
         tvcolumn.pack_start(cell, False)
         tvcolumn.add_attribute(cell, 'text', 2)
 
-        tvcolumn = gtk.TreeViewColumn('Label')
+        tvcolumn = gtk.TreeViewColumn('Description')
         treeview.append_column(tvcolumn)
         cell = gtk.CellRendererText()
         cell.set_property('foreground', 'grey')
@@ -892,7 +1057,10 @@ class BitcoinGUI:
         liststore = self.recv_list if is_recv else self.addressbook_list
         treeview = gtk.TreeView(model= liststore)
         treeview.connect('key-press-event', self.treeview_key_press)
+        treeview.connect('button-press-event', self.treeview_button_press)
         treeview.show()
+        if not is_recv:
+            self.contacts_treeview = treeview
 
         tvcolumn = gtk.TreeViewColumn('Address')
         treeview.append_column(tvcolumn)
@@ -993,7 +1161,7 @@ class BitcoinGUI:
                     address =  liststore.get_value( liststore.get_iter(path), 0)
                     self.payto_entry.set_text( address )
                     self.notebook.set_current_page(1)
-                    self.payto_amount_entry.grab_focus()
+                    self.amount_entry.grab_focus()
 
             button.connect("clicked", payto, treeview, liststore)
             button.show()
@@ -1013,7 +1181,7 @@ class BitcoinGUI:
             self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
             self.network_button.set_tooltip_text("Trying to contact %s.\n%d blocks"%(self.wallet.interface.host, self.wallet.interface.blocks))
         text =  "Balance: %s "%( format_satoshis(c) )
-        if u: text +=  "[+ %s unconfirmed]"%( format_satoshis(u) )
+        if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True) )
         if self.error: text = self.error
         self.status_bar.pop(self.context_id) 
         self.status_bar.push(self.context_id, text) 
@@ -1033,6 +1201,11 @@ class BitcoinGUI:
     def update_sending_tab(self):
         # detect addresses that are not mine in history, add them here...
         self.addressbook_list.clear()
+        for alias, v in self.wallet.aliases.items():
+            s, target = v
+            label = self.wallet.labels.get(alias)
+            self.addressbook_list.append((alias, label, '-'))
+            
         for address in self.wallet.addressbook:
             label = self.wallet.labels.get(address)
             n = 0 
@@ -1062,16 +1235,23 @@ class BitcoinGUI:
             if is_default_label: label = tx['default_label']
             tooltip = tx_hash + "\n%d confirmations"%conf 
 
-            tx = self.wallet.tx_history.get(tx_hash)
-            details = "Transaction Details:\n\n"
-            details+= "Transaction ID:\n" + tx_hash + "\n\n"
-            details+= "Status: %d confirmations\n\n"%conf
-            details+= "Date: %s\n\n"%time_str
-            details+= "Inputs:\n-"+ '\n-'.join(tx['inputs']) + "\n\n"
-            details+= "Outputs:\n-"+ '\n-'.join(tx['outputs'])
+            # tx = self.wallet.tx_history.get(tx_hash)
+            details = "Transaction Details:\n\n" \
+                      + "Transaction ID:\n" + tx_hash + "\n\n" \
+                      + "Status: %d confirmations\n\n"%conf  \
+                      + "Date: %s\n\n"%time_str \
+                      + "Inputs:\n-"+ '\n-'.join(tx['inputs']) + "\n\n" \
+                      + "Outputs:\n-"+ '\n-'.join(tx['outputs'])
+            r = self.wallet.receipts.get(tx_hash)
+            if r:
+                details += "\n_______________________________________" \
+                           + '\n\nSigned URI: ' + r[2] \
+                           + "\n\nSigned by: " + r[0] \
+                           + '\n\nSignature: ' + r[1]
+                
 
             self.history_list.prepend( [tx_hash, conf_icon, time_str, label, is_default_label,
-                                        ('+' if v>0 else '') + format_satoshis(v), format_satoshis(balance), tooltip, details] )
+                                        format_satoshis(v,True), format_satoshis(balance), tooltip, details] )
         if cursor: self.history_treeview.set_cursor( cursor )
 
 
