@@ -763,6 +763,8 @@ class BitcoinGUI:
 
 
     def set_send_tab(self, payto, amount, message, label, identity, signature, cmd):
+        self.notebook.set_current_page(1)
+
         if signature:
             if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', identity):
                 signing_address = self.get_alias(identity, interactive = True)
@@ -777,13 +779,15 @@ class BitcoinGUI:
                 self.wallet.receipt = (signing_address, signature, cmd)
             except:
                 self.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.')
-                payto = amount = label = identity = ''
+                payto = amount = label = identity = message = ''
 
         # redundant with aliases
         #if label and payto:
         #    self.labels[payto] = label
+        payto_address = self.get_alias(payto, interactive=True)
+        if payto_address:
+            payto = payto + ' <' + payto_address + '>'
 
-        self.notebook.set_current_page(1)
         self.payto_entry.set_text(payto)
         self.message_entry.set_text(message)
         self.amount_entry.set_text(amount)
@@ -807,6 +811,7 @@ class BitcoinGUI:
 
     def do_clear(self, w, data):
         self.payto_sig.set_visible(False)
+        self.payto_fee_entry.set_text('')
         for entry in [self.payto_entry,self.amount_entry,self.message_entry]:
             self.set_frozen(entry,False)
             entry.set_text('')
@@ -832,14 +837,16 @@ class BitcoinGUI:
         if auth_name is None:
             a = self.wallet.aliases.get(alias)
             if not a:
-                if interactive and self.question( "Warning: the alias '%s' is self-signed. Do you want to trust address %s ?"%(alias,signing_address) ):
+                if interactive and self.question( "Warning: the alias '%s' is unsigned. Do you want to trust the address %s ?"%(alias,signing_address) ):
                     self.wallet.aliases[alias] = signing_address
+                    self.wallet.labels[target] = alias
                 else:
                     target = None
             else:
                 if signing_address != a:
                     if interactive and self.question( "Warning: the signing key of %s does not match its previously known value! It is possible that someone is trying to do something nasty!!!\nDo you wish to accept the new key?"%alias ):
                         self.wallet.aliases[alias] = signing_address
+                        self.wallet.labels[target] = alias
                     else:
                         target = None
         else:
@@ -847,6 +854,7 @@ class BitcoinGUI:
                 if interactive and self.question( "The alias: '%s' links to %s\n\nWarning: this alias was signed by an unknown key.\nSigning authority: %s\nSigning address: %s\n\nDo you want to add this key to your list of trusted keys?"\
                                   %(alias,target,auth_name,signing_address)):
                     self.wallet.authorities[signing_address] = auth_name
+                    self.wallet.labels[target] = alias
                 else:
                     target = None
             
