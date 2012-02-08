@@ -31,7 +31,7 @@ urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 from wallet import format_satoshis
 
 if __name__ == '__main__':
-    known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'paytoch', 'payfromto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed','import','signmessage','verifymessage','eval']
+    known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed','import','signmessage','verifymessage','eval']
 
     usage = "usage: %prog [options] command args\nCommands: "+ (', '.join(known_commands))
 
@@ -41,6 +41,8 @@ if __name__ == '__main__':
     parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance at listed addresses")
     parser.add_option("-k", "--keys",action="store_true", dest="show_keys",default=False, help="show the private keys of listed addresses")
     parser.add_option("-f", "--fee", dest="tx_fee", default="0.005", help="set tx fee")
+    parser.add_option("-s", "--fromaddr", dest="from_addr", default=None, help="set source address for payto/mktx. if it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet.")
+    parser.add_option("-c", "--changeaddr", dest="change_addr", default=None, help="set the change address for payto/mktx. default is a spare address, or the source address if it's not in the wallet")
     options, args = parser.parse_args()
     try:
         cmd = args[0]
@@ -137,19 +139,12 @@ if __name__ == '__main__':
             wallet.synchronize()
 
     # check syntax
-    if cmd in ['payto', 'mktx', 'paytoch', 'payfromto']:
-        offset = 0
-        if cmd == 'payfromto':
-            offset = 1
+    if cmd in ['payto', 'mktx']:
         try:
-            to_address = args[offset+1]
-            amount = int( 100000000 * Decimal(args[offset+2]) )
+            to_address = args[1]
+            amount = int( 100000000 * Decimal(args[2]) )
             change_addr = None
-            if cmd == 'paytoch':
-                change_addr = args[offset+3]
-                label = ' '.join(args[offset+4:])
-            else:
-                label = ' '.join(args[offset+3:])
+            label = ' '.join(args[3:])
             if options.tx_fee: 
                 options.tx_fee = int( 100000000 * Decimal(options.tx_fee) )
         except:
@@ -163,7 +158,7 @@ if __name__ == '__main__':
         wallet.save()
 
     # commands needing password
-    if cmd in ['payto', 'paytoch', 'payfromto', 'password', 'mktx', 'seed', 'import','signmessage' ] or ( cmd=='addresses' and options.show_keys):
+    if cmd in ['payto', 'password', 'mktx', 'seed', 'import','signmessage' ] or ( cmd=='addresses' and options.show_keys):
         password = getpass.getpass('Password:') if wallet.use_encryption else None
         # check password
         try:
@@ -194,16 +189,7 @@ if __name__ == '__main__':
             print "payto <recipient> <amount> [label]"
             print "create and broadcast a transaction."
             print "<recipient> can be a bitcoin address or a label"
-        elif cmd2 == 'paytoch':
-            print "paytoch <recipient> <amount> <change address> [label]"
-            print "create and broadcast a transaction, returning change to a custom address."
-            print "<recipient> and <change address> can be a bitcoin address or a label"
-        elif cmd2 == 'payfromto':
-            print "payfromto <public key>[:<private key>] <recipient> <amount>"
-            print "create and broadcast a transaction, from the address <public key> to <recipient>, without saving the address to the wallet."
-            print "it sends back the change to the same source address."
-            print "<recipient> can be a bitcoin address or a label."
-            print "if you omit <private key>, it will ask you for the key."
+            print "options: --fromaddr, --changeaddr"
         elif cmd2== 'sendtx':
             print "sendtx <tx>"
             print "broadcast a transaction to the network. <tx> must be in hexadecimal"
@@ -222,6 +208,7 @@ if __name__ == '__main__':
         elif cmd2 == 'mktx':
             print "create a signed transaction. password protected"
             print "syntax: mktx <recipient> <amount> [label]"
+            print "options: --fromaddr, --changeaddr"
         elif cmd2 == 'seed':
             print "show generation seed of your wallet. password protected."
         elif cmd2 == 'eval':
@@ -313,14 +300,14 @@ if __name__ == '__main__':
         wallet.labels[tx] = label
         wallet.save()
             
-    elif cmd in ['payto', 'mktx', 'paytoch', 'payfromto']:
-        if cmd == 'payfromto':
+    elif cmd in ['payto', 'mktx']:
+        if options.from_addr:
             #temporally import key and remove the other addresses
-            keypair = args[1]
+            addr = options.from_addr
+            if addr.find(":") == -1:
+                addr = addr + ":" + getpass.getpass('Private key:')
             wallet.imported_keys = {}
-            if keypair.find(":") == -1:
-                keypair = keypair + ":" + getpass.getpass('Private key:')
-            if not wallet.import_key(keypair,password):
+            if not wallet.import_key(options.from_addr,password):
                 print "invalid key pair"
                 exit(1)
             addr = wallet.imported_keys.keys()[0]
@@ -333,6 +320,8 @@ if __name__ == '__main__':
             save = False
         else:
             save = True
+        if options.change_addr:
+            change_addr = options.change_addr
         for k, v in wallet.labels.items():
             if v == to_address:
                 to_address = k
@@ -347,7 +336,7 @@ if __name__ == '__main__':
             print e
             tx = None
 
-        if tx and cmd in ['payto', 'paytoch', 'payfromto']: 
+        if tx and cmd=='payto': 
             r, h = wallet.sendtx( tx )
             print h
         else:
