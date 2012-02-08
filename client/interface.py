@@ -162,7 +162,6 @@ class Interface:
             try:
                 self.is_connected = False
                 self.new_session(wallet.all_addresses(), wallet.electrum_version)
-                self.update_session = False
             except socket.error:
                 print "Not connected"
                 time.sleep(self.poll_interval())
@@ -174,11 +173,6 @@ class Interface:
 
             while True:
                 try:
-                    if self.is_connected and self.update_session:
-                        self.update_session( wallet.all_addresses() )
-                        self.update_session = False
-
-                    # define a method to update the list
                     if self.update_wallet(wallet):
                         self.update_session( wallet.all_addresses() )
 
@@ -188,6 +182,10 @@ class Interface:
                     print "starting new session"
                     break
                 except socket.gaierror:
+                    self.is_connected = False
+                    break
+                except socket.error:
+                    print "socket.error"
                     self.is_connected = False
                     break
                 except:

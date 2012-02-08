@@ -865,8 +865,6 @@ class BitcoinGUI:
             self.show_message(e.message)
             return
             
-        self.update_session = True # we created a new change address
-
         status, msg = self.wallet.sendtx( tx )
         if status:
             self.show_message( "payment sent.\n" + msg )
