@@ -31,7 +31,7 @@ urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 from wallet import format_satoshis
 
 if __name__ == '__main__':
-    known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed','import','signmessage','verifymessage','eval']
+    known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'paytoch', 'payfromto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed','import','signmessage','verifymessage','eval']
 
     usage = "usage: %prog [options] command args\nCommands: "+ (', '.join(known_commands))
 
@@ -137,11 +137,19 @@ if __name__ == '__main__':
             wallet.synchronize()
 
     # check syntax
-    if cmd in ['payto', 'mktx']:
+    if cmd in ['payto', 'mktx', 'paytoch', 'payfromto']:
+        offset = 0
+        if cmd == 'payfromto':
+            offset = 1
         try:
-            to_address = args[1]
-            amount = int( 100000000 * Decimal(args[2]) )
-            label = ' '.join(args[3:])
+            to_address = args[offset+1]
+            amount = int( 100000000 * Decimal(args[offset+2]) )
+            change_addr = None
+            if cmd == 'paytoch':
+                change_addr = args[offset+3]
+                label = ' '.join(args[offset+4:])
+            else:
+                label = ' '.join(args[offset+3:])
             if options.tx_fee: 
                 options.tx_fee = int( 100000000 * Decimal(options.tx_fee) )
         except:
@@ -155,7 +163,7 @@ if __name__ == '__main__':
         wallet.save()
 
     # commands needing password
-    if cmd in ['payto', 'password', 'mktx', 'seed', 'import','signmessage' ] or ( cmd=='addresses' and options.show_keys):
+    if cmd in ['payto', 'paytoch', 'payfromto', 'password', 'mktx', 'seed', 'import','signmessage' ] or ( cmd=='addresses' and options.show_keys):
         password = getpass.getpass('Password:') if wallet.use_encryption else None
         # check password
         try:
@@ -186,6 +194,16 @@ if __name__ == '__main__':
             print "payto <recipient> <amount> [label]"
             print "create and broadcast a transaction."
             print "<recipient> can be a bitcoin address or a label"
+        elif cmd2 == 'paytoch':
+            print "paytoch <recipient> <amount> <change address> [label]"
+            print "create and broadcast a transaction, returning change to a custom address."
+            print "<recipient> and <change address> can be a bitcoin address or a label"
+        elif cmd2 == 'payfromto':
+            print "payfromto <public key>[:<private key>] <recipient> <amount>"
+            print "create and broadcast a transaction, from the address <public key> to <recipient>, without saving the address to the wallet."
+            print "it sends back the change to the same source address."
+            print "<recipient> can be a bitcoin address or a label."
+            print "if you omit <private key>, it will ask you for the key."
         elif cmd2== 'sendtx':
             print "sendtx <tx>"
             print "broadcast a transaction to the network. <tx> must be in hexadecimal"
@@ -295,19 +313,41 @@ if __name__ == '__main__':
         wallet.labels[tx] = label
         wallet.save()
             
-    elif cmd in ['payto', 'mktx']:
+    elif cmd in ['payto', 'mktx', 'paytoch', 'payfromto']:
+        if cmd == 'payfromto':
+            #temporally import key and remove the other addresses
+            keypair = args[1]
+            wallet.imported_keys = {}
+            if keypair.find(":") == -1:
+                keypair = keypair + ":" + getpass.getpass('Private key:')
+            if not wallet.import_key(keypair,password):
+                print "invalid key pair"
+                exit(1)
+            addr = wallet.imported_keys.keys()[0]
+            wallet.history[addr] = wallet.interface.retrieve_history(addr)
+            wallet.synchronize()
+            wallet.update_tx_history()
+            wallet.addresses = []
+            wallet.change_addresses = []
+            change_addr = addr
+            save = False
+        else:
+            save = True
         for k, v in wallet.labels.items():
             if v == to_address:
                 to_address = k
                 print "alias", to_address
                 break
+            if change_addr and v == change_addr:
+                change_addr = k
         try:
-            tx = wallet.mktx( to_address, amount, label, password, fee = options.tx_fee )
+            tx = wallet.mktx( to_address, amount, label, password,
+                fee = options.tx_fee, change_addr = change_addr, save = save )
         except BaseException, e:
             print e
             tx = None
 
-        if tx and cmd=='payto': 
+        if tx and cmd in ['payto', 'paytoch', 'payfromto']: 
             r, h = wallet.sendtx( tx )
             print h
         else:

@@ -618,12 +618,14 @@ class Wallet:
             inputs = []
         return inputs, total, fee
 
-    def choose_tx_outputs( self, to_addr, amount, fee, total ):
+    def choose_tx_outputs( self, to_addr, amount, fee, total, change_addr=None ):
         outputs = [ (to_addr, amount) ]
         change_amount = total - ( amount + fee )
         if change_amount != 0:
             # normally, the update thread should ensure that the last change address is unused
-            outputs.append( ( self.change_addresses[-1],  change_amount) )
+            if not change_addr:
+                change_addr = self.change_addresses[-1]
+            outputs.append( ( change_addr,  change_amount) )
         return outputs
 
     def sign_inputs( self, inputs, outputs, password ):
@@ -702,13 +704,13 @@ class Wallet:
                             default_label = 'at: ' + o_addr
             tx['default_label'] = default_label
 
-    def mktx(self, to_address, amount, label, password, fee=None):
+    def mktx(self, to_address, amount, label, password, fee=None, change_addr=None, save=True):
         if not self.is_valid(to_address):
             raise BaseException("Invalid address")
         inputs, total, fee = self.choose_tx_inputs( amount, fee )
         if not inputs:
             raise BaseException("Not enough funds")
-        outputs = self.choose_tx_outputs( to_address, amount, fee, total )
+        outputs = self.choose_tx_outputs( to_address, amount, fee, total, change_addr )
         s_inputs = self.sign_inputs( inputs, outputs, password )
 
         tx = filter( raw_tx( s_inputs, outputs ) )
@@ -717,7 +719,8 @@ class Wallet:
         if label: 
             tx_hash = Hash(tx.decode('hex') )[::-1].encode('hex')
             self.labels[tx_hash] = label
-        self.save()
+        if save:
+            self.save()
         return tx
 
     def sendtx(self, tx):
