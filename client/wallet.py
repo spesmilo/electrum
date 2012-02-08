@@ -573,23 +573,6 @@ class Wallet:
             unconf += u
         return conf, unconf
 
-    def update(self):
-        is_new = False
-        changed_addresses = self.interface.poll()
-        for addr, blk_hash in changed_addresses.items():
-            if self.status.get(addr) != blk_hash:
-                print "updating history for", addr
-                self.history[addr] = self.interface.retrieve_history(addr)
-                self.status[addr] = blk_hash
-                is_new = True
-
-        if is_new:
-            self.synchronize()
-            self.update_tx_history()
-            self.save()
-            return True
-        else:
-            return False
 
     def choose_tx_inputs( self, amount, fixed_fee ):
         """ todo: minimize tx size """

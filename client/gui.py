@@ -486,10 +486,8 @@ class BitcoinGUI:
         show_message(msg, self.window)
 
     def __init__(self, wallet):
-        self.error = ''
         self.wallet = wallet
-        self.wallet.interface.is_connected = False
-        self.period = 5
+        self.funds_error = False # True if not enough funds
 
         self.window = MyWindow(gtk.WINDOW_TOPLEVEL)
         self.window.set_title(APP_NAME + " " + self.wallet.electrum_version)
@@ -596,52 +594,6 @@ class BitcoinGUI:
                             gobject.idle_add( lambda: self.payto_entry.set_text(s) )
                 
 
-        def update_wallet_thread():
-            while True:
-                try:
-                    self.wallet.interface.is_connected = False
-                    self.wallet.interface.new_session(self.wallet.all_addresses(), self.wallet.electrum_version)
-                    self.update_session = False
-                    self.info.set_text( self.wallet.interface.message)
-                except:
-                    traceback.print_exc(file=sys.stdout)
-                    time.sleep(self.period)
-                    continue
-
-                get_servers_time = 0
-                while True:
-                    try:
-                        if self.wallet.interface.is_connected and self.update_session:
-                            self.wallet.interface.update_session( self.wallet.all_addresses() )
-                            self.update_session = False
-
-                        if time.time() - get_servers_time > 5*60:
-                            wallet.interface.get_servers()
-                        get_servers_time = time.time()
-                        
-                        self.period = 15 if self.wallet.interface.use_http() else 5
-                        if self.wallet.update():
-                            self.wallet.interface.update_session( self.wallet.all_addresses() )
-                            gobject.idle_add( self.update_history_tab )
-                            gobject.idle_add( self.update_receiving_tab )
-                            # addressbook too...
-
-                        time.sleep(self.period)
-                    except BaseException:
-                        traceback.print_exc(file=sys.stdout)
-                        print "starting new session"
-                        break
-                    except socket.gaierror:
-                        self.wallet.interface.is_connected = False
-                        break
-                    except:
-                        self.wallet.interface.is_connected = False
-                        print "error"
-                        traceback.print_exc(file=sys.stdout)
-                        break
-                self.error = '' if self.wallet.interface.is_connected else "Not connected"
-                    
-        thread.start_new_thread(update_wallet_thread, ())
         thread.start_new_thread(update_status_bar_thread, ())
         thread.start_new_thread(check_recipient_thread, ())
         self.notebook.set_current_page(0)
@@ -719,11 +671,11 @@ class BitcoinGUI:
         self.user_fee = False
 
         def entry_changed( entry, is_fee ):
+            self.funds_error = False
             amount = numbify(amount_entry)
             fee = numbify(fee_entry)
             if not is_fee: fee = None
-            if amount is None: 
-                #self.fee_box.hide();
+            if amount is None:
                 return
             inputs, total, fee = self.wallet.choose_tx_inputs( amount, fee )
             if not is_fee:
@@ -733,12 +685,11 @@ class BitcoinGUI:
                 amount_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#000000"))
                 fee_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#000000"))
                 send_button.set_sensitive(True)
-                self.error = ''
             else:
                 send_button.set_sensitive(False)
                 amount_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#cc0000"))
                 fee_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#cc0000"))
-                self.error = 'Not enough funds'
+                self.funds_error = True
 
         amount_entry.connect('changed', entry_changed, False)
         fee_entry.connect('changed', entry_changed, True)        
@@ -1173,18 +1124,38 @@ class BitcoinGUI:
         return vbox
 
     def update_status_bar(self):
-        c, u = self.wallet.get_balance()
-        if self.wallet.interface.is_connected:
-            self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
+
+        if self.funds_error:
+            text = "Not enough funds"
+        elif self.wallet.interface.is_connected:
             self.network_button.set_tooltip_text("Connected to %s.\n%d blocks\nresponse time: %f"%(self.wallet.interface.host, self.wallet.interface.blocks, self.wallet.interface.rtime))
+            if self.wallet.interface.blocks == 0:
+                self.status_image.set_from_stock(gtk.STOCK_STOP, gtk.ICON_SIZE_MENU)
+                text = "Server not ready"
+            elif not self.wallet.interface.was_polled:
+                self.status_image.set_from_stock(gtk.STOCK_STOP, gtk.ICON_SIZE_MENU)
+                text = "Synchronizing..."
+            else:
+                self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
+                self.network_button.set_tooltip_text("Connected to %s.\n%d blocks\nresponse time: %f"%(self.wallet.interface.host, self.wallet.interface.blocks, self.wallet.interface.rtime))
+                c, u = self.wallet.get_balance()
+                text =  "Balance: %s "%( format_satoshis(c) )
+                if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True) )
         else:
             self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
             self.network_button.set_tooltip_text("Trying to contact %s.\n%d blocks"%(self.wallet.interface.host, self.wallet.interface.blocks))
-        text =  "Balance: %s "%( format_satoshis(c) )
-        if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True) )
-        if self.error: text = self.error
+            text = "Not connected"
+
         self.status_bar.pop(self.context_id) 
-        self.status_bar.push(self.context_id, text) 
+        self.status_bar.push(self.context_id, text)
+
+        if self.wallet.interface.was_updated:
+            self.update_history_tab()
+            self.update_receiving_tab()
+            # addressbook too...
+            self.info.set_text( self.wallet.interface.message )
+            self.wallet.interface.was_updated = False
+        
 
     def update_receiving_tab(self):
         self.recv_list.clear()
