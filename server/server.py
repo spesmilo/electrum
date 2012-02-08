@@ -749,9 +749,10 @@ if __name__ == '__main__':
             store.catch_up()
             memorypool_update(store)
             block_number = store.get_block_number(1)
-            dblock.release()
         except:
             traceback.print_exc(file=sys.stdout)
+        finally:
+            dblock.release()
         time.sleep(10)
 
     print "server stopped"
