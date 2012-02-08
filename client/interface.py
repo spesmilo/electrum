@@ -25,8 +25,9 @@ import thread, traceback, sys, time
 
 class Interface:
     def __init__(self):
-        self.servers = ['ecdsa.org','electrum.novit.ro']  # list of default servers
-        self.host = random.choice( self.servers )         # random choice when the wallet is created
+        self.default_servers = ['ecdsa.org','electrum.novit.ro']  # list of default servers
+        self.host = random.choice( self.default_servers )         # random choice when the wallet is created
+        self.servers = []                                         # actual list from IRC
         self.rtime = 0
         self.blocks = 0 
         self.message = ''
@@ -59,7 +60,8 @@ class Interface:
         t1 = time.time()
         request = repr ( (cmd, params) ) + "#"
         s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
-        s.connect(( self.host, self.port))
+        s.settimeout(2)
+        s.connect(( self.host if cmd!='peers' else self.peers_server, self.port) )
         s.send( request )
         out = ''
         while 1:
@@ -79,7 +81,7 @@ class Interface:
         t1 = time.time()
         data = { 'method':method, 'id':'jsonrpc', 'params':params }
         data_json = json.dumps(data)
-        host = 'http://%s:%d'%(self.host,self.port)
+        host = 'http://%s:%d'%( self.host if cmd!='peers' else self.peers_server, self.port )
         req = urllib2.Request(host, data_json, {'content-type': 'application/json'})
         response_stream = urllib2.urlopen(req)
         response = json.loads( response_stream.read() )
@@ -116,9 +118,23 @@ class Interface:
         out = self.handler('session.update', [ self.session_id, addresses ] )
         return out
     
-    def get_servers(self):
-        out = self.handler('peers')
-        self.servers = map( lambda x:x[1], out )
+    def update_servers_thread(self):
+        # if my server is not reachable, I should get the list from one of the default servers
+        # requesting servers could be an independent process
+        while True:
+            for server in self.default_servers:
+                try:
+                    self.peers_server = server
+                    out = self.handler('peers')
+                    self.servers = map( lambda x:x[1], out )
+                    # print "Received server list from %s" % self.peers_server, out
+                    break
+                except socket.timeout:
+                    continue
+                except socket.error:
+                    continue
+
+            time.sleep(5*60)
 
     def poll_interval(self):
         return 15 if self.use_http() else 5
@@ -141,7 +157,7 @@ class Interface:
         else:
             return False
 
-    def update_thread(self, wallet):
+    def update_wallet_thread(self, wallet):
         while True:
             try:
                 self.is_connected = False
@@ -156,16 +172,11 @@ class Interface:
                 time.sleep(self.poll_interval())
                 continue
 
-            get_servers_time = 0
             while True:
                 try:
                     if self.is_connected and self.update_session:
                         self.update_session( wallet.all_addresses() )
                         self.update_session = False
-
-                    if time.time() - get_servers_time > 5*60:
-                        self.get_servers()
-                    get_servers_time = time.time()
 
                     # define a method to update the list
                     if self.update_wallet(wallet):
@@ -187,4 +198,5 @@ class Interface:
                 
 
     def start(self, wallet):
-        thread.start_new_thread(self.update_thread, (wallet,))
+        thread.start_new_thread(self.update_wallet_thread, (wallet,))
+        thread.start_new_thread(self.update_servers_thread, ())
