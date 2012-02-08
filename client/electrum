@@ -41,6 +41,8 @@ if __name__ == '__main__':
     parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance at listed addresses")
     parser.add_option("-k", "--keys",action="store_true", dest="show_keys",default=False, help="show the private keys of listed addresses")
     parser.add_option("-f", "--fee", dest="tx_fee", default="0.005", help="set tx fee")
+    parser.add_option("-s", "--fromaddr", dest="from_addr", default=None, help="set source address for payto/mktx. if it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet.")
+    parser.add_option("-c", "--changeaddr", dest="change_addr", default=None, help="set the change address for payto/mktx. default is a spare address, or the source address if it's not in the wallet")
     options, args = parser.parse_args()
     try:
         cmd = args[0]
@@ -141,6 +143,7 @@ if __name__ == '__main__':
         try:
             to_address = args[1]
             amount = int( 100000000 * Decimal(args[2]) )
+            change_addr = None
             label = ' '.join(args[3:])
             if options.tx_fee: 
                 options.tx_fee = int( 100000000 * Decimal(options.tx_fee) )
@@ -186,6 +189,7 @@ if __name__ == '__main__':
             print "payto <recipient> <amount> [label]"
             print "create and broadcast a transaction."
             print "<recipient> can be a bitcoin address or a label"
+            print "options: --fromaddr, --changeaddr"
         elif cmd2== 'sendtx':
             print "sendtx <tx>"
             print "broadcast a transaction to the network. <tx> must be in hexadecimal"
@@ -204,6 +208,7 @@ if __name__ == '__main__':
         elif cmd2 == 'mktx':
             print "create a signed transaction. password protected"
             print "syntax: mktx <recipient> <amount> [label]"
+            print "options: --fromaddr, --changeaddr"
         elif cmd2 == 'seed':
             print "show generation seed of your wallet. password protected."
         elif cmd2 == 'eval':
@@ -296,13 +301,37 @@ if __name__ == '__main__':
         wallet.save()
             
     elif cmd in ['payto', 'mktx']:
+        if options.from_addr:
+            #temporally import key and remove the other addresses
+            addr = options.from_addr
+            if addr.find(":") == -1:
+                addr = addr + ":" + getpass.getpass('Private key:')
+            wallet.imported_keys = {}
+            if not wallet.import_key(options.from_addr,password):
+                print "invalid key pair"
+                exit(1)
+            addr = wallet.imported_keys.keys()[0]
+            wallet.history[addr] = wallet.interface.retrieve_history(addr)
+            wallet.synchronize()
+            wallet.update_tx_history()
+            wallet.addresses = []
+            wallet.change_addresses = []
+            change_addr = addr
+            save = False
+        else:
+            save = True
+        if options.change_addr:
+            change_addr = options.change_addr
         for k, v in wallet.labels.items():
             if v == to_address:
                 to_address = k
                 print "alias", to_address
                 break
+            if change_addr and v == change_addr:
+                change_addr = k
         try:
-            tx = wallet.mktx( to_address, amount, label, password, fee = options.tx_fee )
+            tx = wallet.mktx( to_address, amount, label, password,
+                fee = options.tx_fee, change_addr = change_addr, save = save )
         except BaseException, e:
             print e
             tx = None
