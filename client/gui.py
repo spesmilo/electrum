@@ -891,8 +891,8 @@ class BitcoinGUI:
                     if a[0] in self.wallet.authorities.keys():
                         s = self.wallet.authorities.get(a[0])
                     else:
-                        s = "self"
-                    msg = 'Alias:'+ m + '\n\nTarget: '+ a[1] + '\nSigned by: ' + s + '\nSigning address:' + a[0]
+                        s = "self-signed"
+                    msg = 'Alias: '+ m + '\nTarget address: '+ a[1] + '\n\nSigned by: ' + s + '\nSigning address:' + a[0]
                     self.show_message(msg)
             
 
