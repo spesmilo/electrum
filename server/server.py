@@ -749,8 +749,12 @@ if __name__ == '__main__':
             store.catch_up()
             memorypool_update(store)
             block_number = store.get_block_number(1)
+        except IOError:
+            print "IOError: cannot reach bitcoind"
+            block_number = -1 
         except:
             traceback.print_exc(file=sys.stdout)
+            block_number = -1
         finally:
             dblock.release()
         time.sleep(10)
