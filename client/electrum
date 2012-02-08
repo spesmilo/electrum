@@ -213,7 +213,7 @@ if __name__ == '__main__':
         elif cmd2 == 'seed':
             print "show generation seed of your wallet. password protected."
         elif cmd2 == 'eval':
-            print "run python eval on an object"
+            print "Run python eval() on an object\nSyntax: eval <expression>\nExample: eval \"wallet.aliases\""
 
     elif cmd == 'seed':
         import mnemonic
