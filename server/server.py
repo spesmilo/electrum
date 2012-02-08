@@ -717,6 +717,8 @@ if __name__ == '__main__':
             out = server.blockchain.transaction.broadcast(sys.argv[2])
         elif cmd == 'b':
             out = server.blocks()
+        else:
+            out = "Unknown command: '%s'" % cmd
         print out
         sys.exit(0)
 
@@ -751,10 +753,10 @@ if __name__ == '__main__':
             block_number = store.get_block_number(1)
         except IOError:
             print "IOError: cannot reach bitcoind"
-            block_number = -1 
+            block_number = 0
         except:
             traceback.print_exc(file=sys.stdout)
-            block_number = -1
+            block_number = 0
         finally:
             dblock.release()
         time.sleep(10)
