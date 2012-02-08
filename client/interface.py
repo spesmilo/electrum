@@ -20,6 +20,7 @@
 import random, socket, ast
 
         
+import thread, traceback, sys, time
 
 
 class Interface:
@@ -31,6 +32,7 @@ class Interface:
         self.message = ''
         self.set_port(50000)
         self.is_connected = False
+        self.was_updated = True # fixme: use a semaphore
 
     def set_port(self, port_number):
         self.port = port_number
@@ -105,6 +107,7 @@ class Interface:
     def new_session(self, addresses, version):
         out = self.handler('session.new', [ version, addresses ] )
         self.session_id, self.message = ast.literal_eval( out )
+        self.was_updated = True
 
     def update_session(self, addresses):
         out = self.handler('session.update', [ self.session_id, addresses ] )
@@ -113,3 +116,69 @@ class Interface:
     def get_servers(self):
         out = self.handler('peers')
         self.servers = map( lambda x:x[1], out )
+
+    def poll_interval(self):
+        return 15 if self.use_http() else 5
+
+    def update_wallet(self, wallet):
+        is_new = False
+        changed_addresses = self.poll()
+        for addr, blk_hash in changed_addresses.items():
+            if wallet.status.get(addr) != blk_hash:
+                print "updating history for", addr
+                wallet.history[addr] = self.retrieve_history(addr)
+                wallet.status[addr] = blk_hash
+                is_new = True
+
+        if is_new:
+            wallet.synchronize()
+            wallet.update_tx_history()
+            wallet.save()
+            return True
+        else:
+            return False
+
+    def update_thread(self, wallet):
+        while True:
+            try:
+                self.is_connected = False
+                self.new_session(wallet.all_addresses(), wallet.electrum_version)
+                self.update_session = False
+            except:
+                traceback.print_exc(file=sys.stdout)
+                time.sleep(self.poll_interval())
+                continue
+
+            get_servers_time = 0
+            while True:
+                try:
+                    if self.is_connected and self.update_session:
+                        self.update_session( wallet.all_addresses() )
+                        self.update_session = False
+
+                    if time.time() - get_servers_time > 5*60:
+                        self.get_servers()
+                    get_servers_time = time.time()
+
+                    # define a method to update the list
+                    if self.update_wallet(wallet):
+                        self.update_session( wallet.all_addresses() )
+                        self.was_updated = True  # for gui
+
+                    time.sleep(self.poll_interval())
+                except BaseException:
+                    traceback.print_exc(file=sys.stdout)
+                    print "starting new session"
+                    break
+                except socket.gaierror:
+                    self.is_connected = False
+                    break
+                except:
+                    self.is_connected = False
+                    print "error"
+                    traceback.print_exc(file=sys.stdout)
+                    break
+                
+
+    def start(self, wallet):
+        thread.start_new_thread(self.update_thread, (wallet,))

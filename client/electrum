@@ -61,6 +61,7 @@ if __name__ == '__main__':
         import gui
         gui.init_wallet(wallet)
         gui = gui.BitcoinGUI(wallet)
+        interface.start(wallet)
 
         if re.match('^bitcoin:', cmd):
 
@@ -111,12 +112,12 @@ if __name__ == '__main__':
         else:
             password = None
 
-        host = raw_input("server (default:%s):"%wallet.interface.host)
-        port = raw_input("port (default:%d):"%wallet.interface.port)
+        host = raw_input("server (default:%s):"%interface.host)
+        port = raw_input("port (default:%d):"%interface.port)
         fee = raw_input("fee (default:%s):"%( str(Decimal(wallet.fee)/100000000)) )
         if fee: wallet.fee = float(fee)
-        if host: wallet.interface.host = host
-        if port: wallet.interface.port = int(port)
+        if host: interface.host = host
+        if port: interface.port = int(port)
         seed = raw_input("if you are restoring an existing wallet, enter the seed. otherwise just press enter: ")
         wallet.gap_limit = 5
         if seed:
@@ -153,8 +154,8 @@ if __name__ == '__main__':
 
     # open session
     if cmd not in ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval']:
-        wallet.interface.new_session(wallet.all_addresses(), wallet.electrum_version)
-        wallet.update()
+        interface.new_session(wallet.all_addresses(), wallet.electrum_version)
+        interface.update_wallet(wallet)
         wallet.save()
 
     # commands needing password
@@ -311,7 +312,7 @@ if __name__ == '__main__':
                 print "invalid key pair"
                 exit(1)
             addr = wallet.imported_keys.keys()[0]
-            wallet.history[addr] = wallet.interface.retrieve_history(addr)
+            wallet.history[addr] = interface.retrieve_history(addr)
             wallet.synchronize()
             wallet.update_tx_history()
             wallet.addresses = []
