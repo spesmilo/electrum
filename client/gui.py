@@ -1128,16 +1128,19 @@ class BitcoinGUI:
         if self.funds_error:
             text = "Not enough funds"
         elif self.wallet.interface.is_connected:
-            if self.wallet.interface.blocks > 0:
+            self.network_button.set_tooltip_text("Connected to %s.\n%d blocks\nresponse time: %f"%(self.wallet.interface.host, self.wallet.interface.blocks, self.wallet.interface.rtime))
+            if self.wallet.interface.blocks == 0:
+                self.status_image.set_from_stock(gtk.STOCK_STOP, gtk.ICON_SIZE_MENU)
+                text = "Server not ready"
+            elif not self.wallet.interface.was_polled:
+                self.status_image.set_from_stock(gtk.STOCK_STOP, gtk.ICON_SIZE_MENU)
+                text = "Synchronizing..."
+            else:
                 self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
                 self.network_button.set_tooltip_text("Connected to %s.\n%d blocks\nresponse time: %f"%(self.wallet.interface.host, self.wallet.interface.blocks, self.wallet.interface.rtime))
                 c, u = self.wallet.get_balance()
                 text =  "Balance: %s "%( format_satoshis(c) )
                 if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True) )
-            else:
-                self.status_image.set_from_stock(gtk.STOCK_STOP, gtk.ICON_SIZE_MENU)
-                self.network_button.set_tooltip_text("Connected to %s.\n%d blocks\nresponse time: %f"%(self.wallet.interface.host, self.wallet.interface.blocks, self.wallet.interface.rtime))
-                text = "Server not ready"
         else:
             self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
             self.network_button.set_tooltip_text("Trying to contact %s.\n%d blocks"%(self.wallet.interface.host, self.wallet.interface.blocks))

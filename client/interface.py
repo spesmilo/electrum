@@ -33,6 +33,7 @@ class Interface:
         self.set_port(50000)
         self.is_connected = False
         self.was_updated = True # fixme: use a semaphore
+        self.was_polled = False # True after the first poll
 
     def set_port(self, port_number):
         self.port = port_number
@@ -102,12 +103,14 @@ class Interface:
         blocks, changed_addr = ast.literal_eval( out )
         if blocks == -1: raise BaseException("session not found")
         self.blocks = int(blocks)
+        if changed_addr: self.was_updated = True
+        self.was_polled = True
         return changed_addr
 
     def new_session(self, addresses, version):
+        self.was_polled = False
         out = self.handler('session.new', [ version, addresses ] )
         self.session_id, self.message = ast.literal_eval( out )
-        self.was_updated = True
 
     def update_session(self, addresses):
         out = self.handler('session.update', [ self.session_id, addresses ] )
@@ -144,6 +147,10 @@ class Interface:
                 self.is_connected = False
                 self.new_session(wallet.all_addresses(), wallet.electrum_version)
                 self.update_session = False
+            except socket.error:
+                print "Not connected"
+                time.sleep(self.poll_interval())
+                continue
             except:
                 traceback.print_exc(file=sys.stdout)
                 time.sleep(self.poll_interval())
@@ -163,7 +170,6 @@ class Interface:
                     # define a method to update the list
                     if self.update_wallet(wallet):
                         self.update_session( wallet.all_addresses() )
-                        self.was_updated = True  # for gui
 
                     time.sleep(self.poll_interval())
                 except BaseException:
