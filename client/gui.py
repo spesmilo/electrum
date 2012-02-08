@@ -1128,10 +1128,10 @@ class BitcoinGUI:
         elif self.wallet.interface.is_connected:
             self.network_button.set_tooltip_text("Connected to %s.\n%d blocks\nresponse time: %f"%(self.wallet.interface.host, self.wallet.interface.blocks, self.wallet.interface.rtime))
             if self.wallet.interface.blocks == 0:
-                self.status_image.set_from_stock(gtk.STOCK_STOP, gtk.ICON_SIZE_MENU)
+                self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
                 text = "Server not ready"
             elif not self.wallet.interface.was_polled:
-                self.status_image.set_from_stock(gtk.STOCK_STOP, gtk.ICON_SIZE_MENU)
+                self.status_image.set_from_stock(gtk.STOCK_REFRESH, gtk.ICON_SIZE_MENU)
                 text = "Synchronizing..."
             else:
                 self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
