@@ -59,6 +59,7 @@ if __name__ == '__main__':
 
     if cmd == 'gui' or re.match('^bitcoin:', cmd):
         import gui
+        interface.get_servers()
         gui.init_wallet(wallet)
         gui = gui.BitcoinGUI(wallet)
         interface.start(wallet)

@@ -105,7 +105,6 @@ def init_wallet(wallet):
             wallet.new_seed(None)
 
             # ask for the server.
-            wallet.interface.get_servers()
             run_network_dialog( wallet, parent=None )
 
             # generate first key
@@ -119,7 +118,6 @@ def init_wallet(wallet):
 
         else:
             # ask for the server.
-            wallet.interface.get_servers()
             run_network_dialog( wallet, parent=None )
 
             # ask for seed and gap.

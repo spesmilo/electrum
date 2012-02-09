@@ -27,7 +27,7 @@ class Interface:
     def __init__(self):
         self.default_servers = ['ecdsa.org','electrum.novit.ro']  # list of default servers
         self.host = random.choice( self.default_servers )         # random choice when the wallet is created
-        self.servers = []                                         # actual list from IRC
+        self.servers = self.default_servers                       # actual list from IRC
         self.rtime = 0
         self.blocks = 0 
         self.message = ''
@@ -197,4 +197,6 @@ class Interface:
 
     def start(self, wallet):
         thread.start_new_thread(self.update_wallet_thread, (wallet,))
+
+    def get_servers(self):
         thread.start_new_thread(self.update_servers_thread, ())
