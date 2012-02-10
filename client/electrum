@@ -191,7 +191,7 @@ if __name__ == '__main__':
             print "payto <recipient> <amount> [label]"
             print "create and broadcast a transaction."
             print "<recipient> can be a bitcoin address or a label"
-            print "options: --fromaddr, --changeaddr"
+            print "options: --fee, --fromaddr, --changeaddr"
         elif cmd2== 'sendtx':
             print "sendtx <tx>"
             print "broadcast a transaction to the network. <tx> must be in hexadecimal"
@@ -210,7 +210,7 @@ if __name__ == '__main__':
         elif cmd2 == 'mktx':
             print "create a signed transaction. password protected"
             print "syntax: mktx <recipient> <amount> [label]"
-            print "options: --fromaddr, --changeaddr"
+            print "options: --fee, --fromaddr, --changeaddr"
         elif cmd2 == 'seed':
             print "show generation seed of your wallet. password protected."
         elif cmd2 == 'eval':
@@ -303,27 +303,25 @@ if __name__ == '__main__':
         wallet.save()
             
     elif cmd in ['payto', 'mktx']:
+        is_temporary = False
         if options.from_addr:
-            #temporally import key and remove the other addresses
-            addr = options.from_addr
-            if addr.find(":") == -1:
-                addr = addr + ":" + getpass.getpass('Private key:')
-            wallet.imported_keys = {}
-            if not wallet.import_key(options.from_addr,password):
-                print "invalid key pair"
-                exit(1)
-            addr = wallet.imported_keys.keys()[0]
-            wallet.history[addr] = interface.retrieve_history(addr)
-            wallet.synchronize()
-            wallet.update_tx_history()
-            wallet.addresses = []
-            wallet.change_addresses = []
-            change_addr = addr
-            save = False
+            from_addr = options.from_addr
+            if from_addr not in wallet.all_addresses():
+                if from_addr.find(":") == -1:
+                    keypair = from_addr + ":" + getpass.getpass('Private key:')
+                else:
+                    keypair = from_addr
+                    from_addr = keypair.split(':')[0]
+                if not wallet.import_key(keypair,password):
+                    print "invalid key pair"
+                    exit(1)
+                is_temporary = True
         else:
-            save = True
+            from_addr = None
+
         if options.change_addr:
             change_addr = options.change_addr
+
         for k, v in wallet.labels.items():
             if v == to_address:
                 to_address = k
@@ -333,9 +331,10 @@ if __name__ == '__main__':
                 change_addr = k
         try:
             tx = wallet.mktx( to_address, amount, label, password,
-                fee = options.tx_fee, change_addr = change_addr, save = save )
-        except BaseException, e:
-            print e
+                fee = options.tx_fee, change_addr = change_addr, from_addr = from_addr )
+        except:
+            import traceback
+            traceback.print_exc(file=sys.stdout)
             tx = None
 
         if tx and cmd=='payto': 
@@ -343,6 +342,10 @@ if __name__ == '__main__':
             print h
         else:
             print tx
+
+        if is_temporary:
+            wallet.imported_keys.pop(from_addr)
+        wallet.save()
 
     elif cmd == 'sendtx':
         tx = args[1]

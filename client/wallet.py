@@ -574,13 +574,14 @@ class Wallet:
         return conf, unconf
 
 
-    def choose_tx_inputs( self, amount, fixed_fee ):
+    def choose_tx_inputs( self, amount, fixed_fee, from_addr = None ):
         """ todo: minimize tx size """
         total = 0
         fee = self.fee if fixed_fee is None else fixed_fee
 
         coins = []
-        for addr in self.all_addresses():
+        domain = [from_addr] if from_addr else self.all_addresses()
+        for addr in domain:
             h = self.history.get(addr)
             if h is None: continue
             for item in h:
@@ -687,10 +688,10 @@ class Wallet:
                             default_label = 'at: ' + o_addr
             tx['default_label'] = default_label
 
-    def mktx(self, to_address, amount, label, password, fee=None, change_addr=None, save=True):
+    def mktx(self, to_address, amount, label, password, fee=None, change_addr=None, from_addr= None):
         if not self.is_valid(to_address):
             raise BaseException("Invalid address")
-        inputs, total, fee = self.choose_tx_inputs( amount, fee )
+        inputs, total, fee = self.choose_tx_inputs( amount, fee, from_addr )
         if not inputs:
             raise BaseException("Not enough funds")
         outputs = self.choose_tx_outputs( to_address, amount, fee, total, change_addr )
