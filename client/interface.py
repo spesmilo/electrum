@@ -22,6 +22,7 @@ import random, socket, ast
         
 import thread, traceback, sys, time
 
+DEFAULT_TIMEOUT=5
 
 class Interface:
     def __init__(self):
@@ -60,7 +61,7 @@ class Interface:
         t1 = time.time()
         request = repr ( (cmd, params) ) + "#"
         s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(2)
+        s.settimeout(DEFAULT_TIMEOUT)
         s.connect(( self.host if cmd!='peers' else self.peers_server, self.port) )
         s.send( request )
         out = ''
