@@ -788,7 +788,7 @@ class BitcoinGUI:
         if auth_name is None:
             a = self.wallet.aliases.get(alias)
             if not a:
-                msg = "Warning: the alias '%s' is self-signed. The signing address is %s. Do you want to trust this alias?"%(alias,signing_address)
+                msg = "Warning: the alias '%s' is self-signed.\nThe signing address is %s.\n\nDo you want to add this alias to your list of contacts?"%(alias,signing_address)
                 if interactive and self.question( msg ):
                     self.wallet.aliases[alias] = (signing_address, target)
                 else:
