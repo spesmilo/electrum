@@ -703,8 +703,7 @@ class Wallet:
         if label: 
             tx_hash = Hash(tx.decode('hex') )[::-1].encode('hex')
             self.labels[tx_hash] = label
-        if save:
-            self.save()
+
         return tx
 
     def sendtx(self, tx):
