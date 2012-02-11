@@ -11,12 +11,26 @@ def restore_create_dialog(wallet):
     pass
 
 
-class BitcoinWidget(QWidget):
+class BitcoinWidget(QMainWindow):
 
     def __init__(self, wallet):
-        super(BitcoinWidget, self).__init__()
+        QMainWindow.__init__(self)
         self.wallet = wallet
-        self.initUI()
+        tabs = QTabWidget(self)
+        tabs.addTab(self.create_history_tab(), 'History')  
+        tabs.addTab(self.create_send_tab(),    'Send')
+        tabs.addTab(self.create_receive_tab(), 'Receive')  
+        tabs.addTab(self.create_contacts_tab(),'Contacts')  
+        tabs.addTab(self.create_wall_tab(),    'Wall')  
+        tabs.resize(600, 400)
+        tabs.show()
+
+        self.create_status_bar()
+        
+        self.setGeometry(100,100,750,550)
+        self.setWindowTitle( 'Electrum ' + self.wallet.electrum_version )
+        self.show()
+
 
     def create_history_tab(self):
         h = [ 'ff', 'bar' ]
@@ -38,18 +52,12 @@ class BitcoinWidget(QWidget):
     def create_wall_tab(self):
         return QLabel(self.wallet.interface.message)
 
-    def initUI(self):
-        tabs = QTabWidget(self)
-        tabs.addTab(self.create_history_tab(), 'History')  
-        tabs.addTab(self.create_send_tab(),    'Send')
-        tabs.addTab(self.create_receive_tab(), 'Receive')  
-        tabs.addTab(self.create_contacts_tab(),'Contacts')  
-        tabs.addTab(self.create_wall_tab(),    'Wall')  
-        tabs.resize(600, 400)
-        tabs.show()
-        
-        self.setWindowTitle( 'Electrum ' + self.wallet.electrum_version )
-        self.show()
+    def create_status_bar(self):
+        sb = QStatusBar()
+        sb.setFixedHeight(18)
+        self.setStatusBar(sb)
+        self.statusBar().showMessage(self.tr("test"))
+
 
 class BitcoinGUI():
 
