@@ -74,81 +74,74 @@ def show_seed_dialog(wallet, password, parent):
     dialog.run()
     dialog.destroy()
 
-def init_wallet(wallet):
+def restore_create_dialog(wallet):
 
-    try:
-        found = wallet.read()
-    except BaseException, e:
-        show_message(e.message)
-        exit(1)
+    # ask if the user wants to create a new wallet, or recover from a seed. 
+    # if he wants to recover, and nothing is found, do not create wallet
+    dialog = gtk.Dialog("electrum", parent=None, 
+                        flags=gtk.DIALOG_MODAL|gtk.DIALOG_NO_SEPARATOR, 
+                        buttons= ("create", 0, "restore",1, "cancel",2)  )
 
-    if not found: 
-        # ask if the user wants to create a new wallet, or recover from a seed. 
-        # if he wants to recover, and nothing is found, do not create wallet
-        dialog = gtk.Dialog("electrum", parent=None, 
-                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_NO_SEPARATOR, 
-                            buttons= ("create", 0, "restore",1, "cancel",2)  )
-
-        label = gtk.Label("Wallet file not found.\nDo you want to create a new wallet,\n or to restore an existing one?"  )
-        label.show()
-        dialog.vbox.pack_start(label)
-        dialog.show()
-        r = dialog.run()
-        dialog.destroy()
-        if r==2:
-            sys.exit(1)
+    label = gtk.Label("Wallet file not found.\nDo you want to create a new wallet,\n or to restore an existing one?"  )
+    label.show()
+    dialog.vbox.pack_start(label)
+    dialog.show()
+    r = dialog.run()
+    dialog.destroy()
+    if r==2:
+        sys.exit(1)
         
-        is_recovery = (r==1)
+    is_recovery = (r==1)
 
-        if not is_recovery:
+    if not is_recovery:
 
-            wallet.new_seed(None)
+        wallet.new_seed(None)
+        
+        # ask for the server.
+        run_network_dialog( wallet, parent=None )
+        
+        # generate first key
+        wallet.synchronize()
 
-            # ask for the server.
-            run_network_dialog( wallet, parent=None )
+        # run a dialog indicating the seed, ask the user to remember it
+        show_seed_dialog(wallet, None, None)
+            
+        #ask for password
+        change_password_dialog(wallet, None, None)
 
-            # generate first key
+    else:
+        # ask for the server.
+        run_network_dialog( wallet, parent=None )
+
+        # ask for seed and gap.
+        run_recovery_dialog( wallet )
+
+        dialog = gtk.MessageDialog(
+            parent = None,
+            flags = gtk.DIALOG_MODAL, 
+            buttons = gtk.BUTTONS_CANCEL, 
+            message_format = "Please wait..."  )
+        dialog.show()
+
+        def recover_thread( wallet, dialog ):
+            wallet.init_mpk( wallet.seed ) # not encrypted at this point
             wallet.synchronize()
 
-            # run a dialog indicating the seed, ask the user to remember it
-            show_seed_dialog(wallet, None, None)
-            
-            #ask for password
-            change_password_dialog(wallet, None, None)
+            if wallet.is_found():
+                # history and addressbook
+                wallet.update_tx_history()
+                wallet.fill_addressbook()
+                print "recovery successful"
+                wallet.save()
 
-        else:
-            # ask for the server.
-            run_network_dialog( wallet, parent=None )
+            gobject.idle_add( dialog.destroy )
 
-            # ask for seed and gap.
-            run_recovery_dialog( wallet )
-
-            dialog = gtk.MessageDialog(
-                parent = None,
-                flags = gtk.DIALOG_MODAL, 
-                buttons = gtk.BUTTONS_CANCEL, 
-                message_format = "Please wait..."  )
-            dialog.show()
-
-            def recover_thread( wallet, dialog ):
-                wallet.init_mpk( wallet.seed ) # not encrypted at this point
-                wallet.synchronize()
-
-                if wallet.is_found():
-                    # history and addressbook
-                    wallet.update_tx_history()
-                    wallet.fill_addressbook()
-                    print "recovery successful"
-                    wallet.save()
-
-                gobject.idle_add( dialog.destroy )
-
-            thread.start_new_thread( recover_thread, ( wallet, dialog ) )
-            r = dialog.run()
-            dialog.destroy()
-            if r==gtk.RESPONSE_CANCEL: sys.exit(1)
-            if not wallet.is_found:
-                show_message("No transactions found for this seed")
+        thread.start_new_thread( recover_thread, ( wallet, dialog ) )
+        r = dialog.run()
+        dialog.destroy()
+        if r==gtk.RESPONSE_CANCEL: sys.exit(1)
+        if not wallet.is_found:
+            show_message("No transactions found for this seed")
 
 
 def run_recovery_dialog(wallet):

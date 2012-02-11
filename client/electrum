@@ -31,7 +31,7 @@ urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 from wallet import format_satoshis
 
 if __name__ == '__main__':
-    known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'gui', 'mktx','seed','import','signmessage','verifymessage','eval']
+    known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'payto', 'sendtx', 'password', 'newaddress', 'addresses', 'history', 'label', 'mktx','seed','import','signmessage','verifymessage','eval', 'gtk','qt']
 
     usage = "usage: %prog [options] command args\nCommands: "+ (', '.join(known_commands))
 
@@ -44,23 +44,30 @@ if __name__ == '__main__':
     parser.add_option("-s", "--fromaddr", dest="from_addr", default=None, help="set source address for payto/mktx. if it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet.")
     parser.add_option("-c", "--changeaddr", dest="change_addr", default=None, help="set the change address for payto/mktx. default is a spare address, or the source address if it's not in the wallet")
     options, args = parser.parse_args()
-    try:
-        cmd = args[0]
-    except:
-        cmd = "gui"
-    try:
-        firstarg = args[1]
-    except:
-        firstarg = ''
 
     interface = Interface()
     wallet = Wallet(interface)
     wallet.set_path(options.wallet_path)
 
-    if cmd == 'gui' or re.match('^bitcoin:', cmd):
-        import gui
+    cmd = args[0] if len(args) > 0 else 'gtk'
+    firstarg = args[1] if len(args) > 1 else ''
+
+
+    if cmd in ['gtk','qt'] or re.match('^bitcoin:', cmd):
+        if cmd == 'qt':
+            import gui_qt as gui
+        else:
+            import gui
+
         interface.get_servers()
-        gui.init_wallet(wallet)
+        try:
+            found = wallet.read()
+            if not found:
+                gui.restore_create_dialog(wallet)
+        except BaseException, e:
+            show_message(e.message)
+            exit(1)
+            
         gui = gui.BitcoinGUI(wallet)
         interface.start(wallet)
 
@@ -213,7 +220,7 @@ if __name__ == '__main__':
             print "show the transaction history"
         elif cmd2 == 'label':
             print "assign a label to an item"
-        elif cmd2 == 'gui':
+        elif cmd2 == 'gtk':
             print "start the GUI"
         elif cmd2 == 'mktx':
             print "create a signed transaction. password protected"
