@@ -315,6 +315,8 @@ if __name__ == '__main__':
                 if not wallet.import_key(keypair,password):
                     print "invalid key pair"
                     exit(1)
+                wallet.history[from_addr] = interface.retrieve_history(from_addr)
+                wallet.update_tx_history()
                 is_temporary = True
         else:
             from_addr = None
@@ -345,6 +347,7 @@ if __name__ == '__main__':
 
         if is_temporary:
             wallet.imported_keys.pop(from_addr)
+            del(wallet.history[from_addr])
         wallet.save()
 
     elif cmd == 'sendtx':
