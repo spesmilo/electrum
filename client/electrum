@@ -159,9 +159,17 @@ if __name__ == '__main__':
         interface.update_wallet(wallet)
         wallet.save()
 
+    # check if --from_addr not in wallet (for mktx/payto)
+    is_temporary = False
+    from_addr = None
+    if options.from_addr:
+        from_addr = options.from_addr
+        if from_addr not in wallet.all_addresses():
+            is_temporary = True
+                
     # commands needing password
     if cmd in ['payto', 'password', 'mktx', 'seed', 'import','signmessage' ] or ( cmd=='addresses' and options.show_keys):
-        password = getpass.getpass('Password:') if wallet.use_encryption else None
+        password = getpass.getpass('Password:') if wallet.use_encryption and not is_temporary else None
         # check password
         try:
             wallet.pw_decode( wallet.seed, password)
@@ -303,23 +311,18 @@ if __name__ == '__main__':
         wallet.save()
             
     elif cmd in ['payto', 'mktx']:
-        is_temporary = False
-        if options.from_addr:
-            from_addr = options.from_addr
-            if from_addr not in wallet.all_addresses():
-                if from_addr.find(":") == -1:
-                    keypair = from_addr + ":" + getpass.getpass('Private key:')
-                else:
-                    keypair = from_addr
-                    from_addr = keypair.split(':')[0]
-                if not wallet.import_key(keypair,password):
-                    print "invalid key pair"
-                    exit(1)
-                wallet.history[from_addr] = interface.retrieve_history(from_addr)
-                wallet.update_tx_history()
-                is_temporary = True
-        else:
-            from_addr = None
+        if from_addr and is_temporary:
+            if from_addr.find(":") == -1:
+                keypair = from_addr + ":" + getpass.getpass('Private key:')
+            else:
+                keypair = from_addr
+                from_addr = keypair.split(':')[0]
+            if not wallet.import_key(keypair,password):
+                print "invalid key pair"
+                exit(1)
+            wallet.history[from_addr] = interface.retrieve_history(from_addr)
+            wallet.update_tx_history()
+            change_addr = from_addr
 
         if options.change_addr:
             change_addr = options.change_addr
