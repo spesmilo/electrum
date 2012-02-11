@@ -65,7 +65,7 @@ if __name__ == '__main__':
             if not found:
                 gui.restore_create_dialog(wallet)
         except BaseException, e:
-            show_message(e.message)
+            gui.show_message(e.message)
             exit(1)
             
         gui = gui.BitcoinGUI(wallet)
