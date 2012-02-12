@@ -63,14 +63,15 @@ class BitcoinWidget(QMainWindow):
             self.textbox.setText( self.wallet.interface.message )
             self.wallet.interface.was_updated = False
             self.update_history_tab()
+            self.update_receive_tab()
+            self.update_contacts_tab()
 
 
     def create_history_tab(self):
         self.history_list = w = QTreeWidget(self)
         w.setColumnCount(5)
-        w.setHeaderLabels( ['conf', 'Date','Description','Amount','Balance'])
+        w.setHeaderLabels( ['conf', 'Date','Description','Amount','Balance'] )
         return w
-
 
     def update_history_tab(self):
         self.history_list.clear()
@@ -127,16 +128,47 @@ class BitcoinWidget(QMainWindow):
         return w2
 
     def create_receive_tab(self):
-        self.addresses_list = w = QTreeWidget(self)
+        self.receive_list = w = QTreeWidget(self)
         w.setColumnCount(3)
         w.setHeaderLabels( ['Address', 'Label','Tx'])
         return w
+
+    def update_receive_tab(self):
+        self.receive_list.clear()
+        for address in self.wallet.all_addresses():
+            if self.wallet.is_change(address):continue
+            label = self.wallet.labels.get(address,'')
+            n = 0 
+            h = self.wallet.history.get(address,[])
+            for item in h:
+                if not item['is_in'] : n=n+1
+            tx = "None" if n==0 else "%d"%n
+            item = QTreeWidgetItem( [ address, label, tx] )
+            self.receive_list.addTopLevelItem(item)
 
     def create_contacts_tab(self):
         self.contacts_list = w = QTreeWidget(self)
         w.setColumnCount(3)
         w.setHeaderLabels( ['Address', 'Label','Tx'])
         return w
+
+    def update_contacts_tab(self):
+        self.contacts_list.clear()
+        for alias, v in self.wallet.aliases.items():
+            s, target = v
+            label = self.wallet.labels.get(alias)
+            item = QTreeWidgetItem( [ alias, label, '-'] )
+            self.contacts_list.addTopLevelItem(item)
+            
+        for address in self.wallet.addressbook:
+            label = self.wallet.labels.get(address,'')
+            n = 0 
+            for item in self.wallet.tx_history.values():
+                if address in item['outputs'] : n=n+1
+            tx = "None" if n==0 else "%d"%n
+            item = QTreeWidgetItem( [ address, label, tx] )
+            self.contacts_list.addTopLevelItem(item)
+
 
     def create_wall_tab(self):
         self.textbox = textbox = QTextEdit(self)
