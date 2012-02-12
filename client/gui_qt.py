@@ -41,6 +41,8 @@ class ElectrumWindow(QMainWindow):
 
         QShortcut(QKeySequence("Ctrl+W"), self, self.close)
         QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
+        QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: tabs.setCurrentIndex( tabs.currentIndex() - 1))
+        QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: tabs.setCurrentIndex( tabs.currentIndex() + 1))
 
 
     def connect_slots(self, sender):
@@ -83,9 +85,10 @@ class ElectrumWindow(QMainWindow):
         w.setColumnWidth(2, 340) 
         w.setColumnWidth(3, 120) 
         w.setColumnWidth(4, 120) 
-        w.setHeaderLabels( [ '', 'Date', 'Description', 'Amount', 'Balance', ''] )
-        self.connect(w, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), self.tx_label)
+        w.setHeaderLabels( [ '', 'Date', 'Description', 'Amount', 'Balance'] )
         self.connect(w, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.tx_details)
+        self.connect(w, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), self.tx_label_clicked)
+        self.connect(w, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), self.tx_label_changed)
         return w
 
     def tx_details(self, item, column):
@@ -115,13 +118,35 @@ class ElectrumWindow(QMainWindow):
 
         QMessageBox.information(self, 'Details', tx_details, 'OK')
 
-        
 
+    def tx_label_clicked(self, item, column):
+        if column==2 and item.isSelected():
+            tx_hash = str(item.toolTip(0))
+            self.is_edit=True
+            #if not self.wallet.labels.get(tx_hash): item.setText(2,'')
+            item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
+            self.history_list.editItem( item, column )
+            item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
+            self.is_edit=False
 
-    def tx_label(self, item, column):
-        if column==2:
-            print 's', item, column
+    def tx_label_changed(self, item, column):
+        if self.is_edit: 
+            return
+        self.is_edit=True
+        tx_hash = str(item.toolTip(0))
+        tx = self.wallet.tx_history.get(tx_hash)
+        s = self.wallet.labels.get(tx_hash)
+        text = str( item.text(2) )
+        if text != '': 
+            self.wallet.labels[tx_hash] = text
+            item.setForeground(2, QBrush(QColor('black')))
+        else:
+            if s: self.wallet.labels.pop(tx_hash)
+            text = tx['default_label']
+            item.setText(2, text)
+            item.setForeground(2, QBrush(QColor('gray')))
 
+        self.is_edit=False
 
     def update_history_tab(self):
         self.history_list.clear()
@@ -148,7 +173,7 @@ class ElectrumWindow(QMainWindow):
             item.setFont(4, QFont('monospace'))
             item.setToolTip(0, tx_hash)
             if is_default_label:
-                item.setForeground(2, QBrush(QColor('gray')))
+                item.setForeground(2, QBrush(QColor('grey')))
 
             item.setIcon(0, icon)
             self.history_list.insertTopLevelItem(0,item)
@@ -243,7 +268,19 @@ class ElectrumWindow(QMainWindow):
 
     def create_contacts_tab(self):
         w, self.contacts_list = self.make_address_list(False)
+        self.connect(self.contacts_list, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.show_contact_details)
         return w
+
+    def show_contact_details(self, item, column):
+        m = str(item.text(0))
+        a = self.wallet.aliases.get(m)
+        if a:
+            if a[0] in self.wallet.authorities.keys():
+                s = self.wallet.authorities.get(a[0])
+            else:
+                s = "self-signed"
+            msg = 'Alias: '+ m + '\nTarget address: '+ a[1] + '\n\nSigned by: ' + s + '\nSigning address:' + a[0]
+            QMessageBox.information(self, 'Alias', msg, 'OK')
 
     def update_contacts_tab(self):
         self.contacts_list.clear()
