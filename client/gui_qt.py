@@ -97,6 +97,7 @@ class ElectrumWindow(QMainWindow):
             is_default_label = (label == '') or (label is None)
             if is_default_label: label = tx['default_label']
             item = QTreeWidgetItem( [ '', time_str, label, format_satoshis(v,True), format_satoshis(balance)] )
+            item.setFont(2, QFont('monospace'))
 
             item.setIcon(0, icon)
             self.history_list.insertTopLevelItem(0,item)
@@ -146,7 +147,6 @@ class ElectrumWindow(QMainWindow):
         l.setHeaderLabels( ['Address', 'Label','Tx'])
 
         vbox = QtGui.QVBoxLayout()
-        #vbox.addStretch(1)
         vbox.addWidget(l)
 
         hbox = QtGui.QHBoxLayout()
@@ -183,6 +183,7 @@ class ElectrumWindow(QMainWindow):
                 if not item['is_in'] : n=n+1
             tx = "None" if n==0 else "%d"%n
             item = QTreeWidgetItem( [ address, label, tx] )
+            item.setFont(0, QFont('monospace'))
             self.receive_list.addTopLevelItem(item)
 
     def create_contacts_tab(self):
@@ -204,6 +205,7 @@ class ElectrumWindow(QMainWindow):
                 if address in item['outputs'] : n=n+1
             tx = "None" if n==0 else "%d"%n
             item = QTreeWidgetItem( [ address, label, tx] )
+            item.setFont(0, QFont('monospace'))
             self.contacts_list.addTopLevelItem(item)
 
 
