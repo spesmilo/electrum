@@ -51,15 +51,21 @@ class ElectrumWindow(QMainWindow):
         if self.wallet.interface.is_connected:
             if self.wallet.interface.blocks == 0:
                 text = "Server not ready"
+                icon = QIcon("icons/status_disconnected.svg")
             elif not self.wallet.interface.was_polled:
                 text = "Synchronizing..."
+                icon = QIcon("icons/status_waiting.svg")
             else:
                 c, u = self.wallet.get_balance()
                 text =  "Balance: %s "%( format_satoshis(c) )
                 if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True) )
+                icon = QIcon("icons/status_connected.png")
         else:
             text = "Not connected"
+            icon = QIcon("icons/status_disconnected.svg")
+
         self.statusBar().showMessage(text)
+        self.status_button.setIcon( icon )
 
         if self.wallet.interface.was_updated:
             self.wallet.interface.was_updated = False
@@ -154,10 +160,12 @@ class ElectrumWindow(QMainWindow):
 
         vbox = QtGui.QVBoxLayout()
         vbox.setMargin(0)
+        vbox.setSpacing(0)
         vbox.addWidget(l)
 
         hbox = QtGui.QHBoxLayout()
         hbox.setMargin(0)
+        hbox.setSpacing(0)
         qrButton = QtGui.QPushButton("QR")
         copyButton = QtGui.QPushButton("Copy to Clipboard")
         hbox.addWidget(qrButton)
@@ -202,7 +210,7 @@ class ElectrumWindow(QMainWindow):
         self.contacts_list.clear()
         for alias, v in self.wallet.aliases.items():
             s, target = v
-            label = self.wallet.labels.get(alias)
+            label = self.wallet.labels.get(alias,'')
             item = QTreeWidgetItem( [ alias, label, '-'] )
             self.contacts_list.addTopLevelItem(item)
             
@@ -224,36 +232,42 @@ class ElectrumWindow(QMainWindow):
 
     def create_status_bar(self):
         sb = QStatusBar()
-        sb.setFixedHeight(30)
+        sb.setFixedHeight(35)
+
+        hbox = QtGui.QHBoxLayout()
+        hbox.setMargin(0)
+        buttons = QWidget()
+        buttons.setLayout(hbox)
 
         icon = QIcon("icons/lock.svg")
         b = QPushButton( icon, '' )
         b.setToolTip("Password")
         b.setFlat(True)
         b.setMaximumWidth(25)
-        sb.addPermanentWidget(b)
+        hbox.addWidget(b)
 
         icon = QIcon("icons/preferences.svg")
         b = QPushButton( icon, '' )
         b.setToolTip("Preferences")
         b.setFlat(True)
         b.setMaximumWidth(25)
-        sb.addPermanentWidget(b)
+        hbox.addWidget(b)
 
         icon = QIcon("icons/seed.png")
         b = QPushButton( icon, '' )
         b.setToolTip("Seed")
         b.setFlat(True)
-        b.setMaximumWidth(25)
-        sb.addPermanentWidget(b)
+        b.setMaximumWidth(20)
+        hbox.addWidget(b)
 
         icon = QIcon("icons/status_disconnected.svg")
-        b = QPushButton( icon, '' )
+        self.status_button = b = QPushButton( icon, '' )
         b.setToolTip("Network")
         b.setFlat(True)
         b.setMaximumWidth(25)
-        sb.addPermanentWidget(b)
+        hbox.addWidget(b)
 
+        sb.addPermanentWidget(buttons)
         self.setStatusBar(sb)
 
 
