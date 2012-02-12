@@ -153,9 +153,11 @@ class ElectrumWindow(QMainWindow):
         l.setHeaderLabels( ['Address', 'Label','Tx'])
 
         vbox = QtGui.QVBoxLayout()
+        vbox.setMargin(0)
         vbox.addWidget(l)
 
         hbox = QtGui.QHBoxLayout()
+        hbox.setMargin(0)
         qrButton = QtGui.QPushButton("QR")
         copyButton = QtGui.QPushButton("Copy to Clipboard")
         hbox.addWidget(qrButton)
