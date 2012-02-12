@@ -19,31 +19,33 @@ class Sender(QtCore.QThread):
             time.sleep(0.5)
 
 
-class BitcoinWidget(QMainWindow):
+class ElectrumWindow(QMainWindow):
 
     def __init__(self, wallet):
         QMainWindow.__init__(self)
         self.wallet = wallet
 
         tabs = QTabWidget(self)
-        tabs.addTab(self.create_history_tab(), 'History')  
+        tabs.addTab(self.create_history_tab(), 'History')
         tabs.addTab(self.create_send_tab(),    'Send')
-        tabs.addTab(self.create_receive_tab(), 'Receive')  
-        tabs.addTab(self.create_contacts_tab(),'Contacts')  
-        tabs.addTab(self.create_wall_tab(),    'Wall')  
+        tabs.addTab(self.create_receive_tab(), 'Receive')
+        tabs.addTab(self.create_contacts_tab(),'Contacts')
+        tabs.addTab(self.create_wall_tab(),    'Wall')
         tabs.setMinimumSize(600, 400)
         tabs.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
-
-        tabs.show()
-
+        self.setCentralWidget(tabs)
         self.create_status_bar()
-        
-        self.setGeometry(100,100,750,550)
+        self.setGeometry(100,100,750,400)
         self.setWindowTitle( 'Electrum ' + self.wallet.electrum_version )
         self.show()
 
+        QShortcut(QKeySequence("Ctrl+W"), self, self.close)
+        QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
+
+
     def connect_slots(self, sender):
         self.connect(sender, QtCore.SIGNAL('testsignal'), self.update_wallet)
+
 
     def update_wallet(self):
         if self.wallet.interface.is_connected:
@@ -60,8 +62,8 @@ class BitcoinWidget(QMainWindow):
         self.statusBar().showMessage(text)
 
         if self.wallet.interface.was_updated:
-            self.textbox.setText( self.wallet.interface.message )
             self.wallet.interface.was_updated = False
+            self.textbox.setText( self.wallet.interface.message )
             self.update_history_tab()
             self.update_receive_tab()
             self.update_contacts_tab()
@@ -190,6 +192,6 @@ class BitcoinGUI():
         s = Sender()
         s.start()
         app = QApplication(sys.argv)
-        w = BitcoinWidget(self.wallet)
+        w = ElectrumWindow(self.wallet)
         w.connect_slots(s)
         app.exec_()
