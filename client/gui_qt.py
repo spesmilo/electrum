@@ -98,6 +98,8 @@ class ElectrumWindow(QMainWindow):
             if is_default_label: label = tx['default_label']
             item = QTreeWidgetItem( [ '', time_str, label, format_satoshis(v,True), format_satoshis(balance)] )
             item.setFont(2, QFont('monospace'))
+            if is_default_label:
+                item.setForeground(2, QBrush(QColor('gray')))
 
             item.setIcon(0, icon)
             self.history_list.insertTopLevelItem(0,item)
