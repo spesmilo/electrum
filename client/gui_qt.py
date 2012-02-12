@@ -36,7 +36,7 @@ class ElectrumWindow(QMainWindow):
         self.setCentralWidget(tabs)
         self.create_status_bar()
         self.setGeometry(100,100,750,400)
-        self.setWindowTitle( 'Electrum ' + self.wallet.electrum_version )
+        self.setWindowTitle( 'Electrum ' + self.wallet.electrum_version + ' - Qt')
         self.show()
 
         QShortcut(QKeySequence("Ctrl+W"), self, self.close)
@@ -72,7 +72,10 @@ class ElectrumWindow(QMainWindow):
     def create_history_tab(self):
         self.history_list = w = QTreeWidget(self)
         w.setColumnCount(5)
-        w.setHeaderLabels( ['conf', 'Date','Description','Amount','Balance'] )
+        w.setColumnWidth(0, 40) 
+        w.setColumnWidth(1, 140) 
+        w.setColumnWidth(2, 340) 
+        w.setHeaderLabels( ['', 'Date', 'Description', 'Amount', 'Balance'] )
         return w
 
     def update_history_tab(self):
@@ -83,16 +86,20 @@ class ElectrumWindow(QMainWindow):
             if tx['height']:
                 conf = self.wallet.interface.blocks - tx['height'] + 1
                 time_str = datetime.datetime.fromtimestamp( tx['nTime']).isoformat(' ')[:-3]
+                icon = QIcon("icons/gtk-apply.svg")
             else:
                 conf = 0
                 time_str = 'pending'
+                icon = QIcon("icons/gtk-execute")
             v = tx['value']
             balance += v 
             label = self.wallet.labels.get(tx_hash)
             is_default_label = (label == '') or (label is None)
             if is_default_label: label = tx['default_label']
-            item = QTreeWidgetItem( [ "%d"%conf, time_str, label, format_satoshis(v,True), format_satoshis(balance)] )
-            self.history_list.addTopLevelItem(item)
+            item = QTreeWidgetItem( [ '', time_str, label, format_satoshis(v,True), format_satoshis(balance)] )
+
+            item.setIcon(0, icon)
+            self.history_list.insertTopLevelItem(0,item)
 
 
     def create_send_tab(self):
@@ -129,11 +136,19 @@ class ElectrumWindow(QMainWindow):
 
         return w2
 
-    def create_receive_tab(self):
-        self.receive_list = w = QTreeWidget(self)
+    def make_address_list(self, is_recv):
+        w = QTreeWidget(self)
         w.setColumnCount(3)
+        w.setColumnWidth(0, 330) 
+        w.setColumnWidth(1, 330) 
+        w.setColumnWidth(2, 20) 
         w.setHeaderLabels( ['Address', 'Label','Tx'])
         return w
+
+    def create_receive_tab(self):
+        self.receive_list = self.make_address_list(True)
+        return self.receive_list
+
 
     def update_receive_tab(self):
         self.receive_list.clear()
@@ -149,10 +164,8 @@ class ElectrumWindow(QMainWindow):
             self.receive_list.addTopLevelItem(item)
 
     def create_contacts_tab(self):
-        self.contacts_list = w = QTreeWidget(self)
-        w.setColumnCount(3)
-        w.setHeaderLabels( ['Address', 'Label','Tx'])
-        return w
+        self.contacts_list = self.make_address_list(False)
+        return self.contacts_list
 
     def update_contacts_tab(self):
         self.contacts_list.clear()
