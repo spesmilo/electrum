@@ -137,7 +137,7 @@ class ElectrumWindow(QMainWindow):
         tx = self.wallet.tx_history.get(tx_hash)
         s = self.wallet.labels.get(tx_hash)
         text = str( item.text(2) )
-        if text != '': 
+        if text: 
             self.wallet.labels[tx_hash] = text
             item.setForeground(2, QBrush(QColor('black')))
         else:
@@ -145,8 +145,23 @@ class ElectrumWindow(QMainWindow):
             text = tx['default_label']
             item.setText(2, text)
             item.setForeground(2, QBrush(QColor('gray')))
-
         self.is_edit=False
+
+    def address_label_clicked(self, item, column, l):
+        if column==1 and item.isSelected():
+            item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
+            l.editItem( item, column )
+            item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
+
+    def address_label_changed(self, item, column, l):
+        addr = str(item.text(0))
+        text = str( item.text(1) )
+        if text:
+            self.wallet.labels[addr] = text
+        else:
+            s = self.wallet.labels.get(addr)
+            if s: self.wallet.labels.pop(addr)
+        self.update_history_tab()
 
     def update_history_tab(self):
         self.history_list.clear()
@@ -202,6 +217,11 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(QLabel('Fee'), 4, 0)
         grid.addWidget(feeEdit, 4, 1)
         
+        sendButton = QPushButton("Send")
+        clearButton = QPushButton("Clear")
+        grid.addWidget(sendButton, 5, 1)
+        grid.addWidget(clearButton, 5, 1)
+
         w.setLayout(grid) 
         w.show()
 
@@ -236,6 +256,7 @@ class ElectrumWindow(QMainWindow):
         hbox.addWidget(copyButton)
         if not is_recv:
             addButton = QtGui.QPushButton("New")
+            addButton.clicked.connect(self.newaddress_dialog)
             paytoButton = QtGui.QPushButton("Pay to")
             hbox.addWidget(addButton)
             hbox.addWidget(paytoButton)
@@ -249,7 +270,18 @@ class ElectrumWindow(QMainWindow):
         return w, l
 
     def create_receive_tab(self):
-        w, self.receive_list = self.make_address_list(True)
+        w, l = self.make_address_list(True)
+        self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l))
+        self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l))
+        self.receive_list = l
+        return w
+
+    def create_contacts_tab(self):
+        w, l = self.make_address_list(False)
+        self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l))
+        self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l))
+        self.connect(l, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.show_contact_details)
+        self.contacts_list = l
         return w
 
     def update_receive_tab(self):
@@ -265,11 +297,6 @@ class ElectrumWindow(QMainWindow):
             item = QTreeWidgetItem( [ address, label, tx] )
             item.setFont(0, QFont('monospace'))
             self.receive_list.addTopLevelItem(item)
-
-    def create_contacts_tab(self):
-        w, self.contacts_list = self.make_address_list(False)
-        self.connect(self.contacts_list, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.show_contact_details)
-        return w
 
     def show_contact_details(self, item, column):
         m = str(item.text(0))
@@ -334,6 +361,7 @@ class ElectrumWindow(QMainWindow):
         b.setToolTip("Seed")
         b.setFlat(True)
         b.setMaximumWidth(20)
+        b.clicked.connect(self.show_seed_dialog)
         hbox.addWidget(b)
 
         icon = QIcon("icons/status_disconnected.svg")
@@ -345,6 +373,34 @@ class ElectrumWindow(QMainWindow):
 
         sb.addPermanentWidget(buttons)
         self.setStatusBar(sb)
+
+    def newaddress_dialog(self):
+
+        text, ok = QtGui.QInputDialog.getText(self, 'New Contact', 'Address:')
+        address = str(text)
+        if ok:
+            if self.wallet.is_valid(address):
+                self.wallet.addressbook.append(address)
+                self.wallet.save()
+                self.update_contacts_tab()
+            else:
+                QMessageBox.warning(self, 'Error', 'Invalid Address', 'OK')
+
+    def show_seed_dialog(self):
+        import mnemonic
+        pw, ok = QtGui.QInputDialog.getText(self, 'Password', 'Password:')
+        if ok:
+            try:
+                seed = self.wallet.pw_decode( self.wallet.seed, str(pw))
+            except:
+                QMessageBox.warning(self, 'Error', 'Invalid Password', 'OK')
+                return
+
+            msg = "Your wallet generation seed is:\n\n" + seed \
+                + "\n\nPlease keep it in a safe place; if you lose it, you will not be able to restore your wallet.\n\n" \
+                + "Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:\n\n\"" \
+                + ' '.join(mnemonic.mn_encode(seed)) + "\""
+            QMessageBox.information(self, 'Seed', msg, 'OK')
 
 
 class BitcoinGUI():

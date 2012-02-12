@@ -1218,7 +1218,7 @@ class BitcoinGUI:
 
     def newaddress_dialog(self, w):
 
-        title = "New sending address" 
+        title = "New Contact" 
         dialog = gtk.Dialog(title, parent=self.window, 
                             flags=gtk.DIALOG_MODAL|gtk.DIALOG_NO_SEPARATOR, 
                             buttons= ("cancel", 0, "ok",1)  )
