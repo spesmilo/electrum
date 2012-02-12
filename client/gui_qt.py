@@ -35,7 +35,7 @@ class ElectrumWindow(QMainWindow):
         tabs.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
         self.create_status_bar()
-        self.setGeometry(100,100,750,400)
+        self.setGeometry(100,100,800,400)
         self.setWindowTitle( 'Electrum ' + self.wallet.electrum_version + ' - Qt')
         self.show()
 
@@ -75,6 +75,8 @@ class ElectrumWindow(QMainWindow):
         w.setColumnWidth(0, 40) 
         w.setColumnWidth(1, 140) 
         w.setColumnWidth(2, 340) 
+        w.setColumnWidth(3, 120) 
+        w.setColumnWidth(4, 120) 
         w.setHeaderLabels( ['', 'Date', 'Description', 'Amount', 'Balance'] )
         return w
 
@@ -98,6 +100,8 @@ class ElectrumWindow(QMainWindow):
             if is_default_label: label = tx['default_label']
             item = QTreeWidgetItem( [ '', time_str, label, format_satoshis(v,True), format_satoshis(balance)] )
             item.setFont(2, QFont('monospace'))
+            item.setFont(3, QFont('monospace'))
+            item.setFont(4, QFont('monospace'))
             if is_default_label:
                 item.setForeground(2, QBrush(QColor('gray')))
 
@@ -218,7 +222,32 @@ class ElectrumWindow(QMainWindow):
 
     def create_status_bar(self):
         sb = QStatusBar()
-        sb.setFixedHeight(20)
+        sb.setFixedHeight(30)
+
+        icon = QIcon("icons/gtk-apply.svg")
+        b = QPushButton( icon, '' )
+        b.setFlat(True)
+        b.setMaximumWidth(20)
+        sb.addPermanentWidget(b)
+
+        icon = QIcon("icons/gtk-apply.svg")
+        b = QPushButton( icon, '' )
+        b.setFlat(True)
+        b.setMaximumWidth(20)
+        sb.addPermanentWidget(b)
+
+        icon = QIcon("icons/gtk-apply.svg")
+        b = QPushButton( icon, '' )
+        b.setFlat(True)
+        b.setMaximumWidth(20)
+        sb.addPermanentWidget(b)
+
+        icon = QIcon("icons/gtk-apply.svg")
+        b = QPushButton( icon, '' )
+        b.setFlat(True)
+        b.setMaximumWidth(20)
+        sb.addPermanentWidget(b)
+
         self.setStatusBar(sb)
 
 
