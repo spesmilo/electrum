@@ -88,11 +88,11 @@ class ElectrumWindow(QMainWindow):
             if tx['height']:
                 conf = self.wallet.interface.blocks - tx['height'] + 1
                 time_str = datetime.datetime.fromtimestamp( tx['nTime']).isoformat(' ')[:-3]
-                icon = QIcon("icons/gtk-apply.svg")
+                icon = QIcon("icons/confirmed.png")
             else:
                 conf = 0
                 time_str = 'pending'
-                icon = QIcon("icons/gtk-execute")
+                icon = QIcon("icons/unconfirmed.svg")
             v = tx['value']
             balance += v 
             label = self.wallet.labels.get(tx_hash)
