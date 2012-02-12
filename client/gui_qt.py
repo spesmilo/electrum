@@ -83,8 +83,45 @@ class ElectrumWindow(QMainWindow):
         w.setColumnWidth(2, 340) 
         w.setColumnWidth(3, 120) 
         w.setColumnWidth(4, 120) 
-        w.setHeaderLabels( ['', 'Date', 'Description', 'Amount', 'Balance'] )
+        w.setHeaderLabels( [ '', 'Date', 'Description', 'Amount', 'Balance', ''] )
+        self.connect(w, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), self.tx_label)
+        self.connect(w, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.tx_details)
         return w
+
+    def tx_details(self, item, column):
+        tx_hash = str(item.toolTip(0))
+        tx = self.wallet.tx_history.get(tx_hash)
+
+        if tx['height']:
+            conf = self.wallet.interface.blocks - tx['height'] + 1
+            time_str = datetime.datetime.fromtimestamp( tx['nTime']).isoformat(' ')[:-3]
+        else:
+            conf = 0
+            time_str = 'pending'
+
+        tx_details = "Transaction Details:\n\n" \
+            + "Transaction ID:\n" + tx_hash + "\n\n" \
+            + "Status: %d confirmations\n\n"%conf  \
+            + "Date: %s\n\n"%time_str \
+            + "Inputs:\n-"+ '\n-'.join(tx['inputs']) + "\n\n" \
+            + "Outputs:\n-"+ '\n-'.join(tx['outputs'])
+
+        r = self.wallet.receipts.get(tx_hash)
+        if r:
+            tx_details += "\n_______________________________________" \
+                + '\n\nSigned URI: ' + r[2] \
+                + "\n\nSigned by: " + r[0] \
+                + '\n\nSignature: ' + r[1]
+
+        QMessageBox.information(self, 'Details', tx_details, 'OK')
+
+        
+
+
+    def tx_label(self, item, column):
+        if column==2:
+            print 's', item, column
+
 
     def update_history_tab(self):
         self.history_list.clear()
@@ -104,10 +141,12 @@ class ElectrumWindow(QMainWindow):
             label = self.wallet.labels.get(tx_hash)
             is_default_label = (label == '') or (label is None)
             if is_default_label: label = tx['default_label']
+
             item = QTreeWidgetItem( [ '', time_str, label, format_satoshis(v,True), format_satoshis(balance)] )
             item.setFont(2, QFont('monospace'))
             item.setFont(3, QFont('monospace'))
             item.setFont(4, QFont('monospace'))
+            item.setToolTip(0, tx_hash)
             if is_default_label:
                 item.setForeground(2, QBrush(QColor('gray')))
 
