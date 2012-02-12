@@ -137,18 +137,40 @@ class ElectrumWindow(QMainWindow):
         return w2
 
     def make_address_list(self, is_recv):
-        w = QTreeWidget(self)
-        w.setColumnCount(3)
-        w.setColumnWidth(0, 330) 
-        w.setColumnWidth(1, 330) 
-        w.setColumnWidth(2, 20) 
-        w.setHeaderLabels( ['Address', 'Label','Tx'])
-        return w
+
+        l = QTreeWidget(self)
+        l.setColumnCount(3)
+        l.setColumnWidth(0, 330) 
+        l.setColumnWidth(1, 330) 
+        l.setColumnWidth(2, 20) 
+        l.setHeaderLabels( ['Address', 'Label','Tx'])
+
+        vbox = QtGui.QVBoxLayout()
+        #vbox.addStretch(1)
+        vbox.addWidget(l)
+
+        hbox = QtGui.QHBoxLayout()
+        qrButton = QtGui.QPushButton("QR")
+        copyButton = QtGui.QPushButton("Copy to Clipboard")
+        hbox.addWidget(qrButton)
+        hbox.addWidget(copyButton)
+        if not is_recv:
+            addButton = QtGui.QPushButton("New")
+            paytoButton = QtGui.QPushButton("Pay to")
+            hbox.addWidget(addButton)
+            hbox.addWidget(paytoButton)
+        hbox.addStretch(1)
+        buttons = QWidget()
+        buttons.setLayout(hbox)
+        vbox.addWidget(buttons)
+
+        w = QWidget()
+        w.setLayout(vbox)
+        return w, l
 
     def create_receive_tab(self):
-        self.receive_list = self.make_address_list(True)
-        return self.receive_list
-
+        w, self.receive_list = self.make_address_list(True)
+        return w
 
     def update_receive_tab(self):
         self.receive_list.clear()
@@ -164,8 +186,8 @@ class ElectrumWindow(QMainWindow):
             self.receive_list.addTopLevelItem(item)
 
     def create_contacts_tab(self):
-        self.contacts_list = self.make_address_list(False)
-        return self.contacts_list
+        w, self.contacts_list = self.make_address_list(False)
+        return w
 
     def update_contacts_tab(self):
         self.contacts_list.clear()
