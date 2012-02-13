@@ -19,6 +19,19 @@ class Sender(QtCore.QThread):
             self.emit(QtCore.SIGNAL('testsignal'))
             time.sleep(0.5)
 
+class StatusBarButton(QPushButton):
+    def __init__(self, icon, tooltip, func):
+        QPushButton.__init__(self, icon, '')
+        self.setToolTip(tooltip)
+        self.setFlat(True)
+        self.setMaximumWidth(25)
+        self.clicked.connect(func)
+        self.func = func
+
+    def keyPressEvent(self, e):
+        if e.key() == QtCore.Qt.Key_Return:
+            apply(self.func,())
+
 
 class ElectrumWindow(QMainWindow):
 
@@ -426,45 +439,11 @@ class ElectrumWindow(QMainWindow):
     def create_status_bar(self):
         sb = QStatusBar()
         sb.setFixedHeight(35)
-
-        hbox = QHBoxLayout()
-        hbox.setMargin(0)
-        buttons = QWidget()
-        buttons.setLayout(hbox)
-
-        icon = QIcon("icons/lock.svg")
-        b = QPushButton( icon, '' )
-        b.setToolTip("Password")
-        b.setFlat(True)
-        b.setMaximumWidth(25)
-        b.clicked.connect(self.change_password_dialog)
-        hbox.addWidget(b)
-
-        icon = QIcon("icons/preferences.png")
-        b = QPushButton( icon, '' )
-        b.setToolTip("Preferences")
-        b.setFlat(True)
-        b.setMaximumWidth(25)
-        b.clicked.connect(self.settings_dialog)
-        hbox.addWidget(b)
-
-        icon = QIcon("icons/seed.png")
-        b = QPushButton( icon, '' )
-        b.setToolTip("Seed")
-        b.setFlat(True)
-        b.setMaximumWidth(20)
-        b.clicked.connect(self.show_seed_dialog)
-        hbox.addWidget(b)
-
-        icon = QIcon("icons/status_disconnected.png")
-        self.status_button = b = QPushButton( icon, '' )
-        b.setToolTip("Network")
-        b.setFlat(True)
-        b.setMaximumWidth(25)
-        b.clicked.connect(self.network_dialog)
-        hbox.addWidget(b)
-
-        sb.addPermanentWidget(buttons)
+        sb.addPermanentWidget( StatusBarButton( QIcon("icons/lock.svg"), "Password", self.change_password_dialog ) )
+        sb.addPermanentWidget( StatusBarButton( QIcon("icons/preferences.png"), "Preferences", self.settings_dialog ) )
+        sb.addPermanentWidget( StatusBarButton( QIcon("icons/seed.png"), "Seed", self.show_seed_dialog ) )
+        self.status_button = StatusBarButton( QIcon("icons/status_disconnected.png"), "Network", self.network_dialog ) 
+        sb.addPermanentWidget( self.status_button )
         self.setStatusBar(sb)
 
     def newaddress_dialog(self):
@@ -607,15 +586,15 @@ class ElectrumWindow(QMainWindow):
         self.wallet.fee = fee
         self.wallet.save()
 
-    def network_dialog(self, parent=True):
+    def network_dialog(self):
         wallet = self.wallet
-        if parent:
+        if True:
             if wallet.interface.is_connected:
                 status = "Connected to %s.\n%d blocks\nresponse time: %f"%(wallet.interface.host, wallet.interface.blocks, wallet.interface.rtime)
             else:
                 status = "Not connected"
-                host = wallet.interface.host
-                port = wallet.interface.port
+            host = wallet.interface.host
+            port = wallet.interface.port
         else:
             import random
             status = "Please choose a server."
