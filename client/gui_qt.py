@@ -26,7 +26,7 @@ class ElectrumWindow(QMainWindow):
         QMainWindow.__init__(self)
         self.wallet = wallet
 
-        tabs = QTabWidget(self)
+        self.tabs = tabs = QTabWidget(self)
         tabs.addTab(self.create_history_tab(), 'History')
         tabs.addTab(self.create_send_tab(),    'Send')
         tabs.addTab(self.create_receive_tab(), 'Receive')
@@ -199,25 +199,24 @@ class ElectrumWindow(QMainWindow):
     def create_send_tab(self):
         w = QWidget()
 
-        paytoEdit = QtGui.QLineEdit()
-        descriptionEdit = QtGui.QLineEdit()
-        amountEdit = QtGui.QLineEdit()
-        feeEdit = QtGui.QLineEdit()
-
         grid = QtGui.QGridLayout()
         grid.setSpacing(8)
         grid.setColumnMinimumWidth(3,300)
         grid.setColumnStretch(4,1)
 
+        self.payto_entry = paytoEdit = QtGui.QLineEdit()
         grid.addWidget(QLabel('Pay to'), 1, 0)
         grid.addWidget(paytoEdit, 1, 1, 1, 3)
 
+        descriptionEdit = QtGui.QLineEdit()
         grid.addWidget(QLabel('Description'), 2, 0)
         grid.addWidget(descriptionEdit, 2, 1, 1, 3)
 
+        amountEdit = QtGui.QLineEdit()
         grid.addWidget(QLabel('Amount'), 3, 0)
         grid.addWidget(amountEdit, 3, 1, 1, 2)
         
+        feeEdit = QtGui.QLineEdit()
         grid.addWidget(QLabel('Fee'), 4, 0)
         grid.addWidget(feeEdit, 4, 1, 1, 2)
         
@@ -319,13 +318,27 @@ class ElectrumWindow(QMainWindow):
         hbox.setSpacing(0)
         qrButton = QtGui.QPushButton("QR")
         copyButton = QtGui.QPushButton("Copy to Clipboard")
+        def copy2clipboard(l):
+            i = l.currentItem()
+            if not i: return
+            addr = str( i.text(0) )
+            self.app.clipboard().setText(addr)
+
+        copyButton.clicked.connect(lambda: copy2clipboard(l))
         hbox.addWidget(qrButton)
         hbox.addWidget(copyButton)
         if not is_recv:
             addButton = QtGui.QPushButton("New")
             addButton.clicked.connect(self.newaddress_dialog)
-            paytoButton = QtGui.QPushButton("Pay to")
             hbox.addWidget(addButton)
+            paytoButton = QtGui.QPushButton('Pay to')
+            def payto(l):
+                i = l.currentItem()
+                if not i: return
+                addr = str( i.text(0) )
+                self.tabs.setCurrentIndex(1)
+                self.payto_entry.setText(addr)
+            paytoButton.clicked.connect(lambda : payto(l))
             hbox.addWidget(paytoButton)
         hbox.addStretch(1)
         buttons = QWidget()
@@ -672,5 +685,6 @@ class BitcoinGUI():
         s.start()
         app = QApplication(sys.argv)
         w = ElectrumWindow(self.wallet)
+        w.app = app
         w.connect_slots(s)
         app.exec_()
