@@ -35,14 +35,14 @@ class ElectrumWindow(QMainWindow):
         tabs.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
         self.create_status_bar()
-        self.setGeometry(100,100,800,400)
+        self.setGeometry(100,100,840,400)
         self.setWindowTitle( 'Electrum ' + self.wallet.electrum_version + ' - Qt')
         self.show()
 
         QShortcut(QKeySequence("Ctrl+W"), self, self.close)
         QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
-        QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: tabs.setCurrentIndex( tabs.currentIndex() - 1))
-        QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: tabs.setCurrentIndex( tabs.currentIndex() + 1))
+        QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() - 1 )%tabs.count() ))
+        QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() + 1 )%tabs.count() ))
 
 
     def connect_slots(self, sender):
@@ -79,12 +79,13 @@ class ElectrumWindow(QMainWindow):
 
     def create_history_tab(self):
         self.history_list = w = QTreeWidget(self)
+        #print w.getContentsMargins()
         w.setColumnCount(5)
         w.setColumnWidth(0, 40) 
         w.setColumnWidth(1, 140) 
-        w.setColumnWidth(2, 340) 
-        w.setColumnWidth(3, 120) 
-        w.setColumnWidth(4, 120) 
+        w.setColumnWidth(2, 350) 
+        w.setColumnWidth(3, 140) 
+        w.setColumnWidth(4, 140) 
         w.setHeaderLabels( [ '', 'Date', 'Description', 'Amount', 'Balance'] )
         self.connect(w, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.tx_details)
         self.connect(w, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), self.tx_label_clicked)
@@ -204,23 +205,26 @@ class ElectrumWindow(QMainWindow):
 
         grid = QtGui.QGridLayout()
         grid.setSpacing(8)
+        grid.setColumnMinimumWidth(3,300)
+        grid.setColumnStretch(4,1)
 
         grid.addWidget(QLabel('Pay to'), 1, 0)
-        grid.addWidget(paytoEdit, 1, 1)
+        grid.addWidget(paytoEdit, 1, 1, 1, 3)
 
         grid.addWidget(QLabel('Description'), 2, 0)
-        grid.addWidget(descriptionEdit, 2, 1)
+        grid.addWidget(descriptionEdit, 2, 1, 1, 3)
 
         grid.addWidget(QLabel('Amount'), 3, 0)
-        grid.addWidget(amountEdit, 3, 1)
+        grid.addWidget(amountEdit, 3, 1, 1, 2)
         
         grid.addWidget(QLabel('Fee'), 4, 0)
-        grid.addWidget(feeEdit, 4, 1)
+        grid.addWidget(feeEdit, 4, 1, 1, 2)
         
         sendButton = QPushButton("Send")
-        clearButton = QPushButton("Clear")
         grid.addWidget(sendButton, 5, 1)
-        grid.addWidget(clearButton, 5, 1)
+
+        clearButton = QPushButton("Clear")
+        grid.addWidget(clearButton, 5, 2)
 
         w.setLayout(grid) 
         w.show()
@@ -237,8 +241,8 @@ class ElectrumWindow(QMainWindow):
 
         l = QTreeWidget(self)
         l.setColumnCount(3)
-        l.setColumnWidth(0, 330) 
-        l.setColumnWidth(1, 330) 
+        l.setColumnWidth(0, 350) 
+        l.setColumnWidth(1, 330)
         l.setColumnWidth(2, 20) 
         l.setHeaderLabels( ['Address', 'Label','Tx'])
 
@@ -347,6 +351,7 @@ class ElectrumWindow(QMainWindow):
         b.setToolTip("Password")
         b.setFlat(True)
         b.setMaximumWidth(25)
+        b.clicked.connect(self.change_password_dialog)
         hbox.addWidget(b)
 
         icon = QIcon("icons/preferences.svg")
@@ -401,6 +406,62 @@ class ElectrumWindow(QMainWindow):
                 + "Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:\n\n\"" \
                 + ' '.join(mnemonic.mn_encode(seed)) + "\""
             QMessageBox.information(self, 'Seed', msg, 'OK')
+
+    def change_password_dialog(self):
+        d = QDialog(self)
+        d.setModal(1)
+
+
+        pw = QLineEdit()
+        pw.setEchoMode(2)
+        new_pw = QLineEdit()
+        new_pw.setEchoMode(2)
+        conf_pw = QLineEdit()
+        conf_pw.setEchoMode(2)
+
+        grid = QGridLayout()
+        grid.setSpacing(8)
+
+        msg = 'Your wallet is encrypted. Use this dialog to change the password.\n To disable wallet encryption, enter an empty new password.' if self.wallet.use_encryption else 'Your wallet keys are not encrypted'
+        grid.addWidget(QLabel(msg), 0, 0, 1, 2)
+
+        grid.addWidget(QLabel('Password'), 1, 0)
+        grid.addWidget(pw, 1, 1)
+
+        grid.addWidget(QLabel('New Password'), 2, 0)
+        grid.addWidget(new_pw, 2, 1)
+
+        grid.addWidget(QLabel('Confirm Password'), 3, 0)
+        grid.addWidget(conf_pw, 3, 1)
+
+        b = QPushButton("Cancel")
+        grid.addWidget(b, 5, 1)
+        b.clicked.connect(d.reject)
+
+        b = QPushButton("OK")
+        grid.addWidget(b, 5, 2)
+        b.clicked.connect(d.accept)
+
+        d.setLayout(grid) 
+
+        if not d.exec_(): return
+
+        password = str(pw.text())
+        print password
+        new_password = str(new_pw.text())
+        new_password2 = str(conf_pw.text())
+
+        try:
+            seed = self.wallet.pw_decode( self.wallet.seed, password)
+        except:
+            QMessageBox.warning(self, 'Error', 'Incorrect Password', 'OK')
+            return
+
+        if new_password != new_password2:
+            QMessageBox.warning(self, 'Error', 'Passwords do not match', 'OK')
+            return
+
+        self.wallet.update_password(seed, new_password)
 
 
 class BitcoinGUI():

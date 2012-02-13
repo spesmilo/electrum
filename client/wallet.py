@@ -759,3 +759,13 @@ class Wallet:
             raise BaseException("Invalid bitcoin address")
 
         return target, signing_addr, auth_name
+
+    def update_password(self, seed, new_password):
+        self.use_encryption = (new_password != '')
+        self.seed = self.pw_encode( seed, new_password)
+        for k in self.imported_keys.keys():
+            a = self.imported_keys[k]
+            b = self.pw_decode(a, password)
+            c = self.pw_encode(b, new_password)
+            self.wallet.imported_keys[k] = c
+        self.wallet.save()
