@@ -33,7 +33,7 @@ class ElectrumWindow(QMainWindow):
         tabs.addTab(self.create_contacts_tab(),'Contacts')
         tabs.addTab(self.create_wall_tab(),    'Wall')
         tabs.setMinimumSize(600, 400)
-        tabs.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
         self.create_status_bar()
         self.setGeometry(100,100,840,400)
@@ -199,24 +199,24 @@ class ElectrumWindow(QMainWindow):
     def create_send_tab(self):
         w = QWidget()
 
-        grid = QtGui.QGridLayout()
+        grid = QGridLayout()
         grid.setSpacing(8)
         grid.setColumnMinimumWidth(3,300)
         grid.setColumnStretch(4,1)
 
-        self.payto_entry = paytoEdit = QtGui.QLineEdit()
+        self.payto_entry = paytoEdit = QLineEdit()
         grid.addWidget(QLabel('Pay to'), 1, 0)
         grid.addWidget(paytoEdit, 1, 1, 1, 3)
 
-        descriptionEdit = QtGui.QLineEdit()
+        descriptionEdit = QLineEdit()
         grid.addWidget(QLabel('Description'), 2, 0)
         grid.addWidget(descriptionEdit, 2, 1, 1, 3)
 
-        amountEdit = QtGui.QLineEdit()
+        amountEdit = QLineEdit()
         grid.addWidget(QLabel('Amount'), 3, 0)
         grid.addWidget(amountEdit, 3, 1, 1, 2)
         
-        feeEdit = QtGui.QLineEdit()
+        feeEdit = QLineEdit()
         grid.addWidget(QLabel('Fee'), 4, 0)
         grid.addWidget(feeEdit, 4, 1, 1, 2)
         
@@ -232,7 +232,7 @@ class ElectrumWindow(QMainWindow):
         w.show()
 
         w2 = QWidget()
-        vbox = QtGui.QVBoxLayout()
+        vbox = QVBoxLayout()
         vbox.addWidget(w)
         vbox.addStretch(1)
         w2.setLayout(vbox)
@@ -308,16 +308,16 @@ class ElectrumWindow(QMainWindow):
         l.setColumnWidth(2, 20) 
         l.setHeaderLabels( ['Address', 'Label','Tx'])
 
-        vbox = QtGui.QVBoxLayout()
+        vbox = QVBoxLayout()
         vbox.setMargin(0)
         vbox.setSpacing(0)
         vbox.addWidget(l)
 
-        hbox = QtGui.QHBoxLayout()
+        hbox = QHBoxLayout()
         hbox.setMargin(0)
         hbox.setSpacing(0)
-        qrButton = QtGui.QPushButton("QR")
-        copyButton = QtGui.QPushButton("Copy to Clipboard")
+        qrButton = QPushButton("QR")
+        copyButton = QPushButton("Copy to Clipboard")
         def copy2clipboard(l):
             i = l.currentItem()
             if not i: return
@@ -328,10 +328,10 @@ class ElectrumWindow(QMainWindow):
         hbox.addWidget(qrButton)
         hbox.addWidget(copyButton)
         if not is_recv:
-            addButton = QtGui.QPushButton("New")
+            addButton = QPushButton("New")
             addButton.clicked.connect(self.newaddress_dialog)
             hbox.addWidget(addButton)
-            paytoButton = QtGui.QPushButton('Pay to')
+            paytoButton = QPushButton('Pay to')
             def payto(l):
                 i = l.currentItem()
                 if not i: return
@@ -417,7 +417,7 @@ class ElectrumWindow(QMainWindow):
         sb = QStatusBar()
         sb.setFixedHeight(35)
 
-        hbox = QtGui.QHBoxLayout()
+        hbox = QHBoxLayout()
         hbox.setMargin(0)
         buttons = QWidget()
         buttons.setLayout(hbox)
@@ -459,7 +459,7 @@ class ElectrumWindow(QMainWindow):
 
     def newaddress_dialog(self):
 
-        text, ok = QtGui.QInputDialog.getText(self, 'New Contact', 'Address:')
+        text, ok = QInputDialog.getText(self, 'New Contact', 'Address:')
         address = str(text)
         if ok:
             if self.wallet.is_valid(address):
@@ -498,25 +498,27 @@ class ElectrumWindow(QMainWindow):
         pw = QLineEdit()
         pw.setEchoMode(2)
 
+        vbox = QVBoxLayout()
+        msg = 'Please enter your password'
+        vbox.addWidget(QLabel(msg))
+
         grid = QGridLayout()
         grid.setSpacing(8)
-
-        msg = 'Please enter your password'
-        
-        grid.addWidget(QLabel(msg), 0, 0, 1, 2)
-
         grid.addWidget(QLabel('Password'), 1, 0)
         grid.addWidget(pw, 1, 1)
+        vbox.addLayout(grid)
 
-        b = QPushButton("Cancel")
-        grid.addWidget(b, 5, 1)
-        b.clicked.connect(d.reject)
-
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
         b = QPushButton("OK")
-        grid.addWidget(b, 5, 2)
+        hbox.addWidget(b)
         b.clicked.connect(d.accept)
-
-        d.setLayout(grid) 
+        b = QPushButton("Cancel")
+        hbox.addWidget(b)
+        b.clicked.connect(d.reject)
+        vbox.addLayout(hbox)
+        
+        d.setLayout(vbox) 
 
         if not d.exec_(): return
         return str(pw.text())
@@ -548,15 +550,19 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(QLabel('Confirm Password'), 3, 0)
         grid.addWidget(conf_pw, 3, 1)
 
-        b = QPushButton("Cancel")
-        grid.addWidget(b, 5, 1)
-        b.clicked.connect(d.reject)
-
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
         b = QPushButton("OK")
-        grid.addWidget(b, 5, 2)
+        hbox.addWidget(b)
         b.clicked.connect(d.accept)
-
-        d.setLayout(grid) 
+        b = QPushButton("Cancel")
+        hbox.addWidget(b)
+        b.clicked.connect(d.reject)
+        vbox = QVBoxLayout()
+        vbox.addLayout(grid)
+        vbox.addLayout(hbox)
+        
+        d.setLayout(vbox) 
 
         if not d.exec_(): return
 
@@ -580,26 +586,31 @@ class ElectrumWindow(QMainWindow):
         d = QDialog(self)
         d.setModal(1)
 
-        grid = QGridLayout()
-        grid.setSpacing(8)
+        vbox = QVBoxLayout()
 
         msg = 'These are the settings of your wallet'
-        grid.addWidget(QLabel(msg), 0, 0, 1, 2)
+        vbox.addWidget(QLabel(msg))
+
+        grid = QGridLayout()
+        grid.setSpacing(8)
 
         fee_line = QLineEdit()
         fee_line.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
         grid.addWidget(QLabel('Fee'), 2, 0)
         grid.addWidget(fee_line, 2, 1)
+        vbox.addLayout(grid)
 
-        b = QPushButton("Cancel")
-        grid.addWidget(b, 5, 1)
-        b.clicked.connect(d.reject)
-
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
         b = QPushButton("OK")
-        grid.addWidget(b, 5, 2)
+        hbox.addWidget(b)
         b.clicked.connect(d.accept)
-
-        d.setLayout(grid) 
+        b = QPushButton("Cancel")
+        hbox.addWidget(b)
+        b.clicked.connect(d.reject)
+        vbox.addLayout(hbox)
+        
+        d.setLayout(vbox) 
 
         if not d.exec_(): return
 
@@ -631,24 +642,28 @@ class ElectrumWindow(QMainWindow):
         d = QDialog(self)
         d.setModal(1)
 
+        vbox = QVBoxLayout()
+        vbox.addWidget(QLabel(status))
+
         grid = QGridLayout()
         grid.setSpacing(8)
-        grid.addWidget(QLabel(status), 0, 0, 1, 2)
-
         host_line = QLineEdit()
         host_line.setText("%s:%d"% (host,port) )
         grid.addWidget(QLabel('Server'), 2, 0)
         grid.addWidget(host_line, 2, 1)
+        vbox.addLayout(grid)
 
-        b = QPushButton("Cancel")
-        grid.addWidget(b, 5, 1)
-        b.clicked.connect(d.reject)
-
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
         b = QPushButton("OK")
-        grid.addWidget(b, 5, 2)
+        hbox.addWidget(b)
         b.clicked.connect(d.accept)
-
-        d.setLayout(grid) 
+        b = QPushButton("Cancel")
+        hbox.addWidget(b)
+        b.clicked.connect(d.reject)
+        vbox.addLayout(hbox)
+        
+        d.setLayout(vbox) 
 
         if not d.exec_(): return
         hh = str( host_line.text() )
