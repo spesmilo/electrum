@@ -430,7 +430,7 @@ class ElectrumWindow(QMainWindow):
         b.clicked.connect(self.change_password_dialog)
         hbox.addWidget(b)
 
-        icon = QIcon("icons/preferences.svg")
+        icon = QIcon("icons/preferences.png")
         b = QPushButton( icon, '' )
         b.setToolTip("Preferences")
         b.setFlat(True)
