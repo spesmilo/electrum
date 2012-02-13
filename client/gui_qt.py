@@ -45,6 +45,16 @@ class ElectrumWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() - 1 )%tabs.count() ))
         QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() + 1 )%tabs.count() ))
 
+    def ok_cancel_buttons(self,d):
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+        b = QPushButton("OK")
+        hbox.addWidget(b)
+        b.clicked.connect(d.accept)
+        b = QPushButton("Cancel")
+        hbox.addWidget(b)
+        b.clicked.connect(d.reject)
+        return hbox
 
     def connect_slots(self, sender):
         self.connect(sender, QtCore.SIGNAL('testsignal'), self.update_wallet)
@@ -508,16 +518,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(pw, 1, 1)
         vbox.addLayout(grid)
 
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-        b = QPushButton("OK")
-        hbox.addWidget(b)
-        b.clicked.connect(d.accept)
-        b = QPushButton("Cancel")
-        hbox.addWidget(b)
-        b.clicked.connect(d.reject)
-        vbox.addLayout(hbox)
-        
+        vbox.addLayout(self.ok_cancel_buttons(d))
         d.setLayout(vbox) 
 
         if not d.exec_(): return
@@ -550,18 +551,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(QLabel('Confirm Password'), 3, 0)
         grid.addWidget(conf_pw, 3, 1)
 
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-        b = QPushButton("OK")
-        hbox.addWidget(b)
-        b.clicked.connect(d.accept)
-        b = QPushButton("Cancel")
-        hbox.addWidget(b)
-        b.clicked.connect(d.reject)
-        vbox = QVBoxLayout()
-        vbox.addLayout(grid)
-        vbox.addLayout(hbox)
-        
+        vbox.addLayout(self.ok_cancel_buttons(d))
         d.setLayout(vbox) 
 
         if not d.exec_(): return
@@ -600,16 +590,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(fee_line, 2, 1)
         vbox.addLayout(grid)
 
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-        b = QPushButton("OK")
-        hbox.addWidget(b)
-        b.clicked.connect(d.accept)
-        b = QPushButton("Cancel")
-        hbox.addWidget(b)
-        b.clicked.connect(d.reject)
-        vbox.addLayout(hbox)
-        
+        vbox.addLayout(self.ok_cancel_buttons(d))
         d.setLayout(vbox) 
 
         if not d.exec_(): return
@@ -653,16 +634,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(host_line, 2, 1)
         vbox.addLayout(grid)
 
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-        b = QPushButton("OK")
-        hbox.addWidget(b)
-        b.clicked.connect(d.accept)
-        b = QPushButton("Cancel")
-        hbox.addWidget(b)
-        b.clicked.connect(d.reject)
-        vbox.addLayout(hbox)
-        
+        vbox.addLayout(self.ok_cancel_buttons(d))
         d.setLayout(vbox) 
 
         if not d.exec_(): return
