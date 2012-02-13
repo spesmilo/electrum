@@ -1,4 +1,4 @@
-import sys, time, datetime
+import sys, time, datetime, re
 
 # todo: see PySide
 
@@ -221,11 +221,13 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(QLabel('Fee'), 4, 0)
         grid.addWidget(feeEdit, 4, 1, 1, 2)
         
-        sendButton = QPushButton("Send")
-        grid.addWidget(sendButton, 5, 1)
+        b = QPushButton("Send")
+        b.clicked.connect( lambda: self.do_send(paytoEdit,descriptionEdit,amountEdit,feeEdit ) )
+        grid.addWidget(b, 5, 1)
 
-        clearButton = QPushButton("Clear")
-        grid.addWidget(clearButton, 5, 2)
+        b = QPushButton("Clear")
+        b.clicked.connect( lambda: map( lambda x: x.setText(''), [paytoEdit,descriptionEdit,amountEdit,feeEdit] ) )
+        grid.addWidget(b, 5, 2)
 
         w.setLayout(grid) 
         w.show()
@@ -237,6 +239,66 @@ class ElectrumWindow(QMainWindow):
         w2.setLayout(vbox)
 
         return w2
+
+    def do_send(self, payto_entry, label_entry, amount_entry, fee_entry):
+
+        label = str( label_entry.text() )
+        r = str( payto_entry.text() )
+        r = r.strip()
+
+        m1 = re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r)
+        m2 = re.match('(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+) \<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
+        
+        if m1:
+            to_address = self.get_alias(r, interactive = True)
+            if not to_address:
+                return
+        elif m2:
+            to_address = m2.group(5)
+        else:
+            to_address = r
+
+        if not self.wallet.is_valid(to_address):
+            QMessageBox.warning(self, 'Error', 'Invalid Bitcoin Address:\n'+to_address, 'OK')
+            return
+
+        try:
+            amount = int( Decimal( str( amount_entry.text())) * 100000000 )
+        except:
+            QMessageBox.warning(self, 'Error', 'Invalid Amount', 'OK')
+            return
+        try:
+            fee = int( Decimal( str( fee_entry.text())) * 100000000 )
+        except:
+            QMessageBox.warning(self, 'Error', 'Invalid Fee', 'OK')
+            return
+
+        if self.wallet.use_encryption:
+            password = self.password_dialog()
+            if not password:
+                return
+        else:
+            password = None
+
+        try:
+            tx = self.wallet.mktx( to_address, amount, label, password, fee )
+        except BaseException, e:
+            self.show_message(e.message)
+            return
+            
+        status, msg = self.wallet.sendtx( tx )
+        if status:
+            QMessageBox.information(self, '', 'Payment sent.\n'+msg, 'OK')
+            payto_entry.setText("")
+            label_entry.setText("")
+            amount_entry.setText("")
+            fee_entry.setText("")
+            self.update_contacts_tab()
+        else:
+            QMessageBox.warning(self, 'Error', msg, 'OK')
+
+
+
 
     def make_address_list(self, is_recv):
 
