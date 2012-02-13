@@ -201,3 +201,9 @@ class Interface:
 
     def get_servers(self):
         thread.start_new_thread(self.update_servers_thread, ())
+
+    def set_server(self, host, port):
+        if host!= self.host or port!=self.port:
+            self.host = host
+            self.set_port( port )
+            self.is_connected = False

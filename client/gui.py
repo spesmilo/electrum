@@ -354,12 +354,9 @@ def run_network_dialog( wallet, parent ):
         else:
             return
 
-    if host!= wallet.interface.host or port!=wallet.interface.port:
-        wallet.interface.host = host
-        wallet.interface.set_port( port )
-        wallet.interface.is_connected = False
-        if parent:
-            wallet.save()
+    wallet.interface.set_server(host, port) 
+    if parent:
+        wallet.save()
 
 
 

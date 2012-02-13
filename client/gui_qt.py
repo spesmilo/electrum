@@ -376,6 +376,7 @@ class ElectrumWindow(QMainWindow):
         b.setToolTip("Network")
         b.setFlat(True)
         b.setMaximumWidth(25)
+        b.clicked.connect(self.network_dialog)
         hbox.addWidget(b)
 
         sb.addPermanentWidget(buttons)
@@ -536,6 +537,66 @@ class ElectrumWindow(QMainWindow):
 
         self.wallet.fee = fee
         self.wallet.save()
+
+    def network_dialog(self, parent=True):
+        wallet = self.wallet
+        if parent:
+            if wallet.interface.is_connected:
+                status = "Connected to %s.\n%d blocks\nresponse time: %f"%(wallet.interface.host, wallet.interface.blocks, wallet.interface.rtime)
+            else:
+                status = "Not connected"
+                host = wallet.interface.host
+                port = wallet.interface.port
+        else:
+            import random
+            status = "Please choose a server."
+            host = random.choice( wallet.interface.servers )
+            port = 50000
+
+        d = QDialog(self)
+        d.setModal(1)
+
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        grid.addWidget(QLabel(status), 0, 0, 1, 2)
+
+        host_line = QLineEdit()
+        host_line.setText("%s:%d"% (host,port) )
+        grid.addWidget(QLabel('Server'), 2, 0)
+        grid.addWidget(host_line, 2, 1)
+
+        b = QPushButton("Cancel")
+        grid.addWidget(b, 5, 1)
+        b.clicked.connect(d.reject)
+
+        b = QPushButton("OK")
+        grid.addWidget(b, 5, 2)
+        b.clicked.connect(d.accept)
+
+        d.setLayout(grid) 
+
+        if not d.exec_(): return
+        hh = str( host_line.text() )
+
+        try:
+            if ':' in hh:
+                host, port = hh.split(':')
+                port = int(port)
+            else:
+                host = hh
+                port = 50000
+        except:
+            show_message("error")
+            if parent == None:
+                sys.exit(1)
+            else:
+                return
+
+        wallet.interface.set_server(host, port) 
+
+        if parent:
+            wallet.save()
+
 
 
 
