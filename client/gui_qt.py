@@ -37,7 +37,7 @@ class ElectrumWindow(QMainWindow):
         self.setCentralWidget(tabs)
         self.create_status_bar()
         self.setGeometry(100,100,840,400)
-        self.setWindowTitle( 'Electrum ' + self.wallet.electrum_version + ' - Qt')
+        self.setWindowTitle( 'Electrum ' + self.wallet.electrum_version )
         self.show()
 
         QShortcut(QKeySequence("Ctrl+W"), self, self.close)
@@ -54,7 +54,7 @@ class ElectrumWindow(QMainWindow):
         if self.wallet.interface.is_connected:
             if self.wallet.interface.blocks == 0:
                 text = "Server not ready"
-                icon = QIcon("icons/status_disconnected.svg")
+                icon = QIcon("icons/status_disconnected.png")
             elif not self.wallet.interface.was_polled:
                 text = "Synchronizing..."
                 icon = QIcon("icons/status_waiting.svg")
@@ -65,7 +65,7 @@ class ElectrumWindow(QMainWindow):
                 icon = QIcon("icons/status_connected.png")
         else:
             text = "Not connected"
-            icon = QIcon("icons/status_disconnected.svg")
+            icon = QIcon("icons/status_disconnected.png")
 
         self.statusBar().showMessage(text)
         self.status_button.setIcon( icon )
@@ -446,7 +446,7 @@ class ElectrumWindow(QMainWindow):
         b.clicked.connect(self.show_seed_dialog)
         hbox.addWidget(b)
 
-        icon = QIcon("icons/status_disconnected.svg")
+        icon = QIcon("icons/status_disconnected.png")
         self.status_button = b = QPushButton( icon, '' )
         b.setToolTip("Network")
         b.setFlat(True)
