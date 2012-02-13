@@ -767,5 +767,5 @@ class Wallet:
             a = self.imported_keys[k]
             b = self.pw_decode(a, password)
             c = self.pw_encode(b, new_password)
-            self.wallet.imported_keys[k] = c
-        self.wallet.save()
+            self.imported_keys[k] = c
+        self.save()

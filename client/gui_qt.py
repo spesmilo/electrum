@@ -425,8 +425,9 @@ class ElectrumWindow(QMainWindow):
         msg = 'Your wallet is encrypted. Use this dialog to change the password.\n To disable wallet encryption, enter an empty new password.' if self.wallet.use_encryption else 'Your wallet keys are not encrypted'
         grid.addWidget(QLabel(msg), 0, 0, 1, 2)
 
-        grid.addWidget(QLabel('Password'), 1, 0)
-        grid.addWidget(pw, 1, 1)
+        if self.wallet.use_encryption:
+            grid.addWidget(QLabel('Password'), 1, 0)
+            grid.addWidget(pw, 1, 1)
 
         grid.addWidget(QLabel('New Password'), 2, 0)
         grid.addWidget(new_pw, 2, 1)
@@ -446,8 +447,7 @@ class ElectrumWindow(QMainWindow):
 
         if not d.exec_(): return
 
-        password = str(pw.text())
-        print password
+        password = str(pw.text()) if self.wallet.use_encryption else None
         new_password = str(new_pw.text())
         new_password2 = str(conf_pw.text())
 
