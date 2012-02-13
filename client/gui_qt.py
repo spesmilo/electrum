@@ -393,24 +393,59 @@ class ElectrumWindow(QMainWindow):
 
     def show_seed_dialog(self):
         import mnemonic
-        pw, ok = QtGui.QInputDialog.getText(self, 'Password', 'Password:')
-        if ok:
-            try:
-                seed = self.wallet.pw_decode( self.wallet.seed, str(pw))
-            except:
-                QMessageBox.warning(self, 'Error', 'Invalid Password', 'OK')
-                return
+        if self.wallet.use_encryption:
+            password = self.password_dialog()
+            if not password: return
+        else:
+            password = None
+            
+        try:
+            seed = self.wallet.pw_decode( self.wallet.seed, password)
+        except:
+            QMessageBox.warning(self, 'Error', 'Invalid Password', 'OK')
+            return
 
-            msg = "Your wallet generation seed is:\n\n" + seed \
-                + "\n\nPlease keep it in a safe place; if you lose it, you will not be able to restore your wallet.\n\n" \
-                + "Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:\n\n\"" \
-                + ' '.join(mnemonic.mn_encode(seed)) + "\""
-            QMessageBox.information(self, 'Seed', msg, 'OK')
+        msg = "Your wallet generation seed is:\n\n" + seed \
+              + "\n\nPlease keep it in a safe place; if you lose it, you will not be able to restore your wallet.\n\n" \
+              + "Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:\n\n\"" \
+              + ' '.join(mnemonic.mn_encode(seed)) + "\""
+
+        QMessageBox.information(self, 'Seed', msg, 'OK')
+
+
+    def password_dialog(self):
+        d = QDialog(self)
+        d.setModal(1)
+
+        pw = QLineEdit()
+        pw.setEchoMode(2)
+
+        grid = QGridLayout()
+        grid.setSpacing(8)
+
+        msg = 'Please enter your password'
+        
+        grid.addWidget(QLabel(msg), 0, 0, 1, 2)
+
+        grid.addWidget(QLabel('Password'), 1, 0)
+        grid.addWidget(pw, 1, 1)
+
+        b = QPushButton("Cancel")
+        grid.addWidget(b, 5, 1)
+        b.clicked.connect(d.reject)
+
+        b = QPushButton("OK")
+        grid.addWidget(b, 5, 2)
+        b.clicked.connect(d.accept)
+
+        d.setLayout(grid) 
+
+        if not d.exec_(): return
+        return str(pw.text())
 
     def change_password_dialog(self):
         d = QDialog(self)
         d.setModal(1)
-
 
         pw = QLineEdit()
         pw.setEchoMode(2)
@@ -422,7 +457,7 @@ class ElectrumWindow(QMainWindow):
         grid = QGridLayout()
         grid.setSpacing(8)
 
-        msg = 'Your wallet is encrypted. Use this dialog to change the password.\n To disable wallet encryption, enter an empty new password.' if self.wallet.use_encryption else 'Your wallet keys are not encrypted'
+        msg = 'Your wallet is encrypted. Use this dialog to change your password.\nTo disable wallet encryption, enter an empty new password.' if self.wallet.use_encryption else 'Your wallet keys are not encrypted'
         grid.addWidget(QLabel(msg), 0, 0, 1, 2)
 
         if self.wallet.use_encryption:
