@@ -535,11 +535,12 @@ class ElectrumWindow(QMainWindow):
         conf_pw = QLineEdit()
         conf_pw.setEchoMode(2)
 
+        vbox = QVBoxLayout()
+        msg = 'Your wallet is encrypted. Use this dialog to change your password.\nTo disable wallet encryption, enter an empty new password.' if self.wallet.use_encryption else 'Your wallet keys are not encrypted'
+        vbox.addWidget(QLabel(msg))
+
         grid = QGridLayout()
         grid.setSpacing(8)
-
-        msg = 'Your wallet is encrypted. Use this dialog to change your password.\nTo disable wallet encryption, enter an empty new password.' if self.wallet.use_encryption else 'Your wallet keys are not encrypted'
-        grid.addWidget(QLabel(msg), 0, 0, 1, 2)
 
         if self.wallet.use_encryption:
             grid.addWidget(QLabel('Password'), 1, 0)
@@ -550,6 +551,7 @@ class ElectrumWindow(QMainWindow):
 
         grid.addWidget(QLabel('Confirm Password'), 3, 0)
         grid.addWidget(conf_pw, 3, 1)
+        vbox.addLayout(grid)
 
         vbox.addLayout(self.ok_cancel_buttons(d))
         d.setLayout(vbox) 
