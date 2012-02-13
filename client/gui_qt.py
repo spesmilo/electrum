@@ -8,6 +8,7 @@ import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
 from wallet import format_satoshis
+from decimal import Decimal
 
 def restore_create_dialog(wallet):
     pass
@@ -359,6 +360,7 @@ class ElectrumWindow(QMainWindow):
         b.setToolTip("Preferences")
         b.setFlat(True)
         b.setMaximumWidth(25)
+        b.clicked.connect(self.settings_dialog)
         hbox.addWidget(b)
 
         icon = QIcon("icons/seed.png")
@@ -497,6 +499,44 @@ class ElectrumWindow(QMainWindow):
             return
 
         self.wallet.update_password(seed, new_password)
+
+    def settings_dialog(self):
+        d = QDialog(self)
+        d.setModal(1)
+
+        grid = QGridLayout()
+        grid.setSpacing(8)
+
+        msg = 'These are the settings of your wallet'
+        grid.addWidget(QLabel(msg), 0, 0, 1, 2)
+
+        fee_line = QLineEdit()
+        fee_line.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
+        grid.addWidget(QLabel('Fee'), 2, 0)
+        grid.addWidget(fee_line, 2, 1)
+
+        b = QPushButton("Cancel")
+        grid.addWidget(b, 5, 1)
+        b.clicked.connect(d.reject)
+
+        b = QPushButton("OK")
+        grid.addWidget(b, 5, 2)
+        b.clicked.connect(d.accept)
+
+        d.setLayout(grid) 
+
+        if not d.exec_(): return
+
+        fee = str(fee_line.text())
+        try:
+            fee = int( 100000000 * Decimal(fee) )
+        except:
+            QMessageBox.warning(self, 'Error', 'Invalid value:%s'%fee, 'OK')
+            return
+
+        self.wallet.fee = fee
+        self.wallet.save()
+
 
 
 class BitcoinGUI():
