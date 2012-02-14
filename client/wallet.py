@@ -143,6 +143,10 @@ def ASecretToSecret(key):
 
 ########### end pywallet functions #######################
 
+# URL decode
+_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
+urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
+
 
 def int_to_hex(i, length=1):
     s = hex(i)[2:].rstrip('L')
@@ -809,3 +813,27 @@ class Wallet:
             self.aliases[alias] = (signing_address, target)
             
         return target
+
+
+    def parse_url(self, url):
+        o = url[8:].split('?')
+        address = o[0]
+        if len(o)>1:
+            params = o[1].split('&')
+        else:
+            params = []
+
+        amount = label = message = signature = identity = ''
+        for p in params:
+            k,v = p.split('=')
+            uv = urldecode(v)
+            if k == 'amount': amount = uv
+            elif k == 'message': message = uv
+            elif k == 'label': label = uv
+            elif k == 'signature':
+                identity, signature = uv.split(':')
+                url = url.replace('&%s=%s'%(k,v),'')
+            else: 
+                print k,v
+
+        return address, amount, label, message, signature, identity

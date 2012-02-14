@@ -695,7 +695,9 @@ class ElectrumWindow:
             entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#ffffff"))
 
 
-    def set_send_tab(self, payto, amount, message, label, identity, signature, cmd):
+    def set_url(self, url):
+
+        payto, amount, label, message, signature, identity = self.wallet.parse_url(url)
         self.notebook.set_current_page(1)
 
         if signature:
@@ -1228,8 +1230,9 @@ class ElectrumGui():
     def __init__(self, wallet):
         self.wallet = wallet
 
-    def main(self):
-        ElectrumWindow(self.wallet)
+    def main(self, url=None):
+        ew = ElectrumWindow(self.wallet)
+        if url: ew.set_url(url)
         gtk.main()
 
     def restore_or_create(self):

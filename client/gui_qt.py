@@ -751,10 +751,11 @@ class ElectrumGui():
         return True
 
 
-    def main(self):
+    def main(self,url):
         s = Sender()
         s.start()
         w = ElectrumWindow(self.wallet)
+        if url: w.set_url(url)
         w.app = self.app
         w.connect_slots(s)
         self.app.exec_()

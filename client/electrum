@@ -23,10 +23,6 @@ from wallet import Wallet
 from interface import Interface
 from decimal import Decimal
 
-# URL decode
-_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
-urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
-
 
 from wallet import format_satoshis
 
@@ -36,6 +32,7 @@ if __name__ == '__main__':
     usage = "usage: %prog [options] command args\nCommands: "+ (', '.join(known_commands))
 
     parser = OptionParser(usage=usage)
+    parser.add_option("-g", "--gui", dest="gui", default="gtk", help="gui")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
     parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance at listed addresses")
@@ -49,15 +46,24 @@ if __name__ == '__main__':
     wallet = Wallet(interface)
     wallet.set_path(options.wallet_path)
 
-    cmd = args[0] if len(args) > 0 else 'qt'
-    firstarg = args[1] if len(args) > 1 else ''
-
-
-    if cmd in ['gtk','qt'] or re.match('^bitcoin:', cmd):
-        if cmd == 'gtk':
+    if len(args)==0:
+        url = None
+        cmd = 'gui'
+    elif len(args)==1 and re.match('^bitcoin:', args[0]):
+        url = args[0]
+        cmd = 'gui'
+    else:
+        cmd = args[0]
+        firstarg = args[1] if len(args) > 1 else ''
+        
+    if cmd == 'gui':
+        if options.gui=='gtk':
             import gui
-        else:
+        elif options.gui=='qt':
             import gui_qt as gui
+        else:
+            print "unknown gui", options.gui
+            exit(1)
 
         interface.get_servers()
         gui = gui.ElectrumGui(wallet)
@@ -75,34 +81,7 @@ if __name__ == '__main__':
         if not found: exit(1)
 
         interface.start(wallet)
-        gui.main()
-        sys.exit(0)
-
-        if re.match('^bitcoin:', cmd):
-
-            o = cmd[8:].split('?')
-            address = o[0]
-            if len(o)>1:
-                params = o[1].split('&')
-            else:
-                params = []
-
-            amount = label = message = signature = identity = ''
-            for p in params:
-                k,v = p.split('=')
-                uv = urldecode(v)
-                if k == 'amount': amount = uv
-                elif k == 'message': message = uv
-                elif k == 'label': label = uv
-                elif k == 'signature':
-                    identity, signature = uv.split(':')
-                    cmd = cmd.replace('&%s=%s'%(k,v),'')
-                else: 
-                    print k,v
-
-            gui.set_send_tab(address, amount, message, label, identity, signature, cmd)
-
-        gui.main()
+        gui.main(url)
         wallet.save()
         sys.exit(0)
 
