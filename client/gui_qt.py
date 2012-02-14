@@ -387,11 +387,9 @@ class ElectrumWindow(QMainWindow):
             if not is_fee:
                 self.fee_e.setText( str( Decimal( fee ) / 100000000 ) )
             if inputs:
-                #send_button.set_sensitive(True)
                 palette = QPalette()
                 palette.setColor(self.amount_e.foregroundRole(), QColor('black'))
             else:
-                #send_button.set_sensitive(False)
                 palette = QPalette()
                 palette.setColor(self.amount_e.foregroundRole(), QColor('red'))
                 self.funds_error = True
@@ -798,7 +796,7 @@ class ElectrumWindow(QMainWindow):
 
         vbox = QVBoxLayout()
 
-        msg = 'Here are the settings of your wallet'
+        msg = 'Here are the settings of your wallet.'
         vbox.addWidget(QLabel(msg))
 
         grid = QGridLayout()
@@ -806,7 +804,7 @@ class ElectrumWindow(QMainWindow):
 
         fee_e = QLineEdit()
         fee_e.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
-        grid.addWidget(QLabel('Fee'), 2, 0)
+        grid.addWidget(QLabel('Fee per tx. input'), 2, 0)
         grid.addWidget(fee_e, 2, 1)
         vbox.addLayout(grid)
         fee_e.textChanged.connect(lambda: numbify(fee_e,False))
