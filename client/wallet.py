@@ -836,4 +836,4 @@ class Wallet:
             else: 
                 print k,v
 
-        return address, amount, label, message, signature, identity
+        return address, amount, label, message, signature, identity, url

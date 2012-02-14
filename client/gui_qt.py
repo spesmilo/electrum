@@ -234,29 +234,32 @@ class ElectrumWindow(QMainWindow):
         grid.setColumnMinimumWidth(3,300)
         grid.setColumnStretch(4,1)
 
-        self.payto_entry = paytoEdit = QLineEdit()
+        self.payto_e = QLineEdit()
         grid.addWidget(QLabel('Pay to'), 1, 0)
-        grid.addWidget(paytoEdit, 1, 1, 1, 3)
+        grid.addWidget(self.payto_e, 1, 1, 1, 3)
 
-        descriptionEdit = QLineEdit()
+        self.message_e = QLineEdit()
         grid.addWidget(QLabel('Description'), 2, 0)
-        grid.addWidget(descriptionEdit, 2, 1, 1, 3)
+        grid.addWidget(self.message_e, 2, 1, 1, 3)
 
-        amountEdit = QLineEdit()
+        self.amount_e = QLineEdit()
         grid.addWidget(QLabel('Amount'), 3, 0)
-        grid.addWidget(amountEdit, 3, 1, 1, 2)
+        grid.addWidget(self.amount_e, 3, 1, 1, 2)
         
-        feeEdit = QLineEdit()
+        self.fee_e = QLineEdit()
         grid.addWidget(QLabel('Fee'), 4, 0)
-        grid.addWidget(feeEdit, 4, 1, 1, 2)
+        grid.addWidget(self.fee_e, 4, 1, 1, 2)
         
         b = QPushButton("Send")
-        b.clicked.connect( lambda: self.do_send(paytoEdit,descriptionEdit,amountEdit,feeEdit ) )
+        b.clicked.connect( self.do_send )
         grid.addWidget(b, 5, 1)
 
         b = QPushButton("Clear")
-        b.clicked.connect( lambda: map( lambda x: x.setText(''), [paytoEdit,descriptionEdit,amountEdit,feeEdit] ) )
+        b.clicked.connect( self.do_clear )
         grid.addWidget(b, 5, 2)
+
+        self.payto_sig = QLabel('')
+        grid.addWidget(self.payto_sig, 6, 0, 1, 4)
 
         w.setLayout(grid) 
         w.show()
@@ -269,10 +272,10 @@ class ElectrumWindow(QMainWindow):
 
         return w2
 
-    def do_send(self, payto_entry, label_entry, amount_entry, fee_entry):
+    def do_send(self):
 
-        label = str( label_entry.text() )
-        r = str( payto_entry.text() )
+        label = str( self.message_e.text() )
+        r = str( self.payto_e.text() )
         r = r.strip()
 
         m1 = re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r)
@@ -292,12 +295,12 @@ class ElectrumWindow(QMainWindow):
             return
 
         try:
-            amount = int( Decimal( str( amount_entry.text())) * 100000000 )
+            amount = int( Decimal( str( self.amount_e.text())) * 100000000 )
         except:
             QMessageBox.warning(self, 'Error', 'Invalid Amount', 'OK')
             return
         try:
-            fee = int( Decimal( str( fee_entry.text())) * 100000000 )
+            fee = int( Decimal( str( self.fee_e.text())) * 100000000 )
         except:
             QMessageBox.warning(self, 'Error', 'Invalid Fee', 'OK')
             return
@@ -318,15 +321,70 @@ class ElectrumWindow(QMainWindow):
         status, msg = self.wallet.sendtx( tx )
         if status:
             QMessageBox.information(self, '', 'Payment sent.\n'+msg, 'OK')
-            payto_entry.setText("")
-            label_entry.setText("")
-            amount_entry.setText("")
-            fee_entry.setText("")
+            self.do_clear()
             self.update_contacts_tab()
         else:
             QMessageBox.warning(self, 'Error', msg, 'OK')
 
 
+    def set_url(self, url):
+        payto, amount, label, message, signature, identity, url = self.wallet.parse_url(url)
+        self.tabs.setCurrentIndex(1)
+
+        if signature:
+            if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', identity):
+                signing_address = self.wallet.get_alias(identity, True, self.show_message, self.question)
+            elif self.wallet.is_valid(identity):
+                signing_address = identity
+            else:
+                signing_address = None
+            if not signing_address:
+                return
+            try:
+                self.wallet.verify_message(signing_address, signature, url )
+                self.wallet.receipt = (signing_address, signature, url)
+            except:
+                self.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.')
+                payto = amount = label = identity = message = ''
+
+        # redundant with aliases
+        #if label and payto:
+        #    self.labels[payto] = label
+        if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', payto):
+            payto_address = self.wallet.get_alias(payto, True, self.show_message, self.question)
+            if payto_address:
+                payto = payto + ' <' + payto_address + '>'
+
+        self.payto_e.setText(payto)
+        self.message_e.setText(message)
+        self.amount_e.setText(amount)
+        if identity:
+            self.set_frozen(self.payto_e,True)
+            self.set_frozen(self.amount_e,True)
+            self.set_frozen(self.message_e,True)
+            self.payto_sig.setText( '      The bitcoin URI was signed by ' + identity )
+        else:
+            self.payto_sig.setVisible(False)
+
+    def do_clear(self):
+        self.payto_sig.setVisible(False)
+        for e in [self.payto_e, self.message_e, self.amount_e, self.fee_e]:
+            e.setText('')
+            self.set_frozen(e,False)
+
+    def set_frozen(self,entry,frozen):
+        if frozen:
+            entry.setReadOnly(True)
+            entry.setFrame(False)
+            palette = QPalette()
+            palette.setColor(entry.backgroundRole(), QColor('lightgray'))
+            entry.setPalette(palette)
+        else:
+            entry.setReadOnly(False)
+            entry.setFrame(True)
+            palette = QPalette()
+            palette.setColor(entry.backgroundRole(), QColor('white'))
+            entry.setPalette(palette)
 
 
     def make_address_list(self, is_recv):
@@ -367,7 +425,7 @@ class ElectrumWindow(QMainWindow):
                 if not i: return
                 addr = str( i.text(0) )
                 self.tabs.setCurrentIndex(1)
-                self.payto_entry.setText(addr)
+                self.payto_e.setText(addr)
             paytoButton.clicked.connect(lambda : payto(l))
             hbox.addWidget(paytoButton)
         hbox.addStretch(1)

@@ -697,7 +697,7 @@ class ElectrumWindow:
 
     def set_url(self, url):
 
-        payto, amount, label, message, signature, identity = self.wallet.parse_url(url)
+        payto, amount, label, message, signature, identity, url = self.wallet.parse_url(url)
         self.notebook.set_current_page(1)
 
         if signature:
@@ -710,8 +710,8 @@ class ElectrumWindow:
             if not signing_address:
                 return
             try:
-                self.wallet.verify_message(signing_address, signature, cmd )
-                self.wallet.receipt = (signing_address, signature, cmd)
+                self.wallet.verify_message(signing_address, signature, url )
+                self.wallet.receipt = (signing_address, signature, url)
             except:
                 self.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.')
                 payto = amount = label = identity = message = ''
