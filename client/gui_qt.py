@@ -785,6 +785,13 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(host_line, 2, 1)
         vbox.addLayout(grid)
 
+        servers_list = QTreeWidget(parent)
+        servers_list.setHeaderLabels( [ 'Active servers'] )
+        for item in wallet.interface.servers:
+            servers_list.addTopLevelItem(QTreeWidgetItem( [ item ] ))
+        servers_list.connect(servers_list, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), lambda x:host_line.setText( x.text(0) + ':50000' ))
+        vbox.addWidget(servers_list)
+
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
 
