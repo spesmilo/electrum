@@ -849,7 +849,7 @@ class Wallet:
                 self.verify_message(signing_address, signature, url )
                 self.receipt = (signing_address, signature, url)
             except:
-                self.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.')
+                show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.')
                 address = amount = label = identity = message = ''
 
         if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', address):
