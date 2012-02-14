@@ -700,11 +700,13 @@ class ElectrumWindow:
             self.payto_sig.set_visible(False)
 
     def create_about_tab(self):
+        import pango
         page = gtk.VBox()
         page.show()
         tv = gtk.TextView()
         tv.set_editable(False)
         tv.set_cursor_visible(False)
+        tv.modify_font(pango.FontDescription("monospace 10"))
         page.pack_start(tv)
         self.info = tv.get_buffer()
         self.add_tab(page, 'Wall')
