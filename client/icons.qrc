@@ -1,0 +1,12 @@
+<RCC>
+  <qresource prefix="/" >
+    <file>icons/confirmed.png</file>
+    <file>icons/lock.svg</file>
+    <file>icons/preferences.png</file>
+    <file>icons/seed.png</file>
+    <file>icons/status_connected.png</file>
+    <file>icons/status_disconnected.png</file>
+    <file>icons/status_waiting.svg</file>
+    <file>icons/unconfirmed.svg</file>
+  </qresource>
+</RCC>

@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+# pyrcc4 icons.qrc -o icons_rc.py
 # python setup.py sdist --format=zip,gztar
 
 from distutils.core import setup

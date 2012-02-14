@@ -7,6 +7,8 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
+import icons_rc
+
 from wallet import format_satoshis
 from decimal import Decimal
 
@@ -82,18 +84,18 @@ class ElectrumWindow(QMainWindow):
         if self.wallet.interface.is_connected:
             if self.wallet.interface.blocks == 0:
                 text = "Server not ready"
-                icon = QIcon("icons/status_disconnected.png")
+                icon = QIcon(":icons/status_disconnected.png")
             elif not self.wallet.interface.was_polled:
                 text = "Synchronizing..."
-                icon = QIcon("icons/status_waiting.svg")
+                icon = QIcon(":icons/status_waiting.svg")
             else:
                 c, u = self.wallet.get_balance()
                 text =  "Balance: %s "%( format_satoshis(c) )
                 if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True) )
-                icon = QIcon("icons/status_connected.png")
+                icon = QIcon(":icons/status_connected.png")
         else:
             text = "Not connected"
-            icon = QIcon("icons/status_disconnected.png")
+            icon = QIcon(":icons/status_disconnected.png")
 
         self.statusBar().showMessage(text)
         self.status_button.setIcon( icon )
@@ -201,11 +203,11 @@ class ElectrumWindow(QMainWindow):
             if tx['height']:
                 conf = self.wallet.interface.blocks - tx['height'] + 1
                 time_str = datetime.datetime.fromtimestamp( tx['nTime']).isoformat(' ')[:-3]
-                icon = QIcon("icons/confirmed.png")
+                icon = QIcon(":icons/confirmed.png")
             else:
                 conf = 0
                 time_str = 'pending'
-                icon = QIcon("icons/unconfirmed.svg")
+                icon = QIcon(":icons/unconfirmed.svg")
             v = tx['value']
             balance += v 
             label = self.wallet.labels.get(tx_hash)
@@ -444,10 +446,10 @@ class ElectrumWindow(QMainWindow):
     def create_status_bar(self):
         sb = QStatusBar()
         sb.setFixedHeight(35)
-        sb.addPermanentWidget( StatusBarButton( QIcon("icons/lock.svg"), "Password", lambda: self.change_password_dialog(self.wallet, self) ) )
-        sb.addPermanentWidget( StatusBarButton( QIcon("icons/preferences.png"), "Preferences", self.settings_dialog ) )
-        sb.addPermanentWidget( StatusBarButton( QIcon("icons/seed.png"), "Seed", lambda: self.show_seed_dialog(self.wallet, self) ) )
-        self.status_button = StatusBarButton( QIcon("icons/status_disconnected.png"), "Network", lambda: self.network_dialog(self.wallet, self) ) 
+        sb.addPermanentWidget( StatusBarButton( QIcon(":icons/lock.svg"), "Password", lambda: self.change_password_dialog(self.wallet, self) ) )
+        sb.addPermanentWidget( StatusBarButton( QIcon(":icons/preferences.png"), "Preferences", self.settings_dialog ) )
+        sb.addPermanentWidget( StatusBarButton( QIcon(":icons/seed.png"), "Seed", lambda: self.show_seed_dialog(self.wallet, self) ) )
+        self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), "Network", lambda: self.network_dialog(self.wallet, self) ) 
         sb.addPermanentWidget( self.status_button )
         self.setStatusBar(sb)
 
