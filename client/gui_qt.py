@@ -538,6 +538,7 @@ class ElectrumWindow(QMainWindow):
             def payto(addr):
                 self.tabs.setCurrentIndex(1)
                 self.payto_e.setText(addr)
+                self.amount_e.setFocus()
             paytoButton = EnterButton('Pay to', lambda: payto(get_addr(l)))
             hbox.addWidget(paytoButton)
         hbox.addStretch(1)
