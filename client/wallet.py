@@ -853,7 +853,7 @@ class Wallet:
                 address = amount = label = identity = message = ''
 
         if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', address):
-            payto_address = self.get_alias(payto, True, show_message, question)
+            payto_address = self.get_alias(address, True, show_message, question)
             if payto_address:
                 address = address + ' <' + payto_address + '>'
 
