@@ -773,20 +773,29 @@ class ElectrumWindow(QMainWindow):
 
         d = QDialog(parent)
         d.setModal(1)
+        d.setWindowTitle('Server')
+        d.setMinimumSize(375, 20)
 
         vbox = QVBoxLayout()
-        vbox.addWidget(QLabel(status))
+        vbox.setSpacing(20)
 
-        grid = QGridLayout()
-        grid.setSpacing(8)
+        hbox = QHBoxLayout()
+        l = QLabel()
+        l.setPixmap(QPixmap(":icons/network.png"))
+        hbox.addWidget(l)
+        hbox.addWidget(QLabel(status))
+        vbox.addLayout(hbox)
+
+        hbox = QHBoxLayout()
         host_line = QLineEdit()
         host_line.setText("%s:%d"% (host,port) )
-        grid.addWidget(QLabel('Server'), 2, 0)
-        grid.addWidget(host_line, 2, 1)
-        vbox.addLayout(grid)
+        hbox.addWidget(QLabel('Connect to:'))
+        hbox.addWidget(host_line)
+        vbox.addLayout(hbox)
 
         servers_list = QTreeWidget(parent)
         servers_list.setHeaderLabels( [ 'Active servers'] )
+        servers_list.setMaximumHeight(150)
         for item in wallet.interface.servers:
             servers_list.addTopLevelItem(QTreeWidgetItem( [ item ] ))
         servers_list.connect(servers_list, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), lambda x:host_line.setText( x.text(0) + ':50000' ))

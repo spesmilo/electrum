@@ -8,5 +8,6 @@
     <file>icons/status_disconnected.png</file>
     <file>icons/status_waiting.svg</file>
     <file>icons/unconfirmed.svg</file>
+    <file>icons/network.png</file>
   </qresource>
 </RCC>
