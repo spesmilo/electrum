@@ -536,6 +536,7 @@ class ElectrumWindow(QMainWindow):
             addButton = EnterButton("New", self.newaddress_dialog)
             hbox.addWidget(addButton)
             def payto(addr):
+                if not addr:return
                 self.tabs.setCurrentIndex(1)
                 self.payto_e.setText(addr)
                 self.amount_e.setFocus()
