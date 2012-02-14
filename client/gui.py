@@ -694,7 +694,6 @@ class ElectrumWindow:
             entry.set_has_frame(True)
             entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#ffffff"))
 
-
     def set_url(self, url):
         payto, amount, label, message, signature, identity, url = self.wallet.parse_url(url, self.show_message, self.question)
         self.notebook.set_current_page(1)
@@ -726,16 +725,12 @@ class ElectrumWindow:
             self.set_frozen(entry,False)
             entry.set_text('')
 
-
     def question(self,msg):
         dialog = gtk.MessageDialog( self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, msg)
         dialog.show()
         result = dialog.run()
         dialog.destroy()
         return result == gtk.RESPONSE_OK
-
-            
-
 
     def do_send(self, w, data):
         payto_entry, label_entry, amount_entry, fee_entry = data
