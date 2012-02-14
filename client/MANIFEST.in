@@ -4,3 +4,5 @@ include electrum
 exclude setup.py
 recursive-include ecdsa *.py
 recursive-include aes *.py
+include icons.qrc
+recursive-include icons *

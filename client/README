@@ -25,17 +25,24 @@ If you use the source from git, you will need to install python-ecdsa and slowae
 These packages are included in the tar.gz and zip archives.
 
 
-In order to use the gui, you need pygtk and tk.
+In order to use the gtk gui, you need pygtk and tk.
 * apt-get install python-gtk2
 * apt-get install python-tk
 
-
-
 RUN
 
-python electrum.py
+To start the Qt gui, type:
+  python electrum
+To use the Gtk gui, type:
+  python --gui gtk
 
 If arguments are passed to the command line, Electrum will run in text mode.
 Examples:
-  python electrum.py balance
-  python electrum.py help
+  python electrum balance
+  python electrum help
+
+
+
+BROWSER CONFIGURATION 
+
+see http://ecdsa.org/bitcoin_URIs.html
