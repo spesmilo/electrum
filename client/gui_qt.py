@@ -37,7 +37,7 @@ from decimal import Decimal
 
 
 def numbify(entry, is_int = False):
-    text = str(entry.text()).strip()
+    text = unicode(entry.text()).strip()
     chars = '0123456789'
     if not is_int: chars +='.'
     s = ''.join([i for i in text if i in chars])
@@ -171,7 +171,7 @@ class ElectrumWindow(QMainWindow):
     def check_recipient(self):
         if self.payto_e.hasFocus():
             return
-        r = str( self.payto_e.text() )
+        r = unicode( self.payto_e.text() )
         if r != self.previous_payto_e:
             self.previous_payto_e = r
             r = r.strip()
@@ -276,7 +276,7 @@ class ElectrumWindow(QMainWindow):
         tx_hash = str(item.toolTip(0))
         tx = self.wallet.tx_history.get(tx_hash)
         s = self.wallet.labels.get(tx_hash)
-        text = str( item.text(2) )
+        text = unicode( item.text(2) )
         if text: 
             self.wallet.labels[tx_hash] = text
             item.setForeground(2, QBrush(QColor('black')))
@@ -294,8 +294,8 @@ class ElectrumWindow(QMainWindow):
             item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
 
     def address_label_changed(self, item, column, l):
-        addr = str(item.text(0))
-        text = str( item.text(1) )
+        addr = unicode( item.text(0) )
+        text = unicode( item.text(1) )
         if text:
             self.wallet.labels[addr] = text
         else:
@@ -403,8 +403,8 @@ class ElectrumWindow(QMainWindow):
 
     def do_send(self):
 
-        label = str( self.message_e.text() )
-        r = str( self.payto_e.text() )
+        label = unicode( self.message_e.text() )
+        r = unicode( self.payto_e.text() )
         r = r.strip()
 
         m1 = re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r)
@@ -424,12 +424,12 @@ class ElectrumWindow(QMainWindow):
             return
 
         try:
-            amount = int( Decimal( str( self.amount_e.text())) * 100000000 )
+            amount = int( Decimal( unicode( self.amount_e.text())) * 100000000 )
         except:
             QMessageBox.warning(self, 'Error', 'Invalid Amount', 'OK')
             return
         try:
-            fee = int( Decimal( str( self.fee_e.text())) * 100000000 )
+            fee = int( Decimal( unicode( self.fee_e.text())) * 100000000 )
         except:
             QMessageBox.warning(self, 'Error', 'Invalid Fee', 'OK')
             return
@@ -512,7 +512,7 @@ class ElectrumWindow(QMainWindow):
         def get_addr(l):
             i = l.currentItem()
             if not i: return
-            addr = str( i.text(0) )
+            addr = unicode( i.text(0) )
             return addr
 
         def showqrcode(address):
@@ -581,7 +581,7 @@ class ElectrumWindow(QMainWindow):
             self.receive_list.addTopLevelItem(item)
 
     def show_contact_details(self, item, column):
-        m = str(item.text(0))
+        m = unicode(item.text(0))
         a = self.wallet.aliases.get(m)
         if a:
             if a[0] in self.wallet.authorities.keys():
@@ -628,7 +628,7 @@ class ElectrumWindow(QMainWindow):
 
     def newaddress_dialog(self):
         text, ok = QInputDialog.getText(self, 'New Contact', 'Address:')
-        address = str(text)
+        address = unicode(text)
         if ok:
             if self.wallet.is_valid(address):
                 self.wallet.addressbook.append(address)
@@ -686,7 +686,7 @@ class ElectrumWindow(QMainWindow):
         d.setLayout(vbox) 
 
         if not d.exec_(): return
-        return str(pw.text())
+        return unicode(pw.text())
 
     @staticmethod
     def change_password_dialog( wallet, parent=None ):
@@ -726,9 +726,9 @@ class ElectrumWindow(QMainWindow):
 
         if not d.exec_(): return
 
-        password = str(pw.text()) if wallet.use_encryption else None
-        new_password = str(new_pw.text())
-        new_password2 = str(conf_pw.text())
+        password = unicode(pw.text()) if wallet.use_encryption else None
+        new_password = unicode(new_pw.text())
+        new_password2 = unicode(conf_pw.text())
 
         try:
             seed = wallet.pw_decode( wallet.seed, password)
@@ -771,13 +771,13 @@ class ElectrumWindow(QMainWindow):
         if not d.exec_(): return
 
         try:
-            gap = int(str(gap_e.text()))
+            gap = int(unicode(gap_e.text()))
         except:
             show_message("error")
             sys.exit(1)
 
         try:
-            seed = str(seed_e.text())
+            seed = unicode(seed_e.text())
             seed.decode('hex')
         except:
             import mnemonic
@@ -816,7 +816,7 @@ class ElectrumWindow(QMainWindow):
 
         if not d.exec_(): return
 
-        fee = str(fee_e.text())
+        fee = unicode(fee_e.text())
         try:
             fee = int( 100000000 * Decimal(fee) )
         except:
@@ -876,7 +876,7 @@ class ElectrumWindow(QMainWindow):
         d.setLayout(vbox) 
 
         if not d.exec_(): return
-        hh = str( host_line.text() )
+        hh = unicode( host_line.text() )
 
         try:
             if ':' in hh:
