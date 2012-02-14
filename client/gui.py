@@ -93,13 +93,12 @@ def restore_create_dialog(wallet):
         
     is_recovery = (r==1)
 
+    # ask for the server.
+    if not run_network_dialog( wallet, parent=None ): return False
+
     if not is_recovery:
 
         wallet.new_seed(None)
-        
-        # ask for the server.
-        run_network_dialog( wallet, parent=None )
-        
         # generate first key
         wallet.synchronize()
 
@@ -109,9 +108,6 @@ def restore_create_dialog(wallet):
         #ask for password
         change_password_dialog(wallet, None, None)
     else:
-        # ask for the server.
-        run_network_dialog( wallet, parent=None )
-
         # ask for seed and gap.
         run_recovery_dialog( wallet )
 
@@ -137,7 +133,7 @@ def restore_create_dialog(wallet):
         thread.start_new_thread( recover_thread, ( wallet, dialog ) )
         r = dialog.run()
         dialog.destroy()
-        if r==gtk.RESPONSE_CANCEL: sys.exit(1)
+        if r==gtk.RESPONSE_CANCEL: return False
         if not wallet.is_found:
             show_message("No transactions found for this seed")
 
@@ -336,10 +332,7 @@ def run_network_dialog( wallet, parent ):
     dialog.destroy()
 
     if r==gtk.RESPONSE_CANCEL:
-        if parent == None:
-            sys.exit(1)
-        else:
-            return
+        return False
 
     try:
         if ':' in hh:
@@ -350,14 +343,12 @@ def run_network_dialog( wallet, parent ):
             port = 50000
     except:
         show_message("error")
-        if parent == None:
-            sys.exit(1)
-        else:
-            return
+        return False
 
-    wallet.interface.set_server(host, port) 
+    wallet.interface.set_server(host, port)
     if parent:
         wallet.save()
+    return True
 
 
 
