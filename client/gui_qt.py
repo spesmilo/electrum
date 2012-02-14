@@ -359,7 +359,6 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.fee_e, 4, 1, 1, 2)
         
         b = EnterButton("Send", self.do_send)
-        b.clicked.connect( self.do_send )
         grid.addWidget(b, 5, 1)
 
         b = EnterButton("Clear",self.do_clear)
