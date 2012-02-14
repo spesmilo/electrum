@@ -17,10 +17,10 @@ from decimal import Decimal
 
 
 
-class Sender(QtCore.QThread):
+class Timer(QtCore.QThread):
     def run(self):
         while True:
-            self.emit(QtCore.SIGNAL('testsignal'))
+            self.emit(QtCore.SIGNAL('timersignal'))
             time.sleep(0.5)
 
 class StatusBarButton(QPushButton):
@@ -77,7 +77,25 @@ class ElectrumWindow(QMainWindow):
 
 
     def connect_slots(self, sender):
-        self.connect(sender, QtCore.SIGNAL('testsignal'), self.update_wallet)
+        self.connect(sender, QtCore.SIGNAL('timersignal'), self.update_wallet)
+        self.connect(sender, QtCore.SIGNAL('timersignal'), self.check_recipient)
+        self.previous_payto_e=''
+
+    def check_recipient(self):
+        if self.payto_e.hasFocus():
+            return
+        r = str( self.payto_e.text() )
+        if r != self.previous_payto_e:
+            self.previous_payto_e = r
+            r = r.strip()
+            if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r):
+                try:
+                    to_address = self.wallet.get_alias(r, interactive=False)
+                except:
+                    return
+                if to_address:
+                    s = r + ' <' + to_address + '>'
+                    self.payto_e.setText(s)
 
 
     def update_wallet(self):
@@ -785,7 +803,7 @@ class ElectrumGui():
 
 
     def main(self,url):
-        s = Sender()
+        s = Timer()
         s.start()
         w = ElectrumWindow(self.wallet)
         if url: w.set_url(url)
