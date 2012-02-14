@@ -50,6 +50,16 @@ class Timer(QtCore.QThread):
             self.emit(QtCore.SIGNAL('timersignal'))
             time.sleep(0.5)
 
+class EnterButton(QPushButton):
+    def __init__(self, text, func):
+        QPushButton.__init__(self, text)
+        self.func = func
+        self.clicked.connect(func)
+
+    def keyPressEvent(self, e):
+        if e.key() == QtCore.Qt.Key_Return:
+            apply(self.func,())
+
 class StatusBarButton(QPushButton):
     def __init__(self, icon, tooltip, func):
         QPushButton.__init__(self, icon, '')
@@ -62,6 +72,40 @@ class StatusBarButton(QPushButton):
     def keyPressEvent(self, e):
         if e.key() == QtCore.Qt.Key_Return:
             apply(self.func,())
+
+
+class QRCodeWidget(QWidget):
+
+    def __init__(self, addr):
+        import pyqrnative
+        super(QRCodeWidget, self).__init__()
+        self.addr = addr
+        self.setGeometry(300, 300, 350, 350)
+        self.setWindowTitle('Colors')
+        self.show()
+        self.qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.H)
+        self.qr.addData(addr)
+        self.qr.make()
+        
+    def paintEvent(self, e):
+        qp = QtGui.QPainter()
+        qp.begin(self)
+        boxsize = 7
+        size = self.qr.getModuleCount()*boxsize
+        k = self.qr.getModuleCount()
+        black = QColor(0, 0, 0, 255)
+        white = QColor(255, 255, 255, 255)
+        for r in range(k):
+            for c in range(k):
+                if self.qr.isDark(r, c):
+                    qp.setBrush(black)
+                    qp.setPen(black)
+                else:
+                    qp.setBrush(white)
+                    qp.setPen(white)
+                qp.drawRect(c*boxsize, r*boxsize, boxsize, boxsize)
+        qp.end()
+        
 
 
 def ok_cancel_buttons(dialog):
@@ -299,12 +343,11 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(QLabel('Fee'), 4, 0)
         grid.addWidget(self.fee_e, 4, 1, 1, 2)
         
-        b = QPushButton("Send")
+        b = EnterButton("Send", self.do_send)
         b.clicked.connect( self.do_send )
         grid.addWidget(b, 5, 1)
 
-        b = QPushButton("Clear")
-        b.clicked.connect( self.do_clear )
+        b = EnterButton("Clear",self.do_clear)
         grid.addWidget(b, 5, 2)
 
         self.payto_sig = QLabel('')
@@ -453,29 +496,37 @@ class ElectrumWindow(QMainWindow):
         hbox = QHBoxLayout()
         hbox.setMargin(0)
         hbox.setSpacing(0)
-        qrButton = QPushButton("QR")
-        copyButton = QPushButton("Copy to Clipboard")
-        def copy2clipboard(l):
+
+        def get_addr(l):
             i = l.currentItem()
             if not i: return
             addr = str( i.text(0) )
-            self.app.clipboard().setText(addr)
+            return addr
 
-        copyButton.clicked.connect(lambda: copy2clipboard(l))
+        def showqrcode(address):
+            if not address: return
+            d = QDialog(self)
+            d.setModal(1)
+            d.setMinimumSize(270, 300)
+            vbox = QVBoxLayout()
+            vbox.addWidget(QRCodeWidget(address))
+            vbox.addLayout(ok_cancel_buttons(d))
+            d.setLayout(vbox)
+            d.exec_()
+        qrButton = EnterButton("QR",lambda: showqrcode(get_addr(l)))
+
+        def copy2clipboard(addr):
+            self.app.clipboard().setText(addr)
+        copyButton = EnterButton("Copy to Clipboard", lambda: copy2clipboard(get_addr(l)))
         hbox.addWidget(qrButton)
         hbox.addWidget(copyButton)
         if not is_recv:
-            addButton = QPushButton("New")
-            addButton.clicked.connect(self.newaddress_dialog)
+            addButton = EnterButton("New", self.newaddress_dialog)
             hbox.addWidget(addButton)
-            paytoButton = QPushButton('Pay to')
-            def payto(l):
-                i = l.currentItem()
-                if not i: return
-                addr = str( i.text(0) )
+            def payto(addr):
                 self.tabs.setCurrentIndex(1)
                 self.payto_e.setText(addr)
-            paytoButton.clicked.connect(lambda : payto(l))
+            paytoButton = EnterButton('Pay to', lambda: payto(get_addr(l)))
             hbox.addWidget(paytoButton)
         hbox.addStretch(1)
         buttons = QWidget()
