@@ -63,6 +63,13 @@ try:
 except:
     print "Could not read electrum.conf. I will use the default values."
 
+try:
+    f = open('/etc/electrum.banner','r')
+    config.set('server','banner', f.read())
+    f.close()
+except:
+    pass
+
 password = config.get('server','password')
 bitcoind_url = 'http://%s:%s@%s:%s/' % ( config.get('bitcoind','user'), config.get('bitcoind','password'), config.get('bitcoind','host'), config.get('bitcoind','port'))
 
