@@ -32,7 +32,7 @@ if __name__ == '__main__':
     usage = "usage: %prog [options] command args\nCommands: "+ (', '.join(known_commands))
 
     parser = OptionParser(usage=usage)
-    parser.add_option("-g", "--gui", dest="gui", default="gtk", help="gui")
+    parser.add_option("-g", "--gui", dest="gui", default="qt", help="gui")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
     parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance at listed addresses")
