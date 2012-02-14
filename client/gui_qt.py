@@ -613,6 +613,7 @@ class ElectrumWindow(QMainWindow):
 
     def create_wall_tab(self):
         self.textbox = textbox = QTextEdit(self)
+        textbox.setFont(QFont('monospace'))
         textbox.setReadOnly(True)
         return textbox
 
