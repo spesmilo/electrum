@@ -13,6 +13,28 @@ from wallet import format_satoshis
 from decimal import Decimal
 
 
+def numbify(entry, is_int = False):
+    text = str(entry.text()).strip()
+    chars = '0123456789'
+    if not is_int: chars +='.'
+    s = ''.join([i for i in text if i in chars])
+    if not is_int:
+        if '.' in s:
+            p = s.find('.')
+            s = s.replace('.','')
+            s = s[:p] + '.' + s[p:p+8]
+        try:
+            amount = int( Decimal(s) * 100000000 )
+        except:
+            amount = None
+    else:
+        try:
+            amount = int( s )
+        except:
+            amount = None
+    entry.setText(s)
+    return amount
+
 
 
 
@@ -54,6 +76,7 @@ class ElectrumWindow(QMainWindow):
     def __init__(self, wallet):
         QMainWindow.__init__(self)
         self.wallet = wallet
+        self.funds_error = False
 
         self.tabs = tabs = QTabWidget(self)
         tabs.addTab(self.create_history_tab(), 'History')
@@ -114,6 +137,9 @@ class ElectrumWindow(QMainWindow):
         else:
             text = "Not connected"
             icon = QIcon(":icons/status_disconnected.png")
+
+        if self.funds_error:
+            text = "Not enough funds"
 
         self.statusBar().showMessage(text)
         self.status_button.setIcon( icon )
@@ -287,6 +313,31 @@ class ElectrumWindow(QMainWindow):
         vbox.addWidget(w)
         vbox.addStretch(1)
         w2.setLayout(vbox)
+
+        def entry_changed( is_fee ):
+            self.funds_error = False
+            amount = numbify(self.amount_e)
+            fee = numbify(self.fee_e)
+            if not is_fee: fee = None
+            if amount is None:
+                return
+            inputs, total, fee = self.wallet.choose_tx_inputs( amount, fee )
+            if not is_fee:
+                self.fee_e.setText( str( Decimal( fee ) / 100000000 ) )
+            if inputs:
+                #send_button.set_sensitive(True)
+                palette = QPalette()
+                palette.setColor(self.amount_e.foregroundRole(), QColor('black'))
+            else:
+                #send_button.set_sensitive(False)
+                palette = QPalette()
+                palette.setColor(self.amount_e.foregroundRole(), QColor('red'))
+                self.funds_error = True
+            self.amount_e.setPalette(palette)
+            self.fee_e.setPalette(palette)
+
+        self.amount_e.textChanged.connect(lambda: entry_changed(False) )
+        self.fee_e.textChanged.connect(lambda: entry_changed(True) )
 
         return w2
 
@@ -640,7 +691,7 @@ class ElectrumWindow(QMainWindow):
         gap_e.setText("5")
         grid.addWidget(QLabel('Gap limit'), 2, 0)
         grid.addWidget(gap_e, 2, 1)
-
+        gap_e.textChanged.connect(lambda: numbify(gap_e,True))
         vbox.addLayout(grid)
 
         vbox.addLayout(ok_cancel_buttons(d))
@@ -682,18 +733,19 @@ class ElectrumWindow(QMainWindow):
         grid = QGridLayout()
         grid.setSpacing(8)
 
-        fee_line = QLineEdit()
-        fee_line.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
+        fee_e = QLineEdit()
+        fee_e.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
         grid.addWidget(QLabel('Fee'), 2, 0)
-        grid.addWidget(fee_line, 2, 1)
+        grid.addWidget(fee_e, 2, 1)
         vbox.addLayout(grid)
+        fee_e.textChanged.connect(lambda: numbify(fee_e,False))
 
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
 
         if not d.exec_(): return
 
-        fee = str(fee_line.text())
+        fee = str(fee_e.text())
         try:
             fee = int( 100000000 * Decimal(fee) )
         except:
