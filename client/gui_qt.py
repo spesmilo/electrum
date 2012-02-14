@@ -528,7 +528,10 @@ class ElectrumWindow(QMainWindow):
         conf_pw.setEchoMode(2)
 
         vbox = QVBoxLayout()
-        msg = 'Your wallet is encrypted. Use this dialog to change your password.\nTo disable wallet encryption, enter an empty new password.' if wallet.use_encryption else 'Your wallet keys are not encrypted'
+        if parent:
+            msg = 'Your wallet is encrypted. Use this dialog to change your password.\nTo disable wallet encryption, enter an empty new password.' if wallet.use_encryption else 'Your wallet keys are not encrypted'
+        else:
+            msg = "Please choose a password to encrypt your wallet keys.\nLeave these fields empty if you want to disable encryption."
         vbox.addWidget(QLabel(msg))
 
         grid = QGridLayout()
@@ -652,7 +655,7 @@ class ElectrumWindow(QMainWindow):
     @staticmethod 
     def network_dialog(wallet, parent=None):
 
-        if True:
+        if parent:
             if wallet.interface.is_connected:
                 status = "Connected to %s.\n%d blocks\nresponse time: %f"%(wallet.interface.host, wallet.interface.blocks, wallet.interface.rtime)
             else:
@@ -704,7 +707,6 @@ class ElectrumWindow(QMainWindow):
 
 
 
-
 class ElectrumGui():
 
     def __init__(self, wallet):
@@ -719,10 +721,11 @@ class ElectrumGui():
         
         is_recovery = (r==1)
         wallet = self.wallet
+        # ask for the server.
+        if not ElectrumWindow.network_dialog( wallet, parent=None ): return False
+
         if not is_recovery:
             wallet.new_seed(None)
-            # ask for the server.
-            ElectrumWindow.network_dialog(wallet)
             # generate first key
             wallet.synchronize()
             # run a dialog indicating the seed, ask the user to remember it
@@ -730,13 +733,8 @@ class ElectrumGui():
             #ask for password
             ElectrumWindow.change_password_dialog(wallet)
         else:
-            # ask for the server.
-            r = ElectrumWindow.network_dialog( wallet, parent=None )
-            if not r: return False
             # ask for seed and gap.
-            r = ElectrumWindow.seed_dialog( wallet )
-            if not r: return False
-
+            if not ElectrumWindow.seed_dialog( wallet ): return False
             wallet.init_mpk( wallet.seed ) # not encrypted at this point
             wallet.synchronize()
 
@@ -753,9 +751,7 @@ class ElectrumGui():
         return True
 
 
-
     def main(self):
-
         s = Sender()
         s.start()
         w = ElectrumWindow(self.wallet)
