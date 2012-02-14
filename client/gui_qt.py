@@ -328,33 +328,8 @@ class ElectrumWindow(QMainWindow):
 
 
     def set_url(self, url):
-        payto, amount, label, message, signature, identity, url = self.wallet.parse_url(url)
+        payto, amount, label, message, signature, identity, url = self.wallet.parse_url(url, self.show_message, self.question)
         self.tabs.setCurrentIndex(1)
-
-        if signature:
-            if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', identity):
-                signing_address = self.wallet.get_alias(identity, True, self.show_message, self.question)
-            elif self.wallet.is_valid(identity):
-                signing_address = identity
-            else:
-                signing_address = None
-            if not signing_address:
-                return
-            try:
-                self.wallet.verify_message(signing_address, signature, url )
-                self.wallet.receipt = (signing_address, signature, url)
-            except:
-                self.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.')
-                payto = amount = label = identity = message = ''
-
-        # redundant with aliases
-        #if label and payto:
-        #    self.labels[payto] = label
-        if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', payto):
-            payto_address = self.wallet.get_alias(payto, True, self.show_message, self.question)
-            if payto_address:
-                payto = payto + ' <' + payto_address + '>'
-
         self.payto_e.setText(payto)
         self.message_e.setText(message)
         self.amount_e.setText(amount)

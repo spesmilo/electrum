@@ -815,7 +815,7 @@ class Wallet:
         return target
 
 
-    def parse_url(self, url):
+    def parse_url(self, url, show_message, question):
         o = url[8:].split('?')
         address = o[0]
         if len(o)>1:
@@ -835,5 +835,26 @@ class Wallet:
                 url = url.replace('&%s=%s'%(k,v),'')
             else: 
                 print k,v
+
+        if signature:
+            if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', identity):
+                signing_address = self.get_alias(identity, True, show_message, question)
+            elif self.is_valid(identity):
+                signing_address = identity
+            else:
+                signing_address = None
+            if not signing_address:
+                return
+            try:
+                self.verify_message(signing_address, signature, url )
+                self.receipt = (signing_address, signature, url)
+            except:
+                self.show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.')
+                address = amount = label = identity = message = ''
+
+        if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', address):
+            payto_address = self.get_alias(payto, True, show_message, question)
+            if payto_address:
+                address = address + ' <' + payto_address + '>'
 
         return address, amount, label, message, signature, identity, url
