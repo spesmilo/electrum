@@ -7,7 +7,12 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
-import icons_rc
+try:
+    import icons_rc
+except:
+    print "could not import icons_rp.py"
+    print "generate it with: 'pyrcc4 icons.qrc -o icons_rc.py'"
+    sys.exit(1)
 
 from wallet import format_satoshis
 from decimal import Decimal
