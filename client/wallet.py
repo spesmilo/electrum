@@ -769,3 +769,43 @@ class Wallet:
             c = self.pw_encode(b, new_password)
             self.imported_keys[k] = c
         self.save()
+
+
+    def get_alias(self, alias, interactive = False, show_message=None, question = None):
+        try:
+            target, signing_address, auth_name = self.read_alias(alias)
+        except BaseException, e:
+            # raise exception if verify fails (verify the chain)
+            if interactive:
+                show_message("Alias error: " + e.message)
+            return
+
+        print target, signing_address, auth_name
+
+        if auth_name is None:
+            a = self.aliases.get(alias)
+            if not a:
+                msg = "Warning: the alias '%s' is self-signed.\nThe signing address is %s.\n\nDo you want to add this alias to your list of contacts?"%(alias,signing_address)
+                if interactive and question( msg ):
+                    self.aliases[alias] = (signing_address, target)
+                else:
+                    target = None
+            else:
+                if signing_address != a[0]:
+                    msg = "Warning: the key of alias '%s' has changed since your last visit! It is possible that someone is trying to do something nasty!!!\nDo you accept to change your trusted key?"%alias
+                    if interactive and question( msg ):
+                        self.aliases[alias] = (signing_address, target)
+                    else:
+                        target = None
+        else:
+            if signing_address not in self.authorities.keys():
+                msg = "The alias: '%s' links to %s\n\nWarning: this alias was signed by an unknown key.\nSigning authority: %s\nSigning address: %s\n\nDo you want to add this key to your list of trusted keys?"%(alias,target,auth_name,signing_address)
+                if interactive and question( msg ):
+                    self.authorities[signing_address] = auth_name
+                else:
+                    target = None
+
+        if target:
+            self.aliases[alias] = (signing_address, target)
+            
+        return target

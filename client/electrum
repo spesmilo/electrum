@@ -60,16 +60,23 @@ if __name__ == '__main__':
             import gui
 
         interface.get_servers()
+        gui = gui.ElectrumGui(wallet)
+
         try:
             found = wallet.read()
             if not found:
-                gui.restore_create_dialog(wallet)
+                found = gui.restore_or_create()
         except BaseException, e:
-            gui.show_message(e.message)
+            import traceback
+            traceback.print_exc(file=sys.stdout)
+            #gui.show_message(e.message)
             exit(1)
-            
-        gui = gui.BitcoinGUI(wallet)
+
+        if not found: exit(1)
+
         interface.start(wallet)
+        gui.main()
+        sys.exit(0)
 
         if re.match('^bitcoin:', cmd):
 

@@ -88,8 +88,8 @@ def restore_create_dialog(wallet):
     dialog.show()
     r = dialog.run()
     dialog.destroy()
-    if r==2:
-        sys.exit(1)
+
+    if r==2: return False
         
     is_recovery = (r==1)
 
@@ -108,7 +108,6 @@ def restore_create_dialog(wallet):
             
         #ask for password
         change_password_dialog(wallet, None, None)
-
     else:
         # ask for the server.
         run_network_dialog( wallet, parent=None )
@@ -132,7 +131,6 @@ def restore_create_dialog(wallet):
                 wallet.update_tx_history()
                 wallet.fill_addressbook()
                 print "recovery successful"
-                wallet.save()
 
             gobject.idle_add( dialog.destroy )
 
@@ -142,6 +140,9 @@ def restore_create_dialog(wallet):
         if r==gtk.RESPONSE_CANCEL: sys.exit(1)
         if not wallet.is_found:
             show_message("No transactions found for this seed")
+
+    wallet.save()
+    return True
 
 
 def run_recovery_dialog(wallet):
@@ -215,7 +216,7 @@ def run_recovery_dialog(wallet):
 
 def run_settings_dialog(wallet, parent):
 
-    message = "These are the settings of your wallet. For more explanations, click on the question mark buttons next to each input field."
+    message = "Here are the settings of your wallet. For more explanations, click on the question mark buttons next to each input field."
         
     dialog = gtk.MessageDialog(
         parent = parent,
@@ -461,7 +462,7 @@ gtk.binding_entry_add_signal(MyWindow, gtk.keysyms.W, gtk.gdk.CONTROL_MASK, 'myk
 gtk.binding_entry_add_signal(MyWindow, gtk.keysyms.Q, gtk.gdk.CONTROL_MASK, 'mykeypress', str, 'ctrl+Q')
 
 
-class BitcoinGUI:
+class ElectrumWindow:
 
     def show_message(self, msg):
         show_message(msg, self.window)
@@ -567,7 +568,7 @@ class BitcoinGUI:
                     r = r.strip()
                     if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r):
                         try:
-                            to_address = self.get_alias(r, interactive=False)
+                            to_address = self.wallet.get_alias(r, interactive=False)
                         except:
                             continue
                         if to_address:
@@ -699,7 +700,7 @@ class BitcoinGUI:
 
         if signature:
             if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', identity):
-                signing_address = self.get_alias(identity, interactive = True)
+                signing_address = self.wallet.get_alias(identity, True, self.show_message, self.question)
             elif self.wallet.is_valid(identity):
                 signing_address = identity
             else:
@@ -717,7 +718,7 @@ class BitcoinGUI:
         #if label and payto:
         #    self.labels[payto] = label
         if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', payto):
-            payto_address = self.get_alias(payto, interactive=True)
+            payto_address = self.wallet.get_alias(payto, True, self.show_message, self.question)
             if payto_address:
                 payto = payto + ' <' + payto_address + '>'
 
@@ -757,46 +758,6 @@ class BitcoinGUI:
         dialog.destroy()
         return result == gtk.RESPONSE_OK
 
-    def get_alias(self, alias, interactive = False):
-        try:
-            target, signing_address, auth_name = self.wallet.read_alias(alias)
-        except BaseException, e:
-            # raise exception if verify fails (verify the chain)
-            if interactive:
-                self.show_message("Alias error: " + e.message)
-            return
-
-        print target, signing_address, auth_name
-
-        if auth_name is None:
-            a = self.wallet.aliases.get(alias)
-            if not a:
-                msg = "Warning: the alias '%s' is self-signed.\nThe signing address is %s.\n\nDo you want to add this alias to your list of contacts?"%(alias,signing_address)
-                if interactive and self.question( msg ):
-                    self.wallet.aliases[alias] = (signing_address, target)
-                else:
-                    target = None
-            else:
-                if signing_address != a[0]:
-                    msg = "Warning: the key of alias '%s' has changed since your last visit! It is possible that someone is trying to do something nasty!!!\nDo you accept to change your trusted key?"%alias
-                    if interactive and self.question( msg ):
-                        self.wallet.aliases[alias] = (signing_address, target)
-                    else:
-                        target = None
-        else:
-            if signing_address not in self.wallet.authorities.keys():
-                msg = "The alias: '%s' links to %s\n\nWarning: this alias was signed by an unknown key.\nSigning authority: %s\nSigning address: %s\n\nDo you want to add this key to your list of trusted keys?"%(alias,target,auth_name,signing_address)
-                if interactive and self.question( msg ):
-                    self.wallet.authorities[signing_address] = auth_name
-                else:
-                    target = None
-
-        if target:
-            self.wallet.aliases[alias] = (signing_address, target)
-            self.update_sending_tab()
-
-            
-        return target
             
 
 
@@ -810,9 +771,12 @@ class BitcoinGUI:
         m2 = re.match('(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+) \<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
         
         if m1:
-            to_address = self.get_alias(r, interactive = True)
+            to_address = self.wallet.get_alias(r, True, self.show_message, self.question)
             if not to_address:
                 return
+            else:
+                self.update_sending_tab()
+
         elif m2:
             to_address = m2.group(5)
         else:
@@ -1258,6 +1222,15 @@ class BitcoinGUI:
                 errorDialog.destroy()
 
     
+
+class ElectrumGui():
+
+    def __init__(self, wallet):
+        self.wallet = wallet
+
     def main(self):
+        ElectrumWindow(self.wallet)
         gtk.main()
 
+    def restore_or_create(self):
+        return restore_create_dialog(self.wallet)
