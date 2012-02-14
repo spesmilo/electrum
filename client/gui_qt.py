@@ -452,7 +452,6 @@ class ElectrumWindow(QMainWindow):
         self.setStatusBar(sb)
 
     def newaddress_dialog(self):
-
         text, ok = QInputDialog.getText(self, 'New Contact', 'Address:')
         address = str(text)
         if ok:
@@ -467,7 +466,7 @@ class ElectrumWindow(QMainWindow):
     def show_seed_dialog(wallet, parent=None):
         import mnemonic
         if wallet.use_encryption:
-            password = self.password_dialog()
+            password = parent.password_dialog()
             if not password: return
         else:
             password = None
@@ -491,9 +490,8 @@ class ElectrumWindow(QMainWindow):
     def show_message(self, msg):
         QMessageBox.information(self, 'Message', msg, 'OK')
 
-    @staticmethod
-    def password_dialog( parent=None ):
-        d = QDialog(parent)
+    def password_dialog(self ):
+        d = QDialog(self)
         d.setModal(1)
 
         pw = QLineEdit()
