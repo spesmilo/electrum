@@ -177,7 +177,7 @@ class ElectrumWindow(QMainWindow):
             r = r.strip()
             if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r):
                 try:
-                    to_address = self.wallet.get_alias(r, interactive=False)
+                    to_address = self.wallet.get_alias(r, True, self.show_message, self.question)
                 except:
                     return
                 if to_address:
@@ -660,7 +660,7 @@ class ElectrumWindow(QMainWindow):
         QMessageBox.information(parent, 'Seed', msg, 'OK')
 
     def question(self, msg):
-        return QMessageBox.question(self, 'Message', msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        return QMessageBox.question(self, 'Message', msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes
 
     def show_message(self, msg):
         QMessageBox.information(self, 'Message', msg, 'OK')
