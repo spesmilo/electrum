@@ -55,11 +55,11 @@ Step 2. Install a patched version of bitcoind
 Electrum server requires some small modifications to the bitcoind daemon. The patch is included in the Electrum sources we just downloaded, now we will download the Bitcoin sources, patch, compile and install the binary to our ~/bin directory.
 
 $ cd ~/src
-$ wget https://github.com/bitcoin/bitcoin/tarball/v0.5.1 -O bitcoin-0.5.1.tgz
-$ tar xvzf bitcoin-0.5.1.tgz
-$ mv bitcoin-bitcoin-5623ee7 bitcoin-0.5.1
-$ cd bitcoin-0.5.1/src
-$ patch -p 2 < ~/src/electrum/server/patches/bitcoin-0.5.1.diff
+$ wget https://github.com/bitcoin/bitcoin/tarball/v0.5.2 -O bitcoin-0.5.2.tgz
+$ tar xvzf bitcoin-0.5.2.tgz
+$ mv bitcoin-bitcoin-fb24b05 bitcoin-0.5.2
+$ cd bitcoin-0.5.2/src
+$ patch -p 2 < ~/src/electrum/server/patches/bitcoin-0.5.2.diff
 $ make -f makefile.unix
 $ strip bitcoind
 $ mv bitcoind ~/bin
