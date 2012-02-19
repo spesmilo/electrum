@@ -109,15 +109,14 @@ if __name__ == '__main__':
         host = raw_input("server (default:%s):"%interface.host)
         port = raw_input("port (default:%d):"%interface.port)
         fee = raw_input("fee (default:%s):"%( str(Decimal(wallet.fee)/100000000)) )
+        gap = raw_input("gap limit (default 5):")
         if fee: wallet.fee = float(fee)
         if host: interface.host = host
         if port: interface.port = int(port)
+        if gap: wallet.gap_limit = int(gap)
         seed = raw_input("if you are restoring an existing wallet, enter the seed. otherwise just press enter: ")
-        wallet.gap_limit = 5
         if seed:
             wallet.seed = seed
-            gap = raw_input("gap limit (default 5):")
-            if gap: wallet.gap_limit = int(gap)
             print "recovering wallet..."
             wallet.synchronize()
             if wallet.is_found():
