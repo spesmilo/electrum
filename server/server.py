@@ -457,7 +457,11 @@ def listen_thread(store):
     s.listen(1)
     while not stopping:
         conn, addr = s.accept()
-        thread.start_new_thread(client_thread, (addr, conn,))
+        try:
+            thread.start_new_thread(client_thread, (addr, conn,))
+        except:
+            # can't start new thread if there is no memory..
+            traceback.print_exc(file=sys.stdout)
 
 
 
