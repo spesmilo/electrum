@@ -19,7 +19,7 @@
 import re, sys, getpass
 
 from optparse import OptionParser
-from wallet import Wallet
+from wallet import Wallet, SecretToASecret
 from interface import Interface
 from decimal import Decimal
 
@@ -270,7 +270,7 @@ if __name__ == '__main__':
                     b = "%d %d %s"%(no, ni, str(Decimal(wallet.get_addr_balance(addr)[0])/100000000))
                 else: b=''
                 if options.show_keys:
-                    pk = wallet.get_private_key2(addr, password)
+                    pk = wallet.get_private_key(addr, password)
                     addr = addr + ':' + SecretToASecret(pk)
                 print addr, b, _type, label
 
