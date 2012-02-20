@@ -181,7 +181,8 @@ if __name__ == '__main__':
         cmd2 = firstarg
         if cmd2 not in known_commands:
             print "known commands:", ', '.join(known_commands)
-            print "help <command> shows the help on a specific command"
+            print "'electrum help <command>' shows the help on a specific command"
+            print "'electrum --help' shows the list of options"
         elif cmd2 == 'balance':
             print "Display the balance of your wallet or a specific address. The address does not have to be a owned address (you know the private key)."
             print "syntax: balance [<address>]"
