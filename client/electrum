@@ -139,6 +139,7 @@ if __name__ == '__main__':
                 print "found no history for this wallet"
         else:
             wallet.new_seed(None)
+            wallet.save()
             print "Your wallet generation seed is: " + wallet.seed
             print "Please keep it in a safe place; if you lose it, you will not be able to restore your wallet."
             print "Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:"
