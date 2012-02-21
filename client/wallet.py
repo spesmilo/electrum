@@ -287,6 +287,7 @@ class Wallet:
     def import_key(self, keypair, password):
         address, key = keypair.split(':')
         if not self.is_valid(address): return False
+        if address in self.all_addresses(): return False
         b = ASecretToSecret( key )
         if not b: return False
         secexp = int( b.encode('hex'), 16)
@@ -302,6 +303,12 @@ class Wallet:
         self.init_mpk(seed)
         # encrypt
         self.seed = self.pw_encode( seed, password )
+
+        # create addresses
+        self.create_new_address_without_history(True)
+        for i in range(self.gap_limit):
+            self.create_new_address_without_history(False)
+
 
     def init_mpk(self,seed):
         # public key
@@ -418,7 +425,7 @@ class Wallet:
             raise BaseException("Bad signature")
     
 
-    def create_new_address(self, for_change):
+    def create_new_address_without_history(self, for_change):
         """   Publickey(type,n) = Master_public_key + H(n|S|type)*point  """
         curve = SECP256k1
         n = len(self.change_addresses) if for_change else len(self.addresses)
@@ -432,8 +439,14 @@ class Wallet:
         else:
             self.addresses.append(address)
 
-        # updates
+        self.history[address] = []
+        self.status[address] = None
         print address
+        return address
+
+
+    def create_new_address(self, bool):
+        address = self.create_new_address_without_history(bool)
         self.history[address] = h = self.interface.retrieve_history(address)
         self.status[address] = h[-1]['blk_hash'] if h else None
         return address
