@@ -287,6 +287,7 @@ class Wallet:
     def import_key(self, keypair, password):
         address, key = keypair.split(':')
         if not self.is_valid(address): return False
+        if address in self.all_addresses(): return False
         b = ASecretToSecret( key )
         if not b: return False
         secexp = int( b.encode('hex'), 16)
