@@ -27,7 +27,7 @@ from decimal import Decimal
 from wallet import format_satoshis
 
 if __name__ == '__main__':
-    known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'restore', 'payto', 'sendtx', 'password', 'addresses', 'history', 'label', 'mktx','seed','import','signmessage','verifymessage','eval', 'gtk','qt']
+    known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'restore', 'payto', 'sendtx', 'password', 'addresses', 'history', 'label', 'mktx','seed','import','signmessage','verifymessage','eval']
 
     usage = "usage: %prog [options] command args\nCommands: "+ (', '.join(known_commands))
 
@@ -158,7 +158,7 @@ if __name__ == '__main__':
             cmd = 'help'
 
     # open session
-    if cmd not in ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval']:
+    if cmd not in ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create']:
         interface.new_session(wallet.all_addresses(), wallet.electrum_version)
         interface.update_wallet(wallet)
         wallet.save()
