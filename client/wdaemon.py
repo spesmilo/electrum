@@ -34,6 +34,7 @@ Simple wallet daemon for webservers.
 host = 'localhost'
 port = 8444
 password = 'my_password'
+path = 'wallet_path'
 
 interface = Interface()
 wallet = Wallet(interface)
@@ -79,7 +80,7 @@ if __name__ == '__main__':
 
     else:
 
-        wallet.set_path('w')
+        wallet.set_path(wallet_path)
         wallet.read()
 
         def server_thread():
