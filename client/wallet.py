@@ -491,13 +491,13 @@ class Wallet:
     def get_remote_number(self):
         import jsonrpclib
         server = jsonrpclib.Server(self.remote_url)
-        out = server.getnum(self.remote_password)
+        out = server.getnum()
         return out
 
     def get_remote_mpk(self):
         import jsonrpclib
         server = jsonrpclib.Server(self.remote_url)
-        out = server.getkey(self.remote_password)
+        out = server.getkey()
         return out
 
     def is_found(self):

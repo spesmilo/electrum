@@ -46,19 +46,7 @@ if __name__ == '__main__':
     interface = Interface()
     wallet = Wallet(interface)
     wallet.set_path(options.wallet_path)
-
-    if options.remote_url:
-        m = re.match('^(.*?)@(.*?)$', options.remote_url)
-        # header authentication is not supported
-        if m:
-            wallet.remote_url = 'http://'+m.group(2)
-            wallet.remote_password = m.group(1)
-        else:
-            print "bad url"
-            sys.exit(1)
-    else:
-        wallet.remote_url = None
-    
+    wallet.remote_url = options.remote_url
 
     if len(args)==0:
         url = None
