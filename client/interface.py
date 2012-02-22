@@ -151,10 +151,10 @@ class Interface:
                 is_new = True
 
         if is_new or wallet.remote_url:
-            wallet.synchronize()
+            is_new = wallet.synchronize()
             wallet.update_tx_history()
             wallet.save()
-            return True
+            return is_new
         else:
             return False
 

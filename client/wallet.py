@@ -484,9 +484,11 @@ class Wallet:
 
         if self.remote_url:
             num = self.get_remote_number()
-            print num
             while len(self.addresses)<num:
                 self.create_new_address(False)
+                is_new = True
+
+        return is_new
 
     def get_remote_number(self):
         import jsonrpclib
