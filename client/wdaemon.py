@@ -61,6 +61,10 @@ def get_num(pw):
     if pw != password: return False
     return len(wallet.addresses)
 
+def get_mpk(pw):
+    if pw != password: return False
+    return wallet.master_public_key.encode('hex')
+
 
 
 if __name__ == '__main__':
@@ -73,6 +77,8 @@ if __name__ == '__main__':
         try:
             if cmd == 'getnum':
                 out = server.getnum(password)
+            elif cmd == 'getkey':
+                out = server.getkey(password)
             elif cmd == 'getnewaddress':
                 out = server.getnewaddress(password)
             elif cmd == 'stop':
@@ -94,6 +100,7 @@ if __name__ == '__main__':
             server = SimpleJSONRPCServer(( host, port))
             server.register_function(get_new_address, 'getnewaddress')
             server.register_function(get_num, 'getnum')
+            server.register_function(get_mpk, 'getkey')
             server.register_function(do_stop, 'stop')
             server.serve_forever()
 
