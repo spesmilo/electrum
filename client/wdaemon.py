@@ -38,31 +38,48 @@ todo:
 
 host = 'ecdsa.org'
 port = 8444
-password = 'my_password'
 wallet_path = 'wallet_path'
-
+username = 'foo'
+password = 'bar'
 interface = Interface()
 wallet = Wallet(interface)
 stopping = False
 
 
-def do_stop(pw):
-    if pw != password: return False
+
+from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCRequestHandler
+import SimpleXMLRPCServer
+
+class authHandler(SimpleJSONRPCRequestHandler):
+    def parse_request(self):
+        if SimpleXMLRPCServer.SimpleXMLRPCRequestHandler.parse_request(self):
+            if self.authenticate(self.headers):
+                return True
+            else:
+                self.send_error(401, 'Authentication failed')
+            return False
+
+    def authenticate(self, headers):
+        from base64 import b64decode
+        basic, _, encoded = headers.get('Authorization').partition(' ')
+        assert basic == 'Basic', 'Only basic authentication supported'
+        x_username, _, x_password = b64decode(encoded).partition(':')
+        return username == x_username and password == x_password
+
+
+def do_stop():
     global stopping
     stopping = True
 
-def get_new_address(pw):
-    if pw != password: return False
+def get_new_address():
     a = wallet.create_new_address(False)
     wallet.save()
     return a
 
-def get_num(pw):
-    if pw != password: return False
+def get_num():
     return len(wallet.addresses)
 
-def get_mpk(pw):
-    if pw != password: return False
+def get_mpk():
     return wallet.master_public_key.encode('hex')
 
 
@@ -76,13 +93,13 @@ if __name__ == '__main__':
 
         try:
             if cmd == 'getnum':
-                out = server.getnum(password)
+                out = server.getnum()
             elif cmd == 'getkey':
-                out = server.getkey(password)
+                out = server.getkey()
             elif cmd == 'getnewaddress':
-                out = server.getnewaddress(password)
+                out = server.getnewaddress()
             elif cmd == 'stop':
-                out = server.stop(password)
+                out = server.stop()
         except socket.error:
             print "server not running"
             sys.exit(1)
@@ -97,7 +114,7 @@ if __name__ == '__main__':
         def server_thread():
             from SocketServer import ThreadingMixIn
             from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
-            server = SimpleJSONRPCServer(( host, port))
+            server = SimpleJSONRPCServer(( host, port), requestHandler=authHandler)
             server.register_function(get_new_address, 'getnewaddress')
             server.register_function(get_num, 'getnum')
             server.register_function(get_mpk, 'getkey')
