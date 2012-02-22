@@ -88,7 +88,7 @@ if __name__ == '__main__':
 
     if len(sys.argv)>1:
         import jsonrpclib
-        server = jsonrpclib.Server('http://%s:%d'%(host,port))
+        server = jsonrpclib.Server('http://%s:%s@%s:%d'%(username, password, host, port))
         cmd = sys.argv[1]
 
         try:
