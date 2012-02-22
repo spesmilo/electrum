@@ -36,7 +36,7 @@ todo:
 """
 
 
-host = 'localhost'
+host = 'ecdsa.org'
 port = 8444
 password = 'my_password'
 wallet_path = 'wallet_path'
