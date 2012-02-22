@@ -150,7 +150,7 @@ class Interface:
                 wallet.status[addr] = blk_hash
                 is_new = True
 
-        if is_new:
+        if is_new or wallet.remote_url:
             wallet.synchronize()
             wallet.update_tx_history()
             wallet.save()

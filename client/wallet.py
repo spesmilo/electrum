@@ -262,8 +262,8 @@ class Wallet:
         self.tx_history = {}
 
         self.imported_keys = {}
-
         self.interface = interface
+        self.remote_url = None
 
 
     def set_path(self, wallet_path):
@@ -456,6 +456,7 @@ class Wallet:
 
 
     def synchronize(self):
+
         is_new = False
         while True:
             if self.change_addresses == []:
@@ -481,6 +482,23 @@ class Wallet:
                 self.create_new_address(False)
                 is_new = True
 
+        if self.remote_url:
+            num = self.get_remote_number()
+            print num
+            while len(self.addresses)<num:
+                self.create_new_address(False)
+
+    def get_remote_number(self):
+        import jsonrpclib
+        server = jsonrpclib.Server(self.remote_url)
+        out = server.getnum(self.remote_password)
+        return out
+
+    def get_remote_mpk(self):
+        import jsonrpclib
+        server = jsonrpclib.Server(self.remote_url)
+        out = server.getkey(self.remote_password)
+        return out
 
     def is_found(self):
         return (len(self.change_addresses) > 1 ) or ( len(self.addresses) > self.gap_limit )
@@ -555,6 +573,8 @@ class Wallet:
 
         if self.seed_version != SEED_VERSION:
             raise BaseException(upgrade_msg)
+
+        if self.remote_url: assert self.master_public_key.encode('hex') == self.get_remote_mpk()
 
         return True
         

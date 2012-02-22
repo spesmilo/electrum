@@ -40,11 +40,25 @@ if __name__ == '__main__':
     parser.add_option("-f", "--fee", dest="tx_fee", default="0.005", help="set tx fee")
     parser.add_option("-s", "--fromaddr", dest="from_addr", default=None, help="set source address for payto/mktx. if it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet.")
     parser.add_option("-c", "--changeaddr", dest="change_addr", default=None, help="set the change address for payto/mktx. default is a spare address, or the source address if it's not in the wallet")
+    parser.add_option("-r", "--remote", dest="remote_url", default=None, help="URL of a remote wallet")
     options, args = parser.parse_args()
 
     interface = Interface()
     wallet = Wallet(interface)
     wallet.set_path(options.wallet_path)
+
+    if options.remote_url:
+        m = re.match('^(.*?)@(.*?)$', options.remote_url)
+        # header authentication is not supported
+        if m:
+            wallet.remote_url = 'http://'+m.group(2)
+            wallet.remote_password = m.group(1)
+        else:
+            print "bad url"
+            sys.exit(1)
+    else:
+        wallet.remote_url = None
+    
 
     if len(args)==0:
         url = None
