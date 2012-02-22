@@ -28,13 +28,18 @@ Simple wallet daemon for webservers.
 - generates new addresses on request
 - private keys are not needed in order to generate new addresses. A neutralized wallet can be used (seed removed)
 - no gap limit: use 'getnum' to know how many addresses have been created.
+
+todo:
+- return the max gap
+- add expiration date
+
 """
 
 
 host = 'localhost'
 port = 8444
 password = 'my_password'
-path = 'wallet_path'
+wallet_path = 'wallet_path'
 
 interface = Interface()
 wallet = Wallet(interface)
