@@ -5,4 +5,5 @@ exclude setup.py
 recursive-include ecdsa *.py
 recursive-include aes *.py
 include icons.qrc
+include remote.php
 recursive-include icons *
