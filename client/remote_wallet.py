@@ -21,7 +21,6 @@ import time, thread, sys, socket
 # see http://code.google.com/p/jsonrpclib/
 import jsonrpclib
 from wallet import Wallet
-from interface import Interface
 
 """
 Simple wallet daemon for webservers.
@@ -41,8 +40,7 @@ port = 8444
 wallet_path = 'wallet_path'
 username = 'foo'
 password = 'bar'
-interface = Interface()
-wallet = Wallet(interface)
+wallet = Wallet()
 stopping = False
 
 

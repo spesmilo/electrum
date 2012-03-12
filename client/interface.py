@@ -20,7 +20,7 @@
 import random, socket, ast
 
         
-import thread, traceback, sys, time
+import thread, traceback, sys, time, json
 
 DEFAULT_TIMEOUT=5
 
@@ -32,22 +32,49 @@ class Interface:
         self.rtime = 0
         self.blocks = 0 
         self.message = ''
-        self.set_port(50000)
         self.is_connected = False
         self.was_updated = True # fixme: use a semaphore
         self.was_polled = False # True after the first poll
 
-    def set_port(self, port_number):
-        self.port = port_number
-        if self.use_http():
-            self.handler = self.http_json_handler
-        else:
-            self.handler = self.native_handler
+    def send_tx(self, data):
+        out = self.handler('blockchain.transaction.broadcast', data )
+        return out
 
-    def use_http(self): 
-        return self.port in [80,81,8080,8081]
+    def retrieve_history(self, address):
+        out = self.handler('blockchain.address.get_history', address )
+        return out
 
-    def native_handler(self, method, params = ''):
+    def get_servers(self):
+        thread.start_new_thread(self.update_servers_thread, ())
+
+    def set_server(self, host, port):
+        if host!= self.host or port!=self.port:
+            self.host = host
+            self.port = port
+            self.is_connected = False
+
+    def update_servers_thread(self):
+        pass
+
+
+class NativeInterface(Interface):
+    """This is the original Electrum protocol. It uses polling, and a non-persistent tcp connection"""
+
+    def __init__(self, host=None, port=50000):
+        Interface.__init__(self)
+        if host: self.host = host
+        self.port = port
+
+    def new_session(self, addresses, version):
+        self.was_polled = False
+        out = self.handler('session.new', [ version, addresses ] )
+        self.session_id, self.message = ast.literal_eval( out )
+
+    def update_session(self, addresses):
+        out = self.handler('session.update', [ self.session_id, addresses ] )
+        return out    
+
+    def handler(self, method, params = ''):
         import time
         cmds = {'session.new':'new_session',
                 'peers':'peers',
@@ -76,69 +103,8 @@ class Interface:
             out = ast.literal_eval( out )
         return out
 
-    def http_json_handler(self, method, params = []):
-        import urllib2, json, time
-        if type(params) != type([]): params = [ params ]
-        t1 = time.time()
-        data = { 'method':method, 'id':'jsonrpc', 'params':params }
-        data_json = json.dumps(data)
-        host = 'http://%s:%d'%( self.host if cmd!='peers' else self.peers_server, self.port )
-        req = urllib2.Request(host, data_json, {'content-type': 'application/json'})
-        response_stream = urllib2.urlopen(req)
-        response = json.loads( response_stream.read() )
-        out = response.get('result')
-        if not out:
-            print response
-        self.rtime = time.time() - t1
-        self.is_connected = True
-        return out
-
-    def send_tx(self, data):
-        out = self.handler('blockchain.transaction.broadcast', data )
-        return out
-
-    def retrieve_history(self, address):
-        out = self.handler('blockchain.address.get_history', address )
-        return out
-
-    def poll(self):
-        out = self.handler('session.poll', self.session_id )
-        blocks, changed_addr = ast.literal_eval( out )
-        if blocks == -1: raise BaseException("session not found")
-        self.blocks = int(blocks)
-        if changed_addr: self.was_updated = True
-        self.was_polled = True
-        return changed_addr
-
-    def new_session(self, addresses, version):
-        self.was_polled = False
-        out = self.handler('session.new', [ version, addresses ] )
-        self.session_id, self.message = ast.literal_eval( out )
-
-    def update_session(self, addresses):
-        out = self.handler('session.update', [ self.session_id, addresses ] )
-        return out
-    
-    def update_servers_thread(self):
-        # if my server is not reachable, I should get the list from one of the default servers
-        # requesting servers could be an independent process
-        while True:
-            for server in self.default_servers:
-                try:
-                    self.peers_server = server
-                    out = self.handler('peers')
-                    self.servers = map( lambda x:x[1], out )
-                    # print "Received server list from %s" % self.peers_server, out
-                    break
-                except socket.timeout:
-                    continue
-                except socket.error:
-                    continue
-
-            time.sleep(5*60)
-
     def poll_interval(self):
-        return 15 if self.use_http() else 5
+        return 5
 
     def update_wallet(self, wallet):
         is_new = False
@@ -157,6 +123,15 @@ class Interface:
             return is_new
         else:
             return False
+
+    def poll(self):
+        out = self.handler('session.poll', self.session_id )
+        blocks, changed_addr = ast.literal_eval( out )
+        if blocks == -1: raise BaseException("session not found")
+        self.blocks = int(blocks)
+        if changed_addr: self.was_updated = True
+        self.was_polled = True
+        return changed_addr
 
     def update_wallet_thread(self, wallet):
         while True:
@@ -195,15 +170,89 @@ class Interface:
                     traceback.print_exc(file=sys.stdout)
                     break
                 
-
     def start(self, wallet):
         thread.start_new_thread(self.update_wallet_thread, (wallet,))
 
-    def get_servers(self):
-        thread.start_new_thread(self.update_servers_thread, ())
+    def update_servers_thread(self):
+        # if my server is not reachable, I should get the list from one of the default servers
+        # requesting servers could be an independent process
+        while True:
+            for server in self.default_servers:
+                try:
+                    self.peers_server = server
+                    out = self.handler('peers')
+                    self.servers = map( lambda x:x[1], out )
+                    # print "Received server list from %s" % self.peers_server, out
+                    break
+                except socket.timeout:
+                    continue
+                except socket.error:
+                    continue
+                except:
+                    traceback.print_exc(file=sys.stdout)
 
-    def set_server(self, host, port):
-        if host!= self.host or port!=self.port:
-            self.host = host
-            self.set_port( port )
-            self.is_connected = False
+            time.sleep(5*60)
+
+
+
+
+class TCPInterface(Interface):
+    """json-rpc over TCP"""
+
+    def __init__(self, host=None, port=50001):
+        Interface.__init__(self)
+        if host: self.host = host
+        self.port = 50001
+        self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
+        self.s.connect(( self.host, self.port))
+
+    def send(self, cmd, params = []):
+        request = json.dumps( { 'method':cmd, 'params':params } )
+        self.s.send( request + '\n' )
+
+    def listen_thread(self, wallet):
+        out = ''
+        while True:
+            msg = self.s.recv(1024)
+            out += msg
+            s = out.find('\n')
+            if s!=-1:
+                c = out[0:s]
+                out = out[s+1:]
+                c = json.loads(c)
+                cmd = c.get('method')
+                if cmd == 'server.banner':
+                    self.message = c.get('result')
+                else:
+                    print "received message:", c
+                               
+    def start(self, wallet):
+        thread.start_new_thread(self.listen_thread, (wallet,))
+        self.send('client.version', wallet.electrum_version)
+        self.send('server.banner', None)
+        for address in wallet.all_addresses():
+            self.send('blockchain.address.subscribe', address)
+    
+
+
+class HttpInterface(Interface):
+
+    def __init__(self):
+        self.port = 8081
+
+    def handler(self, method, params = []):
+        import urllib2, json, time
+        if type(params) != type([]): params = [ params ]
+        t1 = time.time()
+        data = { 'method':method, 'id':'jsonrpc', 'params':params }
+        data_json = json.dumps(data)
+        host = 'http://%s:%d'%( self.host if cmd!='peers' else self.peers_server, self.port )
+        req = urllib2.Request(host, data_json, {'content-type': 'application/json'})
+        response_stream = urllib2.urlopen(req)
+        response = json.loads( response_stream.read() )
+        out = response.get('result')
+        if not out:
+            print response
+        self.rtime = time.time() - t1
+        self.is_connected = True
+        return out

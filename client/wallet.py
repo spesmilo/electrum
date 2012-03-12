@@ -234,7 +234,7 @@ from version import ELECTRUM_VERSION, SEED_VERSION
 
 
 class Wallet:
-    def __init__(self, interface):
+    def __init__(self):
 
         self.electrum_version = ELECTRUM_VERSION
         self.seed_version = SEED_VERSION
@@ -262,7 +262,6 @@ class Wallet:
         self.tx_history = {}
 
         self.imported_keys = {}
-        self.interface = interface
         self.remote_url = None
 
 
@@ -541,23 +540,27 @@ class Wallet:
         f.close()
 
     def read(self):
+        from interface import NativeInterface, HttpInterface,TCPInterface
+
         upgrade_msg = """This wallet seed is deprecated. Please run upgrade.py for a diagnostic."""
+        self.file_exists = False
         try:
             f = open(self.path,"r")
             data = f.read()
             f.close()
         except:
-            return False
+            self.interface = NativeInterface()
+            return
         try:
             d = ast.literal_eval( data )
             self.seed_version = d.get('seed_version')
             self.master_public_key = d.get('master_public_key').decode('hex')
             self.use_encryption = d.get('use_encryption')
             self.fee = int( d.get('fee') )
-            self.interface.host = d.get('host')
-            self.interface.set_port( d.get('port') )
-            self.interface.blocks = d.get('blocks')
             self.seed = d.get('seed')
+            host = d.get('host')
+            port = d.get('port')
+            blocks = d.get('blocks')
             self.addresses = d.get('addresses')
             self.change_addresses = d.get('change_addresses')
             self.status = d.get('status')
@@ -569,7 +572,7 @@ class Wallet:
             self.authorities = d.get('authorities',{})
             self.receipts = d.get('receipts',{})
         except:
-            raise BaseException(upgrade_msg)
+            raise BaseException("cannot read wallet file")
 
         self.update_tx_history()
 
@@ -578,7 +581,17 @@ class Wallet:
 
         if self.remote_url: assert self.master_public_key.encode('hex') == self.get_remote_mpk()
 
-        return True
+        self.file_exists = True
+
+        if port == 50000:
+            self.interface = NativeInterface(host,port)
+        elif port == 50001:
+            self.interface = TCPInterface(host,port)
+        elif port in [80,8080,81,8181]:
+            self.interface = HttpInterface(host,port)            
+        else:
+            raise BaseException("unknown protocol: %d"%port)
+
         
     def get_new_address(self):
         n = 0 
