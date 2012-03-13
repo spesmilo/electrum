@@ -221,6 +221,9 @@ class TCPInterface(Interface):
             while True:
                 msg = self.s.recv(1024)
                 out += msg
+                if msg == '': 
+                    self.is_connected = False
+                    raise BaseException('Socket was disconnected')
                 while True:
                     s = out.find('\n')
                     if s==-1: break
@@ -230,9 +233,9 @@ class TCPInterface(Interface):
                     cmd = c.get('method')
                     if cmd == 'server.banner':
                         self.message = c.get('result')
-                    if cmd == 'numblocks.subscribe':
+                    elif cmd == 'numblocks.subscribe':
                         self.blocks = c.get('result')
-                        print "received numblocks",self.blocks
+                        print "num blocks",self.blocks
                     elif cmd =='address.subscribe':
                         addr = c.get('address')
                         status = c.get('status')
