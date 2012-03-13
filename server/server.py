@@ -87,6 +87,7 @@ wallets = {} # for ultra-light clients such as bccapi
 from Queue import Queue
 input_queue = Queue()
 output_queue = Queue()
+address_queue = Queue()
 
 class MyStore(Datastore_class):
 
@@ -102,6 +103,8 @@ class MyStore(Datastore_class):
             if self.tx_cache.has_key(address):
                 print "cache: invalidating", address
                 self.tx_cache.pop(address)
+            address_queue.put(address)
+
         outrows = self.get_tx_outputs(txid, False)
         for row in outrows:
             _hash = store.binout(row[6])
@@ -109,6 +112,7 @@ class MyStore(Datastore_class):
             if self.tx_cache.has_key(address):
                 print "cache: invalidating", address
                 self.tx_cache.pop(address)
+            address_queue.put(address)
 
     def safe_sql(self,sql, params=(), lock=True):
         try:
@@ -224,8 +228,8 @@ class MyStore(Datastore_class):
     def get_history(self, addr):
         
         if config.get('server','cache') == 'yes':
-            cached_version = self.tx_cache.get( addr ) 
-            if cached_version is not None: 
+            cached_version = self.tx_cache.get( addr )
+            if cached_version is not None:
                 return cached_version
 
         version, binaddr = decode_check_address(addr)
@@ -249,7 +253,6 @@ class MyStore(Datastore_class):
             tx_hash = self.hashout_hex(tx_hash)
             txpoint = {
                     "nTime":    int(nTime),
-                    #"chain_id": int(chain_id),
                     "height":   int(height),
                     "is_in":    int(is_in),
                     "blk_hash": self.hashout_hex(blk_hash),
@@ -288,7 +291,6 @@ class MyStore(Datastore_class):
             #print "mempool", tx_hash
             txpoint = {
                     "nTime":    0,
-                    #"chain_id": 1,
                     "height":   0,
                     "is_in":    int(is_in),
                     "blk_hash": 'mempool', 
@@ -429,8 +431,29 @@ def poll_session(session_id):
 
         return out
 
+
+def do_update_address(addr):
+    # an address was involved in a transaction; we check if it was subscribed to in a session
+    # the address can be subscribed in several sessions; the cache should ensure that we don't do redundant requests
+    for session_id in sessions.keys():
+        session = sessions[session_id]
+        if session.get('type') != 'subscribe': continue
+        addresses = session['addresses'].keys()
+
+        if addr in addresses:
+            print "address ", addr, "found in session", session_id
+            status = get_address_status( addr )
+            print "new_status:", status
+            last_status = session['addresses'][addr]
+            print "last_status", last_status
+            if last_status != status:
+                print "status is new", addr
+                send_status(session_id,addr,status)
+                sessions[session_id]['addresses'][addr] = status
+
+
 def get_address_status(addr):
-    # get addtess status, i.e. the last block for that address.
+    # get address status, i.e. the last block for that address.
     tx_points = store.get_history(addr)
     if not tx_points:
         status = None
@@ -447,18 +470,20 @@ def send_numblocks(session_id):
     out = json.dumps( {'method':'numblocks.subscribe', 'result':block_number} )
     output_queue.put((session_id, out))
 
+def send_status(session_id, address, status):
+    out = json.dumps( { 'method':'address.subscribe', 'address':address, 'status':status } )
+    output_queue.put((session_id, out))
+
 def subscribe_to_numblocks(session_id):
     sessions_sub_numblocks.append(session_id)
     send_numblocks(session_id)
 
 def subscribe_to_address(session_id, address):
-    #print "%s subscribing to %s"%(session_id,address)
     status = get_address_status(address)
     sessions[session_id]['type'] = 'subscribe'
     sessions[session_id]['addresses'][address] = status
     sessions[session_id]['last_time'] = time.time()
-    out = json.dumps( { 'method':'address.subscribe', 'address':address, 'status':status } )
-    output_queue.put((session_id, out))
+    send_status(session_id, address, status)
 
 def new_session(version, addresses):
     session_id = random_string(10)
@@ -663,7 +688,12 @@ def tcp_client_thread(ipaddr,conn):
     while not stopping:
         d = conn.recv(1024)
         msg += d
-        if not d: break
+        if not d:
+            print "lost connection", session_id
+            sessions.pop(session_id)
+            sessions_sub_numblocks.remove(session_id)
+            break
+
         while True:
             s = msg.find('\n')
             if s ==-1:
@@ -700,7 +730,9 @@ def process_input_queue():
             address = data
             out = json.dumps( { 'method':'address.get_history', 'address':address, 'result':store.get_history( address ) } )
         elif cmd == 'transaction.broadcast':
-            out = json.dumps( { 'method':'transaction.broadcast', 'result':send_tx(data) } )
+            txo = send_tx(data)
+            print "sent tx:", txo
+            out = json.dumps( { 'method':'transaction.broadcast', 'result':txo } )
         else:
             print "unknown command", cmd
         if out:
@@ -752,9 +784,11 @@ def clean_session_thread():
         time.sleep(30)
         t = time.time()
         for k,s in sessions.items():
+            if s.get('type') == 'subscribe': continue
             t0 = s['last_time']
             if t - t0 > 5*60:
                 sessions.pop(k)
+                print "lost session", k
             
 
 def irc_thread():
@@ -873,6 +907,7 @@ if __name__ == '__main__':
     thread.start_new_thread(http_server_thread, (store,))
 
     thread.start_new_thread(clean_session_thread, ())
+
     if (config.get('server','irc') == 'yes' ):
 	thread.start_new_thread(irc_thread, ())
 
@@ -896,6 +931,15 @@ if __name__ == '__main__':
             block_number = 0
         finally:
             dblock.release()
+
+        # do addresses
+        while True:
+            try:
+                addr = address_queue.get(False)
+            except:
+                break
+            do_update_address(addr)
+
         time.sleep(10)
 
     print "server stopped"
