@@ -34,7 +34,7 @@ class Interface:
         self.message = ''
         self.is_connected = False
         self.was_updated = True # fixme: use a semaphore
-        self.was_polled = False # True after the first poll
+        self.is_up_to_date = False # True after the first poll
 
     def send_tx(self, data):
         out = self.handler('blockchain.transaction.broadcast', data )
@@ -66,7 +66,7 @@ class NativeInterface(Interface):
         self.port = port
 
     def new_session(self, addresses, version):
-        self.was_polled = False
+        self.is_up_to_date = False
         out = self.handler('session.new', [ version, addresses ] )
         self.session_id, self.message = ast.literal_eval( out )
 
@@ -130,7 +130,7 @@ class NativeInterface(Interface):
         if blocks == -1: raise BaseException("session not found")
         self.blocks = int(blocks)
         if changed_addr: self.was_updated = True
-        self.was_polled = True
+        self.is_up_to_date = True
         return changed_addr
 
     def update_wallet_thread(self, wallet):
@@ -197,7 +197,7 @@ class NativeInterface(Interface):
 
 
 class TCPInterface(Interface):
-    """json-rpc over TCP"""
+    """json-rpc over persistent TCP connection"""
 
     def __init__(self, host=None, port=50001):
         Interface.__init__(self)
@@ -210,29 +210,67 @@ class TCPInterface(Interface):
         request = json.dumps( { 'method':cmd, 'params':params } )
         self.s.send( request + '\n' )
 
+    def send_tx(self, data):
+        out = self.send('transaction.broadcast', data )
+        return out
+
     def listen_thread(self, wallet):
-        out = ''
-        while True:
-            msg = self.s.recv(1024)
-            out += msg
-            s = out.find('\n')
-            if s!=-1:
-                c = out[0:s]
-                out = out[s+1:]
-                c = json.loads(c)
-                cmd = c.get('method')
-                if cmd == 'server.banner':
-                    self.message = c.get('result')
+        try:
+            self.is_connected = True
+            out = ''
+            while True:
+                msg = self.s.recv(1024)
+                out += msg
+                if msg == '': 
+                    self.is_connected = False
+                    raise BaseException('Socket was disconnected')
+                while True:
+                    s = out.find('\n')
+                    if s==-1: break
+                    c = out[0:s]
+                    out = out[s+1:]
+                    c = json.loads(c)
+                    cmd = c.get('method')
+                    if cmd == 'server.banner':
+                        self.message = c.get('result')
+                    elif cmd == 'numblocks.subscribe':
+                        self.blocks = c.get('result')
+                        print "num blocks",self.blocks
+                    elif cmd =='address.subscribe':
+                        addr = c.get('address')
+                        status = c.get('status')
+                        if wallet.status.get(addr) != status:
+                            self.send('address.get_history', addr)
+                            wallet.status[addr] = status
+                            self.is_up_to_date = False
+                        else:
+                            self.is_up_to_date = True
+                    elif cmd == 'address.get_history':
+                        addr = c.get('address')
+                        print "updating history for", addr
+                        wallet.history[addr] = c.get('result')
+                        wallet.synchronize()
+                        wallet.update_tx_history()
+                        wallet.save()
+                        self.was_updated = True
                 else:
                     print "received message:", c
-                               
+        except:
+            traceback.print_exc(file=sys.stdout)
+            self.is_connected = False
+
+
+    def subscribe(self,address):
+        self.send('address.subscribe', address)
+
+
     def start(self, wallet):
         thread.start_new_thread(self.listen_thread, (wallet,))
         self.send('client.version', wallet.electrum_version)
-        self.send('server.banner', None)
+        self.send('server.banner')
+        self.send('numblocks.subscribe')
         for address in wallet.all_addresses():
-            self.send('blockchain.address.subscribe', address)
-    
+            self.subscribe(address)
 
 
 class HttpInterface(Interface):

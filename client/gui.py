@@ -1039,7 +1039,7 @@ class ElectrumWindow:
             if self.wallet.interface.blocks == 0:
                 self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
                 text = "Server not ready"
-            elif not self.wallet.interface.was_polled:
+            elif not self.wallet.interface.is_up_to_date:
                 self.status_image.set_from_stock(gtk.STOCK_REFRESH, gtk.ICON_SIZE_MENU)
                 text = "Synchronizing..."
             else:

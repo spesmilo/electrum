@@ -449,8 +449,11 @@ class Wallet:
 
     def create_new_address(self, bool):
         address = self.create_new_address_without_history(bool)
-        self.history[address] = h = self.interface.retrieve_history(address)
-        self.status[address] = h[-1]['blk_hash'] if h else None
+        if self.interface.port == 50001:
+            self.interface.subscribe(address)
+        else:
+            self.history[address] = h = self.interface.retrieve_history(address)
+            self.status[address] = h[-1]['blk_hash'] if h else None
         return address
 
 

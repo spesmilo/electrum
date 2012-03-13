@@ -190,7 +190,7 @@ class ElectrumWindow(QMainWindow):
             if self.wallet.interface.blocks == 0:
                 text = "Server not ready"
                 icon = QIcon(":icons/status_disconnected.png")
-            elif not self.wallet.interface.was_polled:
+            elif not self.wallet.interface.is_up_to_date:
                 text = "Synchronizing..."
                 icon = QIcon(":icons/status_waiting.svg")
             else:
