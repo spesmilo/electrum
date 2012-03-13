@@ -195,6 +195,7 @@ class NativeInterface(Interface):
 
 
 
+import threading
 
 class TCPInterface(Interface):
     """json-rpc over persistent TCP connection"""
@@ -205,13 +206,19 @@ class TCPInterface(Interface):
         self.port = 50001
         self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
         self.s.connect(( self.host, self.port))
+        self.tx_event = threading.Event()
 
     def send(self, cmd, params = []):
         request = json.dumps( { 'method':cmd, 'params':params } )
         self.s.send( request + '\n' )
 
     def send_tx(self, data):
-        out = self.send('transaction.broadcast', data )
+        self.tx_event.clear()
+        self.send('transaction.broadcast', data )
+        print "waiting for event.."
+        self.tx_event.wait()
+        out = self.tx_result
+        print "result:", out
         return out
 
     def listen_thread(self, wallet):
@@ -233,9 +240,15 @@ class TCPInterface(Interface):
                     cmd = c.get('method')
                     if cmd == 'server.banner':
                         self.message = c.get('result')
+
+                    elif cmd == 'transaction.broadcast':
+                        self.tx_result = c.get('result')
+                        self.tx_event.set()
+
                     elif cmd == 'numblocks.subscribe':
                         self.blocks = c.get('result')
                         print "num blocks",self.blocks
+
                     elif cmd =='address.subscribe':
                         addr = c.get('address')
                         status = c.get('status')
@@ -245,6 +258,7 @@ class TCPInterface(Interface):
                             self.is_up_to_date = False
                         else:
                             self.is_up_to_date = True
+
                     elif cmd == 'address.get_history':
                         addr = c.get('address')
                         print "updating history for", addr
