@@ -730,6 +730,8 @@ def process_input_queue():
             sessions[session_id]['version'] = data
         elif cmd == 'server.banner':
             out = json.dumps( { 'method':'server.banner', 'result':config.get('server','banner').replace('\\n','\n') } )
+        elif cmd == 'server.peers':
+            out = json.dumps( { 'method':'server.peers', 'result':peer_list.values() } )
         elif cmd == 'address.get_history':
             address = data
             out = json.dumps( { 'method':'address.get_history', 'address':address, 'result':store.get_history( address ) } )
