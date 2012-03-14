@@ -334,7 +334,7 @@ def new_interface(wallet):
     elif port in [80,8080,81,8181]:
         interface = HttpInterface(host,port)            
     else:
-        print "unknown protocol: %d"%port
+        print "unknown port number: %d. using native protocol."%port
         interface = NativeInterface(host,port)
         
     return interface
@@ -355,5 +355,6 @@ def loop_interfaces_thread(wallet):
             traceback.print_exc(file=sys.stdout)
             continue
 
+        print "Starting new session: %s:%d"%(wallet.host,wallet.port)
         wallet.interface = new_interface(wallet)
 
