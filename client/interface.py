@@ -234,7 +234,6 @@ class TCPInterface(Interface):
                         self.was_updated = True
 
                     elif cmd == 'server.peers':
-                        print "peers", data
                         self.servers = map( lambda x:x[1], data )
 
                     elif cmd == 'transaction.broadcast':
@@ -243,7 +242,6 @@ class TCPInterface(Interface):
 
                     elif cmd == 'numblocks.subscribe':
                         self.blocks = data
-                        print "num blocks",self.blocks
 
                     elif cmd =='address.subscribe':
                         addr = c.get('address')
