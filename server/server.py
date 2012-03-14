@@ -673,10 +673,11 @@ def tcp_server_thread():
             traceback.print_exc(file=sys.stdout)
 
 
-def close_sesion(session_id):
+def close_session(session_id):
     print "lost connection", session_id
     sessions.pop(session_id)
-    sessions_sub_numblocks.remove(session_id)
+    if session_id in sessions_sub_numblocks:
+        sessions_sub_numblocks.remove(session_id)
 
 
 # one thread per client. put requests in a queue.
@@ -695,7 +696,7 @@ def tcp_client_thread(ipaddr,conn):
         d = conn.recv(1024)
         msg += d
         if not d:
-            close_sesion(session_id)
+            close_session(session_id)
             break
 
         while True:
@@ -721,6 +722,8 @@ def tcp_client_thread(ipaddr,conn):
 def process_input_queue():
     while not stopping:
         session_id, cmd, data = input_queue.get()
+        if session_id not in sessions.keys():
+            continue
         out = None
         if cmd == 'address.subscribe':
             subscribe_to_address(session_id,data)
