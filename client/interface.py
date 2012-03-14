@@ -27,7 +27,10 @@ DEFAULT_SERVERS = ['ecdsa.org','electrum.novit.ro']  # list of default servers
 
 
 class Interface:
-    def __init__(self):
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+
         self.servers = DEFAULT_SERVERS                            # actual list from IRC
         self.rtime = 0
         self.blocks = 0 
@@ -59,9 +62,7 @@ class NativeInterface(Interface):
     """This is the original Electrum protocol. It uses polling, and a non-persistent tcp connection"""
 
     def __init__(self, host, port):
-        Interface.__init__(self)
-        self.host = host
-        self.port = port
+        Interface.__init__(self, host, port)
 
     def start_session(self, wallet):
         addresses = wallet.all_addresses()
@@ -159,7 +160,7 @@ class NativeInterface(Interface):
         # if my server is not reachable, I should get the list from one of the default servers
         # requesting servers could be an independent process
         while True:
-            for server in self.default_servers:
+            for server in DEFAULT_SERVERS:
                 try:
                     self.peers_server = server
                     out = self.handler('peers')
@@ -178,11 +179,6 @@ class NativeInterface(Interface):
 
 
 class HttpInterface(NativeInterface):
-
-    def __init__(self, host, port):
-        Interface.__init__(self)
-        self.host = host
-        self.port = port
 
     def handler(self, method, params = []):
         import urllib2, json, time
@@ -209,12 +205,10 @@ import threading
 class TCPInterface(Interface):
     """json-rpc over persistent TCP connection"""
 
-    def __init__(self, host=None, port=50001):
-        Interface.__init__(self)
-        if host: self.host = host
-        self.port = 50001
+    def __init__(self, host, port):
+        Interface.__init__(self, host, port)
+
         self.tx_event = threading.Event()
-        
         self.addresses_waiting_for_status = []
         self.addresses_waiting_for_history = []
         # up to date
