@@ -263,6 +263,7 @@ class Wallet:
 
         self.imported_keys = {}
         self.remote_url = None
+        self.default_port = 50001
 
 
     def set_server(self, host, port):
@@ -529,9 +530,9 @@ class Wallet:
             'use_encryption':self.use_encryption,
             'master_public_key': self.master_public_key.encode('hex'),
             'fee':self.fee,
-            'host':self.interface.host,
-            'port':self.interface.port,
-            'blocks':self.interface.blocks,
+            'host':self.host,
+            'port':self.port,
+            #'blocks':self.interface.blocks,
             'seed':self.seed,
             'addresses':self.addresses,
             'change_addresses':self.change_addresses,
@@ -558,8 +559,8 @@ class Wallet:
             data = f.read()
             f.close()
         except:
-            #self.interface = NativeInterface()
-            self.port = 50000
+            self.host = ''
+            self.port = self.default_port
             return
         try:
             d = ast.literal_eval( data )

@@ -208,7 +208,7 @@ class ElectrumWindow(QMainWindow):
         self.statusBar().showMessage(text)
         self.status_button.setIcon( icon )
 
-        if self.wallet.interface.was_updated:
+        if self.wallet.interface.was_updated and self.wallet.interface.is_up_to_date:
             self.wallet.interface.was_updated = False
             self.textbox.setText( self.wallet.interface.message )
             self.update_history_tab()
@@ -787,7 +787,8 @@ class ElectrumWindow(QMainWindow):
             show_message("no seed")
             sys.exit(1)
         
-        wallet.seed = seed
+        wallet.seed = str(seed)
+        #print repr(wallet.seed)
         wallet.gap_limit = gap
         return True
 
@@ -828,19 +829,19 @@ class ElectrumWindow(QMainWindow):
 
     @staticmethod 
     def network_dialog(wallet, parent=None):
-
+        interface = wallet.interface
         if parent:
-            if wallet.interface.is_connected:
-                status = "Connected to %s.\n%d blocks\nresponse time: %f"%(wallet.interface.host, wallet.interface.blocks, wallet.interface.rtime)
+            if interface.is_connected:
+                status = "Connected to %s:%d\n%d blocks\nresponse time: %f"%(interface.host, interface.port, interface.blocks, interface.rtime)
             else:
                 status = "Not connected"
-            host = wallet.interface.host
-            port = wallet.interface.port
+            host = wallet.host
+            port = wallet.port
         else:
             import random
             status = "Please choose a server."
-            host = random.choice( wallet.interface.servers )
-            port = 50000
+            host = random.choice( interface.servers )
+            port = wallet.default_port
 
         d = QDialog(parent)
         d.setModal(1)
@@ -869,7 +870,7 @@ class ElectrumWindow(QMainWindow):
         servers_list.setMaximumHeight(150)
         for item in wallet.interface.servers:
             servers_list.addTopLevelItem(QTreeWidgetItem( [ item ] ))
-        servers_list.connect(servers_list, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), lambda x:host_line.setText( x.text(0) + ':50000' ))
+        servers_list.connect(servers_list, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), lambda x:host_line.setText( x.text(0) + ':%d'%wallet.default_port ))
         vbox.addWidget(servers_list)
 
         vbox.addLayout(ok_cancel_buttons(d))
@@ -884,7 +885,7 @@ class ElectrumWindow(QMainWindow):
                 port = int(port)
             else:
                 host = hh
-                port = 50000
+                port = wallet.default_port
         except:
             show_message("error")
             if parent == None:
@@ -925,7 +926,7 @@ class ElectrumGui():
         else:
             # ask for seed and gap.
             if not ElectrumWindow.seed_dialog( wallet ): return False
-            wallet.init_mpk( wallet.seed ) # not encrypted at this point
+            wallet.init_mpk( wallet.seed )  # not encrypted at this point
             wallet.synchronize()
 
             if wallet.is_found():

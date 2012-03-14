@@ -22,13 +22,16 @@ import random, socket, ast
         
 import thread, traceback, sys, time, json
 
-DEFAULT_TIMEOUT=5
+DEFAULT_TIMEOUT = 5
+DEFAULT_SERVERS = ['ecdsa.org','electrum.novit.ro']  # list of default servers
+
 
 class Interface:
-    def __init__(self):
-        self.default_servers = ['ecdsa.org','electrum.novit.ro']  # list of default servers
-        self.host = random.choice( self.default_servers )         # random choice when the wallet is created
-        self.servers = self.default_servers                       # actual list from IRC
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+
+        self.servers = DEFAULT_SERVERS                            # actual list from IRC
         self.rtime = 0
         self.blocks = 0 
         self.message = ''
@@ -58,10 +61,8 @@ class Interface:
 class NativeInterface(Interface):
     """This is the original Electrum protocol. It uses polling, and a non-persistent tcp connection"""
 
-    def __init__(self, host=None, port=50000):
-        Interface.__init__(self)
-        if host: self.host = host
-        self.port = port
+    def __init__(self, host, port):
+        Interface.__init__(self, host, port)
 
     def start_session(self, wallet):
         addresses = wallet.all_addresses()
@@ -159,7 +160,7 @@ class NativeInterface(Interface):
         # if my server is not reachable, I should get the list from one of the default servers
         # requesting servers could be an independent process
         while True:
-            for server in self.default_servers:
+            for server in DEFAULT_SERVERS:
                 try:
                     self.peers_server = server
                     out = self.handler('peers')
@@ -177,17 +178,37 @@ class NativeInterface(Interface):
 
 
 
+class HttpInterface(NativeInterface):
+
+    def handler(self, method, params = []):
+        import urllib2, json, time
+        if type(params) != type([]): params = [ params ]
+        t1 = time.time()
+        data = { 'method':method, 'id':'jsonrpc', 'params':params }
+        data_json = json.dumps(data)
+        host = 'http://%s:%d'%( self.host if method!='peers' else self.peers_server, self.port )
+        req = urllib2.Request(host, data_json, {'content-type': 'application/json'})
+        response_stream = urllib2.urlopen(req)
+        response = json.loads( response_stream.read() )
+        out = response.get('result')
+        if not out:
+            print response
+        self.rtime = time.time() - t1
+        self.is_connected = True
+        return out
+
+
+
+
 import threading
 
 class TCPInterface(Interface):
     """json-rpc over persistent TCP connection"""
 
-    def __init__(self, host=None, port=50001):
-        Interface.__init__(self)
-        if host: self.host = host
-        self.port = 50001
+    def __init__(self, host, port):
+        Interface.__init__(self, host, port)
+
         self.tx_event = threading.Event()
-        
         self.addresses_waiting_for_status = []
         self.addresses_waiting_for_history = []
         # up to date
@@ -300,41 +321,25 @@ class TCPInterface(Interface):
 
 
 
-class HttpInterface(Interface):
-
-    def __init__(self):
-        self.port = 8081
-
-    def handler(self, method, params = []):
-        import urllib2, json, time
-        if type(params) != type([]): params = [ params ]
-        t1 = time.time()
-        data = { 'method':method, 'id':'jsonrpc', 'params':params }
-        data_json = json.dumps(data)
-        host = 'http://%s:%d'%( self.host if cmd!='peers' else self.peers_server, self.port )
-        req = urllib2.Request(host, data_json, {'content-type': 'application/json'})
-        response_stream = urllib2.urlopen(req)
-        response = json.loads( response_stream.read() )
-        out = response.get('result')
-        if not out:
-            print response
-        self.rtime = time.time() - t1
-        self.is_connected = True
-        return out
-
 
 
 def new_interface(wallet):
-    host = wallet.host
+    if wallet.host:
+        host = wallet.host
+    else:
+        host = random.choice( DEFAULT_SERVERS )         # random choice when the wallet is created
     port = wallet.port
+
     if port == 50000:
         interface = NativeInterface(host,port)
     elif port == 50001:
         interface = TCPInterface(host,port)
-    elif port in [80,8080,81,8181]:
+    elif port in [80, 81, 8080, 8081]:
         interface = HttpInterface(host,port)            
     else:
-        raise BaseException("unknown protocol: %d"%port)
+        print "unknown port number: %d. using native protocol."%port
+        interface = NativeInterface(host,port)
+        
     return interface
        
 
@@ -343,14 +348,16 @@ def loop_interfaces_thread(wallet):
         try:
             wallet.interface.start_session(wallet)
             wallet.interface.get_servers()
+
+            wallet.interface.disconnected_event.wait()
+            print "Disconnected"
         except socket.error:
-            print "Not connected"
+            print "socket error"
             time.sleep(5)
-            continue
         except:
             traceback.print_exc(file=sys.stdout)
             continue
-        wallet.interface.disconnected_event.wait()
-        print "Disconnected"
+
+        print "Starting new session: %s:%d"%(wallet.host,wallet.port)
         wallet.interface = new_interface(wallet)
 
