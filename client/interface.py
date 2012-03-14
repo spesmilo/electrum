@@ -58,9 +58,9 @@ class Interface:
 class NativeInterface(Interface):
     """This is the original Electrum protocol. It uses polling, and a non-persistent tcp connection"""
 
-    def __init__(self, host=None, port=50000):
+    def __init__(self, host, port):
         Interface.__init__(self)
-        if host: self.host = host
+        self.host = host
         self.port = port
 
     def start_session(self, wallet):
@@ -174,6 +174,33 @@ class NativeInterface(Interface):
                     traceback.print_exc(file=sys.stdout)
 
             time.sleep(5*60)
+
+
+
+class HttpInterface(NativeInterface):
+
+    def __init__(self, host, port):
+        Interface.__init__(self)
+        self.host = host
+        self.port = port
+
+    def handler(self, method, params = []):
+        import urllib2, json, time
+        if type(params) != type([]): params = [ params ]
+        t1 = time.time()
+        data = { 'method':method, 'id':'jsonrpc', 'params':params }
+        data_json = json.dumps(data)
+        host = 'http://%s:%d'%( self.host if method!='peers' else self.peers_server, self.port )
+        req = urllib2.Request(host, data_json, {'content-type': 'application/json'})
+        response_stream = urllib2.urlopen(req)
+        response = json.loads( response_stream.read() )
+        out = response.get('result')
+        if not out:
+            print response
+        self.rtime = time.time() - t1
+        self.is_connected = True
+        return out
+
 
 
 
@@ -300,28 +327,6 @@ class TCPInterface(Interface):
 
 
 
-class HttpInterface(Interface):
-
-    def __init__(self):
-        self.port = 8081
-
-    def handler(self, method, params = []):
-        import urllib2, json, time
-        if type(params) != type([]): params = [ params ]
-        t1 = time.time()
-        data = { 'method':method, 'id':'jsonrpc', 'params':params }
-        data_json = json.dumps(data)
-        host = 'http://%s:%d'%( self.host if cmd!='peers' else self.peers_server, self.port )
-        req = urllib2.Request(host, data_json, {'content-type': 'application/json'})
-        response_stream = urllib2.urlopen(req)
-        response = json.loads( response_stream.read() )
-        out = response.get('result')
-        if not out:
-            print response
-        self.rtime = time.time() - t1
-        self.is_connected = True
-        return out
-
 
 
 def new_interface(wallet):
@@ -331,7 +336,7 @@ def new_interface(wallet):
         interface = NativeInterface(host,port)
     elif port == 50001:
         interface = TCPInterface(host,port)
-    elif port in [80,8080,81,8181]:
+    elif port in [80, 81, 8080, 8081]:
         interface = HttpInterface(host,port)            
     else:
         print "unknown port number: %d. using native protocol."%port
