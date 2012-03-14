@@ -208,7 +208,7 @@ class ElectrumWindow(QMainWindow):
         self.statusBar().showMessage(text)
         self.status_button.setIcon( icon )
 
-        if self.wallet.interface.was_updated:
+        if self.wallet.interface.was_updated and self.wallet.interface.is_up_to_date:
             self.wallet.interface.was_updated = False
             self.textbox.setText( self.wallet.interface.message )
             self.update_history_tab()
