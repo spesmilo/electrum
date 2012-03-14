@@ -892,7 +892,7 @@ class ElectrumWindow(QMainWindow):
             else:
                 return
 
-        wallet.interface.set_server(host, port) 
+        wallet.set_server(host, port) 
         return True
 
 

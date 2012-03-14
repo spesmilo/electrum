@@ -345,7 +345,7 @@ def run_network_dialog( wallet, parent ):
         show_message("error")
         return False
 
-    wallet.interface.set_server(host, port)
+    wallet.set_server(host, port)
     if parent:
         wallet.save()
     return True

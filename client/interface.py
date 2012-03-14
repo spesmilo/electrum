@@ -32,9 +32,13 @@ class Interface:
         self.rtime = 0
         self.blocks = 0 
         self.message = ''
-        self.is_connected = False
         self.was_updated = True # fixme: use a semaphore
         self.is_up_to_date = False # True after the first poll
+
+        self.is_connected = False
+        self.disconnected_event = threading.Event()
+        self.disconnected_event.clear()
+
 
     def send_tx(self, data):
         out = self.handler('blockchain.transaction.broadcast', data )
@@ -46,12 +50,6 @@ class Interface:
 
     def get_servers(self):
         pass
-
-    def set_server(self, host, port):
-        if host!= self.host or port!=self.port:
-            self.host = host
-            self.port = port
-            self.is_connected = False
 
     def start_session(self, wallet):
         pass
@@ -71,7 +69,7 @@ class NativeInterface(Interface):
         self.is_up_to_date = False
         out = self.handler('session.new', [ version, addresses ] )
         self.session_id, self.message = ast.literal_eval( out )
-        self.update_wallet(wallet)
+        thread.start_new_thread(self.poll_thread, (wallet,))
 
     def update_session(self, addresses):
         out = self.handler('session.update', [ self.session_id, addresses ] )
@@ -136,42 +134,23 @@ class NativeInterface(Interface):
         self.is_up_to_date = True
         return changed_addr
 
-    def loop_sessions_thread(self, wallet):
-        while True:
+    def poll_thread(self, wallet):
+        while self.is_connected:
             try:
-                self.is_connected = False
-                self.start_session(wallet)
-            except socket.error:
-                print "Not connected"
+                if self.update_wallet(wallet):
+                    self.update_session( wallet.all_addresses() )
                 time.sleep(self.poll_interval())
-                continue
+            except socket.gaierror:
+                break
+            except socket.error:
+                break
             except:
                 traceback.print_exc(file=sys.stdout)
-                time.sleep(self.poll_interval())
-                continue
+                break
+            
+        self.is_connected = False
+        self.disconnected_event.set()
 
-            while True:
-                try:
-                    if self.update_wallet(wallet):
-                        self.update_session( wallet.all_addresses() )
-
-                    time.sleep(self.poll_interval())
-                except BaseException:
-                    traceback.print_exc(file=sys.stdout)
-                    print "starting new session"
-                    break
-                except socket.gaierror:
-                    self.is_connected = False
-                    break
-                except socket.error:
-                    print "socket.error"
-                    self.is_connected = False
-                    break
-                except:
-                    self.is_connected = False
-                    print "error"
-                    traceback.print_exc(file=sys.stdout)
-                    break
                 
     def get_servers(self):
         thread.start_new_thread(self.update_servers_thread, ())
@@ -208,8 +187,6 @@ class TCPInterface(Interface):
         if host: self.host = host
         self.port = 50001
         self.tx_event = threading.Event()
-        self.disconnected_event = threading.Event()
-        self.disconnected_event.clear()
         
         self.addresses_waiting_for_status = []
         self.addresses_waiting_for_history = []
@@ -235,12 +212,14 @@ class TCPInterface(Interface):
         try:
             self.is_connected = True
             out = ''
-            while True:
-                msg = self.s.recv(1024)
+            while self.is_connected:
+                try: msg = self.s.recv(1024)
+                except socket.timeout: continue
                 out += msg
                 if msg == '': 
                     self.is_connected = False
-                    raise BaseException('Socket was disconnected')
+                    print "disconnected."
+
                 while True:
                     s = out.find('\n')
                     if s==-1: break
@@ -295,8 +274,9 @@ class TCPInterface(Interface):
                         self.up_to_date_event.set()
         except:
             traceback.print_exc(file=sys.stdout)
-            self.is_connected = False
-            self.disconnected_event.set()
+
+        self.is_connected = False
+        self.disconnected_event.set()
 
     def update_wallet(self,wallet):
         self.up_to_date_event.wait()
@@ -310,6 +290,7 @@ class TCPInterface(Interface):
 
     def start_session(self, wallet):
         self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
+        self.s.settimeout(DEFAULT_TIMEOUT)
         self.s.connect(( self.host, self.port))
         thread.start_new_thread(self.listen_thread, (wallet,))
         self.send('client.version', wallet.electrum_version)
@@ -360,7 +341,6 @@ def new_interface(wallet):
        
 
 def loop_interfaces_thread(wallet):
-
     while True:
         try:
             wallet.interface.start_session(wallet)
@@ -368,6 +348,9 @@ def loop_interfaces_thread(wallet):
         except socket.error:
             print "Not connected"
             time.sleep(5)
+            continue
+        except:
+            traceback.print_exc(file=sys.stdout)
             continue
         wallet.interface.disconnected_event.wait()
         print "Disconnected"

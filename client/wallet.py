@@ -265,6 +265,12 @@ class Wallet:
         self.remote_url = None
 
 
+    def set_server(self, host, port):
+        if host!= self.host or port!=self.port:
+            self.host = host
+            self.port = port
+            self.interface.is_connected = False  # this exits the polling loop
+
     def set_path(self, wallet_path):
 
         if wallet_path is not None:
