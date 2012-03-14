@@ -45,16 +45,13 @@ class Interface:
         return out
 
     def get_servers(self):
-        thread.start_new_thread(self.update_servers_thread, ())
+        pass
 
     def set_server(self, host, port):
         if host!= self.host or port!=self.port:
             self.host = host
             self.port = port
             self.is_connected = False
-
-    def update_servers_thread(self):
-        pass
 
 
 class NativeInterface(Interface):
@@ -173,6 +170,9 @@ class NativeInterface(Interface):
     def start(self, wallet):
         thread.start_new_thread(self.update_wallet_thread, (wallet,))
 
+    def get_servers(self):
+        thread.start_new_thread(self.update_servers_thread, ())
+
     def update_servers_thread(self):
         # if my server is not reachable, I should get the list from one of the default servers
         # requesting servers could be an independent process
@@ -238,15 +238,22 @@ class TCPInterface(Interface):
                     out = out[s+1:]
                     c = json.loads(c)
                     cmd = c.get('method')
+                    data = c.get('result')
+
                     if cmd == 'server.banner':
-                        self.message = c.get('result')
+                        self.message = data
+                        self.was_updated = True
+
+                    elif cmd == 'server.peers':
+                        print "peers", data
+                        self.servers = map( lambda x:x[1], data )
 
                     elif cmd == 'transaction.broadcast':
-                        self.tx_result = c.get('result')
+                        self.tx_result = data
                         self.tx_event.set()
 
                     elif cmd == 'numblocks.subscribe':
-                        self.blocks = c.get('result')
+                        self.blocks = data
                         print "num blocks",self.blocks
 
                     elif cmd =='address.subscribe':
@@ -273,10 +280,11 @@ class TCPInterface(Interface):
             traceback.print_exc(file=sys.stdout)
             self.is_connected = False
 
-
     def subscribe(self,address):
         self.send('address.subscribe', address)
-
+        
+    def get_servers(self):
+        self.send('server.peers')
 
     def start(self, wallet):
         thread.start_new_thread(self.listen_thread, (wallet,))
