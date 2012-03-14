@@ -787,7 +787,8 @@ class ElectrumWindow(QMainWindow):
             show_message("no seed")
             sys.exit(1)
         
-        wallet.seed = seed
+        wallet.seed = str(seed)
+        #print repr(wallet.seed)
         wallet.gap_limit = gap
         return True
 
@@ -840,7 +841,7 @@ class ElectrumWindow(QMainWindow):
             import random
             status = "Please choose a server."
             host = random.choice( interface.servers )
-            port = 50000
+            port = wallet.default_port
 
         d = QDialog(parent)
         d.setModal(1)
@@ -869,7 +870,7 @@ class ElectrumWindow(QMainWindow):
         servers_list.setMaximumHeight(150)
         for item in wallet.interface.servers:
             servers_list.addTopLevelItem(QTreeWidgetItem( [ item ] ))
-        servers_list.connect(servers_list, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), lambda x:host_line.setText( x.text(0) + ':50000' ))
+        servers_list.connect(servers_list, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), lambda x:host_line.setText( x.text(0) + ':%d'%wallet.default_port ))
         vbox.addWidget(servers_list)
 
         vbox.addLayout(ok_cancel_buttons(d))
@@ -884,7 +885,7 @@ class ElectrumWindow(QMainWindow):
                 port = int(port)
             else:
                 host = hh
-                port = 50000
+                port = wallet.default_port
         except:
             show_message("error")
             if parent == None:
@@ -925,7 +926,7 @@ class ElectrumGui():
         else:
             # ask for seed and gap.
             if not ElectrumWindow.seed_dialog( wallet ): return False
-            wallet.init_mpk( wallet.seed ) # not encrypted at this point
+            wallet.init_mpk( wallet.seed )  # not encrypted at this point
             wallet.synchronize()
 
             if wallet.is_found():

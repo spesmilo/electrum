@@ -22,13 +22,13 @@ import random, socket, ast
         
 import thread, traceback, sys, time, json
 
-DEFAULT_TIMEOUT=5
+DEFAULT_TIMEOUT = 5
+DEFAULT_SERVERS = ['ecdsa.org','electrum.novit.ro']  # list of default servers
+
 
 class Interface:
     def __init__(self):
-        self.default_servers = ['ecdsa.org','electrum.novit.ro']  # list of default servers
-        self.host = random.choice( self.default_servers )         # random choice when the wallet is created
-        self.servers = self.default_servers                       # actual list from IRC
+        self.servers = DEFAULT_SERVERS                            # actual list from IRC
         self.rtime = 0
         self.blocks = 0 
         self.message = ''
@@ -330,8 +330,12 @@ class TCPInterface(Interface):
 
 
 def new_interface(wallet):
-    host = wallet.host
+    if wallet.host:
+        host = wallet.host
+    else:
+        host = random.choice( DEFAULT_SERVERS )         # random choice when the wallet is created
     port = wallet.port
+
     if port == 50000:
         interface = NativeInterface(host,port)
     elif port == 50001:
