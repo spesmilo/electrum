@@ -290,7 +290,7 @@ class TCPInterface(Interface):
 
     def start_session(self, wallet):
         self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
-        self.s.settimeout(DEFAULT_TIMEOUT)
+        self.s.settimeout(1)
         self.s.connect(( self.host, self.port))
         thread.start_new_thread(self.listen_thread, (wallet,))
         self.send('client.version', wallet.electrum_version)
