@@ -704,9 +704,17 @@ def tcp_client_thread(ipaddr,conn):
             if s ==-1:
                 break
             else:
-                c = msg[0:s]
+                c = msg[0:s].strip()
                 msg = msg[s+1:]
-                c = json.loads(c)
+                if c == 'quit': 
+                    conn.close()
+                    close_session(session_id)
+                    return
+                try:
+                    c = json.loads(c)
+                except:
+                    print "json error", repr(c)
+                    continue
                 try:
                     cmd = c['method']
                     data = c['params']
@@ -716,6 +724,7 @@ def tcp_client_thread(ipaddr,conn):
 
                 # add to queue
                 input_queue.put((session_id, cmd, data))
+
 
 
 # read commands from the input queue. perform requests, etc. this should be called from the main thread.
