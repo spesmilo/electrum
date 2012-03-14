@@ -940,7 +940,6 @@ class ElectrumGui():
         wallet.save()
         return True
 
-
     def main(self,url):
         s = Timer()
         s.start()

@@ -24,6 +24,7 @@ from decimal import Decimal
 
 
 from wallet import format_satoshis
+from interface import loop_interfaces_thread, new_interface
 
 if __name__ == '__main__':
     known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'restore', 'payto', 'sendtx', 'password', 'addresses', 'history', 'label', 'mktx','seed','import','signmessage','verifymessage','eval']
@@ -46,8 +47,7 @@ if __name__ == '__main__':
     wallet.set_path(options.wallet_path)
     wallet.read()
     wallet.remote_url = options.remote_url
-
-    interface = wallet.interface
+    interface = wallet.interface = new_interface(wallet)
 
     if len(args)==0:
         url = None
@@ -60,6 +60,8 @@ if __name__ == '__main__':
         firstarg = args[1] if len(args) > 1 else ''
         
     if cmd == 'gui':
+        import thread
+
         if options.gui=='gtk':
             import gui
         elif options.gui=='qt':
@@ -68,7 +70,7 @@ if __name__ == '__main__':
             print "unknown gui", options.gui
             exit(1)
 
-        interface.get_servers()
+        thread.start_new_thread(loop_interfaces_thread, (wallet,))
         gui = gui.ElectrumGui(wallet)
 
         try:
@@ -83,7 +85,6 @@ if __name__ == '__main__':
 
         if not found: exit(1)
 
-        interface.start(wallet)
         gui.main(url)
         wallet.save()
         sys.exit(0)
@@ -163,7 +164,7 @@ if __name__ == '__main__':
 
     # open session
     if cmd not in ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create']:
-        interface.new_session(wallet.all_addresses(), wallet.electrum_version)
+        interface.start_session(wallet)
         interface.update_wallet(wallet)
         wallet.save()
 

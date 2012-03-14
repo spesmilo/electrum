@@ -53,6 +53,9 @@ class Interface:
             self.port = port
             self.is_connected = False
 
+    def start_session(self, wallet):
+        pass
+
 
 class NativeInterface(Interface):
     """This is the original Electrum protocol. It uses polling, and a non-persistent tcp connection"""
@@ -62,10 +65,13 @@ class NativeInterface(Interface):
         if host: self.host = host
         self.port = port
 
-    def new_session(self, addresses, version):
+    def start_session(self, wallet):
+        addresses = wallet.all_addresses()
+        version = wallet.electrum_version
         self.is_up_to_date = False
         out = self.handler('session.new', [ version, addresses ] )
         self.session_id, self.message = ast.literal_eval( out )
+        self.update_wallet(wallet)
 
     def update_session(self, addresses):
         out = self.handler('session.update', [ self.session_id, addresses ] )
@@ -130,11 +136,11 @@ class NativeInterface(Interface):
         self.is_up_to_date = True
         return changed_addr
 
-    def update_wallet_thread(self, wallet):
+    def loop_sessions_thread(self, wallet):
         while True:
             try:
                 self.is_connected = False
-                self.new_session(wallet.all_addresses(), wallet.electrum_version)
+                self.start_session(wallet)
             except socket.error:
                 print "Not connected"
                 time.sleep(self.poll_interval())
@@ -167,9 +173,6 @@ class NativeInterface(Interface):
                     traceback.print_exc(file=sys.stdout)
                     break
                 
-    def start(self, wallet):
-        thread.start_new_thread(self.update_wallet_thread, (wallet,))
-
     def get_servers(self):
         thread.start_new_thread(self.update_servers_thread, ())
 
@@ -204,9 +207,16 @@ class TCPInterface(Interface):
         Interface.__init__(self)
         if host: self.host = host
         self.port = 50001
-        self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
-        self.s.connect(( self.host, self.port))
         self.tx_event = threading.Event()
+        self.disconnected_event = threading.Event()
+        self.disconnected_event.clear()
+        
+        self.addresses_waiting_for_status = []
+        self.addresses_waiting_for_history = []
+        # up to date
+        self.is_up_to_date = False
+        self.up_to_date_event = threading.Event()
+        self.up_to_date_event.clear()
 
     def send(self, cmd, params = []):
         request = json.dumps( { 'method':cmd, 'params':params } )
@@ -259,40 +269,56 @@ class TCPInterface(Interface):
                     elif cmd =='address.subscribe':
                         addr = c.get('address')
                         status = c.get('status')
+                        if addr in self.addresses_waiting_for_status:
+                            self.addresses_waiting_for_status.remove(addr)
                         if wallet.status.get(addr) != status:
-                            self.send('address.get_history', addr)
                             wallet.status[addr] = status
-                            self.is_up_to_date = False
-                        else:
-                            self.is_up_to_date = True
+                            self.send('address.get_history', addr)
+                            self.addresses_waiting_for_history.append(addr) 
 
                     elif cmd == 'address.get_history':
                         addr = c.get('address')
-                        print "updating history for", addr
-                        wallet.history[addr] = c.get('result')
+                        if addr in self.addresses_waiting_for_history:
+                            self.addresses_waiting_for_history.remove(addr)
+                        wallet.history[addr] = data
                         wallet.synchronize()
                         wallet.update_tx_history()
                         wallet.save()
                         self.was_updated = True
-                else:
-                    print "received message:", c
+                    else:
+                        print "received message:", c
+
+                    if self.addresses_waiting_for_status or self.addresses_waiting_for_history:
+                        self.is_up_to_date = False
+                    else:
+                        self.is_up_to_date = True
+                        self.up_to_date_event.set()
         except:
             traceback.print_exc(file=sys.stdout)
             self.is_connected = False
+            self.disconnected_event.set()
+
+    def update_wallet(self,wallet):
+        self.up_to_date_event.wait()
 
     def subscribe(self,address):
         self.send('address.subscribe', address)
+        self.addresses_waiting_for_status.append(address)
         
     def get_servers(self):
         self.send('server.peers')
 
-    def start(self, wallet):
+    def start_session(self, wallet):
+        self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
+        self.s.connect(( self.host, self.port))
         thread.start_new_thread(self.listen_thread, (wallet,))
         self.send('client.version', wallet.electrum_version)
         self.send('server.banner')
         self.send('numblocks.subscribe')
         for address in wallet.all_addresses():
             self.subscribe(address)
+
+
 
 
 class HttpInterface(Interface):
@@ -316,3 +342,34 @@ class HttpInterface(Interface):
         self.rtime = time.time() - t1
         self.is_connected = True
         return out
+
+
+
+def new_interface(wallet):
+    host = wallet.host
+    port = wallet.port
+    if port == 50000:
+        interface = NativeInterface(host,port)
+    elif port == 50001:
+        interface = TCPInterface(host,port)
+    elif port in [80,8080,81,8181]:
+        interface = HttpInterface(host,port)            
+    else:
+        raise BaseException("unknown protocol: %d"%port)
+    return interface
+       
+
+def loop_interfaces_thread(wallet):
+
+    while True:
+        try:
+            wallet.interface.start_session(wallet)
+            wallet.interface.get_servers()
+        except socket.error:
+            print "Not connected"
+            time.sleep(5)
+            continue
+        wallet.interface.disconnected_event.wait()
+        print "Disconnected"
+        wallet.interface = new_interface(wallet)
+

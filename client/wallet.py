@@ -543,7 +543,7 @@ class Wallet:
         f.close()
 
     def read(self):
-        from interface import NativeInterface, HttpInterface,TCPInterface
+        import interface
 
         upgrade_msg = """This wallet seed is deprecated. Please run upgrade.py for a diagnostic."""
         self.file_exists = False
@@ -552,7 +552,8 @@ class Wallet:
             data = f.read()
             f.close()
         except:
-            self.interface = NativeInterface()
+            #self.interface = NativeInterface()
+            self.port = 50000
             return
         try:
             d = ast.literal_eval( data )
@@ -561,8 +562,8 @@ class Wallet:
             self.use_encryption = d.get('use_encryption')
             self.fee = int( d.get('fee') )
             self.seed = d.get('seed')
-            host = d.get('host')
-            port = d.get('port')
+            self.host = d.get('host')
+            self.port = d.get('port')
             blocks = d.get('blocks')
             self.addresses = d.get('addresses')
             self.change_addresses = d.get('change_addresses')
@@ -585,15 +586,7 @@ class Wallet:
         if self.remote_url: assert self.master_public_key.encode('hex') == self.get_remote_mpk()
 
         self.file_exists = True
-
-        if port == 50000:
-            self.interface = NativeInterface(host,port)
-        elif port == 50001:
-            self.interface = TCPInterface(host,port)
-        elif port in [80,8080,81,8181]:
-            self.interface = HttpInterface(host,port)            
-        else:
-            raise BaseException("unknown protocol: %d"%port)
+        #self.interface = interface.start_interface(self)
 
         
     def get_new_address(self):
