@@ -828,18 +828,18 @@ class ElectrumWindow(QMainWindow):
 
     @staticmethod 
     def network_dialog(wallet, parent=None):
-
+        interface = wallet.interface
         if parent:
-            if wallet.interface.is_connected:
-                status = "Connected to %s.\n%d blocks\nresponse time: %f"%(wallet.interface.host, wallet.interface.blocks, wallet.interface.rtime)
+            if interface.is_connected:
+                status = "Connected to %s:%d\n%d blocks\nresponse time: %f"%(interface.host, interface.port, interface.blocks, interface.rtime)
             else:
                 status = "Not connected"
-            host = wallet.interface.host
-            port = wallet.interface.port
+            host = wallet.host
+            port = wallet.port
         else:
             import random
             status = "Please choose a server."
-            host = random.choice( wallet.interface.servers )
+            host = random.choice( interface.servers )
             port = 50000
 
         d = QDialog(parent)

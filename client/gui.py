@@ -265,18 +265,18 @@ def run_settings_dialog(wallet, parent):
 def run_network_dialog( wallet, parent ):
     image = gtk.Image()
     image.set_from_stock(gtk.STOCK_NETWORK, gtk.ICON_SIZE_DIALOG)
-
+    interface = wallet.interface
     if parent:
-        if wallet.interface.is_connected:
-            status = "Connected to %s.\n%d blocks\nresponse time: %f"%(wallet.interface.host, wallet.interface.blocks, wallet.interface.rtime)
+        if interface.is_connected:
+            status = "Connected to %s:%d\n%d blocks\nresponse time: %f"%(interface.host, interface.port, interface.blocks, interface.rtime)
         else:
             status = "Not connected"
-        host = wallet.interface.host
-        port = wallet.interface.port
+        host = wallet.host
+        port = wallet.port
     else:
         import random
         status = "Please choose a server."
-        host = random.choice( wallet.interface.servers )
+        host = random.choice( interface.servers )
         port = 50000
 
     dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
@@ -1031,37 +1031,37 @@ class ElectrumWindow:
         return vbox
 
     def update_status_bar(self):
-
+        interface = self.wallet.interface
         if self.funds_error:
             text = "Not enough funds"
-        elif self.wallet.interface.is_connected:
-            self.network_button.set_tooltip_text("Connected to %s.\n%d blocks\nresponse time: %f"%(self.wallet.interface.host, self.wallet.interface.blocks, self.wallet.interface.rtime))
-            if self.wallet.interface.blocks == 0:
+        elif interface.is_connected:
+            self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks\nresponse time: %f"%(interface.host, interface.port, interface.blocks, interface.rtime))
+            if interface.blocks == 0:
                 self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
                 text = "Server not ready"
-            elif not self.wallet.interface.is_up_to_date:
+            elif not interface.is_up_to_date:
                 self.status_image.set_from_stock(gtk.STOCK_REFRESH, gtk.ICON_SIZE_MENU)
                 text = "Synchronizing..."
             else:
                 self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
-                self.network_button.set_tooltip_text("Connected to %s.\n%d blocks\nresponse time: %f"%(self.wallet.interface.host, self.wallet.interface.blocks, self.wallet.interface.rtime))
+                self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks\nresponse time: %f"%(interface.host, interface.port, interface.blocks, interface.rtime))
                 c, u = self.wallet.get_balance()
                 text =  "Balance: %s "%( format_satoshis(c) )
                 if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True) )
         else:
             self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
-            self.network_button.set_tooltip_text("Trying to contact %s.\n%d blocks"%(self.wallet.interface.host, self.wallet.interface.blocks))
+            self.network_button.set_tooltip_text("Trying to contact %s.\n%d blocks"%(interface.host, interface.blocks))
             text = "Not connected"
 
         self.status_bar.pop(self.context_id) 
         self.status_bar.push(self.context_id, text)
 
-        if self.wallet.interface.was_updated:
+        if interface.was_updated:
             self.update_history_tab()
             self.update_receiving_tab()
             # addressbook too...
-            self.info.set_text( self.wallet.interface.message )
-            self.wallet.interface.was_updated = False
+            self.info.set_text( interface.message )
+            interface.was_updated = False
         
 
     def update_receiving_tab(self):

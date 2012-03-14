@@ -334,7 +334,9 @@ def new_interface(wallet):
     elif port in [80,8080,81,8181]:
         interface = HttpInterface(host,port)            
     else:
-        raise BaseException("unknown protocol: %d"%port)
+        print "unknown protocol: %d"%port
+        interface = NativeInterface(host,port)
+        
     return interface
        
 
@@ -343,14 +345,15 @@ def loop_interfaces_thread(wallet):
         try:
             wallet.interface.start_session(wallet)
             wallet.interface.get_servers()
+
+            wallet.interface.disconnected_event.wait()
+            print "Disconnected"
         except socket.error:
-            print "Not connected"
+            print "socket error"
             time.sleep(5)
-            continue
         except:
             traceback.print_exc(file=sys.stdout)
             continue
-        wallet.interface.disconnected_event.wait()
-        print "Disconnected"
+
         wallet.interface = new_interface(wallet)
 
