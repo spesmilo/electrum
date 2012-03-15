@@ -693,12 +693,15 @@ def tcp_client_thread(ipaddr,conn):
     msg = ''
 
     while not stopping:
-        d = conn.recv(1024)
-        msg += d
+        try:
+            d = conn.recv(1024)
+        except socket.error:
+            d = ''
         if not d:
             close_session(session_id)
             break
 
+        msg += d
         while True:
             s = msg.find('\n')
             if s ==-1:
