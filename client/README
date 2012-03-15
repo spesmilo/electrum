@@ -29,6 +29,7 @@ In order to use the gtk gui, you need pygtk and tk.
 * apt-get install python-gtk2
 * apt-get install python-tk
 
+
 RUN
 
 To start the Qt gui, type:
@@ -41,6 +42,12 @@ Examples:
   python electrum balance
   python electrum help
 
+
+
+HELP
+
+the most up-to-date information is on the wiki:
+https://en.bitcoin.it/wiki/Electrum
 
 
 BROWSER CONFIGURATION 
