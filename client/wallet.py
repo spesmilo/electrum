@@ -231,6 +231,7 @@ def format_satoshis(x, is_diff=False):
 
 from version import ELECTRUM_VERSION, SEED_VERSION
 
+DEFAULT_PORT = 50000
 
 
 class Wallet:
@@ -263,7 +264,6 @@ class Wallet:
 
         self.imported_keys = {}
         self.remote_url = None
-        self.default_port = 50001
 
 
     def set_server(self, host, port):
@@ -560,7 +560,7 @@ class Wallet:
             f.close()
         except:
             self.host = ''
-            self.port = self.default_port
+            self.port = DEFAULT_PORT
             return
         try:
             d = ast.literal_eval( data )
