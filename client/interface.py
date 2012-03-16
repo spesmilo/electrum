@@ -119,6 +119,7 @@ class NativeInterface(Interface):
                 is_new = True
 
         if is_new or wallet.remote_url:
+            self.was_updated = True
             is_new = wallet.synchronize()
             wallet.update_tx_history()
             wallet.save()
