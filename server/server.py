@@ -478,7 +478,7 @@ def send_numblocks(session_id):
     output_queue.put((session_id, out))
 
 def send_status(session_id, message_id, address, status):
-    out = json.dumps( { 'id':message_id, 'status':status } )
+    out = json.dumps( { 'id':message_id, 'result':status } )
     output_queue.put((session_id, out))
 
 def subscribe_to_numblocks(session_id, message_id):
