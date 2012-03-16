@@ -50,7 +50,6 @@ config.set('server', 'host', 'localhost')
 config.set('server', 'port', 50000)
 config.set('server', 'password', '')
 config.set('server', 'irc', 'yes')
-config.set('server', 'cache', 'no') 
 config.set('server', 'ircname', 'Electrum server')
 config.add_section('database')
 config.set('database', 'type', 'psycopg2')
@@ -93,7 +92,7 @@ class MyStore(Datastore_class):
 
     def import_tx(self, tx, is_coinbase):
         tx_id = super(MyStore, self).import_tx(tx, is_coinbase)
-        if config.get('server', 'cache') == 'yes': self.update_tx_cache(tx_id)
+        self.update_tx_cache(tx_id)
 
     def update_tx_cache(self, txid):
         inrows = self.get_tx_inputs(txid, False)
@@ -227,10 +226,9 @@ class MyStore(Datastore_class):
 
     def get_history(self, addr):
         
-        if config.get('server','cache') == 'yes':
-            cached_version = self.tx_cache.get( addr )
-            if cached_version is not None:
-                return cached_version
+        cached_version = self.tx_cache.get( addr )
+        if cached_version is not None:
+            return cached_version
 
         version, binaddr = decode_check_address(addr)
         if binaddr is None:
@@ -334,7 +332,7 @@ class MyStore(Datastore_class):
                     if not row[4]: txpoint['raw_scriptPubKey'] = row[1]
 
         # cache result
-        if config.get('server','cache') == 'yes' and not address_has_mempool:
+        if not address_has_mempool:
             self.tx_cache[addr] = txpoints
         
         return txpoints
@@ -441,13 +439,11 @@ def do_update_address(addr):
         addresses = session['addresses'].keys()
 
         if addr in addresses:
-            print "address ", addr, "found in session", session_id
+            print "address ", addr, "is watched by", session_id
             status = get_address_status( addr )
-            print "new_status:", status
             last_status = session['addresses'][addr]
-            print "last_status", last_status
             if last_status != status:
-                print "status is new", addr
+                print "sending new status for %s:"%addr, status
                 send_status(session_id,addr,status)
                 sessions[session_id]['addresses'][addr] = status
 
@@ -778,7 +774,10 @@ def process_output_queue():
 
 
 def memorypool_update(store):
+    """ when a tx is removed from memory pool, I need to notify subscribers"""
+
     ds = BCDataStream.BCDataStream()
+    previous_transactions = store.mempool_keys
     store.mempool_keys = []
 
     postdata = dumps({"method": 'getmemorypool', 'params': [], 'id':'jsonrpc'})
@@ -793,15 +792,21 @@ def memorypool_update(store):
         ds.write(hextx.decode('hex'))
         tx = deserialize.parse_Transaction(ds)
         tx['hash'] = util.double_sha256(tx['tx'])
-        tx_hash = tx['hash'][::-1].encode('hex')
+        tx_hash = store.hashin(tx['hash'])
+
         store.mempool_keys.append(tx_hash)
         if store.tx_find_id_and_value(tx):
             pass
         else:
             store.import_tx(tx, False)
-
     store.commit()
 
+    for tx_hash in previous_transactions:
+        if tx_hash not in store.mempool_keys:
+            tx = { 'hash':store.hashout(tx_hash) }
+            tx_id = store.tx_find_id_and_value(tx)
+            if tx_id:
+                store.update_tx_cache(tx_id)
 
 
 def clean_session_thread():
@@ -911,7 +916,6 @@ if __name__ == '__main__':
 
 
     print "starting Electrum server"
-    print "cache:", config.get('server', 'cache')
 
     conf = DataStore.CONFIG_DEFAULTS
     args, argv = readconf.parse_argv( [], conf)
