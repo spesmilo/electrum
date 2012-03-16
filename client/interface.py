@@ -270,13 +270,13 @@ class TCPInterface(Interface):
                         status = c.get('status')
                         if addr in self.addresses_waiting_for_status:
                             self.addresses_waiting_for_status.remove(addr)
-                        wallet.get_status_callback(addr, status)
+                        wallet.receive_status_callback(addr, status)
 
                     elif cmd == 'address.get_history':
                         addr = c.get('address')
                         if addr in self.addresses_waiting_for_history:
                             self.addresses_waiting_for_history.remove(addr)
-                        wallet.get_history_callback(addr, data)
+                        wallet.receive_history_callback(addr, data)
                         self.was_updated = True
                     else:
                         print "received message:", c
