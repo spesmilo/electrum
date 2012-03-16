@@ -270,19 +270,13 @@ class TCPInterface(Interface):
                         status = c.get('status')
                         if addr in self.addresses_waiting_for_status:
                             self.addresses_waiting_for_status.remove(addr)
-                        if wallet.status.get(addr) != status:
-                            wallet.status[addr] = status
-                            self.send('address.get_history', addr)
-                            self.addresses_waiting_for_history.append(addr) 
+                        wallet.get_status_callback(addr, status)
 
                     elif cmd == 'address.get_history':
                         addr = c.get('address')
                         if addr in self.addresses_waiting_for_history:
                             self.addresses_waiting_for_history.remove(addr)
-                        wallet.history[addr] = data
-                        wallet.synchronize()
-                        wallet.update_tx_history()
-                        wallet.save()
+                        wallet.get_history_callback(addr, data)
                         self.was_updated = True
                     else:
                         print "received message:", c
@@ -307,6 +301,10 @@ class TCPInterface(Interface):
         
     def get_servers(self):
         self.send('server.peers')
+
+    def get_history(self,addr):
+        self.send('address.get_history', addr)
+        self.addresses_waiting_for_history.append(addr) 
 
     def start_session(self, wallet):
         self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )

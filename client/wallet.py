@@ -703,6 +703,17 @@ class Wallet:
         else:
             return s
 
+    def get_status_callback(self, addr, status):
+        if self.status.get(addr) != status:
+            self.status[addr] = status
+            self.interface.get_history(addr)
+
+    def get_history_callback(self, addr, data):
+        self.history[addr] = data
+        self.synchronize()
+        self.update_tx_history()
+        self.save()
+
     def get_tx_history(self):
         lines = self.tx_history.values()
         lines = sorted(lines, key=operator.itemgetter("nTime"))
@@ -827,7 +838,6 @@ class Wallet:
             c = self.pw_encode(b, new_password)
             self.imported_keys[k] = c
         self.save()
-
 
     def get_alias(self, alias, interactive = False, show_message=None, question = None):
         try:
