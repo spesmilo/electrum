@@ -446,7 +446,7 @@ def do_update_address(addr):
     # the address can be subscribed in several sessions; the cache should ensure that we don't do redundant requests
     for session_id in sessions.keys():
         session = sessions[session_id]
-        if session.get('type') != 'subscribe': continue
+        if session.get('type') != 'persistent': continue
         addresses = session['addresses'].keys()
 
         if addr in addresses:
@@ -487,7 +487,6 @@ def subscribe_to_numblocks(session_id, message_id):
 
 def subscribe_to_address(session_id, message_id, address):
     status = get_address_status(address)
-    sessions[session_id]['type'] = 'subscribe'
     sessions[session_id]['addresses'][address] = (message_id, status)
     sessions[session_id]['last_time'] = time.time()
     send_status(session_id, message_id, address, status)
@@ -695,7 +694,7 @@ def tcp_client_thread(ipaddr,conn):
     global sessions
 
     session_id = random_string(10)
-    sessions[session_id] = { 'conn':conn, 'addresses':{}, 'version':'unknown' }
+    sessions[session_id] = { 'conn':conn, 'addresses':{}, 'version':'unknown', 'type':'persistent' }
 
     ipaddr = ipaddr[0]
     msg = ''
@@ -761,9 +760,10 @@ def process_input_queue():
             address = data[0]
             out = { 'result':store.get_history( address ) } 
         elif method == 'transaction.broadcast':
-            txo = send_tx(data)
+            postdata = dumps({"method": 'importtransaction', 'params': [data], 'id':'jsonrpc'})
+            txo = urllib.urlopen(bitcoind_url, postdata).read()
             print "sent tx:", txo
-            out = { 'result':txo }
+            out = json.loads(txo)
         else:
             print "unknown command", method
         if out:
@@ -824,7 +824,7 @@ def clean_session_thread():
         time.sleep(30)
         t = time.time()
         for k,s in sessions.items():
-            if s.get('type') == 'subscribe': continue
+            if s.get('type') == 'persistent': continue
             t0 = s['last_time']
             if t - t0 > 5*60:
                 sessions.pop(k)
