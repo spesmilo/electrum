@@ -208,6 +208,8 @@ class TCPInterface(Interface):
 
     def __init__(self, host, port):
         Interface.__init__(self, host, port)
+        self.message_id = 0
+        self.messages = {}
 
         self.tx_event = threading.Event()
         self.addresses_waiting_for_status = []
@@ -217,18 +219,11 @@ class TCPInterface(Interface):
         self.up_to_date_event = threading.Event()
         self.up_to_date_event.clear()
 
-    def send(self, cmd, params = []):
-        request = json.dumps( { 'method':cmd, 'params':params } )
+    def send(self, method, params = []):
+        request = json.dumps( { 'id':self.message_id, 'method':method, 'params':params } )
+        self.messages[self.message_id] = (method, params)
         self.s.send( request + '\n' )
-
-    def send_tx(self, data):
-        self.tx_event.clear()
-        self.send('transaction.broadcast', data )
-        print "waiting for event.."
-        self.tx_event.wait()
-        out = self.tx_result
-        print "result:", out
-        return out
+        self.message_id += 1
 
     def listen_thread(self, wallet):
         try:
@@ -248,42 +243,45 @@ class TCPInterface(Interface):
                     c = out[0:s]
                     out = out[s+1:]
                     c = json.loads(c)
-                    cmd = c.get('method')
-                    data = c.get('result')
 
-                    if cmd == 'server.banner':
-                        self.message = data
+                    #print c
+                    msg_id = c.get('id')
+                    result = c.get('result')
+                    error = c.get('error')
+
+                    if msg_id is None:
+                        print "error: message without ID"
+                        continue
+
+                    method, params = self.messages[msg_id]
+
+                    if method == 'server.banner':
+                        self.message = result
                         self.was_updated = True
 
-                    elif cmd == 'server.peers':
-                        self.servers = map( lambda x:x[1], data )
+                    elif method == 'server.peers':
+                        self.servers = map( lambda x:x[1], result )
 
-                    elif cmd == 'transaction.broadcast':
-                        self.tx_result = data
-                        self.tx_event.set()
-
-                    elif cmd == 'numblocks.subscribe':
-                        self.blocks = data
-
-                    elif cmd =='address.subscribe':
-                        addr = c.get('address')
-                        status = c.get('status')
+                    elif method == 'address.subscribe':
+                        addr = params[0]
                         if addr in self.addresses_waiting_for_status:
                             self.addresses_waiting_for_status.remove(addr)
-                        if wallet.status.get(addr) != status:
-                            wallet.status[addr] = status
-                            self.send('address.get_history', addr)
-                            self.addresses_waiting_for_history.append(addr) 
-
-                    elif cmd == 'address.get_history':
-                        addr = c.get('address')
+                        wallet.receive_status_callback(addr, result)
+                            
+                    elif method == 'address.get_history':
+                        addr = params[0]
                         if addr in self.addresses_waiting_for_history:
                             self.addresses_waiting_for_history.remove(addr)
-                        wallet.history[addr] = data
-                        wallet.synchronize()
-                        wallet.update_tx_history()
-                        wallet.save()
+                        wallet.receive_history_callback(addr, result)
                         self.was_updated = True
+
+                    elif method == 'transaction.broadcast':
+                        self.tx_result = result
+                        self.tx_event.set()
+
+                    elif method == 'numblocks.subscribe':
+                        self.blocks = result
+
                     else:
                         print "received message:", c
 
@@ -301,19 +299,29 @@ class TCPInterface(Interface):
     def update_wallet(self,wallet):
         self.up_to_date_event.wait()
 
+    def send_tx(self, data):
+        self.tx_event.clear()
+        self.send('transaction.broadcast', [data] )
+        self.tx_event.wait()
+        return self.tx_result
+
     def subscribe(self,address):
-        self.send('address.subscribe', address)
+        self.send('address.subscribe', [address])
         self.addresses_waiting_for_status.append(address)
         
     def get_servers(self):
         self.send('server.peers')
+
+    def get_history(self,addr):
+        self.send('address.get_history', [addr])
+        self.addresses_waiting_for_history.append(addr) 
 
     def start_session(self, wallet):
         self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
         self.s.settimeout(1)
         self.s.connect(( self.host, self.port))
         thread.start_new_thread(self.listen_thread, (wallet,))
-        self.send('client.version', wallet.electrum_version)
+        self.send('client.version', [wallet.electrum_version])
         self.send('server.banner')
         self.send('numblocks.subscribe')
         for address in wallet.all_addresses():
