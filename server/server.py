@@ -90,9 +90,20 @@ address_queue = Queue()
 
 class MyStore(Datastore_class):
 
-    def import_tx(self, tx, is_coinbase):
-        tx_id = super(MyStore, self).import_tx(tx, is_coinbase)
-        self.update_tx_cache(tx_id)
+    def import_block(self, b, chain_ids=frozenset()):
+        block_id = super(MyStore, self).import_block(b, chain_ids)
+        print "import block", block_id
+        for pos in xrange(len(b['transactions'])):
+            tx = b['transactions'][pos]
+            if 'hash' not in tx:
+                tx['hash'] = util.double_sha256(tx['tx'])
+            tx_id = store.tx_find_id_and_value(tx)
+            if tx_id:
+                self.update_tx_cache(tx_id)
+            else:
+                print "error: import_block: no tx_id"
+        return block_id
+
 
     def update_tx_cache(self, txid):
         inrows = self.get_tx_inputs(txid, False)
@@ -715,8 +726,8 @@ def tcp_client_thread(ipaddr,conn):
                     print "json error", repr(c)
                     continue
                 try:
-                    cmd = c['method']
-                    data = c['params']
+                    cmd = c.get('method')
+                    data = c.get('params')
                 except:
                     print "syntax error", repr(c), ipaddr
                     continue
@@ -774,7 +785,6 @@ def process_output_queue():
 
 
 def memorypool_update(store):
-    """ when a tx is removed from memory pool, I need to notify subscribers"""
 
     ds = BCDataStream.BCDataStream()
     previous_transactions = store.mempool_keys
@@ -798,15 +808,10 @@ def memorypool_update(store):
         if store.tx_find_id_and_value(tx):
             pass
         else:
-            store.import_tx(tx, False)
-    store.commit()
+            tx_id = store.import_tx(tx, False)
+            store.update_tx_cache(tx_id)
 
-    for tx_hash in previous_transactions:
-        if tx_hash not in store.mempool_keys:
-            tx = { 'hash':store.hashout(tx_hash) }
-            tx_id = store.tx_find_id_and_value(tx)
-            if tx_id:
-                store.update_tx_cache(tx_id)
+    store.commit()
 
 
 def clean_session_thread():
@@ -945,8 +950,8 @@ if __name__ == '__main__':
             dblock.acquire()
             store.catch_up()
             memorypool_update(store)
-            block_number = store.get_block_number(1)
 
+            block_number = store.get_block_number(1)
             if block_number != old_block_number:
                 old_block_number = block_number
                 for session_id in sessions_sub_numblocks:
