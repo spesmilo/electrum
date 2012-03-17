@@ -53,8 +53,8 @@ class Interface:
         pass
 
 
-class NativeInterface(Interface):
-    """This is the original Electrum protocol. It uses polling, and a non-persistent tcp connection"""
+class PollingInterface(Interface):
+    """ non-persistent connection """
 
     def __init__(self, host, port):
         Interface.__init__(self, host, port)
@@ -69,36 +69,6 @@ class NativeInterface(Interface):
     def update_session(self, addresses):
         out = self.handler('session.update', [ self.session_id, addresses ] )
         return out    
-
-    def handler(self, method, params = ''):
-        import time
-        cmds = {'session.new':'new_session',
-                'peers':'peers',
-                'session.poll':'poll',
-                'session.update':'update_session',
-                'transaction.broadcast':'tx',
-                'address.get_history':'h',
-                'address.subscribe':'address.subscribe'
-                }
-        cmd = cmds[method]
-        if type(params) != type(''): params = repr( params )
-        t1 = time.time()
-        request = repr ( (cmd, params) ) + "#"
-        s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(DEFAULT_TIMEOUT)
-        s.connect(( self.host if cmd!='peers' else self.peers_server, self.port) )
-        s.send( request )
-        out = ''
-        while 1:
-            msg = s.recv(1024)
-            if msg: out += msg
-            else: break
-        s.close()
-        self.rtime = time.time() - t1
-        self.is_connected = True
-        if cmd in[ 'peers','h']:
-            out = ast.literal_eval( out )
-        return out
 
     def poll_interval(self):
         return 5
@@ -185,8 +155,40 @@ class NativeInterface(Interface):
             time.sleep(5*60)
 
 
+class NativeInterface(PollingInterface):
 
-class HttpInterface(NativeInterface):
+    def handler(self, method, params = ''):
+        import time
+        cmds = {'session.new':'new_session',
+                'peers':'peers',
+                'session.poll':'poll',
+                'session.update':'update_session',
+                'transaction.broadcast':'tx',
+                'address.get_history':'h',
+                'address.subscribe':'address.subscribe'
+                }
+        cmd = cmds[method]
+        if type(params) != type(''): params = repr( params )
+        t1 = time.time()
+        request = repr ( (cmd, params) ) + "#"
+        s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(DEFAULT_TIMEOUT)
+        s.connect(( self.host if cmd!='peers' else self.peers_server, self.port) )
+        s.send( request )
+        out = ''
+        while 1:
+            msg = s.recv(1024)
+            if msg: out += msg
+            else: break
+        s.close()
+        self.rtime = time.time() - t1
+        self.is_connected = True
+        if cmd in[ 'peers','h']:
+            out = ast.literal_eval( out )
+        return out
+
+
+class HttpInterface(PollingInterface):
 
     def handler(self, method, params = []):
         import urllib2, json, time
