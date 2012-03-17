@@ -506,7 +506,12 @@ def new_session(version, addresses):
     sessions[session_id]['last_time'] = time.time()
     return out
 
+def get_banner():
+    print "get banner"
+    return config.get('server','banner').replace('\\n','\n')
+
 def update_session(session_id,addresses):
+    """deprecated in 0.42"""
     sessions[session_id]['addresses'] = {}
     for a in addresses:
         sessions[session_id]['addresses'][a] = ''
@@ -588,7 +593,7 @@ def do_command(cmd, data, ipaddr):
         except:
             print "error"
             return None
-        return add_address_to_session(session_id,addr)
+        out = add_address_to_session(session_id,addr)
 
     elif cmd=='update_session':
         try:
@@ -694,7 +699,7 @@ def tcp_server_thread():
 
 
 def close_session(session_id):
-    print "lost connection", session_id
+    #print "lost connection", session_id
     sessions.pop(session_id)
     if session_id in sessions_sub_numblocks:
         sessions_sub_numblocks.pop(session_id)
@@ -894,12 +899,13 @@ def http_server_thread(store):
     from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
     class SimpleThreadedJSONRPCServer(ThreadingMixIn, SimpleJSONRPCServer): pass
     server = SimpleThreadedJSONRPCServer(( config.get('server','host'), 8081))
-    server.register_function(lambda : peer_list.values(), 'peers')
+    server.register_function(lambda : peer_list.values(), 'server.peers')
     server.register_function(cmd_stop, 'stop')
     server.register_function(cmd_load, 'load')
     server.register_function(lambda : block_number, 'blocks')
     server.register_function(clear_cache, 'clear_cache')
     server.register_function(get_cache, 'get_cache')
+    server.register_function(get_banner, 'server.banner')
     server.register_function(send_tx, 'transaction.broadcast')
     server.register_function(store.get_history, 'address.get_history')
     server.register_function(add_address_to_session, 'address.subscribe')
