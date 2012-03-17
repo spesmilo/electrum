@@ -36,7 +36,7 @@ class Interface:
         self.blocks = 0 
         self.message = ''
         self.was_updated = True # fixme: use a semaphore
-        self.is_up_to_date = False # True after the first poll
+        self.is_up_to_date = False
 
         self.is_connected = False
         self.disconnected_event = threading.Event()
@@ -54,7 +54,7 @@ class Interface:
 
 
 class PollingInterface(Interface):
-    """ non-persistent connection """
+    """ non-persistent connection. synchronous calls"""
 
     def __init__(self, host, port):
         Interface.__init__(self, host, port)
@@ -213,7 +213,7 @@ class HttpInterface(PollingInterface):
 import threading
 
 class TCPInterface(Interface):
-    """json-rpc over persistent TCP connection"""
+    """json-rpc over persistent TCP connection, asynchronous"""
 
     def __init__(self, host, port):
         Interface.__init__(self, host, port)
@@ -224,7 +224,6 @@ class TCPInterface(Interface):
         self.addresses_waiting_for_status = []
         self.addresses_waiting_for_history = []
         # up to date
-        self.is_up_to_date = False
         self.up_to_date_event = threading.Event()
         self.up_to_date_event.clear()
 
