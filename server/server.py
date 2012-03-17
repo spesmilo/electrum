@@ -76,7 +76,7 @@ stopping = False
 block_number = -1
 old_block_number = -1
 sessions = {}
-sessions_sub_numblocks = [] # sessions that have subscribed to the service
+sessions_sub_numblocks = {} # sessions that have subscribed to the service
 
 dblock = thread.allocate_lock()
 peer_list = {}
@@ -92,7 +92,7 @@ class MyStore(Datastore_class):
 
     def import_block(self, b, chain_ids=frozenset()):
         block_id = super(MyStore, self).import_block(b, chain_ids)
-        print "import block", block_id
+        #print "block", block_id
         for pos in xrange(len(b['transactions'])):
             tx = b['transactions'][pos]
             if 'hash' not in tx:
@@ -446,17 +446,16 @@ def do_update_address(addr):
     # the address can be subscribed in several sessions; the cache should ensure that we don't do redundant requests
     for session_id in sessions.keys():
         session = sessions[session_id]
-        if session.get('type') != 'subscribe': continue
+        if session.get('type') != 'persistent': continue
         addresses = session['addresses'].keys()
 
         if addr in addresses:
-            print "address ", addr, "is watched by", session_id
             status = get_address_status( addr )
-            last_status = session['addresses'][addr]
+            message_id, last_status = session['addresses'][addr]
             if last_status != status:
-                print "sending new status for %s:"%addr, status
-                send_status(session_id,addr,status)
-                sessions[session_id]['addresses'][addr] = status
+                #print "sending new status for %s:"%addr, status
+                send_status(session_id,message_id,addr,status)
+                sessions[session_id]['addresses'][addr] = (message_id,status)
 
 
 def get_address_status(addr):
@@ -474,23 +473,23 @@ def get_address_status(addr):
 
 
 def send_numblocks(session_id):
-    out = json.dumps( {'method':'numblocks.subscribe', 'result':block_number} )
+    message_id = sessions_sub_numblocks[session_id]
+    out = json.dumps( {'id':message_id, 'result':block_number} )
     output_queue.put((session_id, out))
 
-def send_status(session_id, address, status):
-    out = json.dumps( { 'method':'address.subscribe', 'address':address, 'status':status } )
+def send_status(session_id, message_id, address, status):
+    out = json.dumps( { 'id':message_id, 'result':status } )
     output_queue.put((session_id, out))
 
-def subscribe_to_numblocks(session_id):
-    sessions_sub_numblocks.append(session_id)
+def subscribe_to_numblocks(session_id, message_id):
+    sessions_sub_numblocks[session_id] = message_id
     send_numblocks(session_id)
 
-def subscribe_to_address(session_id, address):
+def subscribe_to_address(session_id, message_id, address):
     status = get_address_status(address)
-    sessions[session_id]['type'] = 'subscribe'
-    sessions[session_id]['addresses'][address] = status
+    sessions[session_id]['addresses'][address] = (message_id, status)
     sessions[session_id]['last_time'] = time.time()
-    send_status(session_id, address, status)
+    send_status(session_id, message_id, address, status)
 
 def new_session(version, addresses):
     session_id = random_string(10)
@@ -554,11 +553,11 @@ def native_client_thread(ipaddr,conn):
         conn.close()
 
 
+def timestr():
+    return time.strftime("[%d/%m/%Y-%H:%M:%S]")
 
 # used by the native handler
 def do_command(cmd, data, ipaddr):
-
-    timestr = time.strftime("[%d/%m/%Y-%H:%M:%S]")
 
     if cmd=='b':
         out = "%d"%block_number
@@ -574,7 +573,7 @@ def do_command(cmd, data, ipaddr):
         except:
             print "error", data
             return None
-        print timestr, "new session", ipaddr, addresses[0] if addresses else addresses, len(addresses), version
+        print timestr(), "new session", ipaddr, addresses[0] if addresses else addresses, len(addresses), version
         out = new_session(version, addresses)
 
     elif cmd=='update_session':
@@ -583,7 +582,7 @@ def do_command(cmd, data, ipaddr):
         except:
             print "error"
             return None
-        print timestr, "update session", ipaddr, addresses[0] if addresses else addresses, len(addresses)
+        print timestr(), "update session", ipaddr, addresses[0] if addresses else addresses, len(addresses)
         out = update_session(session_id,addresses)
 
     elif cmd == 'bccapi_login':
@@ -646,7 +645,7 @@ def do_command(cmd, data, ipaddr):
 
     elif cmd =='tx':
         out = send_tx(data)
-        print timestr, "sent tx:", ipaddr, out
+        print timestr(), "sent tx:", ipaddr, out
 
     elif cmd == 'stop':
         out = cmd_stop(data)
@@ -684,17 +683,18 @@ def close_session(session_id):
     print "lost connection", session_id
     sessions.pop(session_id)
     if session_id in sessions_sub_numblocks:
-        sessions_sub_numblocks.remove(session_id)
+        sessions_sub_numblocks.pop(session_id)
 
 
 # one thread per client. put requests in a queue.
 def tcp_client_thread(ipaddr,conn):
     """ use a persistent connection. put commands in a queue."""
-    print "persistent client thread", ipaddr
+
+    print timestr(), "TCP session", ipaddr
     global sessions
 
     session_id = random_string(10)
-    sessions[session_id] = { 'conn':conn, 'addresses':{}, 'version':'unknown' }
+    sessions[session_id] = { 'conn':conn, 'addresses':{}, 'version':'unknown', 'type':'persistent' }
 
     ipaddr = ipaddr[0]
     msg = ''
@@ -726,44 +726,49 @@ def tcp_client_thread(ipaddr,conn):
                     print "json error", repr(c)
                     continue
                 try:
-                    cmd = c.get('method')
-                    data = c.get('params')
+                    message_id = c.get('id')
+                    method = c.get('method')
+                    params = c.get('params')
                 except:
                     print "syntax error", repr(c), ipaddr
                     continue
 
                 # add to queue
-                input_queue.put((session_id, cmd, data))
+                input_queue.put((session_id, message_id, method, params))
 
 
 
 # read commands from the input queue. perform requests, etc. this should be called from the main thread.
 def process_input_queue():
     while not stopping:
-        session_id, cmd, data = input_queue.get()
+        session_id, message_id, method, data = input_queue.get()
         if session_id not in sessions.keys():
             continue
         out = None
-        if cmd == 'address.subscribe':
-            subscribe_to_address(session_id,data)
-        elif cmd == 'numblocks.subscribe':
-            subscribe_to_numblocks(session_id)
-        elif cmd == 'client.version':
-            sessions[session_id]['version'] = data
-        elif cmd == 'server.banner':
-            out = json.dumps( { 'method':'server.banner', 'result':config.get('server','banner').replace('\\n','\n') } )
-        elif cmd == 'server.peers':
-            out = json.dumps( { 'method':'server.peers', 'result':peer_list.values() } )
-        elif cmd == 'address.get_history':
-            address = data
-            out = json.dumps( { 'method':'address.get_history', 'address':address, 'result':store.get_history( address ) } )
-        elif cmd == 'transaction.broadcast':
-            txo = send_tx(data)
+        if method == 'address.subscribe':
+            address = data[0]
+            subscribe_to_address(session_id,message_id,address)
+        elif method == 'numblocks.subscribe':
+            subscribe_to_numblocks(session_id,message_id)
+        elif method == 'client.version':
+            sessions[session_id]['version'] = data[0]
+        elif method == 'server.banner':
+            out = { 'result':config.get('server','banner').replace('\\n','\n') } 
+        elif method == 'server.peers':
+            out = { 'result':peer_list.values() } 
+        elif method == 'address.get_history':
+            address = data[0]
+            out = { 'result':store.get_history( address ) } 
+        elif method == 'transaction.broadcast':
+            postdata = dumps({"method": 'importtransaction', 'params': [data], 'id':'jsonrpc'})
+            txo = urllib.urlopen(bitcoind_url, postdata).read()
             print "sent tx:", txo
-            out = json.dumps( { 'method':'transaction.broadcast', 'result':txo } )
+            out = json.loads(txo)
         else:
-            print "unknown command", cmd
+            print "unknown command", method
         if out:
+            out['id'] = message_id
+            out = json.dumps( out )
             output_queue.put((session_id, out))
 
 # this is a separate thread
@@ -819,7 +824,7 @@ def clean_session_thread():
         time.sleep(30)
         t = time.time()
         for k,s in sessions.items():
-            if s.get('type') == 'subscribe': continue
+            if s.get('type') == 'persistent': continue
             t0 = s['last_time']
             if t - t0 > 5*60:
                 sessions.pop(k)
@@ -954,7 +959,7 @@ if __name__ == '__main__':
             block_number = store.get_block_number(1)
             if block_number != old_block_number:
                 old_block_number = block_number
-                for session_id in sessions_sub_numblocks:
+                for session_id in sessions_sub_numblocks.keys():
                     send_numblocks(session_id)
 
         except IOError:
