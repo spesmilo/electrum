@@ -64,10 +64,6 @@ class PollingInterface(Interface):
         self.session_id, self.message = ast.literal_eval( out )
         thread.start_new_thread(self.poll_thread, ())
 
-    def update_session(self, addresses):
-        out = self.handler('session.update', [ self.session_id, addresses ] )
-        return out    
-
     def poll_interval(self):
         return 5
 
@@ -161,7 +157,6 @@ class NativeInterface(PollingInterface):
         cmds = {'session.new':'new_session',
                 'peers':'peers',
                 'session.poll':'poll',
-                'session.update':'update_session',
                 'transaction.broadcast':'tx',
                 'address.get_history':'h',
                 'address.subscribe':'address.subscribe'
