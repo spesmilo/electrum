@@ -701,12 +701,12 @@ class Wallet:
 
     def receive_status_callback(self, addr, status):
         if self.status.get(addr) != status:
-            #print "updating status for", addr
+            #print "updating status for", addr, repr(self.status.get(addr)), repr(status)
             self.status[addr] = status
             self.interface.get_history(addr)
 
     def receive_history_callback(self, addr, data):
-        #print "updating history for", addr
+        #print "updating history for", addr, repr(data)
         self.history[addr] = data
         self.synchronize()
         self.update_tx_history()
