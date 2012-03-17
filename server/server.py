@@ -358,8 +358,8 @@ class Direct_Interface(Interface):
         cmds = {'session.new':new_session,
                 'session.poll':poll_session,
                 'session.update':update_session,
-                'blockchain.transaction.broadcast':send_tx,
-                'blockchain.address.get_history':store.get_history
+                'transaction.broadcast':send_tx,
+                'address.get_history':store.get_history
                 }
         func = cmds[method]
         return func( params )
@@ -491,6 +491,12 @@ def subscribe_to_address(session_id, message_id, address):
     sessions[session_id]['last_time'] = time.time()
     send_status(session_id, message_id, address, status)
 
+def add_address_to_session(session_id, address):
+    status = get_address_status(address)
+    sessions[session_id]['addresses'][addr] = status
+    sessions[session_id]['last_time'] = time.time()
+    return status
+
 def new_session(version, addresses):
     session_id = random_string(10)
     sessions[session_id] = { 'addresses':{}, 'version':version }
@@ -575,6 +581,14 @@ def do_command(cmd, data, ipaddr):
             return None
         print timestr(), "new session", ipaddr, addresses[0] if addresses else addresses, len(addresses), version
         out = new_session(version, addresses)
+
+    elif cmd=='address.subscribe':
+        try:
+            session_id, addr = ast.literal_eval(data)
+        except:
+            print "error"
+            return None
+        return add_address_to_session(session_id,addr)
 
     elif cmd=='update_session':
         try:
@@ -886,8 +900,9 @@ def http_server_thread(store):
     server.register_function(lambda : block_number, 'blocks')
     server.register_function(clear_cache, 'clear_cache')
     server.register_function(get_cache, 'get_cache')
-    server.register_function(send_tx, 'blockchain.transaction.broadcast')
-    server.register_function(store.get_history, 'blockchain.address.get_history')
+    server.register_function(send_tx, 'transaction.broadcast')
+    server.register_function(store.get_history, 'address.get_history')
+    server.register_function(add_address_to_session, 'address.subscribe')
     server.register_function(new_session, 'session.new')
     server.register_function(update_session, 'session.update')
     server.register_function(poll_session, 'session.poll')
@@ -914,9 +929,9 @@ if __name__ == '__main__':
         elif cmd == 'get_cache':
             out = server.get_cache(password,sys.argv[2])
         elif cmd == 'h':
-            out = server.blockchain.address.get_history(sys.argv[2])
+            out = server.address.get_history(sys.argv[2])
         elif cmd == 'tx':
-            out = server.blockchain.transaction.broadcast(sys.argv[2])
+            out = server.transaction.broadcast(sys.argv[2])
         elif cmd == 'b':
             out = server.blocks()
         else:
