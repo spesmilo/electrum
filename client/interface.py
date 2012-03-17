@@ -27,9 +27,11 @@ DEFAULT_SERVERS = ['ecdsa.org','electrum.novit.ro']  # list of default servers
 
 
 class Interface:
-    def __init__(self, host, port):
+    def __init__(self, host, port, address_callback, history_callback):
         self.host = host
         self.port = port
+        self.address_callback = address_callback
+        self.history_callback = history_callback
 
         self.servers = DEFAULT_SERVERS                            # actual list from IRC
         self.rtime = 0
@@ -56,15 +58,10 @@ class Interface:
 class PollingInterface(Interface):
     """ non-persistent connection. synchronous calls"""
 
-    def __init__(self, host, port):
-        Interface.__init__(self, host, port)
-
-    def start_session(self, wallet):
-        addresses = wallet.all_addresses()
-        version = wallet.electrum_version
+    def start_session(self, addresses, version):
         out = self.handler('session.new', [ version, addresses ] )
         self.session_id, self.message = ast.literal_eval( out )
-        thread.start_new_thread(self.poll_thread, (wallet,))
+        thread.start_new_thread(self.poll_thread, ())
 
     def update_session(self, addresses):
         out = self.handler('session.update', [ self.session_id, addresses ] )
@@ -77,16 +74,16 @@ class PollingInterface(Interface):
         out = self.handler('address.get_history', address )
         return out
 
-    def get_history(self, addr, history_callback):
+    def get_history(self, addr):
         data = self.retrieve_history(addr)
-        apply(history_callback, (addr, data) )
+        apply(self.history_callback, (addr, data) )
         self.was_updated = True
 
-    def subscribe(self, addr, status_callback):
+    def subscribe(self, addr):
         status = self.handler('address.subscribe', [ self.session_id, addr ] )
-        apply(status_callback, (addr, status) )
+        apply(self.address_callback, (addr, status) )
 
-    def update_wallet(self, wallet):
+    def update_wallet(self):
         while True:
             changed_addresses = self.poll()
             if changed_addresses:
@@ -96,7 +93,7 @@ class PollingInterface(Interface):
                 break
 
             for addr, status in changed_addresses.items():
-                wallet.receive_status_callback(addr, status)
+                apply(self.address_callback, (addr, status))
 
         #if is_new or wallet.remote_url:
         #    self.was_updated = True
@@ -114,10 +111,10 @@ class PollingInterface(Interface):
         self.blocks = int(blocks)
         return changed_addr
 
-    def poll_thread(self, wallet):
+    def poll_thread(self):
         while self.is_connected:
             try:
-                self.update_wallet(wallet)
+                self.update_wallet()
                 time.sleep(self.poll_interval())
             except socket.gaierror:
                 break
@@ -215,8 +212,8 @@ import threading
 class TCPInterface(Interface):
     """json-rpc over persistent TCP connection, asynchronous"""
 
-    def __init__(self, host, port):
-        Interface.__init__(self, host, port)
+    def __init__(self, host, port, acb, hcb):
+        Interface.__init__(self, host, port, acb, hcb)
         self.message_id = 0
         self.messages = {}
 
@@ -233,7 +230,7 @@ class TCPInterface(Interface):
         self.s.send( request + '\n' )
         self.message_id += 1
 
-    def listen_thread(self, wallet):
+    def listen_thread(self):
         try:
             self.is_connected = True
             out = ''
@@ -274,13 +271,13 @@ class TCPInterface(Interface):
                         addr = params[0]
                         if addr in self.addresses_waiting_for_status:
                             self.addresses_waiting_for_status.remove(addr)
-                        wallet.receive_status_callback(addr, result)
+                        apply(self.address_callback,(addr, result))
                             
                     elif method == 'address.get_history':
                         addr = params[0]
                         if addr in self.addresses_waiting_for_history:
                             self.addresses_waiting_for_history.remove(addr)
-                        wallet.receive_history_callback(addr, result)
+                        apply(self.history_callback, (addr, result))
                         self.was_updated = True
 
                     elif method == 'transaction.broadcast':
@@ -304,7 +301,7 @@ class TCPInterface(Interface):
         self.is_connected = False
         self.disconnected_event.set()
 
-    def update_wallet(self,wallet):
+    def update_wallet(self,cb):
         self.up_to_date_event.wait()
 
     def send_tx(self, data):
@@ -313,27 +310,27 @@ class TCPInterface(Interface):
         self.tx_event.wait()
         return self.tx_result
 
-    def subscribe(self, address, callback):
+    def subscribe(self, address):
         self.send('address.subscribe', [address])
         self.addresses_waiting_for_status.append(address)
         
     def get_servers(self):
         self.send('server.peers')
 
-    def get_history(self, addr, callback):
+    def get_history(self, addr):
         self.send('address.get_history', [addr])
         self.addresses_waiting_for_history.append(addr) 
 
-    def start_session(self, wallet):
+    def start_session(self, addresses, version):
         self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
         self.s.settimeout(1)
         self.s.connect(( self.host, self.port))
-        thread.start_new_thread(self.listen_thread, (wallet,))
-        self.send('client.version', [wallet.electrum_version])
+        thread.start_new_thread(self.listen_thread, ())
+        self.send('client.version', [version])
         self.send('server.banner')
         self.send('numblocks.subscribe')
-        for address in wallet.all_addresses():
-            self.subscribe(address, wallet.receive_status_callback)
+        for addr in addresses:
+            self.subscribe(addr)
 
 
 
@@ -346,13 +343,15 @@ def new_interface(wallet):
     else:
         host = random.choice( DEFAULT_SERVERS )         # random choice when the wallet is created
     port = wallet.port
+    address_cb = wallet.receive_status_callback
+    history_cb = wallet.receive_history_callback
 
     if port == 50000:
-        interface = NativeInterface(host,port)
+        interface = NativeInterface(host, port, address_cb, history_cb)
     elif port == 50001:
-        interface = TCPInterface(host,port)
+        interface = TCPInterface(host, port, address_cb, history_cb)
     elif port in [80, 81, 8080, 8081]:
-        interface = HttpInterface(host,port)            
+        interface = HttpInterface(host, port, address_cb, history_cb)            
     else:
         print "unknown port number: %d. using native protocol."%port
         interface = NativeInterface(host,port)
@@ -363,7 +362,9 @@ def new_interface(wallet):
 def loop_interfaces_thread(wallet):
     while True:
         try:
-            wallet.interface.start_session(wallet)
+            addresses = wallet.all_addresses()
+            version = wallet.electrum_version
+            wallet.interface.start_session(addresses, version)
             wallet.interface.get_servers()
 
             wallet.interface.disconnected_event.wait()

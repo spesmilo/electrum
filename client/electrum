@@ -164,7 +164,11 @@ if __name__ == '__main__':
 
     # open session
     if cmd not in ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create', 'addresses', 'import']:
-        interface.start_session(wallet)
+
+        addresses = wallet.all_addresses()
+        version = wallet.electrum_version
+        address_callback = wallet.retrieve_status_callback
+        interface.start_session(addresses, version, address_callback)
         interface.update_wallet(wallet)
         wallet.save()
 
