@@ -225,12 +225,6 @@ class AsynchronousInterface(Interface):
         self.up_to_date_event = threading.Event()
         self.up_to_date_event.clear()
 
-    def send(self, method, params = []):
-        request = json.dumps( { 'id':self.message_id, 'method':method, 'params':params } )
-        self.messages[self.message_id] = (method, params)
-        self.s.send( request + '\n' )
-        self.message_id += 1
-
     def listen_thread(self):
         try:
             self.is_connected = True
@@ -305,21 +299,34 @@ class AsynchronousInterface(Interface):
     def update_wallet(self,cb):
         self.up_to_date_event.wait()
 
+    def send(self, messages):
+        out = ''
+        for m in messages:
+            method, params = m 
+            request = json.dumps( { 'id':self.message_id, 'method':method, 'params':params } )
+            self.messages[self.message_id] = (method, params)
+            self.message_id += 1
+            out += request + '\n'
+        self.s.send( out )
+
     def send_tx(self, data):
         self.tx_event.clear()
-        self.send('transaction.broadcast', [data] )
+        self.send([('transaction.broadcast', [data])])
         self.tx_event.wait()
         return self.tx_result
 
-    def subscribe(self, address):
-        self.send('address.subscribe', [address])
-        self.addresses_waiting_for_status.append(address)
-        
+    def subscribe(self, addresses):
+        messages = []
+        for addr in addresses:
+            messages.append(('address.subscribe', [addr]))
+            self.addresses_waiting_for_status.append(addr)
+        self.send(messages)
+
     def get_servers(self):
-        self.send('server.peers')
+        self.send([('server.peers',[])])
 
     def get_history(self, addr):
-        self.send('address.get_history', [addr])
+        self.send([('address.get_history', [addr])])
         self.addresses_waiting_for_history.append(addr)
 
     def start_session(self, addresses, version):
@@ -327,13 +334,8 @@ class AsynchronousInterface(Interface):
         self.s.settimeout(1)
         self.s.connect(( self.host, self.port))
         thread.start_new_thread(self.listen_thread, ())
-        self.send('client.version', [version])
-        self.send('server.banner')
-        self.send('numblocks.subscribe')
-        for addr in addresses:
-            self.subscribe(addr)
-
-
+        self.send([('client.version', [version]), ('server.banner',[]), ('numblocks.subscribe',[])])
+        self.subscribe(addresses)
 
 
 
