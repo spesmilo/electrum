@@ -1,0 +1,12 @@
+#!/usr/bin/env python
+
+import socket, time, interface
+
+def cb(block_number):  
+    print block_number
+
+i = interface.AsynchronousInterface('ecdsa.org', 50001, newblock_callback=cb)
+i.start_session([],"blocks")
+
+while True:
+    time.sleep(1)
