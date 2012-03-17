@@ -6,7 +6,7 @@ def cb(block_number):
     print block_number
 
 i = interface.TCPInterface('ecdsa.org', 50001, newblock_callback=cb)
-i.start_session([],"zob")
+i.start_session([],"blocks")
 
 while True:
     time.sleep(1)
