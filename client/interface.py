@@ -42,13 +42,8 @@ class Interface:
         self.disconnected_event = threading.Event()
         self.disconnected_event.clear()
 
-
     def send_tx(self, data):
-        out = self.handler('blockchain.transaction.broadcast', data )
-        return out
-
-    def retrieve_history(self, address):
-        out = self.handler('blockchain.address.get_history', address )
+        out = self.handler('transaction.broadcast', data )
         return out
 
     def get_servers(self):
@@ -67,7 +62,6 @@ class NativeInterface(Interface):
     def start_session(self, wallet):
         addresses = wallet.all_addresses()
         version = wallet.electrum_version
-        self.is_up_to_date = False
         out = self.handler('session.new', [ version, addresses ] )
         self.session_id, self.message = ast.literal_eval( out )
         thread.start_new_thread(self.poll_thread, (wallet,))
@@ -82,8 +76,9 @@ class NativeInterface(Interface):
                 'peers':'peers',
                 'session.poll':'poll',
                 'session.update':'update_session',
-                'blockchain.transaction.broadcast':'tx',
-                'blockchain.address.get_history':'h'
+                'transaction.broadcast':'tx',
+                'address.get_history':'h',
+                'address.subscribe':'address.subscribe'
                 }
         cmd = cmds[method]
         if type(params) != type(''): params = repr( params )
@@ -108,39 +103,51 @@ class NativeInterface(Interface):
     def poll_interval(self):
         return 5
 
-    def update_wallet(self, wallet):
-        is_new = False
-        changed_addresses = self.poll()
-        for addr, blk_hash in changed_addresses.items():
-            if wallet.status.get(addr) != blk_hash:
-                print "updating history for", addr
-                wallet.history[addr] = self.retrieve_history(addr)
-                wallet.status[addr] = blk_hash
-                is_new = True
+    def retrieve_history(self, address):
+        out = self.handler('address.get_history', address )
+        return out
 
-        if is_new or wallet.remote_url:
-            self.was_updated = True
-            is_new = wallet.synchronize()
-            wallet.update_tx_history()
-            wallet.save()
-            return is_new
-        else:
-            return False
+    def get_history(self, addr, history_callback):
+        data = self.retrieve_history(addr)
+        apply(history_callback, (addr, data) )
+        self.was_updated = True
+
+    def subscribe(self, addr, status_callback):
+        status = self.handler('address.subscribe', [ self.session_id, addr ] )
+        apply(status_callback, (addr, status) )
+
+    def update_wallet(self, wallet):
+        while True:
+            changed_addresses = self.poll()
+            if changed_addresses:
+                self.is_up_to_date = False
+            else:
+                self.is_up_to_date = True
+                break
+
+            for addr, status in changed_addresses.items():
+                wallet.receive_status_callback(addr, status)
+
+        #if is_new or wallet.remote_url:
+        #    self.was_updated = True
+        #    is_new = wallet.synchronize()
+        #    wallet.update_tx_history()
+        #    wallet.save()
+        #    return is_new
+        #else:
+        #    return False
 
     def poll(self):
         out = self.handler('session.poll', self.session_id )
         blocks, changed_addr = ast.literal_eval( out )
         if blocks == -1: raise BaseException("session not found")
         self.blocks = int(blocks)
-        if changed_addr: self.was_updated = True
-        self.is_up_to_date = True
         return changed_addr
 
     def poll_thread(self, wallet):
         while self.is_connected:
             try:
-                if self.update_wallet(wallet):
-                    self.update_session( wallet.all_addresses() )
+                self.update_wallet(wallet)
                 time.sleep(self.poll_interval())
             except socket.gaierror:
                 break
@@ -305,14 +312,14 @@ class TCPInterface(Interface):
         self.tx_event.wait()
         return self.tx_result
 
-    def subscribe(self,address):
+    def subscribe(self, address, callback):
         self.send('address.subscribe', [address])
         self.addresses_waiting_for_status.append(address)
         
     def get_servers(self):
         self.send('server.peers')
 
-    def get_history(self,addr):
+    def get_history(self, addr, callback):
         self.send('address.get_history', [addr])
         self.addresses_waiting_for_history.append(addr) 
 
@@ -325,7 +332,7 @@ class TCPInterface(Interface):
         self.send('server.banner')
         self.send('numblocks.subscribe')
         for address in wallet.all_addresses():
-            self.subscribe(address)
+            self.subscribe(address, wallet.receive_status_callback)
 
 
 

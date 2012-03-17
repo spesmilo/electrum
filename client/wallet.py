@@ -456,11 +456,7 @@ class Wallet:
 
     def create_new_address(self, bool):
         address = self.create_new_address_without_history(bool)
-        if self.interface.port == 50001:
-            self.interface.subscribe(address)
-        else:
-            self.history[address] = h = self.interface.retrieve_history(address)
-            self.status[address] = h[-1]['blk_hash'] if h else None
+        self.interface.subscribe(address, self.receive_status_callback)
         return address
 
 
@@ -706,9 +702,10 @@ class Wallet:
     def receive_status_callback(self, addr, status):
         if self.status.get(addr) != status:
             self.status[addr] = status
-            self.interface.get_history(addr)
+            self.interface.get_history(addr, self.receive_history_callback)
 
     def receive_history_callback(self, addr, data):
+        #print "updating history for", addr
         self.history[addr] = data
         self.synchronize()
         self.update_tx_history()
