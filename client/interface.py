@@ -52,7 +52,7 @@ class Interface:
     def get_servers(self):
         pass
 
-    def start_session(self, wallet):
+    def start_session(self, addresses, version):
         pass
 
 
@@ -320,7 +320,7 @@ class AsynchronousInterface(Interface):
 
     def get_history(self, addr):
         self.send('address.get_history', [addr])
-        self.addresses_waiting_for_history.append(addr) 
+        self.addresses_waiting_for_history.append(addr)
 
     def start_session(self, addresses, version):
         self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
