@@ -80,9 +80,10 @@ class PollingInterface(Interface):
         apply(self.history_callback, (addr, data) )
         self.was_updated = True
 
-    def subscribe(self, addr):
-        status = self.handler('address.subscribe', [ self.session_id, addr ] )
-        apply(self.address_callback, (addr, status) )
+    def subscribe(self, addresses):
+        for addr in addresses:
+            status = self.handler('address.subscribe', [ self.session_id, addr ] )
+            apply(self.address_callback, (addr, status) )
 
     def update_wallet(self):
         while True:
