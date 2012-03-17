@@ -27,11 +27,12 @@ DEFAULT_SERVERS = ['ecdsa.org','electrum.novit.ro']  # list of default servers
 
 
 class Interface:
-    def __init__(self, host, port, address_callback, history_callback):
+    def __init__(self, host, port, address_callback=None, history_callback=None, newblock_callback=None):
         self.host = host
         self.port = port
         self.address_callback = address_callback
         self.history_callback = history_callback
+        self.newblock_callback = newblock_callback
 
         self.servers = DEFAULT_SERVERS                            # actual list from IRC
         self.rtime = 0
@@ -212,8 +213,8 @@ import threading
 class TCPInterface(Interface):
     """json-rpc over persistent TCP connection, asynchronous"""
 
-    def __init__(self, host, port, acb, hcb):
-        Interface.__init__(self, host, port, acb, hcb)
+    def __init__(self, host, port, address_callback=None, history_callback=None, newblock_callback=None):
+        Interface.__init__(self, host, port, address_callback, history_callback, newblock_callback)
         self.message_id = 0
         self.messages = {}
 
@@ -286,7 +287,7 @@ class TCPInterface(Interface):
 
                     elif method == 'numblocks.subscribe':
                         self.blocks = result
-
+                        apply(self.newblock_callback,(result,))
                     else:
                         print "received message:", c
 
@@ -351,10 +352,10 @@ def new_interface(wallet):
     elif port == 50001:
         interface = TCPInterface(host, port, address_cb, history_cb)
     elif port in [80, 81, 8080, 8081]:
-        interface = HttpInterface(host, port, address_cb, history_cb)            
+        interface = HttpInterface(host, port, address_cb, history_cb)
     else:
         print "unknown port number: %d. using native protocol."%port
-        interface = NativeInterface(host,port)
+        interface = NativeInterface(host, port, address_cb, history_cb)
         
     return interface
        
