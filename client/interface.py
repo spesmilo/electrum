@@ -136,7 +136,7 @@ class PollingInterface(Interface):
             for server in DEFAULT_SERVERS:
                 try:
                     self.peers_server = server
-                    out = self.handler('peers')
+                    out = self.handler('server.peers')
                     self.servers = map( lambda x:x[1], out )
                     # print "Received server list from %s" % self.peers_server, out
                     break
@@ -155,7 +155,7 @@ class NativeInterface(PollingInterface):
     def handler(self, method, params = ''):
         import time
         cmds = {'session.new':'new_session',
-                'peers':'peers',
+                'server.peers':'peers',
                 'session.poll':'poll',
                 'transaction.broadcast':'tx',
                 'address.get_history':'h',
@@ -190,7 +190,7 @@ class HttpInterface(PollingInterface):
         t1 = time.time()
         data = { 'method':method, 'id':'jsonrpc', 'params':params }
         data_json = json.dumps(data)
-        host = 'http://%s:%d'%( self.host if method!='peers' else self.peers_server, self.port )
+        host = 'http://%s:%d'%( self.host if method!='server.peers' else self.peers_server, self.port )
         req = urllib2.Request(host, data_json, {'content-type': 'application/json'})
         response_stream = urllib2.urlopen(req)
         response = json.loads( response_stream.read() )
