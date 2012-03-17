@@ -210,7 +210,7 @@ class HttpInterface(PollingInterface):
 
 import threading
 
-class TCPInterface(Interface):
+class AsynchronousInterface(Interface):
     """json-rpc over persistent TCP connection, asynchronous"""
 
     def __init__(self, host, port, address_callback=None, history_callback=None, newblock_callback=None):
@@ -287,7 +287,7 @@ class TCPInterface(Interface):
 
                     elif method == 'numblocks.subscribe':
                         self.blocks = result
-                        apply(self.newblock_callback,(result,))
+                        if self.newblock_callback: apply(self.newblock_callback,(result,))
                     else:
                         print "received message:", c
 
@@ -348,14 +348,16 @@ def new_interface(wallet):
     history_cb = wallet.receive_history_callback
 
     if port == 50000:
-        interface = NativeInterface(host, port, address_cb, history_cb)
+        InterfaceClass = NativeInterface
     elif port == 50001:
-        interface = TCPInterface(host, port, address_cb, history_cb)
+        InterfaceClass = AsynchronousInterface
     elif port in [80, 81, 8080, 8081]:
-        interface = HttpInterface(host, port, address_cb, history_cb)
+        InterfaceClass = HttpInterface
     else:
         print "unknown port number: %d. using native protocol."%port
-        interface = NativeInterface(host, port, address_cb, history_cb)
+        InterfaceClass = NativeInterface
+
+    interface = InterfaceClass(host, port, address_cb, history_cb)
         
     return interface
        
