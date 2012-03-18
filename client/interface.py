@@ -52,10 +52,15 @@ class Interface:
         self.up_to_date_event = threading.Event()
         self.up_to_date_event.clear()
 
+        #json
+        self.message_id = 0
+        self.messages = {}
 
     def send_tx(self, data):
-        out = self.handler('transaction.broadcast', data )
-        return out
+        self.tx_event.clear()
+        self.send([('transaction.broadcast', [data])])
+        self.tx_event.wait()
+        return self.tx_result
 
     def get_servers(self):
         pass
@@ -135,22 +140,22 @@ class PollingInterface(Interface):
     """ non-persistent connection. synchronous calls"""
 
     def start_session(self, addresses, version):
-        self.handler([('session.new', [ version, addresses ])] )
+        self.send([('session.new', [ version, addresses ])] )
         thread.start_new_thread(self.poll_thread, ())
 
     def poll_interval(self):
         return 5
 
     def get_history(self, address):
-        self.handler([('address.get_history', [address] )])
+        self.send([('address.get_history', [address] )])
 
     def subscribe(self, addresses):
         for addr in addresses:
-            self.handler([('address.subscribe', [ self.session_id, addr ] )])
+            self.send([('address.subscribe', [ self.session_id, addr ] )])
 
     def update_wallet(self):
         while True:
-            self.handler([('session.poll', self.session_id )])
+            self.send([('session.poll', self.session_id )])
             if self.is_up_to_date: break
 
         #if is_new or wallet.remote_url:
@@ -189,7 +194,7 @@ class PollingInterface(Interface):
             for server in DEFAULT_SERVERS:
                 try:
                     self.peers_server = server
-                    self.handler([('server.peers',[])])
+                    self.send([('server.peers',[])])
                     # print "Received server list from %s" % self.peers_server, out
                     break
                 except socket.timeout:
@@ -207,7 +212,7 @@ class PollingInterface(Interface):
 
 class NativeInterface(PollingInterface):
 
-    def handler(self, messages):
+    def send(self, messages):
         import time
         cmds = {'session.new':'new_session',
                 'server.peers':'peers',
@@ -221,7 +226,7 @@ class NativeInterface(PollingInterface):
             method, params = m
             cmd = cmds[method]
 
-            if cmd=='h':
+            if cmd in ['h', 'tx']:
                 str_params = params[0]
             elif type(params) != type(''): 
                 str_params = repr( params )
@@ -254,12 +259,8 @@ class NativeInterface(PollingInterface):
 
 class HttpInterface(PollingInterface):
 
-    def __init__(self, host, port, address_callback=None, history_callback=None, newblock_callback=None):
-        Interface.__init__(self, host, port, address_callback, history_callback, newblock_callback)
-        self.message_id = 0
-        self.messages = {}
 
-    def handler(self, messages):
+    def send(self, messages):
         import urllib2, json, time
 
         data = []
@@ -290,11 +291,6 @@ import threading
 
 class AsynchronousInterface(Interface):
     """json-rpc over persistent TCP connection, asynchronous"""
-
-    def __init__(self, host, port, address_callback=None, history_callback=None, newblock_callback=None):
-        Interface.__init__(self, host, port, address_callback, history_callback, newblock_callback)
-        self.message_id = 0
-        self.messages = {}
 
     def listen_thread(self):
         try:
@@ -339,12 +335,6 @@ class AsynchronousInterface(Interface):
             self.message_id += 1
             out += request + '\n'
         self.s.send( out )
-
-    def send_tx(self, data):
-        self.tx_event.clear()
-        self.send([('transaction.broadcast', [data])])
-        self.tx_event.wait()
-        return self.tx_result
 
     def subscribe(self, addresses):
         messages = []
