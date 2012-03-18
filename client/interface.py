@@ -18,9 +18,7 @@
 
 
 import random, socket, ast
-
-        
-import thread, traceback, sys, time, json
+import thread, threading, traceback, sys, time, json
 
 DEFAULT_TIMEOUT = 5
 DEFAULT_SERVERS = ['ecdsa.org','electrum.novit.ro']  # list of default servers
@@ -287,7 +285,6 @@ class HttpInterface(PollingInterface):
 
 
 
-import threading
 
 class AsynchronousInterface(Interface):
     """json-rpc over persistent TCP connection, asynchronous"""
