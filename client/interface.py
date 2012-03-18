@@ -398,6 +398,7 @@ def loop_interfaces_thread(wallet):
             time.sleep(5)
         except:
             traceback.print_exc(file=sys.stdout)
+            time.sleep(5)
             continue
 
         print "Starting new session: %s:%d"%(wallet.host,wallet.port)

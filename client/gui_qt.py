@@ -192,7 +192,7 @@ class ElectrumWindow(QMainWindow):
                 icon = QIcon(":icons/status_disconnected.png")
             elif not self.wallet.interface.is_up_to_date:
                 text = "Synchronizing..."
-                icon = QIcon(":icons/status_waiting.svg")
+                icon = QIcon(":icons/status_waiting.png")
             else:
                 c, u = self.wallet.get_balance()
                 text =  "Balance: %s "%( format_satoshis(c) )
@@ -315,7 +315,7 @@ class ElectrumWindow(QMainWindow):
             else:
                 conf = 0
                 time_str = 'pending'
-                icon = QIcon(":icons/unconfirmed.svg")
+                icon = QIcon(":icons/unconfirmed.png")
             v = tx['value']
             balance += v 
             label = self.wallet.labels.get(tx_hash)
@@ -619,7 +619,7 @@ class ElectrumWindow(QMainWindow):
     def create_status_bar(self):
         sb = QStatusBar()
         sb.setFixedHeight(35)
-        sb.addPermanentWidget( StatusBarButton( QIcon(":icons/lock.svg"), "Password", lambda: self.change_password_dialog(self.wallet, self) ) )
+        sb.addPermanentWidget( StatusBarButton( QIcon(":icons/lock.png"), "Password", lambda: self.change_password_dialog(self.wallet, self) ) )
         sb.addPermanentWidget( StatusBarButton( QIcon(":icons/preferences.png"), "Preferences", self.settings_dialog ) )
         sb.addPermanentWidget( StatusBarButton( QIcon(":icons/seed.png"), "Seed", lambda: self.show_seed_dialog(self.wallet, self) ) )
         self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), "Network", lambda: self.network_dialog(self.wallet, self) ) 
