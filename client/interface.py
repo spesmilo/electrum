@@ -21,7 +21,7 @@ import random, socket, ast
 import thread, threading, traceback, sys, time, json
 
 DEFAULT_TIMEOUT = 5
-DEFAULT_SERVERS = ['ecdsa.org','electrum.novit.ro']  # list of default servers
+DEFAULT_SERVERS = ['electrum.bitcoins.sk','ecdsa.org','electrum.novit.ro']  # list of default servers
 
 
 class Interface:
@@ -32,7 +32,7 @@ class Interface:
         self.history_callback = history_callback
         self.newblock_callback = newblock_callback
 
-        self.servers = DEFAULT_SERVERS                            # actual list from IRC
+        self.servers = [] # actual list from IRC
         self.rtime = 0
         self.blocks = 0 
         self.message = ''
@@ -60,8 +60,6 @@ class Interface:
         self.tx_event.wait()
         return self.tx_result
 
-    def get_servers(self):
-        pass
 
     def start_session(self, addresses, version):
         pass
@@ -113,6 +111,7 @@ class Interface:
                 self.is_up_to_date = True
 
         elif method == 'server.peers':
+            print "Received server list: ", result
             self.servers = map( lambda x:x[1], result )
 
         elif method == 'address.subscribe':
@@ -148,11 +147,36 @@ class Interface:
         self.send(messages)
 
 
+    def get_servers(self, wallet):
+        # loop over default servers
+        # requesting servers could be an independent process
+        addresses = wallet.all_addresses()
+        version = wallet.electrum_version
+
+        for server in DEFAULT_SERVERS:
+            print "connecting to", server
+            try:
+                self.host = server
+                self.start_session(addresses, version)
+                wallet.host = self.host
+                break
+            except socket.timeout:
+                continue
+            except socket.error:
+                continue
+            except:
+                traceback.print_exc(file=sys.stdout)
+
+
+
+
+
 class PollingInterface(Interface):
     """ non-persistent connection. synchronous calls"""
 
     def start_session(self, addresses, version):
         self.send([('session.new', [ version, addresses ])] )
+        self.send([('server.peers',[])])
         thread.start_new_thread(self.poll_thread, (5,))
 
     def get_history(self, address):
@@ -189,31 +213,6 @@ class PollingInterface(Interface):
         self.disconnected_event.set()
 
                 
-    def get_servers(self):
-        #thread.start_new_thread(self.update_servers_thread, ())
-        pass
-
-    def update_servers_thread(self):
-        # if my server is not reachable, I should get the list from one of the default servers
-        # requesting servers could be an independent process
-        while True:
-            for server in DEFAULT_SERVERS:
-                try:
-                    self.peers_server = server
-
-                    self.send([('server.peers',[])])
-
-                    # print "Received server list from %s" % self.peers_server, out
-                    break
-                except socket.timeout:
-                    continue
-                except socket.error:
-                    continue
-                except:
-                    traceback.print_exc(file=sys.stdout)
-
-            time.sleep(5*60)
-
 
 
 
@@ -247,7 +246,7 @@ class NativeInterface(PollingInterface):
             request = repr ( (cmd, str_params) ) + "#"
             s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(DEFAULT_TIMEOUT)
-            s.connect(( self.host if cmd!='peers' else self.peers_server, self.port) )
+            s.connect(( self.host, self.port) )
             s.send( request )
             out = ''
             while 1:
@@ -277,7 +276,7 @@ class HttpInterface(PollingInterface):
 
     def start_session(self, addresses, version):
         self.session_id = None
-        self.send([('client.version', [version]), ('server.banner',[]), ('numblocks.subscribe',[])])
+        self.send([('client.version', [version]), ('server.banner',[]), ('numblocks.subscribe',[]), ('server.peers',[])])
         self.subscribe(addresses)
         thread.start_new_thread(self.poll_thread, (15,))
 
@@ -373,9 +372,6 @@ class AsynchronousInterface(Interface):
             out += request + '\n'
         self.s.send( out )
 
-    def get_servers(self):
-        self.send([('server.peers',[])])
-
     def get_history(self, addr):
         self.send([('address.get_history', [addr])])
         self.addresses_waiting_for_history.append(addr)
@@ -385,7 +381,7 @@ class AsynchronousInterface(Interface):
         self.s.settimeout(1)
         self.s.connect(( self.host, self.port))
         thread.start_new_thread(self.listen_thread, ())
-        self.send([('client.version', [version]), ('server.banner',[]), ('numblocks.subscribe',[])])
+        self.send([('client.version', [version]), ('server.banner',[]), ('numblocks.subscribe',[]), ('server.peers',[])])
         self.subscribe(addresses)
 
 
@@ -414,7 +410,7 @@ def new_interface(wallet):
     interface = InterfaceClass(host, port, address_cb, history_cb)
         
     return interface
-       
+
 
 def loop_interfaces_thread(wallet):
     while True:
@@ -422,7 +418,6 @@ def loop_interfaces_thread(wallet):
             addresses = wallet.all_addresses()
             version = wallet.electrum_version
             wallet.interface.start_session(addresses, version)
-            wallet.interface.get_servers()
 
             wallet.interface.disconnected_event.wait()
             print "Disconnected"
@@ -436,4 +431,3 @@ def loop_interfaces_thread(wallet):
 
         print "Starting new session: %s:%d"%(wallet.host,wallet.port)
         wallet.interface = new_interface(wallet)
-

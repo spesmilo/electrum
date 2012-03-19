@@ -854,8 +854,9 @@ class ElectrumWindow(QMainWindow):
         hbox = QHBoxLayout()
         l = QLabel()
         l.setPixmap(QPixmap(":icons/network.png"))
-        hbox.addWidget(l)
+        hbox.addWidget(l)        
         hbox.addWidget(QLabel(status))
+
         vbox.addLayout(hbox)
 
         hbox = QHBoxLayout()
@@ -865,13 +866,20 @@ class ElectrumWindow(QMainWindow):
         hbox.addWidget(host_line)
         vbox.addLayout(hbox)
 
-        servers_list = QTreeWidget(parent)
-        servers_list.setHeaderLabels( [ 'Active servers'] )
-        servers_list.setMaximumHeight(150)
-        for item in wallet.interface.servers:
-            servers_list.addTopLevelItem(QTreeWidgetItem( [ item ] ))
-        servers_list.connect(servers_list, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), lambda x:host_line.setText( x.text(0) + ':%d'%wallet.port ))
-        vbox.addWidget(servers_list)
+        if wallet.interface.servers:
+            servers_list = QTreeWidget(parent)
+            servers_list.setHeaderLabels( [ 'Active servers'] )
+            servers_list.setMaximumHeight(150)
+            for item in wallet.interface.servers:
+                servers_list.addTopLevelItem(QTreeWidgetItem( [ item ] ))
+            servers_list.connect(servers_list, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), lambda x:host_line.setText( x.text(0) + ':%d'%wallet.port ))
+            vbox.addWidget(servers_list)
+        else:
+            hbox = QHBoxLayout()
+            hbox.addWidget(QLabel('No nodes available'))
+            b = EnterButton("Find nodes", lambda: wallet.interface.get_servers(wallet) )
+            hbox.addWidget(b)
+            vbox.addLayout(hbox)
 
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
