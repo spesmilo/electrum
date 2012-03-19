@@ -102,7 +102,7 @@ class StratumJSONRPCDispatcher(SimpleXMLRPCServer.SimpleXMLRPCDispatcher):
         params = request.get('params')
         if params is None: params=[]
         params = [ self.session_id, request['id'] ] + params
-        print method, params
+        #print method, params
         try:
             response = self._dispatch(method, params)
         except:
@@ -167,20 +167,18 @@ class StratumJSONRPCRequestHandler(
             self.report_404()
             return
         try:
-            print "GET"
-
             self.server.session_id = None
             c = self.headers.get('cookie')
             if c:
                 if c[0:8]=='SESSION=':
-                    print "found cookie", c[8:]
+                    #print "found cookie", c[8:]
                     self.server.session_id = c[8:]
 
             if self.server.session_id is None:
                 r = self.server._marshaled_single_dispatch({'method':'session.create', 'params':[], 'id':'z' })
                 r = jsonrpclib.loads(r)
                 self.server.session_id = r.get('result')
-                print "setting cookie", self.server.session_id
+                #print "setting cookie", self.server.session_id
 
             data = json.dumps([])
             response = self.server._marshaled_dispatch(data)

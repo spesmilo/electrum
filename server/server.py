@@ -456,7 +456,6 @@ def poll_session_json(session_id, message_id):
     if session is None:
         raise BaseException("session not found %s"%session_id)
     else:
-        print "poll: session found", session_id
         out = []
         ret, addresses = modified_addresses(session)
         if ret: 
