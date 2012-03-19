@@ -224,7 +224,7 @@ class StratumJSONRPCRequestHandler(
             c = self.headers.get('cookie')
             if c:
                 if c[0:8]=='SESSION=':
-                    print "found cookie", c[8:]
+                    #print "found cookie", c[8:]
                     self.server.session_id = c[8:]
 
             if self.server.session_id is None:
