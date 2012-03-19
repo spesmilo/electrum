@@ -168,7 +168,7 @@ if __name__ == '__main__':
         addresses = wallet.all_addresses()
         version = wallet.electrum_version
         interface.start_session(addresses, version)
-        interface.update_wallet(wallet)
+        interface.update_wallet()
         wallet.save()
 
     # check if --from_addr not in wallet (for mktx/payto)
