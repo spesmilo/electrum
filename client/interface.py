@@ -87,6 +87,9 @@ class Interface:
     def handle_response(self, method, params, result):
 
         if method == 'session.new':
+            # print result, "do nothing"
+            # session id is in the cookie
+
             self.session_id, self.message = ast.literal_eval( result )
             self.was_updated = True
 
@@ -95,7 +98,7 @@ class Interface:
             self.was_updated = True
 
         elif method == 'session.poll':
-            blocks, changed_addresses = ast.literal_eval( result )
+            blocks, changed_addresses = result 
             if blocks == -1: raise BaseException("session not found")
             self.blocks = int(blocks)
             if changed_addresses:
@@ -129,8 +132,9 @@ class Interface:
         elif method == 'numblocks.subscribe':
             self.blocks = result
             if self.newblock_callback: apply(self.newblock_callback,(result,))
+
         else:
-            print "received message:", c, method, params
+            print "received message:", method, params, result
 
 
 
@@ -153,7 +157,7 @@ class PollingInterface(Interface):
 
     def update_wallet(self):
         while True:
-            self.send([('session.poll', self.session_id )])
+            self.send([('session.poll', [])])
             if self.is_up_to_date: break
 
         #if is_new or wallet.remote_url:
@@ -183,7 +187,8 @@ class PollingInterface(Interface):
 
                 
     def get_servers(self):
-        thread.start_new_thread(self.update_servers_thread, ())
+        #thread.start_new_thread(self.update_servers_thread, ())
+        pass
 
     def update_servers_thread(self):
         # if my server is not reachable, I should get the list from one of the default servers
@@ -192,7 +197,9 @@ class PollingInterface(Interface):
             for server in DEFAULT_SERVERS:
                 try:
                     self.peers_server = server
+
                     self.send([('server.peers',[])])
+
                     # print "Received server list from %s" % self.peers_server, out
                     break
                 except socket.timeout:
@@ -224,6 +231,9 @@ class NativeInterface(PollingInterface):
             method, params = m
             cmd = cmds[method]
 
+            if cmd == 'poll':
+                params = self.session_id
+
             if cmd in ['h', 'tx']:
                 str_params = params[0]
             elif type(params) != type(''): 
@@ -244,7 +254,8 @@ class NativeInterface(PollingInterface):
             s.close()
             self.rtime = time.time() - t1
             self.is_connected = True
-            if cmd in[ 'peers','h']:
+
+            if cmd in[ 'peers','h','poll']:
                 out = ast.literal_eval( out )
 
             if out=='': out=None #fixme
@@ -257,9 +268,21 @@ class NativeInterface(PollingInterface):
 
 class HttpInterface(PollingInterface):
 
+    def start_session(self, addresses, version):
+        self.session_id = None
+        self.send([('client.version', [version]), ('server.banner',[]), ('numblocks.subscribe',[])])
+
+        #self.subscribe(addresses)
+
+        thread.start_new_thread(self.poll_thread, ())
+
 
     def send(self, messages):
-        import urllib2, json, time
+        import urllib2, json, time, cookielib
+
+        cj = cookielib.CookieJar()
+        opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
+        urllib2.install_opener(opener)
 
         data = []
         for m in messages:
@@ -271,9 +294,23 @@ class HttpInterface(PollingInterface):
             self.message_id += 1
 
         data_json = json.dumps(data)
-        host = 'http://%s:%d'%( self.host if method!='server.peers' else self.peers_server, self.port )
-        req = urllib2.Request(host, data_json, {'content-type': 'application/json'})
+        print data_json
+        #host = 'http://%s:%d'%( self.host if method!='server.peers' else self.peers_server, self.port )
+        host = 'http://%s:%d'%( self.host, self.port )
+
+        headers = {'content-type': 'application/json'}
+        if self.session_id:
+            print "adding cookie in header"
+            headers['cookie'] = 'SESSION=%s'%self.session_id
+
+        req = urllib2.Request(host, data_json, headers)
         response_stream = urllib2.urlopen(req)
+
+        for index, cookie in enumerate(cj):
+            if cookie.name=='SESSION':
+                self.session_id = cookie.value
+                print "got session id from cookie", self.session_id
+
         response = json.loads( response_stream.read() )
 
         self.rtime = time.time() - t1
