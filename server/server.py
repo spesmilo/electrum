@@ -78,6 +78,8 @@ old_block_number = -1
 sessions = {}
 sessions_sub_numblocks = {} # sessions that have subscribed to the service
 
+m_sessions = [{}] # served by http
+
 dblock = thread.allocate_lock()
 peer_list = {}
 
@@ -87,6 +89,8 @@ from Queue import Queue
 input_queue = Queue()
 output_queue = Queue()
 address_queue = Queue()
+
+
 
 class MyStore(Datastore_class):
 
@@ -384,41 +388,39 @@ def random_string(N):
 
     
 
-def cmd_stop(data):
+def cmd_stop(_,__,pw):
     global stopping
-    if password == data:
+    if password == pw:
         stopping = True
         return 'ok'
     else:
         return 'wrong password'
 
-def cmd_load(pw):
+def cmd_load(_,__,pw):
     if password == pw:
         return repr( len(sessions) )
     else:
         return 'wrong password'
 
 
-def clear_cache(pw):
+def clear_cache(_,__,pw):
     if password == pw:
         store.tx_cache = {}
         return 'ok'
     else:
         return 'wrong password'
 
-def get_cache(pw,addr):
+def get_cache(_,__,pw,addr):
     if password == pw:
         return store.tx_cache.get(addr)
     else:
         return 'wrong password'
 
 
-def poll_session(session_id):
-    session = sessions.get(session_id)
-    if session is None:
-        print time.asctime(), "session not found", session_id
-        out = repr( (-1, {}))
-    else:
+
+
+def modified_addresses(session):
+    if 1:
         t1 = time.time()
         addresses = session['addresses']
         session['last_time'] = time.time()
@@ -427,16 +429,47 @@ def poll_session(session_id):
         for addr in addresses:
             if store.tx_cache.get( addr ) is not None: k += 1
             status = get_address_status( addr )
-            last_status = addresses.get( addr )
+            msg_id, last_status = addresses.get( addr )
             if last_status != status:
-                addresses[addr] = status
+                addresses[addr] = msg_id, status
                 ret[addr] = status
-        if ret:
-            sessions[session_id]['addresses'] = addresses
-        out = repr( (block_number, ret ) )
+
         t2 = time.time() - t1 
-        if t2 > 10:
-            print "high load:", session_id, "%d/%d"%(k,len(addresses)), t2
+        #if t2 > 10: print "high load:", session_id, "%d/%d"%(k,len(addresses)), t2
+        return ret, addresses
+
+
+def poll_session(session_id): 
+    # native
+    session = sessions.get(session_id)
+    if session is None:
+        print time.asctime(), "session not found", session_id
+        return -1, {}
+    else:
+        ret, addresses = modified_addresses(session)
+        if ret: sessions[session_id]['addresses'] = addresses
+        return repr( (block_number,ret))
+
+
+def poll_session_json(session_id, message_id):
+    session = m_sessions[0].get(session_id)
+    if session is None:
+        raise BaseException("session not found %s"%session_id)
+    else:
+        print "poll: session found", session_id
+        out = []
+        ret, addresses = modified_addresses(session)
+        if ret: 
+            m_sessions[0][session_id]['addresses'] = addresses
+            for addr in ret:
+                msg_id, status = addresses[addr]
+                out.append(  { 'id':msg_id, 'result':status } )
+
+        msg_id, last_nb = session.get('numblocks')
+        if last_nb:
+            if last_nb != block_number:
+                m_sessions[0][session_id]['numblocks'] = msg_id, block_number
+                out.append( {'id':msg_id, 'result':block_number} )
 
         return out
 
@@ -444,6 +477,7 @@ def poll_session(session_id):
 def do_update_address(addr):
     # an address was involved in a transaction; we check if it was subscribed to in a session
     # the address can be subscribed in several sessions; the cache should ensure that we don't do redundant requests
+
     for session_id in sessions.keys():
         session = sessions[session_id]
         if session.get('type') != 'persistent': continue
@@ -456,7 +490,6 @@ def do_update_address(addr):
                 #print "sending new status for %s:"%addr, status
                 send_status(session_id,message_id,addr,status)
                 sessions[session_id]['addresses'][addr] = (message_id,status)
-
 
 def get_address_status(addr):
     # get address status, i.e. the last block for that address.
@@ -481,9 +514,17 @@ def send_status(session_id, message_id, address, status):
     out = json.dumps( { 'id':message_id, 'result':status } )
     output_queue.put((session_id, out))
 
+def address_get_history_json(_,message_id,address):
+    return store.get_history(address)
+
 def subscribe_to_numblocks(session_id, message_id):
     sessions_sub_numblocks[session_id] = message_id
     send_numblocks(session_id)
+
+def subscribe_to_numblocks_json(session_id, message_id):
+    global m_sessions
+    m_sessions[0][session_id]['numblocks'] = message_id,block_number
+    return block_number
 
 def subscribe_to_address(session_id, message_id, address):
     status = get_address_status(address)
@@ -491,9 +532,18 @@ def subscribe_to_address(session_id, message_id, address):
     sessions[session_id]['last_time'] = time.time()
     send_status(session_id, message_id, address, status)
 
+def add_address_to_session_json(session_id, message_id, address):
+    global m_sessions
+    sessions = m_sessions[0]
+    status = get_address_status(address)
+    sessions[session_id]['addresses'][address] = (message_id, status)
+    sessions[session_id]['last_time'] = time.time()
+    m_sessions[0] = sessions
+    return status
+
 def add_address_to_session(session_id, address):
     status = get_address_status(address)
-    sessions[session_id]['addresses'][addr] = status
+    sessions[session_id]['addresses'][addr] = ("", status)
     sessions[session_id]['last_time'] = time.time()
     return status
 
@@ -501,13 +551,30 @@ def new_session(version, addresses):
     session_id = random_string(10)
     sessions[session_id] = { 'addresses':{}, 'version':version }
     for a in addresses:
-        sessions[session_id]['addresses'][a] = ''
+        sessions[session_id]['addresses'][a] = ('','')
     out = repr( (session_id, config.get('server','banner').replace('\\n','\n') ) )
     sessions[session_id]['last_time'] = time.time()
     return out
 
-def get_banner():
-    print "get banner"
+
+def client_version_json(session_id, _, version):
+    global m_sessions
+    sessions = m_sessions[0]
+    sessions[session_id]['version'] = version
+    m_sessions[0] = sessions
+
+def create_session_json(_, __):
+    sessions = m_sessions[0]
+    session_id = random_string(10)
+    print "creating session", session_id
+    sessions[session_id] = { 'addresses':{}, 'numblocks':('','') }
+    sessions[session_id]['last_time'] = time.time()
+    m_sessions[0] = sessions
+    return session_id
+
+
+
+def get_banner(_,__):
     return config.get('server','banner').replace('\\n','\n')
 
 def update_session(session_id,addresses):
@@ -892,26 +959,29 @@ def irc_thread():
             s.close()
 
 
+def get_peers_json(_,__):
+    return peer_list.values()
 
 def http_server_thread(store):
     # see http://code.google.com/p/jsonrpclib/
     from SocketServer import ThreadingMixIn
-    from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
-    class SimpleThreadedJSONRPCServer(ThreadingMixIn, SimpleJSONRPCServer): pass
-    server = SimpleThreadedJSONRPCServer(( config.get('server','host'), 8081))
-    server.register_function(lambda : peer_list.values(), 'server.peers')
+    from StratumJSONRPCServer import StratumJSONRPCServer
+    class StratumThreadedJSONRPCServer(ThreadingMixIn, StratumJSONRPCServer): pass
+    server = StratumThreadedJSONRPCServer(( config.get('server','host'), 8081))
+    server.register_function(get_peers_json, 'server.peers')
     server.register_function(cmd_stop, 'stop')
     server.register_function(cmd_load, 'load')
-    server.register_function(lambda : block_number, 'blocks')
     server.register_function(clear_cache, 'clear_cache')
     server.register_function(get_cache, 'get_cache')
     server.register_function(get_banner, 'server.banner')
     server.register_function(send_tx, 'transaction.broadcast')
-    server.register_function(store.get_history, 'address.get_history')
-    server.register_function(add_address_to_session, 'address.subscribe')
-    server.register_function(new_session, 'session.new')
-    server.register_function(update_session, 'session.update')
-    server.register_function(poll_session, 'session.poll')
+    server.register_function(address_get_history_json, 'address.get_history')
+    server.register_function(add_address_to_session_json, 'address.subscribe')
+    server.register_function(create_session_json, 'session.create') #internal message
+    server.register_function(poll_session_json, 'session.poll')
+    server.register_function(subscribe_to_numblocks_json, 'numblocks.subscribe')
+    server.register_function(client_version_json, 'client.version')
+    server.register_function(lambda a,b:None, 'ping')
     server.serve_forever()
 
 
@@ -927,7 +997,7 @@ if __name__ == '__main__':
         if cmd == 'load':
             out = server.load(password)
         elif cmd == 'peers':
-            out = server.peers()
+            out = server.server.peers()
         elif cmd == 'stop':
             out = server.stop(password)
         elif cmd == 'clear_cache':
@@ -939,7 +1009,7 @@ if __name__ == '__main__':
         elif cmd == 'tx':
             out = server.transaction.broadcast(sys.argv[2])
         elif cmd == 'b':
-            out = server.blocks()
+            out = server.numblocks.subscribe()
         else:
             out = "Unknown command: '%s'" % cmd
         print out
