@@ -80,24 +80,27 @@ class Interface:
         if error:
             print "received error:", c, method, params
         else:
-            self.handle_response(method, params, result)
+            if method == 'session.poll': #embedded messages
+                if result:
+                    self.is_up_to_date = False
+                    for msg in result:
+                        self.handle_json_response(msg)
+                else:
+                    self.is_up_to_date = True
+            else:
+                self.handle_response(method, params, result)
+                
 
 
 
     def handle_response(self, method, params, result):
 
-        if method == 'session.new':
-            # print result, "do nothing"
-            # session id is in the cookie
-
-            self.session_id, self.message = ast.literal_eval( result )
-            self.was_updated = True
-
-        elif method == 'server.banner':
+        if method == 'server.banner':
             self.message = result
             self.was_updated = True
 
         elif method == 'session.poll':
+            # native poll
             blocks, changed_addresses = result 
             if blocks == -1: raise BaseException("session not found")
             self.blocks = int(blocks)
@@ -137,23 +140,23 @@ class Interface:
             print "received message:", method, params, result
 
 
+    def subscribe(self, addresses):
+        messages = []
+        for addr in addresses:
+            messages.append(('address.subscribe', [addr]))
+            self.addresses_waiting_for_status.append(addr)
+        self.send(messages)
+
 
 class PollingInterface(Interface):
     """ non-persistent connection. synchronous calls"""
 
     def start_session(self, addresses, version):
         self.send([('session.new', [ version, addresses ])] )
-        thread.start_new_thread(self.poll_thread, ())
-
-    def poll_interval(self):
-        return 5
+        thread.start_new_thread(self.poll_thread, (5,))
 
     def get_history(self, address):
         self.send([('address.get_history', [address] )])
-
-    def subscribe(self, addresses):
-        for addr in addresses:
-            self.send([('address.subscribe', [ self.session_id, addr ] )])
 
     def update_wallet(self):
         while True:
@@ -169,11 +172,11 @@ class PollingInterface(Interface):
         #else:
         #    return False
 
-    def poll_thread(self):
+    def poll_thread(self, poll_interval):
         while self.is_connected:
             try:
                 self.update_wallet()
-                time.sleep(self.poll_interval())
+                time.sleep(poll_interval)
             except socket.gaierror:
                 break
             except socket.error:
@@ -260,7 +263,11 @@ class NativeInterface(PollingInterface):
 
             if out=='': out=None #fixme
 
-            self.handle_response(method, params, out)
+            if cmd == 'new_session':
+                self.session_id, self.message = ast.literal_eval( out )
+                self.was_updated = True
+            else:
+                self.handle_response(method, params, out)
 
 
 
@@ -271,10 +278,8 @@ class HttpInterface(PollingInterface):
     def start_session(self, addresses, version):
         self.session_id = None
         self.send([('client.version', [version]), ('server.banner',[]), ('numblocks.subscribe',[])])
-
-        #self.subscribe(addresses)
-
-        thread.start_new_thread(self.poll_thread, ())
+        self.subscribe(addresses)
+        thread.start_new_thread(self.poll_thread, (15,))
 
 
     def send(self, messages):
@@ -294,13 +299,12 @@ class HttpInterface(PollingInterface):
             self.message_id += 1
 
         data_json = json.dumps(data)
-        print data_json
+        #print data_json
         #host = 'http://%s:%d'%( self.host if method!='server.peers' else self.peers_server, self.port )
         host = 'http://%s:%d'%( self.host, self.port )
 
         headers = {'content-type': 'application/json'}
         if self.session_id:
-            print "adding cookie in header"
             headers['cookie'] = 'SESSION=%s'%self.session_id
 
         req = urllib2.Request(host, data_json, headers)
@@ -309,7 +313,6 @@ class HttpInterface(PollingInterface):
         for index, cookie in enumerate(cj):
             if cookie.name=='SESSION':
                 self.session_id = cookie.value
-                print "got session id from cookie", self.session_id
 
         response = json.loads( response_stream.read() )
 
@@ -369,13 +372,6 @@ class AsynchronousInterface(Interface):
             self.message_id += 1
             out += request + '\n'
         self.s.send( out )
-
-    def subscribe(self, addresses):
-        messages = []
-        for addr in addresses:
-            messages.append(('address.subscribe', [addr]))
-            self.addresses_waiting_for_status.append(addr)
-        self.send(messages)
 
     def get_servers(self):
         self.send([('server.peers',[])])
