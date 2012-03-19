@@ -974,14 +974,13 @@ def http_server_thread(store):
     server.register_function(clear_cache, 'clear_cache')
     server.register_function(get_cache, 'get_cache')
     server.register_function(get_banner, 'server.banner')
-    server.register_function(send_tx, 'transaction.broadcast')
+    server.register_function(lambda a,b,c: send_tx(c), 'transaction.broadcast')
     server.register_function(address_get_history_json, 'address.get_history')
     server.register_function(add_address_to_session_json, 'address.subscribe')
-    server.register_function(create_session_json, 'session.create') #internal message
-    server.register_function(poll_session_json, 'session.poll')
     server.register_function(subscribe_to_numblocks_json, 'numblocks.subscribe')
     server.register_function(client_version_json, 'client.version')
-    server.register_function(lambda a,b:None, 'ping')
+    server.register_function(create_session_json, 'session.create')   # internal message (not part of protocol)
+    server.register_function(poll_session_json, 'session.poll')       # internal message (not part of protocol)
     server.serve_forever()
 
 
