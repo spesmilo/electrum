@@ -66,10 +66,11 @@ class Interface:
 
 
     def handle_json_response(self, c):
-        #print c
+        #print repr(c)
         msg_id = c.get('id')
         result = c.get('result')
         error = c.get('error')
+
         if msg_id is None:
             print "error: message without ID"
             return
@@ -78,15 +79,8 @@ class Interface:
         if error:
             print "received error:", c, method, params
         else:
-            if method == 'session.poll': #embedded messages
-                if result:
-                    self.is_up_to_date = False
-                    for msg in result:
-                        self.handle_json_response(msg)
-                else:
-                    self.is_up_to_date = True
-            else:
-                self.handle_response(method, params, result)
+            self.handle_response(method, params, result)
+            self.is_up_to_date = True
                 
 
 
@@ -132,8 +126,12 @@ class Interface:
             self.tx_event.set()
 
         elif method == 'numblocks.subscribe':
+            print "numblocks", result
             self.blocks = result
             if self.newblock_callback: apply(self.newblock_callback,(result,))
+
+        elif method == 'ping':
+            pass
 
         else:
             print "received message:", method, params, result
@@ -182,9 +180,12 @@ class PollingInterface(Interface):
     def get_history(self, address):
         self.send([('address.get_history', [address] )])
 
+    def poll(self):
+        self.send([('session.poll', [])])
+
     def update_wallet(self):
         while True:
-            self.send([('session.poll', [])])
+            self.poll()
             if self.is_up_to_date: break
 
         #if is_new or wallet.remote_url:
@@ -280,6 +281,8 @@ class HttpInterface(PollingInterface):
         self.subscribe(addresses)
         thread.start_new_thread(self.poll_thread, (15,))
 
+    def poll(self):
+        self.send( [] )
 
     def send(self, messages):
         import urllib2, json, time, cookielib
@@ -288,20 +291,23 @@ class HttpInterface(PollingInterface):
         opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
         urllib2.install_opener(opener)
 
+        t1 = time.time()
+
         data = []
         for m in messages:
             method, params = m
             if type(params) != type([]): params = [params]
-            t1 = time.time()
             data.append( { 'method':method, 'id':self.message_id, 'params':params } )
             self.messages[self.message_id] = (method, params)
             self.message_id += 1
 
-        data_json = json.dumps(data)
-        #print data_json
-        #host = 'http://%s:%d'%( self.host if method!='server.peers' else self.peers_server, self.port )
-        host = 'http://%s:%d'%( self.host, self.port )
+        if data:
+            data_json = json.dumps(data)
+        else:
+            # poll with GET
+            data_json = None 
 
+        host = 'http://%s:%d'%( self.host, self.port )
         headers = {'content-type': 'application/json'}
         if self.session_id:
             headers['cookie'] = 'SESSION=%s'%self.session_id
@@ -313,14 +319,19 @@ class HttpInterface(PollingInterface):
             if cookie.name=='SESSION':
                 self.session_id = cookie.value
 
-        response = json.loads( response_stream.read() )
+        response = response_stream.read()
+        if response: 
+            print "response",response
+            response = json.loads( response )
+            if type(response) is not type([]):
+                self.handle_json_response(response)
+            else:
+                for item in response:
+                    self.handle_json_response(item)
+
 
         self.rtime = time.time() - t1
         self.is_connected = True
-
-        for item in response:
-            self.handle_json_response(item)
-
 
 
 
