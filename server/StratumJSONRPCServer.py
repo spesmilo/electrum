@@ -263,7 +263,7 @@ class StratumJSONRPCServer(SocketServer.TCPServer, StratumJSONRPCDispatcher):
     allow_reuse_address = True
 
     def __init__(self, addr, requestHandler=StratumJSONRPCRequestHandler,
-                 logRequests=True, encoding=None, bind_and_activate=True,
+                 logRequests=False, encoding=None, bind_and_activate=True,
                  address_family=socket.AF_INET):
         self.logRequests = logRequests
         StratumJSONRPCDispatcher.__init__(self, encoding)
