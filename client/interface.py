@@ -105,7 +105,7 @@ class Interface:
                 self.is_up_to_date = True
 
         elif method == 'server.peers':
-            print "Received server list: ", result
+            #print "Received server list: ", result
             self.servers = map( lambda x:x[1], result )
 
         elif method == 'address.subscribe':
