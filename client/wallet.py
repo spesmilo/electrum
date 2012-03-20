@@ -706,7 +706,7 @@ class Wallet:
             self.interface.get_history(addr)
 
     def receive_history_callback(self, addr, data):
-        #print "updating history for", addr, repr(data)
+        #print "updating history for", addr
         self.history[addr] = data
         self.synchronize()
         self.update_tx_history()
