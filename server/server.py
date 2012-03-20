@@ -447,7 +447,7 @@ def do_command(cmd, data, ipaddr):
         out = repr( store.get_history( address ) )
 
     elif cmd == 'load': 
-        out = cmd_load(data)
+        out = cmd_load(None,None,data)
 
     elif cmd =='tx':
         out = send_tx(data)
