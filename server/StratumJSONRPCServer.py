@@ -1,3 +1,20 @@
+#!/usr/bin/env python
+# Copyright(C) 2012 thomasv@gitorious
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/agpl.html>.
+
 import jsonrpclib
 from jsonrpclib import Fault
 from jsonrpclib.jsonrpc import USE_UNIX_SOCKETS
@@ -224,7 +241,7 @@ class StratumJSONRPCRequestHandler(
             c = self.headers.get('cookie')
             if c:
                 if c[0:8]=='SESSION=':
-                    print "found cookie", c[8:]
+                    #print "found cookie", c[8:]
                     self.server.session_id = c[8:]
 
             if self.server.session_id is None:

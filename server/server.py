@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright(C) 2011 thomasv@gitorious
+# Copyright(C) 2012 thomasv@gitorious
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -26,11 +26,7 @@ Todo:
 
 
 import time, json, socket, operator, thread, ast, sys,re
-import psycopg2, binascii
 
-from Abe.abe import hash_to_address, decode_check_address
-from Abe.DataStore import DataStore as Datastore_class
-from Abe import DataStore, readconf, BCDataStream,  deserialize, util, base58
 
 import ConfigParser
 from json import dumps, loads
@@ -47,7 +43,7 @@ config = ConfigParser.ConfigParser()
 config.add_section('server')
 config.set('server','banner', 'Welcome to Electrum!')
 config.set('server', 'host', 'localhost')
-config.set('server', 'port', 50000)
+config.set('server', 'port', '50000')
 config.set('server', 'password', '')
 config.set('server', 'irc', 'yes')
 config.set('server', 'ircname', 'Electrum server')
@@ -69,8 +65,8 @@ try:
 except:
     pass
 
+
 password = config.get('server','password')
-bitcoind_url = 'http://%s:%s@%s:%s/' % ( config.get('bitcoind','user'), config.get('bitcoind','password'), config.get('bitcoind','host'), config.get('bitcoind','port'))
 
 stopping = False
 block_number = -1
@@ -80,7 +76,6 @@ sessions_sub_numblocks = {} # sessions that have subscribed to the service
 
 m_sessions = [{}] # served by http
 
-dblock = thread.allocate_lock()
 peer_list = {}
 
 wallets = {} # for ultra-light clients such as bccapi
@@ -91,266 +86,6 @@ output_queue = Queue()
 address_queue = Queue()
 
 
-
-class MyStore(Datastore_class):
-
-    def import_block(self, b, chain_ids=frozenset()):
-        block_id = super(MyStore, self).import_block(b, chain_ids)
-        #print "block", block_id
-        for pos in xrange(len(b['transactions'])):
-            tx = b['transactions'][pos]
-            if 'hash' not in tx:
-                tx['hash'] = util.double_sha256(tx['tx'])
-            tx_id = store.tx_find_id_and_value(tx)
-            if tx_id:
-                self.update_tx_cache(tx_id)
-            else:
-                print "error: import_block: no tx_id"
-        return block_id
-
-
-    def update_tx_cache(self, txid):
-        inrows = self.get_tx_inputs(txid, False)
-        for row in inrows:
-            _hash = store.binout(row[6])
-            address = hash_to_address(chr(0), _hash)
-            if self.tx_cache.has_key(address):
-                print "cache: invalidating", address
-                self.tx_cache.pop(address)
-            address_queue.put(address)
-
-        outrows = self.get_tx_outputs(txid, False)
-        for row in outrows:
-            _hash = store.binout(row[6])
-            address = hash_to_address(chr(0), _hash)
-            if self.tx_cache.has_key(address):
-                print "cache: invalidating", address
-                self.tx_cache.pop(address)
-            address_queue.put(address)
-
-    def safe_sql(self,sql, params=(), lock=True):
-        try:
-            if lock: dblock.acquire()
-            ret = self.selectall(sql,params)
-            if lock: dblock.release()
-            return ret
-        except:
-            print "sql error", sql
-            return []
-
-    def get_tx_outputs(self, tx_id, lock=True):
-        return self.safe_sql("""SELECT
-                txout.txout_pos,
-                txout.txout_scriptPubKey,
-                txout.txout_value,
-                nexttx.tx_hash,
-                nexttx.tx_id,
-                txin.txin_pos,
-                pubkey.pubkey_hash
-              FROM txout
-              LEFT JOIN txin ON (txin.txout_id = txout.txout_id)
-              LEFT JOIN pubkey ON (pubkey.pubkey_id = txout.pubkey_id)
-              LEFT JOIN tx nexttx ON (txin.tx_id = nexttx.tx_id)
-             WHERE txout.tx_id = %d 
-             ORDER BY txout.txout_pos
-        """%(tx_id), (), lock)
-
-    def get_tx_inputs(self, tx_id, lock=True):
-        return self.safe_sql(""" SELECT
-                txin.txin_pos,
-                txin.txin_scriptSig,
-                txout.txout_value,
-                COALESCE(prevtx.tx_hash, u.txout_tx_hash),
-                prevtx.tx_id,
-                COALESCE(txout.txout_pos, u.txout_pos),
-                pubkey.pubkey_hash
-              FROM txin
-              LEFT JOIN txout ON (txout.txout_id = txin.txout_id)
-              LEFT JOIN pubkey ON (pubkey.pubkey_id = txout.pubkey_id)
-              LEFT JOIN tx prevtx ON (txout.tx_id = prevtx.tx_id)
-              LEFT JOIN unlinked_txin u ON (u.txin_id = txin.txin_id)
-             WHERE txin.tx_id = %d
-             ORDER BY txin.txin_pos
-             """%(tx_id,), (), lock)
-
-    def get_address_out_rows(self, dbhash):
-        return self.safe_sql(""" SELECT
-                b.block_nTime,
-                cc.chain_id,
-                b.block_height,
-                1,
-                b.block_hash,
-                tx.tx_hash,
-                tx.tx_id,
-                txin.txin_pos,
-                -prevout.txout_value
-              FROM chain_candidate cc
-              JOIN block b ON (b.block_id = cc.block_id)
-              JOIN block_tx ON (block_tx.block_id = b.block_id)
-              JOIN tx ON (tx.tx_id = block_tx.tx_id)
-              JOIN txin ON (txin.tx_id = tx.tx_id)
-              JOIN txout prevout ON (txin.txout_id = prevout.txout_id)
-              JOIN pubkey ON (pubkey.pubkey_id = prevout.pubkey_id)
-             WHERE pubkey.pubkey_hash = ?
-               AND cc.in_longest = 1""", (dbhash,))
-
-    def get_address_out_rows_memorypool(self, dbhash):
-        return self.safe_sql(""" SELECT
-                1,
-                tx.tx_hash,
-                tx.tx_id,
-                txin.txin_pos,
-                -prevout.txout_value
-              FROM tx 
-              JOIN txin ON (txin.tx_id = tx.tx_id)
-              JOIN txout prevout ON (txin.txout_id = prevout.txout_id)
-              JOIN pubkey ON (pubkey.pubkey_id = prevout.pubkey_id)
-             WHERE pubkey.pubkey_hash = ? """, (dbhash,))
-
-    def get_address_in_rows(self, dbhash):
-        return self.safe_sql(""" SELECT
-                b.block_nTime,
-                cc.chain_id,
-                b.block_height,
-                0,
-                b.block_hash,
-                tx.tx_hash,
-                tx.tx_id,
-                txout.txout_pos,
-                txout.txout_value
-              FROM chain_candidate cc
-              JOIN block b ON (b.block_id = cc.block_id)
-              JOIN block_tx ON (block_tx.block_id = b.block_id)
-              JOIN tx ON (tx.tx_id = block_tx.tx_id)
-              JOIN txout ON (txout.tx_id = tx.tx_id)
-              JOIN pubkey ON (pubkey.pubkey_id = txout.pubkey_id)
-             WHERE pubkey.pubkey_hash = ?
-               AND cc.in_longest = 1""", (dbhash,))
-
-    def get_address_in_rows_memorypool(self, dbhash):
-        return self.safe_sql( """ SELECT
-                0,
-                tx.tx_hash,
-                tx.tx_id,
-                txout.txout_pos,
-                txout.txout_value
-              FROM tx
-              JOIN txout ON (txout.tx_id = tx.tx_id)
-              JOIN pubkey ON (pubkey.pubkey_id = txout.pubkey_id)
-             WHERE pubkey.pubkey_hash = ? """, (dbhash,))
-
-    def get_history(self, addr):
-        
-        cached_version = self.tx_cache.get( addr )
-        if cached_version is not None:
-            return cached_version
-
-        version, binaddr = decode_check_address(addr)
-        if binaddr is None:
-            return None
-
-        dbhash = self.binin(binaddr)
-        rows = []
-        rows += self.get_address_out_rows( dbhash )
-        rows += self.get_address_in_rows( dbhash )
-
-        txpoints = []
-        known_tx = []
-
-        for row in rows:
-            try:
-                nTime, chain_id, height, is_in, blk_hash, tx_hash, tx_id, pos, value = row
-            except:
-                print "cannot unpack row", row
-                break
-            tx_hash = self.hashout_hex(tx_hash)
-            txpoint = {
-                    "nTime":    int(nTime),
-                    "height":   int(height),
-                    "is_in":    int(is_in),
-                    "blk_hash": self.hashout_hex(blk_hash),
-                    "tx_hash":  tx_hash,
-                    "tx_id":    int(tx_id),
-                    "pos":      int(pos),
-                    "value":    int(value),
-                    }
-
-            txpoints.append(txpoint)
-            known_tx.append(self.hashout_hex(tx_hash))
-
-
-        # todo: sort them really...
-        txpoints = sorted(txpoints, key=operator.itemgetter("nTime"))
-
-        # read memory pool
-        rows = []
-        rows += self.get_address_in_rows_memorypool( dbhash )
-        rows += self.get_address_out_rows_memorypool( dbhash )
-        address_has_mempool = False
-
-        for row in rows:
-            is_in, tx_hash, tx_id, pos, value = row
-            tx_hash = self.hashout_hex(tx_hash)
-            if tx_hash in known_tx:
-                continue
-
-            # this means that pending transactions were added to the db, even if they are not returned by getmemorypool
-            address_has_mempool = True
-
-            # this means pending transactions are returned by getmemorypool
-            if tx_hash not in self.mempool_keys:
-                continue
-
-            #print "mempool", tx_hash
-            txpoint = {
-                    "nTime":    0,
-                    "height":   0,
-                    "is_in":    int(is_in),
-                    "blk_hash": 'mempool', 
-                    "tx_hash":  tx_hash,
-                    "tx_id":    int(tx_id),
-                    "pos":      int(pos),
-                    "value":    int(value),
-                    }
-            txpoints.append(txpoint)
-
-
-        for txpoint in txpoints:
-            tx_id = txpoint['tx_id']
-            
-            txinputs = []
-            inrows = self.get_tx_inputs(tx_id)
-            for row in inrows:
-                _hash = self.binout(row[6])
-                address = hash_to_address(chr(0), _hash)
-                txinputs.append(address)
-            txpoint['inputs'] = txinputs
-            txoutputs = []
-            outrows = self.get_tx_outputs(tx_id)
-            for row in outrows:
-                _hash = self.binout(row[6])
-                address = hash_to_address(chr(0), _hash)
-                txoutputs.append(address)
-            txpoint['outputs'] = txoutputs
-
-            # for all unspent inputs, I want their scriptpubkey. (actually I could deduce it from the address)
-            if not txpoint['is_in']:
-                # detect if already redeemed...
-                for row in outrows:
-                    if row[6] == dbhash: break
-                else:
-                    raise
-                #row = self.get_tx_output(tx_id,dbhash)
-                # pos, script, value, o_hash, o_id, o_pos, binaddr = row
-                # if not redeemed, we add the script
-                if row:
-                    if not row[4]: txpoint['raw_scriptPubKey'] = row[1]
-
-        # cache result
-        if not address_has_mempool:
-            self.tx_cache[addr] = txpoints
-        
-        return txpoints
 
 
 
@@ -403,19 +138,6 @@ def cmd_load(_,__,pw):
         return 'wrong password'
 
 
-def clear_cache(_,__,pw):
-    if password == pw:
-        store.tx_cache = {}
-        return 'ok'
-    else:
-        return 'wrong password'
-
-def get_cache(_,__,pw,addr):
-    if password == pw:
-        return store.tx_cache.get(addr)
-    else:
-        return 'wrong password'
-
 
 
 
@@ -427,7 +149,6 @@ def modified_addresses(session):
         ret = {}
         k = 0
         for addr in addresses:
-            if store.tx_cache.get( addr ) is not None: k += 1
             status = get_address_status( addr )
             msg_id, last_status = addresses.get( addr )
             if last_status != status:
@@ -874,34 +595,6 @@ def process_output_queue():
 ####################################################################
 
 
-def memorypool_update(store):
-
-    ds = BCDataStream.BCDataStream()
-    previous_transactions = store.mempool_keys
-    store.mempool_keys = []
-
-    postdata = dumps({"method": 'getmemorypool', 'params': [], 'id':'jsonrpc'})
-    respdata = urllib.urlopen(bitcoind_url, postdata).read()
-    r = loads(respdata)
-    if r['error'] != None:
-        return
-
-    v = r['result'].get('transactions')
-    for hextx in v:
-        ds.clear()
-        ds.write(hextx.decode('hex'))
-        tx = deserialize.parse_Transaction(ds)
-        tx['hash'] = util.double_sha256(tx['tx'])
-        tx_hash = store.hashin(tx['hash'])
-
-        store.mempool_keys.append(tx_hash)
-        if store.tx_find_id_and_value(tx):
-            pass
-        else:
-            tx_id = store.import_tx(tx, False)
-            store.update_tx_cache(tx_id)
-
-    store.commit()
 
 
 def clean_session_thread():
@@ -961,7 +654,7 @@ def irc_thread():
 def get_peers_json(_,__):
     return peer_list.values()
 
-def http_server_thread(store):
+def http_server_thread():
     # see http://code.google.com/p/jsonrpclib/
     from SocketServer import ThreadingMixIn
     from StratumJSONRPCServer import StratumJSONRPCServer
@@ -970,8 +663,6 @@ def http_server_thread(store):
     server.register_function(get_peers_json, 'server.peers')
     server.register_function(cmd_stop, 'stop')
     server.register_function(cmd_load, 'load')
-    server.register_function(clear_cache, 'clear_cache')
-    server.register_function(get_cache, 'get_cache')
     server.register_function(get_banner, 'server.banner')
     server.register_function(lambda a,b,c: send_tx(c), 'transaction.broadcast')
     server.register_function(address_get_history_json, 'address.get_history')
@@ -1014,52 +705,30 @@ if __name__ == '__main__':
         sys.exit(0)
 
 
-    print "starting Electrum server"
+    # backend
+    import db
+    store = db.MyStore(config,address_queue)
 
-    conf = DataStore.CONFIG_DEFAULTS
-    args, argv = readconf.parse_argv( [], conf)
-    args.dbtype= config.get('database','type')
-    if args.dbtype == 'sqlite3':
-	args.connect_args = { 'database' : config.get('database','database') }
-    elif args.dbtype == 'MySQLdb':
-	args.connect_args = { 'db' : config.get('database','database'), 'user' : config.get('database','username'), 'passwd' : config.get('database','password') }
-    elif args.dbtype == 'psycopg2':
-	args.connect_args = { 'database' : config.get('database','database') }
-    store = MyStore(args)
-    store.tx_cache = {}
-    store.mempool_keys = {}
 
     # supported protocols
     thread.start_new_thread(native_server_thread, ())
     thread.start_new_thread(tcp_server_thread, ())
-    thread.start_new_thread(http_server_thread, (store,))
-
+    thread.start_new_thread(http_server_thread, ())
     thread.start_new_thread(clean_session_thread, ())
 
     if (config.get('server','irc') == 'yes' ):
 	thread.start_new_thread(irc_thread, ())
 
+    print "starting Electrum server"
+
+
     while not stopping:
-        try:
-            dblock.acquire()
-            store.catch_up()
-            memorypool_update(store)
+        block_number = store.main_iteration()
 
-            block_number = store.get_block_number(1)
-            if block_number != old_block_number:
-                old_block_number = block_number
-                for session_id in sessions_sub_numblocks.keys():
-                    send_numblocks(session_id)
-
-        except IOError:
-            print "IOError: cannot reach bitcoind"
-            block_number = 0
-        except:
-            traceback.print_exc(file=sys.stdout)
-            block_number = 0
-        finally:
-            dblock.release()
-
+        if block_number != old_block_number:
+            old_block_number = block_number
+            for session_id in sessions_sub_numblocks.keys():
+                send_numblocks(session_id)
         # do addresses
         while True:
             try:
@@ -1069,6 +738,5 @@ if __name__ == '__main__':
             do_update_address(addr)
 
         time.sleep(10)
-
     print "server stopped"
 
