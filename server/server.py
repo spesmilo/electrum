@@ -32,11 +32,6 @@ import ConfigParser
 from json import dumps, loads
 import urllib
 
-# we need to import electrum
-sys.path.append('../client/')
-from wallet import Wallet
-from interface import Interface
-
 
 config = ConfigParser.ConfigParser()
 # set some defaults, which will be overwritten by the config file
@@ -88,32 +83,6 @@ address_queue = Queue()
 
 
 
-
-class Direct_Interface(Interface):
-    def __init__(self):
-        pass
-
-    def handler(self, method, params = ''):
-        cmds = {'session.new':new_session,
-                'session.poll':poll_session,
-                'session.update':update_session,
-                'transaction.broadcast':send_tx,
-                'address.get_history':store.get_history
-                }
-        func = cmds[method]
-        return func( params )
-
-
-
-def send_tx(tx):
-    postdata = dumps({"method": 'importtransaction', 'params': [tx], 'id':'jsonrpc'})
-    respdata = urllib.urlopen(bitcoind_url, postdata).read()
-    r = loads(respdata)
-    if r['error'] != None:
-        out = "error: transaction rejected by memorypool\n"+tx
-    else:
-        out = r['result']
-    return out
 
 
 
@@ -378,7 +347,7 @@ def do_command(cmd, data, ipaddr):
         try:
             session_id, addr = ast.literal_eval(data)
         except:
-            print "error"
+            traceback.print_exc(file=sys.stdout)
             return None
         out = add_address_to_session(session_id,addr)
 
@@ -386,57 +355,10 @@ def do_command(cmd, data, ipaddr):
         try:
             session_id, addresses = ast.literal_eval(data)
         except:
-            print "error"
+            traceback.print_exc(file=sys.stdout)
             return None
         print timestr(), "update session", ipaddr, addresses[0] if addresses else addresses, len(addresses)
         out = update_session(session_id,addresses)
-
-    elif cmd == 'bccapi_login':
-        import electrum
-        print "data",data
-        v, k = ast.literal_eval(data)
-        master_public_key = k.decode('hex') # todo: sanitize. no need to decode twice...
-        print master_public_key
-        wallet_id = random_string(10)
-        w = Wallet( Direct_Interface() )
-        w.master_public_key = master_public_key.decode('hex')
-        w.synchronize()
-        wallets[wallet_id] = w
-        out = wallet_id
-        print "wallets", wallets
-
-    elif cmd == 'bccapi_getAccountInfo':
-        from wallet import int_to_hex
-        v, wallet_id = ast.literal_eval(data)
-        w = wallets.get(wallet_id)
-        if w is not None:
-            num = len(w.addresses)
-            c, u = w.get_balance()
-            out = int_to_hex(num,4) + int_to_hex(c,8) + int_to_hex( c+u, 8 )
-            out = out.decode('hex')
-        else:
-            print "error",data
-            out = "error"
-
-    elif cmd == 'bccapi_getAccountStatement':
-        from wallet import int_to_hex
-        v, wallet_id = ast.literal_eval(data)
-        w = wallets.get(wallet_id)
-        if w is not None:
-            num = len(w.addresses)
-            c, u = w.get_balance()
-            total_records = num_records = 0
-            out = int_to_hex(num,4) + int_to_hex(c,8) + int_to_hex( c+u, 8 ) + int_to_hex( total_records ) + int_to_hex( num_records )
-            out = out.decode('hex')
-        else:
-            print "error",data
-            out = "error"
-
-    elif cmd == 'bccapi_getSendCoinForm':
-        out = ''
-
-    elif cmd == 'bccapi_submitTransaction':
-        out = ''
             
     elif cmd=='poll': 
         out = poll_session(data)
@@ -450,7 +372,7 @@ def do_command(cmd, data, ipaddr):
         out = cmd_load(None,None,data)
 
     elif cmd =='tx':
-        out = send_tx(data)
+        out = store.send_tx(data)
         print timestr(), "sent tx:", ipaddr, out
 
     elif cmd == 'stop':
@@ -664,7 +586,7 @@ def http_server_thread():
     server.register_function(cmd_stop, 'stop')
     server.register_function(cmd_load, 'load')
     server.register_function(get_banner, 'server.banner')
-    server.register_function(lambda a,b,c: send_tx(c), 'transaction.broadcast')
+    server.register_function(lambda a,b,c: store.send_tx(c), 'transaction.broadcast')
     server.register_function(address_get_history_json, 'address.get_history')
     server.register_function(add_address_to_session_json, 'address.subscribe')
     server.register_function(subscribe_to_numblocks_json, 'numblocks.subscribe')
@@ -708,7 +630,6 @@ if __name__ == '__main__':
     # backend
     import db
     store = db.MyStore(config,address_queue)
-
 
     # supported protocols
     thread.start_new_thread(native_server_thread, ())

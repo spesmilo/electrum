@@ -340,6 +340,20 @@ class MyStore(Datastore_class):
         store.commit()
 
 
+
+    def send_tx(self,tx):
+        postdata = dumps({"method": 'importtransaction', 'params': [tx], 'id':'jsonrpc'})
+        respdata = urllib.urlopen(self.bitcoind_url, postdata).read()
+        r = loads(respdata)
+        if r['error'] != None:
+            out = "error: transaction rejected by memorypool\n"+tx
+        else:
+            out = r['result']
+        return out
+
+
+
+
     def main_iteration(store):
         try:
             dblock.acquire()
