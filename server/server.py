@@ -138,19 +138,6 @@ def cmd_load(_,__,pw):
         return 'wrong password'
 
 
-def clear_cache(_,__,pw):
-    if password == pw:
-        store.tx_cache = {}
-        return 'ok'
-    else:
-        return 'wrong password'
-
-def get_cache(_,__,pw,addr):
-    if password == pw:
-        return store.tx_cache.get(addr)
-    else:
-        return 'wrong password'
-
 
 
 
@@ -162,7 +149,6 @@ def modified_addresses(session):
         ret = {}
         k = 0
         for addr in addresses:
-            if store.tx_cache.get( addr ) is not None: k += 1
             status = get_address_status( addr )
             msg_id, last_status = addresses.get( addr )
             if last_status != status:
@@ -677,8 +663,6 @@ def http_server_thread(store):
     server.register_function(get_peers_json, 'server.peers')
     server.register_function(cmd_stop, 'stop')
     server.register_function(cmd_load, 'load')
-    server.register_function(clear_cache, 'clear_cache')
-    server.register_function(get_cache, 'get_cache')
     server.register_function(get_banner, 'server.banner')
     server.register_function(lambda a,b,c: send_tx(c), 'transaction.broadcast')
     server.register_function(address_get_history_json, 'address.get_history')
