@@ -654,7 +654,7 @@ def irc_thread():
 def get_peers_json(_,__):
     return peer_list.values()
 
-def http_server_thread(store):
+def http_server_thread():
     # see http://code.google.com/p/jsonrpclib/
     from SocketServer import ThreadingMixIn
     from StratumJSONRPCServer import StratumJSONRPCServer
@@ -713,7 +713,7 @@ if __name__ == '__main__':
     # supported protocols
     thread.start_new_thread(native_server_thread, ())
     thread.start_new_thread(tcp_server_thread, ())
-    thread.start_new_thread(http_server_thread, (store,))
+    thread.start_new_thread(http_server_thread, ())
     thread.start_new_thread(clean_session_thread, ())
 
     if (config.get('server','irc') == 'yes' ):
