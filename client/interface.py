@@ -126,15 +126,14 @@ class Interface:
             self.tx_event.set()
 
         elif method == 'numblocks.subscribe':
-            print "numblocks", result
             self.blocks = result
             if self.newblock_callback: apply(self.newblock_callback,(result,))
 
-        elif method == 'ping':
+        elif method == 'client.version':
             pass
 
         else:
-            print "received message:", method, params, result
+            print "unknown message:", method, params, result
 
 
     def subscribe(self, addresses):
@@ -321,7 +320,7 @@ class HttpInterface(PollingInterface):
 
         response = response_stream.read()
         if response: 
-            print "response",response
+            #print "response",response
             response = json.loads( response )
             if type(response) is not type([]):
                 self.handle_json_response(response)
