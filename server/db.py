@@ -24,11 +24,10 @@ import psycopg2, binascii
 import thread, traceback, sys, urllib, operator
 from json import dumps, loads
 
-dblock = thread.allocate_lock()
 
 class MyStore(Datastore_class):
 
-    def __init__(self,config, address_queue):
+    def __init__(self, config, address_queue):
         conf = DataStore.CONFIG_DEFAULTS
         args, argv = readconf.parse_argv( [], conf)
         args.dbtype = config.get('database','type')
@@ -46,12 +45,13 @@ class MyStore(Datastore_class):
         self.bitcoind_url = 'http://%s:%s@%s:%s/' % ( config.get('bitcoind','user'), config.get('bitcoind','password'), config.get('bitcoind','host'), config.get('bitcoind','port'))
 
         self.address_queue = address_queue
+        self.dblock = thread.allocate_lock()
 
 
 
     def import_block(self, b, chain_ids=frozenset()):
         block_id = super(MyStore, self).import_block(b, chain_ids)
-        #print "block", block_id
+        print "import block", block_id
         for pos in xrange(len(b['transactions'])):
             tx = b['transactions'][pos]
             if 'hash' not in tx:
@@ -85,9 +85,9 @@ class MyStore(Datastore_class):
 
     def safe_sql(self,sql, params=(), lock=True):
         try:
-            if lock: dblock.acquire()
+            if lock: self.dblock.acquire()
             ret = self.selectall(sql,params)
-            if lock: dblock.release()
+            if lock: self.dblock.release()
             return ret
         except:
             print "sql error", sql
@@ -330,17 +330,6 @@ class MyStore(Datastore_class):
             tx['hash'] = util.double_sha256(tx['tx'])
             tx_hash = store.hashin(tx['hash'])
 
-            store.mempool_keys.append(tx_hash)
-            if store.tx_find_id_and_value(tx):
-                pass
-            else:
-                tx_id = store.import_tx(tx, False)
-                store.update_tx_cache(tx_id)
-
-        store.commit()
-
-
-
     def send_tx(self,tx):
         postdata = dumps({"method": 'importtransaction', 'params': [tx], 'id':'jsonrpc'})
         respdata = urllib.urlopen(self.bitcoind_url, postdata).read()
@@ -352,15 +341,14 @@ class MyStore(Datastore_class):
         return out
 
 
-
-
     def main_iteration(store):
         try:
-            dblock.acquire()
+            store.dblock.acquire()
             store.catch_up()
             store.memorypool_update()
 
             block_number = store.get_block_number(1)
+            print block_number
 
         except IOError:
             print "IOError: cannot reach bitcoind"
@@ -369,8 +357,27 @@ class MyStore(Datastore_class):
             traceback.print_exc(file=sys.stdout)
             block_number = 0
         finally:
-            dblock.release()
+            store.dblock.release()
+
 
         return block_number
 
 
+if __name__ == '__main__':
+    import Queue, ConfigParser
+
+    config = ConfigParser.ConfigParser()
+    config.add_section('database')
+    config.set('database', 'type', 'psycopg2')
+    config.set('database', 'database', 'abe')
+
+    try:
+        f = open('/etc/electrum.conf','r')
+        config.readfp(f)
+        f.close()
+    except:
+        print "Could not read electrum.conf. I will use the default values."
+
+    address_queue = Queue.Queue()
+    store = MyStore(config,address_queue)
+    store.main_iteration()
