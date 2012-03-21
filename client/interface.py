@@ -236,6 +236,9 @@ class NativeInterface(PollingInterface):
             if cmd == 'poll':
                 params = self.session_id
 
+            if cmd == 'address.subscribe':
+                params = [ self.session_id] +  params
+
             if cmd in ['h', 'tx']:
                 str_params = params[0]
             elif type(params) != type(''): 
@@ -369,7 +372,7 @@ class AsynchronousInterface(Interface):
         self.is_connected = False
         self.disconnected_event.set()
 
-    def update_wallet(self,cb):
+    def update_wallet(self):
         self.up_to_date_event.wait()
 
     def send(self, messages):
