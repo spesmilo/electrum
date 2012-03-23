@@ -26,11 +26,13 @@ from decimal import Decimal
 from wallet import format_satoshis
 from interface import loop_interfaces_thread, new_interface
 
+known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'restore', 'payto', 'sendtx', 'password', 'addresses', 'history', 'label', 'mktx','seed','import','signmessage','verifymessage','eval']
+offline_commands = ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create', 'addresses', 'import', 'seed']:
+protected_commands = ['payto', 'password', 'mktx', 'seed', 'import','signmessage' ]
+
 if __name__ == '__main__':
-    known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'restore', 'payto', 'sendtx', 'password', 'addresses', 'history', 'label', 'mktx','seed','import','signmessage','verifymessage','eval']
 
     usage = "usage: %prog [options] command args\nCommands: "+ (', '.join(known_commands))
-
     parser = OptionParser(usage=usage)
     parser.add_option("-g", "--gui", dest="gui", default="qt", help="gui")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
@@ -163,7 +165,7 @@ if __name__ == '__main__':
             cmd = 'help'
 
     # open session
-    if cmd not in ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create', 'addresses', 'import', 'seed']:
+    if cmd not in offline_commands:
         addresses = wallet.all_addresses()
         version = wallet.electrum_version
         interface.start_session(addresses, version)
@@ -179,7 +181,7 @@ if __name__ == '__main__':
             is_temporary = True
                 
     # commands needing password
-    if cmd in ['payto', 'password', 'mktx', 'seed', 'import','signmessage' ] or ( cmd=='addresses' and options.show_keys):
+    if cmd in protected_commands or ( cmd=='addresses' and options.show_keys):
         password = getpass.getpass('Password:') if wallet.use_encryption and not is_temporary else None
         # check password
         try:
