@@ -960,8 +960,7 @@ class Wallet:
 
     def run(self):
         while self.interface.is_connected:
-            # the interface should use an input queue for requests so that we don't care about synchronous
-            new_addresses = self.synchronize() # in synchronous mode, this puts new responses in the queue
+            new_addresses = self.synchronize()
             self.interface.subscribe(new_addresses)
             if self.interface.is_up_to_date() and not new_addresses:
                 self.up_to_date = True
