@@ -25,18 +25,14 @@ DEFAULT_SERVERS = ['electrum.bitcoins.sk','ecdsa.org','electrum.novit.ro']  # li
 
 
 class Interface:
-    def __init__(self, host, port, address_callback=None, history_callback=None, newblock_callback=None, sync_cb=None):
+    def __init__(self, host, port):
         self.host = host
         self.port = port
-        self.sync_callback = sync_cb
-        self.address_callback = address_callback
-        self.history_callback = history_callback
-        self.newblock_callback = newblock_callback
 
         self.servers = [] # actual list from IRC
         self.rtime = 0
 
-        self.is_connected = False
+        self.is_connected = True
 
         #only asynchrnous
         self.addresses_waiting_for_status = []
@@ -50,7 +46,7 @@ class Interface:
 
 
     def is_up_to_date(self):
-        return not ( self.addresses_waiting_for_status or self.addresses_waiting_for_history )
+        return self.responses.empty() and not ( self.addresses_waiting_for_status or self.addresses_waiting_for_history )
 
 
     def send_tx(self, data):
@@ -75,17 +71,19 @@ class Interface:
         if error:
             print "received error:", c, method, params
         else:
-            #self.handle_response(method, params, result)
-            if method == 'address.subscribe':
-                addr = params[-1]
-                if addr in self.addresses_waiting_for_status:
-                    self.addresses_waiting_for_status.remove(addr)
-            elif method == 'address.get_history':
-                addr = params[0]
-                if addr in self.addresses_waiting_for_history:
-                    self.addresses_waiting_for_history.remove(addr)
+            self.update_waiting_lists(method, params)
             self.responses.put({'method':method, 'params':params, 'result':result})
 
+
+    def update_waiting_lists(self, method, params):
+        if method == 'address.subscribe':
+            addr = params[-1]
+            if addr in self.addresses_waiting_for_status:
+                self.addresses_waiting_for_status.remove(addr)
+        elif method == 'address.get_history':
+            addr = params[0]
+            if addr in self.addresses_waiting_for_history:
+                self.addresses_waiting_for_history.remove(addr)
 
 
     def subscribe(self, addresses):
@@ -215,6 +213,7 @@ class NativeInterface(PollingInterface):
             if cmd == 'new_session':
                 self.session_id, self.message = ast.literal_eval( out )
             else:
+                self.update_waiting_lists(method, params)
                 self.responses.put({'method':method, 'params':params, 'result':out})
 
 

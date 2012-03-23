@@ -950,12 +950,12 @@ class Wallet:
             if blocks == -1: raise BaseException("session not found")
             self.blocks = int(blocks)
             if changed_addresses:
-                self.is_up_to_date = False
+                #self.is_up_to_date = False
                 self.was_updated = True
                 for addr, status in changed_addresses.items():
                     self.receive_status_callback(addr, status)
-            else:
-                self.is_up_to_date = True
+            #else:
+            #    self.is_up_to_date = True
 
         elif method == 'server.peers':
             #print "Received server list: ", result
@@ -984,13 +984,16 @@ class Wallet:
         else:
             print "unknown message:", method, params, result
 
+
     def update(self):
         self.up_to_date_event.wait()
 
+
     def run(self):
         while self.interface.is_connected:
-            new = self.synchronize()
-            if self.interface.is_up_to_date() and not new:
+            # the interface should use an input queue for requests so that we don't care about synchronous
+            is_new = self.synchronize() # in synchronous mode, this puts new responses in the queue
+            if self.interface.is_up_to_date() and not is_new:
                 self.up_to_date = True
                 self.up_to_date_event.set()
             else:
