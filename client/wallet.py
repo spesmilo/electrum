@@ -270,6 +270,7 @@ class Wallet:
         self.banner = ''
         self.up_to_date_event = threading.Event()
         self.up_to_date_event.clear()
+        self.interface_lock = threading.Lock()
 
 
     def set_server(self, host, port):
@@ -315,11 +316,6 @@ class Wallet:
         self.init_mpk(seed)
         # encrypt
         self.seed = self.pw_encode( seed, password )
-
-        # create addresses
-        self.create_new_address_without_history(True)
-        for i in range(self.gap_limit):
-            self.create_new_address_without_history(False)
 
 
     def init_mpk(self,seed):
@@ -440,7 +436,7 @@ class Wallet:
             raise BaseException("Bad signature")
     
 
-    def create_new_address_without_history(self, for_change):
+    def create_new_address(self, for_change):
         """   Publickey(type,n) = Master_public_key + H(n|S|type)*point  """
         curve = SECP256k1
         n = len(self.change_addresses) if for_change else len(self.addresses)
@@ -460,48 +456,38 @@ class Wallet:
         return address
 
 
-    def create_new_address(self, bool):
-        address = self.create_new_address_without_history(bool)
-        self.interface.subscribe([address])
-        return address
-
 
     def synchronize(self):
         if not self.master_public_key:
-            return False
+            return []
 
-        is_new = False
+        new_addresses = []
         while True:
             if self.change_addresses == []:
-                self.create_new_address(True)
-                is_new = True
+                new_addresses.append( self.create_new_address(True) )
                 continue
             a = self.change_addresses[-1]
             if self.history.get(a):
-                self.create_new_address(True)
-                is_new = True
+                new_addresses.append( self.create_new_address(True) )
             else:
                 break
 
         n = self.gap_limit
         while True:
             if len(self.addresses) < n:
-                self.create_new_address(False)
-                is_new = True
+                new_addresses.append( self.create_new_address(False) )
                 continue
             if map( lambda a: self.history.get(a), self.addresses[-n:] ) == n*[[]]:
                 break
             else:
-                self.create_new_address(False)
-                is_new = True
+                new_addresses.append( self.create_new_address(False) )
 
         if self.remote_url:
             num = self.get_remote_number()
             while len(self.addresses)<num:
-                self.create_new_address(False)
-                is_new = True
+                new_addresses.append( self.create_new_address(False) )
 
-        return is_new
+        return new_addresses
 
 
     def get_remote_number(self):
@@ -601,17 +587,6 @@ class Wallet:
         #self.interface = interface.start_interface(self)
 
         
-    def get_new_address(self):
-        n = 0 
-        for addr in self.addresses[-self.gap_limit:]:
-            if not self.history.get(addr): 
-                n = n + 1
-        if n < self.gap_limit:
-            new_address = self.create_new_address(False)
-            self.history[new_address] = [] #get from server
-            return True, new_address
-        else:
-            return False, "The last %d addresses in your list have never been used. You should use them first, or increase the allowed gap size in your preferences. "%self.gap_limit
 
     def get_addr_balance(self, addr):
         if self.is_mine(addr):
@@ -986,8 +961,9 @@ class Wallet:
     def run(self):
         while self.interface.is_connected:
             # the interface should use an input queue for requests so that we don't care about synchronous
-            is_new = self.synchronize() # in synchronous mode, this puts new responses in the queue
-            if self.interface.is_up_to_date() and not is_new:
+            new_addresses = self.synchronize() # in synchronous mode, this puts new responses in the queue
+            self.interface.subscribe(new_addresses)
+            if self.interface.is_up_to_date() and not new_addresses:
                 self.up_to_date = True
                 self.up_to_date_event.set()
             else:
@@ -1018,3 +994,5 @@ class Wallet:
         version = self.electrum_version
         self.interface.start_session(addresses, version)
         print "Starting new session: %s:%d"%(self.host,self.port)
+
+        

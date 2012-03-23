@@ -136,8 +136,10 @@ if __name__ == '__main__':
             wallet.seed = str(seed)
             wallet.start_interface()
             print "recovering wallet..."
-            wallet.init_mpk( wallet.seed ) # not encrypted at this point
-            wallet.synchronize()
+            wallet.init_mpk( wallet.seed )
+            wallet.start_interface()
+            thread.start_new_thread(wallet.run, ())
+            wallet.update()
             if wallet.is_found():
                 wallet.fill_addressbook()
                 wallet.save()
@@ -146,6 +148,8 @@ if __name__ == '__main__':
                 print "found no history for this wallet"
         else:
             wallet.new_seed(None)
+            wallet.init_mpk( wallet.seed )
+            wallet.synchronize() # there is no wallet thread 
             wallet.save()
             print "Your wallet generation seed is: " + wallet.seed
             print "Please keep it in a safe place; if you lose it, you will not be able to restore your wallet."
