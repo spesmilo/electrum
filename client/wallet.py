@@ -992,6 +992,6 @@ class Wallet:
         addresses = self.all_addresses()
         version = self.electrum_version
         self.interface.start_session(addresses, version)
-        print "Starting new session: %s:%d"%(self.host,self.port)
+        #print "Starting new session: %s:%d"%(self.host,self.port)
 
         
