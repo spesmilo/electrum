@@ -959,7 +959,7 @@ class Wallet:
 
         elif method == 'server.peers':
             #print "Received server list: ", result
-            self.servers = map( lambda x:x[1], result )
+            self.interface.servers = map( lambda x:x[1], result )
 
         elif method == 'address.subscribe':
             addr = params[-1]
