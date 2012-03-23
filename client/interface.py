@@ -345,7 +345,6 @@ def loop_interfaces_thread(wallet):
         try:
             wallet.start_interface()
             wallet.run()
-            print "Disconnected"
         except socket.error:
             print "socket error"
             time.sleep(5)

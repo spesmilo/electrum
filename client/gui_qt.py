@@ -773,8 +773,8 @@ class ElectrumWindow(QMainWindow):
         try:
             gap = int(unicode(gap_e.text()))
         except:
-            show_message("error")
-            sys.exit(1)
+            QMessageBox.warning(None, 'Error', 'error', 'OK')
+            sys.exit(0)
 
         try:
             seed = unicode(seed_e.text())
@@ -784,8 +784,8 @@ class ElectrumWindow(QMainWindow):
             print "not hex, trying decode"
             seed = mnemonic.mn_decode( seed.split(' ') )
         if not seed:
-            show_message("no seed")
-            sys.exit(1)
+            QMessageBox.warning(None, 'Error', 'no seed', 'OK')
+            sys.exit(0)
         
         wallet.seed = str(seed)
         #print repr(wallet.seed)
@@ -895,7 +895,7 @@ class ElectrumWindow(QMainWindow):
                 host = hh
                 port = wallet.port
         except:
-            show_message("error")
+            QMessageBox.information(None, 'Error', 'error', 'OK')
             if parent == None:
                 sys.exit(1)
             else:

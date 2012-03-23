@@ -933,7 +933,6 @@ class Wallet:
 
     def handle_response(self, r):
         if r is None:
-            print "empty item"
             return
 
         method = r['method']
