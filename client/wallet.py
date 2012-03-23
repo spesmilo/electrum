@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import sys, base64, os, re, hashlib, copy, operator, ast, threading
+import sys, base64, os, re, hashlib, copy, operator, ast, threading, random
 
 try:
     import ecdsa  
@@ -230,6 +230,8 @@ def format_satoshis(x, is_diff=False):
 
 
 from version import ELECTRUM_VERSION, SEED_VERSION
+from interface import NativeInterface, AsynchronousInterface, HttpInterface, DEFAULT_SERVERS
+
 
 DEFAULT_PORT = 50000
 
@@ -258,6 +260,9 @@ class Wallet:
         self.receipts = {}           # signed URIs
         self.receipt = None          # next receipt
         self.addressbook = []        # outgoing addresses, for payments
+
+        self.host = random.choice( DEFAULT_SERVERS )         # random choice when the wallet is created
+        self.port = DEFAULT_PORT
 
         # not saved
         self.tx_history = {}
@@ -523,7 +528,6 @@ class Wallet:
             'fee':self.fee,
             'host':self.host,
             'port':self.port,
-            #'blocks':self.interface.blocks,
             'seed':self.seed,
             'addresses':self.addresses,
             'change_addresses':self.change_addresses,
@@ -550,8 +554,6 @@ class Wallet:
             data = f.read()
             f.close()
         except:
-            self.host = ''
-            self.port = DEFAULT_PORT
             return
         try:
             d = ast.literal_eval( data )
@@ -972,12 +974,6 @@ class Wallet:
             self.handle_response(response)
 
     def start_interface(self):
-        from interface import NativeInterface, AsynchronousInterface, HttpInterface, DEFAULT_SERVERS
-        import random
-
-        if not self.host:
-            self.host = random.choice( DEFAULT_SERVERS )         # random choice when the wallet is created
-        
         if self.port == 50000:
             InterfaceClass = NativeInterface
         elif self.port == 50001:
