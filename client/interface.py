@@ -338,38 +338,13 @@ class AsynchronousInterface(Interface):
 
 
 
-def new_interface(wallet):
-    if wallet.host:
-        host = wallet.host
-    else:
-        host = random.choice( DEFAULT_SERVERS )         # random choice when the wallet is created
-    port = wallet.port
-
-    if port == 50000:
-        InterfaceClass = NativeInterface
-    elif port == 50001:
-        InterfaceClass = AsynchronousInterface
-    elif port in [80, 81, 8080, 8081]:
-        InterfaceClass = HttpInterface
-    else:
-        print "unknown port number: %d. using native protocol."%port
-        InterfaceClass = NativeInterface
-
-    interface = InterfaceClass(host, port)
     
-    return interface
-
 
 def loop_interfaces_thread(wallet):
-    
     while True:
-        interface = wallet.interface
         try:
-            addresses = wallet.all_addresses()
-            version = wallet.electrum_version
-            interface.start_session(addresses, version)
+            wallet.start_interface()
             wallet.run()
-
             print "Disconnected"
         except socket.error:
             print "socket error"
@@ -379,5 +354,3 @@ def loop_interfaces_thread(wallet):
             time.sleep(5)
             continue
 
-        print "Starting new session: %s:%d"%(wallet.host,wallet.port)
-        wallet.interface = new_interface(wallet)

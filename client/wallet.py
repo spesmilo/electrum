@@ -1002,3 +1002,25 @@ class Wallet:
             response = self.interface.responses.get()
             self.handle_response(response)
 
+    def start_interface(self):
+        from interface import NativeInterface, AsynchronousInterface, HttpInterface, DEFAULT_SERVERS
+        import random
+
+        if not self.host:
+            self.host = random.choice( DEFAULT_SERVERS )         # random choice when the wallet is created
+        
+        if self.port == 50000:
+            InterfaceClass = NativeInterface
+        elif self.port == 50001:
+            InterfaceClass = AsynchronousInterface
+        elif self.port in [80, 81, 8080, 8081]:
+            InterfaceClass = HttpInterface
+        else:
+            print "unknown port number: %d. using native protocol."%self.port
+            InterfaceClass = NativeInterface
+
+        self.interface = InterfaceClass(self.host, self.port)
+        addresses = self.all_addresses()
+        version = self.electrum_version
+        self.interface.start_session(addresses, version)
+        print "Starting new session: %s:%d"%(self.host,self.port)
