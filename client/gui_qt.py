@@ -925,8 +925,9 @@ class ElectrumGui():
 
         if not is_recovery:
             wallet.new_seed(None)
-            # generate first key
-            #wallet.synchronize()
+            wallet.init_mpk( wallet.seed )
+            wallet.up_to_date_event.clear()
+            wallet.update()
             # run a dialog indicating the seed, ask the user to remember it
             ElectrumWindow.show_seed_dialog(wallet)
             #ask for password
@@ -936,6 +937,8 @@ class ElectrumGui():
             if not ElectrumWindow.seed_dialog( wallet ): return False
             wallet.init_mpk( wallet.seed )  # not encrypted at this point
             #wallet.synchronize()
+            wallet.up_to_date_event.clear()
+            wallet.update()
 
             if wallet.is_found():
                 # history and addressbook

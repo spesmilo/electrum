@@ -112,12 +112,12 @@ if __name__ == '__main__':
         else:
             password = None
 
-        host = raw_input("server (default:%s):"%interface.host)
-        port = raw_input("port (default:%d):"%interface.port)
+        host = raw_input("server (default:%s):"%wallet.host)
+        port = raw_input("port (default:%d):"%wallet.port)
         fee = raw_input("fee (default:%s):"%( str(Decimal(wallet.fee)/100000000)) )
         gap = raw_input("gap limit (default 5):")
-        if host: interface.host = host
-        if port: interface.port = int(port)
+        if host: wallet.host = host
+        if port: wallet.port = int(port)
         if fee: wallet.fee = float(fee)
         if gap: wallet.gap_limit = int(gap)
 
@@ -133,6 +133,7 @@ if __name__ == '__main__':
                 sys.exit(1)
 
             wallet.seed = str(seed)
+            wallet.start_interface()
             print "recovering wallet..."
             wallet.init_mpk( wallet.seed ) # not encrypted at this point
             wallet.synchronize()
