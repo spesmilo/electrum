@@ -187,10 +187,10 @@ class ElectrumWindow(QMainWindow):
 
     def update_wallet(self):
         if self.wallet.interface.is_connected:
-            if self.wallet.interface.blocks == 0:
+            if self.wallet.blocks == 0:
                 text = "Server not ready"
                 icon = QIcon(":icons/status_disconnected.png")
-            elif not self.wallet.interface.is_up_to_date:
+            elif not self.wallet.up_to_date:
                 text = "Synchronizing..."
                 icon = QIcon(":icons/status_waiting.png")
             else:
@@ -208,9 +208,9 @@ class ElectrumWindow(QMainWindow):
         self.statusBar().showMessage(text)
         self.status_button.setIcon( icon )
 
-        if self.wallet.interface.was_updated and self.wallet.interface.is_up_to_date:
-            self.wallet.interface.was_updated = False
-            self.textbox.setText( self.wallet.interface.message )
+        if self.wallet.was_updated and self.wallet.up_to_date:
+            self.wallet.was_updated = False
+            self.textbox.setText( self.wallet.banner )
             self.update_history_tab()
             self.update_receive_tab()
             self.update_contacts_tab()
@@ -236,7 +236,7 @@ class ElectrumWindow(QMainWindow):
         tx = self.wallet.tx_history.get(tx_hash)
 
         if tx['height']:
-            conf = self.wallet.interface.blocks - tx['height'] + 1
+            conf = self.wallet.blocks - tx['height'] + 1
             time_str = datetime.datetime.fromtimestamp( tx['nTime']).isoformat(' ')[:-3]
         else:
             conf = 0
@@ -309,7 +309,7 @@ class ElectrumWindow(QMainWindow):
         for tx in self.wallet.get_tx_history():
             tx_hash = tx['tx_hash']
             if tx['height']:
-                conf = self.wallet.interface.blocks - tx['height'] + 1
+                conf = self.wallet.blocks - tx['height'] + 1
                 time_str = datetime.datetime.fromtimestamp( tx['nTime']).isoformat(' ')[:-3]
                 icon = QIcon(":icons/confirmed.png")
             else:
@@ -832,7 +832,7 @@ class ElectrumWindow(QMainWindow):
         interface = wallet.interface
         if parent:
             if interface.is_connected:
-                status = "Connected to %s:%d\n%d blocks\nresponse time: %f"%(interface.host, interface.port, interface.blocks, interface.rtime)
+                status = "Connected to %s:%d\n%d blocks\nresponse time: %f"%(interface.host, interface.port, wallet.blocks, interface.rtime)
             else:
                 status = "Not connected"
             host = wallet.host
@@ -926,7 +926,7 @@ class ElectrumGui():
         if not is_recovery:
             wallet.new_seed(None)
             # generate first key
-            wallet.synchronize()
+            #wallet.synchronize()
             # run a dialog indicating the seed, ask the user to remember it
             ElectrumWindow.show_seed_dialog(wallet)
             #ask for password
@@ -935,7 +935,7 @@ class ElectrumGui():
             # ask for seed and gap.
             if not ElectrumWindow.seed_dialog( wallet ): return False
             wallet.init_mpk( wallet.seed )  # not encrypted at this point
-            wallet.synchronize()
+            #wallet.synchronize()
 
             if wallet.is_found():
                 # history and addressbook

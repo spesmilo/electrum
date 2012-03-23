@@ -22,6 +22,7 @@ from optparse import OptionParser
 from wallet import Wallet, SecretToASecret
 from decimal import Decimal
 
+import thread
 
 from wallet import format_satoshis
 from interface import loop_interfaces_thread, new_interface
@@ -62,8 +63,6 @@ if __name__ == '__main__':
         firstarg = args[1] if len(args) > 1 else ''
         
     if cmd == 'gui':
-        import thread
-
         if options.gui=='gtk':
             import gui
         elif options.gui=='qt':
@@ -169,7 +168,8 @@ if __name__ == '__main__':
         addresses = wallet.all_addresses()
         version = wallet.electrum_version
         interface.start_session(addresses, version)
-        interface.update_wallet()
+        thread.start_new_thread(wallet.run, ())
+        wallet.update()
         wallet.save()
 
     # check if --from_addr not in wallet (for mktx/payto)

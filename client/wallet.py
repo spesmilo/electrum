@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import sys, base64, os, re, hashlib, copy, operator, ast
+import sys, base64, os, re, hashlib, copy, operator, ast, threading
 
 try:
     import ecdsa  
@@ -265,6 +265,12 @@ class Wallet:
         self.imported_keys = {}
         self.remote_url = None
 
+        self.was_updated = False 
+        self.blocks = 0 
+        self.banner = ''
+        self.up_to_date_event = threading.Event()
+        self.up_to_date_event.clear()
+
 
     def set_server(self, host, port):
         if host!= self.host or port!=self.port:
@@ -461,6 +467,8 @@ class Wallet:
 
 
     def synchronize(self):
+        if not self.master_public_key:
+            return False
 
         is_new = False
         while True:
@@ -494,6 +502,7 @@ class Wallet:
                 is_new = True
 
         return is_new
+
 
     def get_remote_number(self):
         import jsonrpclib
@@ -708,7 +717,6 @@ class Wallet:
     def receive_history_callback(self, addr, data):
         #print "updating history for", addr
         self.history[addr] = data
-        self.synchronize()
         self.update_tx_history()
         self.save()
 
@@ -920,3 +928,74 @@ class Wallet:
                 address = address + ' <' + payto_address + '>'
 
         return address, amount, label, message, signature, identity, url
+
+
+
+    def handle_response(self, r):
+        if r is None:
+            print "empty item"
+            return
+
+        method = r['method']
+        params = r['params']
+        result = r['result']
+
+        if method == 'server.banner':
+            self.banner = result
+            self.was_updated = True
+
+        elif method == 'session.poll':
+            # native poll
+            blocks, changed_addresses = result 
+            if blocks == -1: raise BaseException("session not found")
+            self.blocks = int(blocks)
+            if changed_addresses:
+                self.is_up_to_date = False
+                self.was_updated = True
+                for addr, status in changed_addresses.items():
+                    self.receive_status_callback(addr, status)
+            else:
+                self.is_up_to_date = True
+
+        elif method == 'server.peers':
+            #print "Received server list: ", result
+            self.servers = map( lambda x:x[1], result )
+
+        elif method == 'address.subscribe':
+            addr = params[-1]
+            self.receive_status_callback(addr, result)
+                            
+        elif method == 'address.get_history':
+            addr = params[0]
+            self.receive_history_callback(addr, result)
+            self.was_updated = True
+
+        elif method == 'transaction.broadcast':
+            self.tx_result = result
+            self.tx_event.set()
+
+        elif method == 'numblocks.subscribe':
+            self.blocks = result
+            #self.newblock_callback,(result,))
+
+        elif method == 'client.version':
+            pass
+
+        else:
+            print "unknown message:", method, params, result
+
+    def update(self):
+        self.up_to_date_event.wait()
+
+    def run(self):
+        while self.interface.is_connected:
+            new = self.synchronize()
+            if self.interface.is_up_to_date() and not new:
+                self.up_to_date = True
+                self.up_to_date_event.set()
+            else:
+                self.up_to_date = False
+
+            response = self.interface.responses.get()
+            self.handle_response(response)
+
