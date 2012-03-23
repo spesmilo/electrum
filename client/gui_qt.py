@@ -924,6 +924,7 @@ class ElectrumGui():
         if not ElectrumWindow.network_dialog( wallet, parent=None ): return False
 
         if not is_recovery:
+
             wallet.new_seed(None)
             wallet.init_mpk( wallet.seed )
             wallet.up_to_date_event.clear()
@@ -935,8 +936,7 @@ class ElectrumGui():
         else:
             # ask for seed and gap.
             if not ElectrumWindow.seed_dialog( wallet ): return False
-            wallet.init_mpk( wallet.seed )  # not encrypted at this point
-            #wallet.synchronize()
+            wallet.init_mpk( wallet.seed )
             wallet.up_to_date_event.clear()
             wallet.update()
 
