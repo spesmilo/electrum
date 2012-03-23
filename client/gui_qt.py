@@ -782,7 +782,11 @@ class ElectrumWindow(QMainWindow):
         except:
             import mnemonic
             print "not hex, trying decode"
-            seed = mnemonic.mn_decode( seed.split(' ') )
+            try:
+                seed = mnemonic.mn_decode( seed.split(' ') )
+            except:
+                QMessageBox.warning(None, 'Error', 'I cannot decode this', 'OK')
+                sys.exit(0)
         if not seed:
             QMessageBox.warning(None, 'Error', 'no seed', 'OK')
             sys.exit(0)

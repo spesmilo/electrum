@@ -949,15 +949,11 @@ class Wallet:
             if blocks == -1: raise BaseException("session not found")
             self.blocks = int(blocks)
             if changed_addresses:
-                #self.is_up_to_date = False
                 self.was_updated = True
                 for addr, status in changed_addresses.items():
                     self.receive_status_callback(addr, status)
-            #else:
-            #    self.is_up_to_date = True
 
         elif method == 'server.peers':
-            #print "Received server list: ", result
             self.interface.servers = map( lambda x:x[1], result )
 
         elif method == 'address.subscribe':
@@ -975,7 +971,6 @@ class Wallet:
 
         elif method == 'numblocks.subscribe':
             self.blocks = result
-            #self.newblock_callback,(result,))
 
         elif method == 'client.version':
             pass
@@ -1022,4 +1017,4 @@ class Wallet:
         addresses = self.all_addresses()
         version = self.electrum_version
         self.interface.start_session(addresses, version)
-        #print "Starting new session: %s:%d"%(self.host,self.port)
+        print "Starting new session: %s:%d"%(self.host,self.port)
