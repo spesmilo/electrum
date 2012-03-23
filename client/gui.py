@@ -100,7 +100,9 @@ def restore_create_dialog(wallet):
 
         wallet.new_seed(None)
         # generate first key
-        wallet.synchronize()
+        wallet.init_mpk( wallet.seed )
+        wallet.up_to_date_event.clear()
+        wallet.update()
 
         # run a dialog indicating the seed, ask the user to remember it
         show_seed_dialog(wallet, None, None)
@@ -120,7 +122,8 @@ def restore_create_dialog(wallet):
 
         def recover_thread( wallet, dialog ):
             wallet.init_mpk( wallet.seed ) # not encrypted at this point
-            wallet.synchronize()
+            wallet.up_to_date_event.clear()
+            wallet.update()
 
             if wallet.is_found():
                 # history and addressbook
@@ -268,7 +271,7 @@ def run_network_dialog( wallet, parent ):
     interface = wallet.interface
     if parent:
         if interface.is_connected:
-            status = "Connected to %s:%d\n%d blocks\nresponse time: %f"%(interface.host, interface.port, interface.blocks, interface.rtime)
+            status = "Connected to %s:%d\n%d blocks\nresponse time: %f"%(interface.host, interface.port, wallet.blocks, interface.rtime)
         else:
             status = "Not connected"
         host = wallet.host
@@ -300,7 +303,7 @@ def run_network_dialog( wallet, parent ):
     host_box.show()
         
     server_list = gtk.ListStore(str)
-    for item in wallet.interface.servers:
+    for item in interface.servers:
         server_list.append([item])
     
     treeview = gtk.TreeView(model=server_list)
@@ -1035,33 +1038,33 @@ class ElectrumWindow:
         if self.funds_error:
             text = "Not enough funds"
         elif interface.is_connected:
-            self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks\nresponse time: %f"%(interface.host, interface.port, interface.blocks, interface.rtime))
-            if interface.blocks == 0:
+            self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks\nresponse time: %f"%(interface.host, interface.port, self.wallet.blocks, interface.rtime))
+            if self.wallet.blocks == 0:
                 self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
                 text = "Server not ready"
-            elif not interface.is_up_to_date:
+            elif not self.wallet.up_to_date:
                 self.status_image.set_from_stock(gtk.STOCK_REFRESH, gtk.ICON_SIZE_MENU)
                 text = "Synchronizing..."
             else:
                 self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
-                self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks\nresponse time: %f"%(interface.host, interface.port, interface.blocks, interface.rtime))
+                self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks\nresponse time: %f"%(interface.host, interface.port, self.wallet.blocks, interface.rtime))
                 c, u = self.wallet.get_balance()
                 text =  "Balance: %s "%( format_satoshis(c) )
                 if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True) )
         else:
             self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
-            self.network_button.set_tooltip_text("Trying to contact %s.\n%d blocks"%(interface.host, interface.blocks))
+            self.network_button.set_tooltip_text("Trying to contact %s.\n%d blocks"%(interface.host, self.wallet.blocks))
             text = "Not connected"
 
         self.status_bar.pop(self.context_id) 
         self.status_bar.push(self.context_id, text)
 
-        if interface.was_updated:
+        if self.wallet.was_updated and self.wallet.up_to_date:
             self.update_history_tab()
             self.update_receiving_tab()
             # addressbook too...
-            self.info.set_text( interface.message )
-            interface.was_updated = False
+            self.info.set_text( self.wallet.banner )
+            self.wallet.was_updated = False
         
 
     def update_receiving_tab(self):
@@ -1099,7 +1102,7 @@ class ElectrumWindow:
         for tx in self.wallet.get_tx_history():
             tx_hash = tx['tx_hash']
             if tx['height']:
-                conf = self.wallet.interface.blocks - tx['height'] + 1
+                conf = self.wallet.blocks - tx['height'] + 1
                 time_str = datetime.datetime.fromtimestamp( tx['nTime']).isoformat(' ')[:-3]
                 conf_icon = gtk.STOCK_APPLY
             else:
