@@ -974,7 +974,7 @@ class Wallet:
             else:
                 self.up_to_date = False
 
-            response = self.interface.responses.get()
+            response = self.interface.responses.get(True,100000000000) # workaround so that it can be keyboard interrupted
             self.handle_response(response)
 
     def start_interface(self):

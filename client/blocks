@@ -2,11 +2,9 @@
 
 import socket, time, interface
 
-def cb(block_number):  
-    print block_number
-
-i = interface.AsynchronousInterface('ecdsa.org', 50001, newblock_callback=cb)
+i = interface.AsynchronousInterface('ecdsa.org', 50001)
 i.start_session([],"blocks")
 
 while True:
-    time.sleep(1)
+    r = i.responses.get(True, 100000000000)
+    if r.get('method')=='numblocks.subscribe': print r.get('result')
