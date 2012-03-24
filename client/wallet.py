@@ -276,6 +276,7 @@ class Wallet:
         self.up_to_date_event = threading.Event()
         self.up_to_date_event.clear()
         self.interface_lock = threading.Lock()
+        self.tx_event = threading.Event()
 
 
     def set_server(self, host, port):
@@ -760,7 +761,10 @@ class Wallet:
 
     def sendtx(self, tx):
         tx_hash = Hash(tx.decode('hex') )[::-1].encode('hex')
-        out = self.interface.send_tx(tx)
+        self.tx_event.clear()
+        self.interface.send([('transaction.broadcast', [tx])])
+        self.tx_event.wait()
+        out = self.tx_result 
         if out != tx_hash:
             return False, "error: " + out
         if self.receipt:

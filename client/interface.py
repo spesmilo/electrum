@@ -37,7 +37,6 @@ class Interface:
         #only asynchrnous
         self.addresses_waiting_for_status = []
         self.addresses_waiting_for_history = []
-        self.tx_event = threading.Event()
 
         #json
         self.message_id = 0
@@ -47,13 +46,6 @@ class Interface:
 
     def is_up_to_date(self):
         return self.responses.empty() and not ( self.addresses_waiting_for_status or self.addresses_waiting_for_history )
-
-
-    def send_tx(self, data):
-        self.tx_event.clear()
-        self.send([('transaction.broadcast', [data])])
-        self.tx_event.wait()
-        return self.tx_result
 
 
 
