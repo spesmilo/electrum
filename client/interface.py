@@ -107,16 +107,16 @@ class Interface:
                 traceback.print_exc(file=sys.stdout)
 
 
-
+    def start_session(self, addresses, version):
+        #print "Starting new session: %s:%d"%(self.host,self.port)
+        self.start()
+        self.send([('client.version', [version]), ('server.banner',[]), ('numblocks.subscribe',[]), ('server.peers',[])])
+        self.subscribe(addresses)
 
 
 class PollingInterface(Interface):
     """ non-persistent connection. synchronous calls"""
 
-    def start_session(self, addresses, version):
-        self.send([('session.new', [ version, addresses ])] )
-        self.send([('server.peers',[])])
-        thread.start_new_thread(self.poll_thread, (5,))
 
     def get_history(self, address):
         self.send([('address.get_history', [address] )])
@@ -155,6 +155,11 @@ class PollingInterface(Interface):
 
 
 class NativeInterface(PollingInterface):
+
+    def start_session(self, addresses, version):
+        self.send([('session.new', [ version, addresses ])] )
+        self.send([('server.peers',[])])
+        thread.start_new_thread(self.poll_thread, (5,))
 
     def send(self, messages):
         import time
@@ -214,10 +219,8 @@ class NativeInterface(PollingInterface):
 
 class HttpInterface(PollingInterface):
 
-    def start_session(self, addresses, version):
+    def start(self):
         self.session_id = None
-        self.send([('client.version', [version]), ('server.banner',[]), ('numblocks.subscribe',[]), ('server.peers',[])])
-        self.subscribe(addresses)
         thread.start_new_thread(self.poll_thread, (15,))
 
     def poll(self):
@@ -316,15 +319,12 @@ class AsynchronousInterface(Interface):
         self.send([('address.get_history', [addr])])
         self.addresses_waiting_for_history.append(addr)
 
-    def start_session(self, addresses, version):
+    def start(self):
         self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
         self.s.settimeout(5)
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-
         self.s.connect(( self.host, self.port))
         thread.start_new_thread(self.listen_thread, ())
-        self.send([('client.version', [version]), ('server.banner',[]), ('numblocks.subscribe',[]), ('server.peers',[])])
-        self.subscribe(addresses)
 
 
 
