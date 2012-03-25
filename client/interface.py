@@ -208,7 +208,8 @@ class NativeInterface(PollingInterface):
             if out=='': out=None #fixme
 
             if cmd == 'new_session':
-                self.session_id, self.message = ast.literal_eval( out )
+                self.session_id, msg = ast.literal_eval( out )
+                self.responses.put({'method':'server.banner', 'params':[], 'result':msg})
             else:
                 self.update_waiting_lists(method, params)
                 self.responses.put({'method':method, 'params':params, 'result':out})
