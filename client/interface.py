@@ -53,10 +53,10 @@ class Interface:
         msg_id = c.get('id')
         result = c.get('result')
         error = c.get('error')
+        params = c.get('params',[])
 
         try:
             method = c['method']
-            params = c['params']
         except:
             print "error"
             return
