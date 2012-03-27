@@ -8,4 +8,4 @@ i.send([('numblocks.subscribe',[])])
 
 while True:
     r = i.responses.get(True, 100000000000)
-    if r.get('method')=='numblocks.subscribe': print r.get('result')
+    print r.get('result')

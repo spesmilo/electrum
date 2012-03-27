@@ -40,7 +40,6 @@ class Interface:
 
         #json
         self.message_id = 0
-        self.messages = {}
         self.responses = Queue.Queue()
 
 
@@ -55,11 +54,13 @@ class Interface:
         result = c.get('result')
         error = c.get('error')
 
-        if msg_id is None:
-            print "error: message without ID"
+        try:
+            method = c['method']
+            params = c['params']
+        except:
+            print "error"
             return
 
-        method, params = self.messages[msg_id]
         if error:
             print "received error:", c, method, params
         else:
@@ -241,7 +242,6 @@ class HttpInterface(PollingInterface):
             method, params = m
             if type(params) != type([]): params = [params]
             data.append( { 'method':method, 'id':self.message_id, 'params':params } )
-            self.messages[self.message_id] = (method, params)
             self.message_id += 1
 
         if data:
@@ -311,7 +311,6 @@ class AsynchronousInterface(Interface):
         for m in messages:
             method, params = m 
             request = json.dumps( { 'id':self.message_id, 'method':method, 'params':params } )
-            self.messages[self.message_id] = (method, params)
             self.message_id += 1
             out += request + '\n'
         self.s.send( out )
