@@ -69,11 +69,11 @@ class Interface:
 
 
     def update_waiting_lists(self, method, params):
-        if method == 'address.subscribe':
+        if method == 'blockchain.address.subscribe':
             addr = params[-1]
             if addr in self.addresses_waiting_for_status:
                 self.addresses_waiting_for_status.remove(addr)
-        elif method == 'address.get_history':
+        elif method == 'blockchain.address.get_history':
             addr = params[0]
             if addr in self.addresses_waiting_for_history:
                 self.addresses_waiting_for_history.remove(addr)
@@ -82,7 +82,7 @@ class Interface:
     def subscribe(self, addresses):
         messages = []
         for addr in addresses:
-            messages.append(('address.subscribe', [addr]))
+            messages.append(('blockchain.address.subscribe', [addr]))
             self.addresses_waiting_for_status.append(addr)
         self.send(messages)
 
@@ -111,7 +111,7 @@ class Interface:
     def start_session(self, addresses, version):
         #print "Starting new session: %s:%d"%(self.host,self.port)
         self.start()
-        self.send([('client.version', [version]), ('server.banner',[]), ('numblocks.subscribe',[]), ('server.peers',[])])
+        self.send([('client.version', [version]), ('server.banner',[]), ('blockchain.numblocks.subscribe',[]), ('server.peers.subscribe',[])])
         self.subscribe(addresses)
 
 
@@ -167,9 +167,9 @@ class NativeInterface(PollingInterface):
         cmds = {'session.new':'new_session',
                 'server.peers':'peers',
                 'session.poll':'poll',
-                'transaction.broadcast':'tx',
-                'address.get_history':'h',
-                'address.subscribe':'address.subscribe'
+                'blockchain.transaction.broadcast':'tx',
+                'blockchain.address.get_history':'h',
+                'blockchain.address.subscribe':'address.subscribe'
                 }
 
         for m in messages:

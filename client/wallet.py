@@ -935,23 +935,23 @@ class Wallet:
                 for addr, status in changed_addresses.items():
                     self.receive_status_callback(addr, status)
 
-        elif method == 'server.peers':
+        elif method == 'server.peers.subscribe':
             self.interface.servers = map( lambda x:x[1], result )
 
-        elif method == 'address.subscribe':
+        elif method == 'blockchain.address.subscribe':
             addr = params[-1]
             self.receive_status_callback(addr, result)
                             
-        elif method == 'address.get_history':
+        elif method == 'blockchain.address.get_history':
             addr = params[0]
             self.receive_history_callback(addr, result)
             self.was_updated = True
 
-        elif method == 'transaction.broadcast':
+        elif method == 'blockchain.transaction.broadcast':
             self.tx_result = result
             self.tx_event.set()
 
-        elif method == 'numblocks.subscribe':
+        elif method == 'blockchain.numblocks.subscribe':
             self.blocks = result
 
         elif method == 'client.version':
