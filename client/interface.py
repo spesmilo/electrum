@@ -58,7 +58,7 @@ class Interface:
         try:
             method = c['method']
         except:
-            print "error"
+            print "error", c
             return
 
         if error:
@@ -226,7 +226,8 @@ class HttpInterface(PollingInterface):
         thread.start_new_thread(self.poll_thread, (15,))
 
     def poll(self):
-        self.send( [] )
+        if self.session_id:
+            self.send( [] )
 
     def send(self, messages):
         import urllib2, json, time, cookielib

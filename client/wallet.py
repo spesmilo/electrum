@@ -270,11 +270,12 @@ class Wallet:
         self.imported_keys = {}
         self.remote_url = None
 
-        self.was_updated = False 
+        self.was_updated = True
         self.blocks = 0 
         self.banner = ''
         self.up_to_date_event = threading.Event()
         self.up_to_date_event.clear()
+        self.up_to_date = False
         self.interface_lock = threading.Lock()
         self.tx_event = threading.Event()
 
@@ -967,7 +968,8 @@ class Wallet:
     def run(self):
         while self.interface.is_connected:
             new_addresses = self.synchronize()
-            self.interface.subscribe(new_addresses)
+            if new_addresses:
+                self.interface.subscribe(new_addresses)
             if self.interface.is_up_to_date() and not new_addresses:
                 self.up_to_date = True
                 self.up_to_date_event.set()
