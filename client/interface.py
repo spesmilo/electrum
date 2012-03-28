@@ -159,13 +159,13 @@ class NativeInterface(PollingInterface):
 
     def start_session(self, addresses, version):
         self.send([('session.new', [ version, addresses ])] )
-        self.send([('server.peers',[])])
+        self.send([('server.peers.subscribe',[])])
         thread.start_new_thread(self.poll_thread, (5,))
 
     def send(self, messages):
         import time
         cmds = {'session.new':'new_session',
-                'server.peers':'peers',
+                'server.peers.subscribe':'peers',
                 'session.poll':'poll',
                 'blockchain.transaction.broadcast':'tx',
                 'blockchain.address.get_history':'h',
