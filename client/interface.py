@@ -340,9 +340,11 @@ def loop_interfaces_thread(wallet):
             wallet.run()
         except socket.error:
             print "socket error"
+            wallet.interface.is_connected = False
             time.sleep(5)
         except:
             traceback.print_exc(file=sys.stdout)
+            wallet.interface.is_connected = False
             time.sleep(5)
             continue
 
