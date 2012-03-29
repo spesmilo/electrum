@@ -111,7 +111,7 @@ class Interface:
     def start_session(self, addresses, version):
         #print "Starting new session: %s:%d"%(self.host,self.port)
         self.start()
-        self.send([('client.version', [version]), ('server.banner',[]), ('blockchain.numblocks.subscribe',[]), ('server.peers.subscribe',[])])
+        self.send([('server.version', [version]), ('server.banner',[]), ('blockchain.numblocks.subscribe',[]), ('server.peers.subscribe',[])])
         self.subscribe(addresses)
 
 

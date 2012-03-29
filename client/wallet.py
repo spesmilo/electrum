@@ -263,6 +263,7 @@ class Wallet:
 
         self.host = random.choice( DEFAULT_SERVERS )         # random choice when the wallet is created
         self.port = DEFAULT_PORT
+        self.protocol = 'n'
 
         # not saved
         self.tx_history = {}
@@ -280,10 +281,11 @@ class Wallet:
         self.tx_event = threading.Event()
 
 
-    def set_server(self, host, port):
-        if host!= self.host or port!=self.port:
+    def set_server(self, host, port, protocol):
+        if host!= self.host or port!=self.port or protocol!=self.protocol:
             self.host = host
             self.port = port
+            self.protocol = protocol
             self.interface.is_connected = False  # this exits the polling loop
 
     def set_path(self, wallet_path):
@@ -530,6 +532,7 @@ class Wallet:
             'fee':self.fee,
             'host':self.host,
             'port':self.port,
+            'protocol':self.protocol,
             'seed':self.seed,
             'addresses':self.addresses,
             'change_addresses':self.change_addresses,
@@ -565,6 +568,7 @@ class Wallet:
             self.fee = int( d.get('fee') )
             self.seed = d.get('seed')
             self.host = d.get('host')
+            self.protocol = d.get('protocol','n')
             self.port = d.get('port')
             blocks = d.get('blocks')
             self.addresses = d.get('addresses')
@@ -588,7 +592,7 @@ class Wallet:
         if self.remote_url: assert self.master_public_key.encode('hex') == self.get_remote_mpk()
 
         self.file_exists = True
-        #self.interface = interface.start_interface(self)
+
 
         
 
@@ -936,7 +940,20 @@ class Wallet:
                     self.receive_status_callback(addr, status)
 
         elif method == 'server.peers.subscribe':
-            self.interface.servers = map( lambda x:x[1], result )
+            servers = []
+            for item in result:
+                s = []
+                host = item[1]
+                if len(item)>2:
+                    for v in item[2]:
+                        if re.match("[nsh]\d+",v):
+                            s.append((v[0],host+":"+v[1:]))
+                    if not s:
+                        s.append(("n",host+":50000"))
+                else:
+                    s.append(("n",host+":50000"))
+                servers = servers + s
+            self.interface.servers = servers
 
         elif method == 'blockchain.address.subscribe':
             addr = params[-1]
@@ -954,7 +971,7 @@ class Wallet:
         elif method == 'blockchain.numblocks.subscribe':
             self.blocks = result
 
-        elif method == 'client.version':
+        elif method == 'server.version':
             pass
 
         else:
@@ -980,14 +997,14 @@ class Wallet:
             self.handle_response(response)
 
     def start_interface(self):
-        if self.port == 50000:
+        if self.protocol == 'n':
             InterfaceClass = NativeInterface
-        elif self.port == 50001:
+        elif self.protocol == 's':
             InterfaceClass = AsynchronousInterface
-        elif self.port in [80, 81, 8080, 8081]:
+        elif self.protocol == 'h':
             InterfaceClass = HttpInterface
         else:
-            print "unknown port number: %d. using native protocol."%self.port
+            print "unknown protocol"
             InterfaceClass = NativeInterface
 
         self.interface = InterfaceClass(self.host, self.port)
