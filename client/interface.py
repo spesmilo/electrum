@@ -54,11 +54,8 @@ class Interface:
         result = c.get('result')
         error = c.get('error')
         params = c.get('params',[])
-
-        try:
-            method = c['method']
-        except:
-            print "error", c
+        method = c.get('method',None)
+        if not method:
             return
 
         if error:
