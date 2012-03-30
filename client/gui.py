@@ -1039,7 +1039,10 @@ class ElectrumWindow:
             text = "Not enough funds"
         elif interface.is_connected:
             self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks\nresponse time: %f"%(interface.host, interface.port, self.wallet.blocks, interface.rtime))
-            if self.wallet.blocks == 0:
+            if self.wallet.blocks == -1:
+                self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
+                text = "Connecting..."
+            elif self.wallet.blocks == 0:
                 self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
                 text = "Server not ready"
             elif not self.wallet.up_to_date:

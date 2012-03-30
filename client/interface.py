@@ -21,7 +21,7 @@ import random, socket, ast
 import thread, threading, traceback, sys, time, json, Queue
 
 DEFAULT_TIMEOUT = 5
-DEFAULT_SERVERS = ['ecdsa.org:50001:s'] #  ['electrum.bitcoins.sk','ecdsa.org','electrum.novit.ro']  # list of default servers
+DEFAULT_SERVERS = ['ecdsa.org:50001:t'] #  ['electrum.bitcoins.sk','ecdsa.org','electrum.novit.ro']  # list of default servers
 
 
 def old_to_new(s):

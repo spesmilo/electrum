@@ -187,7 +187,10 @@ class ElectrumWindow(QMainWindow):
 
     def update_wallet(self):
         if self.wallet.interface.is_connected:
-            if self.wallet.blocks == 0:
+            if self.wallet.blocks == -1:
+                text = "Connecting..."
+                icon = QIcon(":icons/status_disconnected.png")
+            elif self.wallet.blocks == 0:
                 text = "Server not ready"
                 icon = QIcon(":icons/status_disconnected.png")
             elif not self.wallet.up_to_date:

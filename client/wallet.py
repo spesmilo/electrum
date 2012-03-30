@@ -268,7 +268,7 @@ class Wallet:
         self.remote_url = None
 
         self.was_updated = True
-        self.blocks = 0 
+        self.blocks = -1
         self.banner = ''
         self.up_to_date_event = threading.Event()
         self.up_to_date_event.clear()
@@ -955,12 +955,12 @@ class Wallet:
                 host = item[1]
                 if len(item)>2:
                     for v in item[2]:
-                        if re.match("[nsh]\d+",v):
+                        if re.match("[thn]\d+",v):
                             s.append(host+":"+v[1:]+":"+v[0])
-                    if not s:
-                        s.append(host+":50000:n")
-                else:
-                    s.append(host+":50000:n")
+                    #if not s:
+                    #    s.append(host+":50000:n")
+                #else:
+                #    s.append(host+":50000:n")
                 servers = servers + s
             self.interface.servers = servers
 
@@ -1017,7 +1017,7 @@ class Wallet:
 
         if protocol == 'n':
             InterfaceClass = NativeInterface
-        elif protocol == 's':
+        elif protocol == 't':
             InterfaceClass = AsynchronousInterface
         elif protocol == 'h':
             InterfaceClass = HttpInterface
