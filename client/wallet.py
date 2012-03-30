@@ -233,7 +233,6 @@ from version import ELECTRUM_VERSION, SEED_VERSION
 from interface import NativeInterface, AsynchronousInterface, HttpInterface, DEFAULT_SERVERS
 
 
-DEFAULT_PORT = 50000
 
 
 class Wallet:
@@ -260,7 +259,7 @@ class Wallet:
         self.receipt = None          # next receipt
         self.addressbook = []        # outgoing addresses, for payments
 
-        self.server = random.choice( DEFAULT_SERVERS ) + ':50000:n'        # random choice when the wallet is created
+        self.server = random.choice( DEFAULT_SERVERS )         # random choice when the wallet is created
 
         # not saved
         self.tx_history = {}
