@@ -1075,7 +1075,7 @@ class ElectrumWindow:
             n = 0 
             h = self.wallet.history.get(address,[])
             for item in h:
-                if not item['is_in'] : n=n+1
+                if not item['is_input'] : n=n+1
             tx = "None" if n==0 else "%d"%n
             self.recv_list.append((address, label, tx ))
 
@@ -1103,7 +1103,7 @@ class ElectrumWindow:
             tx_hash = tx['tx_hash']
             if tx['height']:
                 conf = self.wallet.blocks - tx['height'] + 1
-                time_str = datetime.datetime.fromtimestamp( tx['nTime']).isoformat(' ')[:-3]
+                time_str = datetime.datetime.fromtimestamp( tx['timestamp']).isoformat(' ')[:-3]
                 conf_icon = gtk.STOCK_APPLY
             else:
                 conf = 0

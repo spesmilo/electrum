@@ -237,7 +237,7 @@ class ElectrumWindow(QMainWindow):
 
         if tx['height']:
             conf = self.wallet.blocks - tx['height'] + 1
-            time_str = datetime.datetime.fromtimestamp( tx['nTime']).isoformat(' ')[:-3]
+            time_str = datetime.datetime.fromtimestamp( tx['timestamp']).isoformat(' ')[:-3]
         else:
             conf = 0
             time_str = 'pending'
@@ -310,7 +310,7 @@ class ElectrumWindow(QMainWindow):
             tx_hash = tx['tx_hash']
             if tx['height']:
                 conf = self.wallet.blocks - tx['height'] + 1
-                time_str = datetime.datetime.fromtimestamp( tx['nTime']).isoformat(' ')[:-3]
+                time_str = datetime.datetime.fromtimestamp( tx['timestamp']).isoformat(' ')[:-3]
                 icon = QIcon(":icons/confirmed.png")
             else:
                 conf = 0
@@ -574,7 +574,7 @@ class ElectrumWindow(QMainWindow):
             n = 0 
             h = self.wallet.history.get(address,[])
             for item in h:
-                if not item['is_in'] : n=n+1
+                if not item['is_input'] : n=n+1
             tx = "None" if n==0 else "%d"%n
             item = QTreeWidgetItem( [ address, label, tx] )
             item.setFont(0, QFont('monospace'))

@@ -24,6 +24,15 @@ DEFAULT_TIMEOUT = 5
 DEFAULT_SERVERS = ['electrum.bitcoins.sk','ecdsa.org','electrum.novit.ro']  # list of default servers
 
 
+def old_to_new(s):
+    s = s.replace("'blk_hash'", "'block_hash'")
+    s = s.replace("'pos'", "'index'")
+    s = s.replace("'nTime'", "'timestamp'")
+    s = s.replace("'is_in'", "'is_input'")
+    s = s.replace("'raw_scriptPubKey'","'raw_output_script'")
+    return s
+
+
 class Interface:
     def __init__(self, host, port):
         self.host = host
@@ -57,7 +66,7 @@ class Interface:
         method = c.get('method',None)
         if not method:
             return
-
+        
         if error:
             print "received error:", c, method, params
         else:
@@ -117,7 +126,7 @@ class PollingInterface(Interface):
 
 
     def get_history(self, address):
-        self.send([('address.get_history', [address] )])
+        self.send([('blockchain.address.get_history', [address] )])
 
     def poll(self):
         self.send([('session.poll', [])])
@@ -200,6 +209,9 @@ class NativeInterface(PollingInterface):
             self.rtime = time.time() - t1
             self.is_connected = True
 
+            if cmd == 'h':
+                out = old_to_new(out)
+
             if cmd in[ 'peers','h','poll']:
                 out = ast.literal_eval( out )
 
@@ -211,7 +223,6 @@ class NativeInterface(PollingInterface):
             else:
                 self.update_waiting_lists(method, params)
                 self.responses.put({'method':method, 'params':params, 'result':out})
-
 
 
 
@@ -302,6 +313,7 @@ class AsynchronousInterface(Interface):
             traceback.print_exc(file=sys.stdout)
 
         self.is_connected = False
+        # push None so that the getting thread exits its loop
         self.responses.put(None)
 
     def send(self, messages):
@@ -314,7 +326,7 @@ class AsynchronousInterface(Interface):
         self.s.send( out )
 
     def get_history(self, addr):
-        self.send([('address.get_history', [addr])])
+        self.send([('blockchain.address.get_history', [addr])])
         self.addresses_waiting_for_history.append(addr)
 
     def start(self):

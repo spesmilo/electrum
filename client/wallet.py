@@ -560,6 +560,7 @@ class Wallet:
             f.close()
         except:
             return
+        data = interface.old_to_new(data)
         try:
             d = ast.literal_eval( data )
             self.seed_version = d.get('seed_version')
@@ -631,16 +632,16 @@ class Wallet:
             h = self.history.get(addr)
             if h is None: continue
             for item in h:
-                if item.get('raw_scriptPubKey'):
+                if item.get('raw_output_script'):
                     coins.append( (addr,item))
 
-        coins = sorted( coins, key = lambda x: x[1]['nTime'] )
+        coins = sorted( coins, key = lambda x: x[1]['timestamp'] )
         inputs = []
         for c in coins: 
             addr, item = c
             v = item.get('value')
             total += v
-            inputs.append((addr, v, item['tx_hash'], item['pos'], item['raw_scriptPubKey'], None, None) )
+            inputs.append((addr, v, item['tx_hash'], item['index'], item['raw_output_script'], None, None) )
             fee = self.fee*len(inputs) if fixed_fee is None else fixed_fee
             if total >= amount + fee: break
         else:
@@ -705,7 +706,7 @@ class Wallet:
 
     def get_tx_history(self):
         lines = self.tx_history.values()
-        lines = sorted(lines, key=operator.itemgetter("nTime"))
+        lines = sorted(lines, key=operator.itemgetter("timestamp"))
         return lines
 
     def update_tx_history(self):
@@ -722,7 +723,7 @@ class Wallet:
                 else:
                     line['value'] += tx['value']
                 if line['height'] == 0:
-                    line['nTime'] = 1e12
+                    line['timestamp'] = 1e12
         self.update_tx_labels()
 
     def update_tx_labels(self):
@@ -995,6 +996,7 @@ class Wallet:
 
             response = self.interface.responses.get(True,100000000000) # workaround so that it can be keyboard interrupted
             self.handle_response(response)
+
 
     def start_interface(self):
         if self.protocol == 'n':
