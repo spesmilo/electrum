@@ -27,6 +27,7 @@ from decimal import Decimal
 
 gtk.gdk.threads_init()
 APP_NAME = "Electrum"
+MONOSPACE_FONT = "monospace"
 
 from wallet import format_satoshis
 
@@ -274,13 +275,11 @@ def run_network_dialog( wallet, parent ):
             status = "Connected to %s:%d\n%d blocks\nresponse time: %f"%(interface.host, interface.port, wallet.blocks, interface.rtime)
         else:
             status = "Not connected"
-        host = wallet.host
-        port = wallet.port
+        server = wallet.server
     else:
         import random
         status = "Please choose a server."
-        host = random.choice( interface.servers )
-        port = 50000
+        server = random.choice( interface.servers )
 
     dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                                     gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, status)
@@ -296,7 +295,7 @@ def run_network_dialog( wallet, parent ):
     host_box.pack_start(host_label, False, False, 10)
     host_entry = gtk.Entry()
     host_entry.set_size_request(200,-1)
-    host_entry.set_text(host+":%d"%port)
+    host_entry.set_text(server)
     host_entry.show()
     host_box.pack_start(host_entry, False, False, 10)
     add_help_button(host_box, 'The name and port number of your Electrum server, separated by a colon. Example: "ecdsa.org:50000". If no port number is provided, port 50000 will be tried. Some servers allow you to connect through http (port 80) or https (port 443)')
@@ -325,30 +324,26 @@ def run_network_dialog( wallet, parent ):
 
     def my_treeview_cb(treeview):
         path, view_column = treeview.get_cursor()
-        host = server_list.get_value( server_list.get_iter(path), 0)
-        host_entry.set_text(host+":50000")
+        server = server_list.get_value( server_list.get_iter(path), 0)
+        host_entry.set_text(server)
     treeview.connect('cursor-changed', my_treeview_cb)
 
     dialog.show()
     r = dialog.run()
-    hh = host_entry.get_text()
+    server = host_entry.get_text()
     dialog.destroy()
 
     if r==gtk.RESPONSE_CANCEL:
         return False
 
     try:
-        if ':' in hh:
-            host, port = hh.split(':')
-            port = int(port)
-        else:
-            host = hh
-            port = 50000
+        a,b,c = server.split(':')
+        b = int(b)
     except:
-        show_message("error")
+        show_message("error:" + server)
         return False
 
-    wallet.set_server(host, port)
+    wallet.set_server(server)
     if parent:
         wallet.save()
     return True
@@ -709,7 +704,7 @@ class ElectrumWindow:
         tv = gtk.TextView()
         tv.set_editable(False)
         tv.set_cursor_visible(False)
-        tv.modify_font(pango.FontDescription("monospace 10"))
+        tv.modify_font(pango.FontDescription(MONOSPACE_FONT))
         page.pack_start(tv)
         self.info = tv.get_buffer()
         self.add_tab(page, 'Wall')
@@ -857,7 +852,7 @@ class ElectrumWindow:
         treeview.append_column(tvcolumn)
         cell = gtk.CellRendererText()
         cell.set_property('foreground', 'grey')
-        cell.set_property('family', 'monospace')
+        cell.set_property('family', MONOSPACE_FONT)
         cell.set_property('editable', True)
         def edited_cb(cell, path, new_text, h_list):
             tx = h_list.get_value( h_list.get_iter(path), 0)
@@ -877,7 +872,7 @@ class ElectrumWindow:
         treeview.append_column(tvcolumn)
         cell = gtk.CellRendererText()
         cell.set_alignment(1, 0.5)
-        cell.set_property('family', 'monospace')
+        cell.set_property('family', MONOSPACE_FONT)
         tvcolumn.pack_start(cell, False)
         tvcolumn.add_attribute(cell, 'text', 5)
 
@@ -885,7 +880,7 @@ class ElectrumWindow:
         treeview.append_column(tvcolumn)
         cell = gtk.CellRendererText()
         cell.set_alignment(1, 0.5)
-        cell.set_property('family', 'monospace')
+        cell.set_property('family', MONOSPACE_FONT)
         tvcolumn.pack_start(cell, False)
         tvcolumn.add_attribute(cell, 'text', 6)
 
@@ -926,7 +921,7 @@ class ElectrumWindow:
         tvcolumn = gtk.TreeViewColumn('Address')
         treeview.append_column(tvcolumn)
         cell = gtk.CellRendererText()
-        cell.set_property('family', 'monospace')
+        cell.set_property('family', MONOSPACE_FONT)
         tvcolumn.pack_start(cell, True)
         tvcolumn.add_attribute(cell, 'text', 0)
 

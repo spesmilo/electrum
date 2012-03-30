@@ -35,6 +35,7 @@ except:
 from wallet import format_satoshis
 from decimal import Decimal
 
+MONOSPACE_FONT = 'monospace'
 
 def numbify(entry, is_int = False):
     text = unicode(entry.text()).strip()
@@ -326,9 +327,9 @@ class ElectrumWindow(QMainWindow):
             if is_default_label: label = tx['default_label']
 
             item = QTreeWidgetItem( [ '', time_str, label, format_satoshis(v,True), format_satoshis(balance)] )
-            item.setFont(2, QFont('monospace'))
-            item.setFont(3, QFont('monospace'))
-            item.setFont(4, QFont('monospace'))
+            item.setFont(2, QFont(MONOSPACE_FONT))
+            item.setFont(3, QFont(MONOSPACE_FONT))
+            item.setFont(4, QFont(MONOSPACE_FONT))
             item.setToolTip(0, tx_hash)
             if is_default_label:
                 item.setForeground(2, QBrush(QColor('grey')))
@@ -580,7 +581,7 @@ class ElectrumWindow(QMainWindow):
                 if not item['is_input'] : n=n+1
             tx = "None" if n==0 else "%d"%n
             item = QTreeWidgetItem( [ address, label, tx] )
-            item.setFont(0, QFont('monospace'))
+            item.setFont(0, QFont(MONOSPACE_FONT))
             self.receive_list.addTopLevelItem(item)
 
     def show_contact_details(self, item, column):
@@ -609,13 +610,13 @@ class ElectrumWindow(QMainWindow):
                 if address in item['outputs'] : n=n+1
             tx = "None" if n==0 else "%d"%n
             item = QTreeWidgetItem( [ address, label, tx] )
-            item.setFont(0, QFont('monospace'))
+            item.setFont(0, QFont(MONOSPACE_FONT))
             self.contacts_list.addTopLevelItem(item)
 
 
     def create_wall_tab(self):
         self.textbox = textbox = QTextEdit(self)
-        textbox.setFont(QFont('monospace'))
+        textbox.setFont(QFont(MONOSPACE_FONT))
         textbox.setReadOnly(True)
         return textbox
 
