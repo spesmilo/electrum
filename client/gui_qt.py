@@ -913,6 +913,30 @@ class ElectrumGui():
         self.wallet = wallet
         self.app = QApplication(sys.argv)
 
+    def waiting_dialog(self):
+
+        s = Timer()
+        s.start()
+        w = QDialog()
+        w.resize(100, 50)
+        w.move(300, 300)
+        w.setWindowTitle('Electrum')
+        l = QLabel('...')
+        vbox = QVBoxLayout()
+        vbox.addWidget(l)
+        w.setLayout(vbox)
+        w.show()
+        def f():
+            if self.wallet.up_to_date: w.close()
+            else:
+                l.setText("Please wait...\nGenerating addresses: %d"%len(self.wallet.all_addresses()))
+                pass
+        w.connect(s, QtCore.SIGNAL('timersignal'), f)
+        self.wallet.interface.poke()
+        w.exec_()
+        w.destroy()
+
+
     def restore_or_create(self):
 
         msg = "Wallet file not found.\nDo you want to create a new wallet,\n or to restore an existing one?"
@@ -925,11 +949,11 @@ class ElectrumGui():
         if not ElectrumWindow.network_dialog( wallet, parent=None ): return False
 
         if not is_recovery:
-
             wallet.new_seed(None)
             wallet.init_mpk( wallet.seed )
             wallet.up_to_date_event.clear()
-            wallet.update()
+            wallet.up_to_date = False
+            self.waiting_dialog()
             # run a dialog indicating the seed, ask the user to remember it
             ElectrumWindow.show_seed_dialog(wallet)
             #ask for password
@@ -939,8 +963,8 @@ class ElectrumGui():
             if not ElectrumWindow.seed_dialog( wallet ): return False
             wallet.init_mpk( wallet.seed )
             wallet.up_to_date_event.clear()
-            wallet.update()
-
+            wallet.up_to_date = False
+            self.waiting_dialog()
             if wallet.is_found():
                 # history and addressbook
                 wallet.update_tx_history()
