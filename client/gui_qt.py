@@ -839,15 +839,11 @@ class ElectrumWindow(QMainWindow):
                 status = "Connected to %s:%d\n%d blocks\nresponse time: %f"%(interface.host, interface.port, wallet.blocks, interface.rtime)
             else:
                 status = "Not connected"
-            host = wallet.host
-            port = wallet.port
-            protocol = wallet.protocol
+            server = wallet.server
         else:
             import random
             status = "Please choose a server."
-            host = random.choice( interface.servers )
-            port = wallet.port
-            protocol = 's'
+            server = random.choice( interface.servers )
 
         d = QDialog(parent)
         d.setModal(1)
@@ -867,7 +863,7 @@ class ElectrumWindow(QMainWindow):
 
         hbox = QHBoxLayout()
         host_line = QLineEdit()
-        host_line.setText("%s:%d:%s"% (host,port,protocol) )
+        host_line.setText(server)
         hbox.addWidget(QLabel('Connect to:'))
         hbox.addWidget(host_line)
         vbox.addLayout(hbox)
@@ -877,7 +873,7 @@ class ElectrumWindow(QMainWindow):
             servers_list.setHeaderLabels( [ 'Active servers'] )
             servers_list.setMaximumHeight(150)
             for item in wallet.interface.servers:
-                servers_list.addTopLevelItem(QTreeWidgetItem( [ item[1] + ':' + item[0] ] ))
+                servers_list.addTopLevelItem(QTreeWidgetItem( [ item ] ))
             servers_list.connect(servers_list, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), lambda x:host_line.setText( x.text(0) ))
             vbox.addWidget(servers_list)
         else:
@@ -891,16 +887,11 @@ class ElectrumWindow(QMainWindow):
         d.setLayout(vbox) 
 
         if not d.exec_(): return
-        hh = unicode( host_line.text() )
+        server = unicode( host_line.text() )
 
         try:
-            if ':' in hh:
-                host, port, protocol = hh.split(':')
-                port = int(port)
-            else:
-                host = hh
-                port = wallet.port
-                protocol = wallet.protocol
+            a,b,c = server.split(':')
+            b = int(b)
         except:
             QMessageBox.information(None, 'Error', 'error', 'OK')
             if parent == None:
@@ -908,7 +899,7 @@ class ElectrumWindow(QMainWindow):
             else:
                 return
 
-        wallet.set_server(host, port, protocol) 
+        wallet.set_server(server)
         return True
 
 

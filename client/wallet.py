@@ -251,7 +251,6 @@ class Wallet:
         self.addresses = []          # receiving addresses visible for user
         self.change_addresses = []   # addresses used as change
         self.seed = ''               # encrypted
-        self.status = {}             # current status of addresses
         self.history = {}
         self.labels = {}             # labels for addresses and transactions
         self.aliases = {}            # aliases for addresses
@@ -261,9 +260,7 @@ class Wallet:
         self.receipt = None          # next receipt
         self.addressbook = []        # outgoing addresses, for payments
 
-        self.host = random.choice( DEFAULT_SERVERS )         # random choice when the wallet is created
-        self.port = DEFAULT_PORT
-        self.protocol = 'n'
+        self.server = random.choice( DEFAULT_SERVERS ) + ':50000:n'        # random choice when the wallet is created
 
         # not saved
         self.tx_history = {}
@@ -280,12 +277,18 @@ class Wallet:
         self.interface_lock = threading.Lock()
         self.tx_event = threading.Event()
 
+        #
+        self.addresses_waiting_for_status = []
+        self.addresses_waiting_for_history = []
 
-    def set_server(self, host, port, protocol):
-        if host!= self.host or port!=self.port or protocol!=self.protocol:
-            self.host = host
-            self.port = port
-            self.protocol = protocol
+
+    def is_up_to_date(self):
+        return self.interface.responses.empty() and not ( self.addresses_waiting_for_status or self.addresses_waiting_for_history )
+
+
+    def set_server(self, server):
+        if server != self.server:
+            self.server = server
             self.interface.is_connected = False  # this exits the polling loop
 
     def set_path(self, wallet_path):
@@ -460,7 +463,6 @@ class Wallet:
             self.addresses.append(address)
 
         self.history[address] = []
-        self.status[address] = None
         print address
         return address
 
@@ -530,13 +532,10 @@ class Wallet:
             'use_encryption':self.use_encryption,
             'master_public_key': self.master_public_key.encode('hex'),
             'fee':self.fee,
-            'host':self.host,
-            'port':self.port,
-            'protocol':self.protocol,
+            'server':self.server,
             'seed':self.seed,
             'addresses':self.addresses,
             'change_addresses':self.change_addresses,
-            'status':self.status,
             'history':self.history, 
             'labels':self.labels,
             'contacts':self.addressbook,
@@ -568,13 +567,10 @@ class Wallet:
             self.use_encryption = d.get('use_encryption')
             self.fee = int( d.get('fee') )
             self.seed = d.get('seed')
-            self.host = d.get('host')
-            self.protocol = d.get('protocol','n')
-            self.port = d.get('port')
+            self.server = d.get('server')
             blocks = d.get('blocks')
             self.addresses = d.get('addresses')
             self.change_addresses = d.get('change_addresses')
-            self.status = d.get('status')
             self.history = d.get('history')
             self.labels = d.get('labels')
             self.addressbook = d.get('contacts')
@@ -692,17 +688,30 @@ class Wallet:
         else:
             return s
 
+    def get_status(self, address):
+        h = self.history.get(address)
+        if not h:
+            status = None
+        else:
+            lastpoint = h[-1]
+            status = lastpoint['block_hash']
+            if status == 'mempool': 
+                status = status + ':%d'% len(h)
+        return status
+
     def receive_status_callback(self, addr, status):
-        if self.status.get(addr) != status:
-            #print "updating status for", addr, repr(self.status.get(addr)), repr(status)
-            self.status[addr] = status
+        if self.get_status(addr) != status:
+            #print "updating status for", addr, status
+            self.addresses_waiting_for_history.append(addr)
             self.interface.get_history(addr)
+        if addr in self.addresses_waiting_for_status: self.addresses_waiting_for_status.remove(addr)
 
     def receive_history_callback(self, addr, data):
         #print "updating history for", addr
         self.history[addr] = data
         self.update_tx_history()
         self.save()
+        if addr in self.addresses_waiting_for_history: self.addresses_waiting_for_history.remove(addr)
 
     def get_tx_history(self):
         lines = self.tx_history.values()
@@ -948,11 +957,11 @@ class Wallet:
                 if len(item)>2:
                     for v in item[2]:
                         if re.match("[nsh]\d+",v):
-                            s.append((v[0],host+":"+v[1:]))
+                            s.append(host+":"+v[1:]+":"+v[0])
                     if not s:
-                        s.append(("n",host+":50000"))
+                        s.append(host+":50000:n")
                 else:
-                    s.append(("n",host+":50000"))
+                    s.append(host+":50000:n")
                 servers = servers + s
             self.interface.servers = servers
 
@@ -980,6 +989,7 @@ class Wallet:
 
 
     def update(self):
+        self.interface.poke()
         self.up_to_date_event.wait()
 
 
@@ -988,7 +998,10 @@ class Wallet:
             new_addresses = self.synchronize()
             if new_addresses:
                 self.interface.subscribe(new_addresses)
-            if self.interface.is_up_to_date() and not new_addresses:
+                for addr in new_addresses:
+                    self.addresses_waiting_for_status.append(addr)
+
+            if self.is_up_to_date():
                 self.up_to_date = True
                 self.up_to_date_event.set()
             else:
@@ -999,19 +1012,25 @@ class Wallet:
 
 
     def start_interface(self):
-        if self.protocol == 'n':
+
+        host, port, protocol = self.server.split(':')
+        port = int(port)
+
+        if protocol == 'n':
             InterfaceClass = NativeInterface
-        elif self.protocol == 's':
+        elif protocol == 's':
             InterfaceClass = AsynchronousInterface
-        elif self.protocol == 'h':
+        elif protocol == 'h':
             InterfaceClass = HttpInterface
         else:
             print "unknown protocol"
             InterfaceClass = NativeInterface
 
-        self.interface = InterfaceClass(self.host, self.port)
+        self.interface = InterfaceClass(host, port)
         addresses = self.all_addresses()
         version = self.electrum_version
+        for addr in addresses:
+            self.addresses_waiting_for_status.append(addr)
         self.interface.start_session(addresses,version)
 
         
