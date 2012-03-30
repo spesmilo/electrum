@@ -259,8 +259,6 @@ class Wallet:
         self.receipt = None          # next receipt
         self.addressbook = []        # outgoing addresses, for payments
 
-        self.server = random.choice( DEFAULT_SERVERS )         # random choice when the wallet is created
-
         # not saved
         self.tx_history = {}
 
@@ -280,6 +278,12 @@ class Wallet:
         self.addresses_waiting_for_status = []
         self.addresses_waiting_for_history = []
 
+        self.pick_random_server()
+
+
+
+    def pick_random_server(self):
+        self.server = random.choice( DEFAULT_SERVERS )         # random choice when the wallet is created
 
     def is_up_to_date(self):
         return self.interface.responses.empty() and not ( self.addresses_waiting_for_status or self.addresses_waiting_for_history )
@@ -1012,8 +1016,13 @@ class Wallet:
 
     def start_interface(self):
 
-        host, port, protocol = self.server.split(':')
-        port = int(port)
+        try:
+            host, port, protocol = self.server.split(':')
+            port = int(port)
+        except:
+            self.pick_random_server()
+            host, port, protocol = self.server.split(':')
+            port = int(port)
 
         if protocol == 'n':
             InterfaceClass = NativeInterface
