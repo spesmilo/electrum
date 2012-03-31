@@ -138,6 +138,8 @@ if __name__ == '__main__':
             WalletSynchronizer(wallet).start()
             print "recovering wallet..."
             wallet.init_mpk( wallet.seed )
+            wallet.up_to_date_event.clear()
+            wallet.up_to_date = False
             wallet.update()
             if wallet.is_found():
                 wallet.fill_addressbook()
