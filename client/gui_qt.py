@@ -36,7 +36,9 @@ except:
 from wallet import format_satoshis
 from decimal import Decimal
 
-MONOSPACE_FONT = 'monospace'
+import platform
+MONOSPACE_FONT = 'Lucida Console' if platform.system() == 'Windows' else 'monospace'
+    
 
 def numbify(entry, is_int = False):
     text = unicode(entry.text()).strip()

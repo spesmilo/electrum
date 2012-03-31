@@ -27,7 +27,8 @@ from decimal import Decimal
 
 gtk.gdk.threads_init()
 APP_NAME = "Electrum"
-MONOSPACE_FONT = "monospace"
+import platform
+MONOSPACE_FONT = 'Lucida Console' if platform.system() == 'Windows' else 'monospace'
 
 from wallet import format_satoshis
 from interface import DEFAULT_SERVERS
