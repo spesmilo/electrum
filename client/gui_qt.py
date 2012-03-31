@@ -24,6 +24,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
+from interface import DEFAULT_SERVERS
 
 try:
     import icons_rc
@@ -847,7 +848,7 @@ class ElectrumWindow(QMainWindow):
         else:
             import random
             status = "Please choose a server."
-            server = random.choice( interface.servers )
+            server = random.choice( DEFAULT_SERVERS )
 
         plist = {}
         for item in wallet.interface.servers:

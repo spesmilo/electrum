@@ -30,6 +30,7 @@ APP_NAME = "Electrum"
 MONOSPACE_FONT = "monospace"
 
 from wallet import format_satoshis
+from interface import DEFAULT_SERVERS
 
 def numbify(entry, is_int = False):
     text = entry.get_text().strip()
@@ -266,6 +267,7 @@ def run_settings_dialog(wallet, parent):
 
 
 
+
 def run_network_dialog( wallet, parent ):
     image = gtk.Image()
     image.set_from_stock(gtk.STOCK_NETWORK, gtk.ICON_SIZE_DIALOG)
@@ -279,7 +281,7 @@ def run_network_dialog( wallet, parent ):
     else:
         import random
         status = "Please choose a server."
-        server = random.choice( interface.servers )
+        server = random.choice( DEFAULT_SERVERS )
 
     dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                                     gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, status)
