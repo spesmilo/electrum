@@ -216,7 +216,7 @@ class NativeInterface(PollingInterface):
 
 
 
-class HttpInterface(PollingInterface):
+class HttpStratumInterface(PollingInterface):
 
     def poll(self):
         self.send([])
@@ -277,7 +277,7 @@ class HttpInterface(PollingInterface):
 
 
 
-class AsynchronousInterface(Interface):
+class TcpStratumInterface(Interface):
     """json-rpc over persistent TCP connection, asynchronous"""
 
     def __init__(self, host, port):
@@ -420,9 +420,9 @@ class WalletSynchronizer(threading.Thread):
         if protocol == 'n':
             InterfaceClass = NativeInterface
         elif protocol == 't':
-            InterfaceClass = AsynchronousInterface
+            InterfaceClass = TcpStratumInterface
         elif protocol == 'h':
-            InterfaceClass = HttpInterface
+            InterfaceClass = HttpStratumInterface
         else:
             print "unknown protocol"
             InterfaceClass = NativeInterface

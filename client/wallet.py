@@ -230,7 +230,7 @@ def format_satoshis(x, is_diff=False):
 
 
 from version import ELECTRUM_VERSION, SEED_VERSION
-from interface import NativeInterface, AsynchronousInterface, HttpInterface, DEFAULT_SERVERS
+from interface import DEFAULT_SERVERS
 
 
 

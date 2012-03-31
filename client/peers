@@ -2,7 +2,7 @@
 
 import socket, time, interface
 
-i = interface.AsynchronousInterface('ecdsa.org', 50001)
+i = interface.TcpStratumInterface('ecdsa.org', 50001)
 i.start()
 i.send([('server.peers.subscribe',[])])
 
