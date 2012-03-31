@@ -283,6 +283,15 @@ def run_network_dialog( wallet, parent ):
         status = "Please choose a server."
         server = random.choice( DEFAULT_SERVERS )
 
+    plist = {}
+    for item in wallet.interface.servers:
+        host, pp = item
+        z = {}
+        for item2 in pp:
+            protocol, port = item2
+            z[protocol] = port
+        plist[host] = z
+
     dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                                     gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, status)
     dialog.set_title("Server")
@@ -302,10 +311,53 @@ def run_network_dialog( wallet, parent ):
     host_box.pack_start(host_entry, False, False, 10)
     add_help_button(host_box, 'The name and port number of your Electrum server, separated by a colon. Example: "ecdsa.org:50000". If no port number is provided, port 50000 will be tried. Some servers allow you to connect through http (port 80) or https (port 443)')
     host_box.show()
+
+
+    p_box = gtk.HBox(False, 10)
+    p_box.show()
+
+    p_label = gtk.Label('Protocol:')
+    p_label.set_size_request(100,-1)
+    p_label.show()
+    p_box.pack_start(p_label, False, False, 10)
+
+    radio1 = gtk.RadioButton(None, "tcp")
+    p_box.pack_start(radio1, True, True, 0)
+    radio1.show()
+    radio2 = gtk.RadioButton(radio1, "http")
+    p_box.pack_start(radio2, True, True, 0)
+    radio2.show()
+    radio3 = gtk.RadioButton(radio1, "native")
+    p_box.pack_start(radio3, True, True, 0)
+    radio3.show()
+
+    def current_line():
+        return unicode(host_entry.get_text()).split(':')
+    
+    def set_button(protocol):
+        if protocol == 't':
+            radio1.set_active(1)
+        elif protocol == 'h':
+            radio2.set_active(1)
+        elif protocol == 'n':
+            radio3.set_active(1)
+
+    def set_protocol(protocol):
+        host = current_line()[0]
+        pp = plist[host]
+        if protocol not in pp.keys():
+            protocol = pp.keys()[0]
+            set_button(protocol)
+        port = pp[protocol]
+        host_entry.set_text( host + ':' + port + ':' + protocol)
+
+    radio1.connect("toggled", lambda x,y:set_protocol('t'), "radio button 1")
+    radio2.connect("toggled", lambda x,y:set_protocol('h'), "radio button 1")
+    radio3.connect("toggled", lambda x,y:set_protocol('n'), "radio button 1")
         
     server_list = gtk.ListStore(str)
-    for item in interface.servers:
-        server_list.append([item])
+    for host in plist.keys():
+        server_list.append([host])
     
     treeview = gtk.TreeView(model=server_list)
     treeview.show()
@@ -322,12 +374,22 @@ def run_network_dialog( wallet, parent ):
     scroll.show()
 
     vbox.pack_start(host_box, False,False, 5)
+    vbox.pack_start(p_box, True, True, 0)
     vbox.pack_start(scroll)
 
     def my_treeview_cb(treeview):
         path, view_column = treeview.get_cursor()
-        server = server_list.get_value( server_list.get_iter(path), 0)
-        host_entry.set_text(server)
+        host = server_list.get_value( server_list.get_iter(path), 0)
+
+        pp = plist[host]
+        if 't' in pp.keys():
+            protocol = 't'
+        else:
+            protocol = pp.keys()[0]
+        port = pp[protocol]
+        host_entry.set_text( host + ':' + port + ':' + protocol)
+        set_button(protocol)
+
     treeview.connect('cursor-changed', my_treeview_cb)
 
     dialog.show()
