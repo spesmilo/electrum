@@ -461,7 +461,7 @@ class WalletSynchronizer(threading.Thread):
                     else:
                         self.wallet.up_to_date = False
 
-                    response = self.interface.responses.get(True,100000000000) # workaround so that it can be keyboard interrupted
+                    response = self.interface.responses.get()#True,100000000000) # workaround so that it can be keyboard interrupted
                     self.handle_response(response)
             except socket.error:
                 print "socket error"
