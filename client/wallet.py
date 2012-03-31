@@ -283,7 +283,9 @@ class Wallet:
 
 
     def pick_random_server(self):
-        self.server = random.choice( DEFAULT_SERVERS )         # random choice when the wallet is created
+        host, pp = random.choice( DEFAULT_SERVERS )         # random choice when the wallet is created
+        protocol, port = pp[0]
+        self.server = host + ':' + port + ':' + protocol
 
     def is_up_to_date(self):
         return self.interface.responses.empty() and not ( self.addresses_waiting_for_status or self.addresses_waiting_for_history )
@@ -292,6 +294,7 @@ class Wallet:
     def set_server(self, server):
         if server != self.server:
             self.server = server
+            self.save()
             self.interface.is_connected = False  # this exits the polling loop
 
     def set_path(self, wallet_path):

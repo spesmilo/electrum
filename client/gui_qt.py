@@ -849,6 +849,15 @@ class ElectrumWindow(QMainWindow):
             status = "Please choose a server."
             server = random.choice( interface.servers )
 
+        plist = {}
+        for item in wallet.interface.servers:
+            host, pp = item
+            z = {}
+            for item2 in pp:
+                protocol, port = item2
+                z[protocol] = port
+            plist[host] = z
+
         d = QDialog(parent)
         d.setModal(1)
         d.setWindowTitle('Server')
@@ -872,13 +881,65 @@ class ElectrumWindow(QMainWindow):
         hbox.addWidget(host_line)
         vbox.addLayout(hbox)
 
+        hbox = QHBoxLayout()
+
+        buttonGroup = QGroupBox("protocol")
+        radio1 = QRadioButton("tcp", buttonGroup)
+        radio2 = QRadioButton("http", buttonGroup)
+        radio3 = QRadioButton("native", buttonGroup)
+
+        def current_line():
+            return unicode(host_line.text()).split(':')
+            
+        def set_button(protocol):
+            if protocol == 't':
+                radio1.setChecked(1)
+            elif protocol == 'h':
+                radio2.setChecked(1)
+            elif protocol == 'n':
+                radio3.setChecked(1)
+
+        def set_protocol(protocol):
+            host = current_line()[0]
+            pp = plist[host]
+            if protocol not in pp.keys():
+                protocol = pp.keys()[0]
+                set_button(protocol)
+            port = pp[protocol]
+            host_line.setText( host + ':' + port + ':' + protocol)
+
+        radio1.clicked.connect(lambda x: set_protocol('t') )
+        radio2.clicked.connect(lambda x: set_protocol('h') )
+        radio3.clicked.connect(lambda x: set_protocol('n') )
+
+        set_button(current_line()[2])
+
+        hbox.addWidget(QLabel('Protocol:'))
+        hbox.addWidget(radio1)
+        hbox.addWidget(radio2)
+        hbox.addWidget(radio3)
+
+        vbox.addLayout(hbox)
+
         if wallet.interface.servers:
             servers_list = QTreeWidget(parent)
             servers_list.setHeaderLabels( [ 'Active servers'] )
             servers_list.setMaximumHeight(150)
-            for item in wallet.interface.servers:
-                servers_list.addTopLevelItem(QTreeWidgetItem( [ item ] ))
-            servers_list.connect(servers_list, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), lambda x:host_line.setText( x.text(0) ))
+            for host in plist.keys():
+                servers_list.addTopLevelItem(QTreeWidgetItem( [ host ] ))
+
+            def do_set_line(x):
+                host = unicode(x.text(0))
+                pp = plist[host]
+                if 't' in pp.keys():
+                    protocol = 't'
+                else:
+                    protocol = pp.keys()[0]
+                port = pp[protocol]
+                host_line.setText( host + ':' + port + ':' + protocol)
+                set_button(protocol)
+
+            servers_list.connect(servers_list, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), do_set_line)
             vbox.addWidget(servers_list)
         else:
             hbox = QHBoxLayout()

@@ -21,7 +21,7 @@ import random, socket, ast, re
 import threading, traceback, sys, time, json, Queue
 
 DEFAULT_TIMEOUT = 5
-DEFAULT_SERVERS = ['ecdsa.org:50001:t'] #  ['electrum.bitcoins.sk','ecdsa.org','electrum.novit.ro']  # list of default servers
+DEFAULT_SERVERS = [ ('ecdsa.org', [('t','50001')]) ] #  ['electrum.bitcoins.sk','ecdsa.org','electrum.novit.ro']  # list of default servers
 
 
 def old_to_new(s):
@@ -371,15 +371,17 @@ class WalletSynchronizer(threading.Thread):
             for item in result:
                 s = []
                 host = item[1]
+                ports = []
                 if len(item)>2:
                     for v in item[2]:
                         if re.match("[thn]\d+",v):
-                            s.append(host+":"+v[1:]+":"+v[0])
+                            ports.append((v[0],v[1:]))
                     #if not s:
                     #    s.append(host+":50000:n")
                 #else:
                 #    s.append(host+":50000:n")
-                servers = servers + s
+                if ports:
+                    servers.append( (host, ports) )
             self.interface.servers = servers
 
         elif method == 'blockchain.address.subscribe':
