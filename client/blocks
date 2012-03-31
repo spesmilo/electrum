@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import socket, time, interface
+import interface
 
 i = interface.TcpStratumInterface('ecdsa.org', 50001)
 i.start()
