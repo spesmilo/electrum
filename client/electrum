@@ -20,12 +20,9 @@ import re, sys, getpass
 
 from optparse import OptionParser
 from wallet import Wallet, SecretToASecret
+from interface import WalletSynchronizer
 from decimal import Decimal
-
-import thread
-
 from wallet import format_satoshis
-from interface import loop_interfaces_thread
 
 known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'restore', 'payto', 'sendtx', 'password', 'addresses', 'history', 'label', 'mktx','seed','import','signmessage','verifymessage','eval']
 offline_commands = ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create', 'addresses', 'import', 'seed']
@@ -71,7 +68,7 @@ if __name__ == '__main__':
             exit(1)
 
         gui = gui.ElectrumGui(wallet)
-        thread.start_new_thread(loop_interfaces_thread, (wallet,))
+        WalletSynchronizer(wallet,True).start()
 
         try:
             found = wallet.file_exists
@@ -138,11 +135,9 @@ if __name__ == '__main__':
                 sys.exit(1)
 
             wallet.seed = str(seed)
-            wallet.start_interface()
+            WalletSynchronizer(wallet).start()
             print "recovering wallet..."
             wallet.init_mpk( wallet.seed )
-            wallet.start_interface()
-            thread.start_new_thread(wallet.run, ())
             wallet.update()
             if wallet.is_found():
                 wallet.fill_addressbook()
@@ -175,8 +170,7 @@ if __name__ == '__main__':
 
     # open session
     if cmd not in offline_commands:
-        wallet.start_interface()
-        thread.start_new_thread(wallet.run, ())
+        WalletSynchronizer(wallet).start()
         wallet.update()
         wallet.save()
 

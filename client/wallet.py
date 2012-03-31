@@ -271,7 +271,7 @@ class Wallet:
         self.up_to_date_event = threading.Event()
         self.up_to_date_event.clear()
         self.up_to_date = False
-        self.interface_lock = threading.Lock()
+        self.lock = threading.Lock()
         self.tx_event = threading.Event()
 
         #
@@ -571,7 +571,7 @@ class Wallet:
             self.fee = int( d.get('fee') )
             self.seed = d.get('seed')
             self.server = d.get('server')
-            blocks = d.get('blocks')
+            #blocks = d.get('blocks')
             self.addresses = d.get('addresses')
             self.change_addresses = d.get('change_addresses')
             self.history = d.get('history')
@@ -703,18 +703,21 @@ class Wallet:
         return status
 
     def receive_status_callback(self, addr, status):
-        if self.get_status(addr) != status:
-            #print "updating status for", addr, status
-            self.addresses_waiting_for_history.append(addr)
-            self.interface.get_history(addr)
-        if addr in self.addresses_waiting_for_status: self.addresses_waiting_for_status.remove(addr)
+        with self.lock:
+            if self.get_status(addr) != status:
+                #print "updating status for", addr, status
+                self.addresses_waiting_for_history.append(addr)
+                self.interface.get_history(addr)
+            if addr in self.addresses_waiting_for_status: 
+                self.addresses_waiting_for_status.remove(addr)
 
-    def receive_history_callback(self, addr, data):
+    def receive_history_callback(self, addr, data): 
         #print "updating history for", addr
-        self.history[addr] = data
-        self.update_tx_history()
-        self.save()
-        if addr in self.addresses_waiting_for_history: self.addresses_waiting_for_history.remove(addr)
+        with self.lock:
+            self.history[addr] = data
+            self.update_tx_history()
+            self.save()
+            if addr in self.addresses_waiting_for_history: self.addresses_waiting_for_history.remove(addr)
 
     def get_tx_history(self):
         lines = self.tx_history.values()
@@ -929,116 +932,9 @@ class Wallet:
         return address, amount, label, message, signature, identity, url
 
 
-
-    def handle_response(self, r):
-        if r is None:
-            return
-
-        method = r['method']
-        params = r['params']
-        result = r['result']
-
-        if method == 'server.banner':
-            self.banner = result
-            self.was_updated = True
-
-        elif method == 'session.poll':
-            # native poll
-            blocks, changed_addresses = result 
-            if blocks == -1: raise BaseException("session not found")
-            self.blocks = int(blocks)
-            if changed_addresses:
-                self.was_updated = True
-                for addr, status in changed_addresses.items():
-                    self.receive_status_callback(addr, status)
-
-        elif method == 'server.peers.subscribe':
-            servers = []
-            for item in result:
-                s = []
-                host = item[1]
-                if len(item)>2:
-                    for v in item[2]:
-                        if re.match("[thn]\d+",v):
-                            s.append(host+":"+v[1:]+":"+v[0])
-                    #if not s:
-                    #    s.append(host+":50000:n")
-                #else:
-                #    s.append(host+":50000:n")
-                servers = servers + s
-            self.interface.servers = servers
-
-        elif method == 'blockchain.address.subscribe':
-            addr = params[-1]
-            self.receive_status_callback(addr, result)
-                            
-        elif method == 'blockchain.address.get_history':
-            addr = params[0]
-            self.receive_history_callback(addr, result)
-            self.was_updated = True
-
-        elif method == 'blockchain.transaction.broadcast':
-            self.tx_result = result
-            self.tx_event.set()
-
-        elif method == 'blockchain.numblocks.subscribe':
-            self.blocks = result
-
-        elif method == 'server.version':
-            pass
-
-        else:
-            print "unknown message:", method, params, result
-
-
     def update(self):
         self.interface.poke()
         self.up_to_date_event.wait()
 
 
-    def run(self):
-        while self.interface.is_connected:
-            new_addresses = self.synchronize()
-            if new_addresses:
-                self.interface.subscribe(new_addresses)
-                for addr in new_addresses:
-                    self.addresses_waiting_for_status.append(addr)
 
-            if self.is_up_to_date():
-                self.up_to_date = True
-                self.up_to_date_event.set()
-            else:
-                self.up_to_date = False
-
-            response = self.interface.responses.get(True,100000000000) # workaround so that it can be keyboard interrupted
-            self.handle_response(response)
-
-
-    def start_interface(self):
-
-        try:
-            host, port, protocol = self.server.split(':')
-            port = int(port)
-        except:
-            self.pick_random_server()
-            host, port, protocol = self.server.split(':')
-            port = int(port)
-
-        if protocol == 'n':
-            InterfaceClass = NativeInterface
-        elif protocol == 't':
-            InterfaceClass = AsynchronousInterface
-        elif protocol == 'h':
-            InterfaceClass = HttpInterface
-        else:
-            print "unknown protocol"
-            InterfaceClass = NativeInterface
-
-        self.interface = InterfaceClass(host, port)
-        addresses = self.all_addresses()
-        version = self.electrum_version
-        for addr in addresses:
-            self.addresses_waiting_for_status.append(addr)
-        self.interface.start_session(addresses,version)
-
-        
