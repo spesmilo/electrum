@@ -780,7 +780,7 @@ class Wallet:
     def sendtx(self, tx):
         tx_hash = Hash(tx.decode('hex') )[::-1].encode('hex')
         self.tx_event.clear()
-        self.interface.send([('transaction.broadcast', [tx])])
+        self.interface.send([('blockchain.transaction.broadcast', [tx])])
         self.tx_event.wait()
         out = self.tx_result 
         if out != tx_hash:
