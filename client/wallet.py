@@ -277,9 +277,12 @@ class Wallet:
         #
         self.addresses_waiting_for_status = []
         self.addresses_waiting_for_history = []
+        self.pick_random_server()
+
+
+
+    def pick_random_server(self):
         self.server = random.choice( DEFAULT_SERVERS )         # random choice when the wallet is created
-
-
 
     def is_up_to_date(self):
         return self.interface.responses.empty() and not ( self.addresses_waiting_for_status or self.addresses_waiting_for_history )
