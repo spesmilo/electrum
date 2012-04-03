@@ -24,6 +24,9 @@ from wallet import Wallet
 from wallet import format_satoshis
 from decimal import Decimal
 
+
+
+
 droid = android.Android()
 wallet = Wallet()
 wallet.set_path("/sdcard/electrum.dat")
@@ -95,13 +98,15 @@ def show_addresses():
 main_layout = """<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
         android:id="@+id/background"
-        android:orientation="vertical" android:layout_width="match_parent"
-        android:layout_height="match_parent" android:background="#ff000000">
+        android:orientation="vertical" 
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" 
+        android:background="#ff000000">
 
         <TextView android:id="@+id/historyTextView" 
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" 
-                android:text="History"
+                android:text="Electrum"
                 android:textAppearance="?android:attr/textAppearanceLarge" 
                 android:gravity="center_vertical|center_horizontal|center">
         </TextView>
@@ -111,9 +116,9 @@ main_layout = """<?xml version="1.0" encoding="utf-8"?>
         <TextView android:id="@+id/balanceTextView" 
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" 
-                android:text="TextView"
+                android:text=""
                 android:textAppearance="?android:attr/textAppearanceLarge" 
-                android:gravity="center_vertical|center_horizontal|center">
+                android:gravity="left">
         </TextView>
 
         <LinearLayout android:layout_width="match_parent"
@@ -177,13 +182,15 @@ payto_layout="""<?xml version="1.0" encoding="utf-8"?>
         <EditText android:id="@+id/amount"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" 
-                android:tag="Tag Me" android:inputType="textCapWords|number">
+                android:tag="Tag Me" android:inputType="textCapWords|textPhonetic|number">
         </EditText>
 
         <LinearLayout android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:id="@+id/linearLayout1">
                 <Button android:id="@+id/buttonContacts" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="Contacts"></Button>
+                <Button android:id="@+id/buttonQR" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="Scan QR"></Button>
                 <Button android:id="@+id/buttonPay" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="Send"></Button>
                 <Button android:id="@+id/buttonCancelSend" android:layout_width="wrap_content"
@@ -291,14 +298,14 @@ if not wallet.file_exists:
 
 
 
-
-droid.dialogCreateSpinnerProgress("Electrum", "synchronizing")
-droid.dialogShow()
-WalletSynchronizer(wallet,True).start()
-wallet.update()
-wallet.save()
-droid.dialogDismiss()
-droid.vibrate()
+if True:
+    droid.dialogCreateSpinnerProgress("Electrum", "synchronizing")
+    droid.dialogShow()
+    WalletSynchronizer(wallet,True).start()
+    wallet.update()
+    wallet.save()
+    droid.dialogDismiss()
+    droid.vibrate()
 
 
 def add_menu():
@@ -372,11 +379,18 @@ def payto_loop():
                 droid.dialogDismiss()
                 out = 'main'
 
-                
             elif id=="buttonContacts":
                 addr = recipient_dialog()
                 droid.fullSetProperty("recipient","text",addr)
-                
+
+            elif id=="buttonQR":
+                code = droid.scanBarcode()
+                r = code.result
+                if r:
+                    addr = r['extras']['SCAN_RESULT']
+                    if addr:
+                        droid.fullSetProperty("recipient","text",addr)
+                    
             elif id=="buttonCancelSend":
                 out = 'main'
 
