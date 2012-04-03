@@ -230,8 +230,6 @@ settings_layout = """<?xml version="1.0" encoding="utf-8"?>
 
 
 
-droid.addOptionsMenuItem("Settings","settings",None,"")
-droid.addOptionsMenuItem("Quit","quit",None,"")
 
 
 def show_balance():
@@ -303,12 +301,16 @@ droid.dialogDismiss()
 droid.vibrate()
 
 
+def add_menu():
+    droid.addOptionsMenuItem("Settings","settings",None,"")
+    droid.addOptionsMenuItem("Quit","quit",None,"")
+
+add_menu()
+
 
 def main_loop():
-
     droid.fullShow(main_layout)
     show_balance()
-
     out = None
     while out is None:
 
@@ -340,7 +342,6 @@ def main_loop():
         #    if event["data"]=="destroy":
         #        out = 'exit'
 
-    #droid.fullDismiss()
     return out
                     
 def payto_loop():
@@ -389,7 +390,6 @@ def payto_loop():
         #    if event["data"]=="destroy":
         #        out = 'main'
 
-    #droid.fullDismiss()
     return out
 
 
@@ -414,9 +414,6 @@ def history_loop():
         #    if event["data"]=="destroy":
         #        out = 'main'
 
-    #droid.fullQuery()
-    #print "Data entered =",droid.fullQueryDetail("editText1").result
-    #droid.fullDismiss()
     return out
 
 def server_dialog(plist):

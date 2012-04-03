@@ -298,6 +298,7 @@ class Wallet:
         # raise an error if the format isnt correct
         a,b,c = server.split(':')
         b = int(b)
+        assert c in ['t','h','n']
         # set the server
         if server != self.server:
             self.server = server
