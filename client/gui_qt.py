@@ -666,6 +666,19 @@ class ElectrumWindow(QMainWindow):
 
         QMessageBox.information(parent, 'Seed', msg, 'OK')
 
+        def showqrcode(address):
+            if not address: return
+            d = QDialog(None)
+            d.setModal(1)
+            d.setMinimumSize(270, 300)
+            vbox = QVBoxLayout()
+            vbox.addWidget(QRCodeWidget(address))
+            vbox.addLayout(ok_cancel_buttons(d))
+            d.setLayout(vbox)
+            d.exec_()
+        showqrcode(seed)
+
+
     def question(self, msg):
         return QMessageBox.question(self, 'Message', msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes
 

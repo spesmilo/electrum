@@ -25,6 +25,7 @@ from wallet import format_satoshis
 from decimal import Decimal
 
 
+import datetime
 
 
 droid = android.Android()
@@ -34,26 +35,29 @@ wallet.read()
 
 
 def get_history_layout(n):
-    lines = wallet.get_tx_history()[-n:]
     rows = ""
-    for line in lines:
-        import datetime
+    for line in wallet.get_tx_history()[-n:]:
         v = line['value'] 
-        if line.has_key('timestamp'):
+        try:
             dt = datetime.datetime.fromtimestamp( line['timestamp'] )
             if dt.date() == dt.today().date():
                 time_str = str( dt.time() )
             else:
                 time_str = str( dt.date() )
-        else:
+        except:
+            print line['timestamp']
             time_str = 'pending'
 
         label = line.get('label')
-        if not label: label = line['tx_hash']
+        #if not label: label = line['tx_hash']
+        is_default_label = (label == '') or (label is None)
+        if is_default_label: label = line['default_label']
 
         rows += """
-    <TableRow>
+    <TableRow
+       android:layout_width="fill_parent">
         <TextView
+            android:layout_column="1"
             android:text="%s"
             android:padding="2px" />
         <TextView
@@ -70,7 +74,7 @@ def get_history_layout(n):
 <TableLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="fill_parent"
     android:layout_height="wrap_content"
-    android:stretchColumns="*">
+    android:stretchColumns="1">
     %s
 </TableLayout>
 """% rows
@@ -95,7 +99,8 @@ def show_addresses():
 
 
 
-main_layout = """<?xml version="1.0" encoding="utf-8"?>
+def main_layout():
+    return """<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
         android:id="@+id/background"
         android:orientation="vertical" 
@@ -137,11 +142,17 @@ main_layout = """<?xml version="1.0" encoding="utf-8"?>
 
 payto_layout="""<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-        android:id="@+id/background"
-        android:orientation="vertical" 
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" 
-        android:background="#ff000000">
+ android:id="@+id/background"
+ android:orientation="vertical" 
+ android:layout_width="match_parent"
+ android:layout_height="match_parent" 
+ android:background="#ff000000">
+
+    <LinearLayout android:id="@+id/linearLayout0"
+     android:orientation="vertical" 
+     android:layout_width="match_parent"
+     android:layout_height="wrap_content" 
+     android:background="#44ffffff">
 
         <TextView android:id="@+id/recipientTextView" 
                 android:layout_width="match_parent"
@@ -151,11 +162,25 @@ payto_layout="""<?xml version="1.0" encoding="utf-8"?>
                 android:gravity="left">
         </TextView>
 
+
         <EditText android:id="@+id/recipient"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" 
                 android:tag="Tag Me" android:inputType="textCapWords|textPhonetic|number">
         </EditText>
+
+        <LinearLayout android:id="@+id/linearLayout1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+                <Button android:id="@+id/buttonQR" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="Scan QR"></Button>
+                <Button android:id="@+id/buttonContacts" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="Contacts"></Button>
+        </LinearLayout>
+
+    </LinearLayout>
+
+
 
         <TextView android:id="@+id/labelTextView" 
                 android:layout_width="match_parent"
@@ -182,15 +207,11 @@ payto_layout="""<?xml version="1.0" encoding="utf-8"?>
         <EditText android:id="@+id/amount"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" 
-                android:tag="Tag Me" android:inputType="textCapWords|textPhonetic|number">
+                android:tag="Tag Me" android:inputType="numberDecimal">
         </EditText>
 
         <LinearLayout android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:id="@+id/linearLayout1">
-                <Button android:id="@+id/buttonContacts" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="Contacts"></Button>
-                <Button android:id="@+id/buttonQR" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="Scan QR"></Button>
                 <Button android:id="@+id/buttonPay" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="Send"></Button>
                 <Button android:id="@+id/buttonCancelSend" android:layout_width="wrap_content"
@@ -294,11 +315,46 @@ if not wallet.file_exists:
     droid.dialogSetPositiveButtonText('OK')
     droid.dialogShow()
     resp = droid.dialogGetResponse().result
-    exit(1)
+    print resp
 
+    code = droid.scanBarcode()
+    r = code.result
+    if r:
+        seed = r['extras']['SCAN_RESULT']
+    else:
+        exit(1)
 
+    droid.dialogCreateAlert('seed', seed)
+    droid.dialogSetPositiveButtonText('OK')
+    droid.dialogSetNegativeButtonText('Cancel')
+    droid.dialogShow()
+    response = droid.dialogGetResponse().result
+    droid.dialogDismiss()
+    print response
 
-if True:
+    wallet.seed = str(seed)
+    wallet.init_mpk( wallet.seed )
+    droid.dialogCreateSpinnerProgress("Electrum", "recovering keys")
+    droid.dialogShow()
+    WalletSynchronizer(wallet,True).start()
+    wallet.update()
+    wallet.save()
+    droid.dialogDismiss()
+    droid.vibrate()
+
+    if wallet.is_found():
+        # history and addressbook
+        wallet.update_tx_history()
+        wallet.fill_addressbook()
+        droid.dialogCreateAlert("recovery successful")
+        droid.dialogShow()
+        wallet.save()
+    else:
+        droid.dialogCreateSpinnerProgress("wallet not found")
+        droid.dialogShow()
+        exit(1)
+
+else:
     droid.dialogCreateSpinnerProgress("Electrum", "synchronizing")
     droid.dialogShow()
     WalletSynchronizer(wallet,True).start()
@@ -316,7 +372,7 @@ add_menu()
 
 
 def main_loop():
-    droid.fullShow(main_layout)
+    droid.fullShow(main_layout())
     show_balance()
     out = None
     while out is None:
@@ -344,8 +400,8 @@ def main_loop():
         elif event["name"]=="quit":
             out = 'quit'
 
-            #print droid.fullSetProperty("background","backgroundColor","0xff7f0000")
-        #elif event["name"]=="screen":
+        # print droid.fullSetProperty("background","backgroundColor","0xff7f0000")
+        # elif event["name"]=="screen":
         #    if event["data"]=="destroy":
         #        out = 'exit'
 
