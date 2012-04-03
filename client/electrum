@@ -305,7 +305,7 @@ if __name__ == '__main__':
             v = line['value'] 
             b += v
             try:
-                time_str = datetime.datetime.fromtimestamp( line['timestamp']) 
+                time_str = str( datetime.datetime.fromtimestamp( line['timestamp']))
             except:
                 print line['timestamp']
                 time_str = 'pending'
