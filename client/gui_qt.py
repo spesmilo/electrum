@@ -958,8 +958,7 @@ class ElectrumWindow(QMainWindow):
         server = unicode( host_line.text() )
 
         try:
-            a,b,c = server.split(':')
-            b = int(b)
+            wallet.set_server(server)
         except:
             QMessageBox.information(None, 'Error', 'error', 'OK')
             if parent == None:
@@ -967,7 +966,6 @@ class ElectrumWindow(QMainWindow):
             else:
                 return
 
-        wallet.set_server(server)
         return True
 
 

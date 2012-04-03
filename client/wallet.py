@@ -38,9 +38,15 @@ except:
 addrtype = 0
 
 def hash_160(public_key):
-    md = hashlib.new('ripemd160')
-    md.update(hashlib.sha256(public_key).digest())
-    return md.digest()
+    try:
+        md = hashlib.new('ripemd160')
+        md.update(hashlib.sha256(public_key).digest())
+        return md.digest()
+    except:
+        import ripemd
+        md = ripemd.new(hashlib.sha256(public_key).digest())
+        return md.digest()
+
 
 def public_key_to_bc_address(public_key):
     h160 = hash_160(public_key)
@@ -289,6 +295,10 @@ class Wallet:
 
 
     def set_server(self, server):
+        # raise an error if the format isnt correct
+        a,b,c = server.split(':')
+        b = int(b)
+        # set the server
         if server != self.server:
             self.server = server
             self.save()

@@ -402,13 +402,11 @@ def run_network_dialog( wallet, parent ):
         return False
 
     try:
-        a,b,c = server.split(':')
-        b = int(b)
+        wallet.set_server(server)
     except:
         show_message("error:" + server)
         return False
 
-    wallet.set_server(server)
     if parent:
         wallet.save()
     return True
