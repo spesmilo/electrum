@@ -361,6 +361,7 @@ def set_history_layout(n):
 
         i += 1
 
+first_time_update = True
 
 def update_layout():
 
@@ -373,14 +374,18 @@ def update_layout():
     else:
         c, u = wallet.get_balance()
         text = "Balance:"+format_satoshis(c) 
-        if u : text += '['+ format_satoshis(u,True)+']'
+        if u : text += '   [' + format_satoshis(u,True).strip() + ']'
 
     droid.fullSetProperty("balanceTextView", "text", text)
 
     if wallet.was_updated and wallet.up_to_date:
+        global first_time_update
+        if not first_time_update:
+            droid.vibrate()
+        else:
+            first_time_update = False
         wallet.was_updated = False
         set_history_layout(15)
-        droid.vibrate()
 
 
 
