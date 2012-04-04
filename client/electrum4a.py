@@ -109,6 +109,11 @@ def main_layout():
            android:layout_height="wrap_content" 
            android:id="@+id/linearLayout1">
             <TableRow>
+                <Button android:id="@+id/buttonHistory" 
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" 
+                        android:text="History">
+                </Button>
                 <Button android:id="@+id/buttonSend" 
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content" 
@@ -118,6 +123,11 @@ def main_layout():
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content" 
                         android:text="Receive">
+                </Button>
+                <Button android:id="@+id/buttonContacts" 
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" 
+                        android:text="Contacts">
                 </Button>
            </TableRow>
         </TableLayout>
