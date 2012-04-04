@@ -144,16 +144,20 @@ def main_layout():
 """%(title, get_history_layout(15))
 
 
-payto_layout="""<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
- android:id="@+id/background"
- android:orientation="vertical" 
- android:layout_width="match_parent"
- android:layout_height="match_parent" 
- android:background="#ff000022">
-
+def make_layout(s):
+    return """<?xml version="1.0" encoding="utf-8"?>
+      <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/background"
+        android:orientation="vertical" 
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" 
+        android:background="#ff000022">
         %s
+        %s
+      </LinearLayout>"""%(title,s)
 
+
+payto_layout = make_layout("""
         <TextView android:id="@+id/recipientTextView" 
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" 
@@ -213,23 +217,8 @@ payto_layout="""<?xml version="1.0" encoding="utf-8"?>
                         android:layout_height="wrap_content" android:text="Send"></Button>
                 <Button android:id="@+id/buttonCancelSend" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="Cancel"></Button>
-        </LinearLayout>
-</LinearLayout>
-"""%title
+        </LinearLayout>""")
 
-
-
-def make_layout(s):
-    return """<?xml version="1.0" encoding="utf-8"?>
-      <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-        android:id="@+id/background"
-        android:orientation="vertical" 
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" 
-        android:background="#ff000000">
-        %s
-        %s
-      </LinearLayout>"""%(title,s)
 
 receive_layout = make_layout("""
         <TextView android:id="@+id/receiveTextView" 
@@ -245,6 +234,14 @@ contacts_layout = make_layout("""
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" 
                 android:text="Contacts"
+                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:gravity="left">
+        </TextView>
+
+        <TextView android:id="@+id/labelTextView" 
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" 
+                android:text="Label:"
                 android:textAppearance="?android:attr/textAppearanceLarge" 
                 android:gravity="left">
         </TextView>""")
@@ -683,10 +680,11 @@ def settings_loop():
                     plist[host] = z
 
                 host = server_dialog(plist)
-                p = plist[host]
-                port = p['t']
-                srv = host + ':' + port + ':t'
-                droid.fullSetProperty("server","text",srv)
+                if host:
+                    p = plist[host]
+                    port = p['t']
+                    srv = host + ':' + port + ':t'
+                    droid.fullSetProperty("server","text",srv)
 
             elif id=="buttonSave":
                 droid.fullQuery()
