@@ -34,51 +34,8 @@ wallet.set_path("/sdcard/electrum.dat")
 wallet.read()
 
 
-def get_history_layout(n):
-    rows = ""
-    for line in wallet.get_tx_history()[-n:]:
-        v = line['value'] 
-        try:
-            dt = datetime.datetime.fromtimestamp( line['timestamp'] )
-            if dt.date() == dt.today().date():
-                time_str = str( dt.time() )
-            else:
-                time_str = str( dt.date() )
-        except:
-            print line['timestamp']
-            time_str = 'pending'
-
-        label = line.get('label')
-        #if not label: label = line['tx_hash']
-        is_default_label = (label == '') or (label is None)
-        if is_default_label: label = line['default_label']
-
-        rows += """
-    <TableRow
-       android:layout_width="fill_parent">
-        <TextView
-            android:layout_column="1"
-            android:text="%s"
-            android:padding="2px" />
-        <TextView
-            android:text="%s"
-            android:padding="2px" />
-        <TextView
-            android:text="%s"
-            android:gravity="right"
-            android:padding="2px" />
-    </TableRow>"""%(time_str, ' '+ label[0:10]+ '... ',  format_satoshis(v))
 
 
-    output = """
-<TableLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="fill_parent"
-    android:layout_height="wrap_content"
-    android:stretchColumns="1">
-    %s
-</TableLayout>
-"""% rows
-    return output
 
 
 
@@ -98,23 +55,26 @@ def show_addresses():
     print response
 
 
+title = """
+        <TextView android:id="@+id/titleTextView" 
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" 
+                android:text="Electrum"
+                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:gravity="center"
+                android:textColor="0xff0055ff"
+                android:textSize="30" >
+        </TextView>
+"""
 
 def main_layout():
     return """<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
         android:id="@+id/background"
         android:orientation="vertical" 
-        android:layout_width="match_parent"
+        android:layout_width="fill_parent"
         android:layout_height="match_parent" 
-        android:background="#ff000000">
-
-        <TextView android:id="@+id/historyTextView" 
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
-                android:text="Electrum"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
-                android:gravity="center_vertical|center_horizontal|center">
-        </TextView>
+        android:background="#ff000022">
 
         %s
 
@@ -123,21 +83,43 @@ def main_layout():
                 android:layout_height="wrap_content" 
                 android:text=""
                 android:textAppearance="?android:attr/textAppearanceLarge" 
-                android:gravity="left">
+                android:gravity="left"
+                android:textColor="0xffffffff"
+                android:padding="10"
+                android:textSize="18" >
         </TextView>
 
-        <LinearLayout android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:id="@+id/linearLayout1">
-                <Button android:id="@+id/buttonSend" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="Send"></Button>
-                <Button android:id="@+id/buttonReceive" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="Receive"></Button>
-                <Button android:id="@+id/buttonQuit" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="Quit"></Button>
-        </LinearLayout>
+
+        <TextView android:id="@+id/historyTextView" 
+                android:layout_width="match_parent"
+                android:layout_height="70" 
+                android:text="Recent transactions"
+                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:gravity="center_vertical|center_horizontal|center">
+        </TextView>
+
+        %s
+
+        <TableLayout 
+           android:layout_width="fill_parent" 
+           android:layout_height="wrap_content" 
+           android:id="@+id/linearLayout1">
+            <TableRow>
+                <Button android:id="@+id/buttonSend" 
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" 
+                        android:text="  Send ">
+                </Button>
+                <Button android:id="@+id/buttonReceive" 
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" 
+                        android:text="Receive">
+                </Button>
+           </TableRow>
+        </TableLayout>
 
 </LinearLayout>
-"""%get_history_layout(10)
+"""%(title, get_history_layout(15))
 
 
 payto_layout="""<?xml version="1.0" encoding="utf-8"?>
@@ -146,13 +128,9 @@ payto_layout="""<?xml version="1.0" encoding="utf-8"?>
  android:orientation="vertical" 
  android:layout_width="match_parent"
  android:layout_height="match_parent" 
- android:background="#ff000000">
+ android:background="#ff000022">
 
-    <LinearLayout android:id="@+id/linearLayout0"
-     android:orientation="vertical" 
-     android:layout_width="match_parent"
-     android:layout_height="wrap_content" 
-     android:background="#44ffffff">
+        %s
 
         <TextView android:id="@+id/recipientTextView" 
                 android:layout_width="match_parent"
@@ -177,9 +155,6 @@ payto_layout="""<?xml version="1.0" encoding="utf-8"?>
                 <Button android:id="@+id/buttonContacts" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="Contacts"></Button>
         </LinearLayout>
-
-    </LinearLayout>
-
 
 
         <TextView android:id="@+id/labelTextView" 
@@ -218,7 +193,7 @@ payto_layout="""<?xml version="1.0" encoding="utf-8"?>
                         android:layout_height="wrap_content" android:text="Cancel"></Button>
         </LinearLayout>
 </LinearLayout>
-"""
+"""%title
 
 
 settings_layout = """<?xml version="1.0" encoding="utf-8"?>
@@ -228,6 +203,8 @@ settings_layout = """<?xml version="1.0" encoding="utf-8"?>
         android:layout_width="match_parent"
         android:layout_height="match_parent" 
         android:background="#ff000000">
+
+        %s
 
         <TextView android:id="@+id/serverTextView" 
                 android:layout_width="match_parent"
@@ -254,15 +231,120 @@ settings_layout = """<?xml version="1.0" encoding="utf-8"?>
         </LinearLayout>
 
 </LinearLayout>
-"""
+"""%title
 
 
 
 
+def get_history_values(n):
+    values = []
+    h = wallet.get_tx_history()
+    for i in range(n):
+        line = h[-i-1]
+        v = line['value']
+        try:
+            dt = datetime.datetime.fromtimestamp( line['timestamp'] )
+            if dt.date() == dt.today().date():
+                time_str = str( dt.time() )
+            else:
+                time_str = str( dt.date() )
+            conf = 'v'
 
-def show_balance():
-    c, u = wallet.get_balance()
-    droid.fullSetProperty("balanceTextView","text","Balance:"+format_satoshis(c))
+        except:
+            print line['timestamp']
+            time_str = 'pending'
+            conf = 'o'
+
+        label = line.get('label')
+        #if not label: label = line['tx_hash']
+        is_default_label = (label == '') or (label is None)
+        if is_default_label: label = line['default_label']
+        values.append((conf, '  ' + time_str, '  ' + format_satoshis(v,True), '  ' + label ))
+
+    return values
+
+
+def get_history_layout(n):
+    rows = ""
+    i = 0
+    values = get_history_values(n)
+    for v in values:
+        a,b,c,d = v
+        color = "0xff00ff00" if a == 'v' else "0xffff0000"
+        rows += """
+        <TableRow>
+          <TextView
+            android:id="@+id/hl_%d_col1" 
+            android:layout_column="0"
+            android:text="%s"
+            android:textColor="%s"
+            android:padding="3" />
+          <TextView
+            android:id="@+id/hl_%d_col2" 
+            android:layout_column="1"
+            android:text="%s"
+            android:padding="3" />
+          <TextView
+            android:id="@+id/hl_%d_col3" 
+            android:layout_column="2"
+            android:text="%s"
+            android:padding="3" />
+          <TextView
+            android:id="@+id/hl_%d_col4" 
+            android:layout_column="3"
+            android:text="%s"
+            android:padding="4" />
+        </TableRow>"""%(i,a,color,i,b,i,c,i,d)
+        i += 1
+
+    output = """
+<TableLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    android:stretchColumns="0,1,2,3">
+    %s
+</TableLayout>"""% rows
+    return output
+
+def set_history_layout(n):
+    values = get_history_values(n)
+    i = 0
+    for v in values:
+        a,b,c,d = v
+        droid.fullSetProperty("hl_%d_col1"%i,"text", a)
+
+        if a == 'v':
+            droid.fullSetProperty("hl_%d_col1"%i, "textColor","0xff00ff00")
+        else:
+            droid.fullSetProperty("hl_%d_col1"%i, "textColor","0xffff0000")
+
+        droid.fullSetProperty("hl_%d_col2"%i,"text", b)
+        droid.fullSetProperty("hl_%d_col3"%i,"text", c)
+        droid.fullSetProperty("hl_%d_col4"%i,"text", d)
+
+        i += 1
+
+
+def update_layout():
+
+    if not wallet.interface.is_connected:
+        text = "Not connected..."
+    elif wallet.blocks == 0:
+        text = "Server not ready"
+    elif not wallet.up_to_date:
+        text = "Synchronizing..."
+    else:
+        c, u = wallet.get_balance()
+        text = "Balance:"+format_satoshis(c) 
+        if u : text += '['+ format_satoshis(u,True)+']'
+
+    droid.fullSetProperty("balanceTextView", "text", text)
+
+    if wallet.was_updated and wallet.up_to_date:
+        wallet.was_updated = False
+        set_history_layout(15)
+        droid.vibrate()
+
 
 
 def recipient_dialog():
@@ -334,7 +416,7 @@ if not wallet.file_exists:
 
     wallet.seed = str(seed)
     wallet.init_mpk( wallet.seed )
-    droid.dialogCreateSpinnerProgress("Electrum", "recovering keys")
+    droid.dialogCreateSpinnerProgress("Electrum", "recovering wallet...")
     droid.dialogShow()
     WalletSynchronizer(wallet,True).start()
     wallet.update()
@@ -355,13 +437,7 @@ if not wallet.file_exists:
         exit(1)
 
 else:
-    droid.dialogCreateSpinnerProgress("Electrum", "synchronizing")
-    droid.dialogShow()
     WalletSynchronizer(wallet,True).start()
-    wallet.update()
-    wallet.save()
-    droid.dialogDismiss()
-    droid.vibrate()
 
 
 def add_menu():
@@ -373,29 +449,32 @@ add_menu()
 
 def main_loop():
     droid.fullShow(main_layout())
-    show_balance()
+    update_layout()
     out = None
     while out is None:
 
-        event = droid.eventWait().result
+        event = droid.eventWait(1000).result  # wait for 1 second
+        if not event:
+            update_layout()
+            continue
+
         print "got event in main loop", event
 
         if event["name"]=="click":
             id=event["data"]["id"]
-            if id=="buttonQuit":
-                out = 'exit'
 
-            elif id=="buttonSend":
+            if id=="buttonSend":
                 out = 'payto'
 
             elif id=="buttonReceive":
                 show_addresses()
 
-            elif id=="buttonQuit":
-                out = 'quit'
-
         elif event["name"]=="settings":
             out = 'settings'
+
+        elif event["name"]=="key":
+            if event["data"]["key"] == '4':
+                out = 'quit'
 
         elif event["name"]=="quit":
             out = 'quit'
@@ -456,6 +535,10 @@ def payto_loop():
         elif event["name"]=="quit":
             out = 'quit'
 
+        elif event["name"]=="key":
+            if event["data"]["key"] == '4':
+                out = 'main'
+
         #elif event["name"]=="screen":
         #    if event["data"]=="destroy":
         #        out = 'main'
@@ -464,7 +547,7 @@ def payto_loop():
 
 
 def history_loop():
-    layout = get_history_layout()
+    layout = get_history_layout(15)
     droid.fullShow(layout)
     out = None
     while out is None:
@@ -475,8 +558,7 @@ def history_loop():
             if event["data"]["text"] == "OK":
                 out = 'main'
 
-        elif event["name"] == "key":
-            print repr(event["data"]["key"])
+        elif event["name"]=="key":
             if event["data"]["key"] == '4':
                 out = 'main'
 
@@ -547,7 +629,6 @@ def settings_loop():
                 out = 'main'
 
         elif event["name"] == "key":
-            print repr(event["data"]["key"])
             if event["data"]["key"] == '4':
                 out = 'main'
 
