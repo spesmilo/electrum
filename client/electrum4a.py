@@ -36,10 +36,20 @@ wallet.read()
 
 
 
+def select_from_contacts():
+    title = 'Contacts:'
+    droid.dialogCreateAlert(title)
+    droid.dialogSetItems(wallet.addressbook)
+    droid.dialogShow()
+    response = droid.dialogGetResponse()
+    result = response.result.get('item')
+    droid.dialogDismiss()
+    if result is not None:
+        addr = wallet.addressbook[result]
+        return addr
 
 
-
-def show_addresses():
+def select_from_addresses():
     droid.dialogCreateAlert("Addresses:")
     l = []
     for i in range(len(wallet.addresses)):
@@ -48,17 +58,19 @@ def show_addresses():
 
     droid.dialogSetItems(l)
     droid.dialogShow()
-    response = droid.dialogGetResponse().result
+    response = droid.dialogGetResponse()
+    result = response.result.get('item')
     droid.dialogDismiss()
+    if result is not None:
+        addr = wallet.addresses[result]
+        return addr
 
-    # show qr code
-    print response
 
 
 title = """
         <TextView android:id="@+id/titleTextView" 
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
+                android:layout_height="100" 
                 android:text="Electrum"
                 android:textAppearance="?android:attr/textAppearanceLarge" 
                 android:gravity="center"
@@ -109,11 +121,6 @@ def main_layout():
            android:layout_height="wrap_content" 
            android:id="@+id/linearLayout1">
             <TableRow>
-                <Button android:id="@+id/buttonHistory" 
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" 
-                        android:text="History">
-                </Button>
                 <Button android:id="@+id/buttonSend" 
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content" 
@@ -211,16 +218,38 @@ payto_layout="""<?xml version="1.0" encoding="utf-8"?>
 """%title
 
 
-settings_layout = """<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+
+def make_layout(s):
+    return """<?xml version="1.0" encoding="utf-8"?>
+      <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
         android:id="@+id/background"
         android:orientation="vertical" 
         android:layout_width="match_parent"
         android:layout_height="match_parent" 
         android:background="#ff000000">
-
         %s
+        %s
+      </LinearLayout>"""%(title,s)
 
+receive_layout = make_layout("""
+        <TextView android:id="@+id/receiveTextView" 
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" 
+                android:text="Addr"
+                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:gravity="left">
+        </TextView>""")
+
+contacts_layout = make_layout("""
+        <TextView android:id="@+id/contactTextView" 
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" 
+                android:text="Contacts"
+                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:gravity="left">
+        </TextView>""")
+
+settings_layout = make_layout("""
         <TextView android:id="@+id/serverTextView" 
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" 
@@ -243,11 +272,7 @@ settings_layout = """<?xml version="1.0" encoding="utf-8"?>
                         android:layout_height="wrap_content" android:text="Save"></Button>
                 <Button android:id="@+id/buttonCancel" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="Cancel"></Button>
-        </LinearLayout>
-
-</LinearLayout>
-"""%title
-
+        </LinearLayout>""")
 
 
 
@@ -362,19 +387,6 @@ def update_layout():
 
 
 
-def recipient_dialog():
-    title = 'Pay to:'
-    message = ('Select recipient')
-    droid.dialogCreateAlert(title, message)
-    droid.dialogSetItems(wallet.addressbook)
-    droid.dialogShow()
-    response = droid.dialogGetResponse()
-    result = response.result.get('item')
-    droid.dialogDismiss()
-    if result is not None:
-        addr = wallet.addressbook[result]
-        return addr
-
 
 def pay_to(recipient, amount, fee, label):
 
@@ -456,7 +468,8 @@ else:
 
 
 def add_menu():
-    droid.addOptionsMenuItem("Settings","settings",None,"")
+    droid.addOptionsMenuItem("Network","settings",None,"")
+    droid.addOptionsMenuItem("New contact","newcontact",None,"")
     droid.addOptionsMenuItem("Quit","quit",None,"")
 
 add_menu()
@@ -481,11 +494,44 @@ def main_loop():
             if id=="buttonSend":
                 out = 'payto'
 
+            if id=="buttonContacts":
+                global contact_addr
+                contact_addr = select_from_contacts()
+                if contact_addr:
+                    out = 'contacts'
+                
             elif id=="buttonReceive":
-                show_addresses()
+                global receive_addr
+                receive_addr = select_from_addresses()
+                if receive_addr:
+                    out = 'receive'
 
         elif event["name"]=="settings":
             out = 'settings'
+
+        elif event["name"]=="newcontact":
+            code = droid.scanBarcode()
+            r = code.result
+            if r:
+                address = r['extras']['SCAN_RESULT']
+                if address:
+                    if wallet.is_valid(address):
+                        droid.dialogCreateAlert('Add to contacts?', address)
+                        droid.dialogSetPositiveButtonText('OK')
+                        droid.dialogSetNegativeButtonText('Cancel')
+                        droid.dialogShow()
+                        response = droid.dialogGetResponse().result
+                        droid.dialogDismiss()
+                        print response
+                        if response.get('which') == 'positive':
+                            wallet.addressbook.append(address)
+                            wallet.save()
+                    else:
+                        droid.dialogCreateAlert('Invalid address', address)
+                        droid.dialogSetPositiveButtonText('OK')
+                        droid.dialogShow()
+                        response = droid.dialogGetResponse().result
+                        droid.dialogDismiss()
 
         elif event["name"]=="key":
             if event["data"]["key"] == '4':
@@ -493,11 +539,6 @@ def main_loop():
 
         elif event["name"]=="quit":
             out = 'quit'
-
-        # print droid.fullSetProperty("background","backgroundColor","0xff7f0000")
-        # elif event["name"]=="screen":
-        #    if event["data"]=="destroy":
-        #        out = 'exit'
 
     return out
                     
@@ -530,7 +571,7 @@ def payto_loop():
                 out = 'main'
 
             elif id=="buttonContacts":
-                addr = recipient_dialog()
+                addr = select_from_contacts()
                 droid.fullSetProperty("recipient","text",addr)
 
             elif id=="buttonQR":
@@ -561,13 +602,17 @@ def payto_loop():
     return out
 
 
-def history_loop():
-    layout = get_history_layout(15)
-    droid.fullShow(layout)
+receive_addr = ''
+contact_addr = ''
+
+
+def receive_loop():
+    droid.fullShow(receive_layout)
+    droid.fullSetProperty("receiveTextView","text", receive_addr)
     out = None
     while out is None:
         event = droid.eventWait().result
-        print "got event in history loop", event
+        print "got event", event
         if event["name"] == "click":
 
             if event["data"]["text"] == "OK":
@@ -577,11 +622,26 @@ def history_loop():
             if event["data"]["key"] == '4':
                 out = 'main'
 
-        #elif event["name"]=="screen":
-        #    if event["data"]=="destroy":
-        #        out = 'main'
+    return out
+
+def contacts_loop():
+    droid.fullShow(contacts_layout)
+    droid.fullSetProperty("contactTextView","text", contact_addr)
+    out = None
+    while out is None:
+        event = droid.eventWait().result
+        print "got event", event
+        if event["name"] == "click":
+
+            if event["data"]["text"] == "OK":
+                out = 'main'
+
+        elif event["name"]=="key":
+            if event["data"]["key"] == '4':
+                out = 'main'
 
     return out
+
 
 def server_dialog(plist):
     droid.dialogCreateAlert("servers")
@@ -592,6 +652,7 @@ def server_dialog(plist):
     if i is not None:
         response = plist.keys()[i]
         return response
+
 
 def protocol_dialog(plist):
     options=["TCP","HTTP","native"]
@@ -661,10 +722,12 @@ while True:
         s = main_loop()
     elif s == 'payto':
         s = payto_loop()
+    elif s == 'receive':
+        s = receive_loop()
+    elif s == 'contacts':
+        s = contacts_loop()
     elif s == 'settings':
         s = settings_loop()
-    elif s == 'history':
-        s = history_loop()
     elif s == 'contacts':
         s = contacts_loop()
     else:
