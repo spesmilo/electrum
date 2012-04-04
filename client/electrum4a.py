@@ -69,10 +69,14 @@ title = """
 
 def main_layout():
     return """<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" 
+    android:layout_height="match_parent">
+
+<LinearLayout 
         android:id="@+id/background"
         android:orientation="vertical" 
-        android:layout_width="fill_parent"
+        android:layout_width="match_parent"
         android:layout_height="match_parent" 
         android:background="#ff000022">
 
@@ -101,7 +105,7 @@ def main_layout():
         %s
 
         <TableLayout 
-           android:layout_width="fill_parent" 
+           android:layout_width="match_parent" 
            android:layout_height="wrap_content" 
            android:id="@+id/linearLayout1">
             <TableRow>
@@ -119,6 +123,7 @@ def main_layout():
         </TableLayout>
 
 </LinearLayout>
+</ScrollView>
 """%(title, get_history_layout(15))
 
 
