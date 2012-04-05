@@ -448,7 +448,7 @@ def pay_to(recipient, amount, fee, label):
 
     if wallet.use_encryption:
         password  = droid.dialogGetPassword('Password').result
-        print "password", password
+        if not password: return
     else:
         password = None
 
