@@ -347,8 +347,8 @@ def get_history_values(n):
             time_str = 'pending'
             conf = 'o'
 
-        label = line.get('label')
-        #if not label: label = line['tx_hash']
+        tx_hash = line['tx_hash']
+        label = wallet.labels.get(tx_hash)
         is_default_label = (label == '') or (label is None)
         if is_default_label: label = line['default_label']
         values.append((conf, '  ' + time_str, '  ' + format_satoshis(v,True), '  ' + label ))
