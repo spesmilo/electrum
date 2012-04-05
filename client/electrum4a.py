@@ -693,8 +693,8 @@ def settings_loop():
                 host = srv.split(':')[0]
                 if host in plist:
                     server = protocol_dialog(host, plist[host])
-                    print server
-                    droid.fullSetProperty("server","text",server)
+                    if server:
+                        droid.fullSetProperty("server","text",server)
 
             elif id=="buttonSave":
 
