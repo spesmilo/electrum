@@ -457,20 +457,19 @@ def pay_to(recipient, amount, fee, label):
 
     try:
         tx = wallet.mktx( recipient, amount, label, password, fee)
-    except:
+    except BaseException, e:
+        modal_dialog('error', e.message)
         droid.dialogDismiss()
-        return 'error'
+        return
 
-    print tx
     droid.dialogDismiss()
 
-    if tx:
-        r, h = wallet.sendtx( tx )
-        modal_dialog('tx sent', h)
-        return h
+    r, h = wallet.sendtx( tx )
+    if r:
+        modal_dialog('Payment sent', h)
+        return True
     else:
-        return 'error'
-
+        modal_dialog('Error', h)
 
 
 
@@ -597,8 +596,8 @@ def payto_loop():
 
                 fee    = int( 100000000 * Decimal(fee) )
                 result = pay_to(recipient, amount, fee, label)
-                modal_dialog('result',result)
-                out = 'main'
+                if result:
+                    out = 'main'
 
             elif id=="buttonContacts":
                 addr = select_from_contacts()
