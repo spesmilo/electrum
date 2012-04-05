@@ -73,10 +73,8 @@ def qr_code_layout(addr):
     return """<html>
   <head>
     <title>QR code</title>
-
        <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.5.2/jquery.min.js"></script>
        <script type="text/javascript" src="http://ecdsa.org/jquery.qrcode.min.js"></script>
-
        <script>
 	  var address = '%s';
           var droid = new Android();
@@ -754,14 +752,14 @@ while True:
         f = open('/sdcard/sl4a/scripts/recv.html',"w")
         f.write(qr_code_layout(receive_addr))
         f.close()
-        droid.webViewShow("file:///sdcard/sl4a/scripts/recv.html?url=%s"%receive_addr,True)
+        droid.webViewShow("file:///sdcard/sl4a/scripts/recv.html")
         s = receive_loop()
 
     elif s == 'contacts':
         f = open('/sdcard/sl4a/scripts/recv.html',"w")
         f.write(qr_code_layout(contact_addr))
         f.close()
-        droid.webViewShow("file:///sdcard/sl4a/scripts/recv.html?url=%s"%contact_addr,True)
+        droid.webViewShow("file:///sdcard/sl4a/scripts/recv.html")
         s = contacts_loop()
 
     elif s == 'settings':
