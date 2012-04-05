@@ -23,13 +23,13 @@ from interface import WalletSynchronizer
 from wallet import Wallet
 from wallet import format_satoshis
 from decimal import Decimal
-
+import mnemonic
 
 import datetime
 
 
 
-def modal_dialog(title, msg):
+def modal_dialog(title, msg = ''):
     droid.dialogCreateAlert(title,msg)
     droid.dialogSetPositiveButtonText('OK')
     droid.dialogShow()
@@ -273,21 +273,6 @@ payto_layout = make_layout("""
 
 settings_layout = make_layout("""
 
-        <TextView android:id="@+id/feeTextView" 
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
-                android:text="Fee:"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
-                android:gravity="left">
-        </TextView>
-
-        <EditText android:id="@+id/fee"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
-                android:tag="Tag Me" 
-                android:inputType="numberDecimal">
-        </EditText>
-
         <TextView android:id="@+id/serverTextView" 
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" 
@@ -320,6 +305,20 @@ settings_layout = make_layout("""
 
         </LinearLayout>
 
+        <TextView android:id="@+id/feeTextView" 
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" 
+                android:text="Fee:"
+                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:gravity="left">
+        </TextView>
+
+        <EditText android:id="@+id/fee"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" 
+                android:tag="Tag Me" 
+                android:inputType="numberDecimal">
+        </EditText>
 
         <Button android:id="@+id/buttonSave" android:layout_width="wrap_content"
                 android:layout_height="wrap_content" android:text="Save"></Button>
@@ -488,11 +487,14 @@ def recover():
     else:
         exit(1)
 
-    if not modal_question('Seed', seed):
+    if not modal_question('Seed', seed ):
         exit(1)
 
     wallet.seed = str(seed)
     wallet.init_mpk( wallet.seed )
+
+    change_password_dialog()
+
     droid.dialogCreateSpinnerProgress("Electrum", "recovering wallet...")
     droid.dialogShow()
     WalletSynchronizer(wallet,True).start()
@@ -505,10 +507,11 @@ def recover():
         # history and addressbook
         wallet.update_tx_history()
         wallet.fill_addressbook()
-        wallet.save()
         modal_dialog("recovery successful")
     else:
-        modal_dialog("no transactions found for this seed")
+        if not modal_question("no transactions found for this seed","do you want to keep this wallet?"):
+            exit(1)
+    wallet.save()
 
 
 
@@ -655,6 +658,43 @@ def server_dialog(plist):
         return response
 
 
+def seed_dialog():
+    if wallet.use_encryption:
+        password  = droid.dialogGetPassword('Password').result
+        if not password: return
+    else:
+        password = None
+    
+    try:
+        seed = wallet.pw_decode( wallet.seed, password)
+    except:
+        modal_dialog('error','incorrect password')
+        return
+
+    modal_dialog('Your seed is',seed)
+    modal_dialog('Mnemonic code:', ' '.join(mnemonic.mn_encode(seed)) )
+
+def change_password_dialog():
+    if wallet.use_encryption:
+        password  = droid.dialogGetPassword('Current password').result
+        if not password: return
+    else:
+        password = None
+
+    try:
+        seed = wallet.pw_decode( wallet.seed, password)
+    except:
+        modal_dialog('error','incorrect password')
+        return
+
+    new_password  = droid.dialogGetPassword('Choose a password').result
+    password2  = droid.dialogGetPassword('Confirm new password').result
+    if new_password != password2:
+        modal_dialog('error','passwords do not match')
+        return
+
+    if new_password:
+        wallet.update_password(seed, new_password)
 
 
 def settings_loop():
@@ -696,8 +736,8 @@ def settings_loop():
                     if server:
                         droid.fullSetProperty("server","text",server)
 
-            elif id=="buttonSave":
 
+            elif id=="buttonSave":
                 droid.fullQuery()
                 srv = droid.fullQueryDetail("server").result.get('text')
                 fee = droid.fullQueryDetail("fee").result.get('text')
@@ -714,19 +754,21 @@ def settings_loop():
                 except:
                     modal_dialog('error','invalid fee value')
 
-                out = 'main'
+        elif event["name"] in menu_commands:
+            out = event["name"]
 
- 
-                    
-            elif id=="buttonCancel":
-                out = 'main'
+        elif event["name"] == 'password':
+            change_password_dialog()
+
+        elif event["name"] == 'seed':
+            seed_dialog()
+
+        elif event["name"] == 'cancel':
+            out = 'main'
 
         elif event["name"] == "key":
             if event["data"]["key"] == '4':
                 out = 'main'
-
-        elif event["name"] in menu_commands:
-            out = event["name"]
 
     return out
 
@@ -743,7 +785,6 @@ wallet.set_path("/sdcard/electrum.dat")
 wallet.read()
 if not wallet.file_exists:
     recover()
-    exit(1)
 else:
     WalletSynchronizer(wallet,True).start()
 
@@ -765,9 +806,11 @@ def add_menu(s):
         #droid.addOptionsMenuItem("Edit label","editcontact",None,"")
         #droid.addOptionsMenuItem("Delete","removecontact",None,"")
     elif s == 'settings':
-        droid.addOptionsMenuItem("Save","save",None,"")
-        droid.addOptionsMenuItem("Cancel","cancel",None,"")
+        droid.addOptionsMenuItem("Password","password",None,"")
+        droid.addOptionsMenuItem("Seed","seed",None,"")
+
         
+
 
 
 while True:
