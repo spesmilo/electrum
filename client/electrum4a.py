@@ -516,6 +516,7 @@ def make_new_contact():
 def main_loop():
     update_layout()
     out = None
+    quitting = False
     while out is None:
 
         event = droid.eventWait(1000).result  # wait for 1 second
@@ -525,15 +526,20 @@ def main_loop():
 
         print "got event in main loop", event
 
+        # request 2 taps before we exit
+        if event["name"]=="key":
+            if event["data"]["key"] == '4':
+                if quitting:
+                    out = 'quit'
+                else: 
+                    quitting = True
+        else: quitting = False
+
         if event["name"]=="click":
             id=event["data"]["id"]
 
         elif event["name"]=="settings":
             out = 'settings'
-
-        elif event["name"]=="key":
-            if event["data"]["key"] == '4':
-                out = 'quit'
 
         elif event["name"] in menu_commands:
             out = event["name"]
