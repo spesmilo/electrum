@@ -3,16 +3,15 @@ INSTALLATION INSTRUCTIONS FOR ANDROID
 
 1. Install sl4a and py4a : you need at least revision 5
 
+To install these APKs, just visit the links below with your phone and click on the qr code
+
 http://code.google.com/p/android-scripting/downloads/detail?name=sl4a_r5.apk
 http://code.google.com/p/python-for-android/downloads/detail?name=PythonForAndroid_r5.apk
 
-To install these APKs, just visit the above links with your phone and click on the qr code
 
 
 2. copy the following files in /sdcard/sl4a/scripts:
 
-aes (directory)
-ecdsa (directory)
 bmp.py
 electrum4a.py
 interface.py
@@ -22,6 +21,12 @@ pyqrnative.py
 ripemd.py
 version.py
 wallet.py
+aes (directory)
+ecdsa (directory)
+
+Note: 
+The aes and ecdsa directories are not included in the git repository. 
+You will have to find them on your system, or you can find them in the Electrum tar.gz
 
 3. copy the logo in /sdcard/sl4a:
 
