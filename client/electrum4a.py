@@ -18,6 +18,7 @@
 
 
 
+
 import android
 from interface import WalletSynchronizer
 from wallet import Wallet
@@ -102,50 +103,15 @@ def protocol_dialog(host, z):
         return host + ':' + port + ':' + p
 
 
-def qr_code_layout(addr):
-    return """<html>
-  <head>
-    <title>QR code</title>
-       <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.5.2/jquery.min.js"></script>
-       <script type="text/javascript" src="http://ecdsa.org/jquery.qrcode.min.js"></script>
-       <script>
-	  var address = '%s';
-          var droid = new Android();
-          var cb = function() {
-            droid.eventPost("main", "");
-          }
-       </script>
-  </head>
 
-  <body>
-       <div id="qrcode"></div>
-       <div id="address"></div>
-       <script> 
-          jQuery('#address').html("bitcoin:"+address); 
-          jQuery('#qrcode').qrcode("bitcoin:"+address);
-      </script>
-
-      <form onsubmit="cb(); return false;">
-      <input type="submit" value="Back" />
-      </form>
-  </body>
-</html>"""%addr
-
-
-title = """
-"""
-
-def make_layout(s, scrollable):
+def make_layout(s, scrollable = False):
     content = """
-        <TextView android:id="@+id/titleTextView" 
-                android:layout_width="match_parent"
-                android:layout_height="100" 
-                android:text="Electrum"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
-                android:gravity="center"
-                android:textColor="0xff0055ff"
-                android:textSize="30" >
-        </TextView>
+     <ImageView
+        android:id="@+id/imageView1"
+        android:layout_width="match_parent"
+        android:gravity="center"
+        android:layout_height="wrap_content"
+        android:src="file:///sdcard/sl4a/electrum_text_320.png" />
 
         %s   """%s
 
@@ -207,6 +173,25 @@ def main_layout():
         %s """%get_history_layout(15),True)
 
 
+
+def qr_layout(addr):
+    return make_layout("""
+     <ImageView
+        android:id="@+id/imageView1"
+        android:gravity="center"
+        android:layout_width="350"
+        android:layout_height="350"
+        android:antialias="false"
+        android:src="file:///sdcard/sl4a/qrcode.bmp" /> 
+
+     <TextView android:id="@+id/addrTextView" 
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" 
+                android:text="%s"
+                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:gravity="left">
+     </TextView>
+     """%addr)
 
 payto_layout = make_layout("""
 
@@ -397,6 +382,7 @@ def get_history_layout(n):
 </TableLayout>"""% rows
     return output
 
+
 def set_history_layout(n):
     values = get_history_values(n)
     i = 0
@@ -412,7 +398,6 @@ def set_history_layout(n):
         droid.fullSetProperty("hl_%d_col2"%i,"text", b)
         droid.fullSetProperty("hl_%d_col3"%i,"text", c)
         droid.fullSetProperty("hl_%d_col4"%i,"text", d)
-
         i += 1
 
 
@@ -634,7 +619,10 @@ def receive_loop():
     while out is None:
         event = droid.eventWait().result
         print "got event", event
-        out = 'main'
+        if event["name"]=="key":
+            if event["data"]["key"] == '4':
+                out = 'main'
+
     return out
 
 def contacts_loop():
@@ -642,7 +630,10 @@ def contacts_loop():
     while out is None:
         event = droid.eventWait().result
         print "got event", event
-        out = 'main'
+        if event["name"]=="key":
+            if event["data"]["key"] == '4':
+                out = 'main'
+
     return out
 
 
@@ -811,40 +802,62 @@ def add_menu(s):
         droid.addOptionsMenuItem("Password","password",None,"")
         droid.addOptionsMenuItem("Seed","seed",None,"")
 
+def make_bitmap(addr):
+    # fixme: this is highly innefficient
+    droid.dialogCreateSpinnerProgress("please wait")
+    droid.dialogShow()
+    import pyqrnative, bmp
+    qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.H)
+    qr.addData(addr)
+    qr.make()
+    k = qr.getModuleCount()
+    bitmap = bmp.BitMap( 350, 350 )
+    print len(bitmap.bitarray)
+    bitmap.bitarray = []
+    assert k == 33
+
+    for r in range(35):
+        tmparray = [ 0 ] * 350
+
+        if 0 < r < 34:
+            for c in range(k):
+                if qr.isDark(r-1, c):
+                    tmparray[ (1+c)*10:(1+c)*10 + 10] = [1]*10
+
+        for i in range(10):
+            bitmap.bitarray.append( tmparray[:] )
+
+    bitmap.saveFile( "/sdcard/sl4a/qrcode.bmp" )
+    droid.dialogDismiss()
+
         
-
-
 
 while True:
     add_menu(s)
     if s == 'main':
         droid.fullShow(main_layout())
         s = main_loop()
-        droid.fullDismiss()
+        #droid.fullDismiss()
 
     elif s == 'send':
         droid.fullShow(payto_layout)
         s = payto_loop()
-        droid.fullDismiss()
+        #droid.fullDismiss()
 
     elif s == 'receive':
-        f = open('/sdcard/sl4a/scripts/recv.html',"w")
-        f.write(qr_code_layout(receive_addr))
-        f.close()
-        wvs = droid.webViewShow("file:///sdcard/sl4a/scripts/recv.html")
+        make_bitmap(receive_addr)
+        droid.fullShow(qr_layout(receive_addr))
         s = receive_loop()
 
     elif s == 'contacts':
-        f = open('/sdcard/sl4a/scripts/recv.html',"w")
-        f.write(qr_code_layout(contact_addr))
-        f.close()
-        droid.webViewShow("file:///sdcard/sl4a/scripts/recv.html")
+        make_bitmap(contact_addr)
+        droid.fullShow(qr_layout(contact_addr))
         s = contacts_loop()
 
     elif s == 'settings':
         droid.fullShow(settings_layout)
         s = settings_loop()
-        droid.fullDismiss()
+        #droid.fullDismiss()
     else:
         break
 
