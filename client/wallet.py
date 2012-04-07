@@ -242,10 +242,11 @@ from interface import DEFAULT_SERVERS
 
 
 class Wallet:
-    def __init__(self):
+    def __init__(self, gui_callback = lambda: None):
 
         self.electrum_version = ELECTRUM_VERSION
         self.seed_version = SEED_VERSION
+        self.gui_callback = gui_callback
 
         self.gap_limit = 5           # configuration
         self.fee = 100000

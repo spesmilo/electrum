@@ -144,6 +144,8 @@ class ElectrumWindow(QMainWindow):
     def __init__(self, wallet):
         QMainWindow.__init__(self)
         self.wallet = wallet
+        self.wallet.gui_callback = self.update_callback
+
         self.funds_error = False
 
         self.tabs = tabs = QTabWidget(self)
@@ -164,11 +166,11 @@ class ElectrumWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
         QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() - 1 )%tabs.count() ))
         QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() + 1 )%tabs.count() ))
-
+        
+        self.connect(self, QtCore.SIGNAL('updatesignal'), self.update_wallet)
 
 
     def connect_slots(self, sender):
-        self.connect(sender, QtCore.SIGNAL('timersignal'), self.update_wallet)
         self.connect(sender, QtCore.SIGNAL('timersignal'), self.check_recipient)
         self.previous_payto_e=''
 
@@ -188,6 +190,9 @@ class ElectrumWindow(QMainWindow):
                     s = r + ' <' + to_address + '>'
                     self.payto_e.setText(s)
 
+
+    def update_callback(self):
+        self.emit(QtCore.SIGNAL('updatesignal'))
 
     def update_wallet(self):
         if self.wallet.interface.is_connected:
@@ -215,8 +220,7 @@ class ElectrumWindow(QMainWindow):
         self.statusBar().showMessage(text)
         self.status_button.setIcon( icon )
 
-        if self.wallet.was_updated and self.wallet.up_to_date:
-            self.wallet.was_updated = False
+        if self.wallet.up_to_date:
             self.textbox.setText( self.wallet.banner )
             self.update_history_tab()
             self.update_receive_tab()
@@ -1059,4 +1063,6 @@ class ElectrumGui():
         if url: w.set_url(url)
         w.app = self.app
         w.connect_slots(s)
+        w.update_wallet()
+
         self.app.exec_()

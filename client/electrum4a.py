@@ -152,19 +152,18 @@ def main_layout():
     return make_layout("""
         <TextView android:id="@+id/balanceTextView" 
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
+                android:layout_height="70" 
                 android:text=""
+                android:textColor="#ffffffff"
                 android:textAppearance="?android:attr/textAppearanceLarge" 
-                android:gravity="left"
-                android:textColor="0xffffffff"
                 android:padding="10"
-                android:textSize="18" >
+                android:textSize="6pt"
+                android:gravity="center_vertical|center_horizontal|left">
         </TextView>
-
 
         <TextView android:id="@+id/historyTextView" 
                 android:layout_width="match_parent"
-                android:layout_height="70" 
+                android:layout_height="wrap_content" 
                 android:text="Recent transactions"
                 android:textAppearance="?android:attr/textAppearanceLarge" 
                 android:gravity="center_vertical|center_horizontal|center">
@@ -346,7 +345,7 @@ def get_history_layout(n):
     values = get_history_values(n)
     for v in values:
         a,b,c,d = v
-        color = "0xff00ff00" if a == 'v' else "0xffff0000"
+        color = "#ff00ff00" if a == 'v' else "#ffff0000"
         rows += """
         <TableRow>
           <TextView
@@ -391,9 +390,9 @@ def set_history_layout(n):
         droid.fullSetProperty("hl_%d_col1"%i,"text", a)
 
         if a == 'v':
-            droid.fullSetProperty("hl_%d_col1"%i, "textColor","0xff00ff00")
+            droid.fullSetProperty("hl_%d_col1"%i, "textColor","#ff00ff00")
         else:
-            droid.fullSetProperty("hl_%d_col1"%i, "textColor","0xffff0000")
+            droid.fullSetProperty("hl_%d_col1"%i, "textColor","#ffff0000")
 
         droid.fullSetProperty("hl_%d_col2"%i,"text", b)
         droid.fullSetProperty("hl_%d_col3"%i,"text", c)
@@ -402,8 +401,10 @@ def set_history_layout(n):
 
 
 
-def update_layout():
 
+status_text = ''
+def update_layout():
+    global status_text
     if not wallet.interface.is_connected:
         text = "Not connected..."
     elif wallet.blocks == 0:
@@ -415,15 +416,16 @@ def update_layout():
         text = "Balance:"+format_satoshis(c) 
         if u : text += '   [' + format_satoshis(u,True).strip() + ']'
 
-    droid.fullSetProperty("balanceTextView", "text", text)
 
-    if wallet.was_updated and wallet.up_to_date:
-        global first_time_update
-        if not first_time_update:
+    # vibrate if status changed
+    if text != status_text:
+        if status_text and wallet.interface.is_connected and wallet.up_to_date:
             droid.vibrate()
-        else:
-            first_time_update = False
-        wallet.was_updated = False
+        status_text = text
+
+    droid.fullSetProperty("balanceTextView", "text", status_text)
+
+    if wallet.up_to_date:
         set_history_layout(15)
 
 
@@ -513,18 +515,34 @@ def make_new_contact():
             modal_dialog('Invalid address', address)
 
 
+do_refresh = False
+
+def update_callback():
+    global do_refresh
+    print "gui callback", wallet.interface.is_connected, wallet.up_to_date
+    do_refresh = True
+    droid.eventPost("refresh",'z')
+
 def main_loop():
+    global do_refresh
+
     update_layout()
     out = None
     quitting = False
     while out is None:
 
-        event = droid.eventWait(1000).result  # wait for 1 second
-        if not event:
-            update_layout()
+        event = droid.eventWait(1000).result
+        if event is None:
+            if do_refresh: 
+                update_layout()
+                do_refresh = False
             continue
 
-        print "got event in main loop", event
+        print "got event in main loop", repr(event)
+        if event == 'OK': continue
+        if event is None: continue
+        #if event["name"]=="refresh":
+
 
         # request 2 taps before we exit
         if event["name"]=="key":
@@ -578,15 +596,13 @@ def payto_loop():
                 recipient = droid.fullQueryDetail("recipient").result.get('text')
                 label  = droid.fullQueryDetail("label").result.get('text')
                 amount = droid.fullQueryDetail('amount').result.get('text')
-                fee    = '0.001'
                 try:
                     amount = int( 100000000 * Decimal(amount) )
                 except:
                     modal_dialog('Error','invalid amount')
                     continue
 
-                fee    = int( 100000000 * Decimal(fee) )
-                result = pay_to(recipient, amount, fee, label)
+                result = pay_to(recipient, amount, wallet.fee, label)
                 if result:
                     out = 'main'
 
@@ -771,14 +787,12 @@ def settings_loop():
 
     return out
 
-                
+
+
 
 menu_commands = ["send", "receive", "settings", "contacts", "main"]
-
-
-first_time_update = True
 droid = android.Android()
-wallet = Wallet()
+wallet = Wallet(update_callback)
 
 wallet.set_path("/sdcard/electrum.dat")
 wallet.read()
