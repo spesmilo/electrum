@@ -47,13 +47,17 @@ def modal_question(q,msg):
     return response.get('which') == 'positive'
 
 def edit_label(addr):
-    droid.dialogCreateAlert('edit label')
+    droid.dialogCreateInput('Edit label','',wallet.labels.get(addr))
     droid.dialogSetPositiveButtonText('OK')
     droid.dialogSetNegativeButtonText('Cancel')
     droid.dialogShow()
     response = droid.dialogGetResponse().result
     droid.dialogDismiss()
-
+    if response.get('which') == 'positive':
+        wallet.labels[addr] = response.get('value')
+        wallet.update_tx_history()
+        wallet.save()
+        droid.fullSetProperty("labelTextView", "text", wallet.labels.get(addr))
 
 def select_from_contacts():
     title = 'Contacts:'
@@ -201,7 +205,15 @@ def qr_layout(addr):
         android:antialias="false"
         android:src="file:///sdcard/sl4a/qrcode.bmp" /> 
 
-     """%addr)
+     <TextView android:id="@+id/labelTextView" 
+                android:layout_width="match_parent"
+                android:layout_height="50" 
+                android:text="%s"
+                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:gravity="center_vertical|center_horizontal|center">
+     </TextView>
+
+     """%(addr,wallet.labels.get(addr,'')))
 
 payto_layout = make_layout("""
 
