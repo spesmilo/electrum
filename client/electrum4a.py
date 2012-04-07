@@ -46,6 +46,15 @@ def modal_question(q,msg):
     droid.dialogDismiss()
     return response.get('which') == 'positive'
 
+def edit_label(addr):
+    droid.dialogCreateAlert('edit label')
+    droid.dialogSetPositiveButtonText('OK')
+    droid.dialogSetNegativeButtonText('Cancel')
+    droid.dialogShow()
+    response = droid.dialogGetResponse().result
+    droid.dialogDismiss()
+
+
 def select_from_contacts():
     title = 'Contacts:'
     droid.dialogCreateAlert(title)
@@ -175,21 +184,23 @@ def main_layout():
 
 def qr_layout(addr):
     return make_layout("""
+
+     <TextView android:id="@+id/addrTextView" 
+                android:layout_width="match_parent"
+                android:layout_height="50" 
+                android:text="%s"
+                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:gravity="center_vertical|center_horizontal|center">
+     </TextView>
+
      <ImageView
-        android:id="@+id/imageView1"
+        android:id="@+id/qrView"
         android:gravity="center"
-        android:layout_width="350"
+        android:layout_width="match_parent"
         android:layout_height="350"
         android:antialias="false"
         android:src="file:///sdcard/sl4a/qrcode.bmp" /> 
 
-     <TextView android:id="@+id/addrTextView" 
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
-                android:text="%s"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
-                android:gravity="left">
-     </TextView>
      """%addr)
 
 payto_layout = make_layout("""
@@ -645,6 +656,9 @@ def receive_loop():
             if event["data"]["key"] == '4':
                 out = 'main'
 
+        elif event["name"]=="edit":
+            edit_label(receive_addr)
+
     return out
 
 def contacts_loop():
@@ -655,6 +669,9 @@ def contacts_loop():
         if event["name"]=="key":
             if event["data"]["key"] == '4':
                 out = 'main'
+
+        elif event["name"]=="edit":
+            edit_label(contact_addr)
 
     return out
 
@@ -766,6 +783,7 @@ def settings_loop():
                     if wallet.fee != fee:
                         wallet.fee = fee
                         wallet.save()
+                        out = 'main'
                 except:
                     modal_dialog('error','invalid fee value')
 
@@ -812,18 +830,17 @@ def add_menu(s):
         droid.addOptionsMenuItem("Contacts","contacts",None,"")
         droid.addOptionsMenuItem("Settings","settings",None,"")
     elif s == 'receive':
-        droid.addOptionsMenuItem("Back","main",None,"")
+        droid.addOptionsMenuItem("Edit","edit",None,"")
     elif s == 'contacts':
-        droid.addOptionsMenuItem("Back","main",None,"")
-        #droid.addOptionsMenuItem("Pay to","paytocontact",None,"")
-        #droid.addOptionsMenuItem("Edit label","editcontact",None,"")
-        #droid.addOptionsMenuItem("Delete","removecontact",None,"")
+        droid.addOptionsMenuItem("Edit","edit",None,"")
+        droid.addOptionsMenuItem("Pay to","paytocontact",None,"")
+        droid.addOptionsMenuItem("Delete","removecontact",None,"")
     elif s == 'settings':
         droid.addOptionsMenuItem("Password","password",None,"")
         droid.addOptionsMenuItem("Seed","seed",None,"")
 
 def make_bitmap(addr):
-    # fixme: this is highly innefficient
+    # fixme: this is highly inefficient
     droid.dialogCreateSpinnerProgress("please wait")
     droid.dialogShow()
     import pyqrnative, bmp
@@ -831,20 +848,20 @@ def make_bitmap(addr):
     qr.addData(addr)
     qr.make()
     k = qr.getModuleCount()
-    bitmap = bmp.BitMap( 350, 350 )
+    bitmap = bmp.BitMap( 35*8, 35*8 )
     print len(bitmap.bitarray)
     bitmap.bitarray = []
     assert k == 33
 
     for r in range(35):
-        tmparray = [ 0 ] * 350
+        tmparray = [ 0 ] * 35*8
 
         if 0 < r < 34:
             for c in range(k):
                 if qr.isDark(r-1, c):
-                    tmparray[ (1+c)*10:(1+c)*10 + 10] = [1]*10
+                    tmparray[ (1+c)*8:(2+c)*8] = [1]*8
 
-        for i in range(10):
+        for i in range(8):
             bitmap.bitarray.append( tmparray[:] )
 
     bitmap.saveFile( "/sdcard/sl4a/qrcode.bmp" )
