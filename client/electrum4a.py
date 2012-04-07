@@ -47,7 +47,7 @@ def modal_question(q,msg):
     return response.get('which') == 'positive'
 
 def edit_label(addr):
-    droid.dialogCreateInput('Edit label','',wallet.labels.get(addr))
+    droid.dialogCreateInput('Edit label',None,wallet.labels.get(addr))
     droid.dialogSetPositiveButtonText('OK')
     droid.dialogSetNegativeButtonText('Cancel')
     droid.dialogShow()
