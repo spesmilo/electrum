@@ -3,10 +3,10 @@ INSTALLATION INSTRUCTIONS FOR ANDROID
 
 1. Install sl4a and py4a : you need at least revision 5
 
-To install these APKs, just visit the links below with your phone and click on the qr code
+To install these APKs, just visit the links below with your phone and click on the apk link, or scan the qr code
 
-http://code.google.com/p/android-scripting/downloads/detail?name=sl4a_r5.apk
-http://code.google.com/p/python-for-android/downloads/detail?name=PythonForAndroid_r5.apk
+sl4a: http://code.google.com/p/android-scripting/wiki/Unofficial
+py4a: http://code.google.com/p/python-for-android/downloads/detail?name=PythonForAndroid_r5.apk
 
 
 
