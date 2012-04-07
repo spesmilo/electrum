@@ -3,7 +3,8 @@ INSTALLATION INSTRUCTIONS FOR ANDROID
 
 1. Install sl4a and py4a : you need at least revision 5
 
-To install these APKs, just visit the links below with your phone and click on the apk link, or scan the qr code
+To install these APKs, just visit the links below with your phone and
+click on the apk link, or scan the qr code
 
 sl4a: http://code.google.com/p/android-scripting/wiki/Unofficial
 py4a: http://code.google.com/p/python-for-android/downloads/detail?name=PythonForAndroid_r5.apk
@@ -24,9 +25,9 @@ wallet.py
 aes (directory)
 ecdsa (directory)
 
-Note: 
-The aes and ecdsa directories are not included in the git repository. 
-You will have to find them on your system, or you can find them in the Electrum tar.gz
+Note: The aes and ecdsa directories are not included in the git
+repository.  You will have to find them on your system, or you can
+find them in the distributed version, Electrum tar.gz or Electrum.zip
 
 3. copy the logo in /sdcard/sl4a:
 
