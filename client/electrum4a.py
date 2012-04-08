@@ -213,7 +213,7 @@ def qr_layout(addr):
                 android:gravity="center_vertical|center_horizontal|center">
      </TextView>
 
-     """%(addr,wallet.labels.get(addr,'')))
+     """%(addr,wallet.labels.get(addr,'')), True)
 
 payto_layout = make_layout("""
 
