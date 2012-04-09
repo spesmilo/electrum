@@ -38,7 +38,7 @@ def modal_dialog(title, msg = ''):
     droid.dialogDismiss()
 
 def modal_input(title, msg, value = None):
-    droid.dialogCreateInput(title, msg)
+    droid.dialogCreateInput(title, msg, value)
     droid.dialogSetPositiveButtonText('OK')
     droid.dialogSetNegativeButtonText('Cancel')
     droid.dialogShow()
