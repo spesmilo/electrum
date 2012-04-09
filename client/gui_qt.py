@@ -100,8 +100,6 @@ class QRCodeWidget(QWidget):
         super(QRCodeWidget, self).__init__()
         self.addr = addr
         self.setGeometry(300, 300, 350, 350)
-        self.setWindowTitle('Colors')
-        self.show()
         self.qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.H)
         self.qr.addData(addr)
         self.qr.make()
