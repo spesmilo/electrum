@@ -37,24 +37,29 @@ def modal_dialog(title, msg = ''):
     droid.dialogGetResponse()
     droid.dialogDismiss()
 
-def modal_question(q,msg):
-    droid.dialogCreateAlert(q, msg)
-    droid.dialogSetPositiveButtonText('OK')
-    droid.dialogSetNegativeButtonText('Cancel')
-    droid.dialogShow()
-    response = droid.dialogGetResponse().result
-    droid.dialogDismiss()
-    return response.get('which') == 'positive'
-
-def edit_label(addr):
-    droid.dialogCreateInput('Edit label',None,wallet.labels.get(addr))
+def modal_input(title, msg, value = None):
+    droid.dialogCreateInput(title, msg)
     droid.dialogSetPositiveButtonText('OK')
     droid.dialogSetNegativeButtonText('Cancel')
     droid.dialogShow()
     response = droid.dialogGetResponse().result
     droid.dialogDismiss()
     if response.get('which') == 'positive':
-        wallet.labels[addr] = response.get('value')
+        return response.get('value')
+
+def modal_question(q, msg, pos_text = 'OK', neg_text = 'Cancel'):
+    droid.dialogCreateAlert(q, msg)
+    droid.dialogSetPositiveButtonText(pos_text)
+    droid.dialogSetNegativeButtonText(neg_text)
+    droid.dialogShow()
+    response = droid.dialogGetResponse().result
+    droid.dialogDismiss()
+    return response.get('which') == 'positive'
+
+def edit_label(addr):
+    v = modal_input('Edit label',None,wallet.labels.get(addr))
+    if v:
+        wallet.labels[addr] = v
         wallet.update_tx_history()
         wallet.save()
         droid.fullSetProperty("labelTextView", "text", wallet.labels.get(addr))
@@ -489,12 +494,20 @@ def recover():
     if not modal_question("Wallet not found","restore from seed?"):
         exit(1)
 
-    code = droid.scanBarcode()
-    r = code.result
-    if r:
-        seed = r['extras']['SCAN_RESULT']
+    if modal_question("Input method",None,'QR Code', 'mnemonic'):
+        code = droid.scanBarcode()
+        r = code.result
+        if r:
+            seed = r['extras']['SCAN_RESULT']
+        else:
+            exit(1)
     else:
-        exit(1)
+        m = modal_input('Mnemonic','please enter your code')
+        try:
+            seed = mnemonic.mn_decode(m.split(' '))
+        except:
+            modal_dialog('error: could not decode this seed')
+            exit(1)
 
     if not modal_question('Seed', seed ):
         exit(1)
