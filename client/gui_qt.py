@@ -524,17 +524,7 @@ class ElectrumWindow(QMainWindow):
             addr = unicode( i.text(0) )
             return addr
 
-        def showqrcode(address):
-            if not address: return
-            d = QDialog(self)
-            d.setModal(1)
-            d.setMinimumSize(270, 300)
-            vbox = QVBoxLayout()
-            vbox.addWidget(QRCodeWidget(address))
-            vbox.addLayout(ok_cancel_buttons(d))
-            d.setLayout(vbox)
-            d.exec_()
-        qrButton = EnterButton("QR",lambda: showqrcode(get_addr(l)))
+        qrButton = EnterButton("QR",lambda: ElectrumWindow.showqrcode(get_addr(l)))
 
         def copy2clipboard(addr):
             self.app.clipboard().setText(addr)
@@ -667,19 +657,20 @@ class ElectrumWindow(QMainWindow):
               + ' '.join(mnemonic.mn_encode(seed)) + "\""
 
         QMessageBox.information(parent, 'Seed', msg, 'OK')
+        ElectrumWindow.showqrcode(seed)
 
-        def showqrcode(address):
-            if not address: return
-            d = QDialog(None)
-            d.setModal(1)
-            d.setMinimumSize(270, 300)
-            vbox = QVBoxLayout()
-            vbox.addWidget(QRCodeWidget(address))
-            vbox.addLayout(ok_cancel_buttons(d))
-            d.setLayout(vbox)
-            d.exec_()
-        showqrcode(seed)
-
+    @staticmethod
+    def showqrcode(address):
+        if not address: return
+        d = QDialog(None)
+        d.setModal(1)
+        d.setWindowTitle(address)
+        d.setMinimumSize(270, 300)
+        vbox = QVBoxLayout()
+        vbox.addWidget(QRCodeWidget(address))
+        vbox.addLayout(ok_cancel_buttons(d))
+        d.setLayout(vbox)
+        d.exec_()
 
     def question(self, msg):
         return QMessageBox.question(self, 'Message', msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes
