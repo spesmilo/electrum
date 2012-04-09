@@ -351,7 +351,9 @@ settings_layout = make_layout("""
 def get_history_values(n):
     values = []
     h = wallet.get_tx_history()
-    for i in range(n):
+
+    length = min(n, len(h))
+    for i in range(length):
         line = h[-i-1]
         v = line['value']
         try:
@@ -500,48 +502,63 @@ def pay_to(recipient, amount, fee, label):
 
 
 def recover():
-    if not modal_question("Wallet not found","restore from seed?"):
-        exit(1)
 
-    if modal_question("Input method",None,'QR Code', 'mnemonic'):
-        code = droid.scanBarcode()
-        r = code.result
-        if r:
-            seed = r['extras']['SCAN_RESULT']
-        else:
-            exit(1)
-    else:
-        m = modal_input('Mnemonic','please enter your code')
-        try:
-            seed = mnemonic.mn_decode(m.split(' '))
-        except:
-            modal_dialog('error: could not decode this seed')
-            exit(1)
-
-    if not modal_question('Seed', seed ):
-        exit(1)
-
-    wallet.seed = str(seed)
-    wallet.init_mpk( wallet.seed )
-
-    change_password_dialog()
-
-    droid.dialogCreateSpinnerProgress("Electrum", "recovering wallet...")
+    droid.dialogCreateAlert("Wallet not found","Do you want to create a new wallet, or restore an existing one?")
+    droid.dialogSetPositiveButtonText('Create')
+    droid.dialogSetNeutralButtonText('Restore')
+    droid.dialogSetNegativeButtonText('Cancel')
     droid.dialogShow()
+    response = droid.dialogGetResponse().result
+    droid.dialogDismiss()
+    if response.get('which') == 'negative':
+        exit(1)
+
+    is_recovery = response.get('which') == 'neutral'
+
+    if not is_recovery:
+        wallet.new_seed(None)
+    else:
+        if modal_question("Input method",None,'QR Code', 'mnemonic'):
+            code = droid.scanBarcode()
+            r = code.result
+            if r:
+                seed = r['extras']['SCAN_RESULT']
+            else:
+                exit(1)
+        else:
+            m = modal_input('Mnemonic','please enter your code')
+            try:
+                seed = mnemonic.mn_decode(m.split(' '))
+            except:
+                modal_dialog('error: could not decode this seed')
+                exit(1)
+
+        wallet.seed = str(seed)
+
+    modal_dialog('Your seed is:', wallet.seed)
+    modal_dialog('Mnemonic code:', ' '.join(mnemonic.mn_encode(wallet.seed)) )
+
+    msg = "recovering wallet..." if is_recovery else "creating wallet..."
+    droid.dialogCreateSpinnerProgress("Electrum", msg)
+    droid.dialogShow()
+
+    wallet.init_mpk( wallet.seed )
     WalletSynchronizer(wallet,True).start()
     wallet.update()
-    wallet.save()
+
     droid.dialogDismiss()
     droid.vibrate()
 
-    if wallet.is_found():
-        # history and addressbook
-        wallet.update_tx_history()
-        wallet.fill_addressbook()
-        modal_dialog("recovery successful")
-    else:
-        if not modal_question("no transactions found for this seed","do you want to keep this wallet?"):
-            exit(1)
+    if is_recovery:
+        if wallet.is_found():
+            wallet.update_tx_history()
+            wallet.fill_addressbook()
+            modal_dialog("recovery successful")
+        else:
+            if not modal_question("no transactions found for this seed","do you want to keep this wallet?"):
+                exit(1)
+
+    change_password_dialog()
     wallet.save()
 
 
@@ -761,8 +778,8 @@ def seed_dialog():
 
 def change_password_dialog():
     if wallet.use_encryption:
-        password  = droid.dialogGetPassword('Current password').result
-        if not password: return
+        password  = droid.dialogGetPassword('Your wallet is encrypted').result
+        if password is None: return
     else:
         password = None
 
@@ -773,16 +790,20 @@ def change_password_dialog():
         return
 
     new_password  = droid.dialogGetPassword('Choose a password').result
-    password2  = droid.dialogGetPassword('Confirm new password').result
-    if new_password != password2:
-        modal_dialog('error','passwords do not match')
+    if new_password == None:
         return
+
+    if new_password != '':
+        password2  = droid.dialogGetPassword('Confirm new password').result
+        if new_password != password2:
+            modal_dialog('error','passwords do not match')
+            return
 
     wallet.update_password(seed, new_password)
     if new_password:
         modal_dialog('Password updated','your wallet is encrypted')
     else:
-        modal_dialog('Password removed','your wallet is not encrypted')
+        modal_dialog('No password','your wallet is not encrypted')
         
 
 def settings_loop():
