@@ -30,7 +30,7 @@ import datetime
 
 
 
-def modal_dialog(title, msg = ''):
+def modal_dialog(title, msg = None):
     droid.dialogCreateAlert(title,msg)
     droid.dialogSetPositiveButtonText('OK')
     droid.dialogShow()
@@ -58,17 +58,26 @@ def modal_question(q, msg, pos_text = 'OK', neg_text = 'Cancel'):
 
 def edit_label(addr):
     v = modal_input('Edit label',None,wallet.labels.get(addr))
-    if v:
-        wallet.labels[addr] = v
+    if v is not None:
+        if v:
+            wallet.labels[addr] = v
+        else:
+            if addr in wallet.labels.keys():
+                wallet.labels.pop(addr)
         wallet.update_tx_history()
         wallet.save()
-        droid.fullSetProperty("labelTextView", "text", wallet.labels.get(addr))
+        droid.fullSetProperty("labelTextView", "text", v)
 
 def select_from_contacts():
     title = 'Contacts:'
     droid.dialogCreateAlert(title)
+    l = []
+    for i in range(len(wallet.addressbook)):
+        addr = wallet.addressbook[i]
+        label = wallet.labels.get(addr,addr)
+        l.append( label )
+    droid.dialogSetItems(l)
     droid.dialogSetPositiveButtonText('New contact')
-    droid.dialogSetItems(wallet.addressbook)
     droid.dialogShow()
     response = droid.dialogGetResponse().result
     droid.dialogDismiss()
@@ -88,8 +97,8 @@ def select_from_addresses():
     l = []
     for i in range(len(wallet.addresses)):
         addr = wallet.addresses[i]
-        l.append( wallet.labels.get(addr,'') + ' ' + addr)
-
+        label = wallet.labels.get(addr,addr)
+        l.append( label )
     droid.dialogSetItems(l)
     droid.dialogShow()
     response = droid.dialogGetResponse()
@@ -618,6 +627,11 @@ def main_loop():
                     
 
 def payto_loop():
+    global recipient
+    if recipient:
+        droid.fullSetProperty("recipient","text",recipient)
+        recipient = None
+
     out = None
     while out is None:
         event = droid.eventWait().result
@@ -670,7 +684,7 @@ def payto_loop():
 
 receive_addr = ''
 contact_addr = ''
-
+recipient = ''
 
 def receive_loop():
     out = None
@@ -681,12 +695,17 @@ def receive_loop():
             if event["data"]["key"] == '4':
                 out = 'main'
 
+        elif event["name"]=="clipboard":
+            droid.setClipboard(receive_addr)
+            modal_dialog('Address copied to clipboard',receive_addr)
+
         elif event["name"]=="edit":
             edit_label(receive_addr)
 
     return out
 
 def contacts_loop():
+    global recipient
     out = None
     while out is None:
         event = droid.eventWait().result
@@ -695,8 +714,20 @@ def contacts_loop():
             if event["data"]["key"] == '4':
                 out = 'main'
 
+        elif event["name"]=="clipboard":
+            droid.setClipboard(contact_addr)
+            modal_dialog('Address copied to clipboard',contact_addr)
+
         elif event["name"]=="edit":
             edit_label(contact_addr)
+
+        elif event["name"]=="paytocontact":
+            recipient = contact_addr
+            out = 'send'
+
+        elif event["name"]=="deletecontact":
+            if modal_question('delete contact', contact_addr):
+                out = 'main'
 
     return out
 
@@ -855,11 +886,13 @@ def add_menu(s):
         droid.addOptionsMenuItem("Contacts","contacts",None,"")
         droid.addOptionsMenuItem("Settings","settings",None,"")
     elif s == 'receive':
-        droid.addOptionsMenuItem("Edit","edit",None,"")
+        droid.addOptionsMenuItem("Copy","clipboard",None,"")
+        droid.addOptionsMenuItem("Label","edit",None,"")
     elif s == 'contacts':
-        droid.addOptionsMenuItem("Edit","edit",None,"")
+        droid.addOptionsMenuItem("Copy","clipboard",None,"")
+        droid.addOptionsMenuItem("Label","edit",None,"")
         droid.addOptionsMenuItem("Pay to","paytocontact",None,"")
-        droid.addOptionsMenuItem("Delete","removecontact",None,"")
+        #droid.addOptionsMenuItem("Delete","deletecontact",None,"")
     elif s == 'settings':
         droid.addOptionsMenuItem("Password","password",None,"")
         droid.addOptionsMenuItem("Seed","seed",None,"")
