@@ -194,12 +194,11 @@ def main_layout():
     return make_layout("""
         <TextView android:id="@+id/balanceTextView" 
                 android:layout_width="match_parent"
-                android:layout_height="70" 
                 android:text=""
                 android:textColor="#ffffffff"
                 android:textAppearance="?android:attr/textAppearanceLarge" 
-                android:padding="10"
-                android:textSize="6pt"
+                android:padding="7dip"
+                android:textSize="8pt"
                 android:gravity="center_vertical|center_horizontal|left">
         </TextView>
 
