@@ -781,7 +781,7 @@ def settings_loop():
         is_encrypted = 'yes' if wallet.use_encryption else 'no'
         protocol = protocol_name(p)
         droid.fullShow(settings_layout)
-        droid.fullSetList("myListView",['server: ' + server, 'protocol: '+ protocol, 'fee: '+fee, 'password: '+is_encrypted, 'seed'])
+        droid.fullSetList("myListView",['Server: ' + server, 'Protocol: '+ protocol, 'Fee: '+fee, 'Password: '+is_encrypted, 'Seed'])
 
     set_listview()
 
