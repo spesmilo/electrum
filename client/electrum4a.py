@@ -717,11 +717,17 @@ def contacts_loop():
 
 
 def server_dialog(plist):
-    droid.dialogCreateAlert("servers")
+    droid.dialogCreateAlert("Public servers")
     droid.dialogSetItems( plist.keys() )
+    droid.dialogSetPositiveButtonText('Private server')
     droid.dialogShow()
-    i = droid.dialogGetResponse().result.get('item')
+    response = droid.dialogGetResponse().result
     droid.dialogDismiss()
+
+    if response.get('which') == 'positive':
+        return modal_input('Private server', None)
+
+    i = response.get('item')
     if i is not None:
         response = plist.keys()[i]
         return response
