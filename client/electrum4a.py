@@ -37,8 +37,8 @@ def modal_dialog(title, msg = None):
     droid.dialogGetResponse()
     droid.dialogDismiss()
 
-def modal_input(title, msg, value = None):
-    droid.dialogCreateInput(title, msg, value)
+def modal_input(title, msg, value = None, etype=None):
+    droid.dialogCreateInput(title, msg, value, etype)
     droid.dialogSetPositiveButtonText('OK')
     droid.dialogSetNegativeButtonText('Cancel')
     droid.dialogShow()
@@ -114,17 +114,19 @@ def protocol_name(p):
     if p == 'h': return 'HTTP/Stratum'
     if p == 'n': return 'TCP/native'
 
-def protocol_dialog(host, z):
+def protocol_dialog(host, protocol, z):
     droid.dialogCreateAlert('Protocol',host)
     protocols = z.keys()
     l = []
+    current = protocols.index(protocol)
     for p in protocols:
         l.append(protocol_name(p))
-    droid.dialogSetSingleChoiceItems(l)
+    droid.dialogSetSingleChoiceItems(l, current)
     droid.dialogSetPositiveButtonText('OK')
     droid.dialogSetNegativeButtonText('Cancel')
     droid.dialogShow()
     response = droid.dialogGetResponse().result
+    if not response: return
     if response.get('which') == 'positive':
         response = droid.dialogGetSelectedItems().result[0]
         droid.dialogDismiss()
@@ -780,7 +782,7 @@ def settings_loop():
         is_encrypted = 'yes' if wallet.use_encryption else 'no'
         protocol = protocol_name(p)
         droid.fullShow(settings_layout)
-        droid.fullSetList("myListView",['Server: ' + server, 'Protocol: '+ protocol, 'Fee: '+fee, 'Password: '+is_encrypted, 'Seed'])
+        droid.fullSetList("myListView",['Server: ' + server, 'Port: '+port, 'Protocol: '+ protocol, 'Fee: '+fee, 'Password: '+is_encrypted, 'Seed'])
 
     set_listview()
 
@@ -802,6 +804,7 @@ def settings_loop():
 
         if event["name"] == "itemclick":
             pos = event["data"]["position"]
+            host, port, protocol = wallet.server.split(':')
 
             if pos == "0": #server
                 host = server_dialog(plist)
@@ -815,9 +818,20 @@ def settings_loop():
                         modal_dialog('error','invalid server')
                     set_listview()
 
-            elif pos == "1": #protocol
+            elif pos == "1": #port
+                a_port = modal_input('Port', 'port number', port, "number")
+                if a_port:
+                    if a_port != port:
+                        srv = host + ':' + a_port + ':t'
+                        try:
+                            wallet.set_server(srv)
+                        except:
+                            modal_dialog('error','invalid port number')
+                        set_listview()
+
+            elif pos == "2": #protocol
                 if host in plist:
-                    srv = protocol_dialog(host, plist[host])
+                    srv = protocol_dialog(host, protocol, plist[host])
                     if srv:
                         try:
                             wallet.set_server(srv)
@@ -825,8 +839,8 @@ def settings_loop():
                             modal_dialog('error','invalid server')
                         set_listview()
 
-            elif pos == "2": #fee
-                fee = modal_input('fee', 'miners fee', str( Decimal( wallet.fee)/100000000 ))
+            elif pos == "3": #fee
+                fee = modal_input('fee', 'miners fee', str( Decimal( wallet.fee)/100000000 ), "number")
                 if fee:
                     try:
                         fee = int( 100000000 * Decimal(fee) )
@@ -837,10 +851,10 @@ def settings_loop():
                         wallet.save()
                         set_listview()
         
-            elif pos == "3":
+            elif pos == "4":
                 change_password_dialog()
 
-            elif pos == "4":
+            elif pos == "5":
                 seed_dialog()
 
 
