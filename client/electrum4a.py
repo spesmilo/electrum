@@ -796,7 +796,7 @@ def settings_loop():
         is_encrypted = 'yes' if wallet.use_encryption else 'no'
         protocol = protocol_name(p)
         droid.fullShow(settings_layout)
-        droid.fullSetList("myListView",['Server: ' + server, 'Protocol: '+ protocol, 'Port: '+port, 'Fee: '+fee, 'Password: '+is_encrypted, 'Seed'])
+        droid.fullSetList("myListView",['Server: ' + server, 'Protocol: '+ protocol, 'Port: '+port, 'Transaction fee: '+fee, 'Password: '+is_encrypted, 'Seed'])
 
     set_listview()
 
@@ -854,7 +854,7 @@ def settings_loop():
                         set_listview()
 
             elif pos == "3": #fee
-                fee = modal_input('fee', 'miners fee', str( Decimal( wallet.fee)/100000000 ), "numberDecimal")
+                fee = modal_input('Transaction fee', 'The fee will be this amount multiplied by the number of inputs in your transaction. ', str( Decimal( wallet.fee)/100000000 ), "numberDecimal")
                 if fee:
                     try:
                         fee = int( 100000000 * Decimal(fee) )
