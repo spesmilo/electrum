@@ -116,7 +116,10 @@ def protocol_name(p):
 
 def protocol_dialog(host, protocol, z):
     droid.dialogCreateAlert('Protocol',host)
-    protocols = z.keys()
+    if z:
+        protocols = z.keys()
+    else:
+        protocols = ['t','h','n']
     l = []
     current = protocols.index(protocol)
     for p in protocols:
@@ -788,7 +791,7 @@ def settings_loop():
         is_encrypted = 'yes' if wallet.use_encryption else 'no'
         protocol = protocol_name(p)
         droid.fullShow(settings_layout)
-        droid.fullSetList("myListView",['Server: ' + server, 'Port: '+port, 'Protocol: '+ protocol, 'Fee: '+fee, 'Password: '+is_encrypted, 'Seed'])
+        droid.fullSetList("myListView",['Server: ' + server, 'Protocol: '+ protocol, 'Port: '+port, 'Fee: '+fee, 'Password: '+is_encrypted, 'Seed'])
 
     set_listview()
 
@@ -824,18 +827,7 @@ def settings_loop():
                         modal_dialog('error','invalid server')
                     set_listview()
 
-            elif pos == "1": #port
-                a_port = modal_input('Port', 'port number', port, "number")
-                if a_port:
-                    if a_port != port:
-                        srv = host + ':' + a_port + ':t'
-                        try:
-                            wallet.set_server(srv)
-                        except:
-                            modal_dialog('error','invalid port number')
-                        set_listview()
-
-            elif pos == "2": #protocol
+            elif pos == "1": #protocol
                 if host in plist:
                     srv = protocol_dialog(host, protocol, plist[host])
                     if srv:
@@ -843,6 +835,17 @@ def settings_loop():
                             wallet.set_server(srv)
                         except:
                             modal_dialog('error','invalid server')
+                        set_listview()
+
+            elif pos == "2": #port
+                a_port = modal_input('Port number', 'If you use a public server, this field is set automatically when you set the protocol', port, "number")
+                if a_port:
+                    if a_port != port:
+                        srv = host + ':' + a_port + ':'+ protocol
+                        try:
+                            wallet.set_server(srv)
+                        except:
+                            modal_dialog('error','invalid port number')
                         set_listview()
 
             elif pos == "3": #fee
