@@ -109,14 +109,17 @@ def select_from_addresses():
         return addr
 
 
+def protocol_name(p):
+    if p == 't': return 'TCP/stratum'
+    if p == 'h': return 'HTTP/Stratum'
+    if p == 'n': return 'TCP/native'
+
 def protocol_dialog(host, z):
     droid.dialogCreateAlert('Protocol',host)
     protocols = z.keys()
     l = []
     for p in protocols:
-        if p == 't': l.append('TCP/stratum')
-        if p == 'h': l.append('HTTP/Stratum')
-        if p == 'n': l.append('TCP/native')
+        l.append(protocol_name(p))
     droid.dialogSetSingleChoiceItems(l)
     droid.dialogSetPositiveButtonText('OK')
     droid.dialogSetNegativeButtonText('Cancel')
@@ -131,14 +134,26 @@ def protocol_dialog(host, z):
 
 
 
+
 def make_layout(s, scrollable = False):
     content = """
-     <ImageView
-        android:id="@+id/imageView1"
+
+      <LinearLayout 
+        android:id="@+id/zz"
         android:layout_width="match_parent"
-        android:gravity="center"
-        android:layout_height="wrap_content"
-        android:src="file:///sdcard/sl4a/electrum_text_320.png" />
+        android:layout_height="wrap_content" 
+        android:background="#ff222222">
+
+        <TextView
+          android:id="@+id/textElectrum"
+          android:text="Electrum"
+          android:textSize="7pt"
+          android:textColor="#ff4444ff"
+          android:gravity="left"
+          android:layout_height="wrap_content"
+          android:layout_width="match_parent"
+        />
+      </LinearLayout>
 
         %s   """%s
 
@@ -292,59 +307,10 @@ payto_layout = make_layout("""
 
 
 
-settings_layout = make_layout("""
-
-        <TextView android:id="@+id/serverTextView" 
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
-                android:text="Server:"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
-                android:gravity="left">
-        </TextView>
-
-        <EditText android:id="@+id/server"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
-                android:tag="Tag Me" 
-                android:inputType="text">
-        </EditText>
-
-        <LinearLayout android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
-                android:id="@+id/linearLayout1">
-
-           <Button android:id="@+id/buttonServer" 
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" 
-                android:text="Public servers">
-           </Button>
-           <Button android:id="@+id/buttonProtocol" 
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Protocol">
-           </Button>
-
-        </LinearLayout>
-
-        <TextView android:id="@+id/feeTextView" 
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
-                android:text="Fee:"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
-                android:gravity="left">
-        </TextView>
-
-        <EditText android:id="@+id/fee"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
-                android:tag="Tag Me" 
-                android:inputType="numberDecimal">
-        </EditText>
-
-        <Button android:id="@+id/buttonSave" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="Save"></Button>
-
-""",False)
+settings_layout = make_layout(""" <ListView
+           android:id="@+id/myListView" 
+           android:layout_width="match_parent"
+           android:layout_height="wrap_content" />""")
 
 
 
@@ -762,7 +728,7 @@ def server_dialog(plist):
 
 def seed_dialog():
     if wallet.use_encryption:
-        password  = droid.dialogGetPassword('Password').result
+        password  = droid.dialogGetPassword('Seed').result
         if not password: return
     else:
         password = None
@@ -807,13 +773,24 @@ def change_password_dialog():
         
 
 def settings_loop():
-    droid.fullSetProperty("server","text",wallet.server)
-    droid.fullSetProperty("fee","text", "%s"% str( Decimal( wallet.fee)/100000000 ) )
+
+
+    def set_listview():
+        server, port, p = wallet.server.split(':')
+        fee = str( Decimal( wallet.fee)/100000000 )
+        is_encrypted = 'yes' if wallet.use_encryption else 'no'
+        protocol = protocol_name(p)
+        droid.fullShow(settings_layout)
+        droid.fullSetList("myListView",['server: ' + server, 'protocol: '+ protocol, 'fee: '+fee, 'password: '+is_encrypted, 'seed'])
+
+    set_listview()
 
     out = None
     while out is None:
         event = droid.eventWait().result
         print "got event", event
+        if event == 'OK': continue
+        if not event: continue
 
         plist = {}
         for item in wallet.interface.servers:
@@ -824,54 +801,52 @@ def settings_loop():
                 z[protocol] = port
             plist[host] = z
 
+        if event["name"] == "itemclick":
+            pos = event["data"]["position"]
 
-        if event["name"] == "click":
-            id = event["data"]["id"]
-
-            if id=="buttonServer":
+            if pos == "0": #server
                 host = server_dialog(plist)
                 if host:
                     p = plist[host]
                     port = p['t']
                     srv = host + ':' + port + ':t'
-                    droid.fullSetProperty("server","text",srv)
+                    try:
+                        wallet.set_server(srv)
+                    except:
+                        modal_dialog('error','invalid server')
+                    set_listview()
 
-            elif id=="buttonProtocol":
-                droid.fullQuery()
-                srv = droid.fullQueryDetail("server").result.get('text')
-                host = srv.split(':')[0]
+            elif pos == "1": #protocol
                 if host in plist:
-                    server = protocol_dialog(host, plist[host])
-                    if server:
-                        droid.fullSetProperty("server","text",server)
+                    srv = protocol_dialog(host, plist[host])
+                    if srv:
+                        try:
+                            wallet.set_server(srv)
+                        except:
+                            modal_dialog('error','invalid server')
+                        set_listview()
 
-
-            elif id=="buttonSave":
-                droid.fullQuery()
-                srv = droid.fullQueryDetail("server").result.get('text')
-                fee = droid.fullQueryDetail("fee").result.get('text')
-                try:
-                    wallet.set_server(srv)
-                except:
-                    modal_dialog('error','invalid server')
-
-                try:
-                    fee = int( 100000000 * Decimal(fee) )
+            elif pos == "2": #fee
+                fee = modal_input('fee', 'miners fee', str( Decimal( wallet.fee)/100000000 ))
+                if fee:
+                    try:
+                        fee = int( 100000000 * Decimal(fee) )
+                    except:
+                        modal_dialog('error','invalid fee value')
                     if wallet.fee != fee:
                         wallet.fee = fee
                         wallet.save()
-                        out = 'main'
-                except:
-                    modal_dialog('error','invalid fee value')
+                        set_listview()
+        
+            elif pos == "3":
+                change_password_dialog()
+
+            elif pos == "4":
+                seed_dialog()
+
 
         elif event["name"] in menu_commands:
             out = event["name"]
-
-        elif event["name"] == 'password':
-            change_password_dialog()
-
-        elif event["name"] == 'seed':
-            seed_dialog()
 
         elif event["name"] == 'cancel':
             out = 'main'
@@ -914,9 +889,6 @@ def add_menu(s):
         droid.addOptionsMenuItem("Label","edit",None,"")
         droid.addOptionsMenuItem("Pay to","paytocontact",None,"")
         #droid.addOptionsMenuItem("Delete","deletecontact",None,"")
-    elif s == 'settings':
-        droid.addOptionsMenuItem("Password","password",None,"")
-        droid.addOptionsMenuItem("Seed","seed",None,"")
 
 def make_bitmap(addr):
     # fixme: this is highly inefficient
@@ -971,7 +943,7 @@ while True:
         s = contacts_loop()
 
     elif s == 'settings':
-        droid.fullShow(settings_layout)
+        #droid.fullShow(settings_layout)
         s = settings_loop()
         #droid.fullDismiss()
     else:
