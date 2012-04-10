@@ -785,7 +785,8 @@ def change_password_dialog():
         modal_dialog('Password updated','your wallet is encrypted')
     else:
         modal_dialog('No password','your wallet is not encrypted')
-        
+    return True
+
 
 def settings_loop():
 
@@ -866,7 +867,8 @@ def settings_loop():
                         set_listview()
         
             elif pos == "4":
-                change_password_dialog()
+                if change_password_dialog():
+                    set_listview()
 
             elif pos == "5":
                 seed_dialog()
