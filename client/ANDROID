@@ -1,7 +1,7 @@
 INSTALLATION INSTRUCTIONS FOR ANDROID
 
 
-1. Install sl4a and py4a : you need at least revision 5
+1. Install sl4a and py4a : you will need at least revision r5x12 of sl4a
 
 To install these APKs, just visit the links below with your phone and
 click on the apk link, or scan the qr code
@@ -29,8 +29,5 @@ Note: The aes and ecdsa directories are not included in the git
 repository.  You will have to find them on your system, or you can
 find them in the distributed version, Electrum tar.gz or Electrum.zip
 
-3. copy the logo in /sdcard/sl4a:
 
-electrum_text_320.png
-
-4. to run the application, open sl4a and click on electrum4a.py
+3. to run the application, open sl4a and click on electrum4a.py
