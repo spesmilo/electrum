@@ -633,10 +633,15 @@ def payto_loop():
                 recipient = droid.fullQueryDetail("recipient").result.get('text')
                 label  = droid.fullQueryDetail("label").result.get('text')
                 amount = droid.fullQueryDetail('amount').result.get('text')
+
+                if not wallet.is_valid(recipient):
+                    modal_dialog('Error','Invalid Bitcoin address')
+                    continue
+
                 try:
                     amount = int( 100000000 * Decimal(amount) )
                 except:
-                    modal_dialog('Error','invalid amount')
+                    modal_dialog('Error','Invalid amount')
                     continue
 
                 result = pay_to(recipient, amount, wallet.fee, label)
