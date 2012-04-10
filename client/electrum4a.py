@@ -840,7 +840,7 @@ def settings_loop():
                         set_listview()
 
             elif pos == "3": #fee
-                fee = modal_input('fee', 'miners fee', str( Decimal( wallet.fee)/100000000 ), "number")
+                fee = modal_input('fee', 'miners fee', str( Decimal( wallet.fee)/100000000 ), "numberDecimal")
                 if fee:
                     try:
                         fee = int( 100000000 * Decimal(fee) )
