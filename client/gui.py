@@ -1111,7 +1111,7 @@ class ElectrumWindow:
                 self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks\nresponse time: %f"%(interface.host, interface.port, self.wallet.blocks, interface.rtime))
                 c, u = self.wallet.get_balance()
                 text =  "Balance: %s "%( format_satoshis(c) )
-                if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True) )
+                if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True).strip() )
         else:
             self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
             self.network_button.set_tooltip_text("Trying to contact %s.\n%d blocks"%(interface.host, self.wallet.blocks))

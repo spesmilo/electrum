@@ -316,6 +316,7 @@ class TcpStratumInterface(Interface):
             traceback.print_exc(file=sys.stdout)
 
         self.is_connected = False
+        print "poking"
         self.poke()
 
     def send(self, messages):
@@ -448,27 +449,33 @@ class WalletSynchronizer(threading.Thread):
     def run(self):
         import socket, time
         while True:
-            try:
-                while self.interface.is_connected:
-                    new_addresses = self.wallet.synchronize()
-                    if new_addresses:
-                        self.interface.subscribe(new_addresses)
-                        for addr in new_addresses:
-                            with self.wallet.lock:
-                                self.wallet.addresses_waiting_for_status.append(addr)
+            while self.interface.is_connected:
+                new_addresses = self.wallet.synchronize()
+                if new_addresses:
+                    self.interface.subscribe(new_addresses)
+                    for addr in new_addresses:
+                        with self.wallet.lock:
+                            self.wallet.addresses_waiting_for_status.append(addr)
 
-                    if self.wallet.is_up_to_date():
+                if self.wallet.is_up_to_date():
+                    if not self.wallet.up_to_date:
                         self.wallet.up_to_date = True
+                        self.wallet.was_updated = True
                         self.wallet.up_to_date_event.set()
-                    else:
+                else:
+                    if self.wallet.up_to_date:
                         self.wallet.up_to_date = False
+                        self.wallet.was_updated = True
 
-                    response = self.interface.responses.get()#True,100000000000) # workaround so that it can be keyboard interrupted
-                    self.handle_response(response)
-            except socket.error:
-                print "socket error"
-                wallet.interface.is_connected = False
+                if self.wallet.was_updated:
+                    self.wallet.gui_callback()
+                    self.wallet.was_updated = False
 
+                response = self.interface.responses.get()
+                self.handle_response(response)
+
+            print "disconnected, gui callback"
+            self.wallet.gui_callback()
             if self.loop:
                 time.sleep(5)
                 self.start_interface()

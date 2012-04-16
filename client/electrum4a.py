@@ -18,141 +18,237 @@
 
 
 
+
 import android
 from interface import WalletSynchronizer
 from wallet import Wallet
 from wallet import format_satoshis
 from decimal import Decimal
-
+import mnemonic
 
 import datetime
 
 
-droid = android.Android()
-wallet = Wallet()
-wallet.set_path("/sdcard/electrum.dat")
-wallet.read()
 
+def modal_dialog(title, msg = None):
+    droid.dialogCreateAlert(title,msg)
+    droid.dialogSetPositiveButtonText('OK')
+    droid.dialogShow()
+    droid.dialogGetResponse()
+    droid.dialogDismiss()
 
-def get_history_layout(n):
-    rows = ""
-    for line in wallet.get_tx_history()[-n:]:
-        v = line['value'] 
-        try:
-            dt = datetime.datetime.fromtimestamp( line['timestamp'] )
-            if dt.date() == dt.today().date():
-                time_str = str( dt.time() )
-            else:
-                time_str = str( dt.date() )
-        except:
-            print line['timestamp']
-            time_str = 'pending'
+def modal_input(title, msg, value = None, etype=None):
+    droid.dialogCreateInput(title, msg, value, etype)
+    droid.dialogSetPositiveButtonText('OK')
+    droid.dialogSetNegativeButtonText('Cancel')
+    droid.dialogShow()
+    response = droid.dialogGetResponse().result
+    droid.dialogDismiss()
+    if response.get('which') == 'positive':
+        return response.get('value')
 
-        label = line.get('label')
-        #if not label: label = line['tx_hash']
-        is_default_label = (label == '') or (label is None)
-        if is_default_label: label = line['default_label']
+def modal_question(q, msg, pos_text = 'OK', neg_text = 'Cancel'):
+    droid.dialogCreateAlert(q, msg)
+    droid.dialogSetPositiveButtonText(pos_text)
+    droid.dialogSetNegativeButtonText(neg_text)
+    droid.dialogShow()
+    response = droid.dialogGetResponse().result
+    droid.dialogDismiss()
+    return response.get('which') == 'positive'
 
-        rows += """
-    <TableRow
-       android:layout_width="fill_parent">
-        <TextView
-            android:layout_column="1"
-            android:text="%s"
-            android:padding="2px" />
-        <TextView
-            android:text="%s"
-            android:padding="2px" />
-        <TextView
-            android:text="%s"
-            android:gravity="right"
-            android:padding="2px" />
-    </TableRow>"""%(time_str, ' '+ label[0:10]+ '... ',  format_satoshis(v))
+def edit_label(addr):
+    v = modal_input('Edit label',None,wallet.labels.get(addr))
+    if v is not None:
+        if v:
+            wallet.labels[addr] = v
+        else:
+            if addr in wallet.labels.keys():
+                wallet.labels.pop(addr)
+        wallet.update_tx_history()
+        wallet.save()
+        droid.fullSetProperty("labelTextView", "text", v)
 
-
-    output = """
-<TableLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="fill_parent"
-    android:layout_height="wrap_content"
-    android:stretchColumns="1">
-    %s
-</TableLayout>
-"""% rows
-    return output
-
-
-
-def show_addresses():
-    droid.dialogCreateAlert("Addresses:")
+def select_from_contacts():
+    title = 'Contacts:'
+    droid.dialogCreateAlert(title)
     l = []
-    for i in range(len(wallet.addresses)):
-        addr = wallet.addresses[i]
-        l.append( wallet.labels.get(addr,'') + ' ' + addr)
-
+    for i in range(len(wallet.addressbook)):
+        addr = wallet.addressbook[i]
+        label = wallet.labels.get(addr,addr)
+        l.append( label )
     droid.dialogSetItems(l)
+    droid.dialogSetPositiveButtonText('New contact')
     droid.dialogShow()
     response = droid.dialogGetResponse().result
     droid.dialogDismiss()
 
-    # show qr code
-    print response
+    if response.get('which') == 'positive':
+        return 'newcontact'
+
+    result = response.get('item')
+    print result
+    if result is not None:
+        addr = wallet.addressbook[result]
+        return addr
+
+
+def select_from_addresses():
+    droid.dialogCreateAlert("Addresses:")
+    l = []
+    for i in range(len(wallet.addresses)):
+        addr = wallet.addresses[i]
+        label = wallet.labels.get(addr,addr)
+        l.append( label )
+    droid.dialogSetItems(l)
+    droid.dialogShow()
+    response = droid.dialogGetResponse()
+    result = response.result.get('item')
+    droid.dialogDismiss()
+    if result is not None:
+        addr = wallet.addresses[result]
+        return addr
+
+
+def protocol_name(p):
+    if p == 't': return 'TCP/stratum'
+    if p == 'h': return 'HTTP/Stratum'
+    if p == 'n': return 'TCP/native'
+
+def protocol_dialog(host, protocol, z):
+    droid.dialogCreateAlert('Protocol',host)
+    if z:
+        protocols = z.keys()
+    else:
+        protocols = ['t','h','n']
+    l = []
+    current = protocols.index(protocol)
+    for p in protocols:
+        l.append(protocol_name(p))
+    droid.dialogSetSingleChoiceItems(l, current)
+    droid.dialogSetPositiveButtonText('OK')
+    droid.dialogSetNegativeButtonText('Cancel')
+    droid.dialogShow()
+    response = droid.dialogGetResponse().result
+    if not response: return
+    if response.get('which') == 'positive':
+        response = droid.dialogGetSelectedItems().result[0]
+        droid.dialogDismiss()
+        p = protocols[response]
+        port = z[p]
+        return host + ':' + port + ':' + p
 
 
 
-def main_layout():
+
+def make_layout(s, scrollable = False):
+    content = """
+
+      <LinearLayout 
+        android:id="@+id/zz"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" 
+        android:background="#ff222222">
+
+        <TextView
+          android:id="@+id/textElectrum"
+          android:text="Electrum"
+          android:textSize="7pt"
+          android:textColor="#ff4444ff"
+          android:gravity="left"
+          android:layout_height="wrap_content"
+          android:layout_width="match_parent"
+        />
+      </LinearLayout>
+
+        %s   """%s
+
+    if scrollable:
+        content = """
+      <ScrollView 
+        android:id="@+id/scrollview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" >
+
+      <LinearLayout
+        android:orientation="vertical" 
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" >
+
+      %s
+
+      </LinearLayout>
+      </ScrollView>
+      """%content
+
+
     return """<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+      <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
         android:id="@+id/background"
         android:orientation="vertical" 
         android:layout_width="match_parent"
         android:layout_height="match_parent" 
-        android:background="#ff000000">
+        android:background="#ff000022">
+
+      %s 
+      </LinearLayout>"""%content
+
+
+
+
+def main_layout():
+    return make_layout("""
+        <TextView android:id="@+id/balanceTextView" 
+                android:layout_width="match_parent"
+                android:text=""
+                android:textColor="#ffffffff"
+                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:padding="7dip"
+                android:textSize="8pt"
+                android:gravity="center_vertical|center_horizontal|left">
+        </TextView>
 
         <TextView android:id="@+id/historyTextView" 
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" 
-                android:text="Electrum"
+                android:text="Recent transactions"
                 android:textAppearance="?android:attr/textAppearanceLarge" 
                 android:gravity="center_vertical|center_horizontal|center">
         </TextView>
 
-        %s
+        %s """%get_history_layout(15),True)
 
-        <TextView android:id="@+id/balanceTextView" 
+
+
+def qr_layout(addr):
+    return make_layout("""
+
+     <TextView android:id="@+id/addrTextView" 
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
-                android:text=""
+                android:layout_height="50" 
+                android:text="%s"
                 android:textAppearance="?android:attr/textAppearanceLarge" 
-                android:gravity="left">
-        </TextView>
+                android:gravity="center_vertical|center_horizontal|center">
+     </TextView>
 
-        <LinearLayout android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:id="@+id/linearLayout1">
-                <Button android:id="@+id/buttonSend" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="Send"></Button>
-                <Button android:id="@+id/buttonReceive" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="Receive"></Button>
-                <Button android:id="@+id/buttonQuit" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="Quit"></Button>
-        </LinearLayout>
+     <ImageView
+        android:id="@+id/qrView"
+        android:gravity="center"
+        android:layout_width="match_parent"
+        android:layout_height="350"
+        android:antialias="false"
+        android:src="file:///sdcard/sl4a/qrcode.bmp" /> 
 
-</LinearLayout>
-"""%get_history_layout(10)
+     <TextView android:id="@+id/labelTextView" 
+                android:layout_width="match_parent"
+                android:layout_height="50" 
+                android:text="%s"
+                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:gravity="center_vertical|center_horizontal|center">
+     </TextView>
 
+     """%(addr,wallet.labels.get(addr,'')), True)
 
-payto_layout="""<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
- android:id="@+id/background"
- android:orientation="vertical" 
- android:layout_width="match_parent"
- android:layout_height="match_parent" 
- android:background="#ff000000">
-
-    <LinearLayout android:id="@+id/linearLayout0"
-     android:orientation="vertical" 
-     android:layout_width="match_parent"
-     android:layout_height="wrap_content" 
-     android:background="#44ffffff">
+payto_layout = make_layout("""
 
         <TextView android:id="@+id/recipientTextView" 
                 android:layout_width="match_parent"
@@ -166,20 +262,17 @@ payto_layout="""<?xml version="1.0" encoding="utf-8"?>
         <EditText android:id="@+id/recipient"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" 
-                android:tag="Tag Me" android:inputType="textCapWords|textPhonetic|number">
+                android:tag="Tag Me" android:inputType="text">
         </EditText>
 
         <LinearLayout android:id="@+id/linearLayout1"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
                 <Button android:id="@+id/buttonQR" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="Scan QR"></Button>
+                        android:layout_height="wrap_content" android:text="From QR code"></Button>
                 <Button android:id="@+id/buttonContacts" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="Contacts"></Button>
+                        android:layout_height="wrap_content" android:text="From Contacts"></Button>
         </LinearLayout>
-
-    </LinearLayout>
-
 
 
         <TextView android:id="@+id/labelTextView" 
@@ -193,7 +286,7 @@ payto_layout="""<?xml version="1.0" encoding="utf-8"?>
         <EditText android:id="@+id/label"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" 
-                android:tag="Tag Me" android:inputType="textCapWords|textPhonetic|number">
+                android:tag="Tag Me" android:inputType="text">
         </EditText>
 
         <TextView android:id="@+id/amountLabelTextView" 
@@ -214,201 +307,318 @@ payto_layout="""<?xml version="1.0" encoding="utf-8"?>
                 android:layout_height="wrap_content" android:id="@+id/linearLayout1">
                 <Button android:id="@+id/buttonPay" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="Send"></Button>
-                <Button android:id="@+id/buttonCancelSend" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="Cancel"></Button>
-        </LinearLayout>
-</LinearLayout>
-"""
-
-
-settings_layout = """<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-        android:id="@+id/background"
-        android:orientation="vertical" 
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" 
-        android:background="#ff000000">
-
-        <TextView android:id="@+id/serverTextView" 
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
-                android:text="Server:"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
-                android:gravity="left">
-        </TextView>
-
-        <EditText android:id="@+id/server"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
-                android:tag="Tag Me" android:inputType="*">
-        </EditText>
-
-        <LinearLayout android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:id="@+id/linearLayout1">
-                <Button android:id="@+id/buttonServer" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="Server List"></Button>
-                <Button android:id="@+id/buttonSave" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="Save"></Button>
-                <Button android:id="@+id/buttonCancel" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="Cancel"></Button>
-        </LinearLayout>
-
-</LinearLayout>
-"""
+        </LinearLayout>""",False)
 
 
 
+settings_layout = make_layout(""" <ListView
+           android:id="@+id/myListView" 
+           android:layout_width="match_parent"
+           android:layout_height="wrap_content" />""")
 
 
-def show_balance():
-    c, u = wallet.get_balance()
-    droid.fullSetProperty("balanceTextView","text","Balance:"+format_satoshis(c))
+
+def get_history_values(n):
+    values = []
+    h = wallet.get_tx_history()
+
+    length = min(n, len(h))
+    for i in range(length):
+        line = h[-i-1]
+        v = line['value']
+        try:
+            dt = datetime.datetime.fromtimestamp( line['timestamp'] )
+            if dt.date() == dt.today().date():
+                time_str = str( dt.time() )
+            else:
+                time_str = str( dt.date() )
+            conf = 'v'
+
+        except:
+            print line['timestamp']
+            time_str = 'pending'
+            conf = 'o'
+
+        tx_hash = line['tx_hash']
+        label = wallet.labels.get(tx_hash)
+        is_default_label = (label == '') or (label is None)
+        if is_default_label: label = line['default_label']
+        values.append((conf, '  ' + time_str, '  ' + format_satoshis(v,True), '  ' + label ))
+
+    return values
 
 
-def recipient_dialog():
-    title = 'Pay to:'
-    message = ('Select recipient')
-    droid.dialogCreateAlert(title, message)
-    droid.dialogSetItems(wallet.addressbook)
-    droid.dialogShow()
-    response = droid.dialogGetResponse()
-    result = response.result.get('item')
-    droid.dialogDismiss()
-    if result is not None:
-        addr = wallet.addressbook[result]
-        return addr
+def get_history_layout(n):
+    rows = ""
+    i = 0
+    values = get_history_values(n)
+    for v in values:
+        a,b,c,d = v
+        color = "#ff00ff00" if a == 'v' else "#ffff0000"
+        rows += """
+        <TableRow>
+          <TextView
+            android:id="@+id/hl_%d_col1" 
+            android:layout_column="0"
+            android:text="%s"
+            android:textColor="%s"
+            android:padding="3" />
+          <TextView
+            android:id="@+id/hl_%d_col2" 
+            android:layout_column="1"
+            android:text="%s"
+            android:padding="3" />
+          <TextView
+            android:id="@+id/hl_%d_col3" 
+            android:layout_column="2"
+            android:text="%s"
+            android:padding="3" />
+          <TextView
+            android:id="@+id/hl_%d_col4" 
+            android:layout_column="3"
+            android:text="%s"
+            android:padding="4" />
+        </TableRow>"""%(i,a,color,i,b,i,c,i,d)
+        i += 1
+
+    output = """
+<TableLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    android:stretchColumns="0,1,2,3">
+    %s
+</TableLayout>"""% rows
+    return output
+
+
+def set_history_layout(n):
+    values = get_history_values(n)
+    i = 0
+    for v in values:
+        a,b,c,d = v
+        droid.fullSetProperty("hl_%d_col1"%i,"text", a)
+
+        if a == 'v':
+            droid.fullSetProperty("hl_%d_col1"%i, "textColor","#ff00ff00")
+        else:
+            droid.fullSetProperty("hl_%d_col1"%i, "textColor","#ffff0000")
+
+        droid.fullSetProperty("hl_%d_col2"%i,"text", b)
+        droid.fullSetProperty("hl_%d_col3"%i,"text", c)
+        droid.fullSetProperty("hl_%d_col4"%i,"text", d)
+        i += 1
+
+
+
+
+status_text = ''
+def update_layout():
+    global status_text
+    if not wallet.interface.is_connected:
+        text = "Not connected..."
+    elif wallet.blocks == 0:
+        text = "Server not ready"
+    elif not wallet.up_to_date:
+        text = "Synchronizing..."
+    else:
+        c, u = wallet.get_balance()
+        text = "Balance:"+format_satoshis(c) 
+        if u : text += '   [' + format_satoshis(u,True).strip() + ']'
+
+
+    # vibrate if status changed
+    if text != status_text:
+        if status_text and wallet.interface.is_connected and wallet.up_to_date:
+            droid.vibrate()
+        status_text = text
+
+    droid.fullSetProperty("balanceTextView", "text", status_text)
+
+    if wallet.up_to_date:
+        set_history_layout(15)
+
+
 
 
 def pay_to(recipient, amount, fee, label):
 
     if wallet.use_encryption:
         password  = droid.dialogGetPassword('Password').result
-        print "password", password
+        if not password: return
     else:
         password = None
 
     droid.dialogCreateSpinnerProgress("Electrum", "signing transaction...")
     droid.dialogShow()
-    tx = wallet.mktx( recipient, amount, label, password, fee)
-    print tx
+
+    try:
+        tx = wallet.mktx( recipient, amount, label, password, fee)
+    except BaseException, e:
+        modal_dialog('error', e.message)
+        droid.dialogDismiss()
+        return
+
     droid.dialogDismiss()
 
-    if tx:
-        r, h = wallet.sendtx( tx )
-        droid.dialogCreateAlert('tx sent', h)
-        droid.dialogSetPositiveButtonText('OK')
-        droid.dialogShow()
-        response = droid.dialogGetResponse().result
-        droid.dialogDismiss()
-        return h
-    else:
-        return 'error'
-
-
-
-
-
-
-
-if not wallet.file_exists:
-    droid.dialogCreateAlert("wallet file not found")
-    droid.dialogSetPositiveButtonText('OK')
-    droid.dialogShow()
-    resp = droid.dialogGetResponse().result
-    print resp
-
-    code = droid.scanBarcode()
-    r = code.result
+    r, h = wallet.sendtx( tx )
     if r:
-        seed = r['extras']['SCAN_RESULT']
+        modal_dialog('Payment sent', h)
+        return True
     else:
-        exit(1)
+        modal_dialog('Error', h)
 
-    droid.dialogCreateAlert('seed', seed)
-    droid.dialogSetPositiveButtonText('OK')
+
+
+
+
+def recover():
+
+    droid.dialogCreateAlert("Wallet not found","Do you want to create a new wallet, or restore an existing one?")
+    droid.dialogSetPositiveButtonText('Create')
+    droid.dialogSetNeutralButtonText('Restore')
     droid.dialogSetNegativeButtonText('Cancel')
     droid.dialogShow()
     response = droid.dialogGetResponse().result
     droid.dialogDismiss()
-    print response
-
-    wallet.seed = str(seed)
-    wallet.init_mpk( wallet.seed )
-    droid.dialogCreateSpinnerProgress("Electrum", "recovering keys")
-    droid.dialogShow()
-    WalletSynchronizer(wallet,True).start()
-    wallet.update()
-    wallet.save()
-    droid.dialogDismiss()
-    droid.vibrate()
-
-    if wallet.is_found():
-        # history and addressbook
-        wallet.update_tx_history()
-        wallet.fill_addressbook()
-        droid.dialogCreateAlert("recovery successful")
-        droid.dialogShow()
-        wallet.save()
-    else:
-        droid.dialogCreateSpinnerProgress("wallet not found")
-        droid.dialogShow()
+    if response.get('which') == 'negative':
         exit(1)
 
-else:
-    droid.dialogCreateSpinnerProgress("Electrum", "synchronizing")
+    is_recovery = response.get('which') == 'neutral'
+
+    if not is_recovery:
+        wallet.new_seed(None)
+    else:
+        if modal_question("Input method",None,'QR Code', 'mnemonic'):
+            code = droid.scanBarcode()
+            r = code.result
+            if r:
+                seed = r['extras']['SCAN_RESULT']
+            else:
+                exit(1)
+        else:
+            m = modal_input('Mnemonic','please enter your code')
+            try:
+                seed = mnemonic.mn_decode(m.split(' '))
+            except:
+                modal_dialog('error: could not decode this seed')
+                exit(1)
+
+        wallet.seed = str(seed)
+
+    modal_dialog('Your seed is:', wallet.seed)
+    modal_dialog('Mnemonic code:', ' '.join(mnemonic.mn_encode(wallet.seed)) )
+
+    msg = "recovering wallet..." if is_recovery else "creating wallet..."
+    droid.dialogCreateSpinnerProgress("Electrum", msg)
     droid.dialogShow()
+
+    wallet.init_mpk( wallet.seed )
     WalletSynchronizer(wallet,True).start()
     wallet.update()
-    wallet.save()
+
     droid.dialogDismiss()
     droid.vibrate()
 
+    if is_recovery:
+        if wallet.is_found():
+            wallet.update_tx_history()
+            wallet.fill_addressbook()
+            modal_dialog("recovery successful")
+        else:
+            if not modal_question("no transactions found for this seed","do you want to keep this wallet?"):
+                exit(1)
 
-def add_menu():
-    droid.addOptionsMenuItem("Settings","settings",None,"")
-    droid.addOptionsMenuItem("Quit","quit",None,"")
+    change_password_dialog()
+    wallet.save()
 
-add_menu()
 
+
+def make_new_contact():
+    code = droid.scanBarcode()
+    r = code.result
+    if r:
+        address = r['extras']['SCAN_RESULT']
+        if address:
+            if wallet.is_valid(address):
+                if modal_question('Add to contacts?', address):
+                    wallet.addressbook.append(address)
+                    wallet.save()
+        else:
+            modal_dialog('Invalid address', address)
+
+
+do_refresh = False
+
+def update_callback():
+    global do_refresh
+    print "gui callback", wallet.interface.is_connected, wallet.up_to_date
+    do_refresh = True
+    droid.eventPost("refresh",'z')
 
 def main_loop():
-    droid.fullShow(main_layout())
-    show_balance()
+    global do_refresh
+
+    update_layout()
     out = None
+    quitting = False
     while out is None:
 
-        event = droid.eventWait().result
-        print "got event in main loop", event
+        event = droid.eventWait(1000).result
+        if event is None:
+            if do_refresh: 
+                update_layout()
+                do_refresh = False
+            continue
+
+        print "got event in main loop", repr(event)
+        if event == 'OK': continue
+        if event is None: continue
+        #if event["name"]=="refresh":
+
+
+        # request 2 taps before we exit
+        if event["name"]=="key":
+            if event["data"]["key"] == '4':
+                if quitting:
+                    out = 'quit'
+                else: 
+                    quitting = True
+        else: quitting = False
 
         if event["name"]=="click":
             id=event["data"]["id"]
-            if id=="buttonQuit":
-                out = 'exit'
-
-            elif id=="buttonSend":
-                out = 'payto'
-
-            elif id=="buttonReceive":
-                show_addresses()
-
-            elif id=="buttonQuit":
-                out = 'quit'
 
         elif event["name"]=="settings":
             out = 'settings'
 
-        elif event["name"]=="quit":
-            out = 'quit'
+        elif event["name"] in menu_commands:
+            out = event["name"]
 
-        # print droid.fullSetProperty("background","backgroundColor","0xff7f0000")
-        # elif event["name"]=="screen":
-        #    if event["data"]=="destroy":
-        #        out = 'exit'
+            if out == 'contacts':
+                global contact_addr
+                contact_addr = select_from_contacts()
+                if contact_addr == 'newcontact':
+                    make_new_contact()
+                    contact_addr = None
+                if not contact_addr:
+                    out = None
+
+            elif out == "receive":
+                global receive_addr
+                receive_addr = select_from_addresses()
+                if not receive_addr:
+                    out = None
+
 
     return out
                     
+
 def payto_loop():
-    droid.fullShow(payto_layout)
+    global recipient
+    if recipient:
+        droid.fullSetProperty("recipient","text",recipient)
+        recipient = None
+
     out = None
     while out is None:
         event = droid.eventWait().result
@@ -423,20 +633,23 @@ def payto_loop():
                 recipient = droid.fullQueryDetail("recipient").result.get('text')
                 label  = droid.fullQueryDetail("label").result.get('text')
                 amount = droid.fullQueryDetail('amount').result.get('text')
-                fee    = '0.001'
-                amount = int( 100000000 * Decimal(amount) )
-                fee    = int( 100000000 * Decimal(fee) )
-                result = pay_to(recipient, amount, fee, label)
 
-                droid.dialogCreateAlert('result', result)
-                droid.dialogSetPositiveButtonText('OK')
-                droid.dialogShow()
-                droid.dialogGetResponse()
-                droid.dialogDismiss()
-                out = 'main'
+                if not wallet.is_valid(recipient):
+                    modal_dialog('Error','Invalid Bitcoin address')
+                    continue
+
+                try:
+                    amount = int( 100000000 * Decimal(amount) )
+                except:
+                    modal_dialog('Error','Invalid amount')
+                    continue
+
+                result = pay_to(recipient, amount, wallet.fee, label)
+                if result:
+                    out = 'main'
 
             elif id=="buttonContacts":
-                addr = recipient_dialog()
+                addr = select_from_contacts()
                 droid.fullSetProperty("recipient","text",addr)
 
             elif id=="buttonQR":
@@ -447,36 +660,10 @@ def payto_loop():
                     if addr:
                         droid.fullSetProperty("recipient","text",addr)
                     
-            elif id=="buttonCancelSend":
-                out = 'main'
+        elif event["name"] in menu_commands:
+            out = event["name"]
 
-        elif event["name"]=="settings":
-            out = 'settings'
-
-        elif event["name"]=="quit":
-            out = 'quit'
-
-        #elif event["name"]=="screen":
-        #    if event["data"]=="destroy":
-        #        out = 'main'
-
-    return out
-
-
-def history_loop():
-    layout = get_history_layout()
-    droid.fullShow(layout)
-    out = None
-    while out is None:
-        event = droid.eventWait().result
-        print "got event in history loop", event
-        if event["name"] == "click":
-
-            if event["data"]["text"] == "OK":
-                out = 'main'
-
-        elif event["name"] == "key":
-            print repr(event["data"]["key"])
+        elif event["name"]=="key":
             if event["data"]["key"] == '4':
                 out = 'main'
 
@@ -486,93 +673,309 @@ def history_loop():
 
     return out
 
+
+receive_addr = ''
+contact_addr = ''
+recipient = ''
+
+def receive_loop():
+    out = None
+    while out is None:
+        event = droid.eventWait().result
+        print "got event", event
+        if event["name"]=="key":
+            if event["data"]["key"] == '4':
+                out = 'main'
+
+        elif event["name"]=="clipboard":
+            droid.setClipboard(receive_addr)
+            modal_dialog('Address copied to clipboard',receive_addr)
+
+        elif event["name"]=="edit":
+            edit_label(receive_addr)
+
+    return out
+
+def contacts_loop():
+    global recipient
+    out = None
+    while out is None:
+        event = droid.eventWait().result
+        print "got event", event
+        if event["name"]=="key":
+            if event["data"]["key"] == '4':
+                out = 'main'
+
+        elif event["name"]=="clipboard":
+            droid.setClipboard(contact_addr)
+            modal_dialog('Address copied to clipboard',contact_addr)
+
+        elif event["name"]=="edit":
+            edit_label(contact_addr)
+
+        elif event["name"]=="paytocontact":
+            recipient = contact_addr
+            out = 'send'
+
+        elif event["name"]=="deletecontact":
+            if modal_question('delete contact', contact_addr):
+                out = 'main'
+
+    return out
+
+
 def server_dialog(plist):
-    droid.dialogCreateAlert("servers")
+    droid.dialogCreateAlert("Public servers")
     droid.dialogSetItems( plist.keys() )
+    droid.dialogSetPositiveButtonText('Private server')
     droid.dialogShow()
-    i = droid.dialogGetResponse().result.get('item')
+    response = droid.dialogGetResponse().result
     droid.dialogDismiss()
+
+    if response.get('which') == 'positive':
+        return modal_input('Private server', None)
+
+    i = response.get('item')
     if i is not None:
         response = plist.keys()[i]
         return response
 
-def protocol_dialog(plist):
-    options=["TCP","HTTP","native"]
-    droid.dialogCreateAlert("Protocol")
-    droid.dialogSetSingleChoiceItems(options)
 
+def seed_dialog():
+    if wallet.use_encryption:
+        password  = droid.dialogGetPassword('Seed').result
+        if not password: return
+    else:
+        password = None
+    
+    try:
+        seed = wallet.pw_decode( wallet.seed, password)
+    except:
+        modal_dialog('error','incorrect password')
+        return
+
+    modal_dialog('Your seed is',seed)
+    modal_dialog('Mnemonic code:', ' '.join(mnemonic.mn_encode(seed)) )
+
+def change_password_dialog():
+    if wallet.use_encryption:
+        password  = droid.dialogGetPassword('Your wallet is encrypted').result
+        if password is None: return
+    else:
+        password = None
+
+    try:
+        seed = wallet.pw_decode( wallet.seed, password)
+    except:
+        modal_dialog('error','incorrect password')
+        return
+
+    new_password  = droid.dialogGetPassword('Choose a password').result
+    if new_password == None:
+        return
+
+    if new_password != '':
+        password2  = droid.dialogGetPassword('Confirm new password').result
+        if new_password != password2:
+            modal_dialog('error','passwords do not match')
+            return
+
+    wallet.update_password(seed, new_password)
+    if new_password:
+        modal_dialog('Password updated','your wallet is encrypted')
+    else:
+        modal_dialog('No password','your wallet is not encrypted')
+    return True
 
 
 def settings_loop():
-    droid.fullShow(settings_layout)
-    droid.fullSetProperty("server","text",wallet.server)
+
+
+    def set_listview():
+        server, port, p = wallet.server.split(':')
+        fee = str( Decimal( wallet.fee)/100000000 )
+        is_encrypted = 'yes' if wallet.use_encryption else 'no'
+        protocol = protocol_name(p)
+        droid.fullShow(settings_layout)
+        droid.fullSetList("myListView",['Server: ' + server, 'Protocol: '+ protocol, 'Port: '+port, 'Transaction fee: '+fee, 'Password: '+is_encrypted, 'Seed'])
+
+    set_listview()
 
     out = None
     while out is None:
         event = droid.eventWait().result
-        if event["name"] == "click":
+        print "got event", event
+        if event == 'OK': continue
+        if not event: continue
 
-            id = event["data"]["id"]
+        plist = {}
+        for item in wallet.interface.servers:
+            host, pp = item
+            z = {}
+            for item2 in pp:
+                protocol, port = item2
+                z[protocol] = port
+            plist[host] = z
 
-            if id=="buttonServer":
-                plist = {}
-                for item in wallet.interface.servers:
-                    host, pp = item
-                    z = {}
-                    for item2 in pp:
-                        protocol, port = item2
-                        z[protocol] = port
-                    plist[host] = z
+        if event["name"] == "itemclick":
+            pos = event["data"]["position"]
+            host, port, protocol = wallet.server.split(':')
 
+            if pos == "0": #server
                 host = server_dialog(plist)
-                p = plist[host]
-                port = p['t']
-                srv = host + ':' + port + ':t'
-                droid.fullSetProperty("server","text",srv)
+                if host:
+                    p = plist[host]
+                    port = p['t']
+                    srv = host + ':' + port + ':t'
+                    try:
+                        wallet.set_server(srv)
+                    except:
+                        modal_dialog('error','invalid server')
+                    set_listview()
 
-            elif id=="buttonSave":
-                droid.fullQuery()
-                srv = droid.fullQueryDetail("server").result.get('text')
-                try:
-                    wallet.set_server(srv)
-                    out = 'main'
-                except:
-                    droid.dialogCreateAlert('error')
-                    droid.dialogSetPositiveButtonText('OK')
-                    droid.dialogShow()
-                    droid.dialogGetResponse()
-                    droid.dialogDismiss()
-                    
-            elif id=="buttonCancel":
-                out = 'main'
+            elif pos == "1": #protocol
+                if host in plist:
+                    srv = protocol_dialog(host, protocol, plist[host])
+                    if srv:
+                        try:
+                            wallet.set_server(srv)
+                        except:
+                            modal_dialog('error','invalid server')
+                        set_listview()
+
+            elif pos == "2": #port
+                a_port = modal_input('Port number', 'If you use a public server, this field is set automatically when you set the protocol', port, "number")
+                if a_port:
+                    if a_port != port:
+                        srv = host + ':' + a_port + ':'+ protocol
+                        try:
+                            wallet.set_server(srv)
+                        except:
+                            modal_dialog('error','invalid port number')
+                        set_listview()
+
+            elif pos == "3": #fee
+                fee = modal_input('Transaction fee', 'The fee will be this amount multiplied by the number of inputs in your transaction. ', str( Decimal( wallet.fee)/100000000 ), "numberDecimal")
+                if fee:
+                    try:
+                        fee = int( 100000000 * Decimal(fee) )
+                    except:
+                        modal_dialog('error','invalid fee value')
+                    if wallet.fee != fee:
+                        wallet.fee = fee
+                        wallet.save()
+                        set_listview()
+        
+            elif pos == "4":
+                if change_password_dialog():
+                    set_listview()
+
+            elif pos == "5":
+                seed_dialog()
+
+
+        elif event["name"] in menu_commands:
+            out = event["name"]
+
+        elif event["name"] == 'cancel':
+            out = 'main'
 
         elif event["name"] == "key":
-            print repr(event["data"]["key"])
             if event["data"]["key"] == '4':
                 out = 'main'
 
-        elif event["name"]=="quit":
-            out = 'quit'
-
     return out
 
-                
+
+
+
+menu_commands = ["send", "receive", "settings", "contacts", "main"]
+droid = android.Android()
+wallet = Wallet(update_callback)
+
+wallet.set_path("/sdcard/electrum.dat")
+wallet.read()
+if not wallet.file_exists:
+    recover()
+else:
+    WalletSynchronizer(wallet,True).start()
 
 
 s = 'main'
-while True:
+
+def add_menu(s):
+    droid.clearOptionsMenu()
     if s == 'main':
-        s = main_loop()
-    elif s == 'payto':
-        s = payto_loop()
-    elif s == 'settings':
-        s = settings_loop()
-    elif s == 'history':
-        s = history_loop()
+        droid.addOptionsMenuItem("Send","send",None,"")
+        droid.addOptionsMenuItem("Receive","receive",None,"")
+        droid.addOptionsMenuItem("Contacts","contacts",None,"")
+        droid.addOptionsMenuItem("Settings","settings",None,"")
+    elif s == 'receive':
+        droid.addOptionsMenuItem("Copy","clipboard",None,"")
+        droid.addOptionsMenuItem("Label","edit",None,"")
     elif s == 'contacts':
+        droid.addOptionsMenuItem("Copy","clipboard",None,"")
+        droid.addOptionsMenuItem("Label","edit",None,"")
+        droid.addOptionsMenuItem("Pay to","paytocontact",None,"")
+        #droid.addOptionsMenuItem("Delete","deletecontact",None,"")
+
+def make_bitmap(addr):
+    # fixme: this is highly inefficient
+    droid.dialogCreateSpinnerProgress("please wait")
+    droid.dialogShow()
+    import pyqrnative, bmp
+    qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.H)
+    qr.addData(addr)
+    qr.make()
+    k = qr.getModuleCount()
+    bitmap = bmp.BitMap( 35*8, 35*8 )
+    print len(bitmap.bitarray)
+    bitmap.bitarray = []
+    assert k == 33
+
+    for r in range(35):
+        tmparray = [ 0 ] * 35*8
+
+        if 0 < r < 34:
+            for c in range(k):
+                if qr.isDark(r-1, c):
+                    tmparray[ (1+c)*8:(2+c)*8] = [1]*8
+
+        for i in range(8):
+            bitmap.bitarray.append( tmparray[:] )
+
+    bitmap.saveFile( "/sdcard/sl4a/qrcode.bmp" )
+    droid.dialogDismiss()
+
+        
+
+while True:
+    add_menu(s)
+    if s == 'main':
+        droid.fullShow(main_layout())
+        s = main_loop()
+        #droid.fullDismiss()
+
+    elif s == 'send':
+        droid.fullShow(payto_layout)
+        s = payto_loop()
+        #droid.fullDismiss()
+
+    elif s == 'receive':
+        make_bitmap(receive_addr)
+        droid.fullShow(qr_layout(receive_addr))
+        s = receive_loop()
+
+    elif s == 'contacts':
+        make_bitmap(contact_addr)
+        droid.fullShow(qr_layout(contact_addr))
         s = contacts_loop()
+
+    elif s == 'settings':
+        #droid.fullShow(settings_layout)
+        s = settings_loop()
+        #droid.fullDismiss()
     else:
         break
 
-droid.fullDismiss()
 droid.makeToast("Bye!")

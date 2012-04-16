@@ -100,8 +100,6 @@ class QRCodeWidget(QWidget):
         super(QRCodeWidget, self).__init__()
         self.addr = addr
         self.setGeometry(300, 300, 350, 350)
-        self.setWindowTitle('Colors')
-        self.show()
         self.qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.H)
         self.qr.addData(addr)
         self.qr.make()
@@ -144,6 +142,8 @@ class ElectrumWindow(QMainWindow):
     def __init__(self, wallet):
         QMainWindow.__init__(self)
         self.wallet = wallet
+        self.wallet.gui_callback = self.update_callback
+
         self.funds_error = False
 
         self.tabs = tabs = QTabWidget(self)
@@ -164,11 +164,11 @@ class ElectrumWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
         QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() - 1 )%tabs.count() ))
         QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() + 1 )%tabs.count() ))
-
+        
+        self.connect(self, QtCore.SIGNAL('updatesignal'), self.update_wallet)
 
 
     def connect_slots(self, sender):
-        self.connect(sender, QtCore.SIGNAL('timersignal'), self.update_wallet)
         self.connect(sender, QtCore.SIGNAL('timersignal'), self.check_recipient)
         self.previous_payto_e=''
 
@@ -189,6 +189,9 @@ class ElectrumWindow(QMainWindow):
                     self.payto_e.setText(s)
 
 
+    def update_callback(self):
+        self.emit(QtCore.SIGNAL('updatesignal'))
+
     def update_wallet(self):
         if self.wallet.interface.is_connected:
             if self.wallet.blocks == -1:
@@ -203,7 +206,7 @@ class ElectrumWindow(QMainWindow):
             else:
                 c, u = self.wallet.get_balance()
                 text =  "Balance: %s "%( format_satoshis(c) )
-                if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True) )
+                if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True).strip() )
                 icon = QIcon(":icons/status_connected.png")
         else:
             text = "Not connected"
@@ -215,8 +218,7 @@ class ElectrumWindow(QMainWindow):
         self.statusBar().showMessage(text)
         self.status_button.setIcon( icon )
 
-        if self.wallet.was_updated and self.wallet.up_to_date:
-            self.wallet.was_updated = False
+        if self.wallet.up_to_date:
             self.textbox.setText( self.wallet.banner )
             self.update_history_tab()
             self.update_receive_tab()
@@ -522,17 +524,7 @@ class ElectrumWindow(QMainWindow):
             addr = unicode( i.text(0) )
             return addr
 
-        def showqrcode(address):
-            if not address: return
-            d = QDialog(self)
-            d.setModal(1)
-            d.setMinimumSize(270, 300)
-            vbox = QVBoxLayout()
-            vbox.addWidget(QRCodeWidget(address))
-            vbox.addLayout(ok_cancel_buttons(d))
-            d.setLayout(vbox)
-            d.exec_()
-        qrButton = EnterButton("QR",lambda: showqrcode(get_addr(l)))
+        qrButton = EnterButton("QR",lambda: ElectrumWindow.showqrcode(get_addr(l)))
 
         def copy2clipboard(addr):
             self.app.clipboard().setText(addr)
@@ -665,19 +657,20 @@ class ElectrumWindow(QMainWindow):
               + ' '.join(mnemonic.mn_encode(seed)) + "\""
 
         QMessageBox.information(parent, 'Seed', msg, 'OK')
+        ElectrumWindow.showqrcode(seed)
 
-        def showqrcode(address):
-            if not address: return
-            d = QDialog(None)
-            d.setModal(1)
-            d.setMinimumSize(270, 300)
-            vbox = QVBoxLayout()
-            vbox.addWidget(QRCodeWidget(address))
-            vbox.addLayout(ok_cancel_buttons(d))
-            d.setLayout(vbox)
-            d.exec_()
-        showqrcode(seed)
-
+    @staticmethod
+    def showqrcode(address):
+        if not address: return
+        d = QDialog(None)
+        d.setModal(1)
+        d.setWindowTitle(address)
+        d.setMinimumSize(270, 300)
+        vbox = QVBoxLayout()
+        vbox.addWidget(QRCodeWidget(address))
+        vbox.addLayout(ok_cancel_buttons(d))
+        d.setLayout(vbox)
+        d.exec_()
 
     def question(self, msg):
         return QMessageBox.question(self, 'Message', msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes
@@ -1059,4 +1052,6 @@ class ElectrumGui():
         if url: w.set_url(url)
         w.app = self.app
         w.connect_slots(s)
+        w.update_wallet()
+
         self.app.exec_()

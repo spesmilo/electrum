@@ -242,10 +242,11 @@ from interface import DEFAULT_SERVERS
 
 
 class Wallet:
-    def __init__(self):
+    def __init__(self, gui_callback = lambda: None):
 
         self.electrum_version = ELECTRUM_VERSION
         self.seed_version = SEED_VERSION
+        self.gui_callback = gui_callback
 
         self.gap_limit = 5           # configuration
         self.fee = 100000
@@ -339,7 +340,7 @@ class Wallet:
 
     def new_seed(self, password):
         seed = "%032x"%ecdsa.util.randrange( pow(2,128) )
-        self.init_mpk(seed)
+        #self.init_mpk(seed)
         # encrypt
         self.seed = self.pw_encode( seed, password )
 
@@ -849,7 +850,8 @@ class Wallet:
         return target, signing_addr, auth_name
 
     def update_password(self, seed, new_password):
-        self.use_encryption = (new_password != '')
+        if new_password == '': new_password = None
+        self.use_encryption = (new_password != None)
         self.seed = self.pw_encode( seed, new_password)
         for k in self.imported_keys.keys():
             a = self.imported_keys[k]
