@@ -298,6 +298,9 @@ class ElectrumWindow(QMainWindow):
 
     def address_label_clicked(self, item, column, l):
         if column==1 and item.isSelected():
+            addr = unicode( item.text(0) )
+            if addr in map(lambda x:x[1], self.wallet.aliases.values()):
+                return
             item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
             l.editItem( item, column )
             item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
@@ -594,8 +597,7 @@ class ElectrumWindow(QMainWindow):
         self.contacts_list.clear()
         for alias, v in self.wallet.aliases.items():
             s, target = v
-            label = self.wallet.labels.get(alias,'')
-            item = QTreeWidgetItem( [ alias, label, '-'] )
+            item = QTreeWidgetItem( [ target, alias, '-'] )
             self.contacts_list.addTopLevelItem(item)
             
         for address in self.wallet.addressbook:
