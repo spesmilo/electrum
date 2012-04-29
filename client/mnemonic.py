@@ -1675,7 +1675,7 @@ def mn_decode( wlist ):
         w2 = (words.index(word2))%n
         w3 = (words.index(word3))%n
         x = w1 +n*((w2-w1)%n) +n*n*((w3-w2)%n)
-        out += '%x'%x
+        out += '%08x'%x
     return out
 
 
