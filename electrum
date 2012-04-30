@@ -288,7 +288,7 @@ if __name__ == '__main__':
                     h = wallet.history.get(addr,[])
                     ni = no = 0
                     for item in h:
-                        if item['is_in']:  ni += 1
+                        if item['is_input']:  ni += 1
                         else:              no += 1
                     b = "%d %d %s"%(no, ni, str(Decimal(wallet.get_addr_balance(addr)[0])/100000000))
                 else: b=''
