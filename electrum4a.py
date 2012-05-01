@@ -606,9 +606,10 @@ def main_loop():
             elif out == "receive":
                 global receive_addr
                 receive_addr = select_from_addresses()
-                amount = modal_input('Amount', 'Amount you want receive. ', '', "numberDecimal")
-                if amount:
-                    receive_addr = 'bitcoin:%s?amount=%s'%(receive_addr, amount)
+                if receive_addr:
+                    amount = modal_input('Amount', 'Amount you want receive. ', '', "numberDecimal")
+                    if amount:
+                        receive_addr = 'bitcoin:%s?amount=%s'%(receive_addr, amount)
 
                 if not receive_addr:
                     out = None
