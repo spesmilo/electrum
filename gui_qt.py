@@ -96,11 +96,14 @@ class StatusBarButton(QPushButton):
 class QRCodeWidget(QWidget):
 
     def __init__(self, addr):
-        import pyqrnative
         super(QRCodeWidget, self).__init__()
-        self.addr = addr
         self.setGeometry(300, 300, 350, 350)
-        self.qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.H)
+        self.set_addr(addr)
+
+    def set_addr(self, addr):
+        import pyqrnative
+        self.addr = addr
+        self.qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.L)
         self.qr.addData(addr)
         self.qr.make()
         
@@ -524,7 +527,7 @@ class ElectrumWindow(QMainWindow):
             addr = unicode( i.text(0) )
             return addr
 
-        qrButton = EnterButton("QR",lambda: ElectrumWindow.showqrcode(get_addr(l)))
+        qrButton = EnterButton("QR",lambda: self.show_address_qrcode(get_addr(l)))
 
         def copy2clipboard(addr):
             self.app.clipboard().setText(addr)
@@ -657,18 +660,75 @@ class ElectrumWindow(QMainWindow):
               + ' '.join(mnemonic.mn_encode(seed)) + "\""
 
         QMessageBox.information(parent, 'Seed', msg, 'OK')
-        ElectrumWindow.showqrcode(seed)
+        ElectrumWindow.show_seed_qrcode(seed)
 
     @staticmethod
-    def showqrcode(address):
+    def show_seed_qrcode(seed):
+        if not seed: return
+        d = QDialog(None)
+        d.setModal(1)
+        d.setWindowTitle(seed)
+        d.setMinimumSize(270, 300)
+        vbox = QVBoxLayout()
+        vbox.addWidget(QRCodeWidget(seed))
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+        b = QPushButton("OK")
+        hbox.addWidget(b)
+        b.clicked.connect(d.accept)
+
+        vbox.addLayout(hbox)
+        d.setLayout(vbox)
+        d.exec_()
+
+    def show_address_qrcode(self,address):
         if not address: return
         d = QDialog(None)
         d.setModal(1)
         d.setWindowTitle(address)
-        d.setMinimumSize(270, 300)
+        d.setMinimumSize(270, 350)
         vbox = QVBoxLayout()
-        vbox.addWidget(QRCodeWidget(address))
-        vbox.addLayout(ok_cancel_buttons(d))
+        qrw = QRCodeWidget(address)
+        vbox.addWidget(qrw)
+
+        hbox = QHBoxLayout()
+        amount_e = QLineEdit()
+        hbox.addWidget(QLabel('Amount'))
+        hbox.addWidget(amount_e)
+        vbox.addLayout(hbox)
+
+        #hbox = QHBoxLayout()
+        #label_e = QLineEdit()
+        #hbox.addWidget(QLabel('Label'))
+        #hbox.addWidget(label_e)
+        #vbox.addLayout(hbox)
+
+        def amount_changed():
+            amount = numbify(amount_e)
+            #label = str( label_e.getText() )
+            if amount is not None:
+                qrw.set_addr('bitcoin:%s?amount=%s'%(address,str( Decimal(amount) /100000000)))
+            else:
+                qrw.set_addr( address )
+            qrw.repaint()
+
+        def do_save():
+            import bmp
+            bmp.save_qrcode(qrw.qr, "qrcode.bmp")
+            self.show_message("QR code saved to file 'qrcode.bmp'")
+            
+        amount_e.textChanged.connect( amount_changed )
+
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+        b = QPushButton("Save")
+        b.clicked.connect(do_save)
+        hbox.addWidget(b)
+        b = QPushButton("Close")
+        hbox.addWidget(b)
+        b.clicked.connect(d.accept)
+
+        vbox.addLayout(hbox)
         d.setLayout(vbox)
         d.exec_()
 
