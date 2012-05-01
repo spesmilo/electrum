@@ -25,7 +25,7 @@ while True:
             if item['height']:
                 confirmed += v
             else:
-                uunconfirmed += v
+                unconfirmed += v
         print (confirmed+unconfirmed)/1.e8
 
 
