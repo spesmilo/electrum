@@ -609,11 +609,8 @@ class Wallet:
         
 
     def get_addr_balance(self, addr):
-        if self.is_mine(addr):
-            h = self.history.get(addr)
-        else:
-            h = self.interface.retrieve_history(addr)
-        if not h: return 0,0
+        assert self.is_mine(addr)
+        h = self.history.get(addr,[])
         c = u = 0
         for item in h:
             v = item['value']
