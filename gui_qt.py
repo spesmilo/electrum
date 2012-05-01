@@ -660,7 +660,7 @@ class ElectrumWindow(QMainWindow):
               + ' '.join(mnemonic.mn_encode(seed)) + "\""
 
         QMessageBox.information(parent, 'Seed', msg, 'OK')
-        ElectrumWindow.show_seed_qrcode(seed)
+        if parent: ElectrumWindow.show_seed_qrcode(seed)
 
     @staticmethod
     def show_seed_qrcode(seed):
