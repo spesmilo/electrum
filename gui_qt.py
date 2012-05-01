@@ -895,7 +895,6 @@ class ElectrumWindow(QMainWindow):
         buttonGroup = QGroupBox("protocol")
         radio1 = QRadioButton("tcp", buttonGroup)
         radio2 = QRadioButton("http", buttonGroup)
-        radio3 = QRadioButton("native", buttonGroup)
 
         def current_line():
             return unicode(host_line.text()).split(':')
@@ -905,8 +904,6 @@ class ElectrumWindow(QMainWindow):
                 radio1.setChecked(1)
             elif protocol == 'h':
                 radio2.setChecked(1)
-            elif protocol == 'n':
-                radio3.setChecked(1)
 
         def set_protocol(protocol):
             host = current_line()[0]
@@ -919,14 +916,12 @@ class ElectrumWindow(QMainWindow):
 
         radio1.clicked.connect(lambda x: set_protocol('t') )
         radio2.clicked.connect(lambda x: set_protocol('h') )
-        radio3.clicked.connect(lambda x: set_protocol('n') )
 
         set_button(current_line()[2])
 
         hbox.addWidget(QLabel('Protocol:'))
         hbox.addWidget(radio1)
         hbox.addWidget(radio2)
-        hbox.addWidget(radio3)
 
         vbox.addLayout(hbox)
 
