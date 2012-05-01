@@ -18,7 +18,7 @@ while True:
     elif method == 'blockchain.address.get_history':
         confirmed = unconfirmed = 0
         h = r.get('result')
-        if not h:
+        if h is None:
             continue
         for item in h:
             v = item['value']
