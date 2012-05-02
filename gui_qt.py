@@ -920,8 +920,17 @@ class ElectrumWindow(QMainWindow):
             status = "Please choose a server."
             server = random.choice( DEFAULT_SERVERS )
 
+        if not wallet.interface.servers:
+            servers_list = []
+            from interface import DEFAULT_SERVERS
+            for x in DEFAULT_SERVERS:
+                h,port,protocol = x.split(':')
+                servers_list.append( (h,[(protocol,port)] ) )
+        else:
+            servers_list = wallet.interface.servers
+            
         plist = {}
-        for item in wallet.interface.servers:
+        for item in servers_list:
             host, pp = item
             z = {}
             for item2 in pp:
@@ -988,31 +997,29 @@ class ElectrumWindow(QMainWindow):
         vbox.addLayout(hbox)
 
         if wallet.interface.servers:
-            servers_list = QTreeWidget(parent)
-            servers_list.setHeaderLabels( [ 'Active servers'] )
-            servers_list.setMaximumHeight(150)
-            for host in plist.keys():
-                servers_list.addTopLevelItem(QTreeWidgetItem( [ host ] ))
-
-            def do_set_line(x):
-                host = unicode(x.text(0))
-                pp = plist[host]
-                if 't' in pp.keys():
-                    protocol = 't'
-                else:
-                    protocol = pp.keys()[0]
-                port = pp[protocol]
-                host_line.setText( host + ':' + port + ':' + protocol)
-                set_button(protocol)
-
-            servers_list.connect(servers_list, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), do_set_line)
-            vbox.addWidget(servers_list)
+            label = 'Active Servers'
         else:
-            hbox = QHBoxLayout()
-            hbox.addWidget(QLabel('No nodes available'))
-            b = EnterButton("Find nodes", lambda: wallet.interface.get_servers(wallet) )
-            hbox.addWidget(b)
-            vbox.addLayout(hbox)
+            label = 'Default Servers'
+        
+        servers_list_widget = QTreeWidget(parent)
+        servers_list_widget.setHeaderLabels( [ label ] )
+        servers_list_widget.setMaximumHeight(150)
+        for host in plist.keys():
+            servers_list_widget.addTopLevelItem(QTreeWidgetItem( [ host ] ))
+
+        def do_set_line(x):
+            host = unicode(x.text(0))
+            pp = plist[host]
+            if 't' in pp.keys():
+                protocol = 't'
+            else:
+                protocol = pp.keys()[0]
+            port = pp[protocol]
+            host_line.setText( host + ':' + port + ':' + protocol)
+            set_button(protocol)
+
+        servers_list_widget.connect(servers_list_widget, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), do_set_line)
+        vbox.addWidget(servers_list_widget)
 
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 

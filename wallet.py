@@ -947,4 +947,18 @@ class Wallet:
         self.up_to_date_event.wait()
 
 
+    def start_session(self, interface):
+        self.interface = interface
+        with self.lock:
+            self.addresses_waiting_for_status = []
+            self.addresses_waiting_for_history = []
+            addresses = self.all_addresses()
+            for addr in addresses:
+                self.addresses_waiting_for_status.append(addr)
+
+        self.interface.send([('server.banner',[]), ('blockchain.numblocks.subscribe',[]), ('server.peers.subscribe',[])])
+        self.interface.subscribe(addresses)
+
+
+
 

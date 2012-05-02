@@ -20,6 +20,8 @@
 import random, socket, ast, re
 import threading, traceback, sys, time, json, Queue
 
+from version import ELECTRUM_VERSION
+
 DEFAULT_TIMEOUT = 5
 DEFAULT_SERVERS = [ 'ecdsa.org:50001:t', 'electrum.novit.ro:50001:t', 'electrum.bitcoins.sk:50001:t']  # list of default servers
 
@@ -93,31 +95,6 @@ class Interface(threading.Thread):
         self.send(messages)
 
 
-    def get_servers(self, wallet):
-        # loop over default servers
-        # requesting servers could be an independent process
-        addresses = wallet.all_addresses()
-        version = wallet.electrum_version
-
-        for server in DEFAULT_SERVERS:
-            print "connecting to", server
-            try:
-                self.host = server
-                self.start_session(addresses, version)
-                wallet.host = self.host
-                break
-            except socket.timeout:
-                continue
-            except socket.error:
-                continue
-            except:
-                traceback.print_exc(file=sys.stdout)
-
-
-    def start_session(self, addresses, version):
-        #print "Starting new session: %s:%d"%(self.host,self.port)
-        self.send([('server.version', [version]), ('server.banner',[]), ('blockchain.numblocks.subscribe',[]), ('server.peers.subscribe',[])])
-        self.subscribe(addresses)
 
 
 class PollingInterface(Interface):
@@ -240,6 +217,7 @@ class TcpStratumInterface(Interface):
         try:
             self.s.connect(( self.host, self.port))
             self.is_connected = True
+            self.send([('server.version', [ELECTRUM_VERSION])])
         except:
             self.is_connected = False
             print "not connected"
@@ -367,21 +345,12 @@ class WalletSynchronizer(threading.Thread):
             InterfaceClass = TcpStratumInterface
 
         self.interface = InterfaceClass(host, port)
+        self.interface.start()
         self.wallet.interface = self.interface
 
-        with self.wallet.lock:
-            self.wallet.addresses_waiting_for_status = []
-            self.wallet.addresses_waiting_for_history = []
-            addresses = self.wallet.all_addresses()
-            version = self.wallet.electrum_version
-            for addr in addresses:
-                self.wallet.addresses_waiting_for_status.append(addr)
+        if self.interface.is_connected:
+            self.wallet.start_session(self.interface)
 
-        try:
-            self.interface.start()
-            self.interface.start_session(addresses,version)
-        except:
-            self.interface.is_connected = False
 
 
     def run(self):
