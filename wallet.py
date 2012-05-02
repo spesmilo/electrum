@@ -251,6 +251,7 @@ class Wallet:
 
         self.gap_limit = 5           # configuration
         self.fee = 100000
+        self.num_zeros = 0
         self.master_public_key = ''
 
         # saved fields
