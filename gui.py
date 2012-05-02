@@ -249,9 +249,24 @@ def run_settings_dialog(wallet, parent):
     fee.show()
     vbox.pack_start(fee, False,False, 5)
             
+    nz = gtk.HBox()
+    nz_entry = gtk.Entry()
+    nz_label = gtk.Label('Display zeros:')
+    nz_label.set_size_request(150,10)
+    nz_label.show()
+    nz.pack_start(nz_label,False, False, 10)
+    nz_entry.set_text( str( wallet.num_zeros ))
+    nz_entry.connect('changed', numbify, True)
+    nz_entry.show()
+    nz.pack_start(nz_entry,False,False, 10)
+    add_help_button(nz, "Number of zeros displayed after the decimal point.\nFor example, if this number is 2, then '5.' is displayed as '5.00'")
+    nz.show()
+    vbox.pack_start(nz, False,False, 5)
+            
     dialog.show()
     r = dialog.run()
     fee = fee_entry.get_text()
+    nz = nz_entry.get_text()
         
     dialog.destroy()
     if r==gtk.RESPONSE_CANCEL:
@@ -262,9 +277,19 @@ def run_settings_dialog(wallet, parent):
     except:
         show_message("error")
         return
+    if wallet.fee != fee:
+        wallet.fee = fee
+        wallet.save()
 
-    wallet.fee = fee
-    wallet.save()
+    try:
+        nz = int( nz )
+        if nz>8: nz = 8
+    except:
+        show_message("error")
+        return
+    if wallet.num_zeros != nz:
+        wallet.num_zeros = nz
+        wallet.save()
 
 
 
@@ -1104,8 +1129,8 @@ class ElectrumWindow:
                 self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
                 self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks\nresponse time: %f"%(interface.host, interface.port, self.wallet.blocks, interface.rtime))
                 c, u = self.wallet.get_balance()
-                text =  "Balance: %s "%( format_satoshis(c) )
-                if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True).strip() )
+                text =  "Balance: %s "%( format_satoshis(c,False,self.wallet.num_zeros) )
+                if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True,self.wallet.num_zeros).strip() )
         else:
             self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
             self.network_button.set_tooltip_text("Trying to contact %s.\n%d blocks"%(interface.host, self.wallet.blocks))
@@ -1187,7 +1212,7 @@ class ElectrumWindow:
                 
 
             self.history_list.prepend( [tx_hash, conf_icon, time_str, label, is_default_label,
-                                        format_satoshis(v,True), format_satoshis(balance), tooltip, details] )
+                                        format_satoshis(v,True,self.wallet.num_zeros), format_satoshis(balance,False,self.wallet.num_zeros), tooltip, details] )
         if cursor: self.history_treeview.set_cursor( cursor )
 
 

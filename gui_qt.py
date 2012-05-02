@@ -208,8 +208,8 @@ class ElectrumWindow(QMainWindow):
                 icon = QIcon(":icons/status_waiting.png")
             else:
                 c, u = self.wallet.get_balance()
-                text =  "Balance: %s "%( format_satoshis(c) )
-                if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True).strip() )
+                text =  "Balance: %s "%( format_satoshis(c,False,self.wallet.num_zeros) )
+                if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True,self.wallet.num_zeros).strip() )
                 icon = QIcon(":icons/status_connected.png")
         else:
             text = "Not connected"
@@ -337,7 +337,7 @@ class ElectrumWindow(QMainWindow):
             is_default_label = (label == '') or (label is None)
             if is_default_label: label = tx['default_label']
 
-            item = QTreeWidgetItem( [ '', time_str, label, format_satoshis(v,True), format_satoshis(balance)] )
+            item = QTreeWidgetItem( [ '', time_str, label, format_satoshis(v,True,self.wallet.num_zeros), format_satoshis(balance,False,self.wallet.num_zeros)] )
             item.setFont(2, QFont(MONOSPACE_FONT))
             item.setFont(3, QFont(MONOSPACE_FONT))
             item.setFont(4, QFont(MONOSPACE_FONT))
@@ -883,13 +883,19 @@ class ElectrumWindow(QMainWindow):
 
         grid = QGridLayout()
         grid.setSpacing(8)
+        vbox.addLayout(grid)
 
         fee_e = QLineEdit()
         fee_e.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
         grid.addWidget(QLabel('Fee per tx. input'), 2, 0)
         grid.addWidget(fee_e, 2, 1)
-        vbox.addLayout(grid)
         fee_e.textChanged.connect(lambda: numbify(fee_e,False))
+
+        nz_e = QLineEdit()
+        nz_e.setText("%d"% self.wallet.num_zeros)
+        grid.addWidget(QLabel('Zeros displayed after decimal point'), 3, 0)
+        grid.addWidget(nz_e, 3, 1)
+        nz_e.textChanged.connect(lambda: numbify(nz_e,True))
 
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
@@ -903,8 +909,22 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(self, 'Error', 'Invalid value:%s'%fee, 'OK')
             return
 
-        self.wallet.fee = fee
-        self.wallet.save()
+        if self.wallet.fee != fee:
+            self.wallet.fee = fee
+            self.wallet.save()
+        
+        nz = unicode(nz_e.text())
+        try:
+            nz = int( nz )
+            if nz>8: nz=8
+        except:
+            QMessageBox.warning(self, 'Error', 'Invalid value:%s'%nz, 'OK')
+            return
+
+        if self.wallet.num_zeros != nz:
+            self.wallet.num_zeros = nz
+            self.update_history_tab()
+            self.wallet.save()
 
     @staticmethod 
     def network_dialog(wallet, parent=None):

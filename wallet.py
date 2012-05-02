@@ -223,13 +223,14 @@ def raw_tx( inputs, outputs, for_sig = None ):
 
 
 
-def format_satoshis(x, is_diff=False):
+def format_satoshis(x, is_diff=False, num_zeros = 0):
     from decimal import Decimal
     s = str( Decimal(x) /100000000 )
     if is_diff and x>0:
         s = "+" + s
     if not '.' in s: s += '.'
     p = s.find('.')
+    s += "0"*( 1 + num_zeros - ( len(s) - p ))
     s += " "*( 9 - ( len(s) - p ))
     s = " "*( 5 - ( p )) + s
     return s
@@ -558,6 +559,7 @@ class Wallet:
             'aliases':self.aliases,
             'authorities':self.authorities,
             'receipts':self.receipts,
+            'num_zeros':self.num_zeros,
             }
         f = open(self.path,"w")
         f.write( repr(s) )
@@ -593,6 +595,7 @@ class Wallet:
             self.aliases = d.get('aliases',{})
             self.authorities = d.get('authorities',{})
             self.receipts = d.get('receipts',{})
+            self.num_zeros = d.get('num_zeros',0)
         except:
             raise BaseException("cannot read wallet file")
 
