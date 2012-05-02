@@ -212,7 +212,7 @@ class TcpStratumInterface(Interface):
     def __init__(self, host, port):
         Interface.__init__(self, host, port)
         self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
-        self.s.settimeout(5)
+        self.s.settimeout(5*60)
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
         try:
             self.s.connect(( self.host, self.port))
@@ -227,7 +227,9 @@ class TcpStratumInterface(Interface):
             out = ''
             while self.is_connected:
                 try: msg = self.s.recv(1024)
-                except socket.timeout: 
+                except socket.timeout:
+                    # ping the server with server.version, as a real ping does not exist yet
+                    self.send([('server.version', [ELECTRUM_VERSION])])
                     continue
                 out += msg
                 if msg == '': 
