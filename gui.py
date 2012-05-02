@@ -300,7 +300,7 @@ def run_network_dialog( wallet, parent ):
     interface = wallet.interface
     if parent:
         if interface.is_connected:
-            status = "Connected to %s:%d\n%d blocks\nresponse time: %f"%(interface.host, interface.port, wallet.blocks, interface.rtime)
+            status = "Connected to %s:%d\n%d blocks"%(interface.host, interface.port, wallet.blocks)
         else:
             status = "Not connected"
         server = wallet.server
@@ -1128,7 +1128,7 @@ class ElectrumWindow:
         if self.funds_error:
             text = "Not enough funds"
         elif interface.is_connected:
-            self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks\nresponse time: %f"%(interface.host, interface.port, self.wallet.blocks, interface.rtime))
+            self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(interface.host, interface.port, self.wallet.blocks))
             if self.wallet.blocks == -1:
                 self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
                 text = "Connecting..."
@@ -1140,7 +1140,7 @@ class ElectrumWindow:
                 text = "Synchronizing..."
             else:
                 self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
-                self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks\nresponse time: %f"%(interface.host, interface.port, self.wallet.blocks, interface.rtime))
+                self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(interface.host, interface.port, self.wallet.blocks))
                 c, u = self.wallet.get_balance()
                 text =  "Balance: %s "%( format_satoshis(c,False,self.wallet.num_zeros) )
                 if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True,self.wallet.num_zeros).strip() )
