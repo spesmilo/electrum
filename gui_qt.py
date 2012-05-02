@@ -922,7 +922,6 @@ class ElectrumWindow(QMainWindow):
 
         if not wallet.interface.servers:
             servers_list = []
-            from interface import DEFAULT_SERVERS
             for x in DEFAULT_SERVERS:
                 h,port,protocol = x.split(':')
                 servers_list.append( (h,[(protocol,port)] ) )
