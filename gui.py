@@ -309,8 +309,16 @@ def run_network_dialog( wallet, parent ):
         status = "Please choose a server."
         server = random.choice( DEFAULT_SERVERS )
 
+    if not wallet.interface.servers:
+        servers_list = []
+        for x in DEFAULT_SERVERS:
+            h,port,protocol = x.split(':')
+            servers_list.append( (h,[(protocol,port)] ) )
+    else:
+        servers_list = wallet.interface.servers
+
     plist = {}
-    for item in wallet.interface.servers:
+    for item in servers_list:
         host, pp = item
         z = {}
         for item2 in pp:
@@ -382,7 +390,12 @@ def run_network_dialog( wallet, parent ):
     treeview = gtk.TreeView(model=server_list)
     treeview.show()
 
-    tvcolumn = gtk.TreeViewColumn('Active servers')
+    if wallet.interface.servers:
+        label = 'Active Servers'
+    else:
+        label = 'Default Servers'
+        
+    tvcolumn = gtk.TreeViewColumn(label)
     treeview.append_column(tvcolumn)
     cell = gtk.CellRendererText()
     tvcolumn.pack_start(cell, False)
