@@ -26,7 +26,7 @@ from wallet import format_satoshis
 from decimal import Decimal
 import mnemonic
 
-import datetime
+import datetime, re
 
 
 
@@ -606,6 +606,11 @@ def main_loop():
             elif out == "receive":
                 global receive_addr
                 receive_addr = select_from_addresses()
+                if receive_addr:
+                    amount = modal_input('Amount', 'Amount you want receive. ', '', "numberDecimal")
+                    if amount:
+                        receive_addr = 'bitcoin:%s?amount=%s'%(receive_addr, amount)
+
                 if not receive_addr:
                     out = None
 
@@ -656,9 +661,16 @@ def payto_loop():
                 code = droid.scanBarcode()
                 r = code.result
                 if r:
-                    addr = r['extras']['SCAN_RESULT']
-                    if addr:
-                        droid.fullSetProperty("recipient","text",addr)
+                    data = r['extras']['SCAN_RESULT']
+                    if data:
+                        if re.match('^bitcoin:', data):
+                            payto, amount, label, _, _, _, _ = wallet.parse_url(data, None, None)
+                            droid.fullSetProperty("recipient", "text",payto)
+                            droid.fullSetProperty("amount", "text", amount)
+                            droid.fullSetProperty("label", "text", label)
+                        else:
+                            droid.fullSetProperty("recipient", "text", data)
+
                     
         elif event["name"] in menu_commands:
             out = event["name"]
@@ -923,29 +935,16 @@ def make_bitmap(addr):
     # fixme: this is highly inefficient
     droid.dialogCreateSpinnerProgress("please wait")
     droid.dialogShow()
-    import pyqrnative, bmp
-    qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.H)
-    qr.addData(addr)
-    qr.make()
-    k = qr.getModuleCount()
-    bitmap = bmp.BitMap( 35*8, 35*8 )
-    print len(bitmap.bitarray)
-    bitmap.bitarray = []
-    assert k == 33
-
-    for r in range(35):
-        tmparray = [ 0 ] * 35*8
-
-        if 0 < r < 34:
-            for c in range(k):
-                if qr.isDark(r-1, c):
-                    tmparray[ (1+c)*8:(2+c)*8] = [1]*8
-
-        for i in range(8):
-            bitmap.bitarray.append( tmparray[:] )
-
-    bitmap.saveFile( "/sdcard/sl4a/qrcode.bmp" )
-    droid.dialogDismiss()
+    try:
+        import pyqrnative, bmp
+        qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.L)
+        qr.addData(addr)
+        qr.make()
+        k = qr.getModuleCount()
+        assert k == 33
+        bmp.save_qrcode(qr,"/sdcard/sl4a/qrcode.bmp")
+    finally:
+        droid.dialogDismiss()
 
         
 

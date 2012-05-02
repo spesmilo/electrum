@@ -1,0 +1,31 @@
+#!/usr/bin/env python
+
+import interface, sys
+try:
+    addr = sys.argv[1]
+except:
+    print "usage: watch_address <bitcoin_address>"
+
+i = interface.TcpStratumInterface('ecdsa.org', 50001)
+i.start()
+i.send([('blockchain.address.subscribe',[addr])])
+
+while True:
+    r = i.responses.get(True, 100000000000)
+    method = r.get('method') 
+    if method == 'blockchain.address.subscribe':
+        i.send([('blockchain.address.get_history',[addr])])
+    elif method == 'blockchain.address.get_history':
+        confirmed = unconfirmed = 0
+        h = r.get('result')
+        if h is None:
+            continue
+        for item in h:
+            v = item['value']
+            if item['height']:
+                confirmed += v
+            else:
+                unconfirmed += v
+        print (confirmed+unconfirmed)/1.e8
+
+

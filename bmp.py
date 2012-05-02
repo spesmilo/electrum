@@ -193,7 +193,23 @@ class BitMap(object):
     f.close()
   
 
+def save_qrcode(qr, filename):
+    bitmap = BitMap( 35*8, 35*8 )
+    #print len(bitmap.bitarray)
+    bitmap.bitarray = []
+    k = 33
+    for r in range(35):
+        tmparray = [ 0 ] * 35*8
 
+        if 0 < r < 34:
+            for c in range(k):
+                if qr.isDark(r-1, c):
+                    tmparray[ (1+c)*8:(2+c)*8] = [1]*8
+
+        for i in range(8):
+            bitmap.bitarray.append( tmparray[:] )
+
+    bitmap.saveFile( filename )
 
   
     

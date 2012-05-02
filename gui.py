@@ -328,9 +328,6 @@ def run_network_dialog( wallet, parent ):
     radio2 = gtk.RadioButton(radio1, "http")
     p_box.pack_start(radio2, True, True, 0)
     radio2.show()
-    radio3 = gtk.RadioButton(radio1, "native")
-    p_box.pack_start(radio3, True, True, 0)
-    radio3.show()
 
     def current_line():
         return unicode(host_entry.get_text()).split(':')
@@ -340,8 +337,6 @@ def run_network_dialog( wallet, parent ):
             radio1.set_active(1)
         elif protocol == 'h':
             radio2.set_active(1)
-        elif protocol == 'n':
-            radio3.set_active(1)
 
     def set_protocol(protocol):
         host = current_line()[0]
@@ -354,7 +349,6 @@ def run_network_dialog( wallet, parent ):
 
     radio1.connect("toggled", lambda x,y:set_protocol('t'), "radio button 1")
     radio2.connect("toggled", lambda x,y:set_protocol('h'), "radio button 1")
-    radio3.connect("toggled", lambda x,y:set_protocol('n'), "radio button 1")
         
     server_list = gtk.ListStore(str)
     for host in plist.keys():

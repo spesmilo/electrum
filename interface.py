@@ -49,25 +49,41 @@ class Interface(threading.Thread):
         #json
         self.message_id = 0
         self.responses = Queue.Queue()
+        self.methods = {}
 
     def poke(self):
         # push a fake response so that the getting thread exits its loop
         self.responses.put(None)
 
     def queue_json_response(self, c):
-        #print repr(c)
+
+        #print "<--",c
         msg_id = c.get('id')
-        result = c.get('result')
         error = c.get('error')
-        params = c.get('params',[])
-        method = c.get('method',None)
-        if not method:
-            return
         
         if error:
-            print "received error:", c, method, params
+            print "received error:", c
+            return
+
+        if msg_id is not None:
+            method, params = self.methods.pop(msg_id)
+            result = c.get('result')
         else:
-            self.responses.put({'method':method, 'params':params, 'result':result})
+            # notification
+            method = c.get('method')
+            params = c.get('params')
+
+            if method == 'blockchain.numblocks.subscribe':
+                result = params[0]
+                params = []
+
+            elif method == 'blockchain.address.subscribe':
+                addr = params[0]
+                result = params[1]
+                params = [addr]
+
+        self.responses.put({'method':method, 'params':params, 'result':result})
+
 
 
     def subscribe(self, addresses):
@@ -148,71 +164,6 @@ class PollingInterface(Interface):
 
 
 
-class NativeInterface(PollingInterface):
-
-    def start_session(self, addresses, version):
-        self.send([('session.new', [ version, addresses ])] )
-        self.send([('server.peers.subscribe',[])])
-
-    def poll(self):
-        self.send([('session.poll', [])])
-
-    def send(self, messages):
-        import time
-        cmds = {'session.new':'new_session',
-                'server.peers.subscribe':'peers',
-                'session.poll':'poll',
-                'blockchain.transaction.broadcast':'tx',
-                'blockchain.address.get_history':'h',
-                'blockchain.address.subscribe':'address.subscribe'
-                }
-
-        for m in messages:
-            method, params = m
-            cmd = cmds[method]
-
-            if cmd == 'poll':
-                params = self.session_id
-
-            if cmd == 'address.subscribe':
-                params = [ self.session_id ] +  params
-
-            if cmd in ['h', 'tx']:
-                str_params = params[0]
-            elif type(params) != type(''): 
-                str_params = repr( params )
-            else:
-                str_params = params
-            t1 = time.time()
-            request = repr ( (cmd, str_params) ) + "#"
-            s = socket.socket( socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(DEFAULT_TIMEOUT)
-            s.connect(( self.host, self.port) )
-            s.send( request )
-            out = ''
-            while 1:
-                msg = s.recv(1024)
-                if msg: out += msg
-                else: break
-            s.close()
-            self.rtime = time.time() - t1
-            self.is_connected = True
-
-            if cmd == 'h':
-                out = old_to_new(out)
-
-            if cmd in ['peers','h','poll']:
-                out = ast.literal_eval( out )
-
-            if out == '': 
-                out = None
-
-            if cmd == 'new_session':
-                self.session_id, msg = ast.literal_eval( out )
-                self.responses.put({'method':'server.banner', 'params':[], 'result':msg})
-            else:
-                self.responses.put({'method':method, 'params':params, 'result':out})
-
 
 
 
@@ -235,6 +186,7 @@ class HttpStratumInterface(PollingInterface):
             method, params = m
             if type(params) != type([]): params = [params]
             data.append( { 'method':method, 'id':self.message_id, 'params':params } )
+            self.methods[self.message_id] = method, params
             self.message_id += 1
 
         if data:
@@ -324,6 +276,8 @@ class TcpStratumInterface(Interface):
         for m in messages:
             method, params = m 
             request = json.dumps( { 'id':self.message_id, 'method':method, 'params':params } )
+            self.methods[self.message_id] = method, params
+            #print "-->",request
             self.message_id += 1
             out += request + '\n'
         self.s.send( out )
@@ -357,16 +311,6 @@ class WalletSynchronizer(threading.Thread):
             self.wallet.banner = result
             self.wallet.was_updated = True
 
-        elif method == 'session.poll':
-            # native poll
-            blocks, changed_addresses = result 
-            if blocks == -1: raise BaseException("session not found")
-            self.wallet.blocks = int(blocks)
-            if changed_addresses:
-                self.wallet.was_updated = True
-                for addr, status in changed_addresses.items():
-                    self.wallet.receive_status_callback(addr, status)
-
         elif method == 'server.peers.subscribe':
             servers = []
             for item in result:
@@ -375,18 +319,14 @@ class WalletSynchronizer(threading.Thread):
                 ports = []
                 if len(item)>2:
                     for v in item[2]:
-                        if re.match("[thn]\d+",v):
+                        if re.match("[th]\d+",v):
                             ports.append((v[0],v[1:]))
-                    #if not s:
-                    #    s.append(host+":50000:n")
-                #else:
-                #    s.append(host+":50000:n")
                 if ports:
                     servers.append( (host, ports) )
             self.interface.servers = servers
 
         elif method == 'blockchain.address.subscribe':
-            addr = params[-1]
+            addr = params[0]
             self.wallet.receive_status_callback(addr, result)
                             
         elif method == 'blockchain.address.get_history':
@@ -418,15 +358,13 @@ class WalletSynchronizer(threading.Thread):
             port = int(port)
 
         #print protocol, host, port
-        if protocol == 'n':
-            InterfaceClass = NativeInterface
-        elif protocol == 't':
+        if protocol == 't':
             InterfaceClass = TcpStratumInterface
         elif protocol == 'h':
             InterfaceClass = HttpStratumInterface
         else:
             print "unknown protocol"
-            InterfaceClass = NativeInterface
+            InterfaceClass = TcpStratumInterface
 
         self.interface = InterfaceClass(host, port)
         self.wallet.interface = self.interface
