@@ -277,6 +277,10 @@ class Wallet:
         self.was_updated = True
         self.blocks = -1
         self.banner = ''
+
+        # there is a difference between self.up_to_date and self.is_up_to_date()
+        # self.is_up_to_date() returns true when all requests have been answered and processed
+        # self.up_to_date is true when the wallet is synchronized (stronger requirement)
         self.up_to_date_event = threading.Event()
         self.up_to_date_event.clear()
         self.up_to_date = False
