@@ -283,9 +283,6 @@ class Wallet:
         self.lock = threading.Lock()
         self.tx_event = threading.Event()
 
-        #
-        self.addresses_waiting_for_status = []
-        self.addresses_waiting_for_history = []
         self.pick_random_server()
 
 
@@ -294,8 +291,7 @@ class Wallet:
         self.server = random.choice( DEFAULT_SERVERS )         # random choice when the wallet is created
 
     def is_up_to_date(self):
-        return self.interface.responses.empty() and not ( self.addresses_waiting_for_status or self.addresses_waiting_for_history )
-
+        return self.interface.responses.empty() and not self.interface.unanswered_requests
 
     def set_server(self, server):
         # raise an error if the format isnt correct
@@ -719,10 +715,7 @@ class Wallet:
         with self.lock:
             if self.get_status(addr) != status:
                 #print "updating status for", addr, status
-                self.addresses_waiting_for_history.append(addr)
                 self.interface.get_history(addr)
-            if addr in self.addresses_waiting_for_status: 
-                self.addresses_waiting_for_status.remove(addr)
 
     def receive_history_callback(self, addr, data): 
         #print "updating history for", addr
@@ -730,7 +723,6 @@ class Wallet:
             self.history[addr] = data
             self.update_tx_history()
             self.save()
-            if addr in self.addresses_waiting_for_history: self.addresses_waiting_for_history.remove(addr)
 
     def get_tx_history(self):
         lines = self.tx_history.values()
@@ -953,15 +945,8 @@ class Wallet:
 
     def start_session(self, interface):
         self.interface = interface
-        with self.lock:
-            self.addresses_waiting_for_status = []
-            self.addresses_waiting_for_history = []
-            addresses = self.all_addresses()
-            for addr in addresses:
-                self.addresses_waiting_for_status.append(addr)
-
         self.interface.send([('server.banner',[]), ('blockchain.numblocks.subscribe',[]), ('server.peers.subscribe',[])])
-        self.interface.subscribe(addresses)
+        self.interface.subscribe(self.all_addresses())
 
 
 

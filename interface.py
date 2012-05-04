@@ -51,7 +51,7 @@ class Interface(threading.Thread):
         #json
         self.message_id = 0
         self.responses = Queue.Queue()
-        self.methods = {}
+        self.unanswered_requests = {}
 
     def poke(self):
         # push a fake response so that the getting thread exits its loop
@@ -68,7 +68,7 @@ class Interface(threading.Thread):
             return
 
         if msg_id is not None:
-            method, params = self.methods.pop(msg_id)
+            method, params = self.unanswered_requests.pop(msg_id)
             result = c.get('result')
         else:
             # notification
@@ -163,7 +163,7 @@ class HttpStratumInterface(PollingInterface):
             method, params = m
             if type(params) != type([]): params = [params]
             data.append( { 'method':method, 'id':self.message_id, 'params':params } )
-            self.methods[self.message_id] = method, params
+            self.unanswered_requests[self.message_id] = method, params
             self.message_id += 1
 
         if data:
@@ -256,7 +256,7 @@ class TcpStratumInterface(Interface):
         for m in messages:
             method, params = m 
             request = json.dumps( { 'id':self.message_id, 'method':method, 'params':params } )
-            self.methods[self.message_id] = method, params
+            self.unanswered_requests[self.message_id] = method, params
             #print "-->",request
             self.message_id += 1
             out += request + '\n'
@@ -362,9 +362,6 @@ class WalletSynchronizer(threading.Thread):
                 new_addresses = self.wallet.synchronize()
                 if new_addresses:
                     self.interface.subscribe(new_addresses)
-                    for addr in new_addresses:
-                        with self.wallet.lock:
-                            self.wallet.addresses_waiting_for_status.append(addr)
 
                 if self.wallet.is_up_to_date():
                     if not self.wallet.up_to_date:
