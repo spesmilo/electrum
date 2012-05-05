@@ -263,6 +263,7 @@ class Wallet:
         self.labels = {}             # labels for addresses and transactions
         self.aliases = {}            # aliases for addresses
         self.authorities = {}        # trusted addresses
+        self.frozen_addresses = []
         
         self.receipts = {}           # signed URIs
         self.receipt = None          # next receipt
@@ -561,6 +562,7 @@ class Wallet:
             'authorities':self.authorities,
             'receipts':self.receipts,
             'num_zeros':self.num_zeros,
+            'frozen_addresses':self.frozen_addresses,
             }
         f = open(self.path,"w")
         f.write( repr(s) )
@@ -597,6 +599,7 @@ class Wallet:
             self.authorities = d.get('authorities',{})
             self.receipts = d.get('receipts',{})
             self.num_zeros = d.get('num_zeros',0)
+            self.frozen_addresses = d.get('frozen_addresses',[])
         except:
             raise BaseException("cannot read wallet file")
 
@@ -640,6 +643,9 @@ class Wallet:
 
         coins = []
         domain = [from_addr] if from_addr else self.all_addresses()
+        for i in self.frozen_addresses:
+            if i in domain: domain.remove(i)
+
         for addr in domain:
             h = self.history.get(addr)
             if h is None: continue

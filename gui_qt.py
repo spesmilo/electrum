@@ -506,8 +506,72 @@ class ElectrumWindow(QMainWindow):
             entry.setPalette(palette)
 
 
-    def make_address_list(self, is_recv):
 
+    def add_buttons(self, l, hbox, is_recv):
+
+        while hbox.count(): hbox.removeItem(hbox.itemAt(0))
+
+        i = l.currentItem()
+        if not i: return
+        addr = unicode( i.text(0) )
+
+        hbox.addWidget(EnterButton("QR",lambda: self.show_address_qrcode(addr)))
+        hbox.addWidget( EnterButton("Copy to Clipboard", lambda: self.app.clipboard().setText(addr)))
+        if is_recv:
+            def toggle_freeze(addr):
+                if addr in self.wallet.frozen_addresses:
+                    self.wallet.frozen_addresses.remove(addr)
+                else:
+                    self.wallet.frozen_addresses.append(addr)
+                self.wallet.save()
+                self.update_receive_tab()
+                while hbox.count(): hbox.removeItem(hbox.itemAt(0))
+
+            t = "Unfreeze" if addr in self.wallet.frozen_addresses else "Freeze"
+            hbox.addWidget(EnterButton(t, lambda: toggle_freeze(addr)))
+
+        else:
+            def payto(addr):
+                if not addr:return
+                self.tabs.setCurrentIndex(1)
+                self.payto_e.setText(addr)
+                self.amount_e.setFocus()
+            hbox.addWidget(EnterButton('Pay to', lambda: payto(addr)))
+            hbox.addWidget(EnterButton("New", self.newaddress_dialog))
+        hbox.addStretch(1)
+
+
+    def create_receive_tab(self):
+        l = QTreeWidget(self)
+        l.setColumnCount(4)
+        l.setColumnWidth(0, 350) 
+        l.setColumnWidth(1, 330)
+        l.setColumnWidth(2, 100) 
+        l.setColumnWidth(3, 10) 
+        l.setHeaderLabels( ['Address', 'Label','Balance','Tx'])
+
+        w = QWidget()
+        vbox = QVBoxLayout()
+        w.setLayout(vbox)
+
+        vbox.setMargin(0)
+        vbox.setSpacing(0)
+        vbox.addWidget(l)
+        buttons = QWidget()
+        vbox.addWidget(buttons)
+
+        hbox = QHBoxLayout()
+        hbox.setMargin(0)
+        hbox.setSpacing(0)
+        buttons.setLayout(hbox)
+
+        self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l))
+        self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l))
+        self.connect(l, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), lambda: self.add_buttons(l, hbox, True))
+        self.receive_list = l
+        return w
+
+    def create_contacts_tab(self):
         l = QTreeWidget(self)
         l.setColumnCount(3)
         l.setColumnWidth(0, 350) 
@@ -515,64 +579,31 @@ class ElectrumWindow(QMainWindow):
         l.setColumnWidth(2, 20) 
         l.setHeaderLabels( ['Address', 'Label','Tx'])
 
+        w = QWidget()
         vbox = QVBoxLayout()
+        w.setLayout(vbox)
+
         vbox.setMargin(0)
         vbox.setSpacing(0)
         vbox.addWidget(l)
+        buttons = QWidget()
+        vbox.addWidget(buttons)
 
         hbox = QHBoxLayout()
         hbox.setMargin(0)
         hbox.setSpacing(0)
-
-        def get_addr(l):
-            i = l.currentItem()
-            if not i: return
-            addr = unicode( i.text(0) )
-            return addr
-
-        qrButton = EnterButton("QR",lambda: self.show_address_qrcode(get_addr(l)))
-
-        def copy2clipboard(addr):
-            self.app.clipboard().setText(addr)
-        copyButton = EnterButton("Copy to Clipboard", lambda: copy2clipboard(get_addr(l)))
-        hbox.addWidget(qrButton)
-        hbox.addWidget(copyButton)
-        if not is_recv:
-            addButton = EnterButton("New", self.newaddress_dialog)
-            hbox.addWidget(addButton)
-            def payto(addr):
-                if not addr:return
-                self.tabs.setCurrentIndex(1)
-                self.payto_e.setText(addr)
-                self.amount_e.setFocus()
-            paytoButton = EnterButton('Pay to', lambda: payto(get_addr(l)))
-            hbox.addWidget(paytoButton)
-        hbox.addStretch(1)
-        buttons = QWidget()
         buttons.setLayout(hbox)
-        vbox.addWidget(buttons)
 
-        w = QWidget()
-        w.setLayout(vbox)
-        return w, l
-
-    def create_receive_tab(self):
-        w, l = self.make_address_list(True)
-        self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l))
-        self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l))
-        self.receive_list = l
-        return w
-
-    def create_contacts_tab(self):
-        w, l = self.make_address_list(False)
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l))
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l))
         self.connect(l, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.show_contact_details)
+        self.connect(l, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), lambda: self.add_buttons(l, hbox, False))
         self.contacts_list = l
         return w
 
     def update_receive_tab(self):
         self.receive_list.clear()
+
         for address in self.wallet.all_addresses():
             if self.wallet.is_change(address):continue
             label = self.wallet.labels.get(address,'')
@@ -581,7 +612,13 @@ class ElectrumWindow(QMainWindow):
             for item in h:
                 if not item['is_input'] : n=n+1
             tx = "None" if n==0 else "%d"%n
-            item = QTreeWidgetItem( [ address, label, tx] )
+
+            c, u = self.wallet.get_addr_balance(address)
+            balance = format_satoshis( c + u, False, self.wallet.num_zeros )
+            if address in self.wallet.frozen_addresses: 
+                balance += '[F]'
+
+            item = QTreeWidgetItem( [ address, label, balance, tx] )
             item.setFont(0, QFont(MONOSPACE_FONT))
             self.receive_list.addTopLevelItem(item)
 
