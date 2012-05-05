@@ -507,9 +507,12 @@ class ElectrumWindow(QMainWindow):
 
 
 
-    def add_buttons(self, l, hbox, is_recv):
 
+    def clear_buttons(self, hbox):
         while hbox.count(): hbox.removeItem(hbox.itemAt(0))
+
+    def add_buttons(self, l, hbox, is_recv):
+        self.clear_buttons(hbox)
 
         i = l.currentItem()
         if not i: return
@@ -525,7 +528,6 @@ class ElectrumWindow(QMainWindow):
                     self.wallet.frozen_addresses.append(addr)
                 self.wallet.save()
                 self.update_receive_tab()
-                while hbox.count(): hbox.removeItem(hbox.itemAt(0))
 
             t = "Unfreeze" if addr in self.wallet.frozen_addresses else "Freeze"
             hbox.addWidget(EnterButton(t, lambda: toggle_freeze(addr)))
@@ -569,6 +571,7 @@ class ElectrumWindow(QMainWindow):
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l))
         self.connect(l, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), lambda: self.add_buttons(l, hbox, True))
         self.receive_list = l
+        self.receive_buttons_hbox = hbox
         return w
 
     def create_contacts_tab(self):
@@ -598,11 +601,14 @@ class ElectrumWindow(QMainWindow):
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l))
         self.connect(l, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.show_contact_details)
         self.connect(l, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), lambda: self.add_buttons(l, hbox, False))
+
         self.contacts_list = l
+        self.contacts_buttons_hbox = hbox
         return w
 
     def update_receive_tab(self):
         self.receive_list.clear()
+        self.clear_buttons(self.receive_buttons_hbox)
 
         for address in self.wallet.all_addresses():
             if self.wallet.is_change(address):continue
@@ -635,6 +641,8 @@ class ElectrumWindow(QMainWindow):
 
     def update_contacts_tab(self):
         self.contacts_list.clear()
+        self.clear_buttons(self.contacts_buttons_hbox)
+
         for alias, v in self.wallet.aliases.items():
             s, target = v
             item = QTreeWidgetItem( [ target, alias, '-'] )
