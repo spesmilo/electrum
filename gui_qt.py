@@ -519,7 +519,7 @@ class ElectrumWindow(QMainWindow):
         addr = unicode( i.text(0) )
 
         hbox.addWidget(EnterButton("QR",lambda: self.show_address_qrcode(addr)))
-        hbox.addWidget( EnterButton("Copy to Clipboard", lambda: self.app.clipboard().setText(addr)))
+        hbox.addWidget(EnterButton("Copy to Clipboard", lambda: self.app.clipboard().setText(addr)))
         if is_recv:
             def toggle_freeze(addr):
                 if addr in self.wallet.frozen_addresses:
@@ -702,19 +702,53 @@ class ElectrumWindow(QMainWindow):
             return
 
         msg = "Your wallet generation seed is:\n\n" + seed \
-              + "\n\nPlease keep it in a safe place; if you lose it, you will not be able to restore your wallet.\n\n" \
-              + "Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:\n\n\"" \
+              + "\n\nPlease keep it in a safe place; if you lose it,\n you will not be able to restore your wallet.\n\n" \
+              + "Equivalently, your wallet seed can be stored and\n recovered with the following mnemonic code:\n\n\"" \
               + ' '.join(mnemonic.mn_encode(seed)) + "\""
 
-        QMessageBox.information(parent, 'Seed', msg, 'OK')
-        if parent: ElectrumWindow.show_seed_qrcode(seed)
+        d = QDialog(None)
+        d.setModal(1)
+        d.setWindowTitle("Seed")
+        d.setMinimumSize(400, 300)
+
+        vbox = QVBoxLayout()
+
+        hbox = QHBoxLayout()
+        l = QLabel()
+        l.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(48))
+        hbox.addWidget(l)
+        hbox.addWidget(QLabel(msg))
+        vbox.addLayout(hbox)
+
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+
+
+        if parent:
+            app = parent.app
+        else:
+            app = QApplication
+
+        b = QPushButton("Copy to Clipboard")
+        b.clicked.connect(lambda: app.clipboard().setText(' '.join(mnemonic.mn_encode(seed))))
+        hbox.addWidget(b)
+        b = QPushButton("View as QR Code")
+        b.clicked.connect(lambda: ElectrumWindow.show_seed_qrcode(seed))
+        hbox.addWidget(b)
+
+        b = QPushButton("OK")
+        b.clicked.connect(d.accept)
+        hbox.addWidget(b)
+        vbox.addLayout(hbox)
+        d.setLayout(vbox)
+        d.exec_()
 
     @staticmethod
     def show_seed_qrcode(seed):
         if not seed: return
         d = QDialog(None)
         d.setModal(1)
-        d.setWindowTitle(seed)
+        d.setWindowTitle("Seed")
         d.setMinimumSize(270, 300)
         vbox = QVBoxLayout()
         vbox.addWidget(QRCodeWidget(seed))
