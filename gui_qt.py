@@ -969,6 +969,7 @@ class ElectrumWindow(QMainWindow):
         if self.wallet.num_zeros != nz:
             self.wallet.num_zeros = nz
             self.update_history_tab()
+            self.update_receive_tab()
             self.wallet.save()
 
     @staticmethod 
