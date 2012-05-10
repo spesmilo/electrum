@@ -18,7 +18,13 @@
 
 import sys, time, datetime, re
 
-# todo: see PySide
+try:
+    import PyQt4
+except:
+    print "could not import PyQt4"
+    print "on Linux systems, you may try 'sudo apt-get install python-qt4'"
+    sys.exit(1)
+
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
