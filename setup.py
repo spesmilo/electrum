@@ -9,7 +9,7 @@ setup(name = "Electrum",
     version = version,
     install_requires = ['slowaes','ecdsa'],
     package_dir = {'electrum': 'lib'},
-    scripts= ['electrum', 'watch_address', 'blocks'],
+    scripts= ['electrum'],
     py_modules = ['electrum.version','electrum.wallet','electrum.interface','electrum.gui','electrum.gui_qt','electrum.icons_rc','electrum.mnemonic','electrum.pyqrnative','electrum.bmp'],
     description = "Lightweight Bitcoin Wallet",
     author = "thomasv",
@@ -17,5 +17,3 @@ setup(name = "Electrum",
     url = "http://ecdsa/electrum",
     long_description = """Lightweight Bitcoin Wallet""" 
 )
-
-        
