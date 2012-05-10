@@ -7,6 +7,7 @@ from lib.version import ELECTRUM_VERSION as version
 
 setup(name = "Electrum",
     version = version,
+    install_requires = ['slowaes','ecdsa'],
     package_dir = {'electrum': 'lib'},
     scripts= ['electrum', 'watch_address', 'blocks'],
     py_modules = ['electrum.version','electrum.wallet','electrum.interface','electrum.gui','electrum.gui_qt','electrum.icons_rc','electrum.mnemonic','electrum.pyqrnative','electrum.bmp'],
