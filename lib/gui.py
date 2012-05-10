@@ -22,7 +22,7 @@ import socket, traceback
 import pygtk
 pygtk.require('2.0')
 import gtk, gobject
-import pyqrnative
+from electrum import pyqrnative
 from decimal import Decimal
 
 gtk.gdk.threads_init()
@@ -59,7 +59,7 @@ def numbify(entry, is_int = False):
 
 
 def show_seed_dialog(wallet, password, parent):
-    import mnemonic
+    from electrum import mnemonic
     try:
         seed = wallet.pw_decode( wallet.seed, password)
     except:
@@ -203,7 +203,7 @@ def run_recovery_dialog(wallet):
     try:
         seed.decode('hex')
     except:
-        import mnemonic
+        from electrum import mnemonic
         print "not hex, trying decode"
         seed = mnemonic.mn_decode( seed.split(' ') )
     if not seed:

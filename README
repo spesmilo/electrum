@@ -30,17 +30,22 @@ In order to use the gtk gui, you need pygtk and tk.
 * apt-get install python-tk
 
 
+To install Electrum, type:
+
+  sudo python setup.py install
+
+
 RUN
 
-To start the Qt gui, type:
-  python electrum
-To use the Gtk gui, type:
-  python electrum --gui gtk
+To start Electrum in GUI mode, type:
 
-If arguments are passed to the command line, Electrum will run in text mode.
-Examples:
-  python electrum balance
-  python electrum help
+  electrum
+
+
+If arguments are passed to the command line, Electrum will run in text mode:
+
+  electrum balance
+  electrum help
 
 
 

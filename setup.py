@@ -3,15 +3,18 @@
 # python setup.py sdist --format=zip,gztar
 
 from distutils.core import setup
-from version import ELECTRUM_VERSION as version
+from lib.version import ELECTRUM_VERSION as version
 
 setup(name = "Electrum",
     version = version,
+    package_dir = {'electrum': 'lib'},
+    scripts= ['electrum', 'watch_address', 'blocks'],
+    py_modules = ['electrum.version','electrum.wallet','electrum.interface','electrum.gui','electrum.gui_qt','electrum.icons_rc','electrum.mnemonic','electrum.pyqrnative','electrum.bmp'],
     description = "Lightweight Bitcoin Wallet",
     author = "thomasv",
     license = "GNU GPLv3",
     url = "http://ecdsa/electrum",
     long_description = """Lightweight Bitcoin Wallet""" 
-) 
+)
 
         

@@ -101,7 +101,7 @@ class QRCodeWidget(QWidget):
         self.set_addr(addr)
 
     def set_addr(self, addr):
-        import pyqrnative
+        from electrum import pyqrnative
         self.addr = addr
         self.qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.L)
         self.qr.addData(addr)
@@ -688,7 +688,7 @@ class ElectrumWindow(QMainWindow):
 
     @staticmethod
     def show_seed_dialog(wallet, parent=None):
-        import mnemonic
+        from electrum import mnemonic
         if wallet.use_encryption:
             password = parent.password_dialog()
             if not password: return
@@ -796,7 +796,7 @@ class ElectrumWindow(QMainWindow):
             qrw.repaint()
 
         def do_save():
-            import bmp
+            from electrum import bmp
             bmp.save_qrcode(qrw.qr, "qrcode.bmp")
             self.show_message("QR code saved to file 'qrcode.bmp'")
             
@@ -936,7 +936,7 @@ class ElectrumWindow(QMainWindow):
             seed = unicode(seed_e.text())
             seed.decode('hex')
         except:
-            import mnemonic
+            from electrum import mnemonic
             print "not hex, trying decode"
             try:
                 seed = mnemonic.mn_decode( seed.split(' ') )

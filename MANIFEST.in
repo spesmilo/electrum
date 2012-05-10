@@ -2,6 +2,7 @@ include README LICENCE RELEASE-NOTES
 include *.py
 include electrum
 exclude setup.py
+recursive-include lib *.py
 recursive-include ecdsa *.py
 recursive-include aes *.py
 include icons.qrc

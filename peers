@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-import interface
+from electrum import TcpStratumInterface
 
-i = interface.TcpStratumInterface('ecdsa.org', 50001)
+i = TcpStratumInterface('ecdsa.org', 50001)
 i.start()
 i.send([('server.peers.subscribe',[])])
 

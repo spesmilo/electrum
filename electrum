@@ -18,11 +18,11 @@
 
 import re, sys, getpass
 
+import electrum
 from optparse import OptionParser
-from wallet import Wallet, SecretToASecret
-from interface import WalletSynchronizer
 from decimal import Decimal
-from wallet import format_satoshis
+
+from electrum import Wallet, SecretToASecret, WalletSynchronizer, format_satoshis
 
 known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'restore', 'payto', 'sendtx', 'password', 'addresses', 'history', 'label', 'mktx','seed','import','signmessage','verifymessage','eval']
 offline_commands = ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create', 'addresses', 'import', 'seed']
@@ -60,9 +60,9 @@ if __name__ == '__main__':
         
     if cmd == 'gui':
         if options.gui=='gtk':
-            import gui
+            import electrum.gui as gui
         elif options.gui=='qt':
-            import gui_qt as gui
+            import electrum.gui_qt as gui
         else:
             print "unknown gui", options.gui
             exit(1)
