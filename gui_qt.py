@@ -702,21 +702,23 @@ class ElectrumWindow(QMainWindow):
             return
 
         msg = "Your wallet generation seed is:\n\n" + seed \
-              + "\n\nPlease keep it in a safe place; if you lose it,\n you will not be able to restore your wallet.\n\n" \
-              + "Equivalently, your wallet seed can be stored and\n recovered with the following mnemonic code:\n\n\"" \
-              + ' '.join(mnemonic.mn_encode(seed)) + "\""
+              + "\n\nPlease keep it in a safe place; if you lose it,\nyou will not be able to restore your wallet.\n\n" \
+              + "Equivalently, your wallet seed can be stored and\nrecovered with the following mnemonic code:\n\n\"" \
+              + ' '.join(mnemonic.mn_encode(seed)) + "\"\n\n\n"
 
         d = QDialog(None)
         d.setModal(1)
         d.setWindowTitle("Seed")
-        d.setMinimumSize(400, 300)
+        d.setMinimumSize(400, 270)
 
         vbox = QVBoxLayout()
-
         hbox = QHBoxLayout()
+        vbox2 = QVBoxLayout()
         l = QLabel()
-        l.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(48))
-        hbox.addWidget(l)
+        l.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(56))
+        vbox2.addWidget(l)
+        vbox2.addStretch(1)
+        hbox.addLayout(vbox2)
         hbox.addWidget(QLabel(msg))
         vbox.addLayout(hbox)
 
