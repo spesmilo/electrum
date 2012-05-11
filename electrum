@@ -97,7 +97,7 @@ if __name__ == '__main__':
         sys.exit(0)
     
     if cmd in ['create', 'restore']:
-        import mnemonic
+        from electrum import mnemonic
         if wallet.file_exists:
             print "remove the existing wallet first!"
             sys.exit(0)
@@ -241,7 +241,7 @@ if __name__ == '__main__':
             print "Run python eval() on an object\nSyntax: eval <expression>\nExample: eval \"wallet.aliases\""
 
     elif cmd == 'seed':
-        import mnemonic
+        from electrum import mnemonic
         seed = wallet.pw_decode( wallet.seed, password)
         print seed, '"'+' '.join(mnemonic.mn_encode(seed))+'"'
 
