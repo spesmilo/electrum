@@ -60,6 +60,9 @@ def numbify(entry, is_int = False):
 
 def show_seed_dialog(wallet, password, parent):
     from electrum import mnemonic
+    if not wallet.seed:
+        show_message("No seed")
+        return
     try:
         seed = wallet.pw_decode( wallet.seed, password)
     except:
@@ -483,6 +486,10 @@ def password_dialog(parent):
     if result != gtk.RESPONSE_CANCEL: return pw
 
 def change_password_dialog(wallet, parent, icon):
+    if not wallet.seed:
+        show_message("No seed")
+        return
+
     if parent:
         msg = 'Your wallet is encrypted. Use this dialog to change the password. To disable wallet encryption, enter an empty new password.' if wallet.use_encryption else 'Your wallet keys are not encrypted'
     else:

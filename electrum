@@ -24,8 +24,8 @@ from decimal import Decimal
 
 from electrum import Wallet, SecretToASecret, WalletSynchronizer, format_satoshis
 
-known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'restore', 'payto', 'sendtx', 'password', 'addresses', 'history', 'label', 'mktx','seed','import','signmessage','verifymessage','eval']
-offline_commands = ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create', 'addresses', 'import', 'seed']
+known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'restore', 'payto', 'sendtx', 'password', 'addresses', 'history', 'label', 'mktx','seed','import','signmessage','verifymessage','eval','deseed']
+offline_commands = ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create', 'addresses', 'import', 'seed','deseed']
 protected_commands = ['payto', 'password', 'mktx', 'seed', 'import','signmessage' ]
 
 if __name__ == '__main__':
@@ -237,6 +237,8 @@ if __name__ == '__main__':
             print "options: --fee, --fromaddr, --changeaddr"
         elif cmd2 == 'seed':
             print "show generation seed of your wallet. password protected."
+        elif cmd2 == 'deseed':
+            print "remove the seed of your wallet."
         elif cmd2 == 'eval':
             print "Run python eval() on an object\nSyntax: eval <expression>\nExample: eval \"wallet.aliases\""
 
@@ -244,6 +246,16 @@ if __name__ == '__main__':
         from electrum import mnemonic
         seed = wallet.pw_decode( wallet.seed, password)
         print seed, '"'+' '.join(mnemonic.mn_encode(seed))+'"'
+
+    elif cmd == 'deseed':
+        print "Warning: you are going to remove the seed from this wallet, which will forbid to send coins.\nPlease make sure that you have saved the seed elsewhere."
+        if raw_input("Are you sure you want to continue? (y/n) ") in ['y','Y','yes']:
+            wallet.seed = ''
+            wallet.use_encryption = False
+            wallet.save()
+            print "Done."
+        else:
+            print "Action canceled."
 
     elif cmd == 'validateaddress':
         addr = args[1]

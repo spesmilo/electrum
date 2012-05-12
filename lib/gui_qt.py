@@ -695,6 +695,11 @@ class ElectrumWindow(QMainWindow):
     @staticmethod
     def show_seed_dialog(wallet, parent=None):
         from electrum import mnemonic
+
+        if not wallet.seed:
+            QMessageBox.information(parent, 'Message', 'No seed', 'OK')
+            return
+
         if wallet.use_encryption:
             password = parent.password_dialog()
             if not password: return
@@ -852,6 +857,11 @@ class ElectrumWindow(QMainWindow):
 
     @staticmethod
     def change_password_dialog( wallet, parent=None ):
+
+        if not wallet.seed:
+            QMessageBox.information(parent, 'Message', 'No seed', 'OK')
+            return
+
         d = QDialog(parent)
         d.setModal(1)
 
