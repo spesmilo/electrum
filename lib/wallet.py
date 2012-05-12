@@ -308,6 +308,7 @@ class Wallet:
             self.server = server
             self.save()
             self.interface.is_connected = False  # this exits the polling loop
+            self.interface.poke()
 
     def set_path(self, wallet_path):
 
