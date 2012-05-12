@@ -24,8 +24,8 @@ from decimal import Decimal
 
 from electrum import Wallet, SecretToASecret, WalletSynchronizer, format_satoshis
 
-known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'restore', 'payto', 'sendtx', 'password', 'addresses', 'history', 'label', 'mktx','seed','import','signmessage','verifymessage','eval','deseed']
-offline_commands = ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create', 'addresses', 'import', 'seed','deseed']
+known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'restore', 'payto', 'sendtx', 'password', 'addresses', 'history', 'label', 'mktx','seed','import','signmessage','verifymessage','eval','deseed','reseed']
+offline_commands = ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create', 'addresses', 'import', 'seed','deseed','reseed']
 protected_commands = ['payto', 'password', 'mktx', 'seed', 'import','signmessage' ]
 
 if __name__ == '__main__':
@@ -248,14 +248,45 @@ if __name__ == '__main__':
         print seed, '"'+' '.join(mnemonic.mn_encode(seed))+'"'
 
     elif cmd == 'deseed':
-        print "Warning: you are going to remove the seed from this wallet, which will forbid to send coins.\nPlease make sure that you have saved the seed elsewhere."
-        if raw_input("Are you sure you want to continue? (y/n) ") in ['y','Y','yes']:
-            wallet.seed = ''
-            wallet.use_encryption = False
-            wallet.save()
-            print "Done."
+        if not wallet.seed:
+            print "This wallet has no seed"
         else:
-            print "Action canceled."
+            ns = options.wallet_path+'.seed'
+            print "Warning: you are going to extract the seed from '%s'\nThe seed will be saved in '%s'"%(options.wallet_path,ns)
+            if raw_input("Are you sure you want to continue? (y/n) ") in ['y','Y','yes']:
+                f = open(ns,'w')
+                f.write(wallet.seed)
+                f.close()
+                wallet.seed = ''
+                wallet.use_encryption = False
+                wallet.save()
+                print "Done."
+            else:
+                print "Action canceled."
+
+    elif cmd == 'reseed':
+        if wallet.seed:
+            print "This wallet already has a seed"
+        else:
+            ns = options.wallet_path+'.seed'
+            try:
+                f = open(ns,'r')
+                seed = f.read()
+                f.close()
+            except:
+                print "seed file not found"
+                sys.exit()
+
+            mpk = wallet.master_public_key
+            wallet.seed = seed
+            wallet.use_encryption = False
+            wallet.init_mpk(seed)
+            if mpk == wallet.master_public_key:
+                wallet.save()
+                print "done"
+            else:
+                print "error: master public key does not match"
+
 
     elif cmd == 'validateaddress':
         addr = args[1]
