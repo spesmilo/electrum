@@ -563,7 +563,9 @@ class ElectrumWindow:
         self.funds_error = False # True if not enough funds
 
         self.window = MyWindow(gtk.WINDOW_TOPLEVEL)
-        self.window.set_title(APP_NAME + " " + self.wallet.electrum_version)
+        title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.wallet.path
+        if not self.wallet.seed: title += ' [seedless]'
+        self.window.set_title(title)
         self.window.connect("destroy", gtk.main_quit)
         self.window.set_border_width(0)
         self.window.connect('mykeypress', gtk.main_quit)
@@ -595,17 +597,18 @@ class ElectrumWindow:
         self.network_button.show()
         self.status_bar.pack_end(self.network_button, False, False)
 
-        def seedb(w, wallet):
-            if wallet.use_encryption:
-                password = password_dialog(self.window)
-                if not password: return
-            else: password = None
-            show_seed_dialog(wallet, password, self.window)
-        button = gtk.Button('S')
-        button.connect("clicked", seedb, wallet )
-        button.set_relief(gtk.RELIEF_NONE)
-        button.show()
-        self.status_bar.pack_end(button,False, False)
+        if self.wallet.seed:
+            def seedb(w, wallet):
+                if wallet.use_encryption:
+                    password = password_dialog(self.window)
+                    if not password: return
+                else: password = None
+                show_seed_dialog(wallet, password, self.window)
+            button = gtk.Button('S')
+            button.connect("clicked", seedb, wallet )
+            button.set_relief(gtk.RELIEF_NONE)
+            button.show()
+            self.status_bar.pack_end(button,False, False)
 
         settings_icon = gtk.Image()
         settings_icon.set_from_stock(gtk.STOCK_PREFERENCES, gtk.ICON_SIZE_MENU)
@@ -627,12 +630,13 @@ class ElectrumWindow:
         pw_icon.set_size_request(16,16 )
         pw_icon.show()
 
-        password_button = gtk.Button()
-        password_button.connect("clicked", lambda x: change_password_dialog(self.wallet, self.window, pw_icon))
-        password_button.add(pw_icon)
-        password_button.set_relief(gtk.RELIEF_NONE)
-        password_button.show()
-        self.status_bar.pack_end(password_button,False,False)
+        if self.wallet.seed:
+            password_button = gtk.Button()
+            password_button.connect("clicked", lambda x: change_password_dialog(self.wallet, self.window, pw_icon))
+            password_button.add(pw_icon)
+            password_button.set_relief(gtk.RELIEF_NONE)
+            password_button.show()
+            self.status_bar.pack_end(password_button,False,False)
 
         self.window.add(vbox)
         self.window.show_all()

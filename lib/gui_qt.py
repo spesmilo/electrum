@@ -166,7 +166,9 @@ class ElectrumWindow(QMainWindow):
         self.setCentralWidget(tabs)
         self.create_status_bar()
         self.setGeometry(100,100,840,400)
-        self.setWindowTitle( 'Electrum ' + self.wallet.electrum_version )
+        title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.wallet.path
+        if not self.wallet.seed: title += ' [seedless]'
+        self.setWindowTitle( title )
         self.show()
 
         QShortcut(QKeySequence("Ctrl+W"), self, self.close)
@@ -674,9 +676,11 @@ class ElectrumWindow(QMainWindow):
     def create_status_bar(self):
         sb = QStatusBar()
         sb.setFixedHeight(35)
-        sb.addPermanentWidget( StatusBarButton( QIcon(":icons/lock.png"), "Password", lambda: self.change_password_dialog(self.wallet, self) ) )
+        if self.wallet.seed:
+            sb.addPermanentWidget( StatusBarButton( QIcon(":icons/lock.png"), "Password", lambda: self.change_password_dialog(self.wallet, self) ) )
         sb.addPermanentWidget( StatusBarButton( QIcon(":icons/preferences.png"), "Preferences", self.settings_dialog ) )
-        sb.addPermanentWidget( StatusBarButton( QIcon(":icons/seed.png"), "Seed", lambda: self.show_seed_dialog(self.wallet, self) ) )
+        if self.wallet.seed:
+            sb.addPermanentWidget( StatusBarButton( QIcon(":icons/seed.png"), "Seed", lambda: self.show_seed_dialog(self.wallet, self) ) )
         self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), "Network", lambda: self.network_dialog(self.wallet, self) ) 
         sb.addPermanentWidget( self.status_button )
         self.setStatusBar(sb)
