@@ -249,7 +249,9 @@ if __name__ == '__main__':
 
     elif cmd == 'deseed':
         if not wallet.seed:
-            print "This wallet has no seed"
+            print "Eooro: This wallet has no seed"
+        elif wallet.use_encryption:
+            print "Error: This wallet is encrypted"
         else:
             ns = options.wallet_path+'.seed'
             print "Warning: you are going to extract the seed from '%s'\nThe seed will be saved in '%s'"%(options.wallet_path,ns)
@@ -258,7 +260,6 @@ if __name__ == '__main__':
                 f.write(wallet.seed)
                 f.close()
                 wallet.seed = ''
-                wallet.use_encryption = False
                 wallet.save()
                 print "Done."
             else:
