@@ -168,6 +168,7 @@ class ElectrumWindow(QMainWindow):
         self.create_status_bar()
         self.setGeometry(100,100,840,400)
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.wallet.path
+        if not self.wallet.seed: title += ' [seedless]'
         self.setWindowTitle( title )
         self.show()
 
@@ -219,7 +220,6 @@ class ElectrumWindow(QMainWindow):
                 c, u = self.wallet.get_balance()
                 text =  "Balance: %s "%( format_satoshis(c,False,self.wallet.num_zeros) )
                 if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True,self.wallet.num_zeros).strip() )
-                if not self.wallet.seed: text += ' [seedless]'
                 icon = QIcon(":icons/status_connected.png")
         else:
             text = "Not connected"
