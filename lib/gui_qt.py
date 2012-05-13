@@ -157,7 +157,8 @@ class ElectrumWindow(QMainWindow):
 
         self.tabs = tabs = QTabWidget(self)
         tabs.addTab(self.create_history_tab(), 'History')
-        tabs.addTab(self.create_send_tab(),    'Send')
+        if self.wallet.seed:
+            tabs.addTab(self.create_send_tab(),    'Send')
         tabs.addTab(self.create_receive_tab(), 'Receive')
         tabs.addTab(self.create_contacts_tab(),'Contacts')
         tabs.addTab(self.create_wall_tab(),    'Wall')
@@ -180,8 +181,9 @@ class ElectrumWindow(QMainWindow):
 
 
     def connect_slots(self, sender):
-        self.connect(sender, QtCore.SIGNAL('timersignal'), self.check_recipient)
-        self.previous_payto_e=''
+        if self.wallet.seed:
+            self.connect(sender, QtCore.SIGNAL('timersignal'), self.check_recipient)
+            self.previous_payto_e=''
 
     def check_recipient(self):
         if self.payto_e.hasFocus():

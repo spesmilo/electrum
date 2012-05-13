@@ -575,7 +575,8 @@ class ElectrumWindow:
 
         self.notebook = gtk.Notebook()
         self.create_history_tab()
-        self.create_send_tab()
+        if self.wallet.seed:
+            self.create_send_tab()
         self.create_recv_tab()
         self.create_book_tab()
         self.create_about_tab()
@@ -672,7 +673,8 @@ class ElectrumWindow:
                 
 
         thread.start_new_thread(update_status_bar_thread, ())
-        thread.start_new_thread(check_recipient_thread, ())
+        if self.wallet.seed:
+            thread.start_new_thread(check_recipient_thread, ())
         self.notebook.set_current_page(0)
 
 
