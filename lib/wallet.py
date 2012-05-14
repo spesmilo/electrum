@@ -18,7 +18,7 @@
 
 
 import sys, base64, os, re, hashlib, copy, operator, ast, threading, random
-import slowaes, ecdsa
+import aes, ecdsa
 from ecdsa.util import string_to_number, number_to_string
 
 ############ functions from pywallet ##################### 
