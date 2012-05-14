@@ -43,7 +43,7 @@ protected_commands = ['payto', 'password', 'mktx', 'seed', 'import','signmessage
 
 if __name__ == '__main__':
 
-    usage = "usage: %prog [options] command args\nCommands: "+ (', '.join(known_commands))
+    usage = "usage: %prog [options] command\nCommands: "+ (', '.join(known_commands))
     parser = OptionParser(usage=usage)
     parser.add_option("-g", "--gui", dest="gui", default="qt", help="gui")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
@@ -223,9 +223,9 @@ if __name__ == '__main__':
     if cmd=='help':
         cmd2 = firstarg
         if cmd2 not in known_commands:
-            print "known commands:", ', '.join(known_commands)
-            print "'electrum help <command>' shows the help on a specific command"
-            print "'electrum --help' shows the list of options"
+            print "type 'electrum help <command>' to see the help for a specific command"
+            print "type 'electrum --help' to see the list of options"
+            print "list of commands:", ', '.join(known_commands)
         elif cmd2 == 'balance':
             print "Display the balance of your wallet or of an address."
             print "syntax: balance [<address>]"
@@ -274,7 +274,7 @@ if __name__ == '__main__':
 
     elif cmd == 'deseed':
         if not wallet.seed:
-            print "Eooro: This wallet has no seed"
+            print "Error: This wallet has no seed"
         elif wallet.use_encryption:
             print "Error: This wallet is encrypted"
         else:
