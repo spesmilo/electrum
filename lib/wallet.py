@@ -18,20 +18,8 @@
 
 
 import sys, base64, os, re, hashlib, copy, operator, ast, threading, random
-
-try:
-    import ecdsa  
-    from ecdsa.util import string_to_number, number_to_string
-except:
-    print "python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'"
-    sys.exit(1)
-
-try:
-    import aes
-except:
-    print "AES does not seem to be installed. Try 'sudo pip install slowaes'"
-    sys.exit(1)
-
+import slowaes, ecdsa
+from ecdsa.util import string_to_number, number_to_string
 
 ############ functions from pywallet ##################### 
 
