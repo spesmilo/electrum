@@ -60,6 +60,9 @@ def numbify(entry, is_int = False):
 
 def show_seed_dialog(wallet, password, parent):
     from electrum import mnemonic
+    if not wallet.seed:
+        show_message("No seed")
+        return
     try:
         seed = wallet.pw_decode( wallet.seed, password)
     except:
@@ -483,6 +486,10 @@ def password_dialog(parent):
     if result != gtk.RESPONSE_CANCEL: return pw
 
 def change_password_dialog(wallet, parent, icon):
+    if not wallet.seed:
+        show_message("No seed")
+        return
+
     if parent:
         msg = 'Your wallet is encrypted. Use this dialog to change the password. To disable wallet encryption, enter an empty new password.' if wallet.use_encryption else 'Your wallet keys are not encrypted'
     else:
@@ -556,7 +563,9 @@ class ElectrumWindow:
         self.funds_error = False # True if not enough funds
 
         self.window = MyWindow(gtk.WINDOW_TOPLEVEL)
-        self.window.set_title(APP_NAME + " " + self.wallet.electrum_version)
+        title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.wallet.path
+        if not self.wallet.seed: title += ' [seedless]'
+        self.window.set_title(title)
         self.window.connect("destroy", gtk.main_quit)
         self.window.set_border_width(0)
         self.window.connect('mykeypress', gtk.main_quit)
@@ -566,7 +575,8 @@ class ElectrumWindow:
 
         self.notebook = gtk.Notebook()
         self.create_history_tab()
-        self.create_send_tab()
+        if self.wallet.seed:
+            self.create_send_tab()
         self.create_recv_tab()
         self.create_book_tab()
         self.create_about_tab()
@@ -588,17 +598,18 @@ class ElectrumWindow:
         self.network_button.show()
         self.status_bar.pack_end(self.network_button, False, False)
 
-        def seedb(w, wallet):
-            if wallet.use_encryption:
-                password = password_dialog(self.window)
-                if not password: return
-            else: password = None
-            show_seed_dialog(wallet, password, self.window)
-        button = gtk.Button('S')
-        button.connect("clicked", seedb, wallet )
-        button.set_relief(gtk.RELIEF_NONE)
-        button.show()
-        self.status_bar.pack_end(button,False, False)
+        if self.wallet.seed:
+            def seedb(w, wallet):
+                if wallet.use_encryption:
+                    password = password_dialog(self.window)
+                    if not password: return
+                else: password = None
+                show_seed_dialog(wallet, password, self.window)
+            button = gtk.Button('S')
+            button.connect("clicked", seedb, wallet )
+            button.set_relief(gtk.RELIEF_NONE)
+            button.show()
+            self.status_bar.pack_end(button,False, False)
 
         settings_icon = gtk.Image()
         settings_icon.set_from_stock(gtk.STOCK_PREFERENCES, gtk.ICON_SIZE_MENU)
@@ -620,12 +631,13 @@ class ElectrumWindow:
         pw_icon.set_size_request(16,16 )
         pw_icon.show()
 
-        password_button = gtk.Button()
-        password_button.connect("clicked", lambda x: change_password_dialog(self.wallet, self.window, pw_icon))
-        password_button.add(pw_icon)
-        password_button.set_relief(gtk.RELIEF_NONE)
-        password_button.show()
-        self.status_bar.pack_end(password_button,False,False)
+        if self.wallet.seed:
+            password_button = gtk.Button()
+            password_button.connect("clicked", lambda x: change_password_dialog(self.wallet, self.window, pw_icon))
+            password_button.add(pw_icon)
+            password_button.set_relief(gtk.RELIEF_NONE)
+            password_button.show()
+            self.status_bar.pack_end(password_button,False,False)
 
         self.window.add(vbox)
         self.window.show_all()
@@ -661,7 +673,8 @@ class ElectrumWindow:
                 
 
         thread.start_new_thread(update_status_bar_thread, ())
-        thread.start_new_thread(check_recipient_thread, ())
+        if self.wallet.seed:
+            thread.start_new_thread(check_recipient_thread, ())
         self.notebook.set_current_page(0)
 
 

@@ -218,9 +218,10 @@ class TcpStratumInterface(Interface):
             self.s.connect(( self.host, self.port))
             self.is_connected = True
             self.send([('server.version', [ELECTRUM_VERSION])])
+            print "Connected to %s:%d"%(self.host,self.port)
         except:
             self.is_connected = False
-            print "not connected"
+            print "Not connected"
 
     def run(self):
         try:
@@ -380,7 +381,6 @@ class WalletSynchronizer(threading.Thread):
                 response = self.interface.responses.get()
                 self.handle_response(response)
 
-            print "disconnected, gui callback"
             self.wallet.gui_callback()
             if self.loop:
                 time.sleep(5)

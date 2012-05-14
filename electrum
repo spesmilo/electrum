@@ -24,8 +24,8 @@ from decimal import Decimal
 
 from electrum import Wallet, SecretToASecret, WalletSynchronizer, format_satoshis
 
-known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'restore', 'payto', 'sendtx', 'password', 'addresses', 'history', 'label', 'mktx','seed','import','signmessage','verifymessage','eval']
-offline_commands = ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create', 'addresses', 'import', 'seed']
+known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'restore', 'payto', 'sendtx', 'password', 'addresses', 'history', 'label', 'mktx','seed','import','signmessage','verifymessage','eval','deseed','reseed']
+offline_commands = ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create', 'addresses', 'import', 'seed','deseed','reseed']
 protected_commands = ['payto', 'password', 'mktx', 'seed', 'import','signmessage' ]
 
 if __name__ == '__main__':
@@ -34,6 +34,7 @@ if __name__ == '__main__':
     parser = OptionParser(usage=usage)
     parser.add_option("-g", "--gui", dest="gui", default="qt", help="gui")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
+    parser.add_option("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
     parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance at listed addresses")
     parser.add_option("-k", "--keys",action="store_true", dest="show_keys",default=False, help="show the private keys of listed addresses")
@@ -135,18 +136,20 @@ if __name__ == '__main__':
                 sys.exit(1)
 
             wallet.seed = str(seed)
-            WalletSynchronizer(wallet).start()
-            print "recovering wallet..."
             wallet.init_mpk( wallet.seed )
-            wallet.up_to_date_event.clear()
-            wallet.up_to_date = False
-            wallet.update()
-            if wallet.is_found():
-                wallet.fill_addressbook()
-                wallet.save()
-                print "recovery successful"
-            else:
-                print "found no history for this wallet"
+            if not options.offline:
+                WalletSynchronizer(wallet).start()
+                print "recovering wallet..."
+                wallet.up_to_date_event.clear()
+                wallet.up_to_date = False
+                wallet.update()
+                if wallet.is_found():
+                    print "recovery successful"
+                else:
+                    print "found no history for this wallet"
+            wallet.fill_addressbook()
+            wallet.save()
+            print "Wallet saved in '%s'"%options.wallet_path
         else:
             wallet.new_seed(None)
             wallet.init_mpk( wallet.seed )
@@ -156,6 +159,7 @@ if __name__ == '__main__':
             print "Please keep it in a safe place; if you lose it, you will not be able to restore your wallet."
             print "Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:"
             print "\""+' '.join(mnemonic.mn_encode(wallet.seed))+"\""
+            print "Wallet saved in '%s'"%options.wallet_path
 
     # check syntax
     if cmd in ['payto', 'mktx']:
@@ -171,7 +175,7 @@ if __name__ == '__main__':
             cmd = 'help'
 
     # open session
-    if cmd not in offline_commands:
+    if cmd not in offline_commands and not options.offline:
         WalletSynchronizer(wallet).start()
         wallet.update()
         wallet.save()
@@ -237,6 +241,8 @@ if __name__ == '__main__':
             print "options: --fee, --fromaddr, --changeaddr"
         elif cmd2 == 'seed':
             print "show generation seed of your wallet. password protected."
+        elif cmd2 == 'deseed':
+            print "remove the seed of your wallet."
         elif cmd2 == 'eval':
             print "Run python eval() on an object\nSyntax: eval <expression>\nExample: eval \"wallet.aliases\""
 
@@ -244,6 +250,47 @@ if __name__ == '__main__':
         from electrum import mnemonic
         seed = wallet.pw_decode( wallet.seed, password)
         print seed, '"'+' '.join(mnemonic.mn_encode(seed))+'"'
+
+    elif cmd == 'deseed':
+        if not wallet.seed:
+            print "Eooro: This wallet has no seed"
+        elif wallet.use_encryption:
+            print "Error: This wallet is encrypted"
+        else:
+            ns = options.wallet_path+'.seed'
+            print "Warning: you are going to extract the seed from '%s'\nThe seed will be saved in '%s'"%(options.wallet_path,ns)
+            if raw_input("Are you sure you want to continue? (y/n) ") in ['y','Y','yes']:
+                f = open(ns,'w')
+                f.write(wallet.seed)
+                f.close()
+                wallet.seed = ''
+                wallet.save()
+                print "Done."
+            else:
+                print "Action canceled."
+
+    elif cmd == 'reseed':
+        if wallet.seed:
+            print "This wallet already has a seed"
+        else:
+            ns = options.wallet_path+'.seed'
+            try:
+                f = open(ns,'r')
+                seed = f.read()
+                f.close()
+            except:
+                print "seed file not found"
+                sys.exit()
+
+            mpk = wallet.master_public_key
+            wallet.seed = seed
+            wallet.use_encryption = False
+            wallet.init_mpk(seed)
+            if mpk == wallet.master_public_key:
+                wallet.save()
+                print "done"
+            else:
+                print "error: master public key does not match"
 
     elif cmd == 'validateaddress':
         addr = args[1]

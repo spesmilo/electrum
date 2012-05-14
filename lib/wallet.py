@@ -23,13 +23,13 @@ try:
     import ecdsa  
     from ecdsa.util import string_to_number, number_to_string
 except:
-    print "python-ecdsa does not seem to be installed. Try 'sudo easy_install ecdsa'"
+    print "python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'"
     sys.exit(1)
 
 try:
     import aes
 except:
-    print "AES does not seem to be installed. Try 'sudo easy_install slowaes'"
+    print "AES does not seem to be installed. Try 'sudo pip install slowaes'"
     sys.exit(1)
 
 
@@ -308,6 +308,7 @@ class Wallet:
             self.server = server
             self.save()
             self.interface.is_connected = False  # this exits the polling loop
+            self.interface.poke()
 
     def set_path(self, wallet_path):
 
