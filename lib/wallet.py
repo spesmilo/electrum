@@ -371,6 +371,11 @@ class Wallet:
     def get_sequence(self,n,for_change):
         return string_to_number( Hash( "%d:%d:"%(n,for_change) + self.master_public_key ) )
 
+    def get_private_key_base58(self, address, password):
+        pk = self.get_private_key(address, password)
+        if pk is None: return None
+        return SecretToASecret( pk )
+
     def get_private_key(self, address, password):
         """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
         order = generator_secp256k1.order()
@@ -388,6 +393,7 @@ class Wallet:
                 for_change = True
             else:
                 raise BaseException("unknown address")
+            if not self.seed: return None
             try:
                 seed = self.pw_decode( self.seed, password)
             except:
