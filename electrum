@@ -48,6 +48,7 @@ if __name__ == '__main__':
     parser.add_option("-g", "--gui", dest="gui", default="qt", help="gui")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
     parser.add_option("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
+    parser.add_option("-m", "--mnemonic", action="store_true", dest="show_mnemonic", default=False, help="[seed] print the seed as mnemonic")
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
     parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance at listed addresses")
     parser.add_option("-k", "--keys",action="store_true", dest="show_keys",default=False, help="show the private keys of listed addresses")
@@ -226,7 +227,7 @@ if __name__ == '__main__':
             print "'electrum help <command>' shows the help on a specific command"
             print "'electrum --help' shows the list of options"
         elif cmd2 == 'balance':
-            print "Display the balance of your wallet or a specific address. The address does not have to be a owned address (you know the private key)."
+            print "Display the balance of your wallet or of an address."
             print "syntax: balance [<address>]"
         elif cmd2 == 'contacts':
             print "show your list of contacts"
@@ -234,14 +235,15 @@ if __name__ == '__main__':
             print "payto <recipient> <amount> [label]"
             print "create and broadcast a transaction."
             print "<recipient> can be a bitcoin address or a label"
-            print "options: --fee, --fromaddr, --changeaddr"
+            print "options:\n--fee, -f: set transaction fee\n--fromaddr, -s: send from address -\n--changeaddr, -c: send change to address"
         elif cmd2== 'sendtx':
             print "sendtx <tx>"
             print "broadcast a transaction to the network. <tx> must be in hexadecimal"
         elif cmd2 == 'password':
             print "change your password"
         elif cmd2 == 'addresses':
-            print "show your list of addresses. options: -a, -k, -b"
+            print "show your list of addresses."
+            print "options:\n -a: show all addresses, including change addresses\n-k: show private keys\n-b: show the balance of addresses"
         elif cmd2 == 'history':
             print "show the transaction history"
         elif cmd2 == 'label':
@@ -251,18 +253,24 @@ if __name__ == '__main__':
         elif cmd2 == 'mktx':
             print "create a signed transaction. password protected"
             print "syntax: mktx <recipient> <amount> [label]"
-            print "options: --fee, --fromaddr, --changeaddr"
+            print "options:\n--fee, -f: set transaction fee\n--fromaddr, -s: send from address -\n--changeaddr, -c: send change to address"
         elif cmd2 == 'seed':
-            print "show generation seed of your wallet. password protected."
+            print "print the generation seed of your wallet."
+            print "options:\n-m, --mnemonic : print the seed as mnemonic"
         elif cmd2 == 'deseed':
-            print "remove the seed of your wallet."
+            print "remove seed from the wallet. The seed is stored in a file that has the name of the wallet plus '.seed'"
+        elif cmd2 == 'reseed':
+            print "restore seed of the wallet. The wallet must have no seed, and the seed must match the wallet's master public key."
         elif cmd2 == 'eval':
             print "Run python eval() on an object\nSyntax: eval <expression>\nExample: eval \"wallet.aliases\""
 
     elif cmd == 'seed':
         from electrum import mnemonic
         seed = wallet.pw_decode( wallet.seed, password)
-        print seed, '"'+' '.join(mnemonic.mn_encode(seed))+'"'
+        if options.show_mnemonic:
+            print ' '.join(mnemonic.mn_encode(seed))
+        else:
+            print seed
 
     elif cmd == 'deseed':
         if not wallet.seed:
