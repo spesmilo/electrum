@@ -38,7 +38,7 @@ from decimal import Decimal
 from electrum import Wallet, SecretToASecret, WalletSynchronizer, format_satoshis
 
 known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'restore', 'payto', 'sendtx', 'password', 'addresses', 'history', 'label', 'mktx','seed','import','signmessage','verifymessage','eval','deseed','reseed']
-offline_commands = ['password', 'mktx', 'history', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create', 'addresses', 'import', 'seed','deseed','reseed']
+offline_commands = ['password', 'mktx', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create', 'addresses', 'import', 'seed','deseed','reseed']
 protected_commands = ['payto', 'password', 'mktx', 'seed', 'import','signmessage' ]
 
 if __name__ == '__main__':
