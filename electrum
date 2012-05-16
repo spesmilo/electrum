@@ -303,7 +303,7 @@ if __name__ == '__main__':
             wallet.init_mpk(seed)
             if mpk == wallet.master_public_key:
                 wallet.save()
-                print "done"
+                print "Done: " + wallet.path
             else:
                 print "error: master public key does not match"
 
