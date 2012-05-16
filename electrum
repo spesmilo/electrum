@@ -48,7 +48,6 @@ if __name__ == '__main__':
     parser.add_option("-g", "--gui", dest="gui", default="qt", help="gui")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
     parser.add_option("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
-    parser.add_option("-m", "--mnemonic", action="store_true", dest="show_mnemonic", default=False, help="[seed] print the seed as mnemonic")
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
     parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance at listed addresses")
     parser.add_option("-k", "--keys",action="store_true", dest="show_keys",default=False, help="show the private keys of listed addresses")
@@ -266,10 +265,7 @@ if __name__ == '__main__':
     elif cmd == 'seed':
         from electrum import mnemonic
         seed = wallet.pw_decode( wallet.seed, password)
-        if options.show_mnemonic:
-            print ' '.join(mnemonic.mn_encode(seed))
-        else:
-            print seed
+        print seed + ' "' + ' '.join(mnemonic.mn_encode(seed)) + '"'
 
     elif cmd == 'deseed':
         if not wallet.seed:
@@ -291,7 +287,7 @@ if __name__ == '__main__':
 
     elif cmd == 'reseed':
         if wallet.seed:
-            print "This wallet already has a seed"
+            print "This wallet already has a seed", wallet.seed
         else:
             ns = options.wallet_path+'.seed'
             try:

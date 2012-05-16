@@ -769,7 +769,7 @@ class ElectrumWindow(QMainWindow):
             app = QApplication
 
         b = QPushButton("Copy to Clipboard")
-        b.clicked.connect(lambda: app.clipboard().setText(' '.join(mnemonic.mn_encode(seed))))
+        b.clicked.connect(lambda: app.clipboard().setText(seed + ' "' + ' '.join(mnemonic.mn_encode(seed))+'"'))
         hbox.addWidget(b)
         b = QPushButton("View as QR Code")
         b.clicked.connect(lambda: ElectrumWindow.show_seed_qrcode(seed))
