@@ -53,6 +53,9 @@ class Interface(threading.Thread):
         self.responses = Queue.Queue()
         self.unanswered_requests = {}
 
+    def init_socket(self):
+        pass
+
     def poke(self):
         # push a fake response so that the getting thread exits its loop
         self.responses.put(None)
