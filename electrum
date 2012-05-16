@@ -161,7 +161,7 @@ if __name__ == '__main__':
                     print "found no history for this wallet"
             wallet.fill_addressbook()
             wallet.save()
-            print "Wallet saved in '%s'"%options.wallet_path
+            print "Wallet saved in '%s'"%wallet.path
         else:
             wallet.new_seed(None)
             wallet.init_mpk( wallet.seed )
@@ -272,8 +272,8 @@ if __name__ == '__main__':
         elif wallet.use_encryption:
             print "Error: This wallet is encrypted"
         else:
-            ns = options.wallet_path+'.seed'
-            print "Warning: you are going to extract the seed from '%s'\nThe seed will be saved in '%s'"%(options.wallet_path,ns)
+            ns = wallet.path + '.seed'
+            print "Warning: you are going to extract the seed from '%s'\nThe seed will be saved in '%s'"%(wallet.path,ns)
             if raw_input("Are you sure you want to continue? (y/n) ") in ['y','Y','yes']:
                 f = open(ns,'w')
                 f.write(wallet.seed)
@@ -288,7 +288,7 @@ if __name__ == '__main__':
         if wallet.seed:
             print "This wallet already has a seed", wallet.seed
         else:
-            ns = options.wallet_path+'.seed'
+            ns = wallet.path + '.seed'
             try:
                 f = open(ns,'r')
                 seed = f.read()
