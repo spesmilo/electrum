@@ -206,7 +206,7 @@ class ElectrumWindow(QMainWindow):
         self.emit(QtCore.SIGNAL('updatesignal'))
 
     def update_wallet(self):
-        if self.wallet.interface.is_connected:
+        if self.wallet.interface and self.wallet.interface.is_connected:
             if self.wallet.blocks == -1:
                 text = "Connecting..."
                 icon = QIcon(":icons/status_disconnected.png")

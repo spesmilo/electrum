@@ -211,6 +211,8 @@ class TcpStratumInterface(Interface):
 
     def __init__(self, host, port):
         Interface.__init__(self, host, port)
+
+    def init_socket(self):
         self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
         self.s.settimeout(5*60)
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
@@ -277,7 +279,28 @@ class WalletSynchronizer(threading.Thread):
         self.daemon = True
         self.wallet = wallet
         self.loop = loop
-        self.start_interface()
+        self.init_interface()
+
+    def init_interface(self):
+        try:
+            host, port, protocol = self.wallet.server.split(':')
+            port = int(port)
+        except:
+            self.wallet.pick_random_server()
+            host, port, protocol = self.wallet.server.split(':')
+            port = int(port)
+
+        #print protocol, host, port
+        if protocol == 't':
+            InterfaceClass = TcpStratumInterface
+        elif protocol == 'h':
+            InterfaceClass = HttpStratumInterface
+        else:
+            print "unknown protocol"
+            InterfaceClass = TcpStratumInterface
+
+        self.interface = InterfaceClass(host, port)
+        self.wallet.interface = self.interface
 
 
     def handle_response(self, r):
@@ -330,27 +353,8 @@ class WalletSynchronizer(threading.Thread):
 
 
     def start_interface(self):
-        try:
-            host, port, protocol = self.wallet.server.split(':')
-            port = int(port)
-        except:
-            self.wallet.pick_random_server()
-            host, port, protocol = self.wallet.server.split(':')
-            port = int(port)
-
-        #print protocol, host, port
-        if protocol == 't':
-            InterfaceClass = TcpStratumInterface
-        elif protocol == 'h':
-            InterfaceClass = HttpStratumInterface
-        else:
-            print "unknown protocol"
-            InterfaceClass = TcpStratumInterface
-
-        self.interface = InterfaceClass(host, port)
+        self.interface.init_socket()
         self.interface.start()
-        self.wallet.interface = self.interface
-
         if self.interface.is_connected:
             self.wallet.start_session(self.interface)
 
@@ -358,6 +362,7 @@ class WalletSynchronizer(threading.Thread):
 
     def run(self):
         import socket, time
+        self.start_interface()
         while True:
             while self.interface.is_connected:
                 new_addresses = self.wallet.synchronize()
@@ -384,6 +389,7 @@ class WalletSynchronizer(threading.Thread):
             self.wallet.gui_callback()
             if self.loop:
                 time.sleep(5)
+                self.init_interface()
                 self.start_interface()
                 continue
             else:

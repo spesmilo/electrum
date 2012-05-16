@@ -98,7 +98,6 @@ if __name__ == '__main__':
             exit(1)
 
         if not found: exit(1)
-
         gui.main(url)
         wallet.save()
         sys.exit(0)
