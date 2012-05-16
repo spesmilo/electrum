@@ -864,7 +864,7 @@ class Wallet:
         except BaseException, e:
             # raise exception if verify fails (verify the chain)
             if interactive:
-                show_message("Alias error: " + e.message)
+                show_message("Alias error: " + str(e))
             return
 
         print target, signing_address, auth_name

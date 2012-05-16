@@ -469,7 +469,7 @@ class ElectrumWindow(QMainWindow):
         try:
             tx = self.wallet.mktx( to_address, amount, label, password, fee )
         except BaseException, e:
-            self.show_message(e.message)
+            self.show_message(str(e))
             return
             
         status, msg = self.wallet.sendtx( tx )
