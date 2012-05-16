@@ -254,7 +254,6 @@ if __name__ == '__main__':
             print "options:\n--fee, -f: set transaction fee\n--fromaddr, -s: send from address -\n--changeaddr, -c: send change to address"
         elif cmd2 == 'seed':
             print "print the generation seed of your wallet."
-            print "options:\n-m, --mnemonic : print the seed as mnemonic"
         elif cmd2 == 'deseed':
             print "remove seed from the wallet. The seed is stored in a file that has the name of the wallet plus '.seed'"
         elif cmd2 == 'reseed':
