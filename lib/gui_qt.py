@@ -1202,10 +1202,12 @@ class ElectrumGui():
         w.setLayout(vbox)
         w.show()
         def f():
-            if self.wallet.up_to_date: w.close()
+            if self.wallet.up_to_date: 
+                w.close()
             else:
-                l.setText("Please wait...\nGenerating addresses: %d"%len(self.wallet.all_addresses()))
-                pass
+                l.setText("Please wait...\nAddresses generated: %d\nKilobytes received: %.1f"\
+                              %(len(self.wallet.all_addresses()), self.wallet.interface.bytes_received/1024.))
+
         w.connect(s, QtCore.SIGNAL('timersignal'), f)
         self.wallet.interface.poke()
         w.exec_()

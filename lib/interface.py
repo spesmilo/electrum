@@ -44,6 +44,7 @@ class Interface(threading.Thread):
 
         self.servers = [] # actual list from IRC
         self.rtime = 0
+        self.bytes_received = 0
 
         self.is_connected = True
         self.poll_interval = 1
@@ -188,6 +189,7 @@ class HttpStratumInterface(PollingInterface):
                 self.session_id = cookie.value
 
         response = response_stream.read()
+        self.bytes_received += len(response)
         if response: 
             response = json.loads( response )
             if type(response) is not type([]):
@@ -238,6 +240,7 @@ class TcpStratumInterface(Interface):
                     self.send([('server.version', [ELECTRUM_VERSION])])
                     continue
                 out += msg
+                self.bytes_received += len(msg)
                 if msg == '': 
                     self.is_connected = False
                     print "disconnected."
