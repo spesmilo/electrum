@@ -443,14 +443,7 @@ if __name__ == '__main__':
             sys.exit(1)
         new_password = getpass.getpass('New password:')
         if new_password == getpass.getpass('Confirm new password:'):
-            wallet.use_encryption = (new_password != '')
-            wallet.seed = wallet.pw_encode( seed, new_password)
-            for k in wallet.imported_keys.keys():
-                a = wallet.imported_keys[k]
-                b = wallet.pw_decode(a, password)
-                c = wallet.pw_encode(b, new_password)
-                wallet.imported_keys[k] = c
-            wallet.save()
+            wallet.update_password(seed, password, new_password)
         else:
             print "error: mismatch"
 

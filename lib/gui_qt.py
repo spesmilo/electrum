@@ -938,7 +938,7 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(parent, 'Error', 'Passwords do not match', 'OK')
             return
 
-        wallet.update_password(seed, new_password)
+        wallet.update_password(seed, password, new_password)
 
     @staticmethod
     def seed_dialog(wallet, parent=None):

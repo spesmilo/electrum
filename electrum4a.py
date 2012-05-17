@@ -792,7 +792,7 @@ def change_password_dialog():
             modal_dialog('error','passwords do not match')
             return
 
-    wallet.update_password(seed, new_password)
+    wallet.update_password(seed, password, new_password)
     if new_password:
         modal_dialog('Password updated','your wallet is encrypted')
     else:

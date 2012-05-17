@@ -530,7 +530,7 @@ def change_password_dialog(wallet, parent, icon):
         show_message("passwords do not match")
         return
 
-    wallet.update_password(seed, new_password)
+    wallet.update_password(seed, password, new_password)
 
     if icon:
         if wallet.use_encryption:

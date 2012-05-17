@@ -847,13 +847,13 @@ class Wallet:
 
         return target, signing_addr, auth_name
 
-    def update_password(self, seed, new_password):
+    def update_password(self, seed, old_password, new_password):
         if new_password == '': new_password = None
         self.use_encryption = (new_password != None)
         self.seed = self.pw_encode( seed, new_password)
         for k in self.imported_keys.keys():
             a = self.imported_keys[k]
-            b = self.pw_decode(a, password)
+            b = self.pw_decode(a, old_password)
             c = self.pw_encode(b, new_password)
             self.imported_keys[k] = c
         self.save()
