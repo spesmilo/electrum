@@ -9,6 +9,7 @@ except:
     print "usage: watch_address <bitcoin_address>"
 
 i = TcpStratumInterface('ecdsa.org', 50001)
+i.init_socket()
 i.start()
 i.send([('blockchain.address.subscribe',[addr])])
 
