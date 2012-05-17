@@ -172,6 +172,9 @@ if __name__ == '__main__':
             print "Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:"
             print "\""+' '.join(mnemonic.mn_encode(wallet.seed))+"\""
             print "Wallet saved in '%s'"%wallet.path
+            
+        if password:
+            wallet.update_password(wallet.seed, None, password)
 
     # check syntax
     if cmd in ['payto', 'mktx']:
