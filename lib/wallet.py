@@ -393,11 +393,11 @@ class Wallet:
                 for_change = True
             else:
                 raise BaseException("unknown address")
-            if not self.seed: return None
             try:
                 seed = self.pw_decode( self.seed, password)
             except:
                 raise BaseException("Invalid password")
+            if not seed: return None
             secexp = self.stretch_key(seed)
             secexp = ( secexp + self.get_sequence(n,for_change) ) % order
 
