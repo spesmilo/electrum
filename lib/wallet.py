@@ -382,6 +382,7 @@ class Wallet:
         
         if address in self.imported_keys.keys():
             b = self.pw_decode( self.imported_keys[address], password )
+            if not b: return None
             b = ASecretToSecret( b )
             secexp = int( b.encode('hex'), 16)
         else:

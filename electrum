@@ -279,9 +279,10 @@ if __name__ == '__main__':
             print "Warning: you are going to extract the seed from '%s'\nThe seed will be saved in '%s'"%(wallet.path,ns)
             if raw_input("Are you sure you want to continue? (y/n) ") in ['y','Y','yes']:
                 f = open(ns,'w')
-                f.write(wallet.seed)
+                f.write(repr({'seed':wallet.seed, 'imported_keys':wallet.imported_keys})+"\n")
                 f.close()
                 wallet.seed = ''
+                for k in wallet.imported_keys.keys(): wallet.imported_keys[k] = ''
                 wallet.save()
                 print "Done."
             else:
@@ -294,14 +295,23 @@ if __name__ == '__main__':
             ns = wallet.path + '.seed'
             try:
                 f = open(ns,'r')
-                seed = f.read()
+                data = f.read()
                 f.close()
             except:
                 print "seed file not found"
                 sys.exit()
+            try:
+                import ast
+                d = ast.literal_eval( data )
+                seed = d['seed']
+                imported_keys = d.get('imported_keys',{})
+            except:
+                print "error with seed file"
+                sys.exit(1)
 
             mpk = wallet.master_public_key
             wallet.seed = seed
+            wallet.imported_keys = imported_keys
             wallet.use_encryption = False
             wallet.init_mpk(seed)
             if mpk == wallet.master_public_key:
