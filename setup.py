@@ -11,6 +11,7 @@ setup(name = "Electrum",
     package_dir = {'electrum': 'lib'},
     scripts= ['electrum'],
     data_files=[
+          ('/usr/share/app-install/icons/',['electrum.png']),
           ('/usr/share/locale/de/LC_MESSAGES', ['locale/de/LC_MESSAGES/electrum.mo']),
           ('/usr/share/locale/fr/LC_MESSAGES', ['locale/fr/LC_MESSAGES/electrum.mo']),
           ('/usr/share/locale/si/LC_MESSAGES', ['locale/si/LC_MESSAGES/electrum.mo']),
