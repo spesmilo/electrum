@@ -11,6 +11,7 @@ setup(name = "Electrum",
     package_dir = {'electrum': 'lib'},
     scripts= ['electrum'],
     data_files=[
+          ('/usr/share/applications/',['electrum.desktop']),
           ('/usr/share/app-install/icons/',['electrum.png']),
           ('/usr/share/locale/de/LC_MESSAGES', ['locale/de/LC_MESSAGES/electrum.mo']),
           ('/usr/share/locale/fr/LC_MESSAGES', ['locale/fr/LC_MESSAGES/electrum.mo']),
@@ -32,16 +33,5 @@ setup(name = "Electrum",
     url = "http://ecdsa/electrum",
     long_description = """Lightweight Bitcoin Wallet""" 
 )
-
-if __name__ == '__main__':
-    import sys,os
-    if len(sys.argv)>1 and sys.argv[1]=='install':
-        cmd = "sudo desktop-file-install electrum.desktop"
-        try:
-            print cmd
-            os.system(cmd)
-        except:
-            pass
-
 
 
