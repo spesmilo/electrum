@@ -4,19 +4,24 @@
 
 from distutils.core import setup
 from lib.version import ELECTRUM_VERSION as version
+import os
+
+
+data_files=[
+    ('/usr/share/applications/',['electrum.desktop']),
+    ('/usr/share/app-install/icons/',['electrum.png'])
+    ]
+
+for lang in os.listdir('locale'):
+    if os.path.exists('locale/%s/LC_MESSAGES/electrum.mo'%lang):
+        data_files.append(  ('/usr/share/locale/%s/LC_MESSAGES'%lang, ['locale/%s/LC_MESSAGES/electrum.mo'%lang]) )
 
 setup(name = "Electrum",
     version = version,
     install_requires = ['slowaes','ecdsa'],
     package_dir = {'electrum': 'lib'},
     scripts= ['electrum'],
-    data_files=[
-          ('/usr/share/applications/',['electrum.desktop']),
-          ('/usr/share/app-install/icons/',['electrum.png']),
-          ('/usr/share/locale/de/LC_MESSAGES', ['locale/de/LC_MESSAGES/electrum.mo']),
-          ('/usr/share/locale/fr/LC_MESSAGES', ['locale/fr/LC_MESSAGES/electrum.mo']),
-          ('/usr/share/locale/si/LC_MESSAGES', ['locale/si/LC_MESSAGES/electrum.mo']),
-          ],
+    data_files = data_files,
     py_modules = ['electrum.version',
                   'electrum.wallet',
                   'electrum.interface',
