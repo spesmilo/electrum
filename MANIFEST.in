@@ -4,6 +4,8 @@ include electrum
 recursive-include lib *.py
 recursive-include ecdsa *.py
 recursive-include aes *.py
+include app.fil
 include icons.qrc
 include remote.php
 recursive-include icons *
+recursive-include i18n/locale *
