@@ -31,6 +31,9 @@ s = f.read()
 f.close()
 s = s.replace('CHARSET', 'utf-8')
 
+if not os.path.exists('locale'):
+    os.mkdir('locale')
+
 for lang, strings in dicts.items():
     ss = s[:]
     for k,v in strings.items():
