@@ -13,6 +13,7 @@ setup(name = "Electrum",
     data_files=[
           ('/usr/share/locale/de/LC_MESSAGES', ['locale/de/LC_MESSAGES/electrum.mo']),
           ('/usr/share/locale/fr/LC_MESSAGES', ['locale/fr/LC_MESSAGES/electrum.mo']),
+          ('/usr/share/locale/si/LC_MESSAGES', ['locale/si/LC_MESSAGES/electrum.mo']),
           ],
     py_modules = ['electrum.version',
                   'electrum.wallet',

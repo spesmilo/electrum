@@ -21,6 +21,9 @@ for line in lines:
 
 print dicts
 
+if not os.path.exists('locale'):
+    os.mkdir('locale')
+
 
 cmd = 'xgettext -s --no-wrap -f app.fil --output=locale/messages.pot'
 print cmd
@@ -30,9 +33,6 @@ f = open('locale/messages.pot','r')
 s = f.read()
 f.close()
 s = s.replace('CHARSET', 'utf-8')
-
-if not os.path.exists('locale'):
-    os.mkdir('locale')
 
 for lang, strings in dicts.items():
     ss = s[:]
