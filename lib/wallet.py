@@ -213,10 +213,18 @@ def raw_tx( inputs, outputs, for_sig = None ):
 
 def format_satoshis(x, is_diff=False, num_zeros = 0):
     from decimal import Decimal
-    s = str( Decimal(x) /100000000 )
-    if is_diff and x>0:
+    s = Decimal(x)
+    sign, digits, exp = s.as_tuple()
+    digits = map(str, digits)
+    while len(digits) < 9:
+        digits.insert(0,'0')
+    digits.insert(-8,'.')
+    s = ''.join(digits).rstrip('0')
+    if sign: 
+        s = '-' + s
+    elif is_diff:
         s = "+" + s
-    if not '.' in s: s += '.'
+
     p = s.find('.')
     s += "0"*( 1 + num_zeros - ( len(s) - p ))
     s += " "*( 9 - ( len(s) - p ))
