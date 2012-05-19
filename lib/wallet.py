@@ -766,11 +766,21 @@ class Wallet:
             else:
                 for o_addr in tx['outputs']:
                     if self.is_mine(o_addr) and not self.is_change(o_addr):
-                        dest_label = self.labels.get(o_addr)
-                        if dest_label:
-                            default_label = 'at: ' + dest_label
-                        else:
-                            default_label = 'at: ' + o_addr
+                        break
+                else:
+                    for o_addr in tx['outputs']:
+                        if self.is_mine(o_addr):
+                            break
+                    else:
+                        o_addr = None
+
+                if o_addr:
+                    dest_label = self.labels.get(o_addr)
+                    if dest_label:
+                        default_label = 'at: ' + dest_label
+                    else:
+                        default_label = 'at: ' + o_addr
+
             tx['default_label'] = default_label
 
     def mktx(self, to_address, amount, label, password, fee=None, change_addr=None, from_addr= None):
