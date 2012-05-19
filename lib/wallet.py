@@ -956,7 +956,7 @@ class Wallet:
 
     def update(self):
         self.interface.poke()
-        self.up_to_date_event.wait()
+        self.up_to_date_event.wait(10000000000)
 
 
     def start_session(self, interface):
