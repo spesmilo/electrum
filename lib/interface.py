@@ -269,7 +269,10 @@ class TcpStratumInterface(Interface):
             #print "-->",request
             self.message_id += 1
             out += request + '\n'
-        self.s.send( out )
+
+        while out:
+            sent = self.s.send( out )
+            out = out[sent:]
 
     def get_history(self, addr):
         self.send([('blockchain.address.get_history', [addr])])
