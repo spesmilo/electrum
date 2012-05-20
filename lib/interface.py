@@ -219,7 +219,7 @@ class TcpStratumInterface(Interface):
 
     def init_socket(self):
         self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
-        self.s.settimeout(5*60)
+        self.s.settimeout(60)
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
         try:
             self.s.connect(( self.host, self.port))
