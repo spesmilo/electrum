@@ -20,10 +20,10 @@
 
 
 import android
-import lib as electrum
 
-from electrum import WalletSynchronizer, Wallet, format_satoshis
-from electrum import mnemonic
+from interface import WalletSynchronizer
+from wallet import Wallet, format_satoshis
+import mnemonic
 from decimal import Decimal
 import datetime, re
 
@@ -536,14 +536,20 @@ def make_new_contact():
     code = droid.scanBarcode()
     r = code.result
     if r:
-        address = r['extras']['SCAN_RESULT']
-        if address:
-            if wallet.is_valid(address):
+        data = r['extras']['SCAN_RESULT']
+        if data:
+            if re.match('^bitcoin:', data):
+                address, _, _, _, _, _, _ = wallet.parse_url(data, None, None)
+            elif wallet.is_valid(data):
+                address = data
+            else:
+                address = None
+            if address:
                 if modal_question('Add to contacts?', address):
                     wallet.addressbook.append(address)
                     wallet.save()
         else:
-            modal_dialog('Invalid address', address)
+            modal_dialog('Invalid address', data)
 
 
 do_refresh = False
