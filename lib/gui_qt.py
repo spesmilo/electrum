@@ -533,8 +533,8 @@ class ElectrumWindow(QMainWindow):
         l = self.receive_list
         hbox = self.receive_buttons_hbox
 
-        hbox.addWidget(EnterButton("QR",lambda: self.show_address_qrcode(self.get_current_addr(True))))
-        hbox.addWidget(EnterButton("Copy to Clipboard", lambda: self.app.clipboard().setText(self.get_current_addr(True))))
+        hbox.addWidget(EnterButton(_("QR"),lambda: self.show_address_qrcode(self.get_current_addr(True))))
+        hbox.addWidget(EnterButton(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(self.get_current_addr(True))))
 
         def toggle_freeze():
             addr = self.get_current_addr(True)
@@ -546,7 +546,7 @@ class ElectrumWindow(QMainWindow):
             self.wallet.save()
             self.update_receive_tab()
 
-        self.freezeButton = b = EnterButton("Freeze", toggle_freeze)
+        self.freezeButton = b = EnterButton(_("Freeze"), toggle_freeze)
         hbox.addWidget(b)
         hbox.addStretch(1)
 
