@@ -20,12 +20,11 @@
 
 
 import android
-from interface import WalletSynchronizer
-from wallet import Wallet
-from wallet import format_satoshis
-from decimal import Decimal
-import mnemonic
+import lib as electrum
 
+from electrum import WalletSynchronizer, Wallet, format_satoshis
+from electrum import mnemonic
+from decimal import Decimal
 import datetime, re
 
 
