@@ -4,8 +4,11 @@
 
 from distutils.core import setup
 from lib.version import ELECTRUM_VERSION as version
-import os
-
+import os, sys
+if sys.version_info[:3] < (2,6,0):
+    print "Electrum requires Python version >= 2.6.0... exiting"
+    sys.exit(1)
+            
 
 data_files=[
     ('/usr/share/applications/',['electrum.desktop']),
