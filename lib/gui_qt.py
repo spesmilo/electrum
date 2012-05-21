@@ -735,7 +735,7 @@ class ElectrumWindow(QMainWindow):
         try:
             seed = wallet.pw_decode( wallet.seed, password)
         except:
-            QMessageBox.warning(parent, _('Error'), _('Invalid Password'), _('OK'))
+            QMessageBox.warning(parent, _('Error'), _('Incorrect Password'), _('OK'))
             return
 
         msg = _("Your wallet generation seed is") + ":\n\n" + seed + "\n\n"\
