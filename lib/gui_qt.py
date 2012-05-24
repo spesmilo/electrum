@@ -1133,7 +1133,7 @@ class ElectrumWindow(QMainWindow):
 
         set_button(current_line()[2])
 
-        hbox.addWidget(QLabel(_('Protocol:')))
+        hbox.addWidget(QLabel(_('Protocol')+':'))
         hbox.addWidget(radio1)
         hbox.addWidget(radio2)
 
