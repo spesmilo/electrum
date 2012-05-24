@@ -1217,7 +1217,7 @@ class ElectrumGui():
     def restore_or_create(self):
 
         msg = _("Wallet file not found.")+"\n"+_("Do you want to create a new wallet, or to restore an existing one?")
-        r = QMessageBox.question(None, 'Message', msg, 'create', 'restore', 'cancel', 0, 2)
+        r = QMessageBox.question(None, _('Message'), msg, _('Create'), _('Restore'), _('Cancel'), 0, 2)
         if r==2: return False
         
         is_recovery = (r==1)
