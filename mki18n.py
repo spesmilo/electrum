@@ -7,6 +7,7 @@ f = urllib2.urlopen(url)
 lines = f.readlines()
 dicts = {}
 message = None
+num_m = 0
 for line in lines:
     l = line.strip()
     if not l: continue
@@ -18,6 +19,7 @@ for line in lines:
         dicts[lang][message] = translation
     else:
         message = l[1:]
+        num_m += 1
 
 #print dicts
 
@@ -36,6 +38,7 @@ s = s.replace('CHARSET', 'utf-8')
 
 for lang, strings in dicts.items():
     ss = s[:]
+    print(lang + " :%d/%d"%(len(strings), num_m))
     for k,v in strings.items():
         ss = ss.replace("msgid \"%s\"\nmsgstr \"\""%k,"msgid \"%s\"\nmsgstr \"%s\""%(k,v))
     f = open('locale/electrum_%s.po'%lang,'w')
@@ -50,6 +53,6 @@ for lang, strings in dicts.items():
         os.mkdir(mo_dir)
     
     cmd = 'msgfmt --output-file="%s/electrum.mo" "locale/electrum_%s.po"' % (mo_dir,lang)
-    print cmd
+    #print cmd
     os.system(cmd)
     
