@@ -1083,7 +1083,7 @@ class ElectrumWindow(QMainWindow):
 
         d = QDialog(parent)
         d.setModal(1)
-        d.setWindowTitle('Server')
+        d.setWindowTitle(_('Server'))
         d.setMinimumSize(375, 20)
 
         vbox = QVBoxLayout()
@@ -1100,13 +1100,13 @@ class ElectrumWindow(QMainWindow):
         hbox = QHBoxLayout()
         host_line = QLineEdit()
         host_line.setText(server)
-        hbox.addWidget(QLabel('Connect to:'))
+        hbox.addWidget(QLabel(_('Connect to') + ':'))
         hbox.addWidget(host_line)
         vbox.addLayout(hbox)
 
         hbox = QHBoxLayout()
 
-        buttonGroup = QGroupBox("protocol")
+        buttonGroup = QGroupBox(_("Protocol"))
         radio1 = QRadioButton("tcp", buttonGroup)
         radio2 = QRadioButton("http", buttonGroup)
 
