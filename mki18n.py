@@ -19,7 +19,7 @@ for line in lines:
     else:
         message = l[1:]
 
-print dicts
+#print dicts
 
 if not os.path.exists('locale'):
     os.mkdir('locale')
