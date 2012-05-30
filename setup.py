@@ -15,6 +15,9 @@ data_files=[
     ('/usr/share/app-install/icons/',['electrum.png'])
     ]
 
+if not os.path.exists('locale'):
+    os.mkdir('locale')
+
 for lang in os.listdir('locale'):
     if os.path.exists('locale/%s/LC_MESSAGES/electrum.mo'%lang):
         data_files.append(  ('/usr/share/locale/%s/LC_MESSAGES'%lang, ['locale/%s/LC_MESSAGES/electrum.mo'%lang]) )
