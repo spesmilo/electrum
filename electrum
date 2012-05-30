@@ -30,11 +30,14 @@ except:
     print "AES does not seem to be installed. Try 'sudo pip install slowaes'"
     sys.exit(1)
 
-
-import electrum
+try:
+    import electrum
+except:
+    print "Electrum library not found. Importing lib as electrum"
+    import lib as electrum
+    
 from optparse import OptionParser
 from decimal import Decimal
-
 from electrum import Wallet, WalletSynchronizer, format_satoshis
 
 known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'restore', 'payto', 'sendtx', 'password', 'addresses', 'history', 'label', 'mktx','seed','import','signmessage','verifymessage','eval','deseed','reseed']

@@ -40,6 +40,8 @@ except:
     sys.exit(1)
 
 from wallet import format_satoshis
+import bmp, mnemonic, pyqrnative
+
 from decimal import Decimal
 
 import platform
@@ -107,7 +109,6 @@ class QRCodeWidget(QWidget):
         self.set_addr(addr)
 
     def set_addr(self, addr):
-        from electrum import pyqrnative
         self.addr = addr
         self.qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.L)
         self.qr.addData(addr)
@@ -720,7 +721,6 @@ class ElectrumWindow(QMainWindow):
 
     @staticmethod
     def show_seed_dialog(wallet, parent=None):
-        from electrum import mnemonic
 
         if not wallet.seed:
             QMessageBox.information(parent, _('Message'), _('No seed'), _('OK'))
@@ -833,7 +833,6 @@ class ElectrumWindow(QMainWindow):
             qrw.repaint()
 
         def do_save():
-            from electrum import bmp
             bmp.save_qrcode(qrw.qr, "qrcode.bmp")
             self.show_message(_("QR code saved to file") + " 'qrcode.bmp'")
             
@@ -978,7 +977,6 @@ class ElectrumWindow(QMainWindow):
             seed = unicode(seed_e.text())
             seed.decode('hex')
         except:
-            from electrum import mnemonic
             print "not hex, trying decode"
             try:
                 seed = mnemonic.mn_decode( seed.split(' ') )
