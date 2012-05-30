@@ -326,17 +326,19 @@ class Wallet:
 
     def import_key(self, keypair, password):
         address, key = keypair.split(':')
-        if not self.is_valid(address): return False
-        if address in self.all_addresses(): return False
+        if not self.is_valid(address):
+            raise BaseException('Invalid Bitcoin address')
+        if address in self.all_addresses():
+            raise BaseException('Address already in wallet')
         b = ASecretToSecret( key )
         if not b: return False
         secexp = int( b.encode('hex'), 16)
         private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve=SECP256k1 )
         # sanity check
         public_key = private_key.get_verifying_key()
-        if not address == public_key_to_bc_address( '04'.decode('hex') + public_key.to_string() ): return False
+        if not address == public_key_to_bc_address( '04'.decode('hex') + public_key.to_string() ):
+            raise BaseException('Address does not match private key')
         self.imported_keys[address] = self.pw_encode( key, password )
-        return True
 
     def new_seed(self, password):
         seed = "%032x"%ecdsa.util.randrange( pow(2,128) )

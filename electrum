@@ -215,11 +215,12 @@ if __name__ == '__main__':
 
     if cmd == 'import':
         keypair = args[1]
-        if wallet.import_key(keypair,password):
+        try:
+            wallet.import_key(keypair,password)
+            wallet.save()
             print "keypair imported"
-        else:
-            print "error"
-        wallet.save()
+        except BaseException, e:
+            print( 'Error:' + str(e) )
 
     if cmd=='help':
         cmd2 = firstarg
