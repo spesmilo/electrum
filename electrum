@@ -31,10 +31,9 @@ except:
     sys.exit(1)
 
 try:
-    import electrum
-except:
-    print "Electrum library not found. Importing lib as electrum"
     import lib as electrum
+except:
+    import electrum
     
 from optparse import OptionParser
 from decimal import Decimal
@@ -77,9 +76,15 @@ if __name__ == '__main__':
         
     if cmd == 'gui':
         if options.gui=='gtk':
-            import electrum.gui as gui
+            try:
+                import lib.gui as gui
+            except:
+                import electrum.gui as gui
         elif options.gui=='qt':
-            import electrum.gui_qt as gui
+            try:
+               import lib.gui_qt as gui
+            except:
+                import electrum.gui_qt as gui
         else:
             print "unknown gui", options.gui
             exit(1)
