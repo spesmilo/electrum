@@ -665,13 +665,13 @@ class ElectrumWindow(QMainWindow):
 
             if n==0:
                 tx = "None"
-                if l == self.receive_list:
+                if address in self.wallet.addresses:
                     gap += 1
                     if gap > self.wallet.gap_limit:
                         is_red = True
             else:
                 tx = "%d"%n
-                if l == self.receive_list:
+                if address in self.wallet.addresses:
                     gap = 0
 
             c, u = self.wallet.get_addr_balance(address)
@@ -683,7 +683,7 @@ class ElectrumWindow(QMainWindow):
                 item.setBackgroundColor(0, QColor('lightgreen'))
 
             item.setFont(0, QFont(MONOSPACE_FONT))
-            if is_red and l==self.receive_list:
+            if is_red and address in self.wallet.addresses:
                 item.setBackgroundColor(0, QColor('red'))
 
             l.addTopLevelItem(item)
