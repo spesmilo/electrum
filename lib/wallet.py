@@ -332,7 +332,8 @@ class Wallet:
         if address in self.all_addresses():
             raise BaseException('Address already in wallet')
         b = ASecretToSecret( key )
-        if not b: return False
+        if not b: 
+            raise BaseException('Unsupported key format')
         secexp = int( b.encode('hex'), 16)
         private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve=SECP256k1 )
         # sanity check
