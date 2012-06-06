@@ -650,6 +650,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_list.clear()
         self.change_list.clear()
         gap = 0
+        is_red = False
         for address in self.wallet.all_addresses():
             if self.wallet.is_change(address):
                 l = self.change_list
@@ -666,6 +667,8 @@ class ElectrumWindow(QMainWindow):
                 tx = "None"
                 if l == self.receive_list:
                     gap += 1
+                    if gap > self.wallet.gap_limit:
+                        is_red = True
             else:
                 tx = "%d"%n
                 if l == self.receive_list:
@@ -680,7 +683,7 @@ class ElectrumWindow(QMainWindow):
                 item.setBackgroundColor(0, QColor('lightgreen'))
 
             item.setFont(0, QFont(MONOSPACE_FONT))
-            if gap > self.wallet.gap_limit and l == self.receive_list:
+            if is_red and l==self.receive_list:
                 item.setBackgroundColor(0, QColor('red'))
 
             l.addTopLevelItem(item)
