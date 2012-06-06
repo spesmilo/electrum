@@ -555,6 +555,19 @@ class ElectrumWindow(QMainWindow):
 
         self.freezeButton = b = EnterButton(_("Freeze"), toggle_freeze)
         hbox.addWidget(b)
+
+        def toggle_priority():
+            addr = self.get_current_addr(True)
+            if not addr: return
+            if addr in self.wallet.prioritized_addresses:
+                self.wallet.prioritized_addresses.remove(addr)
+            else:
+                self.wallet.prioritized_addresses.append(addr)
+            self.wallet.save()
+            self.update_receive_tab()
+
+        self.prioritizeButton = b = EnterButton(_("Set priority"), toggle_priority)
+        hbox.addWidget(b)
         hbox.addStretch(1)
 
 
@@ -578,7 +591,10 @@ class ElectrumWindow(QMainWindow):
         addr = self.get_current_addr(True)
         t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
         self.freezeButton.setText(t)
-    
+
+        t = _("Remove priority") if addr in self.wallet.prioritized_addresses else _("Set priority")
+        self.prioritizeButton.setText(t)
+
     
     def create_list_tab(self, headers):
         "generic tab creatino method"
@@ -660,6 +676,8 @@ class ElectrumWindow(QMainWindow):
             item = QTreeWidgetItem( [ address, label, balance, tx] )
             if address in self.wallet.frozen_addresses: 
                 item.setBackgroundColor(0, QColor('lightblue'))
+            elif address in self.wallet.prioritized_addresses: 
+                item.setBackgroundColor(0, QColor('lightgreen'))
 
             item.setFont(0, QFont(MONOSPACE_FONT))
             if gap > self.wallet.gap_limit and l == self.receive_list:

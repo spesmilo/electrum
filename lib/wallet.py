@@ -260,6 +260,7 @@ class Wallet:
         self.aliases = {}            # aliases for addresses
         self.authorities = {}        # trusted addresses
         self.frozen_addresses = []
+        self.prioritized_addresses = []
         
         self.receipts = {}           # signed URIs
         self.receipt = None          # next receipt
@@ -569,6 +570,7 @@ class Wallet:
             'receipts':self.receipts,
             'num_zeros':self.num_zeros,
             'frozen_addresses':self.frozen_addresses,
+            'prioritized_addresses':self.prioritized_addresses,
             }
         f = open(self.path,"w")
         f.write( repr(s) )
@@ -606,6 +608,7 @@ class Wallet:
             self.receipts = d.get('receipts',{})
             self.num_zeros = d.get('num_zeros',0)
             self.frozen_addresses = d.get('frozen_addresses',[])
+            self.prioritized_addresses = d.get('prioritized_addresses',[])
         except:
             raise BaseException("cannot read wallet file")
 
@@ -648,8 +651,12 @@ class Wallet:
         fee = self.fee if fixed_fee is None else fixed_fee
 
         coins = []
+        prioritized_coins = []
         domain = [from_addr] if from_addr else self.all_addresses()
         for i in self.frozen_addresses:
+            if i in domain: domain.remove(i)
+
+        for i in self.prioritized_addresses:
             if i in domain: domain.remove(i)
 
         for addr in domain:
@@ -660,7 +667,19 @@ class Wallet:
                     coins.append( (addr,item))
 
         coins = sorted( coins, key = lambda x: x[1]['timestamp'] )
+
+        for addr in prioritized_addresses:
+            h = self.history.get(addr)
+            if h is None: continue
+            for item in h:
+                if item.get('raw_output_script'):
+                    prioritized_coins.append( (addr,item))
+
+        prioritized_coins = sorted( prioritized_coins, key = lambda x: x[1]['timestamp'] )
+
         inputs = []
+        coins = prioritized_coins + coins
+
         for c in coins: 
             addr, item = c
             v = item.get('value')
