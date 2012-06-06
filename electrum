@@ -39,32 +39,58 @@ from optparse import OptionParser
 from decimal import Decimal
 from electrum import Wallet, WalletSynchronizer, format_satoshis
 
-known_commands = [ 
-    'help', 
-    'validateaddress', 
-    'balance', 
-    'contacts', 
-    'create', 
-    'restore', 
-    'payto', 
-    'sendtx', 
-    'password', 
-    'addresses', 
-    'history', 
-    'label', 
-    'mktx',
-    'seed',
-    'import',
-    'signmessage',
-    'verifymessage',
-    'eval',
-    'deseed',
-    'reseed',
-    'freeze',
-    'unfreeze',
-    'prioritize',
-    'unprioritize',
-    ]
+known_commands = {
+    'help':'print help',
+    'validateaddress':'check that the address is valid', 
+    'balance': "Display the balance of your wallet or of an address.\nsyntax: balance [<address>]", 
+    'contacts': "Show your list of contacts", 
+    'create':'create wallet', 
+    'restore':'restore wallet', 
+    'payto':""" 
+            payto <recipient> <amount> [label]
+            create and broadcast a transaction.
+            <recipient> can be a bitcoin address or a label
+            options:\n--fee, -f: set transaction fee\n--fromaddr, -s: send from address -\n--changeaddr, -c: send change to address
+            """,
+    'sendtx':
+            """sendtx <tx>
+            broadcast a transaction to the network. <tx> must be in hexadecimal""",
+    'password': 
+            "change your password",
+    'addresses':  
+            """show your list of addresses.
+            options:
+             -a: show all addresses, including change addresses
+             -k: show private keys
+             -b: show the balance of addresses""",
+    'history':"show the transaction history",
+    'label':"assign a label to an item",
+    'mktx':
+        """create a signed transaction. password protected
+           syntax: mktx <recipient> <amount> [label]
+           options:\n--fee, -f: set transaction fee\n--fromaddr, -s: send from address -\n--changeaddr, -c: send change to address
+        """,
+    'seed':
+            "print the generation seed of your wallet.",
+    'import': 
+            "import key pair",
+    'signmessage':
+            'sign a message with a key',
+    'verifymessage':
+             'verify signature',
+    'eval':  
+             "Run python eval() on an object\nSyntax: eval <expression>\nExample: eval \"wallet.aliases\"",
+    'deseed':
+            "remove seed from the wallet. The seed is stored in a file that has the name of the wallet plus '.seed'",
+    'reseed':
+            "restore seed of the wallet. The wallet must have no seed, and the seed must match the wallet's master public key.",
+    'freeze':'',
+    'unfreeze':'',
+    'prioritize':'',
+    'unprioritize':'',
+    }
+
+
 
 offline_commands = [ 'password', 'mktx', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create', 'addresses', 'import', 'seed','deseed','reseed','freeze','unfreeze','prioritize','unprioritize']
 
@@ -263,42 +289,8 @@ if __name__ == '__main__':
             print "type 'electrum help <command>' to see the help for a specific command"
             print "type 'electrum --help' to see the list of options"
             print "list of commands:", ', '.join(known_commands)
-        elif cmd2 == 'balance':
-            print "Display the balance of your wallet or of an address."
-            print "syntax: balance [<address>]"
-        elif cmd2 == 'contacts':
-            print "show your list of contacts"
-        elif cmd2 == 'payto':
-            print "payto <recipient> <amount> [label]"
-            print "create and broadcast a transaction."
-            print "<recipient> can be a bitcoin address or a label"
-            print "options:\n--fee, -f: set transaction fee\n--fromaddr, -s: send from address -\n--changeaddr, -c: send change to address"
-        elif cmd2== 'sendtx':
-            print "sendtx <tx>"
-            print "broadcast a transaction to the network. <tx> must be in hexadecimal"
-        elif cmd2 == 'password':
-            print "change your password"
-        elif cmd2 == 'addresses':
-            print "show your list of addresses."
-            print "options:\n -a: show all addresses, including change addresses\n-k: show private keys\n-b: show the balance of addresses"
-        elif cmd2 == 'history':
-            print "show the transaction history"
-        elif cmd2 == 'label':
-            print "assign a label to an item"
-        elif cmd2 == 'gtk':
-            print "start the GUI"
-        elif cmd2 == 'mktx':
-            print "create a signed transaction. password protected"
-            print "syntax: mktx <recipient> <amount> [label]"
-            print "options:\n--fee, -f: set transaction fee\n--fromaddr, -s: send from address -\n--changeaddr, -c: send change to address"
-        elif cmd2 == 'seed':
-            print "print the generation seed of your wallet."
-        elif cmd2 == 'deseed':
-            print "remove seed from the wallet. The seed is stored in a file that has the name of the wallet plus '.seed'"
-        elif cmd2 == 'reseed':
-            print "restore seed of the wallet. The wallet must have no seed, and the seed must match the wallet's master public key."
-        elif cmd2 == 'eval':
-            print "Run python eval() on an object\nSyntax: eval <expression>\nExample: eval \"wallet.aliases\""
+        else:
+            print known_commands[cmd2]
 
     elif cmd == 'seed':
         from electrum import mnemonic
