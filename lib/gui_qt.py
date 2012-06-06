@@ -534,6 +534,12 @@ class ElectrumWindow(QMainWindow):
 
         l = self.receive_list
         hbox = self.receive_buttons_hbox
+        def create_new_address():
+            if self.question( _("Warning:\nThis will create an address beyond your current gap limit.") + "\n" + _("Are you sure?")):
+                self.wallet.create_new_address(False)
+                self.update_receive_tab()
+            
+        hbox.addWidget(EnterButton(_("New"),create_new_address))
         hbox.addWidget(EnterButton(_("QR"),lambda: self.show_address_qrcode(self.get_current_addr(True))))
         hbox.addWidget(EnterButton(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(self.get_current_addr(True))))
 
@@ -627,6 +633,7 @@ class ElectrumWindow(QMainWindow):
     def update_receive_tab(self):
         self.receive_list.clear()
         self.change_list.clear()
+        gap = 0
         for address in self.wallet.all_addresses():
             if self.wallet.is_change(address):
                 l = self.change_list
@@ -638,15 +645,26 @@ class ElectrumWindow(QMainWindow):
             h = self.wallet.history.get(address,[])
             for item in h:
                 if not item['is_input'] : n=n+1
-            tx = "None" if n==0 else "%d"%n
+
+            if n==0:
+                tx = "None"
+                if l == self.receive_list:
+                    gap += 1
+            else:
+                tx = "%d"%n
+                if l == self.receive_list:
+                    gap = 0
 
             c, u = self.wallet.get_addr_balance(address)
             balance = format_satoshis( c + u, False, self.wallet.num_zeros )
-            if address in self.wallet.frozen_addresses: 
-                balance += '[F]'
-
             item = QTreeWidgetItem( [ address, label, balance, tx] )
+            if address in self.wallet.frozen_addresses: 
+                item.setBackgroundColor(0, QColor('lightblue'))
+
             item.setFont(0, QFont(MONOSPACE_FONT))
+            if gap > self.wallet.gap_limit and l == self.receive_list:
+                item.setBackgroundColor(0, QColor('red'))
+
             l.addTopLevelItem(item)
 
     def show_contact_details(self, item, column):
