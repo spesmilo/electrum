@@ -669,7 +669,7 @@ class Wallet:
 
         coins = sorted( coins, key = lambda x: x[1]['timestamp'] )
 
-        for addr in prioritized_addresses:
+        for addr in self.prioritized_addresses:
             h = self.history.get(addr)
             if h is None: continue
             for item in h:

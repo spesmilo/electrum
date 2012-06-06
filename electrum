@@ -39,8 +39,35 @@ from optparse import OptionParser
 from decimal import Decimal
 from electrum import Wallet, WalletSynchronizer, format_satoshis
 
-known_commands = ['help', 'validateaddress', 'balance', 'contacts', 'create', 'restore', 'payto', 'sendtx', 'password', 'addresses', 'history', 'label', 'mktx','seed','import','signmessage','verifymessage','eval','deseed','reseed']
-offline_commands = ['password', 'mktx', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create', 'addresses', 'import', 'seed','deseed','reseed']
+known_commands = [ 
+    'help', 
+    'validateaddress', 
+    'balance', 
+    'contacts', 
+    'create', 
+    'restore', 
+    'payto', 
+    'sendtx', 
+    'password', 
+    'addresses', 
+    'history', 
+    'label', 
+    'mktx',
+    'seed',
+    'import',
+    'signmessage',
+    'verifymessage',
+    'eval',
+    'deseed',
+    'reseed',
+    'freeze',
+    'unfreeze',
+    'prioritize',
+    'unprioritize',
+    ]
+
+offline_commands = [ 'password', 'mktx', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create', 'addresses', 'import', 'seed','deseed','reseed','freeze','unfreeze','prioritize','unprioritize']
+
 protected_commands = ['payto', 'password', 'mktx', 'seed', 'import','signmessage' ]
 
 if __name__ == '__main__':
@@ -480,5 +507,40 @@ if __name__ == '__main__':
             print True
         except:
             print False
-        
+
+    elif cmd == 'freeze':
+        addr = args[1]
+        if addr in self.wallet.all_addresses() and addr not in self.wallet.frozen_addresses:
+            self.wallet.frozen_addresses.append(addr)
+            self.wallet.save()
+            print True
+        else:
+            print False
+
+    elif cmd == 'unfreeze':
+        addr = args[1]
+        if addr in self.wallet.all_addresses() and addr in self.wallet.frozen_addresses:
+            self.wallet.frozen_addresses.remove(addr)
+            self.wallet.save()
+            print True
+        else:
+            print False
+
+    elif cmd == 'prioritize':
+        addr = args[1]
+        if addr in self.wallet.all_addresses() and addr not in self.wallet.frozen_addresses:
+            self.wallet.prioritized_addresses.append(addr)
+            self.wallet.save()
+            print True
+        else:
+            print False
+
+    elif cmd == 'unprioritize':
+        addr = args[1]
+        if addr in self.wallet.all_addresses() and addr in self.wallet.frozen_addresses:
+            self.wallet.prioritized_addresses.remove(addr)
+            self.wallet.save()
+            print True
+        else:
+            print False
 

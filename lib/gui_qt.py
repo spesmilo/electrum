@@ -566,7 +566,7 @@ class ElectrumWindow(QMainWindow):
             self.wallet.save()
             self.update_receive_tab()
 
-        self.prioritizeButton = b = EnterButton(_("Set priority"), toggle_priority)
+        self.prioritizeButton = b = EnterButton(_("Prioritize"), toggle_priority)
         hbox.addWidget(b)
         hbox.addStretch(1)
 
@@ -592,7 +592,7 @@ class ElectrumWindow(QMainWindow):
         t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
         self.freezeButton.setText(t)
 
-        t = _("Remove priority") if addr in self.wallet.prioritized_addresses else _("Set priority")
+        t = _("Unprioritize") if addr in self.wallet.prioritized_addresses else _("Prioritize")
         self.prioritizeButton.setText(t)
 
     
