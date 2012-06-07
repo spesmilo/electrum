@@ -494,6 +494,42 @@ class Wallet:
         return address
 
 
+    def change_gap_limit(self, value):
+        if value >= self.gap_limit:
+            self.gap_limit = value
+            self.save()
+            return True
+
+        elif value >= self.min_acceptable_gap():
+            k = self.num_unused_trailing_addresses()
+            n = len(self.addresses) - k + value
+            self.addresses = self.addresses[0:n]
+            self.gap_limit = value
+            self.save()
+            return True
+        else:
+            return False
+
+    def num_unused_trailing_addresses(self):
+        k = 0
+        for a in self.addresses[::-1]:
+            if self.history.get(a):break
+            k = k + 1
+        return k
+
+    def min_acceptable_gap(self):
+        # fixme: this assumes wallet is synchronized
+        n = 0
+        nmax = 0
+        k = self.num_unused_trailing_addresses()
+        for a in self.addresses[0:-k]:
+            if self.history.get(a):
+                n = 0
+            else:
+                n += 1
+                if n > nmax: nmax = n
+        return nmax
+
 
     def synchronize(self):
         if not self.master_public_key:
@@ -574,6 +610,7 @@ class Wallet:
             'frozen_addresses':self.frozen_addresses,
             'prioritized_addresses':self.prioritized_addresses,
             'expert_mode':self.expert_mode,
+            'gap_limit':self.gap_limit,
             }
         f = open(self.path,"w")
         f.write( repr(s) )
@@ -613,6 +650,7 @@ class Wallet:
             self.frozen_addresses = d.get('frozen_addresses',[])
             self.prioritized_addresses = d.get('prioritized_addresses',[])
             self.expert_mode = d.get('expert_mode',False)
+            self.gap_limit = d.get('gap_limit',5)
         except:
             raise BaseException("cannot read wallet file")
 

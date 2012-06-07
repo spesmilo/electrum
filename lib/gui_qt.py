@@ -549,17 +549,11 @@ class ElectrumWindow(QMainWindow):
         self.update_receive_tab()
 
 
-    def create_new_address(self):
-        if self.question( _("Warning:\nThis will create an address beyond your current gap limit.") + "\n" + _("Are you sure?")):
-            self.wallet.create_new_address(False)
-            self.update_receive_tab()
-
     def add_receive_buttons(self):
-
         l = self.receive_list
         hbox = self.receive_buttons_hbox
             
-        self.new_address_button = EnterButton(_("New"), self.create_new_address)
+        self.new_address_button = EnterButton(_("New"), self.change_gap_limit_dialog)
         hbox.addWidget(self.new_address_button)
         self.new_address_button.setHidden(not self.wallet.expert_mode)
 
@@ -632,7 +626,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_buttons_hbox = hbox
         #self.add_receive_buttons()
 
-        self.new_address_button = EnterButton(_("New"), self.create_new_address)
+        self.new_address_button = EnterButton(_("New"), self.change_gap_limit_dialog)
         self.new_address_button.setHidden(not self.wallet.expert_mode)
         hbox.addWidget(self.new_address_button)
         hbox.addStretch(1)
@@ -973,6 +967,42 @@ class ElectrumWindow(QMainWindow):
 
         if not d.exec_(): return
         return unicode(pw.text())
+
+
+    def change_gap_limit_dialog(self):
+        d = QDialog(self)
+        d.setModal(1)
+
+        vbox = QVBoxLayout()
+        
+        msg = _('In order to create more addresses, you need to raise your gap limit.') + '\n' \
+              + _('Your current gap limit is ') + '%d'%self.wallet.gap_limit + '\n' \
+              + _('The minimum for this wallet is: ') + '%d'%self.wallet.min_acceptable_gap() + '\n' 
+
+        vbox.addWidget(QLabel(msg))
+
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        grid.addWidget(QLabel(_('New gap limit: ')), 1, 0)
+
+        e = QLineEdit()
+        grid.addWidget(e, 1, 1)
+        vbox.addLayout(grid)
+
+        vbox.addLayout(ok_cancel_buttons(d))
+        d.setLayout(vbox) 
+
+        if not d.exec_(): return
+        try:
+            n = int(e.text())
+        except:
+            return
+
+        self.wallet.change_gap_limit(n)
+        self.update_receive_tab()
+
+
+
 
     @staticmethod
     def change_password_dialog( wallet, parent=None ):
