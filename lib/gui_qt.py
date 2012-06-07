@@ -996,10 +996,15 @@ class ElectrumWindow(QMainWindow):
         try:
             n = int(e.text())
         except:
+            QMessageBox.warning(self, _('Error'), _('Invalid Value'), _('OK'))
             return
 
-        self.wallet.change_gap_limit(n)
-        self.update_receive_tab()
+        r = self.wallet.change_gap_limit(n)
+        if r:
+            self.update_receive_tab()
+        else:
+            QMessageBox.warning(self, _('Error'), _('Invalid Value'), _('OK'))
+
 
 
 
