@@ -32,7 +32,7 @@ except:
 
 try:
     from lib import Wallet, WalletSynchronizer, format_satoshis, mnemonic
-except:
+except ImportError:
     from electrum import Wallet, WalletSynchronizer, format_satoshis, mnemonic
     
 from optparse import OptionParser
@@ -130,12 +130,12 @@ if __name__ == '__main__':
         if options.gui=='gtk':
             try:
                 import lib.gui as gui
-            except:
+            except ImportError:
                 import electrum.gui as gui
         elif options.gui=='qt':
             try:
                 import lib.gui_qt as gui
-            except:
+            except ImportError:
                 import electrum.gui_qt as gui
         else:
             print "unknown gui", options.gui
