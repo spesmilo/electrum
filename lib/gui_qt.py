@@ -585,7 +585,7 @@ class ElectrumWindow(QMainWindow):
             self.payto_e.setText(addr)
             self.amount_e.setFocus()
         hbox.addWidget(EnterButton(_('Pay to'), lambda: payto()))
-        hbox.addWidget(EnterButton(_("New"), self.newaddress_dialog))
+        hbox.addWidget(EnterButton(_("New"), self.new_contact_dialog))
         hbox.addStretch(1)
 
     def update_receive_buttons(self):
@@ -650,7 +650,7 @@ class ElectrumWindow(QMainWindow):
         self.contacts_list = l
         self.contacts_buttons_hbox = hbox
         #self.add_contacts_buttons()
-        hbox.addWidget(EnterButton(_("New"), self.newaddress_dialog))
+        hbox.addWidget(EnterButton(_("New"), self.new_contact_dialog))
         hbox.addStretch(1)
         return w
 
@@ -661,8 +661,8 @@ class ElectrumWindow(QMainWindow):
         self.receive_list.selectedIndexes() 
         addr = self.get_current_addr(True)
         menu = QMenu()
-        menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
+        menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
         if self.wallet.expert_mode:
             t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
             menu.addAction(t, lambda: self.toggle_freeze(addr))
@@ -684,8 +684,8 @@ class ElectrumWindow(QMainWindow):
         self.receive_list.selectedIndexes() 
         addr = self.get_current_addr(False)
         menu = QMenu()
-        menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
+        menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
         menu.addAction(_("Pay to"), lambda: self.payto(addr))
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
@@ -801,7 +801,7 @@ class ElectrumWindow(QMainWindow):
         sb.addPermanentWidget( self.status_button )
         self.setStatusBar(sb)
 
-    def newaddress_dialog(self):
+    def new_contact_dialog(self):
         text, ok = QInputDialog.getText(self, _('New Contact'), _('Address') + ':')
         address = unicode(text)
         if ok:
