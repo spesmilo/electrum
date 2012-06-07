@@ -623,6 +623,10 @@ class Wallet:
         self.file_exists = True
 
 
+    def get_address_flags(self, addr):
+        flags = "C" if self.is_change(addr) else "I" if addr in self.imported_keys.keys() else "-" 
+        flags += "F" if addr in self.frozen_addresses else "P" if addr in self.prioritized_addresses else "-"
+        return flags
         
 
     def get_addr_balance(self, addr):

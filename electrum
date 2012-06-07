@@ -380,10 +380,9 @@ if __name__ == '__main__':
         for addr in wallet.all_addresses():
             if options.show_all or not wallet.is_change(addr):
 
-                flags = "C" if wallet.is_change(addr) else "I" if addr in wallet.imported_keys.keys() else "-" 
-                flags += "F" if addr in wallet.frozen_addresses else "P" if addr in wallet.prioritized_addresses else "-" 
-
+                flags = wallet.get_address_flags(addr)
                 label = wallet.labels.get(addr,'')
+                
                 if label: label = "\"%s\""%label
 
                 if options.show_balance:

@@ -693,9 +693,10 @@ class ElectrumWindow(QMainWindow):
 
             c, u = self.wallet.get_addr_balance(address)
             balance = format_satoshis( c + u, False, self.wallet.num_zeros )
-            flags = '--'
+            flags = self.wallet.get_address_flags(address)
             item = QTreeWidgetItem( [ flags, address, label, balance, tx] )
 
+            item.setFont(0, QFont(MONOSPACE_FONT))
             item.setFont(1, QFont(MONOSPACE_FONT))
             if address in self.wallet.frozen_addresses: 
                 item.setBackgroundColor(1, QColor('lightblue'))
