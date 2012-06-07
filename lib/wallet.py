@@ -498,6 +498,7 @@ class Wallet:
         if value >= self.gap_limit:
             self.gap_limit = value
             self.save()
+            self.interface.poke()
             return True
 
         elif value >= self.min_acceptable_gap():
