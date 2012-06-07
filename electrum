@@ -31,13 +31,12 @@ except:
     sys.exit(1)
 
 try:
-    import lib as electrum
+    from lib import Wallet, WalletSynchronizer, format_satoshis, mnemonic
 except:
-    import electrum
+    from electrum import Wallet, WalletSynchronizer, format_satoshis, mnemonic
     
 from optparse import OptionParser
 from decimal import Decimal
-from electrum import Wallet, WalletSynchronizer, format_satoshis
 
 known_commands = {
     'help':'print help',
@@ -135,7 +134,7 @@ if __name__ == '__main__':
                 import electrum.gui as gui
         elif options.gui=='qt':
             try:
-               import lib.gui_qt as gui
+                import lib.gui_qt as gui
             except:
                 import electrum.gui_qt as gui
         else:
@@ -171,7 +170,6 @@ if __name__ == '__main__':
         sys.exit(0)
     
     if cmd in ['create', 'restore']:
-        from electrum import mnemonic
         if wallet.file_exists:
             print "remove the existing wallet first!"
             sys.exit(0)
@@ -293,7 +291,6 @@ if __name__ == '__main__':
             print known_commands[cmd2]
 
     elif cmd == 'seed':
-        from electrum import mnemonic
         seed = wallet.pw_decode( wallet.seed, password)
         print seed + ' "' + ' '.join(mnemonic.mn_encode(seed)) + '"'
 
