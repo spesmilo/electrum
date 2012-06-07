@@ -382,22 +382,25 @@ if __name__ == '__main__':
     elif cmd in [ 'addresses']:
         for addr in wallet.all_addresses():
             if options.show_all or not wallet.is_change(addr):
-                label = wallet.labels.get(addr)
-                _type = ''
-                if wallet.is_change(addr): _type = "[change]"
-                if addr in wallet.imported_keys.keys(): _type = "[imported]"
-                if label is None: label = ''
+
+                flags = "C" if wallet.is_change(addr) else "I" if addr in wallet.imported_keys.keys() else "-" 
+                flags += "F" if addr in wallet.frozen_addresses else "P" if addr in wallet.prioritized_addresses else "-" 
+
+                label = wallet.labels.get(addr,'')
+                if label: label = "\"%s\""%label
+
                 if options.show_balance:
                     h = wallet.history.get(addr,[])
-                    ni = no = 0
-                    for item in h:
-                        if item['is_input']:  ni += 1
-                        else:              no += 1
-                    b = "%d %d %s"%(no, ni, str(Decimal(wallet.get_addr_balance(addr)[0])/100000000))
+                    #ni = no = 0
+                    #for item in h:
+                    #    if item['is_input']:  ni += 1
+                    #    else:              no += 1
+                    b = format_satoshis(wallet.get_addr_balance(addr)[0])
                 else: b=''
+                addr = "%34s"%addr
                 if options.show_keys:
                     addr += ':' + str(wallet.get_private_key_base58(addr, password))
-                print addr, b, _type, label
+                print flags, addr, b, label
 
     if cmd == 'history':
         lines = wallet.get_tx_history()
