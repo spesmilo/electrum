@@ -261,6 +261,7 @@ class Wallet:
         self.authorities = {}        # trusted addresses
         self.frozen_addresses = []
         self.prioritized_addresses = []
+        self.expert_mode = False
         
         self.receipts = {}           # signed URIs
         self.receipt = None          # next receipt
@@ -572,6 +573,7 @@ class Wallet:
             'num_zeros':self.num_zeros,
             'frozen_addresses':self.frozen_addresses,
             'prioritized_addresses':self.prioritized_addresses,
+            'expert_mode':self.expert_mode,
             }
         f = open(self.path,"w")
         f.write( repr(s) )
@@ -610,6 +612,7 @@ class Wallet:
             self.num_zeros = d.get('num_zeros',0)
             self.frozen_addresses = d.get('frozen_addresses',[])
             self.prioritized_addresses = d.get('prioritized_addresses',[])
+            self.expert_mode = d.get('expert_mode',False)
         except:
             raise BaseException("cannot read wallet file")
 

@@ -155,7 +155,6 @@ class ElectrumWindow(QMainWindow):
         self.wallet.gui_callback = self.update_callback
 
         self.funds_error = False
-        self.expert_mode = False
 
         self.tabs = tabs = QTabWidget(self)
         tabs.addTab(self.create_history_tab(), _('History') )
@@ -562,7 +561,7 @@ class ElectrumWindow(QMainWindow):
             
         self.new_address_button = EnterButton(_("New"), self.create_new_address)
         hbox.addWidget(self.new_address_button)
-        self.new_address_button.setHidden(not self.expert_mode)
+        self.new_address_button.setHidden(not self.wallet.expert_mode)
 
         hbox.addWidget(EnterButton(_("QR"),lambda: self.show_address_qrcode(self.get_current_addr(True))))
         hbox.addWidget(EnterButton(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(self.get_current_addr(True))))
@@ -634,7 +633,7 @@ class ElectrumWindow(QMainWindow):
         #self.add_receive_buttons()
 
         self.new_address_button = EnterButton(_("New"), self.create_new_address)
-        self.new_address_button.setHidden(not self.expert_mode)
+        self.new_address_button.setHidden(not self.wallet.expert_mode)
         hbox.addWidget(self.new_address_button)
         hbox.addStretch(1)
 
@@ -664,7 +663,7 @@ class ElectrumWindow(QMainWindow):
         menu = QMenu()
         menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
-        if self.expert_mode:
+        if self.wallet.expert_mode:
             t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
             menu.addAction(t, lambda: self.toggle_freeze(addr))
             t = _("Unprioritize") if addr in self.wallet.prioritized_addresses else _("Prioritize")
@@ -694,25 +693,25 @@ class ElectrumWindow(QMainWindow):
     def update_receive_tab(self):
         l = self.receive_list
         l.clear()
-        l.setColumnHidden(0,not self.expert_mode)
-        l.setColumnHidden(3,not self.expert_mode)
-        l.setColumnHidden(4,not self.expert_mode)
+        l.setColumnHidden(0,not self.wallet.expert_mode)
+        l.setColumnHidden(3,not self.wallet.expert_mode)
+        l.setColumnHidden(4,not self.wallet.expert_mode)
         l.setColumnWidth(0, 50) 
         l.setColumnWidth(1, 310) 
         l.setColumnWidth(2, 300)
         l.setColumnWidth(3, 90) 
         l.setColumnWidth(4, 10)
         
-        self.new_address_button.setHidden(not self.expert_mode)
+        self.new_address_button.setHidden(not self.wallet.expert_mode)
         
-        #self.prioritize_button.setHidden(not self.expert_mode)
-        #self.freeze_button.setHidden(not self.expert_mode)
+        #self.prioritize_button.setHidden(not self.wallet.expert_mode)
+        #self.freeze_button.setHidden(not self.wallet.expert_mode)
 
         gap = 0
         is_red = False
         for address in self.wallet.all_addresses():
 
-            if self.wallet.is_change(address) and not self.expert_mode:
+            if self.wallet.is_change(address) and not self.wallet.expert_mode:
                 continue
 
             label = self.wallet.labels.get(address,'')
@@ -762,7 +761,7 @@ class ElectrumWindow(QMainWindow):
     def update_contacts_tab(self):
         l = self.contacts_list
         l.clear()
-        l.setColumnHidden(2, not self.expert_mode)
+        l.setColumnHidden(2, not self.wallet.expert_mode)
         l.setColumnWidth(0, 350) 
         l.setColumnWidth(1, 330)
         l.setColumnWidth(2, 100) 
@@ -1087,10 +1086,13 @@ class ElectrumWindow(QMainWindow):
         wallet.gap_limit = gap
         return True
 
-    def toggle_expert_mode(self):
-        self.expert_mode = not self.expert_mode
+
+    def set_expert_mode(self, b):
+        self.wallet.expert_mode = b
+        self.wallet.save()
         self.update_receive_tab()
         self.update_contacts_tab()
+        
 
 
     def settings_dialog(self):
@@ -1120,14 +1122,14 @@ class ElectrumWindow(QMainWindow):
 
         cb = QCheckBox('Expert mode')
         grid.addWidget(cb,4,0)
+        cb.setChecked(self.wallet.expert_mode)
 
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
 
         if not d.exec_(): return
 
-        if cb.isChecked():
-            self.toggle_expert_mode()
+        self.set_expert_mode(cb.isChecked())
 
         fee = unicode(fee_e.text())
         try:
