@@ -997,6 +997,7 @@ class Wallet:
 
     def freeze(self,addr):
         if addr in self.all_addresses() and addr not in self.frozen_addresses:
+            self.unprioritize(addr)
             self.frozen_addresses.append(addr)
             self.save()
             return True
