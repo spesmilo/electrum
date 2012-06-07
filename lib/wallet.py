@@ -1013,7 +1013,8 @@ class Wallet:
             return False
 
     def prioritize(self,addr):
-        if addr in self.all_addresses() and addr not in self.frozen_addresses and addr not in self.prioritized_addresses:
+        if addr in self.all_addresses() and addr not in self.prioritized_addresses:
+            self.unfreeze(addr)
             self.prioritized_addresses.append(addr)
             self.save()
             return True
