@@ -528,7 +528,7 @@ class Wallet:
             else:
                 n += 1
                 if n > nmax: nmax = n
-        return nmax
+        return nmax + 1
 
 
     def synchronize(self):
