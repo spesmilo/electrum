@@ -155,13 +155,13 @@ class ElectrumWindow(QMainWindow):
         self.wallet.gui_callback = self.update_callback
 
         self.funds_error = False
+        self.expert_mode = False
 
         self.tabs = tabs = QTabWidget(self)
         tabs.addTab(self.create_history_tab(), _('History') )
         if self.wallet.seed:
             tabs.addTab(self.create_send_tab(), _('Send') )
         tabs.addTab(self.create_receive_tab(), _('Receive') )
-        tabs.addTab(self.create_change_tab(), _('Change') )
         tabs.addTab(self.create_contacts_tab(), _('Contacts') )
         tabs.addTab(self.create_wall_tab(), _('Wall') )
         tabs.setMinimumSize(600, 400)
@@ -311,18 +311,18 @@ class ElectrumWindow(QMainWindow):
             item.setForeground(2, QBrush(QColor('gray')))
         self.is_edit=False
 
-    def address_label_clicked(self, item, column, l):
-        if column==1 and item.isSelected():
-            addr = unicode( item.text(0) )
+    def address_label_clicked(self, item, column, l, column_addr, column_label):
+        if column==column_label and item.isSelected():
+            addr = unicode( item.text(column_addr) )
             if addr in map(lambda x:x[1], self.wallet.aliases.values()):
                 return
             item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
             l.editItem( item, column )
             item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
 
-    def address_label_changed(self, item, column, l):
-        addr = unicode( item.text(0) )
-        text = unicode( item.text(1) )
+    def address_label_changed(self, item, column, l, column_addr, column_label):
+        addr = unicode( item.text(column_addr) )
+        text = unicode( item.text(column_label) )
         if text:
             self.wallet.labels[addr] = text
         else:
@@ -521,11 +521,13 @@ class ElectrumWindow(QMainWindow):
     def get_current_addr(self, is_recv):
         if is_recv:
             l = self.receive_list
+            n = 1
         else:
             l = self.contacts_list
+            n = 0
         i = l.currentItem()
         if i: 
-            return unicode( i.text(0) )
+            return unicode( i.text(n) )
         else:
             return ''
 
@@ -539,7 +541,10 @@ class ElectrumWindow(QMainWindow):
                 self.wallet.create_new_address(False)
                 self.update_receive_tab()
             
-        hbox.addWidget(EnterButton(_("New"),create_new_address))
+        self.new_address_button = EnterButton(_("New"), create_new_address)
+        hbox.addWidget(self.new_address_button)
+        self.new_address_button.setHidden(not self.expert_mode)
+
         hbox.addWidget(EnterButton(_("QR"),lambda: self.show_address_qrcode(self.get_current_addr(True))))
         hbox.addWidget(EnterButton(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(self.get_current_addr(True))))
 
@@ -552,7 +557,7 @@ class ElectrumWindow(QMainWindow):
                 self.wallet.freeze(addr)
             self.update_receive_tab()
 
-        self.freezeButton = b = EnterButton(_("Freeze"), toggle_freeze)
+        self.freeze_button = b = EnterButton(_("Freeze"), toggle_freeze)
         hbox.addWidget(b)
 
         def toggle_priority():
@@ -564,7 +569,7 @@ class ElectrumWindow(QMainWindow):
                 self.wallet.prioritize(addr)
             self.update_receive_tab()
 
-        self.prioritizeButton = b = EnterButton(_("Prioritize"), toggle_priority)
+        self.prioritize_button = b = EnterButton(_("Prioritize"), toggle_priority)
         hbox.addWidget(b)
         hbox.addStretch(1)
 
@@ -588,20 +593,16 @@ class ElectrumWindow(QMainWindow):
     def update_receive_buttons(self):
         addr = self.get_current_addr(True)
         t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
-        self.freezeButton.setText(t)
+        self.freeze_button.setText(t)
 
         t = _("Unprioritize") if addr in self.wallet.prioritized_addresses else _("Prioritize")
-        self.prioritizeButton.setText(t)
+        self.prioritize_button.setText(t)
 
     
     def create_list_tab(self, headers):
         "generic tab creatino method"
         l = QTreeWidget(self)
         l.setColumnCount( len(headers) )
-        l.setColumnWidth(0, 350) 
-        l.setColumnWidth(1, 330)
-        l.setColumnWidth(2, 100) 
-        l.setColumnWidth(3, 10) 
         l.setHeaderLabels( headers )
 
         w = QWidget()
@@ -619,41 +620,59 @@ class ElectrumWindow(QMainWindow):
         hbox.setSpacing(0)
         buttons.setLayout(hbox)
 
-        self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l))
-        self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l))
         return l,w,hbox
 
     def create_receive_tab(self):
-        l,w,hbox = self.create_list_tab([_('Address'), _('Label'), _('Balance'), _('Tx')])
+        l,w,hbox = self.create_list_tab([_('Flags'), _('Address'), _('Label'), _('Balance'), _('Tx')])
         l.selectionModel().currentChanged.connect(self.update_receive_buttons)
+        self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,1,2))
+        self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,1,2))
+
         self.receive_list = l
         self.receive_buttons_hbox = hbox
         self.add_receive_buttons()
-        return w
 
-    def create_change_tab(self):
-        l,w,hbox = self.create_list_tab([_('Address'), _('Label'), _('Balance'), _('Tx')])
-        self.change_list = l
+        cb = QCheckBox('Expert mode')
+        cb.stateChanged.connect(self.toggle_expert_mode)
+        hbox.addWidget(cb)
+        
         return w
 
     def create_contacts_tab(self):
         l,w,hbox = self.create_list_tab([_('Address'), _('Label'), _('Tx')])
+        l.setColumnWidth(0, 350) 
+        l.setColumnWidth(1, 330)
+        l.setColumnWidth(2, 100) 
+        l.setColumnWidth(3, 10) 
         self.connect(l, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.show_contact_details)
+        self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,0,1))
+        self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.contacts_list = l
         self.contacts_buttons_hbox = hbox
         self.add_contacts_buttons()
         return w
 
     def update_receive_tab(self):
-        self.receive_list.clear()
-        self.change_list.clear()
+        l = self.receive_list
+        l.clear()
+        l.setColumnHidden(0,not self.expert_mode)
+        l.setColumnHidden(3,not self.expert_mode)
+        l.setColumnHidden(4,not self.expert_mode)
+        l.setColumnWidth(0, 50) 
+        l.setColumnWidth(1, 310) 
+        l.setColumnWidth(2, 300)
+        l.setColumnWidth(3, 90) 
+        l.setColumnWidth(4, 10) 
+        self.new_address_button.setHidden(not self.expert_mode)
+        self.prioritize_button.setHidden(not self.expert_mode)
+        self.freeze_button.setHidden(not self.expert_mode)
+            
         gap = 0
         is_red = False
         for address in self.wallet.all_addresses():
-            if self.wallet.is_change(address):
-                l = self.change_list
-            else:
-                l = self.receive_list
+
+            if self.wallet.is_change(address) and not self.expert_mode:
+                continue
 
             label = self.wallet.labels.get(address,'')
             n = 0 
@@ -674,17 +693,18 @@ class ElectrumWindow(QMainWindow):
 
             c, u = self.wallet.get_addr_balance(address)
             balance = format_satoshis( c + u, False, self.wallet.num_zeros )
-            item = QTreeWidgetItem( [ address, label, balance, tx] )
+            flags = '--'
+            item = QTreeWidgetItem( [ flags, address, label, balance, tx] )
+
+            item.setFont(1, QFont(MONOSPACE_FONT))
             if address in self.wallet.frozen_addresses: 
-                item.setBackgroundColor(0, QColor('lightblue'))
+                item.setBackgroundColor(1, QColor('lightblue'))
             elif address in self.wallet.prioritized_addresses: 
-                item.setBackgroundColor(0, QColor('lightgreen'))
-
-            item.setFont(0, QFont(MONOSPACE_FONT))
+                item.setBackgroundColor(1, QColor('lightgreen'))
             if is_red and address in self.wallet.addresses:
-                item.setBackgroundColor(0, QColor('red'))
+                item.setBackgroundColor(1, QColor('red'))
 
-            l.addTopLevelItem(item)
+            self.receive_list.addTopLevelItem(item)
 
     def show_contact_details(self, item, column):
         m = unicode(item.text(0))
@@ -698,7 +718,9 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.information(self, 'Alias', msg, 'OK')
 
     def update_contacts_tab(self):
-        self.contacts_list.clear()
+        l = self.contacts_list
+        l.clear()
+        l.setColumnHidden(2, not self.expert_mode)
 
         for alias, v in self.wallet.aliases.items():
             s, target = v
@@ -1017,6 +1039,11 @@ class ElectrumWindow(QMainWindow):
         #print repr(wallet.seed)
         wallet.gap_limit = gap
         return True
+
+    def toggle_expert_mode(self):
+        self.expert_mode = not self.expert_mode
+        self.update_receive_tab()
+        self.update_contacts_tab()
 
 
     def settings_dialog(self):
