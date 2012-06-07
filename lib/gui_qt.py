@@ -532,44 +532,43 @@ class ElectrumWindow(QMainWindow):
             return ''
 
 
+
+    def toggle_freeze(self,addr):
+        if not addr: return
+        if addr in self.wallet.frozen_addresses:
+            self.wallet.unfreeze(addr)
+        else:
+            self.wallet.freeze(addr)
+        self.update_receive_tab()
+
+    def toggle_priority(self,addr):
+        if not addr: return
+        if addr in self.wallet.prioritized_addresses:
+            self.wallet.unprioritize(addr)
+        else:
+            self.wallet.prioritize(addr)
+        self.update_receive_tab()
+
+
+    def create_new_address(self):
+        if self.question( _("Warning:\nThis will create an address beyond your current gap limit.") + "\n" + _("Are you sure?")):
+            self.wallet.create_new_address(False)
+            self.update_receive_tab()
+
     def add_receive_buttons(self):
 
         l = self.receive_list
         hbox = self.receive_buttons_hbox
-        def create_new_address():
-            if self.question( _("Warning:\nThis will create an address beyond your current gap limit.") + "\n" + _("Are you sure?")):
-                self.wallet.create_new_address(False)
-                self.update_receive_tab()
             
-        self.new_address_button = EnterButton(_("New"), create_new_address)
+        self.new_address_button = EnterButton(_("New"), self.create_new_address)
         hbox.addWidget(self.new_address_button)
         self.new_address_button.setHidden(not self.expert_mode)
 
         hbox.addWidget(EnterButton(_("QR"),lambda: self.show_address_qrcode(self.get_current_addr(True))))
         hbox.addWidget(EnterButton(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(self.get_current_addr(True))))
-
-        def toggle_freeze():
-            addr = self.get_current_addr(True)
-            if not addr: return
-            if addr in self.wallet.frozen_addresses:
-                self.wallet.unfreeze(addr)
-            else:
-                self.wallet.freeze(addr)
-            self.update_receive_tab()
-
-        self.freeze_button = b = EnterButton(_("Freeze"), toggle_freeze)
+        self.freeze_button = b = EnterButton(_("Freeze"), lambda: self.toggle_freeze(self.get_current_addr(True)))
         hbox.addWidget(b)
-
-        def toggle_priority():
-            addr = self.get_current_addr(True)
-            if not addr: return
-            if addr in self.wallet.prioritized_addresses:
-                self.wallet.unprioritize(addr)
-            else:
-                self.wallet.prioritize(addr)
-            self.update_receive_tab()
-
-        self.prioritize_button = b = EnterButton(_("Prioritize"), toggle_priority)
+        self.prioritize_button = b = EnterButton(_("Prioritize"), lambda: self.toggle_priority(self.get_current_addr(True)))
         hbox.addWidget(b)
         hbox.addStretch(1)
 
@@ -622,35 +621,75 @@ class ElectrumWindow(QMainWindow):
 
         return l,w,hbox
 
+
     def create_receive_tab(self):
         l,w,hbox = self.create_list_tab([_('Flags'), _('Address'), _('Label'), _('Balance'), _('Tx')])
-        l.selectionModel().currentChanged.connect(self.update_receive_buttons)
+        #l.selectionModel().currentChanged.connect(self.update_receive_buttons)
+        l.setContextMenuPolicy(Qt.CustomContextMenu)
+        l.customContextMenuRequested.connect(self.create_receive_menu)
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,1,2))
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,1,2))
-
         self.receive_list = l
         self.receive_buttons_hbox = hbox
-        self.add_receive_buttons()
+        #self.add_receive_buttons()
 
-        cb = QCheckBox('Expert mode')
-        cb.stateChanged.connect(self.toggle_expert_mode)
-        hbox.addWidget(cb)
-        
+        self.new_address_button = EnterButton(_("New"), self.create_new_address)
+        self.new_address_button.setHidden(not self.expert_mode)
+        hbox.addWidget(self.new_address_button)
+        hbox.addStretch(1)
+
         return w
+
 
     def create_contacts_tab(self):
         l,w,hbox = self.create_list_tab([_('Address'), _('Label'), _('Tx')])
-        l.setColumnWidth(0, 350) 
-        l.setColumnWidth(1, 330)
-        l.setColumnWidth(2, 100) 
-        l.setColumnWidth(3, 10) 
+        l.setContextMenuPolicy(Qt.CustomContextMenu)
+        l.customContextMenuRequested.connect(self.create_contact_menu)
         self.connect(l, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.show_contact_details)
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,0,1))
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.contacts_list = l
         self.contacts_buttons_hbox = hbox
-        self.add_contacts_buttons()
+        #self.add_contacts_buttons()
+        hbox.addWidget(EnterButton(_("New"), self.newaddress_dialog))
+        hbox.addStretch(1)
         return w
+
+
+    def create_receive_menu(self, position):
+        # fixme: this function apparently has a side effect.
+        # if it is not called the menu pops up several times
+        self.receive_list.selectedIndexes() 
+        addr = self.get_current_addr(True)
+        menu = QMenu()
+        menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
+        menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
+        if self.expert_mode:
+            t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
+            menu.addAction(t, lambda: self.toggle_freeze(addr))
+            t = _("Unprioritize") if addr in self.wallet.prioritized_addresses else _("Prioritize")
+            menu.addAction(t, lambda: self.toggle_priority(addr))
+        menu.exec_(self.receive_list.viewport().mapToGlobal(position))
+
+
+    def payto(self, addr):
+        if not addr:return
+        self.tabs.setCurrentIndex(1)
+        self.payto_e.setText(addr)
+        self.amount_e.setFocus()
+
+
+    def create_contact_menu(self, position):
+        # fixme: this function apparently has a side effect.
+        # if it is not called the menu pops up several times
+        self.receive_list.selectedIndexes() 
+        addr = self.get_current_addr(False)
+        menu = QMenu()
+        menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
+        menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
+        menu.addAction(_("Pay to"), lambda: self.payto(addr))
+        menu.exec_(self.receive_list.viewport().mapToGlobal(position))
+
 
     def update_receive_tab(self):
         l = self.receive_list
@@ -662,11 +701,13 @@ class ElectrumWindow(QMainWindow):
         l.setColumnWidth(1, 310) 
         l.setColumnWidth(2, 300)
         l.setColumnWidth(3, 90) 
-        l.setColumnWidth(4, 10) 
+        l.setColumnWidth(4, 10)
+        
         self.new_address_button.setHidden(not self.expert_mode)
-        self.prioritize_button.setHidden(not self.expert_mode)
-        self.freeze_button.setHidden(not self.expert_mode)
-            
+        
+        #self.prioritize_button.setHidden(not self.expert_mode)
+        #self.freeze_button.setHidden(not self.expert_mode)
+
         gap = 0
         is_red = False
         for address in self.wallet.all_addresses():
@@ -722,6 +763,10 @@ class ElectrumWindow(QMainWindow):
         l = self.contacts_list
         l.clear()
         l.setColumnHidden(2, not self.expert_mode)
+        l.setColumnWidth(0, 350) 
+        l.setColumnWidth(1, 330)
+        l.setColumnWidth(2, 100) 
+        l.setColumnWidth(3, 10) 
 
         for alias, v in self.wallet.aliases.items():
             s, target = v
@@ -850,9 +895,10 @@ class ElectrumWindow(QMainWindow):
         d.setLayout(vbox)
         d.exec_()
 
+
     def show_address_qrcode(self,address):
         if not address: return
-        d = QDialog(None)
+        d = QDialog(self)
         d.setModal(1)
         d.setWindowTitle(address)
         d.setMinimumSize(270, 350)
@@ -1072,10 +1118,16 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(nz_e, 3, 1)
         nz_e.textChanged.connect(lambda: numbify(nz_e,True))
 
+        cb = QCheckBox('Expert mode')
+        grid.addWidget(cb,4,0)
+
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
 
         if not d.exec_(): return
+
+        if cb.isChecked():
+            self.toggle_expert_mode()
 
         fee = unicode(fee_e.text())
         try:
