@@ -547,10 +547,9 @@ class ElectrumWindow(QMainWindow):
             addr = self.get_current_addr(True)
             if not addr: return
             if addr in self.wallet.frozen_addresses:
-                self.wallet.frozen_addresses.remove(addr)
+                self.wallet.unfreeze(addr)
             else:
-                self.wallet.frozen_addresses.append(addr)
-            self.wallet.save()
+                self.wallet.freeze(addr)
             self.update_receive_tab()
 
         self.freezeButton = b = EnterButton(_("Freeze"), toggle_freeze)
@@ -560,10 +559,9 @@ class ElectrumWindow(QMainWindow):
             addr = self.get_current_addr(True)
             if not addr: return
             if addr in self.wallet.prioritized_addresses:
-                self.wallet.prioritized_addresses.remove(addr)
+                self.wallet.unprioritize(addr)
             else:
-                self.wallet.prioritized_addresses.append(addr)
-            self.wallet.save()
+                self.wallet.prioritize(addr)
             self.update_receive_tab()
 
         self.prioritizeButton = b = EnterButton(_("Prioritize"), toggle_priority)

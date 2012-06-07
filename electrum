@@ -505,37 +505,17 @@ if __name__ == '__main__':
 
     elif cmd == 'freeze':
         addr = args[1]
-        if addr in self.wallet.all_addresses() and addr not in self.wallet.frozen_addresses:
-            self.wallet.frozen_addresses.append(addr)
-            self.wallet.save()
-            print True
-        else:
-            print False
-
+        print self.wallet.freeze(addr)
+        
     elif cmd == 'unfreeze':
         addr = args[1]
-        if addr in self.wallet.all_addresses() and addr in self.wallet.frozen_addresses:
-            self.wallet.frozen_addresses.remove(addr)
-            self.wallet.save()
-            print True
-        else:
-            print False
+        print self.wallet.unfreeze(addr)
 
     elif cmd == 'prioritize':
         addr = args[1]
-        if addr in self.wallet.all_addresses() and addr not in self.wallet.frozen_addresses:
-            self.wallet.prioritized_addresses.append(addr)
-            self.wallet.save()
-            print True
-        else:
-            print False
+        print self.wallet.prioritize(addr)
 
     elif cmd == 'unprioritize':
         addr = args[1]
-        if addr in self.wallet.all_addresses() and addr in self.wallet.frozen_addresses:
-            self.wallet.prioritized_addresses.remove(addr)
-            self.wallet.save()
-            print True
-        else:
-            print False
+        print self.wallet.unprioritize(addr)
 

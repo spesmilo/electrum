@@ -995,5 +995,34 @@ class Wallet:
         self.interface.subscribe(self.all_addresses())
 
 
+    def freeze(self,addr):
+        if addr in self.all_addresses() and addr not in self.frozen_addresses:
+            self.frozen_addresses.append(addr)
+            self.save()
+            return True
+        else:
+            return False
 
+    def unfreeze(self,addr):
+        if addr in self.all_addresses() and addr in self.frozen_addresses:
+            self.frozen_addresses.remove(addr)
+            self.save()
+            return True
+        else:
+            return False
 
+    def prioritize(self,addr):
+        if addr in self.all_addresses() and addr not in self.frozen_addresses and addr not in self.prioritized_addresses:
+            self.prioritized_addresses.append(addr)
+            self.save()
+            return True
+        else:
+            return False
+
+    def unprioritize(self,addr):
+        if addr in self.all_addresses() and addr in self.prioritized_addresses:
+            self.prioritized_addresses.remove(addr)
+            self.save()
+            return True
+        else:
+            return False
