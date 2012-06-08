@@ -549,48 +549,6 @@ class ElectrumWindow(QMainWindow):
         self.update_receive_tab()
 
 
-    def add_receive_buttons(self):
-        l = self.receive_list
-        hbox = self.receive_buttons_hbox
-            
-        self.new_address_button = EnterButton(_("New"), self.change_gap_limit_dialog)
-        hbox.addWidget(self.new_address_button)
-        self.new_address_button.setHidden(not self.wallet.expert_mode)
-
-        hbox.addWidget(EnterButton(_("QR"),lambda: self.show_address_qrcode(self.get_current_addr(True))))
-        hbox.addWidget(EnterButton(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(self.get_current_addr(True))))
-        self.freeze_button = b = EnterButton(_("Freeze"), lambda: self.toggle_freeze(self.get_current_addr(True)))
-        hbox.addWidget(b)
-        self.prioritize_button = b = EnterButton(_("Prioritize"), lambda: self.toggle_priority(self.get_current_addr(True)))
-        hbox.addWidget(b)
-        hbox.addStretch(1)
-
-
-    def add_contacts_buttons(self):
-        l = self.contacts_list
-        hbox = self.contacts_buttons_hbox
-
-        hbox.addWidget(EnterButton(_("QR"),lambda: self.show_address_qrcode(self.get_current_addr(False))))
-        hbox.addWidget(EnterButton(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(self.get_current_addr(False))))
-        def payto():
-            addr = self.get_current_addr(False)
-            if not addr:return
-            self.tabs.setCurrentIndex(1)
-            self.payto_e.setText(addr)
-            self.amount_e.setFocus()
-        hbox.addWidget(EnterButton(_('Pay to'), lambda: payto()))
-        hbox.addWidget(EnterButton(_("New"), self.new_contact_dialog))
-        hbox.addStretch(1)
-
-    def update_receive_buttons(self):
-        addr = self.get_current_addr(True)
-        t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
-        self.freeze_button.setText(t)
-
-        t = _("Unprioritize") if addr in self.wallet.prioritized_addresses else _("Prioritize")
-        self.prioritize_button.setText(t)
-
-    
     def create_list_tab(self, headers):
         "generic tab creatino method"
         l = QTreeWidget(self)
@@ -617,14 +575,12 @@ class ElectrumWindow(QMainWindow):
 
     def create_receive_tab(self):
         l,w,hbox = self.create_list_tab([_('Flags'), _('Address'), _('Label'), _('Balance'), _('Tx')])
-        #l.selectionModel().currentChanged.connect(self.update_receive_buttons)
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_receive_menu)
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,1,2))
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,1,2))
         self.receive_list = l
         self.receive_buttons_hbox = hbox
-        #self.add_receive_buttons()
 
         self.new_address_button = EnterButton(_("New"), self.change_gap_limit_dialog)
         self.new_address_button.setHidden(not self.wallet.expert_mode)
@@ -643,7 +599,6 @@ class ElectrumWindow(QMainWindow):
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.contacts_list = l
         self.contacts_buttons_hbox = hbox
-        #self.add_contacts_buttons()
         hbox.addWidget(EnterButton(_("New"), self.new_contact_dialog))
         hbox.addStretch(1)
         return w
