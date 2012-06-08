@@ -616,6 +616,8 @@ class Wallet:
         f = open(self.path,"w")
         f.write( repr(s) )
         f.close()
+        import stat
+        os.chmod(self.path,stat.S_IREAD | stat.S_IWRITE)
 
     def read(self):
         import interface
@@ -735,7 +737,7 @@ class Wallet:
             fee = self.fee*len(inputs) if fixed_fee is None else fixed_fee
             if total >= amount + fee: break
         else:
-            #print "not enough funds: %d %d"%(total, fee)
+            #print "not enough funds: %s %s"%(format_satoshis(total), format_satoshis(fee))
             inputs = []
         return inputs, total, fee
 
