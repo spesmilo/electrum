@@ -1008,6 +1008,12 @@ class Wallet:
             else: 
                 print k,v
 
+        if label and self.labels.get(address) != label:
+            if question('Give label "%s" to address %s ?'%(label,address)):
+                if address not in self.addressbook and address not in self.all_addresses(): 
+                    self.addressbook.append(address)
+                self.labels[address] = label
+
         if signature:
             if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', identity):
                 signing_address = self.get_alias(identity, True, show_message, question)
