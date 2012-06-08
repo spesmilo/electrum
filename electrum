@@ -393,10 +393,10 @@ if __name__ == '__main__':
                     #    else:              no += 1
                     b = format_satoshis(wallet.get_addr_balance(addr)[0])
                 else: b=''
-                addr = "%34s"%addr
+                m_addr = "%34s"%addr
                 if options.show_keys:
-                    addr += ':' + str(wallet.get_private_key_base58(addr, password))
-                print flags, addr, b, label
+                    m_addr += ':' + str(wallet.get_private_key_base58(addr, password))
+                print flags, m_addr, b, label
 
     if cmd == 'history':
         lines = wallet.get_tx_history()
