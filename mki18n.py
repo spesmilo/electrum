@@ -16,7 +16,7 @@ for line in lines:
         lang, translation = l.split(':')
         lang = lang[2:]
         if dicts.get(lang) is None: dicts[lang] = {}
-        dicts[lang][message] = translation
+        dicts[lang][message] = translation.strip()
     else:
         message = l[1:]
         num_m += 1
