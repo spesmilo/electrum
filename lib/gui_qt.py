@@ -46,7 +46,7 @@ from decimal import Decimal
 
 import platform
 MONOSPACE_FONT = 'Lucida Console' if platform.system() == 'Windows' else 'monospace'
-    
+ALIAS_REGEXP = '^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$'    
 
 def numbify(entry, is_int = False):
     text = unicode(entry.text()).strip()
@@ -313,8 +313,11 @@ class ElectrumWindow(QMainWindow):
     def address_label_clicked(self, item, column, l, column_addr, column_label):
         if column==column_label and item.isSelected():
             addr = unicode( item.text(column_addr) )
-            if addr in map(lambda x:x[1], self.wallet.aliases.values()):
+            label = unicode( item.text(column_label) )
+            if label in self.wallet.aliases.keys():
                 return
+            #if addr in map(lambda x:x[1], self.wallet.aliases.values()):
+            #    return
             item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
             l.editItem( item, column )
             item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
@@ -323,11 +326,16 @@ class ElectrumWindow(QMainWindow):
         addr = unicode( item.text(column_addr) )
         text = unicode( item.text(column_label) )
         if text:
-            self.wallet.labels[addr] = text
+            if not re.match(ALIAS_REGEXP, text):
+                self.wallet.labels[addr] = text
+            else:
+                print "error: this is an alias"
         else:
             s = self.wallet.labels.get(addr)
             if s: self.wallet.labels.pop(addr)
+
         self.update_history_tab()
+        self.update_completions()
 
     def update_history_tab(self):
         self.history_list.clear()
@@ -371,6 +379,11 @@ class ElectrumWindow(QMainWindow):
         self.payto_e = QLineEdit()
         grid.addWidget(QLabel(_('Pay to')), 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, 3)
+
+        completer = QCompleter()
+        self.payto_e.setCompleter(completer)
+        self.completions = QStringListModel()
+        completer.setModel(self.completions)
 
         self.message_e = QLineEdit()
         grid.addWidget(QLabel(_('Description')), 2, 0)
@@ -427,21 +440,35 @@ class ElectrumWindow(QMainWindow):
 
         return w2
 
+
+    def update_completions(self):
+        l = []
+        for addr,label in self.wallet.labels.items():
+            if addr in self.wallet.addressbook:
+                l.append( label + '  <' + addr + '>')
+        l = l + self.wallet.aliases.keys()
+
+        self.completions.setStringList(l)
+
+
+
     def do_send(self):
 
         label = unicode( self.message_e.text() )
         r = unicode( self.payto_e.text() )
         r = r.strip()
 
-        m1 = re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r)
-        m2 = re.match('(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+) \<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
+        # alias
+        m1 = re.match(ALIAS_REGEXP, r)
+        # label or alias, with address in brackets
+        m2 = re.match('(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
         
         if m1:
             to_address = self.wallet.get_alias(r, True, self.show_message, self.question)
             if not to_address:
                 return
         elif m2:
-            to_address = m2.group(5)
+            to_address = m2.group(2)
         else:
             to_address = r
 
@@ -485,7 +512,9 @@ class ElectrumWindow(QMainWindow):
     def set_url(self, url):
         payto, amount, label, message, signature, identity, url = self.wallet.parse_url(url, self.show_message, self.question)
         self.tabs.setCurrentIndex(1)
-        self.payto_e.setText(payto)
+        label = self.wallet.labels.get(payto)
+        if label:
+            self.payto_e.setText(label + ' <'+ payto+'>')
         self.message_e.setText(message)
         self.amount_e.setText(amount)
         if identity:
@@ -708,20 +737,25 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.information(self, 'Alias', msg, 'OK')
 
     def update_contacts_tab(self):
+        self.update_completions()
+
         l = self.contacts_list
         l.clear()
         l.setColumnHidden(2, not self.wallet.expert_mode)
         l.setColumnWidth(0, 350) 
         l.setColumnWidth(1, 330)
         l.setColumnWidth(2, 100) 
-        l.setColumnWidth(3, 10) 
 
+        alias_targets = []
         for alias, v in self.wallet.aliases.items():
             s, target = v
+            alias_targets.append(target)
             item = QTreeWidgetItem( [ target, alias, '-'] )
+            item.setBackgroundColor(1, QColor('lightgray'))
             self.contacts_list.addTopLevelItem(item)
             
         for address in self.wallet.addressbook:
+            if address in alias_targets: continue
             label = self.wallet.labels.get(address,'')
             n = 0 
             for item in self.wallet.tx_history.values():
