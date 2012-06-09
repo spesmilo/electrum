@@ -213,7 +213,7 @@ class ElectrumWindow(QMainWindow):
                 except:
                     return
                 if to_address:
-                    s = r + ' <' + to_address + '>'
+                    s = r + '  <' + to_address + '>'
                     self.payto_e.setText(s)
 
 
@@ -545,10 +545,8 @@ class ElectrumWindow(QMainWindow):
         payto, amount, label, message, signature, identity, url = self.wallet.parse_url(url, self.show_message, self.question)
         self.tabs.setCurrentIndex(1)
         label = self.wallet.labels.get(payto)
-        if label:
-            self.payto_e.setText(label + ' <'+ payto+'>')
-        else:
-            self.payto_e.setText(payto)
+        m_addr = label + '  <'+ payto+'>' if label else payto
+        self.payto_e.setText(m_addr)
 
         self.message_e.setText(message)
         self.amount_e.setText(amount)
@@ -686,9 +684,11 @@ class ElectrumWindow(QMainWindow):
 
 
     def payto(self, addr):
-        if not addr:return
+        if not addr: return
+        label = self.wallet.labels.get(addr)
+        m_addr = label + '  <' + addr + '>' if label else addr
         self.tabs.setCurrentIndex(1)
-        self.payto_e.setText(addr)
+        self.payto_e.setText(m_addr)
         self.amount_e.setFocus()
 
     def delete_contact(self, addr, is_alias):
