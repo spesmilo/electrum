@@ -657,7 +657,7 @@ class ElectrumWindow(QMainWindow):
         # if it is not called the menu pops up several times
         #self.receive_list.selectedIndexes() 
 
-        item = self.contacts_list.itemAt(position)
+        item = self.receive_list.itemAt(position)
         addr = unicode(item.text(1))
         menu = QMenu()
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
