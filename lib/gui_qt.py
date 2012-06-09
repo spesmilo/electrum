@@ -399,6 +399,9 @@ class ElectrumWindow(QMainWindow):
             item.setIcon(0, icon)
             self.history_list.insertTopLevelItem(0,item)
 
+        self.history_list.setCurrentItem(self.history_list.topLevelItem(0))
+        self.history_list.setFocus(True)
+
 
     def create_send_tab(self):
         w = QWidget()
@@ -734,12 +737,8 @@ class ElectrumWindow(QMainWindow):
         l.setColumnWidth(2, 300)
         l.setColumnWidth(3, 90) 
         l.setColumnWidth(4, 10)
-        
-        self.new_address_button.setHidden(not self.wallet.expert_mode)
-        
-        #self.prioritize_button.setHidden(not self.wallet.expert_mode)
-        #self.freeze_button.setHidden(not self.wallet.expert_mode)
 
+        self.new_address_button.setHidden(not self.wallet.expert_mode)
         gap = 0
         is_red = False
         for address in self.wallet.all_addresses():
@@ -778,7 +777,9 @@ class ElectrumWindow(QMainWindow):
             if is_red and address in self.wallet.addresses:
                 item.setBackgroundColor(1, QColor('red'))
 
-            self.receive_list.addTopLevelItem(item)
+            l.addTopLevelItem(item)
+
+        l.setCurrentItem(l.topLevelItem(0))
 
     def show_contact_details(self, item, column):
         m = unicode(item.text(0))
@@ -806,7 +807,7 @@ class ElectrumWindow(QMainWindow):
             alias_targets.append(target)
             item = QTreeWidgetItem( [ target, alias, '-'] )
             item.setBackgroundColor(1, QColor('lightgray'))
-            self.contacts_list.addTopLevelItem(item)
+            l.addTopLevelItem(item)
             
         for address in self.wallet.addressbook:
             if address in alias_targets: continue
@@ -817,8 +818,9 @@ class ElectrumWindow(QMainWindow):
             tx = "None" if n==0 else "%d"%n
             item = QTreeWidgetItem( [ address, label, tx] )
             item.setFont(0, QFont(MONOSPACE_FONT))
-            self.contacts_list.addTopLevelItem(item)
+            l.addTopLevelItem(item)
 
+        l.setCurrentItem(l.topLevelItem(0))
 
     def create_wall_tab(self):
         self.textbox = textbox = QTextEdit(self)
