@@ -330,6 +330,8 @@ class ElectrumWindow(QMainWindow):
                 self.wallet.labels[addr] = text
             else:
                 print "error: this is an alias"
+                label = self.wallet.labels.get(addr,'')
+                item.setText(column_label, QString(label))
         else:
             s = self.wallet.labels.get(addr)
             if s: self.wallet.labels.pop(addr)
