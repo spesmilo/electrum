@@ -259,6 +259,7 @@ class ElectrumWindow(QMainWindow):
     def create_history_menu(self, position):
         self.history_list.selectedIndexes() 
         item = self.history_list.currentItem()
+        if not item: return
         menu = QMenu()
         menu.addAction(_("Details"), lambda: self.tx_details(item,2))
         menu.addAction(_("Edit description"), lambda: self.tx_label_clicked(item,2))
@@ -690,12 +691,13 @@ class ElectrumWindow(QMainWindow):
         # fixme: this function apparently has a side effect.
         # if it is not called the menu pops up several times
         self.contacts_list.selectedIndexes() 
+        item = self.contacts_list.currentItem()
+        if not item: return
         addr = self.get_current_addr(False)
         menu = QMenu()
         menu.addAction(_("Pay to"), lambda: self.payto(addr))
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
-        item = self.contacts_list.currentItem()
         label = unicode( item.text(1) )
         if label not in self.wallet.aliases.keys():
             menu.addAction(_("Edit label"), lambda: self.edit_label(False))
