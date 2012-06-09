@@ -534,6 +534,9 @@ class ElectrumWindow(QMainWindow):
         label = self.wallet.labels.get(payto)
         if label:
             self.payto_e.setText(label + ' <'+ payto+'>')
+        else:
+            self.payto_e.setText(payto)
+
         self.message_e.setText(message)
         self.amount_e.setText(amount)
         if identity:
