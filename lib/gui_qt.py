@@ -87,6 +87,20 @@ class EnterButton(QPushButton):
         if e.key() == QtCore.Qt.Key_Return:
             apply(self.func,())
 
+class MyTreeWidget(QTreeWidget):
+    def __init__(self, parent):
+        QTreeWidget.__init__(self, parent)
+        def ddfr():
+            item = self.currentItem()
+            if not item: return
+            for i in range(0,100):
+                if self.itemAt(QPoint(0,i*5)) == item:
+                    break
+            else:
+                return
+            self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), QPoint(50, 15 + i*5))
+        self.connect(self, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), ddfr)
+
 class StatusBarButton(QPushButton):
     def __init__(self, icon, tooltip, func):
         QPushButton.__init__(self, icon, '')
@@ -241,7 +255,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def create_history_tab(self):
-        self.history_list = l = QTreeWidget(self)
+        self.history_list = l = MyTreeWidget(self)
         l.setColumnCount(5)
         l.setColumnWidth(0, 40) 
         l.setColumnWidth(1, 140) 
@@ -249,7 +263,6 @@ class ElectrumWindow(QMainWindow):
         l.setColumnWidth(3, 140) 
         l.setColumnWidth(4, 140) 
         l.setHeaderLabels( [ '', _( 'Date' ), _( 'Description' ) , _('Amount'), _('Balance')] )
-        self.connect(l, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.tx_details)
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), self.tx_label_clicked)
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), self.tx_label_changed)
         l.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -601,8 +614,8 @@ class ElectrumWindow(QMainWindow):
 
 
     def create_list_tab(self, headers):
-        "generic tab creatino method"
-        l = QTreeWidget(self)
+        "generic tab creation method"
+        l = MyTreeWidget(self)
         l.setColumnCount( len(headers) )
         l.setHeaderLabels( headers )
 
