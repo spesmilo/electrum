@@ -763,7 +763,8 @@ class ElectrumWindow(QMainWindow):
                 item.setBackgroundColor(1, QColor('red'))
             l.addTopLevelItem(item)
 
-        l.setCurrentItem(l.topLevelItem(0))
+        # we use column 1 because column 0 may be hidden
+        l.setCurrentItem(l.topLevelItem(0),1)
 
     def show_contact_details(self, m):
         a = self.wallet.aliases.get(m)
