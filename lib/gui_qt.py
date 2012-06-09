@@ -90,8 +90,7 @@ class EnterButton(QPushButton):
 class MyTreeWidget(QTreeWidget):
     def __init__(self, parent):
         QTreeWidget.__init__(self, parent)
-        def ddfr():
-            item = self.currentItem()
+        def ddfr(item):
             if not item: return
             for i in range(0,100):
                 if self.itemAt(QPoint(0,i*5)) == item:
@@ -582,21 +581,6 @@ class ElectrumWindow(QMainWindow):
             entry.setPalette(palette)
 
 
-    def get_current_addr(self, is_recv):
-        if is_recv:
-            l = self.receive_list
-            n = 1
-        else:
-            l = self.contacts_list
-            n = 0
-        i = l.currentItem()
-        if i: 
-            return unicode( i.text(n) )
-        else:
-            return ''
-
-
-
     def toggle_freeze(self,addr):
         if not addr: return
         if addr in self.wallet.frozen_addresses:
@@ -659,7 +643,6 @@ class ElectrumWindow(QMainWindow):
         l,w,hbox = self.create_list_tab([_('Address'), _('Label'), _('Tx')])
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_contact_menu)
-        self.connect(l, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.show_contact_details)
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,0,1))
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.contacts_list = l
@@ -672,8 +655,10 @@ class ElectrumWindow(QMainWindow):
     def create_receive_menu(self, position):
         # fixme: this function apparently has a side effect.
         # if it is not called the menu pops up several times
-        self.receive_list.selectedIndexes() 
-        addr = self.get_current_addr(True)
+        #self.receive_list.selectedIndexes() 
+
+        item = self.contacts_list.itemAt(position)
+        addr = item.text(1)
         menu = QMenu()
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
@@ -709,10 +694,11 @@ class ElectrumWindow(QMainWindow):
     def create_contact_menu(self, position):
         # fixme: this function apparently has a side effect.
         # if it is not called the menu pops up several times
-        self.contacts_list.selectedIndexes() 
-        item = self.contacts_list.currentItem()
+        #self.contacts_list.selectedIndexes() 
+
+        item = self.contacts_list.itemAt(position)
         if not item: return
-        addr = self.get_current_addr(False)
+        addr = item.text(0)
         menu = QMenu()
         menu.addAction(_("Pay to"), lambda: self.payto(addr))
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
@@ -722,6 +708,7 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Edit label"), lambda: self.edit_label(False))
             menu.addAction(_("Delete"), lambda: self.delete_contact(addr,False))
         else:
+            menu.addAction(_("View alias details"), lambda: self.show_contact_details(label))
             menu.addAction(_("Delete"), lambda: self.delete_contact(label,True))
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
@@ -781,8 +768,7 @@ class ElectrumWindow(QMainWindow):
 
         l.setCurrentItem(l.topLevelItem(0))
 
-    def show_contact_details(self, item, column):
-        m = unicode(item.text(0))
+    def show_contact_details(self, m):
         a = self.wallet.aliases.get(m)
         if a:
             if a[0] in self.wallet.authorities.keys():
