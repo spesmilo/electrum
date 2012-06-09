@@ -237,6 +237,7 @@ class ElectrumWindow(QMainWindow):
             self.update_history_tab()
             self.update_receive_tab()
             self.update_contacts_tab()
+            self.update_completions()
 
 
     def create_history_tab(self):
@@ -310,14 +311,20 @@ class ElectrumWindow(QMainWindow):
             item.setForeground(2, QBrush(QColor('gray')))
         self.is_edit=False
 
+    def edit_label(self, is_recv):
+        l = self.receive_list if is_recv else self.contacts_list
+        c = 2 if is_recv else 1
+        item = l.currentItem()
+        item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
+        l.editItem( item, c )
+        item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
+
     def address_label_clicked(self, item, column, l, column_addr, column_label):
         if column==column_label and item.isSelected():
             addr = unicode( item.text(column_addr) )
             label = unicode( item.text(column_label) )
             if label in self.wallet.aliases.keys():
                 return
-            #if addr in map(lambda x:x[1], self.wallet.aliases.values()):
-            #    return
             item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
             l.editItem( item, column )
             item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
@@ -643,6 +650,7 @@ class ElectrumWindow(QMainWindow):
         menu = QMenu()
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
+        menu.addAction(_("Edit label"), lambda: self.edit_label(True))
         if self.wallet.expert_mode:
             t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
             menu.addAction(t, lambda: self.toggle_freeze(addr))
@@ -657,17 +665,30 @@ class ElectrumWindow(QMainWindow):
         self.payto_e.setText(addr)
         self.amount_e.setFocus()
 
+    def delete_contact(self, addr):
+        if self.question("Do you want to remove %s from your list of contacts?"%addr):
+            self.wallet.addressbook.remove(addr)
+            if addr in self.wallet.labels.keys():
+                self.wallet.labels.pop(addr)
+            self.update_history_tab()
+            self.update_contacts_tab()
+            self.update_completions()
 
     def create_contact_menu(self, position):
         # fixme: this function apparently has a side effect.
         # if it is not called the menu pops up several times
-        self.receive_list.selectedIndexes() 
+        self.contacts_list.selectedIndexes() 
         addr = self.get_current_addr(False)
         menu = QMenu()
+        menu.addAction(_("Pay to"), lambda: self.payto(addr))
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
-        menu.addAction(_("Pay to"), lambda: self.payto(addr))
-        menu.exec_(self.receive_list.viewport().mapToGlobal(position))
+        item = self.contacts_list.currentItem()
+        label = unicode( item.text(1) )
+        if label not in self.wallet.aliases.keys():
+            menu.addAction(_("Edit label"), lambda: self.edit_label(False))
+        menu.addAction(_("Delete"), lambda: self.delete_contact(addr))
+        menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
 
     def update_receive_tab(self):
@@ -739,7 +760,6 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.information(self, 'Alias', msg, 'OK')
 
     def update_contacts_tab(self):
-        self.update_completions()
 
         l = self.contacts_list
         l.clear()
@@ -794,6 +814,8 @@ class ElectrumWindow(QMainWindow):
                 self.wallet.addressbook.append(address)
                 self.wallet.save()
                 self.update_contacts_tab()
+                self.update_history_tab()
+                self.update_completions()
             else:
                 QMessageBox.warning(self, _('Error'), _('Invalid Address'), _('OK'))
 
