@@ -192,6 +192,7 @@ class ElectrumWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() + 1 )%tabs.count() ))
         
         self.connect(self, QtCore.SIGNAL('updatesignal'), self.update_wallet)
+        self.history_list.setFocus(True)
 
 
     def connect_slots(self, sender):
@@ -399,7 +400,6 @@ class ElectrumWindow(QMainWindow):
             self.history_list.insertTopLevelItem(0,item)
 
         self.history_list.setCurrentItem(self.history_list.topLevelItem(0))
-        self.history_list.setFocus(True)
 
 
     def create_send_tab(self):
@@ -630,12 +630,10 @@ class ElectrumWindow(QMainWindow):
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,1,2))
         self.receive_list = l
         self.receive_buttons_hbox = hbox
-
         self.new_address_button = EnterButton(_("New"), self.change_gap_limit_dialog)
         self.new_address_button.setHidden(not self.wallet.expert_mode)
         hbox.addWidget(self.new_address_button)
         hbox.addStretch(1)
-
         return w
 
 
@@ -763,7 +761,6 @@ class ElectrumWindow(QMainWindow):
                 item.setBackgroundColor(1, QColor('lightgreen'))
             if is_red and address in self.wallet.addresses:
                 item.setBackgroundColor(1, QColor('red'))
-
             l.addTopLevelItem(item)
 
         l.setCurrentItem(l.topLevelItem(0))
