@@ -326,10 +326,10 @@ class ElectrumWindow(QMainWindow):
         addr = unicode( item.text(column_addr) )
         text = unicode( item.text(column_label) )
         if text:
-            if not re.match(ALIAS_REGEXP, text):
+            if text not in self.wallet.aliases.keys():
                 self.wallet.labels[addr] = text
             else:
-                print "error: this is an alias"
+                print "error: this is one of your aliases"
                 label = self.wallet.labels.get(addr,'')
                 item.setText(column_label, QString(label))
         else:
