@@ -241,19 +241,28 @@ class ElectrumWindow(QMainWindow):
 
 
     def create_history_tab(self):
-        self.history_list = w = QTreeWidget(self)
-        #print w.getContentsMargins()
-        w.setColumnCount(5)
-        w.setColumnWidth(0, 40) 
-        w.setColumnWidth(1, 140) 
-        w.setColumnWidth(2, 350) 
-        w.setColumnWidth(3, 140) 
-        w.setColumnWidth(4, 140) 
-        w.setHeaderLabels( [ '', _( 'Date' ), _( 'Description' ) , _('Amount'), _('Balance')] )
-        self.connect(w, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.tx_details)
-        self.connect(w, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), self.tx_label_clicked)
-        self.connect(w, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), self.tx_label_changed)
-        return w
+        self.history_list = l = QTreeWidget(self)
+        l.setColumnCount(5)
+        l.setColumnWidth(0, 40) 
+        l.setColumnWidth(1, 140) 
+        l.setColumnWidth(2, 350) 
+        l.setColumnWidth(3, 140) 
+        l.setColumnWidth(4, 140) 
+        l.setHeaderLabels( [ '', _( 'Date' ), _( 'Description' ) , _('Amount'), _('Balance')] )
+        self.connect(l, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.tx_details)
+        self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), self.tx_label_clicked)
+        self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), self.tx_label_changed)
+        l.setContextMenuPolicy(Qt.CustomContextMenu)
+        l.customContextMenuRequested.connect(self.create_history_menu)
+        return l
+
+    def create_history_menu(self, position):
+        self.history_list.selectedIndexes() 
+        item = self.history_list.currentItem()
+        menu = QMenu()
+        menu.addAction(_("Details"), lambda: self.tx_details(item,2))
+        menu.addAction(_("Edit description"), lambda: self.tx_label_clicked(item,2))
+        menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
     def tx_details(self, item, column):
         tx_hash = str(item.toolTip(0))
