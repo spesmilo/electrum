@@ -665,11 +665,14 @@ class ElectrumWindow(QMainWindow):
         self.payto_e.setText(addr)
         self.amount_e.setFocus()
 
-    def delete_contact(self, addr):
+    def delete_contact(self, addr, is_alias):
         if self.question("Do you want to remove %s from your list of contacts?"%addr):
-            self.wallet.addressbook.remove(addr)
-            if addr in self.wallet.labels.keys():
-                self.wallet.labels.pop(addr)
+            if not is_alias and addr in self.wallet.addressbook:
+                self.wallet.addressbook.remove(addr)
+                if addr in self.wallet.labels.keys():
+                    self.wallet.labels.pop(addr)
+            elif is_alias and addr in self.wallet.aliases:
+                self.wallet.aliases.pop(addr)
             self.update_history_tab()
             self.update_contacts_tab()
             self.update_completions()
@@ -687,7 +690,9 @@ class ElectrumWindow(QMainWindow):
         label = unicode( item.text(1) )
         if label not in self.wallet.aliases.keys():
             menu.addAction(_("Edit label"), lambda: self.edit_label(False))
-        menu.addAction(_("Delete"), lambda: self.delete_contact(addr))
+            menu.addAction(_("Delete"), lambda: self.delete_contact(addr,False))
+        else:
+            menu.addAction(_("Delete"), lambda: self.delete_contact(label,True))
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
 
