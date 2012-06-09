@@ -658,7 +658,7 @@ class ElectrumWindow(QMainWindow):
         #self.receive_list.selectedIndexes() 
 
         item = self.contacts_list.itemAt(position)
-        addr = item.text(1)
+        addr = unicode(item.text(1))
         menu = QMenu()
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
@@ -698,7 +698,7 @@ class ElectrumWindow(QMainWindow):
 
         item = self.contacts_list.itemAt(position)
         if not item: return
-        addr = item.text(0)
+        addr = unicode(item.text(0))
         menu = QMenu()
         menu.addAction(_("Pay to"), lambda: self.payto(addr))
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
