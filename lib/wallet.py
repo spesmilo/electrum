@@ -835,7 +835,7 @@ class Wallet:
             default_label = ''
             if tx['value']<0:
                 for o_addr in tx['outputs']:
-                    if not self.is_change(o_addr):
+                    if not self.is_mine(o_addr):
                         dest_label = self.labels.get(o_addr)
                         if dest_label:
                             default_label = 'to: ' + dest_label
