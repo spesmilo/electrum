@@ -740,8 +740,8 @@ class ElectrumWindow(QMainWindow):
         l.setColumnHidden(4,not self.wallet.expert_mode)
         l.setColumnWidth(0, 50) 
         l.setColumnWidth(1, 310) 
-        l.setColumnWidth(2, 300)
-        l.setColumnWidth(3, 90) 
+        l.setColumnWidth(2, 250)
+        l.setColumnWidth(3, 130) 
         l.setColumnWidth(4, 10)
 
         self.new_address_button.setHidden(not self.wallet.expert_mode)
@@ -776,6 +776,7 @@ class ElectrumWindow(QMainWindow):
 
             item.setFont(0, QFont(MONOSPACE_FONT))
             item.setFont(1, QFont(MONOSPACE_FONT))
+            item.setFont(3, QFont(MONOSPACE_FONT))
             if address in self.wallet.frozen_addresses: 
                 item.setBackgroundColor(1, QColor('lightblue'))
             elif address in self.wallet.prioritized_addresses: 
