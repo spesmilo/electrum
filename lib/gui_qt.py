@@ -423,6 +423,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.payto_e, 1, 1, 1, 3)
 
         completer = QCompleter()
+        completer.setCaseSensitivity(False)
         self.payto_e.setCompleter(completer)
         self.completions = QStringListModel()
         completer.setModel(self.completions)
