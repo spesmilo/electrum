@@ -1,2 +1,2 @@
-ELECTRUM_VERSION = "0.57b"
+ELECTRUM_VERSION = "0.57c"
 SEED_VERSION = 4  # bump this everytime the seed generation is modified
