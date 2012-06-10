@@ -427,10 +427,10 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(QLabel(_('Amount')), 3, 0)
         grid.addWidget(self.amount_e, 3, 1, 1, 2)
         
-        if self.wallet.expert_mode:
-            self.nochange_cb = QCheckBox('Do not create change address')
-            grid.addWidget(self.nochange_cb,3,3)
-            self.nochange_cb.setChecked(False)
+        self.nochange_cb = QCheckBox('Do not create change address')
+        grid.addWidget(self.nochange_cb,3,3)
+        self.nochange_cb.setChecked(False)
+        self.nochange_cb.setHidden(not self.wallet.expert_mode)
 
         self.fee_e = QLineEdit()
         grid.addWidget(QLabel(_('Fee')), 4, 0)
@@ -1027,8 +1027,12 @@ class ElectrumWindow(QMainWindow):
         vbox = QVBoxLayout()
         
         msg = _('In order to create more addresses, you need to raise your gap limit.') + '\n' \
-              + _('Your current gap limit is ') + '%d'%self.wallet.gap_limit + '\n' \
-              + _('The minimum for this wallet is: ') + '%d'%self.wallet.min_acceptable_gap() + '\n' 
+            + _('The gap limit is the maximal number of contiguous unused addresses in your wallet.') + '\n\n' \
+            + _('Warning:') + '\n' \
+            + _('This parameter must be provided in order to recover your wallet from seed.') + '\n' \
+            + _('Do not modify it if you do not understand what you are doing!!!') + '\n\n' \
+            + _('Your current gap limit is: ') + '%d'%self.wallet.gap_limit + '\n' \
+            + _('The minimum for this wallet is: ') + '%d'%self.wallet.min_acceptable_gap() + '\n' 
 
         vbox.addWidget(QLabel(msg))
 
@@ -1041,6 +1045,7 @@ class ElectrumWindow(QMainWindow):
         vbox.addLayout(grid)
 
         vbox.addLayout(ok_cancel_buttons(d))
+
         d.setLayout(vbox) 
 
         if not d.exec_(): return
