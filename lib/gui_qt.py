@@ -272,14 +272,15 @@ class ElectrumWindow(QMainWindow):
     def create_history_menu(self, position):
         self.history_list.selectedIndexes() 
         item = self.history_list.currentItem()
+        tx_hash = str(item.toolTip(0))
         if not item: return
         menu = QMenu()
-        menu.addAction(_("Details"), lambda: self.tx_details(item,2))
+        menu.addAction(_("Copy ID to Clipboard"), lambda: self.app.clipboard().setText(tx_hash))
+        menu.addAction(_("Details"), lambda: self.tx_details(tx_hash))
         menu.addAction(_("Edit description"), lambda: self.tx_label_clicked(item,2))
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
-    def tx_details(self, item, column):
-        tx_hash = str(item.toolTip(0))
+    def tx_details(self, tx_hash):
         tx = self.wallet.tx_history.get(tx_hash)
 
         if tx['height']:
