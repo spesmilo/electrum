@@ -427,6 +427,11 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(QLabel(_('Amount')), 3, 0)
         grid.addWidget(self.amount_e, 3, 1, 1, 2)
         
+        if self.wallet.expert_mode:
+            self.nochange_cb = QCheckBox('Do not create change address')
+            grid.addWidget(self.nochange_cb,3,3)
+            self.nochange_cb.setChecked(False)
+
         self.fee_e = QLineEdit()
         grid.addWidget(QLabel(_('Fee')), 4, 0)
         grid.addWidget(self.fee_e, 4, 1, 1, 2)
@@ -530,8 +535,15 @@ class ElectrumWindow(QMainWindow):
         else:
             password = None
 
+        if self.nochange_cb.isChecked():
+            inputs, total, fee = self.wallet.choose_tx_inputs( amount, fee )
+            change_addr = inputs[0][0]
+            print "sending change to", change_addr
+        else:
+            change_addr = None
+
         try:
-            tx = self.wallet.mktx( to_address, amount, label, password, fee )
+            tx = self.wallet.mktx( to_address, amount, label, password, fee, change_addr )
         except BaseException, e:
             self.show_message(str(e))
             return
@@ -1166,6 +1178,7 @@ class ElectrumWindow(QMainWindow):
         self.wallet.save()
         self.update_receive_tab()
         self.update_contacts_tab()
+        self.nochange_cb.setHidden(not self.wallet.expert_mode)
         
 
 
