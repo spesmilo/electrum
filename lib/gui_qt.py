@@ -828,7 +828,7 @@ class ElectrumWindow(QMainWindow):
             s, target = v
             alias_targets.append(target)
             item = QTreeWidgetItem( [ target, alias, '-'] )
-            item.setBackgroundColor(1, QColor('lightgray'))
+            item.setBackgroundColor(0, QColor('lightgray'))
             l.addTopLevelItem(item)
             
         for address in self.wallet.addressbook:
