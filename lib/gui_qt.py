@@ -440,6 +440,8 @@ class ElectrumWindow(QMainWindow):
         self.payto_sig = QLabel('')
         grid.addWidget(self.payto_sig, 6, 0, 1, 4)
 
+        QShortcut(QKeySequence("Up"), w, w.focusPreviousChild)
+        QShortcut(QKeySequence("Down"), w, w.focusNextChild)
         w.setLayout(grid) 
         w.show()
 
