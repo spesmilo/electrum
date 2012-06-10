@@ -92,7 +92,7 @@ class MyTreeWidget(QTreeWidget):
         QTreeWidget.__init__(self, parent)
         def ddfr(item):
             if not item: return
-            for i in range(0,100):
+            for i in range(0,self.viewport().height()/5):
                 if self.itemAt(QPoint(0,i*5)) == item:
                     break
             else:
