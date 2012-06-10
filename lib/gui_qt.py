@@ -721,8 +721,8 @@ class ElectrumWindow(QMainWindow):
         is_alias = label in self.wallet.aliases.keys()
         x = label if is_alias else addr
         menu = QMenu()
-        menu.addAction(_("Pay to"), lambda: self.payto(x, is_alias))
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
+        menu.addAction(_("Pay to"), lambda: self.payto(x, is_alias))
         menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
         if not is_alias:
             menu.addAction(_("Edit label"), lambda: self.edit_label(False))
