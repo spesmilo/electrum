@@ -97,7 +97,12 @@ class MyTreeWidget(QTreeWidget):
                     break
             else:
                 return
-            self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), QPoint(50, 15 + i*5))
+
+            for j in range(0,30):
+                if self.itemAt(QPoint(0,i*5 + j)) != item:
+                    break
+
+            self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), QPoint(50, i*5 + j - 1))
         self.connect(self, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), ddfr)
 
 class StatusBarButton(QPushButton):
