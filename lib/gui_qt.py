@@ -669,22 +669,27 @@ class ElectrumWindow(QMainWindow):
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
 
-    def payto(self, addr):
-        if not addr: return
-        label = self.wallet.labels.get(addr)
+    def payto(self, x, is_alias):
+        if not x: return
+        if is_alias:
+            label = x
+            s, addr = self.wallet.aliases.get(x)
+        else:
+            addr = x
+            label = self.wallet.labels.get(addr)
         m_addr = label + '  <' + addr + '>' if label else addr
         self.tabs.setCurrentIndex(1)
         self.payto_e.setText(m_addr)
         self.amount_e.setFocus()
 
-    def delete_contact(self, addr, is_alias):
-        if self.question("Do you want to remove %s from your list of contacts?"%addr):
-            if not is_alias and addr in self.wallet.addressbook:
-                self.wallet.addressbook.remove(addr)
-                if addr in self.wallet.labels.keys():
-                    self.wallet.labels.pop(addr)
-            elif is_alias and addr in self.wallet.aliases:
-                self.wallet.aliases.pop(addr)
+    def delete_contact(self, x, is_alias):
+        if self.question("Do you want to remove %s from your list of contacts?"%x):
+            if not is_alias and x in self.wallet.addressbook:
+                self.wallet.addressbook.remove(x)
+                if x in self.wallet.labels.keys():
+                    self.wallet.labels.pop(x)
+            elif is_alias and x in self.wallet.aliases:
+                self.wallet.aliases.pop(x)
             self.update_history_tab()
             self.update_contacts_tab()
             self.update_completions()
@@ -697,17 +702,18 @@ class ElectrumWindow(QMainWindow):
         item = self.contacts_list.itemAt(position)
         if not item: return
         addr = unicode(item.text(0))
+        label = unicode(item.text(1))
+        is_alias = label in self.wallet.aliases.keys()
+        x = label if is_alias else addr
         menu = QMenu()
-        menu.addAction(_("Pay to"), lambda: self.payto(addr))
+        menu.addAction(_("Pay to"), lambda: self.payto(x, is_alias))
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
-        label = unicode( item.text(1) )
-        if label not in self.wallet.aliases.keys():
+        if not is_alias:
             menu.addAction(_("Edit label"), lambda: self.edit_label(False))
-            menu.addAction(_("Delete"), lambda: self.delete_contact(addr,False))
         else:
             menu.addAction(_("View alias details"), lambda: self.show_contact_details(label))
-            menu.addAction(_("Delete"), lambda: self.delete_contact(label,True))
+        menu.addAction(_("Delete"), lambda: self.delete_contact(x,is_alias))
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
 
