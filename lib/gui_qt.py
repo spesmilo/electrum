@@ -97,13 +97,24 @@ class MyTreeWidget(QTreeWidget):
                     break
             else:
                 return
-
             for j in range(0,30):
                 if self.itemAt(QPoint(0,i*5 + j)) != item:
                     break
-
             self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), QPoint(50, i*5 + j - 1))
+
         self.connect(self, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), ddfr)
+        self.my_item = None
+
+    def focusInEvent(self, e):
+        # we use column 1 because column 0 may be hidden
+        self.setCurrentItem(self.my_item,1)
+
+    def focusOutEvent(self, e):
+        self.my_item = self.currentItem()
+        self.setCurrentItem(None)
+        
+
+
 
 class StatusBarButton(QPushButton):
     def __init__(self, icon, tooltip, func):
