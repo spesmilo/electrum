@@ -279,8 +279,8 @@ class ElectrumWindow(QMainWindow):
     def create_history_menu(self, position):
         self.history_list.selectedIndexes() 
         item = self.history_list.currentItem()
-        tx_hash = str(item.toolTip(0))
         if not item: return
+        tx_hash = str(item.toolTip(0))
         menu = QMenu()
         menu.addAction(_("Copy ID to Clipboard"), lambda: self.app.clipboard().setText(tx_hash))
         menu.addAction(_("Details"), lambda: self.tx_details(tx_hash))
