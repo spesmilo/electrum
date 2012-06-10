@@ -4,23 +4,24 @@
 
 from distutils.core import setup
 from lib.version import ELECTRUM_VERSION as version
-import os, sys
+import os, sys, platform
 if sys.version_info[:3] < (2,6,0):
     print "Electrum requires Python version >= 2.6.0... exiting"
     sys.exit(1)
             
 
-data_files=[
-    ('/usr/share/applications/',['electrum.desktop']),
-    ('/usr/share/app-install/icons/',['electrum.png'])
-    ]
+data_files = []
 
-if not os.path.exists('locale'):
-    os.mkdir('locale')
-
-for lang in os.listdir('locale'):
-    if os.path.exists('locale/%s/LC_MESSAGES/electrum.mo'%lang):
-        data_files.append(  ('/usr/share/locale/%s/LC_MESSAGES'%lang, ['locale/%s/LC_MESSAGES/electrum.mo'%lang]) )
+if platform.system() != 'Windows':
+    data_files += [
+        ('/usr/share/applications/',['electrum.desktop']),
+        ('/usr/share/app-install/icons/',['electrum.png'])
+        ]
+    if not os.path.exists('locale'):
+        os.mkdir('locale')
+    for lang in os.listdir('locale'):
+        if os.path.exists('locale/%s/LC_MESSAGES/electrum.mo'%lang):
+            data_files.append(  ('/usr/share/locale/%s/LC_MESSAGES'%lang, ['locale/%s/LC_MESSAGES/electrum.mo'%lang]) )
 
 setup(name = "Electrum",
     version = version,
