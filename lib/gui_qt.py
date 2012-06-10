@@ -679,6 +679,7 @@ class ElectrumWindow(QMainWindow):
         #self.receive_list.selectedIndexes() 
 
         item = self.receive_list.itemAt(position)
+        if not item: return
         addr = unicode(item.text(1))
         menu = QMenu()
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
