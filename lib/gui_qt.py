@@ -1178,7 +1178,7 @@ class ElectrumWindow(QMainWindow):
         fee_e.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
         grid.addWidget(QLabel(_('Transaction fee')), 2, 0)
         grid.addWidget(fee_e, 2, 1)
-        grid.addWidget(HelpButton('Fee per transaction input. Transactions involving multiple inputs tend to have a higher fee. Recommended value: 0.0005'), 2, 2)
+        grid.addWidget(HelpButton('Fee per transaction input. Transactions involving multiple inputs tend to require a higher fee. Recommended value: 0.0005'), 2, 2)
         fee_e.textChanged.connect(lambda: numbify(fee_e,False))
 
         nz_e = QLineEdit()
