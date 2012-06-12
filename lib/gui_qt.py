@@ -697,11 +697,11 @@ class ElectrumWindow(QMainWindow):
         if not x: return
         if is_alias:
             label = x
-            s, addr = self.wallet.aliases.get(x)
+            m_addr = label
         else:
             addr = x
             label = self.wallet.labels.get(addr)
-        m_addr = label + '  <' + addr + '>' if label else addr
+            m_addr = label + '  <' + addr + '>' if label else addr
         self.tabs.setCurrentIndex(1)
         self.payto_e.setText(m_addr)
         self.amount_e.setFocus()
