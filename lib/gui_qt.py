@@ -424,11 +424,12 @@ class ElectrumWindow(QMainWindow):
         grid = QGridLayout()
         grid.setSpacing(8)
         grid.setColumnMinimumWidth(3,300)
-        grid.setColumnStretch(4,1)
+        grid.setColumnStretch(5,1)
 
         self.payto_e = QLineEdit()
         grid.addWidget(QLabel(_('Pay to')), 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, 3)
+        grid.addWidget(HelpButton('Recipient of the funds.\n\nYou may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)'), 1, 4)
 
         completer = QCompleter()
         completer.setCaseSensitivity(False)
@@ -438,10 +439,12 @@ class ElectrumWindow(QMainWindow):
         self.message_e = QLineEdit()
         grid.addWidget(QLabel(_('Description')), 2, 0)
         grid.addWidget(self.message_e, 2, 1, 1, 3)
+        grid.addWidget(HelpButton('Description of the transaction (not mandatory).\n\nThe description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.'), 2, 4)
 
         self.amount_e = QLineEdit()
         grid.addWidget(QLabel(_('Amount')), 3, 0)
         grid.addWidget(self.amount_e, 3, 1, 1, 2)
+        grid.addWidget(HelpButton('Amount to be sent.\n\nThe amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.'), 3, 3)
         
         self.nochange_cb = QCheckBox('Do not create change address')
         grid.addWidget(self.nochange_cb,3,3)
@@ -450,8 +453,9 @@ class ElectrumWindow(QMainWindow):
 
         self.fee_e = QLineEdit()
         grid.addWidget(QLabel(_('Fee')), 4, 0)
-        grid.addWidget(self.fee_e, 4, 1, 1, 2)
-        
+        grid.addWidget(self.fee_e, 4, 1, 1, 2) 
+        grid.addWidget(HelpButton('Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.\n\nThe amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.\n\nThe fee suggested by this software increases with the size of the transaction.'), 4, 3)
+       
         b = EnterButton(_("Send"), self.do_send)
         grid.addWidget(b, 5, 1)
 
