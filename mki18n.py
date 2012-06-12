@@ -28,7 +28,7 @@ if not os.path.exists('locale'):
     os.mkdir('locale')
 
 
-cmd = 'xgettext -s --no-wrap -f app.fil --output=locale/messages.pot'
+cmd = 'xgettext -s --no-wrap --omit-header -f app.fil --output=locale/messages.pot'
 print cmd
 os.system(cmd)
 
