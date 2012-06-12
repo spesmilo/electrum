@@ -175,6 +175,7 @@ class ElectrumWindow(QMainWindow):
         self.wallet.gui_callback = self.update_callback
 
         self.funds_error = False
+        self.completions = QStringListModel()
 
         self.tabs = tabs = QTabWidget(self)
         tabs.addTab(self.create_history_tab(), _('History') )
@@ -425,7 +426,6 @@ class ElectrumWindow(QMainWindow):
         completer = QCompleter()
         completer.setCaseSensitivity(False)
         self.payto_e.setCompleter(completer)
-        self.completions = QStringListModel()
         completer.setModel(self.completions)
 
         self.message_e = QLineEdit()
