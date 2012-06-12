@@ -50,6 +50,16 @@ def bc_address_to_hash_160(addr):
     bytes = b58decode(addr, 25)
     return bytes[1:21]
 
+def encode_point(pubkey, compressed=False):
+    order = generator_secp256k1.order()
+    p = pubkey.pubkey.point
+    x_str = ecdsa.util.number_to_string(p.x(), order)
+    y_str = ecdsa.util.number_to_string(p.y(), order)
+    if compressed:
+        return chr(2 + (p.y() & 1)) + x_str
+    else:
+        return chr(4) + pubkey.to_string() #x_str + y_str
+
 __b58chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 __b58base = len(__b58chars)
 
@@ -435,8 +445,8 @@ class Wallet:
                 continue
         else:
             raise BaseException("error: cannot sign message")
-        
-            
+
+
     def verify_message(self, address, signature, message):
         """ See http://www.secg.org/download/aid-780/sec1-v2.pdf for the math """
         from ecdsa import numbertheory, ellipticcurve, util
@@ -448,7 +458,16 @@ class Wallet:
         sig = base64.b64decode(signature)
         if len(sig) != 65: raise BaseException("Wrong encoding")
         r,s = util.sigdecode_string(sig[1:], order)
-        recid = ord(sig[0]) - 27
+        nV = ord(sig[0])
+        if nV < 27 or nV >= 35:
+            raise BaseException("Bad encoding")
+        if nV >= 31:
+            compressed = True
+            nV -= 4
+        else:
+            compressed = False
+
+        recid = nV - 27
         # 1.1
         x = r + (recid/2) * order
         # 1.3
@@ -468,10 +487,8 @@ class Wallet:
         # check that Q is the public key
         public_key.verify_digest( sig[1:], h, sigdecode = ecdsa.util.sigdecode_string)
         # check that we get the original signing address
-        addr = public_key_to_bc_address( '04'.decode('hex') + public_key.to_string() )
-        # print addr
+        addr = public_key_to_bc_address( encode_point(public_key, compressed) )
         if address != addr:
-            print "bad signature"
             raise BaseException("Bad signature")
     
 
