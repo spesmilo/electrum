@@ -77,6 +77,13 @@ class Timer(QtCore.QThread):
             self.emit(QtCore.SIGNAL('timersignal'))
             time.sleep(0.5)
 
+class HelpButton(QPushButton):
+    def __init__(self, text):
+        QPushButton.__init__(self, '?')
+        self.setFixedWidth(20)
+        self.clicked.connect(lambda: QMessageBox.information(self, 'Help', text, 'OK') )
+
+
 class EnterButton(QPushButton):
     def __init__(self, text, func):
         QPushButton.__init__(self, text)
@@ -653,10 +660,6 @@ class ElectrumWindow(QMainWindow):
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,1,2))
         self.receive_list = l
         self.receive_buttons_hbox = hbox
-        self.new_address_button = EnterButton(_("New"), self.change_gap_limit_dialog)
-        self.new_address_button.setHidden(not self.wallet.expert_mode)
-        hbox.addWidget(self.new_address_button)
-        hbox.addStretch(1)
         return w
 
 
@@ -753,7 +756,6 @@ class ElectrumWindow(QMainWindow):
         l.setColumnWidth(3, 130) 
         l.setColumnWidth(4, 10)
 
-        self.new_address_button.setHidden(not self.wallet.expert_mode)
         gap = 0
         is_red = False
         for address in self.wallet.all_addresses():
@@ -1031,48 +1033,6 @@ class ElectrumWindow(QMainWindow):
         return unicode(pw.text())
 
 
-    def change_gap_limit_dialog(self):
-        d = QDialog(self)
-        d.setModal(1)
-
-        vbox = QVBoxLayout()
-        
-        msg = _('In order to create more addresses, you need to raise your gap limit.') + '\n' \
-            + _('The gap limit is the maximal number of contiguous unused addresses in your wallet.') + '\n\n' \
-            + _('Warning:') + '\n' \
-            + _('This parameter must be provided in order to recover your wallet from seed.') + '\n' \
-            + _('Do not modify it if you do not understand what you are doing!!!') + '\n\n' \
-            + _('Your current gap limit is: ') + '%d'%self.wallet.gap_limit + '\n' \
-            + _('The minimum for this wallet is: ') + '%d'%self.wallet.min_acceptable_gap() + '\n' 
-
-        vbox.addWidget(QLabel(msg))
-
-        grid = QGridLayout()
-        grid.setSpacing(8)
-        grid.addWidget(QLabel(_('New gap limit: ')), 1, 0)
-
-        e = QLineEdit()
-        grid.addWidget(e, 1, 1)
-        vbox.addLayout(grid)
-
-        vbox.addLayout(ok_cancel_buttons(d))
-
-        d.setLayout(vbox) 
-
-        if not d.exec_(): return
-        try:
-            n = int(e.text())
-        except:
-            QMessageBox.warning(self, _('Error'), _('Invalid Value'), _('OK'))
-            return
-
-        r = self.wallet.change_gap_limit(n)
-        if r:
-            self.update_receive_tab()
-        else:
-            QMessageBox.warning(self, _('Error'), _('Invalid Value'), _('OK'))
-
-
 
 
 
@@ -1197,15 +1157,18 @@ class ElectrumWindow(QMainWindow):
         self.nochange_cb.setHidden(not self.wallet.expert_mode)
         
 
-
     def settings_dialog(self):
         d = QDialog(self)
         d.setModal(1)
-
         vbox = QVBoxLayout()
+        msg = _('Here are the settings of your wallet.') + '\n'\
+              + _('For more explanations, click on the help buttons next to each field.')
 
-        msg = _('Here are the settings of your wallet.')
-        vbox.addWidget(QLabel(msg))
+        label = QLabel(msg)
+        label.setFixedWidth(250)
+        label.setWordWrap(True)
+        label.setAlignment(Qt.AlignJustify)
+        vbox.addWidget(label)
 
         grid = QGridLayout()
         grid.setSpacing(8)
@@ -1213,26 +1176,42 @@ class ElectrumWindow(QMainWindow):
 
         fee_e = QLineEdit()
         fee_e.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
-        grid.addWidget(QLabel(_('Fee per tx. input')), 2, 0)
+        grid.addWidget(QLabel(_('Transaction fee')), 2, 0)
         grid.addWidget(fee_e, 2, 1)
+        grid.addWidget(HelpButton('Fee per transaction input. Transactions involving multiple inputs tend to have a higher fee. Recommended value: 0.0005'), 2, 2)
         fee_e.textChanged.connect(lambda: numbify(fee_e,False))
 
         nz_e = QLineEdit()
         nz_e.setText("%d"% self.wallet.num_zeros)
-        grid.addWidget(QLabel(_('Zeros displayed after decimal point')), 3, 0)
+        grid.addWidget(QLabel(_('Display zeros')), 3, 0)
+        grid.addWidget(HelpButton('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"'), 3, 2)
         grid.addWidget(nz_e, 3, 1)
         nz_e.textChanged.connect(lambda: numbify(nz_e,True))
 
-        cb = QCheckBox('Expert mode')
-        grid.addWidget(cb,4,0)
-        cb.setChecked(self.wallet.expert_mode)
+        if self.wallet.expert_mode:
+            msg =  _('The gap limit is the maximal number of contiguous unused addresses in your sequence of receiving addresses.') + '\n' \
+                  + _('You may increase it if you need more receiving addresses.') + '\n\n' \
+                  + _('Your current gap limit is: ') + '%d'%self.wallet.gap_limit + '\n' \
+                  + _('Given the current status of your address sequence, the minimum gap limit you can use is: ') + '%d'%self.wallet.min_acceptable_gap() + '\n\n' \
+                  + _('Warning:') + ' ' \
+                  + _('The gap limit parameter must be provided in order to recover your wallet from seed.') + ' ' \
+                  + _('Do not modify it if you do not understand what you are doing, or if you expect to recover your wallet without knowing it!') + '\n\n' 
+            gap_e = QLineEdit()
+            gap_e.setText("%d"% self.wallet.gap_limit)
+            grid.addWidget(QLabel(_('Gap limit')), 4, 0)
+            grid.addWidget(gap_e, 4, 1)
+            grid.addWidget(HelpButton(msg), 4, 2)
+            gap_e.textChanged.connect(lambda: numbify(nz_e,True))
 
+        cb = QCheckBox('Expert mode')
+        grid.addWidget(cb, 5, 0)
+        cb.setChecked(self.wallet.expert_mode)
+        
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
 
+        # run the dialog
         if not d.exec_(): return
-
-        self.set_expert_mode(cb.isChecked())
 
         fee = unicode(fee_e.text())
         try:
@@ -1258,6 +1237,22 @@ class ElectrumWindow(QMainWindow):
             self.update_history_tab()
             self.update_receive_tab()
             self.wallet.save()
+
+        if self.wallet.expert_mode:
+            try:
+                n = int(gap_e.text())
+            except:
+                QMessageBox.warning(self, _('Error'), _('Invalid Value'), _('OK'))
+                return
+            if self.wallet.gap_limit != n:
+                r = self.wallet.change_gap_limit(n)
+                if r:
+                    self.update_receive_tab()
+                else:
+                    QMessageBox.warning(self, _('Error'), _('Invalid Value'), _('OK'))
+
+        self.set_expert_mode(cb.isChecked())
+
 
     @staticmethod 
     def network_dialog(wallet, parent=None):
