@@ -80,6 +80,7 @@ class Timer(QtCore.QThread):
 class HelpButton(QPushButton):
     def __init__(self, text):
         QPushButton.__init__(self, '?')
+        self.setFocusPolicy(Qt.NoFocus)
         self.setFixedWidth(20)
         self.clicked.connect(lambda: QMessageBox.information(self, 'Help', text, 'OK') )
 
