@@ -1159,7 +1159,8 @@ class ElectrumWindow(QMainWindow):
         self.wallet.save()
         self.update_receive_tab()
         self.update_contacts_tab()
-        self.nochange_cb.setHidden(not self.wallet.expert_mode)
+        if self.wallet.seed:
+            self.nochange_cb.setHidden(not self.wallet.expert_mode)
         
 
     def settings_dialog(self):
