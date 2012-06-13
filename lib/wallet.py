@@ -647,9 +647,9 @@ class Wallet:
             f.close()
         except:
             return
-        data = interface.old_to_new(data)
         try:
             d = ast.literal_eval( data )
+            interface.old_to_new(d)
             self.seed_version = d.get('seed_version')
             self.master_public_key = d.get('master_public_key').decode('hex')
             self.use_encryption = d.get('use_encryption')
