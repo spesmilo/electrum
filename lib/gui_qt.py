@@ -448,7 +448,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(HelpButton(_('Amount to be sent.\n\nThe amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.')), 3, 3)
         
         self.nochange_cb = QCheckBox(_('Do not create change address'))
-        grid.addWidget(self.nochange_cb,3,3)
+        grid.addWidget(self.nochange_cb,5,1,1,4)
         self.nochange_cb.setChecked(False)
         self.nochange_cb.setHidden(not self.wallet.expert_mode)
 
@@ -458,13 +458,13 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(HelpButton(_('Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.\n\nThe amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.\n\nA suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')), 4, 3)
        
         b = EnterButton(_("Send"), self.do_send)
-        grid.addWidget(b, 5, 1)
+        grid.addWidget(b, 6, 1)
 
         b = EnterButton(_("Clear"),self.do_clear)
-        grid.addWidget(b, 5, 2)
+        grid.addWidget(b, 6, 2)
 
         self.payto_sig = QLabel('')
-        grid.addWidget(self.payto_sig, 6, 0, 1, 4)
+        grid.addWidget(self.payto_sig, 7, 0, 1, 4)
 
         QShortcut(QKeySequence("Up"), w, w.focusPreviousChild)
         QShortcut(QKeySequence("Down"), w, w.focusNextChild)
