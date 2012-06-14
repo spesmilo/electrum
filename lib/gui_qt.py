@@ -658,7 +658,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def create_receive_tab(self):
-        l,w,hbox = self.create_list_tab([_('Flags'), _('Address'), _('Label'), _('Balance'), _('Tx')])
+        l,w,hbox = self.create_list_tab([_('Flags'), _('Address'), _('Label'), _('Balance'), _('Used')])
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_receive_menu)
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,1,2))
@@ -754,7 +754,7 @@ class ElectrumWindow(QMainWindow):
         l.clear()
         l.setColumnHidden(0,not self.wallet.expert_mode)
         l.setColumnHidden(3,not self.wallet.expert_mode)
-        l.setColumnHidden(4,not self.wallet.expert_mode)
+        #l.setColumnHidden(4,not self.wallet.expert_mode)
         l.setColumnWidth(0, 50) 
         l.setColumnWidth(1, 310) 
         l.setColumnWidth(2, 250)
@@ -775,13 +775,13 @@ class ElectrumWindow(QMainWindow):
                 if not item['is_input'] : n=n+1
 
             if n==0:
-                tx = "None"
+                tx = _("never")
                 if address in self.wallet.addresses:
                     gap += 1
                     if gap > self.wallet.gap_limit:
                         is_red = True
             else:
-                tx = "%d"%n
+                tx = "%d "%n + _('times')
                 if address in self.wallet.addresses:
                     gap = 0
 
