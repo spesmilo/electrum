@@ -658,7 +658,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def create_receive_tab(self):
-        l,w,hbox = self.create_list_tab([_('Flags'), _('Address'), _('Label'), _('Balance'), _('Used')])
+        l,w,hbox = self.create_list_tab([_('Flags'), _('Address'), _('Label'), _('Balance'), _('Received')])
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_receive_menu)
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,1,2))
