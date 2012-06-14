@@ -210,6 +210,12 @@ class ElectrumWindow(QMainWindow):
         self.connect(self, QtCore.SIGNAL('updatesignal'), self.update_wallet)
         self.history_list.setFocus(True)
 
+        # dark magic fix by flatfly; https://bitcointalk.org/index.php?topic=73651.msg959913#msg959913
+        if platform.system() == 'Windows':
+            tabs.setCurrentIndex (2)
+            tabs.setCurrentIndex (3)
+            tabs.setCurrentIndex (0)
+
 
     def connect_slots(self, sender):
         if self.wallet.seed:
