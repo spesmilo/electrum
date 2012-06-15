@@ -363,6 +363,7 @@ class WalletSynchronizer(threading.Thread):
 
         elif method == 'blockchain.numblocks.subscribe':
             self.wallet.blocks = result
+            self.wallet.was_updated = True
 
         elif method == 'server.version':
             pass
