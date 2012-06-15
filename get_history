@@ -15,7 +15,10 @@ i.start()
 i.send([('blockchain.address.get_history',[addr])])
 
 while True:
-    r = i.responses.get(True, 100000000000)
+    try:
+        r = i.responses.get(True, 100000000000)
+    except KeyboardInterrupt:
+        break
     method = r.get('method') 
     if method == 'blockchain.address.get_history':
         confirmed = unconfirmed = 0
