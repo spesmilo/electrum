@@ -212,9 +212,8 @@ class ElectrumWindow(QMainWindow):
 
         # dark magic fix by flatfly; https://bitcointalk.org/index.php?topic=73651.msg959913#msg959913
         if platform.system() == 'Windows':
-            n = 2 if self.wallet.seed else 1
+            n = 3 if self.wallet.seed else 2
             tabs.setCurrentIndex (n)
-            tabs.setCurrentIndex (n+1)
             tabs.setCurrentIndex (0)
 
 
