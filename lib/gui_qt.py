@@ -664,7 +664,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def create_receive_tab(self):
-        l,w,hbox = self.create_list_tab([_('Flags'), _('Address'), _('Label'), _('Balance'), _('Received')])
+        l,w,hbox = self.create_list_tab([_('Flags'), _('Address'), _('Label'), _('Balance'), _('Tx')])
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_receive_menu)
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,1,2))
@@ -760,7 +760,7 @@ class ElectrumWindow(QMainWindow):
         l.clear()
         l.setColumnHidden(0,not self.wallet.expert_mode)
         l.setColumnHidden(3,not self.wallet.expert_mode)
-        #l.setColumnHidden(4,not self.wallet.expert_mode)
+        l.setColumnHidden(4,not self.wallet.expert_mode)
         l.setColumnWidth(0, 50) 
         l.setColumnWidth(1, 310) 
         l.setColumnWidth(2, 250)
@@ -780,14 +780,13 @@ class ElectrumWindow(QMainWindow):
             for item in h:
                 if not item['is_input'] : n=n+1
 
+            tx = "%d "%n
             if n==0:
-                tx = _("never")
                 if address in self.wallet.addresses:
                     gap += 1
                     if gap > self.wallet.gap_limit:
                         is_red = True
             else:
-                tx = "%d "%n + _('times')
                 if address in self.wallet.addresses:
                     gap = 0
 
@@ -843,7 +842,7 @@ class ElectrumWindow(QMainWindow):
             n = 0 
             for item in self.wallet.tx_history.values():
                 if address in item['outputs'] : n=n+1
-            tx = "None" if n==0 else "%d"%n
+            tx = "%d"%n
             item = QTreeWidgetItem( [ address, label, tx] )
             item.setFont(0, QFont(MONOSPACE_FONT))
             l.addTopLevelItem(item)
