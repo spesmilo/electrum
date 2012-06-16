@@ -458,11 +458,6 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.fee_e, 4, 1, 1, 2) 
         grid.addWidget(HelpButton(_('Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.\n\nThe amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.\n\nA suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')), 4, 3)
        
-        self.nochange_cb = QCheckBox(_('Do not create change address'))
-        grid.addWidget(self.nochange_cb,5,1,1,4)
-        self.nochange_cb.setChecked(False)
-        self.nochange_cb.setHidden(not self.wallet.expert_mode)
-
         b = EnterButton(_("Send"), self.do_send)
         grid.addWidget(b, 6, 1)
 
@@ -562,15 +557,8 @@ class ElectrumWindow(QMainWindow):
         else:
             password = None
 
-        if self.nochange_cb.isChecked():
-            inputs, total, fee = self.wallet.choose_tx_inputs( amount, fee )
-            change_addr = inputs[0][0]
-            print "sending change to", change_addr
-        else:
-            change_addr = None
-
         try:
-            tx = self.wallet.mktx( to_address, amount, label, password, fee, change_addr )
+            tx = self.wallet.mktx( to_address, amount, label, password, fee)
         except BaseException, e:
             self.show_message(str(e))
             return
@@ -1164,8 +1152,8 @@ class ElectrumWindow(QMainWindow):
         self.wallet.save()
         self.update_receive_tab()
         self.update_contacts_tab()
-        if self.wallet.seed:
-            self.nochange_cb.setHidden(not self.wallet.expert_mode)
+        # if self.wallet.seed:
+        # self.nochange_cb.setHidden(not self.wallet.expert_mode)
         
 
     def settings_dialog(self):
@@ -1199,7 +1187,16 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(nz_e, 3, 1)
         nz_e.textChanged.connect(lambda: numbify(nz_e,True))
 
+        cb = QCheckBox(_('Expert mode'))
+        grid.addWidget(cb, 4, 0)
+        cb.setChecked(self.wallet.expert_mode)
+
         if self.wallet.expert_mode:
+
+            nochange_cb = QCheckBox(_('Use change addresses'))
+            grid.addWidget(nochange_cb, 5, 0)
+            nochange_cb.setChecked(self.wallet.use_change)
+
             msg =  _('The gap limit is the maximal number of contiguous unused addresses in your sequence of receiving addresses.') + '\n' \
                   + _('You may increase it if you need more receiving addresses.') + '\n\n' \
                   + _('Your current gap limit is: ') + '%d'%self.wallet.gap_limit + '\n' \
@@ -1209,14 +1206,11 @@ class ElectrumWindow(QMainWindow):
                   + _('Do not modify it if you do not understand what you are doing, or if you expect to recover your wallet without knowing it!') + '\n\n' 
             gap_e = QLineEdit()
             gap_e.setText("%d"% self.wallet.gap_limit)
-            grid.addWidget(QLabel(_('Gap limit')), 4, 0)
-            grid.addWidget(gap_e, 4, 1)
-            grid.addWidget(HelpButton(msg), 4, 2)
+            grid.addWidget(QLabel(_('Gap limit')), 6, 0)
+            grid.addWidget(gap_e, 6, 1)
+            grid.addWidget(HelpButton(msg), 6, 2)
             gap_e.textChanged.connect(lambda: numbify(nz_e,True))
 
-        cb = QCheckBox(_('Expert mode'))
-        grid.addWidget(cb, 5, 0)
-        cb.setChecked(self.wallet.expert_mode)
         
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
@@ -1250,6 +1244,9 @@ class ElectrumWindow(QMainWindow):
             self.wallet.save()
 
         if self.wallet.expert_mode:
+
+            self.wallet.nochange = nochange_cb.isChecked()
+
             try:
                 n = int(gap_e.text())
             except:
