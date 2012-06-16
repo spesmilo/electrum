@@ -1193,9 +1193,10 @@ class ElectrumWindow(QMainWindow):
 
         if self.wallet.expert_mode:
 
-            nochange_cb = QCheckBox(_('Use change addresses'))
-            grid.addWidget(nochange_cb, 5, 0)
-            nochange_cb.setChecked(self.wallet.use_change)
+            usechange_cb = QCheckBox(_('Use change addresses'))
+            grid.addWidget(usechange_cb, 5, 0)
+            usechange_cb.setChecked(self.wallet.use_change)
+            grid.addWidget(HelpButton(_('Using a change addresses makes it more difficult for other people to track your transactions. ')), 5, 2)
 
             msg =  _('The gap limit is the maximal number of contiguous unused addresses in your sequence of receiving addresses.') + '\n' \
                   + _('You may increase it if you need more receiving addresses.') + '\n\n' \
@@ -1245,7 +1246,7 @@ class ElectrumWindow(QMainWindow):
 
         if self.wallet.expert_mode:
 
-            self.wallet.nochange = nochange_cb.isChecked()
+            self.wallet.use_change = usechange_cb.isChecked()
 
             try:
                 n = int(gap_e.text())
