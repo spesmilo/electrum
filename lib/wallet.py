@@ -888,7 +888,7 @@ class Wallet:
         if not inputs:
             raise BaseException("Not enough funds")
 
-        if self.use_change:
+        if not self.use_change:
             change_addr = inputs[0][0]
             print "sending change to", change_addr
         else:
