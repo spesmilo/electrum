@@ -881,18 +881,16 @@ class Wallet:
 
             tx['default_label'] = default_label
 
-    def mktx(self, to_address, amount, label, password, fee=None, from_addr= None):
+    def mktx(self, to_address, amount, label, password, fee=None, change_addr=None, from_addr= None):
         if not self.is_valid(to_address):
             raise BaseException("Invalid address")
         inputs, total, fee = self.choose_tx_inputs( amount, fee, from_addr )
         if not inputs:
             raise BaseException("Not enough funds")
 
-        if not self.use_change:
+        if not self.use_change and not change_addr:
             change_addr = inputs[0][0]
             print "sending change to", change_addr
-        else:
-            change_addr = None
 
         outputs = self.choose_tx_outputs( to_address, amount, fee, total, change_addr )
         s_inputs = self.sign_inputs( inputs, outputs, password )
