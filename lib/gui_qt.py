@@ -1184,7 +1184,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(fee_e, 2, 1)
         msg = _('Fee per transaction input. Transactions involving multiple inputs tend to require a higher fee.') + ' ' \
             + _('Recommended value') + ': 0.001'
-        grid.addWidget(HelpButton(msg, 2, 2))
+        grid.addWidget(HelpButton(msg), 2, 2)
         fee_e.textChanged.connect(lambda: numbify(fee_e,False))
 
         nz_e = QLineEdit()
@@ -1259,14 +1259,14 @@ class ElectrumWindow(QMainWindow):
             try:
                 n = int(gap_e.text())
             except:
-                QMessageBox.warning(self, _('Error'), _('Invalid Value'), _('OK'))
+                QMessageBox.warning(self, _('Error'), _('Invalid value'), _('OK'))
                 return
             if self.wallet.gap_limit != n:
                 r = self.wallet.change_gap_limit(n)
                 if r:
                     self.update_receive_tab()
                 else:
-                    QMessageBox.warning(self, _('Error'), _('Invalid Value'), _('OK'))
+                    QMessageBox.warning(self, _('Error'), _('Invalid value'), _('OK'))
 
         self.set_expert_mode(cb.isChecked())
 
