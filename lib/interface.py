@@ -23,7 +23,10 @@ import threading, traceback, sys, time, json, Queue
 from version import ELECTRUM_VERSION
 
 DEFAULT_TIMEOUT = 5
-DEFAULT_SERVERS = [ 'ecdsa.org:50001:t', 'electrum.novit.ro:50001:t', 'electrum.bitcoins.sk:50001:t']  # list of default servers
+DEFAULT_SERVERS = [ 'ecdsa.org:50001:t', 
+                    'electrum.novit.ro:50001:t', 
+                    'uncle-enzo.info:50001:t', 
+                    'electrum.bytesized-hosting.com:50000:t']  # list of default servers
 
 
 def replace_keys(obj, old_key, new_key):
