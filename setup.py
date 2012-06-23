@@ -42,6 +42,7 @@ setup(name = "Electrum",
                   'electrum.i18n'],
     description = "Lightweight Bitcoin Wallet",
     author = "thomasv",
+    author_email = "thomasv@gitorious",
     license = "GNU GPLv3",
     url = "http://ecdsa/electrum",
     long_description = """Lightweight Bitcoin Wallet""" 
