@@ -340,11 +340,14 @@ class WalletSynchronizer(threading.Thread):
                 s = []
                 host = item[1]
                 ports = []
+                version = None
                 if len(item)>2:
                     for v in item[2]:
                         if re.match("[th]\d+",v):
                             ports.append((v[0],v[1:]))
-                if ports:
+                        if re.match("v(.?)+",v):
+                            version = v[1:]
+                if ports and version:
                     servers.append( (host, ports) )
             self.interface.servers = servers
 
