@@ -494,9 +494,14 @@ if __name__ == '__main__':
         print wallet.sign_message(address, message, password)
 
     elif cmd == 'verifymessage':
-        address = args[1]
-        signature = args[2]
-        message = ' '.join(args[3:])
+        try:
+            address = args[1]
+            signature = args[2]
+            message = ' '.join(args[3:])
+        except:
+            print "Not all parameters were given, displaying help instead."
+            print known_commands[cmd]
+            sys.exit(1)
         if len(args) > 4:
             print "Warning: Message was reconstructed from several arguments:", repr(message)
         try:
