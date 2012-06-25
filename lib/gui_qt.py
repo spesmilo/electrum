@@ -45,7 +45,14 @@ import bmp, mnemonic, pyqrnative
 from decimal import Decimal
 
 import platform
-MONOSPACE_FONT = 'Lucida Console' if platform.system() == 'Windows' else 'monospace'
+
+if platform.system() == 'Windows':
+    MONOSPACE_FONT = 'Lucida Console'
+elif platform.system() == 'Darwin':
+    MONOSPACE_FONT = 'Monaco'
+else:
+    MONOSPACE_FONT = 'monospace'
+
 ALIAS_REGEXP = '^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$'    
 
 def numbify(entry, is_int = False):
