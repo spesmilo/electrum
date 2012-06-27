@@ -136,6 +136,11 @@ if __name__ == '__main__':
                 import lib.gui_qt as gui
             except ImportError:
                 import electrum.gui_qt as gui
+        elif options.gui == 'lite':
+            try:
+                import lib.gui_lite as gui
+            except ImportError:
+                import electrum.gui_life as gui
         else:
             print "unknown gui", options.gui
             exit(1)
@@ -155,7 +160,8 @@ if __name__ == '__main__':
             #gui.show_message(e.message)
             exit(1)
 
-        if not found: exit(1)
+        if not found:
+            exit(1)
         gui.main(url)
         wallet.save()
         sys.exit(0)

@@ -9,6 +9,14 @@ def IconButton(filename, parent=None):
     icon = QIcon(pixmap)
     return QPushButton(icon, "", parent)
 
+class ElectrumGui:
+    def __init__(self, wallet):
+        self.wallet = wallet
+
+    def main(self, url):
+        print url
+        # Do nothing.
+
 class MiniWindow(QDialog):
     def __init__(self):
         super(MiniWindow, self).__init__()
