@@ -1,0 +1,35 @@
+QDialog
+{
+    background-image: url(data/background.png);
+}
+
+#address_input[readOnly=true], #amount_input[readOnly=true]
+{
+    font: italic;
+    color: gray;
+}
+#address_input[readOnly=false], #amount_input[readOnly=false]
+{
+    font: normal;
+    color: black;
+}
+
+#valid_address::indicator
+{
+    width: 24px;
+    height: 24px;
+}
+#valid_address::indicator:checked
+{
+    image: url(data/icons/confirmed.png);
+}
+#valid_address::indicator:unchecked
+{
+    image: url(data/icons/unconfirmed.png);
+}
+
+#balance_label
+{
+    color: white;
+}
+
