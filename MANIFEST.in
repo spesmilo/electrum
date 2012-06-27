@@ -8,4 +8,4 @@ include app.fil
 include icons.qrc
 include remote.php
 recursive-include icons *
-recursive-include i18n/locale *
+

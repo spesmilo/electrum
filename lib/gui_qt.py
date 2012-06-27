@@ -45,7 +45,14 @@ import bmp, mnemonic, pyqrnative
 from decimal import Decimal
 
 import platform
-MONOSPACE_FONT = 'Lucida Console' if platform.system() == 'Windows' else 'monospace'
+
+if platform.system() == 'Windows':
+    MONOSPACE_FONT = 'Lucida Console'
+elif platform.system() == 'Darwin':
+    MONOSPACE_FONT = 'Monaco'
+else:
+    MONOSPACE_FONT = 'monospace'
+
 ALIAS_REGEXP = '^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$'    
 
 def numbify(entry, is_int = False):
@@ -80,6 +87,7 @@ class Timer(QtCore.QThread):
 class HelpButton(QPushButton):
     def __init__(self, text):
         QPushButton.__init__(self, '?')
+        self.setFocusPolicy(Qt.NoFocus)
         self.setFixedWidth(20)
         self.clicked.connect(lambda: QMessageBox.information(self, 'Help', text, 'OK') )
 
@@ -208,6 +216,12 @@ class ElectrumWindow(QMainWindow):
         
         self.connect(self, QtCore.SIGNAL('updatesignal'), self.update_wallet)
         self.history_list.setFocus(True)
+
+        # dark magic fix by flatfly; https://bitcointalk.org/index.php?topic=73651.msg959913#msg959913
+        if platform.system() == 'Windows':
+            n = 3 if self.wallet.seed else 2
+            tabs.setCurrentIndex (n)
+            tabs.setCurrentIndex (0)
 
 
     def connect_slots(self, sender):
@@ -429,7 +443,7 @@ class ElectrumWindow(QMainWindow):
         self.payto_e = QLineEdit()
         grid.addWidget(QLabel(_('Pay to')), 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, 3)
-        grid.addWidget(HelpButton('Recipient of the funds.\n\nYou may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)'), 1, 4)
+        grid.addWidget(HelpButton(_('Recipient of the funds.') + '\n\n' + _('You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)')), 1, 4)
 
         completer = QCompleter()
         completer.setCaseSensitivity(False)
@@ -439,31 +453,31 @@ class ElectrumWindow(QMainWindow):
         self.message_e = QLineEdit()
         grid.addWidget(QLabel(_('Description')), 2, 0)
         grid.addWidget(self.message_e, 2, 1, 1, 3)
-        grid.addWidget(HelpButton('Description of the transaction (not mandatory).\n\nThe description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.'), 2, 4)
+        grid.addWidget(HelpButton(_('Description of the transaction (not mandatory).') + '\n\n' + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.')), 2, 4)
 
         self.amount_e = QLineEdit()
         grid.addWidget(QLabel(_('Amount')), 3, 0)
         grid.addWidget(self.amount_e, 3, 1, 1, 2)
-        grid.addWidget(HelpButton('Amount to be sent.\n\nThe amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.'), 3, 3)
+        grid.addWidget(HelpButton(
+                _('Amount to be sent.') + '\n\n' \
+                    + _('The amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.')), 3, 3)
         
-        self.nochange_cb = QCheckBox('Do not create change address')
-        grid.addWidget(self.nochange_cb,3,3)
-        self.nochange_cb.setChecked(False)
-        self.nochange_cb.setHidden(not self.wallet.expert_mode)
-
         self.fee_e = QLineEdit()
         grid.addWidget(QLabel(_('Fee')), 4, 0)
         grid.addWidget(self.fee_e, 4, 1, 1, 2) 
-        grid.addWidget(HelpButton('Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.\n\nThe amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.\n\nThe fee suggested by this software increases with the size of the transaction.'), 4, 3)
-       
+        grid.addWidget(HelpButton(
+                _('Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
+                    + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
+                    + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')), 4, 3)
+        
         b = EnterButton(_("Send"), self.do_send)
-        grid.addWidget(b, 5, 1)
+        grid.addWidget(b, 6, 1)
 
         b = EnterButton(_("Clear"),self.do_clear)
-        grid.addWidget(b, 5, 2)
+        grid.addWidget(b, 6, 2)
 
         self.payto_sig = QLabel('')
-        grid.addWidget(self.payto_sig, 6, 0, 1, 4)
+        grid.addWidget(self.payto_sig, 7, 0, 1, 4)
 
         QShortcut(QKeySequence("Up"), w, w.focusPreviousChild)
         QShortcut(QKeySequence("Down"), w, w.focusNextChild)
@@ -555,15 +569,8 @@ class ElectrumWindow(QMainWindow):
         else:
             password = None
 
-        if self.nochange_cb.isChecked():
-            inputs, total, fee = self.wallet.choose_tx_inputs( amount, fee )
-            change_addr = inputs[0][0]
-            print "sending change to", change_addr
-        else:
-            change_addr = None
-
         try:
-            tx = self.wallet.mktx( to_address, amount, label, password, fee, change_addr )
+            tx = self.wallet.mktx( to_address, amount, label, password, fee)
         except BaseException, e:
             self.show_message(str(e))
             return
@@ -773,14 +780,13 @@ class ElectrumWindow(QMainWindow):
             for item in h:
                 if not item['is_input'] : n=n+1
 
+            tx = "%d "%n
             if n==0:
-                tx = "None"
                 if address in self.wallet.addresses:
                     gap += 1
                     if gap > self.wallet.gap_limit:
                         is_red = True
             else:
-                tx = "%d"%n
                 if address in self.wallet.addresses:
                     gap = 0
 
@@ -836,7 +842,7 @@ class ElectrumWindow(QMainWindow):
             n = 0 
             for item in self.wallet.tx_history.values():
                 if address in item['outputs'] : n=n+1
-            tx = "None" if n==0 else "%d"%n
+            tx = "%d"%n
             item = QTreeWidgetItem( [ address, label, tx] )
             item.setFont(0, QFont(MONOSPACE_FONT))
             l.addTopLevelItem(item)
@@ -1158,7 +1164,8 @@ class ElectrumWindow(QMainWindow):
         self.wallet.save()
         self.update_receive_tab()
         self.update_contacts_tab()
-        self.nochange_cb.setHidden(not self.wallet.expert_mode)
+        # if self.wallet.seed:
+        # self.nochange_cb.setHidden(not self.wallet.expert_mode)
         
 
     def settings_dialog(self):
@@ -1182,34 +1189,44 @@ class ElectrumWindow(QMainWindow):
         fee_e.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
         grid.addWidget(QLabel(_('Transaction fee')), 2, 0)
         grid.addWidget(fee_e, 2, 1)
-        grid.addWidget(HelpButton('Fee per transaction input. Transactions involving multiple inputs tend to require a higher fee. Recommended value: 0.001'), 2, 2)
+        msg = _('Fee per transaction input. Transactions involving multiple inputs tend to require a higher fee.') + ' ' \
+            + _('Recommended value') + ': 0.001'
+        grid.addWidget(HelpButton(msg), 2, 2)
         fee_e.textChanged.connect(lambda: numbify(fee_e,False))
 
         nz_e = QLineEdit()
         nz_e.setText("%d"% self.wallet.num_zeros)
         grid.addWidget(QLabel(_('Display zeros')), 3, 0)
-        grid.addWidget(HelpButton('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"'), 3, 2)
+        msg = _('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"')
+        grid.addWidget(HelpButton(msg), 3, 2)
         grid.addWidget(nz_e, 3, 1)
         nz_e.textChanged.connect(lambda: numbify(nz_e,True))
 
+        cb = QCheckBox(_('Expert mode'))
+        grid.addWidget(cb, 4, 0)
+        cb.setChecked(self.wallet.expert_mode)
+
         if self.wallet.expert_mode:
+
+            usechange_cb = QCheckBox(_('Use change addresses'))
+            grid.addWidget(usechange_cb, 5, 0)
+            usechange_cb.setChecked(self.wallet.use_change)
+            grid.addWidget(HelpButton(_('Using a change addresses makes it more difficult for other people to track your transactions. ')), 5, 2)
+
             msg =  _('The gap limit is the maximal number of contiguous unused addresses in your sequence of receiving addresses.') + '\n' \
                   + _('You may increase it if you need more receiving addresses.') + '\n\n' \
-                  + _('Your current gap limit is: ') + '%d'%self.wallet.gap_limit + '\n' \
+                  + _('Your current gap limit is') + ': %d'%self.wallet.gap_limit + '\n' \
                   + _('Given the current status of your address sequence, the minimum gap limit you can use is: ') + '%d'%self.wallet.min_acceptable_gap() + '\n\n' \
-                  + _('Warning:') + ' ' \
+                  + _('Warning') + ': ' \
                   + _('The gap limit parameter must be provided in order to recover your wallet from seed.') + ' ' \
                   + _('Do not modify it if you do not understand what you are doing, or if you expect to recover your wallet without knowing it!') + '\n\n' 
             gap_e = QLineEdit()
             gap_e.setText("%d"% self.wallet.gap_limit)
-            grid.addWidget(QLabel(_('Gap limit')), 4, 0)
-            grid.addWidget(gap_e, 4, 1)
-            grid.addWidget(HelpButton(msg), 4, 2)
+            grid.addWidget(QLabel(_('Gap limit')), 6, 0)
+            grid.addWidget(gap_e, 6, 1)
+            grid.addWidget(HelpButton(msg), 6, 2)
             gap_e.textChanged.connect(lambda: numbify(nz_e,True))
 
-        cb = QCheckBox('Expert mode')
-        grid.addWidget(cb, 5, 0)
-        cb.setChecked(self.wallet.expert_mode)
         
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
@@ -1243,17 +1260,20 @@ class ElectrumWindow(QMainWindow):
             self.wallet.save()
 
         if self.wallet.expert_mode:
+
+            self.wallet.use_change = usechange_cb.isChecked()
+
             try:
                 n = int(gap_e.text())
             except:
-                QMessageBox.warning(self, _('Error'), _('Invalid Value'), _('OK'))
+                QMessageBox.warning(self, _('Error'), _('Invalid value'), _('OK'))
                 return
             if self.wallet.gap_limit != n:
                 r = self.wallet.change_gap_limit(n)
                 if r:
                     self.update_receive_tab()
                 else:
-                    QMessageBox.warning(self, _('Error'), _('Invalid Value'), _('OK'))
+                    QMessageBox.warning(self, _('Error'), _('Invalid value'), _('OK'))
 
         self.set_expert_mode(cb.isChecked())
 

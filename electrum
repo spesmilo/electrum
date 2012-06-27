@@ -39,50 +39,49 @@ from optparse import OptionParser
 from decimal import Decimal
 
 known_commands = {
-    'help':'print help',
-    'validateaddress':'check that the address is valid', 
-    'balance': "Display the balance of your wallet or of an address.\nsyntax: balance [<address>]", 
+    'help':'Prints this help',
+    'validateaddress':'Check that the address is valid', 
+    'balance': "Display the balance of your wallet or of an address.\nSyntax: balance [<address>]", 
     'contacts': "Show your list of contacts", 
-    'create':'create wallet', 
-    'restore':'restore wallet', 
-    'payto':""" 
-            payto <recipient> <amount> [label]
-            create and broadcast a transaction.
-            <recipient> can be a bitcoin address or a label
-            options:\n--fee, -f: set transaction fee\n--fromaddr, -s: send from address -\n--changeaddr, -c: send change to address
+    'create':'Create a wallet', 
+    'restore':'Restore a wallet', 
+    'payto':"""Create and broadcast a transaction.
+Syntax: payto <recipient> <amount> [label]
+<recipient> can be a bitcoin address or a label
+options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address -\n  --changeaddr, -c: send change to address
             """,
     'sendtx':
-            """sendtx <tx>
-            broadcast a transaction to the network. <tx> must be in hexadecimal""",
+            'Broadcasts a transaction to the network. \nSyntax: sendtx <tx>\n<tx> must be in hexadecimal.',
     'password': 
-            "change your password",
+            "Changes your password",
     'addresses':  
-            """show your list of addresses.
-            options:
-             -a: show all addresses, including change addresses
-             -k: show private keys
-             -b: show the balance of addresses""",
-    'history':"show the transaction history",
-    'label':"assign a label to an item",
+            """Shows your list of addresses.
+options:
+  -a: show all addresses, including change addresses
+  -k: show private keys
+  -b: show the balance of addresses""",
+
+    'history':"Shows the transaction history",
+    'label':'Assign a label to an item\nSyntax: label <tx_hash> <label>',
     'mktx':
-        """create a signed transaction. password protected
-           syntax: mktx <recipient> <amount> [label]
-           options:\n--fee, -f: set transaction fee\n--fromaddr, -s: send from address -\n--changeaddr, -c: send change to address
+        """Create a signed transaction, password protected.
+Syntax: mktx <recipient> <amount> [label]
+options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address -\n  --changeaddr, -c: send change to address
         """,
     'seed':
-            "print the generation seed of your wallet.",
+            "Print the generation seed of your wallet.",
     'import': 
-            "import key pair",
+            'Imports a key pair\nSyntax: import <address>:<privatekey>',
     'signmessage':
-            'sign a message with a key',
+            'Signs a message with a key\nSyntax: signmessage <address> <message>',
     'verifymessage':
-             'verify signature',
+             'Verifies a signature\nSyntax: verifymessage <address> <signature> <message>',
     'eval':  
              "Run python eval() on an object\nSyntax: eval <expression>\nExample: eval \"wallet.aliases\"",
     'deseed':
-            "remove seed from the wallet. The seed is stored in a file that has the name of the wallet plus '.seed'",
+            "Remove seed from the wallet. The seed is stored in a file that has the name of the wallet plus '.seed'",
     'reseed':
-            "restore seed of the wallet. The wallet must have no seed, and the seed must match the wallet's master public key.",
+            "Restore seed of the wallet. The wallet must have no seed, and the seed must match the wallet's master public key.",
     'freeze':'',
     'unfreeze':'',
     'prioritize':'',
@@ -495,9 +494,14 @@ if __name__ == '__main__':
         print wallet.sign_message(address, message, password)
 
     elif cmd == 'verifymessage':
-        address = args[1]
-        signature = args[2]
-        message = ' '.join(args[3:])
+        try:
+            address = args[1]
+            signature = args[2]
+            message = ' '.join(args[3:])
+        except:
+            print "Not all parameters were given, displaying help instead."
+            print known_commands[cmd]
+            sys.exit(1)
         if len(args) > 4:
             print "Warning: Message was reconstructed from several arguments:", repr(message)
         try:

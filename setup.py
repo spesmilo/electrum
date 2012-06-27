@@ -12,7 +12,7 @@ if sys.version_info[:3] < (2,6,0):
 
 data_files = []
 
-if platform.system() != 'Windows':
+if platform.system() != 'Windows' and platform.system() != 'Darwin':
     data_files += [
         ('/usr/share/applications/',['electrum.desktop']),
         ('/usr/share/app-install/icons/',['electrum.png'])
@@ -42,6 +42,7 @@ setup(name = "Electrum",
                   'electrum.i18n'],
     description = "Lightweight Bitcoin Wallet",
     author = "thomasv",
+    author_email = "thomasv@gitorious",
     license = "GNU GPLv3",
     url = "http://ecdsa/electrum",
     long_description = """Lightweight Bitcoin Wallet""" 

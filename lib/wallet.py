@@ -256,6 +256,7 @@ class Wallet:
         self.gui_callback = gui_callback
 
         self.gap_limit = 5           # configuration
+        self.use_change = True
         self.fee = 100000
         self.num_zeros = 0
         self.master_public_key = ''
@@ -611,6 +612,7 @@ class Wallet:
         s = {
             'seed_version':self.seed_version,
             'use_encryption':self.use_encryption,
+            'use_change':self.use_change,
             'master_public_key': self.master_public_key.encode('hex'),
             'fee':self.fee,
             'server':self.server,
@@ -647,12 +649,13 @@ class Wallet:
             f.close()
         except:
             return
-        data = interface.old_to_new(data)
         try:
             d = ast.literal_eval( data )
+            interface.old_to_new(d)
             self.seed_version = d.get('seed_version')
             self.master_public_key = d.get('master_public_key').decode('hex')
             self.use_encryption = d.get('use_encryption')
+            self.use_change = bool(d.get('use_change',True))
             self.fee = int( d.get('fee') )
             self.seed = d.get('seed')
             self.server = d.get('server')
@@ -884,6 +887,11 @@ class Wallet:
         inputs, total, fee = self.choose_tx_inputs( amount, fee, from_addr )
         if not inputs:
             raise BaseException("Not enough funds")
+
+        if not self.use_change and not change_addr:
+            change_addr = inputs[0][0]
+            print "sending change to", change_addr
+
         outputs = self.choose_tx_outputs( to_address, amount, fee, total, change_addr )
         s_inputs = self.sign_inputs( inputs, outputs, password )
 
