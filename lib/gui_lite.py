@@ -10,14 +10,20 @@ def IconButton(filename, parent=None):
     return QPushButton(icon, "", parent)
 
 class ElectrumGui:
+
     def __init__(self, wallet):
         self.wallet = wallet
+        self.app = QApplication(sys.argv)
+        with open("data/style.css") as style_file:
+            self.app.setStyleSheet(style_file.read())
 
     def main(self, url):
-        print url
-        # Do nothing.
+        mini = MiniWindow()
+        driver = MiniDriver(self.wallet, mini)
+        sys.exit(self.app.exec_())
 
 class MiniWindow(QDialog):
+
     def __init__(self):
         super(MiniWindow, self).__init__()
 
@@ -45,8 +51,9 @@ class MiniWindow(QDialog):
         expand_button = IconButton("data/icons/expand.png")
         expand_button.setObjectName("expand_button")
 
-        balance_label = BalanceLabel("80.00", "60.00", "EUR")
-        balance_label.setObjectName("balance_label")
+        self.balance_label = BalanceLabel()
+        self.balance_label.set_balances("80.00", "60.00", "EUR")
+        self.balance_label.setObjectName("balance_label")
 
         copy_button = QPushButton(_("&Copy Address"))
         copy_button.setObjectName("copy_button")
@@ -79,7 +86,7 @@ class MiniWindow(QDialog):
         main_layout.addWidget(interact_button, 1, 0)
         main_layout.addWidget(expand_button, 2, 0)
 
-        main_layout.addWidget(balance_label, 0, 1)
+        main_layout.addWidget(self.balance_label, 0, 1)
         main_layout.addWidget(copy_button, 0, 2)
 
         main_layout.addLayout(address_layout, 1, 1, 1, -1)
@@ -97,13 +104,27 @@ class MiniWindow(QDialog):
         super(MiniWindow, self).closeEvent(event)
         qApp.quit()
 
+    def activate(self):
+        pass
+
+    def deactivate(self):
+        pass
+
+    def set_balances(self, btc_balance, quote_balance, quote_currency):
+        self.balance_label.set_balances( \
+            btc_balance, quote_balance, quote_currency)
+
 class BalanceLabel(QLabel):
-    def __init__(self, btc_balance,
-                 quote_balance, quote_currency, parent=None):
+
+    def __init__(self, parent=None):
+        super(QLabel, self).__init__("Connecting...", parent)
+
+    def set_balances(self, btc_balance, quote_balance, quote_currency):
         label_text = "<span style='font-size: 16pt'>%s</span> <span style='font-size: 10pt'>BTC</span> <span style='font-size: 10pt'>(%s %s)</span>"%(btc_balance, quote_balance, quote_currency)
-        super(QLabel, self).__init__(label_text, parent)
+        self.setText(label_text)
 
 class TextedLineEdit(QLineEdit):
+
     def __init__(self, inactive_text, parent=None):
         super(QLineEdit, self).__init__(parent)
         self.inactive_text = inactive_text
@@ -134,6 +155,61 @@ class TextedLineEdit(QLineEdit):
         qApp.style().polish(self)
         # also possible but more expensive:
         #qApp.setStyleSheet(qApp.styleSheet())
+
+class MiniDriver:
+
+    INITIALIZING = 0
+    CONNECTING = 1
+    SYNCHRONIZING = 2
+    READY = 3
+
+    def __init__(self, wallet, window):
+        self.wallet = wallet
+        self.window = window
+
+        self.wallet.gui_callback = self.update
+
+        self.state = None
+        self.update()
+
+    def update(self):
+        if not self.wallet.interface:
+            self.initializing()
+        elif not self.wallet.interface.is_connected:
+            self.connecting()
+        elif not self.wallet.blocks == -1:
+            self.connecting()
+        elif not self.wallet.is_up_to_date:
+            self.synchronizing()
+        else:
+            self.ready()
+
+    def initializing(self):
+        if self.state == self.INITIALIZING:
+            return
+        self.state = self.INITIALIZING
+        self.window.deactivate()
+
+    def connecting(self):
+        if self.state == self.CONNECTING:
+            return
+        self.state = self.CONNECTING
+        self.window.deactivate()
+
+    def synchronizing(self):
+        if self.state == self.SYNCHRONIZING:
+            return
+        self.state = self.SYNCHRONIZING
+        self.window.deactivate()
+
+    def ready(self):
+        if self.state == self.READY:
+            return
+        self.state = self.READY
+        self.window.activate()
+        conf_balance, unconf_balance = self.wallet.get_balance()
+        balance = conf_balance if unconf_balance is None else unconf_balance
+        self.window.set_balances(balance, 0, 'EUR')
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

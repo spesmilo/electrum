@@ -140,7 +140,7 @@ if __name__ == '__main__':
             try:
                 import lib.gui_lite as gui
             except ImportError:
-                import electrum.gui_life as gui
+                import electrum.gui_lite as gui
         else:
             print "unknown gui", options.gui
             exit(1)
