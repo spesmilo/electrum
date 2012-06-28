@@ -133,12 +133,17 @@ class TextedLineEdit(QLineEdit):
     def mousePressEvent(self, event):
         if self.isReadOnly():
             self.become_active()
-        return super(QLineEdit, self).mousePressEvent(event)
+        QLineEdit.mousePressEvent(self, event)
 
     def focusOutEvent(self, event):
         if self.text() == "":
             self.become_inactive()
-        return super(QLineEdit, self).focusOutEvent(event)
+        QLineEdit.focusOutEvent(self, event)
+
+    def focusInEvent(self, event):
+        if self.isReadOnly():
+            self.become_active()
+        QLineEdit.focusInEvent(self, event)
 
     def become_inactive(self):
         self.setText(self.inactive_text)
