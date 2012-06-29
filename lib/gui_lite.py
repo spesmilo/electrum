@@ -35,10 +35,8 @@ class MiniWindow(QDialog):
         accounts_button = IconButton("data/icons/accounts.png")
         accounts_button.setObjectName("accounts_button")
 
-        accounts_selector = QMenu()
-        accounts_selector.addAction("Checking (80.00 BTC)")
-        accounts_selector.addAction("Reddit Girls (3.50 BTC)")
-        accounts_button.setMenu(accounts_selector)
+        self.accounts_selector = QMenu()
+        accounts_button.setMenu(self.accounts_selector)
 
         interact_button = IconButton("data/icons/interact.png")
         interact_button.setObjectName("interact_button")
@@ -126,7 +124,12 @@ class MiniWindow(QDialog):
         self.balance_label.set_balances( \
             btc_balance, quote_balance, quote_currency)
         self.amount_validator.setRange(0, btc_balance)
-        self.setWindowTitle("Electrum - %s BTC"%btc_balance)
+        main_account_info = \
+            "Checking - %s BTC (%s %s)" % (btc_balance,
+                                           quote_balance, quote_currency)
+        self.setWindowTitle("Electrum - %s" % main_account_info)
+        self.accounts_selector.clear()
+        self.accounts_selector.addAction("%s" % main_account_info)
 
     def send(self):
         self.actuator.send(self.address_input.text(),
@@ -144,7 +147,7 @@ class BalanceLabel(QLabel):
         super(QLabel, self).__init__("Connecting...", parent)
 
     def set_balances(self, btc_balance, quote_balance, quote_currency):
-        label_text = "<span style='font-size: 16pt'>%s</span> <span style='font-size: 10pt'>BTC</span> <span style='font-size: 10pt'>(%s %s)</span>"%(btc_balance, quote_balance, quote_currency)
+        label_text = "<span style='font-size: 16pt'>%s</span> <span style='font-size: 10pt'>BTC</span> <span style='font-size: 10pt'>(%s %s)</span>" % (btc_balance, quote_balance, quote_currency)
         self.setText(label_text)
 
 class TextedLineEdit(QLineEdit):
