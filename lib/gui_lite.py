@@ -6,6 +6,11 @@ import random
 import re
 import sys
 
+try:
+    import lib.gui_qt as gui_qt
+except ImportError:
+    import electrum.gui_qt as gui_qt
+
 def IconButton(filename, parent=None):
     pixmap = QPixmap(filename)
     icon = QIcon(pixmap)
@@ -20,14 +25,22 @@ class ElectrumGui:
             self.app.setStyleSheet(style_file.read())
 
     def main(self, url):
-        actuator = MiniActuator(self.wallet)
-        mini = MiniWindow(actuator)
-        driver = MiniDriver(self.wallet, mini)
+        self.actuator = MiniActuator(self.wallet)
+        self.mini = MiniWindow(self.actuator, self.expand)
+        self.driver = MiniDriver(self.wallet, self.mini)
         sys.exit(self.app.exec_())
+
+    def expand(self):
+        self.wallet.gui_callback = None
+        self.actuator = None
+        self.mini.close()
+        self.mini = None
+        self.driver = None
+        #self.gui = gui_qt.ElectrumGui(self.wallet)
 
 class MiniWindow(QDialog):
 
-    def __init__(self, actuator):
+    def __init__(self, actuator, expand_callback):
         super(MiniWindow, self).__init__()
 
         self.actuator = actuator
@@ -55,6 +68,7 @@ class MiniWindow(QDialog):
 
         expand_button = IconButton("data/icons/expand.png")
         expand_button.setObjectName("expand_button")
+        self.connect(expand_button, SIGNAL("clicked()"), expand_callback)
 
         self.balance_label = BalanceLabel()
         self.balance_label.setObjectName("balance_label")
