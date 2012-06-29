@@ -35,19 +35,18 @@ class ElectrumGui:
         actuator = MiniActuator(self.wallet)
         self.mini = MiniWindow(actuator, self.expand)
         driver = MiniDriver(self.wallet, self.mini)
-        self.app.exec_()
+
+        timer = Timer()
+        timer.start()
+        self.expert = gui_qt.ElectrumWindow(self.wallet)
+        self.expert.connect_slots(timer)
+        self.expert.update_wallet()
+
+        sys.exit(self.app.exec_())
 
     def expand(self):
         self.mini.hide()
-        self.actuator = None
-        self.mini = None
-        self.driver = None
-        self.wallet.gui_callback = None
-        self.timer = Timer()
-        self.timer.start()
-        self.gui = gui_qt.ElectrumWindow(self.wallet)
-        self.gui.connect_slots(self.timer)
-        self.gui.update_wallet()
+        self.expert.show()
 
 class MiniWindow(QDialog):
 
@@ -306,7 +305,7 @@ class MiniDriver(QObject):
         self.wallet = wallet
         self.window = window
 
-        self.wallet.gui_callback = self.update_callback
+        self.wallet.register_callback(self.update_callback)
 
         self.state = None
 

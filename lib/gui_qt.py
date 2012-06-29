@@ -187,7 +187,7 @@ class ElectrumWindow(QMainWindow):
     def __init__(self, wallet):
         QMainWindow.__init__(self)
         self.wallet = wallet
-        self.wallet.gui_callback = self.update_callback
+        self.wallet.register_callback(self.update_callback)
 
         self.funds_error = False
         self.completions = QStringListModel()
@@ -207,7 +207,6 @@ class ElectrumWindow(QMainWindow):
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.wallet.path
         if not self.wallet.seed: title += ' [seedless]'
         self.setWindowTitle( title )
-        self.show()
 
         QShortcut(QKeySequence("Ctrl+W"), self, self.close)
         QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
@@ -1490,5 +1489,6 @@ class ElectrumGui():
         w.app = self.app
         w.connect_slots(s)
         w.update_wallet()
+        w.show()
 
         self.app.exec_()

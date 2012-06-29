@@ -406,13 +406,13 @@ class WalletSynchronizer(threading.Thread):
                         self.wallet.was_updated = True
 
                 if self.wallet.was_updated:
-                    self.wallet.gui_callback()
+                    self.wallet.trigger_callbacks()
                     self.wallet.was_updated = False
 
                 response = self.interface.responses.get()
                 self.handle_response(response)
 
-            self.wallet.gui_callback()
+            self.wallet.trigger_callbacks()
             if self.loop:
                 time.sleep(5)
                 self.init_interface()

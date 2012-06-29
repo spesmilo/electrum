@@ -249,11 +249,11 @@ from interface import DEFAULT_SERVERS
 
 
 class Wallet:
-    def __init__(self, gui_callback = lambda: None):
+    def __init__(self):
 
         self.electrum_version = ELECTRUM_VERSION
         self.seed_version = SEED_VERSION
-        self.gui_callback = gui_callback
+        self.update_callbacks = []
 
         self.gap_limit = 5           # configuration
         self.use_change = True
@@ -299,7 +299,14 @@ class Wallet:
 
         self.pick_random_server()
 
+    def register_callback(self, update_callback):
+        with self.lock:
+            self.update_callbacks.append(update_callback)
 
+    def trigger_callbacks(self):
+        with self.lock:
+            callbacks = self.update_callbacks[:]
+        [update() for update in callbacks]
 
     def pick_random_server(self):
         self.server = random.choice( DEFAULT_SERVERS )         # random choice when the wallet is created
