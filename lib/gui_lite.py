@@ -5,6 +5,7 @@ import decimal
 import random
 import re
 import sys
+import time
 
 try:
     import lib.gui_qt as gui_qt
@@ -16,6 +17,12 @@ def IconButton(filename, parent=None):
     icon = QIcon(pixmap)
     return QPushButton(icon, "", parent)
 
+class Timer(QThread):
+    def run(self):
+        while True:
+            self.emit(SIGNAL('timersignal'))
+            time.sleep(0.5)
+
 class ElectrumGui:
 
     def __init__(self, wallet):
@@ -25,18 +32,22 @@ class ElectrumGui:
             self.app.setStyleSheet(style_file.read())
 
     def main(self, url):
-        self.actuator = MiniActuator(self.wallet)
-        self.mini = MiniWindow(self.actuator, self.expand)
-        self.driver = MiniDriver(self.wallet, self.mini)
-        sys.exit(self.app.exec_())
+        actuator = MiniActuator(self.wallet)
+        self.mini = MiniWindow(actuator, self.expand)
+        driver = MiniDriver(self.wallet, self.mini)
+        self.app.exec_()
 
     def expand(self):
-        self.wallet.gui_callback = None
+        self.mini.hide()
         self.actuator = None
-        self.mini.close()
         self.mini = None
         self.driver = None
-        #self.gui = gui_qt.ElectrumGui(self.wallet)
+        self.wallet.gui_callback = None
+        self.timer = Timer()
+        self.timer.start()
+        self.gui = gui_qt.ElectrumWindow(self.wallet)
+        self.gui.connect_slots(self.timer)
+        self.gui.update_wallet()
 
 class MiniWindow(QDialog):
 
