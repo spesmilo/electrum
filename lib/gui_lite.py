@@ -266,13 +266,13 @@ class MiniDriver(QObject):
         self.state = None
 
         self.initializing()
-        self.connect(self, SIGNAL("updatesignal"), self.update)
+        self.connect(self, SIGNAL("updatesignal()"), self.update)
 
     # This is a hack to workaround that Qt does not like changing the
     # window properties from this other thread before the runloop has
     # been called from.
     def update_callback(self):
-        self.emit(SIGNAL("updatesignal"))
+        self.emit(SIGNAL("updatesignal()"))
 
     def update(self):
         if not self.wallet.interface:
