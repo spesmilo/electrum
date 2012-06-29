@@ -1,16 +1,19 @@
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
+from decimal import Decimal as D
 from i18n import _
-import decimal
 import random
 import re
 import sys
 import time
+import wallet
 
 try:
     import lib.gui_qt as gui_qt
 except ImportError:
     import electrum.gui_qt as gui_qt
+
+bitcoin = lambda v: v * 100000000
 
 def IconButton(filename, parent=None):
     pixmap = QPixmap(filename)
@@ -112,8 +115,7 @@ class MiniWindow(QDialog):
         # This is changed according to the user's displayed balance
         self.amount_validator = QDoubleValidator(self.amount_input)
         self.amount_validator.setNotation(QDoubleValidator.StandardNotation)
-        self.amount_validator.setRange(0, 0)
-        self.amount_validator.setDecimals(2)
+        self.amount_validator.setDecimals(8)
         self.amount_input.setValidator(self.amount_validator)
 
         amount_layout = QHBoxLayout()
@@ -156,7 +158,6 @@ class MiniWindow(QDialog):
     def set_balances(self, btc_balance, quote_balance, quote_currency):
         self.balance_label.set_balances( \
             btc_balance, quote_balance, quote_currency)
-        self.amount_validator.setRange(0, btc_balance)
         main_account_info = \
             "Checking - %s BTC (%s %s)" % (btc_balance,
                                            quote_balance, quote_currency)
@@ -165,8 +166,10 @@ class MiniWindow(QDialog):
         self.accounts_selector.addAction("%s" % main_account_info)
 
     def send(self):
-        self.actuator.send(self.address_input.text(),
-                           self.amount_input.text(), self)
+        if self.actuator.send(self.address_input.text(),
+                              self.amount_input.text(), self):
+            self.address_input.become_inactive()
+            self.amount_input.become_inactive()
 
     def address_field_changed(self, address):
         if self.actuator.is_valid(address):
@@ -229,6 +232,29 @@ class TextedLineEdit(QLineEdit):
         # also possible but more expensive:
         #qApp.setStyleSheet(qApp.styleSheet())
 
+class PasswordDialog(QDialog):
+
+    def __init__(self, parent):
+        super(QDialog, self).__init__(self)
+
+        self.setModal(True)
+
+        self.password_input = QLineEdit()
+        self.password_input.setEchoMode(QLineEdit.Password)
+
+        main_layout = QVBoxLayout(self)
+        message = _('Please enter your password')
+        main_layout.addWidget(QLabel(message))
+
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        grid.addWidget(QLabel(_('Password')), 1, 0)
+        grid.addWidget(self.password_input, 1, 1)
+        vbox.addLayout(grid)
+
+        vbox.addLayout(ok_cancel_buttons(d))
+        d.setLayout(vbox) 
+
 class MiniActuator:
 
     def __init__(self, wallet):
@@ -240,32 +266,15 @@ class MiniActuator:
         qApp.clipboard().setText(random.choice(addrs))
 
     def send(self, address, amount, parent_window):
-        recipient = unicode(address).strip()
+        dest_address = self.fetch_destination(address)
 
-        # alias
-        match1 = re.match(ALIAS_REGEXP, r)
-        # label or alias, with address in brackets
-        match2 = re.match('(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
-        
-        if match1:
-            dest_address = \
-                self.wallet.get_alias(recipient, True, 
-                                      self.show_message, self.question)
-            if not dest_address:
-                return
-        elif match2:
-            dest_address = match2.group(2)
-        else:
-            dest_address = recipient
-
-        if not self.wallet.is_valid(dest_address):
+        if dest_address is None or not self.wallet.is_valid(dest_address):
             QMessageBox.warning(parent_window, _('Error'), 
-                _('Invalid Bitcoin Address') + ':\n' + dest_address, _('OK'))
-            return
+                _('Invalid Bitcoin Address') + ':\n' + address, _('OK'))
+            return False
 
         convert_amount = lambda amount: \
-            int(decimal.Decimal(unicode(amount)) * 100000000)
-
+            int(D(unicode(amount)) * bitcoin(1))
         amount = convert_amount(amount)
 
         if self.wallet.use_encryption:
@@ -275,19 +284,48 @@ class MiniActuator:
         else:
             password = None
 
+        fee = 0
+        # 0.1 BTC = 10000000
+        if amount < bitcoin(1) / 10:
+            # 0.01 BTC
+            fee = bitcoin(1) / 100
+
         try:
             tx = self.wallet.mktx(dest_address, amount, "", password, fee)
-        except BaseException, e:
-            self.show_message(str(e))
-            return
+        except BaseException as error:
+            QMessageBox.warning(parent_window, _('Error'), str(error), _('OK'))
+            return False
             
-        status, msg = self.wallet.sendtx( tx )
-        if status:
-            QMessageBox.information(self, '', _('Payment sent.')+'\n'+msg, _('OK'))
-            self.do_clear()
-            self.update_contacts_tab()
+        #status, msg = self.wallet.sendtx( tx )
+        status, message = "hello", "world"
+        if not status:
+            QMessageBox.warning(parent_window, _('Error'), message, _('OK'))
+            return False
+
+        QMessageBox.information(parent_window, '',
+            _('Payment sent.') + '\n' + message, _('OK'))
+        return True
+
+    def fetch_destination(self, address):
+        recipient = unicode(address).strip()
+
+        # alias
+        match1 = re.match("^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$",
+                          recipient)
+
+        # label or alias, with address in brackets
+        match2 = re.match("(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>",
+                          recipient)
+        
+        if match1:
+            dest_address = \
+                self.wallet.get_alias(recipient, True, 
+                                      self.show_message, self.question)
+            return dest_address
+        elif match2:
+            return match2.group(2)
         else:
-            QMessageBox.warning(self, _('Error'), msg, _('OK'))
+            return recipient
 
     def is_valid(self, address):
         return self.wallet.is_valid(address)
@@ -359,7 +397,7 @@ class MiniDriver(QObject):
 
     def update_balance(self):
         conf_balance, unconf_balance = self.wallet.get_balance()
-        balance = conf_balance if unconf_balance is None else unconf_balance
+        balance = D(conf_balance + unconf_balance) / bitcoin(1)
         self.window.set_balances(balance, balance * 6, 'EUR')
 
 if __name__ == "__main__":
