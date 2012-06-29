@@ -42,7 +42,16 @@ class MiniWindow(QDialog):
         interact_button.setObjectName("interact_button")
 
         app_menu = QMenu()
+        report_action = app_menu.addAction(_("&Report Bug"))
+        about_action = app_menu.addAction(_("&About Electrum"))
+        app_menu.addSeparator()
+        quit_action = app_menu.addAction(_("&Quit"))
         interact_button.setMenu(app_menu)
+
+        self.connect(report_action, SIGNAL("triggered()"),
+                     self.show_report_bug)
+        self.connect(about_action, SIGNAL("triggered()"), self.show_about)
+        self.connect(quit_action, SIGNAL("triggered()"), self.close)
 
         expand_button = IconButton("data/icons/expand.png")
         expand_button.setObjectName("expand_button")
@@ -140,6 +149,14 @@ class MiniWindow(QDialog):
             self.valid_address.setChecked(True)
         else:
             self.valid_address.setChecked(False)
+
+    def show_about(self):
+        QMessageBox.about(self, "Electrum",
+            "Electrum's focus is speed, with low resource usage and simplifying Bitcoin. You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper. Startup times are instant because it operates in conjuction with high-performance servers that handle the most complicated parts of the Bitcoin system.")
+
+    def show_report_bug(self):
+        QMessageBox.information(self, "Electrum - Reporting Bugs",
+            "Email bug reports to %s@%s.net" % ("genjix", "riseup"))
 
 class BalanceLabel(QLabel):
 
