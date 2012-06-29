@@ -179,16 +179,16 @@ class MiniWindow(QDialog):
 
     def show_about(self):
         QMessageBox.about(self, "Electrum",
-            "Electrum's focus is speed, with low resource usage and simplifying Bitcoin. You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper. Startup times are instant because it operates in conjuction with high-performance servers that handle the most complicated parts of the Bitcoin system.")
+            _("Electrum's focus is speed, with low resource usage and simplifying Bitcoin. You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper. Startup times are instant because it operates in conjuction with high-performance servers that handle the most complicated parts of the Bitcoin system."))
 
     def show_report_bug(self):
-        QMessageBox.information(self, "Electrum - Reporting Bugs",
-            "Email bug reports to %s@%s.net" % ("genjix", "riseup"))
+        QMessageBox.information(self, "Electrum - " + _("Reporting Bugs"),
+            _("Email bug reports to %s") % "genjix" + "@" + "riseup.net")
 
 class BalanceLabel(QLabel):
 
     def __init__(self, parent=None):
-        super(QLabel, self).__init__("Connecting...", parent)
+        super(QLabel, self).__init__(_("Connecting..."), parent)
 
     def set_balances(self, btc_balance, quote_balance, quote_currency):
         label_text = "<span style='font-size: 16pt'>%s</span> <span style='font-size: 10pt'>BTC</span> <span style='font-size: 10pt'>(%s %s)</span>" % (btc_balance, quote_balance, quote_currency)
@@ -232,10 +232,21 @@ class TextedLineEdit(QLineEdit):
         # also possible but more expensive:
         #qApp.setStyleSheet(qApp.styleSheet())
 
+def ok_cancel_buttons(dialog):
+    row_layout = QHBoxLayout()
+    row_layout.addStretch(1)
+    ok_button = QPushButton("OK")
+    row_layout.addWidget(ok_button)
+    ok_button.clicked.connect(dialog.accept)
+    cancel_button = QPushButton("Cancel")
+    row_layout.addWidget(cancel_button)
+    cancel_button.clicked.connect(dialog.reject)
+    return row_layout
+
 class PasswordDialog(QDialog):
 
     def __init__(self, parent):
-        super(QDialog, self).__init__(self)
+        super(QDialog, self).__init__(parent)
 
         self.setModal(True)
 
@@ -250,10 +261,15 @@ class PasswordDialog(QDialog):
         grid.setSpacing(8)
         grid.addWidget(QLabel(_('Password')), 1, 0)
         grid.addWidget(self.password_input, 1, 1)
-        vbox.addLayout(grid)
+        main_layout.addLayout(grid)
 
-        vbox.addLayout(ok_cancel_buttons(d))
-        d.setLayout(vbox) 
+        main_layout.addLayout(ok_cancel_buttons(self))
+        self.setLayout(main_layout) 
+
+    def run(self):
+        if not self.exec_():
+            return
+        return unicode(self.password_input.text())
 
 class MiniActuator:
 
@@ -278,7 +294,8 @@ class MiniActuator:
         amount = convert_amount(amount)
 
         if self.wallet.use_encryption:
-            password = self.password_dialog()
+            password_dialog = PasswordDialog(parent_window)
+            password = password_dialog.run()
             if not password:
                 return
         else:
