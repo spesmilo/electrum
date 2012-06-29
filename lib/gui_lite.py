@@ -67,6 +67,10 @@ class MiniWindow(QDialog):
         self.address_input.setObjectName("address_input")
         self.connect(self.address_input, SIGNAL("textChanged(QString)"),
                      self.address_field_changed)
+        metrics = QFontMetrics(qApp.font())
+        self.address_input.setMinimumWidth(
+            metrics.width("1E4vM9q25xsyDwWwdqHUWnwshdWC9PykmL"))
+
         self.valid_address = QCheckBox()
         self.valid_address.setObjectName("valid_address")
         self.valid_address.setEnabled(False)
