@@ -50,10 +50,6 @@ class MiniWindow(QDialog):
         expand_button.setObjectName("expand_button")
 
         self.balance_label = BalanceLabel()
-        # WTF?!
-        # TODO: Fix this!
-        import time
-        time.sleep(0.1)
         self.balance_label.setObjectName("balance_label")
 
         copy_button = QPushButton(_("&Copy Address"))
@@ -252,7 +248,7 @@ class MiniActuator:
     def is_valid(self, address):
         return self.wallet.is_valid(address)
 
-class MiniDriver:
+class MiniDriver(QObject):
 
     INITIALIZING = 0
     CONNECTING = 1
@@ -260,13 +256,23 @@ class MiniDriver:
     READY = 3
 
     def __init__(self, wallet, window):
+        super(QObject, self).__init__()
+
         self.wallet = wallet
         self.window = window
 
-        self.wallet.gui_callback = self.update
+        self.wallet.gui_callback = self.update_callback
 
         self.state = None
-        self.update()
+
+        self.initializing()
+        self.connect(self, SIGNAL("updatesignal"), self.update)
+
+    # This is a hack to workaround that Qt does not like changing the
+    # window properties from this other thread before the runloop has
+    # been called from.
+    def update_callback(self):
+        self.emit(SIGNAL("updatesignal"))
 
     def update(self):
         if not self.wallet.interface:
