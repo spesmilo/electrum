@@ -908,7 +908,8 @@ def settings_loop():
 
 menu_commands = ["send", "receive", "settings", "contacts", "main"]
 droid = android.Android()
-wallet = Wallet(update_callback)
+wallet = Wallet()
+wallet.register_callback(update_callback)
 
 wallet.set_path("/sdcard/electrum.dat")
 wallet.read()
