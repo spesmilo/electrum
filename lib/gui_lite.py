@@ -86,10 +86,12 @@ class MiniWindow(QDialog):
 
         self.btc_balance = 0
         self.quote_currencies = ("EUR", "USD", "GBP")
-        self.exchanger = exchange_rate.Exchanger(self.quote_currencies)
+        self.exchanger = exchange_rate.Exchanger(self.quote_currencies,
+                                                 self.refresh_balance)
 
         self.balance_label = BalanceLabel(self.change_quote_currency)
         self.balance_label.setObjectName("balance_label")
+        self.exchanger.discovery()
 
         copy_button = QPushButton(_("&Copy Address"))
         copy_button.setObjectName("copy_button")
@@ -163,13 +165,17 @@ class MiniWindow(QDialog):
     def change_quote_currency(self):
         self.quote_currencies = \
             self.quote_currencies[1:] + self.quote_currencies[0:1]
+        self.refresh_balance()
+
+    def refresh_balance(self):
         self.set_balances(self.btc_balance)
 
     def set_balances(self, btc_balance):
         self.btc_balance = btc_balance
-        btc_balance /= bitcoin(1)
-        quote_balance = "%.2f" % (btc_balance * 6)
         quote_currency = self.quote_currencies[0]
+        quote_balance = self.exchanger.exchange(btc_balance, quote_currency)
+        quote_balance = "%.2f" % (quote_balance / bitcoin(1))
+        btc_balance = "%.2f" % (btc_balance / bitcoin(1))
         self.balance_label.set_balances( \
             btc_balance, quote_balance, quote_currency)
         main_account_info = \
