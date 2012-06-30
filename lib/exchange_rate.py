@@ -6,9 +6,13 @@ class Exchanger:
 
     def __init__(self, quote_currencies, refresh_balance):
         self.refresh_balance = refresh_balance
-        self.quote_currencies = {}
+        self.quote_currencies = None
 
     def exchange(self, btc_amount, quote_currency):
+        if self.quote_currencies is None:
+            return None
+        if quote_currency not in self.quote_currencies:
+            return None
         return btc_amount * self.quote_currencies[quote_currency]
 
     def discovery(self):
@@ -22,6 +26,7 @@ class Exchanger:
         # 2 = BTC:EUR
         # 3 = BTC:USD
         # 4 = BTC:PLN
+        self.quote_currencies = {}
         try:
             self.quote_currencies["GBP"] = self.lookup_rate(response, 1)
             self.quote_currencies["EUR"] = self.lookup_rate(response, 2)

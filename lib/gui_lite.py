@@ -88,10 +88,10 @@ class MiniWindow(QDialog):
         self.quote_currencies = ("EUR", "USD", "GBP")
         self.exchanger = exchange_rate.Exchanger(self.quote_currencies,
                                                  self.refresh_balance)
+        QTimer.singleShot(1000, self.exchanger.discovery)
 
         self.balance_label = BalanceLabel(self.change_quote_currency)
         self.balance_label.setObjectName("balance_label")
-        self.exchanger.discovery()
 
         copy_button = QPushButton(_("&Copy Address"))
         copy_button.setObjectName("copy_button")
@@ -174,13 +174,15 @@ class MiniWindow(QDialog):
         self.btc_balance = btc_balance
         quote_currency = self.quote_currencies[0]
         quote_balance = self.exchanger.exchange(btc_balance, quote_currency)
-        quote_balance = "%.2f" % (quote_balance / bitcoin(1))
+        if quote_balance is None:
+            quote_text = ""
+        else:
+            quote_text = "(%.2f %s)" % ((quote_balance / bitcoin(1)),
+                                      quote_currency)
         btc_balance = "%.2f" % (btc_balance / bitcoin(1))
-        self.balance_label.set_balances( \
-            btc_balance, quote_balance, quote_currency)
+        self.balance_label.set_balances(btc_balance, quote_text)
         main_account_info = \
-            "Checking - %s BTC (%s %s)" % (btc_balance,
-                                           quote_balance, quote_currency)
+            "Checking - %s BTC %s" % (btc_balance, quote_text)
         self.setWindowTitle("Electrum - %s" % main_account_info)
         self.accounts_selector.clear()
         self.accounts_selector.addAction("%s" % main_account_info)
@@ -211,8 +213,8 @@ class BalanceLabel(QLabel):
         super(QLabel, self).__init__(_("Connecting..."), parent)
         self.change_quote_currency = change_quote_currency
 
-    def set_balances(self, btc_balance, quote_balance, quote_currency):
-        label_text = "<span style='font-size: 16pt'>%s</span> <span style='font-size: 10pt'>BTC</span> <span style='font-size: 10pt'>(%s %s)</span>" % (btc_balance, quote_balance, quote_currency)
+    def set_balances(self, btc_balance, quote_text):
+        label_text = "<span style='font-size: 16pt'>%s</span> <span style='font-size: 10pt'>BTC</span> <span style='font-size: 10pt'>%s</span>" % (btc_balance, quote_text)
         self.setText(label_text)
 
     def mousePressEvent(self, event):
