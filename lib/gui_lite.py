@@ -83,7 +83,9 @@ class MiniWindow(QDialog):
         expand_button.setObjectName("expand_button")
         self.connect(expand_button, SIGNAL("clicked()"), expand_callback)
 
-        self.balance_label = BalanceLabel()
+        self.btc_balance = 0
+        self.quote_currencies = ("EUR", "USD", "GBP")
+        self.balance_label = BalanceLabel(self.change_quote_currency)
         self.balance_label.setObjectName("balance_label")
 
         copy_button = QPushButton(_("&Copy Address"))
@@ -155,7 +157,16 @@ class MiniWindow(QDialog):
     def deactivate(self):
         pass
 
-    def set_balances(self, btc_balance, quote_balance, quote_currency):
+    def change_quote_currency(self):
+        self.quote_currencies = \
+            self.quote_currencies[1:] + self.quote_currencies[0:1]
+        self.set_balances(self.btc_balance)
+
+    def set_balances(self, btc_balance):
+        self.btc_balance = btc_balance
+        btc_balance /= bitcoin(1)
+        quote_balance = btc_balance * 6
+        quote_currency = self.quote_currencies[0]
         self.balance_label.set_balances( \
             btc_balance, quote_balance, quote_currency)
         main_account_info = \
@@ -187,12 +198,16 @@ class MiniWindow(QDialog):
 
 class BalanceLabel(QLabel):
 
-    def __init__(self, parent=None):
+    def __init__(self, change_quote_currency, parent=None):
         super(QLabel, self).__init__(_("Connecting..."), parent)
+        self.change_quote_currency = change_quote_currency
 
     def set_balances(self, btc_balance, quote_balance, quote_currency):
         label_text = "<span style='font-size: 16pt'>%s</span> <span style='font-size: 10pt'>BTC</span> <span style='font-size: 10pt'>(%s %s)</span>" % (btc_balance, quote_balance, quote_currency)
         self.setText(label_text)
+
+    def mousePressEvent(self, event):
+        self.change_quote_currency()
 
 class TextedLineEdit(QLineEdit):
 
@@ -313,8 +328,7 @@ class MiniActuator:
             QMessageBox.warning(parent_window, _('Error'), str(error), _('OK'))
             return False
             
-        #status, msg = self.wallet.sendtx( tx )
-        status, message = "hello", "world"
+        status, message = self.wallet.sendtx(tx)
         if not status:
             QMessageBox.warning(parent_window, _('Error'), message, _('OK'))
             return False
@@ -414,8 +428,8 @@ class MiniDriver(QObject):
 
     def update_balance(self):
         conf_balance, unconf_balance = self.wallet.get_balance()
-        balance = D(conf_balance + unconf_balance) / bitcoin(1)
-        self.window.set_balances(balance, balance * 6, 'EUR')
+        balance = D(conf_balance + unconf_balance)
+        self.window.set_balances(balance)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
