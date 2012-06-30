@@ -2,6 +2,7 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from decimal import Decimal as D
 from i18n import _
+import exchange_rate
 import random
 import re
 import sys
@@ -85,6 +86,8 @@ class MiniWindow(QDialog):
 
         self.btc_balance = 0
         self.quote_currencies = ("EUR", "USD", "GBP")
+        self.exchanger = exchange_rate.Exchanger(self.quote_currencies)
+
         self.balance_label = BalanceLabel(self.change_quote_currency)
         self.balance_label.setObjectName("balance_label")
 
@@ -429,7 +432,6 @@ class MiniDriver(QObject):
     def update_balance(self):
         conf_balance, unconf_balance = self.wallet.get_balance()
         balance = D(conf_balance + unconf_balance)
-        balance = D("9879457356")
         self.window.set_balances(balance)
 
 if __name__ == "__main__":
