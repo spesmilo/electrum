@@ -165,7 +165,7 @@ class MiniWindow(QDialog):
     def set_balances(self, btc_balance):
         self.btc_balance = btc_balance
         btc_balance /= bitcoin(1)
-        quote_balance = btc_balance * 6
+        quote_balance = "%.2f" % (btc_balance * 6)
         quote_currency = self.quote_currencies[0]
         self.balance_label.set_balances( \
             btc_balance, quote_balance, quote_currency)
@@ -429,6 +429,7 @@ class MiniDriver(QObject):
     def update_balance(self):
         conf_balance, unconf_balance = self.wallet.get_balance()
         balance = D(conf_balance + unconf_balance)
+        balance = D("9879457356")
         self.window.set_balances(balance)
 
 if __name__ == "__main__":
