@@ -44,6 +44,7 @@ class ElectrumGui:
         timer = Timer()
         timer.start()
         self.expert = gui_qt.ElectrumWindow(self.wallet)
+        self.expert.app = self.app
         self.expert.connect_slots(timer)
         self.expert.update_wallet()
 
@@ -100,7 +101,6 @@ class MiniWindow(QDialog):
         self.connect(copy_button, SIGNAL("clicked()"),
                      self.actuator.copy_address)
 
-        # Use QCompleter
         self.address_input = TextedLineEdit(_("Enter a Bitcoin address..."))
         self.address_input.setObjectName("address_input")
         self.connect(self.address_input, SIGNAL("textEdited(QString)"),
@@ -108,6 +108,13 @@ class MiniWindow(QDialog):
         metrics = QFontMetrics(qApp.font())
         self.address_input.setMinimumWidth(
             metrics.width("1E4vM9q25xsyDwWwdqHUWnwshdWC9PykmL"))
+
+        self.address_completions = QStringListModel()
+        address_completer = QCompleter(self.address_input)
+        address_completer.setCaseSensitivity(False)
+        address_completer.setModel(self.address_completions)
+        self.address_input.setCompleter(address_completer)
+        self.address_completions.setStringList(["1brmlab", "hello"])
 
         self.valid_address = QCheckBox()
         self.valid_address.setObjectName("valid_address")
@@ -222,6 +229,9 @@ class MiniWindow(QDialog):
             self.valid_address.setChecked(True)
         else:
             self.valid_address.setChecked(False)
+
+    def update_completions(self, completions):
+        self.address_completions.setStringList(completions)
 
     def show_about(self):
         QMessageBox.about(self, "Electrum",
@@ -462,6 +472,7 @@ class MiniDriver(QObject):
 
         if self.wallet.up_to_date:
             self.update_balance()
+            self.update_completions()
 
     def initializing(self):
         if self.state == self.INITIALIZING:
@@ -491,6 +502,14 @@ class MiniDriver(QObject):
         conf_balance, unconf_balance = self.wallet.get_balance()
         balance = D(conf_balance + unconf_balance)
         self.window.set_balances(balance)
+
+    def update_completions(self):
+        completions = []
+        for addr, label in self.wallet.labels.items():
+            if addr in self.wallet.addressbook:
+                completions.append("%s <%s>" % (label, addr))
+        completions = completions + self.wallet.aliases.keys()
+        self.window.update_completions(completions)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
