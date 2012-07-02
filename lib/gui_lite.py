@@ -178,6 +178,8 @@ class MiniWindow(QDialog):
     def set_balances(self, btc_balance):
         self.btc_balance = btc_balance
         quote_text = self.create_quote_text(btc_balance)
+        if quote_text:
+            quote_text = "(%s)" % quote_text
         btc_balance = "%.2f" % (btc_balance / bitcoin(1))
         self.balance_label.set_balance_text(btc_balance, quote_text)
         main_account_info = \
@@ -205,7 +207,7 @@ class MiniWindow(QDialog):
         if quote_balance is None:
             quote_text = ""
         else:
-            quote_text = "(%.2f %s)" % ((quote_balance / bitcoin(1)),
+            quote_text = "%.2f %s" % ((quote_balance / bitcoin(1)),
                                       quote_currency)
         return quote_text
 
