@@ -105,9 +105,10 @@ class MiniWindow(QDialog):
 
         self.btc_balance = 0
         self.quote_currencies = ("EUR", "USD", "GBP")
-        self.exchanger = exchange_rate.Exchanger(self.quote_currencies,
-                                                 self.refresh_balance)
-        QTimer.singleShot(1000, self.exchanger.discovery)
+        self.exchanger = exchange_rate.Exchanger(self)
+        # Needed because price discovery is done in a different thread
+        # which needs to be sent back to this main one to update the GUI
+        self.connect(self, SIGNAL("refresh_balance()"), self.refresh_balance)
 
         self.balance_label = BalanceLabel(self.change_quote_currency)
         self.balance_label.setObjectName("balance_label")
