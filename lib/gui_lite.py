@@ -41,6 +41,9 @@ class ElectrumGui:
         self.mini = MiniWindow(actuator, self.expand)
         driver = MiniDriver(self.wallet, self.mini)
 
+        if url:
+            self.set_url(url)
+
         timer = Timer()
         timer.start()
         self.expert = gui_qt.ElectrumWindow(self.wallet)
@@ -53,6 +56,20 @@ class ElectrumGui:
     def expand(self):
         self.mini.hide()
         self.expert.show()
+
+    def set_url(self, url):
+        payto, amount, label, message, signature, identity, url = \
+            self.wallet.parse_url(url, self.show_message, self.show_question)
+        self.mini.set_payment_fields(payto, amount)
+
+    def show_message(self, message):
+        QMessageBox.information(self.mini, _("Message"), message, _("OK"))
+
+    def show_question(self, message):
+        choice = QMessageBox.question(self.mini, _("Message"), message,
+                                      QMessageBox.Yes|QMessageBox.No,
+                                      QMessageBox.No)
+        return choice == QMessageBox.Yes
 
 class MiniWindow(QDialog):
 
@@ -166,6 +183,13 @@ class MiniWindow(QDialog):
     def closeEvent(self, event):
         super(MiniWindow, self).closeEvent(event)
         qApp.quit()
+
+    def set_payment_fields(self, dest_address, amount):
+        self.address_input.become_active()
+        self.address_input.setText(dest_address)
+        self.address_field_changed(dest_address)
+        self.amount_input.become_active()
+        self.amount_input.setText(amount)
 
     def activate(self):
         pass
