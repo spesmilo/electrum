@@ -2,6 +2,7 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from decimal import Decimal as D
 from i18n import _
+import decimal
 import exchange_rate
 import random
 import re
@@ -102,7 +103,7 @@ class MiniWindow(QDialog):
         # Use QCompleter
         self.address_input = TextedLineEdit(_("Enter a Bitcoin address..."))
         self.address_input.setObjectName("address_input")
-        self.connect(self.address_input, SIGNAL("textChanged(QString)"),
+        self.connect(self.address_input, SIGNAL("textEdited(QString)"),
                      self.address_field_changed)
         metrics = QFontMetrics(qApp.font())
         self.address_input.setMinimumWidth(
@@ -124,6 +125,9 @@ class MiniWindow(QDialog):
         self.amount_validator.setNotation(QDoubleValidator.StandardNotation)
         self.amount_validator.setDecimals(8)
         self.amount_input.setValidator(self.amount_validator)
+
+        self.connect(self.amount_input, SIGNAL("textChanged(QString)"),
+                     self.amount_input_changed)
 
         amount_layout = QHBoxLayout()
         amount_layout.addWidget(self.amount_input)
@@ -172,13 +176,7 @@ class MiniWindow(QDialog):
 
     def set_balances(self, btc_balance):
         self.btc_balance = btc_balance
-        quote_currency = self.quote_currencies[0]
-        quote_balance = self.exchanger.exchange(btc_balance, quote_currency)
-        if quote_balance is None:
-            quote_text = ""
-        else:
-            quote_text = "(%.2f %s)" % ((quote_balance / bitcoin(1)),
-                                      quote_currency)
+        quote_text = self.create_quote_text(btc_balance)
         btc_balance = "%.2f" % (btc_balance / bitcoin(1))
         self.balance_label.set_balances(btc_balance, quote_text)
         main_account_info = \
@@ -186,6 +184,26 @@ class MiniWindow(QDialog):
         self.setWindowTitle("Electrum - %s" % main_account_info)
         self.accounts_selector.clear()
         self.accounts_selector.addAction("%s" % main_account_info)
+
+    def amount_input_changed(self, amount_text):
+        try:
+            amount = D(str(amount_text))
+        except decimal.InvalidOperation:
+            self.balance_label.show_balance()
+        else:
+            quote_text = self.create_quote_text(amount * bitcoin(1))
+            if quote_text:
+                self.balance_label.set_amount_text(quote_text)
+
+    def create_quote_text(self, btc_balance):
+        quote_currency = self.quote_currencies[0]
+        quote_balance = self.exchanger.exchange(btc_balance, quote_currency)
+        if quote_balance is None:
+            quote_text = ""
+        else:
+            quote_text = "(%.2f %s)" % ((quote_balance / bitcoin(1)),
+                                      quote_currency)
+        return quote_text
 
     def send(self):
         if self.actuator.send(self.address_input.text(),
@@ -209,16 +227,39 @@ class MiniWindow(QDialog):
 
 class BalanceLabel(QLabel):
 
+    SHOW_CONNECTING = 1
+    SHOW_BALANCE = 2
+    SHOW_AMOUNT = 3
+
     def __init__(self, change_quote_currency, parent=None):
         super(QLabel, self).__init__(_("Connecting..."), parent)
         self.change_quote_currency = change_quote_currency
+        self.state = self.SHOW_CONNECTING
+        self.balance_text = ""
+        self.amount_text = ""
 
     def set_balances(self, btc_balance, quote_text):
-        label_text = "<span style='font-size: 16pt'>%s</span> <span style='font-size: 10pt'>BTC</span> <span style='font-size: 10pt'>%s</span>" % (btc_balance, quote_text)
-        self.setText(label_text)
+        if self.state == self.SHOW_CONNECTING:
+            self.state = self.SHOW_BALANCE
+        self.set_balance_text(btc_balance, quote_text)
 
     def mousePressEvent(self, event):
         self.change_quote_currency()
+
+    def set_balance_text(self, btc_balance, quote_text):
+        self.balance_text = "<span style='font-size: 16pt'>%s</span> <span style='font-size: 10pt'>BTC</span> <span style='font-size: 10pt'>%s</span>" % (btc_balance, quote_text)
+        if self.state == self.SHOW_BALANCE:
+            self.setText(self.balance_text)
+
+    def set_amount_text(self, quote_text):
+        self.state = self.SHOW_AMOUNT
+        self.amount_text = "<span style='font-size: 10pt'>%s</span>" % quote_text
+        self.setText(self.amount_text)
+
+    def show_balance(self):
+        if self.state == self.SHOW_AMOUNT:
+            self.state = self.SHOW_BALANCE
+            self.setText(self.balance_text)
 
 class TextedLineEdit(QLineEdit):
 
