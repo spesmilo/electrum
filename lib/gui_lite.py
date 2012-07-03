@@ -103,7 +103,7 @@ class MiniWindow(QDialog):
         expand_button.setObjectName("expand_button")
         self.connect(expand_button, SIGNAL("clicked()"), expand_callback)
 
-        self.btc_balance = 0
+        self.btc_balance = None
         self.quote_currencies = ("EUR", "USD", "GBP")
         self.exchanger = exchange_rate.Exchanger(self)
         # Needed because price discovery is done in a different thread
@@ -204,6 +204,10 @@ class MiniWindow(QDialog):
         self.refresh_balance()
 
     def refresh_balance(self):
+        if self.btc_balance is None:
+            # Price has been discovered before wallet has been loaded
+            # and server connect... so bail.
+            return
         self.set_balances(self.btc_balance)
         self.amount_input_changed(self.amount_input.text())
 
