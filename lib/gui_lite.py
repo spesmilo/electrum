@@ -71,6 +71,10 @@ class ElectrumGui:
                                       QMessageBox.No)
         return choice == QMessageBox.Yes
 
+    def restore_or_create(self):
+        qt_gui_object = gui_qt.ElectrumGui(self.wallet, self.app)
+        return qt_gui_object.restore_or_create()
+
 class MiniWindow(QDialog):
 
     def __init__(self, actuator, expand_callback):

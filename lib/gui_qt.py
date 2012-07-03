@@ -1410,11 +1410,12 @@ class ElectrumWindow(QMainWindow):
 
 
 
-class ElectrumGui():
+class ElectrumGui:
 
-    def __init__(self, wallet):
+    def __init__(self, wallet, app=None):
         self.wallet = wallet
-        self.app = QApplication(sys.argv)
+        if app is None:
+            self.app = QApplication(sys.argv)
 
     def waiting_dialog(self):
 
