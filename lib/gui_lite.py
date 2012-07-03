@@ -87,7 +87,7 @@ class MiniWindow(QDialog):
         interact_button = IconButton("data/icons/interact.png")
         interact_button.setObjectName("interact_button")
 
-        app_menu = QMenu()
+        app_menu = QMenu(interact_button)
         report_action = app_menu.addAction(_("&Report Bug"))
         about_action = app_menu.addAction(_("&About Electrum"))
         app_menu.addSeparator()
