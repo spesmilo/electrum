@@ -1,6 +1,7 @@
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from decimal import Decimal as D
+from util import get_resource_path as rsrc
 from i18n import _
 import decimal
 import exchange_rate
@@ -33,7 +34,8 @@ class ElectrumGui:
     def __init__(self, wallet):
         self.wallet = wallet
         self.app = QApplication(sys.argv)
-        with open("data/style.css") as style_file:
+        QDir.setCurrent(rsrc())
+        with open(rsrc("style.css")) as style_file:
             self.app.setStyleSheet(style_file.read())
 
     def main(self, url):
@@ -82,13 +84,13 @@ class MiniWindow(QDialog):
 
         self.actuator = actuator
 
-        accounts_button = IconButton("data/icons/accounts.png")
+        accounts_button = IconButton(rsrc("icons", "accounts.png"))
         accounts_button.setObjectName("accounts_button")
 
         self.accounts_selector = QMenu()
         accounts_button.setMenu(self.accounts_selector)
 
-        interact_button = IconButton("data/icons/interact.png")
+        interact_button = IconButton(rsrc("icons", "interact.png"))
         interact_button.setObjectName("interact_button")
 
         app_menu = QMenu(interact_button)
@@ -103,7 +105,7 @@ class MiniWindow(QDialog):
         self.connect(about_action, SIGNAL("triggered()"), self.show_about)
         self.connect(quit_action, SIGNAL("triggered()"), self.close)
 
-        expand_button = IconButton("data/icons/expand.png")
+        expand_button = IconButton(rsrc("icons", "expand.png"))
         expand_button.setObjectName("expand_button")
         self.connect(expand_button, SIGNAL("clicked()"), expand_callback)
 
@@ -136,7 +138,6 @@ class MiniWindow(QDialog):
         address_completer.setCaseSensitivity(False)
         address_completer.setModel(self.address_completions)
         self.address_input.setCompleter(address_completer)
-        self.address_completions.setStringList(["1brmlab", "hello"])
 
         self.valid_address = QCheckBox()
         self.valid_address.setObjectName("valid_address")
@@ -354,10 +355,10 @@ class TextedLineEdit(QLineEdit):
 def ok_cancel_buttons(dialog):
     row_layout = QHBoxLayout()
     row_layout.addStretch(1)
-    ok_button = QPushButton("OK")
+    ok_button = QPushButton(_("OK"))
     row_layout.addWidget(ok_button)
     ok_button.clicked.connect(dialog.accept)
-    cancel_button = QPushButton("Cancel")
+    cancel_button = QPushButton(_("Cancel"))
     row_layout.addWidget(cancel_button)
     cancel_button.clicked.connect(dialog.reject)
     return row_layout
@@ -546,7 +547,7 @@ class MiniDriver(QObject):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    with open("data/style.css") as style_file:
+    with open(rsrc("style.css")) as style_file:
         app.setStyleSheet(style_file.read())
     mini = MiniWindow()
     sys.exit(app.exec_())
