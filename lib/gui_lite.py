@@ -117,7 +117,7 @@ class MiniWindow(QDialog):
         self.balance_label = BalanceLabel(self.change_quote_currency)
         self.balance_label.setObjectName("balance_label")
 
-        copy_button = QPushButton(_("&Copy Address"))
+        copy_button = QPushButton(_("&Copy My Address"))
         copy_button.setObjectName("copy_button")
         copy_button.setDefault(True)
         self.connect(copy_button, SIGNAL("clicked()"),
