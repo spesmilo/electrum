@@ -35,8 +35,8 @@ from interface import DEFAULT_SERVERS
 try:
     import icons_rc
 except:
-    print "Could not import icons_rp.py"
-    print "Please generate it with: 'pyrcc4 icons.qrc -o icons_rc.py'"
+    print "Could not import icons_rc.py"
+    print "Please generate it with: 'pyrcc4 icons.qrc -o lib/icons_rc.py'"
     sys.exit(1)
 
 from wallet import format_satoshis
