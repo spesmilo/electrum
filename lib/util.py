@@ -12,6 +12,6 @@ def appdata_dir():
     else:
         raise Exception("Unknown system")
 
-def get_resource_path(filename):
-    return os.path.join(appdata_dir(), filename)
+def get_resource_path(*args):
+    return os.path.join(appdata_dir(), *args)
 
