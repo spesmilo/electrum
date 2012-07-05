@@ -532,6 +532,7 @@ class MiniDriver(QObject):
 
         self.initializing()
         self.connect(self, SIGNAL("updatesignal()"), self.update)
+        self.update_callback()
 
     # This is a hack to workaround that Qt does not like changing the
     # window properties from this other thread before the runloop has
