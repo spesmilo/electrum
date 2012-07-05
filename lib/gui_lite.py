@@ -1,10 +1,11 @@
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from decimal import Decimal as D
-from util import get_resource_path as rsrc
+from util import appdata_dir, get_resource_path as rsrc
 from i18n import _
 import decimal
 import exchange_rate
+import os.path
 import random
 import re
 import sys
@@ -40,7 +41,10 @@ class ElectrumGui:
     def __init__(self, wallet):
         self.wallet = wallet
         self.app = QApplication(sys.argv)
-        QDir.setCurrent(rsrc())
+        if os.path.exists("data"):
+            QDir.setCurrent("data")
+        else:
+            QDir.setCurrent(appdata_dir())
         with open(rsrc("style.css")) as style_file:
             self.app.setStyleSheet(style_file.read())
 
@@ -136,7 +140,7 @@ class MiniWindow(QDialog):
         self.connect(self.address_input, SIGNAL("textEdited(QString)"),
                      self.address_field_changed)
         resize_line_edit_width(self.address_input,
-                               "1E4vM9q25xsyDwWwdqHUWnwshdWC9PykmL")
+                               "1BtaFUr3qVvAmwrsuDuu5zk6e4s2rxd2Gy")
 
         self.address_completions = QStringListModel()
         address_completer = QCompleter(self.address_input)
