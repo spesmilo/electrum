@@ -1,6 +1,6 @@
 #main_window
 {
-    background-image: url(data/background.png);
+    background-image: url(background.png);
 }
 
 #address_input[readOnly=true], #amount_input[readOnly=true]
@@ -21,11 +21,11 @@
 }
 #valid_address::indicator:checked
 {
-    image: url(data/icons/confirmed.png);
+    image: url(icons/confirmed.png);
 }
 #valid_address::indicator:unchecked
 {
-    image: url(data/icons/unconfirmed.png);
+    image: url(icons/unconfirmed.png);
 }
 
 #balance_label
