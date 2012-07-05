@@ -481,7 +481,6 @@ class ElectrumWindow(QMainWindow):
         QShortcut(QKeySequence("Up"), w, w.focusPreviousChild)
         QShortcut(QKeySequence("Down"), w, w.focusNextChild)
         w.setLayout(grid) 
-        w.show()
 
         w2 = QWidget()
         vbox = QVBoxLayout()
