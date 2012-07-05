@@ -29,6 +29,12 @@ class Timer(QThread):
             self.emit(SIGNAL('timersignal'))
             time.sleep(0.5)
 
+def resize_line_edit_width(line_edit, text_input):
+    metrics = QFontMetrics(qApp.font())
+    # Create an extra character to add some space on the end
+    text_input += "A"
+    line_edit.setMinimumWidth(metrics.width(text_input))
+
 class ElectrumGui:
 
     def __init__(self, wallet):
@@ -119,19 +125,18 @@ class MiniWindow(QDialog):
         self.balance_label = BalanceLabel(self.change_quote_currency)
         self.balance_label.setObjectName("balance_label")
 
-        copy_button = QPushButton(_("&Copy My Address"))
-        copy_button.setObjectName("copy_button")
-        copy_button.setDefault(True)
-        self.connect(copy_button, SIGNAL("clicked()"),
-                     self.actuator.copy_address)
+        self.receive_button = QPushButton(_("&Receive"))
+        self.receive_button.setObjectName("receive_button")
+        self.receive_button.setDefault(True)
+        self.connect(self.receive_button, SIGNAL("clicked()"),
+                     self.copy_address)
 
         self.address_input = TextedLineEdit(_("Enter a Bitcoin address..."))
         self.address_input.setObjectName("address_input")
         self.connect(self.address_input, SIGNAL("textEdited(QString)"),
                      self.address_field_changed)
-        metrics = QFontMetrics(qApp.font())
-        self.address_input.setMinimumWidth(
-            metrics.width("1E4vM9q25xsyDwWwdqHUWnwshdWC9PykmL"))
+        resize_line_edit_width(self.address_input,
+                               "1E4vM9q25xsyDwWwdqHUWnwshdWC9PykmL")
 
         self.address_completions = QStringListModel()
         address_completer = QCompleter(self.address_input)
@@ -173,7 +178,7 @@ class MiniWindow(QDialog):
         main_layout.addWidget(expand_button, 2, 0)
 
         main_layout.addWidget(self.balance_label, 0, 1)
-        main_layout.addWidget(copy_button, 0, 2)
+        main_layout.addWidget(self.receive_button, 0, 2)
 
         main_layout.addLayout(address_layout, 1, 1, 1, -1)
 
@@ -263,6 +268,10 @@ class MiniWindow(QDialog):
             self.valid_address.setChecked(True)
         else:
             self.valid_address.setChecked(False)
+
+    def copy_address(self):
+        receive_popup = ReceivePopup(self.receive_button)
+        self.actuator.copy_address(receive_popup)
 
     def update_completions(self, completions):
         self.address_completions.setStringList(completions)
@@ -391,15 +400,48 @@ class PasswordDialog(QDialog):
             return
         return unicode(self.password_input.text())
 
+class ReceivePopup(QDialog):
+
+    def __init__(self, parent=None):
+        super(QDialog, self).__init__(parent)
+        #self.setFrameStyle(QFrame.WinPanel|QFrame.Raised)
+        #self.setAlignment(Qt.AlignCenter)
+        self.setMouseTracking(True)
+
+    def mouseMoveEvent(self, event):
+        if not self.rect().contains(event.pos()):
+            self.close()
+
+    def set_address(self, address):
+        label = QLabel(_("Copied your Bitcoin address to the clipboard!"))
+        address_display = QLineEdit(address)
+        address_display.setReadOnly(True)
+        resize_line_edit_width(address_display, address)
+
+        main_layout = QVBoxLayout(self)
+        main_layout.addWidget(label)
+        main_layout.addWidget(address_display)
+
+    def popup(self):
+        parent = self.parent()
+        top_left_pos = parent.mapToGlobal(parent.rect().bottomLeft())
+        self.move(top_left_pos)
+        center_mouse_pos = self.mapToGlobal(self.rect().center())
+        QCursor.setPos(center_mouse_pos)
+        self.show()
+
 class MiniActuator:
 
     def __init__(self, wallet):
         self.wallet = wallet
 
-    def copy_address(self):
+    def copy_address(self, receive_popup):
         addrs = [addr for addr in self.wallet.all_addresses()
                  if not self.wallet.is_change(addr)]
-        qApp.clipboard().setText(random.choice(addrs))
+        copied_address = random.choice(addrs)
+        qApp.clipboard().setText(copied_address)
+        receive_popup.set_address(copied_address)
+        receive_popup.popup()
 
     def send(self, address, amount, parent_window):
         dest_address = self.fetch_destination(address)
