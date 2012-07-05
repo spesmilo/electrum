@@ -402,17 +402,11 @@ class PasswordDialog(QDialog):
 
 class ReceivePopup(QDialog):
 
-    def __init__(self, parent=None):
-        super(QDialog, self).__init__(parent)
-        #self.setFrameStyle(QFrame.WinPanel|QFrame.Raised)
-        #self.setAlignment(Qt.AlignCenter)
-        self.setMouseTracking(True)
-
     def mouseMoveEvent(self, event):
         if not self.rect().contains(event.pos()):
             self.close()
 
-    def set_address(self, address):
+    def setup(self, address):
         label = QLabel(_("Copied your Bitcoin address to the clipboard!"))
         address_display = QLineEdit(address)
         address_display.setReadOnly(True)
@@ -421,6 +415,13 @@ class ReceivePopup(QDialog):
         main_layout = QVBoxLayout(self)
         main_layout.addWidget(label)
         main_layout.addWidget(address_display)
+
+        self.setMouseTracking(True)
+        self.setWindowTitle("Electrum - " + _("Receive Bitcoin payment"))
+        self.setWindowFlags(Qt.Window|Qt.FramelessWindowHint|Qt.MSWindowsFixedSizeDialogHint)
+        self.layout().setSizeConstraint(QLayout.SetFixedSize)
+        #self.setFrameStyle(QFrame.WinPanel|QFrame.Raised)
+        #self.setAlignment(Qt.AlignCenter)
 
     def popup(self):
         parent = self.parent()
@@ -440,7 +441,7 @@ class MiniActuator:
                  if not self.wallet.is_change(addr)]
         copied_address = random.choice(addrs)
         qApp.clipboard().setText(copied_address)
-        receive_popup.set_address(copied_address)
+        receive_popup.setup(copied_address)
         receive_popup.popup()
 
     def send(self, address, amount, parent_window):
