@@ -229,10 +229,11 @@ class MiniWindow(QDialog):
         btc_balance = "%.2f" % (btc_balance / bitcoin(1))
         self.balance_label.set_balance_text(btc_balance, quote_text)
         main_account_info = \
-            "Checking - %s BTC %s" % (btc_balance, quote_text)
+            "Checking - %s BTC" % btc_balance
         self.setWindowTitle("Electrum - %s" % main_account_info)
         self.accounts_selector.clear()
-        self.accounts_selector.addAction("%s" % main_account_info)
+        self.accounts_selector.addAction("%s %s" % (main_account_info,
+                                                    quote_text))
 
     def amount_input_changed(self, amount_text):
         try:
