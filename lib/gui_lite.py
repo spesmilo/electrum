@@ -402,9 +402,8 @@ class PasswordDialog(QDialog):
 
 class ReceivePopup(QDialog):
 
-    def mouseMoveEvent(self, event):
-        if not self.rect().contains(event.pos()):
-            self.close()
+    def leaveEvent(self, event):
+        self.close()
 
     def setup(self, address):
         label = QLabel(_("Copied your Bitcoin address to the clipboard!"))
