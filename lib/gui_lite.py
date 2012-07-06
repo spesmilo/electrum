@@ -63,7 +63,7 @@ class ElectrumGui:
         self.expert.connect_slots(timer)
         self.expert.update_wallet()
 
-        sys.exit(self.app.exec_())
+        self.app.exec_()
 
     def expand(self):
         self.mini.hide()
