@@ -683,7 +683,7 @@ class Wallet:
             self.prioritized_addresses = d.get('prioritized_addresses',[])
             self.expert_mode = d.get('expert_mode',False)
             self.gap_limit = d.get('gap_limit',5)
-            self.debug_server = d.get('debug_server',True)
+            self.debug_server = d.get('debug_server',False)
         except:
             raise BaseException("cannot read wallet file")
 
