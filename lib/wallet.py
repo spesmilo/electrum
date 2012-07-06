@@ -277,6 +277,7 @@ class Wallet:
         self.receipts = {}           # signed URIs
         self.receipt = None          # next receipt
         self.addressbook = []        # outgoing addresses, for payments
+        self.debug_server = False    # write server communication debug info to stdout
 
         # not saved
         self.tx_history = {}
@@ -638,6 +639,7 @@ class Wallet:
             'prioritized_addresses':self.prioritized_addresses,
             'expert_mode':self.expert_mode,
             'gap_limit':self.gap_limit,
+            'debug_server':self.debug_server,
             }
         f = open(self.path,"w")
         f.write( repr(s) )
@@ -681,6 +683,7 @@ class Wallet:
             self.prioritized_addresses = d.get('prioritized_addresses',[])
             self.expert_mode = d.get('expert_mode',False)
             self.gap_limit = d.get('gap_limit',5)
+            self.debug_server = d.get('debug_server',True)
         except:
             raise BaseException("cannot read wallet file")
 

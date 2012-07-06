@@ -49,7 +49,7 @@ def old_to_new(d):
 
 
 class Interface(threading.Thread):
-    def __init__(self, host, port):
+    def __init__(self, host, port, debug_server):
         threading.Thread.__init__(self)
         self.daemon = True
         self.host = host
@@ -67,6 +67,8 @@ class Interface(threading.Thread):
         self.responses = Queue.Queue()
         self.unanswered_requests = {}
 
+        self.debug_server = debug_server
+
     def init_socket(self):
         pass
 
@@ -76,7 +78,9 @@ class Interface(threading.Thread):
 
     def queue_json_response(self, c):
 
-        #print "<--",c
+        if self.debug_server:
+          print "<--",c
+
         msg_id = c.get('id')
         error = c.get('error')
         
@@ -117,9 +121,10 @@ class Interface(threading.Thread):
 class PollingInterface(Interface):
     """ non-persistent connection. synchronous calls"""
 
-    def __init__(self, host, port):
-        Interface.__init__(self, host, port)
+    def __init__(self, host, port, debug_server):
+        Interface.__init__(self, host, port, debug_server)
         self.session_id = None
+        self.debug_server = debug_server
 
     def get_history(self, address):
         self.send([('blockchain.address.get_history', [address] )])
@@ -227,8 +232,9 @@ class HttpStratumInterface(PollingInterface):
 class TcpStratumInterface(Interface):
     """json-rpc over persistent TCP connection, asynchronous"""
 
-    def __init__(self, host, port):
-        Interface.__init__(self, host, port)
+    def __init__(self, host, port, debug_server):
+        Interface.__init__(self, host, port, debug_server)
+        self.debug_server = debug_server
 
     def init_socket(self):
         self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
@@ -279,7 +285,10 @@ class TcpStratumInterface(Interface):
             method, params = m 
             request = json.dumps( { 'id':self.message_id, 'method':method, 'params':params } )
             self.unanswered_requests[self.message_id] = method, params
-            #print "-->",request
+
+            if self.debug_server:
+              print "-->",request
+
             self.message_id += 1
             out += request + '\n'
 
@@ -321,7 +330,7 @@ class WalletSynchronizer(threading.Thread):
             print "unknown protocol"
             InterfaceClass = TcpStratumInterface
 
-        self.interface = InterfaceClass(host, port)
+        self.interface = InterfaceClass(host, port, self.wallet.debug_server)
         self.wallet.interface = self.interface
 
 
