@@ -190,6 +190,11 @@ class MiniWindow(QDialog):
         main_layout.addLayout(amount_layout, 2, 1)
         main_layout.addWidget(send_button, 2, 2)
 
+        quit_shortcut = QShortcut(QKeySequence("Ctrl+Q"), self)
+        self.connect(quit_shortcut, SIGNAL("activated()"), self.close)
+        close_shortcut = QShortcut(QKeySequence("Ctrl+W"), self)
+        self.connect(close_shortcut, SIGNAL("activated()"), self.close)
+
         self.setWindowTitle("Electrum")
         self.setWindowFlags(Qt.Window|Qt.MSWindowsFixedSizeDialogHint)
         self.layout().setSizeConstraint(QLayout.SetFixedSize)
