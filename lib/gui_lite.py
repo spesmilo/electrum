@@ -36,15 +36,19 @@ def resize_line_edit_width(line_edit, text_input):
     text_input += "A"
     line_edit.setMinimumWidth(metrics.width(text_input))
 
+def cd_data_dir():
+    try:
+        data_dir = os.environ["ELECTRUM_DATA_PATH"]
+    except KeyError:
+        data_dir = appdata_dir()
+    QDir.setCurrent(data_dir)
+
 class ElectrumGui:
 
     def __init__(self, wallet):
         self.wallet = wallet
         self.app = QApplication(sys.argv)
-        if os.path.exists("data"):
-            QDir.setCurrent("data")
-        else:
-            QDir.setCurrent(appdata_dir())
+        cd_data_dir()
         with open(rsrc("style.css")) as style_file:
             self.app.setStyleSheet(style_file.read())
 
