@@ -3,13 +3,10 @@ from version import SEED_VERSION
 
 try:
     from lib import prompt_password
+    from lib.util import print_error
 except ImportError:
     from electrum import prompt_password
-
-from lib.uril import print_error
-
-
-
+    from electrum.util import print_error
 
 if __name__ == "__main__":
     try:

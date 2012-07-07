@@ -18,7 +18,7 @@
 
 import sys, time, datetime, re
 from i18n import _
-from lib.util import print_error
+from util import print_error
 
 try:
     import PyQt4

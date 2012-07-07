@@ -23,7 +23,7 @@ import pygtk
 pygtk.require('2.0')
 import gtk, gobject
 from decimal import Decimal
-from lib.util import print_error
+from util import print_error
 
 import pyqrnative, mnemonic
 

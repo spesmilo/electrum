@@ -21,7 +21,10 @@ import time, thread, sys, socket
 # see http://code.google.com/p/jsonrpclib/
 import jsonrpclib
 from wallet import Wallet
-from lib.util import print_error
+try:
+    from lib.util import print_error
+except ImportError:
+    from electrum.util import print_error
 
 """
 Simple wallet daemon for webservers.

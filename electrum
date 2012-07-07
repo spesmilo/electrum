@@ -17,7 +17,10 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import re, sys
-from lib.util import print_error
+try:
+    from lib.util import print_error
+except ImportError:
+    from electrum.util import print_error
 
 try:
     import ecdsa  
