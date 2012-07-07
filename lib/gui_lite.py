@@ -450,8 +450,10 @@ class MiniActuator:
 
     def set_configured_currency(self, set_quote_currency):
         currency = self.wallet.conversion_currency
-        assert currency is not None
-        set_quote_currency(currency)
+        # currency can be none when Electrum is used for the first
+        # time and no setting has been created yet.
+        if currency is not None:
+            set_quote_currency(currency)
 
     def set_config_currency(self, conversion_currency):
         self.wallet.conversion_currency = conversion_currency
