@@ -18,13 +18,13 @@
 
 import sys, time, datetime, re
 from i18n import _
+from lib.util import print_error
 
 try:
     import PyQt4
 except:
-    sys.stderr.write("Error: Could not import PyQt4\n")
-    sys.stderr.write("on Linux systems, you may try 'sudo apt-get install python-qt4'\n")
-    sys.stderr.flush()
+    print_error("Error: Could not import PyQt4")
+    print_error("on Linux systems, you may try 'sudo apt-get install python-qt4'")
     sys.exit(1)
 
 from PyQt4.QtGui import *
@@ -36,9 +36,8 @@ from interface import DEFAULT_SERVERS
 try:
     import icons_rc
 except:
-    sys.stderr.write("Error: Could not import icons_rc.py\n")
-    sys.stderr.write("Please generate it with: 'pyrcc4 icons.qrc -o lib/icons_rc.py'\n")
-    sys.stderr.flush()
+    print_error("Error: Could not import icons_rc.py")
+    print_error("Please generate it with: 'pyrcc4 icons.qrc -o lib/icons_rc.py'")
     sys.exit(1)
 
 from wallet import format_satoshis
@@ -390,8 +389,7 @@ class ElectrumWindow(QMainWindow):
             if text not in self.wallet.aliases.keys():
                 self.wallet.labels[addr] = text
             else:
-                sys.stderr.write("Error: This is one of your aliases\n")
-                sys.stderr.flush()
+                print_error("Error: This is one of your aliases")
                 label = self.wallet.labels.get(addr,'')
                 item.setText(column_label, QString(label))
         else:
@@ -1144,8 +1142,7 @@ class ElectrumWindow(QMainWindow):
             seed = unicode(seed_e.text())
             seed.decode('hex')
         except:
-            sys.stderr.write("Warning: Not hex, trying decode\n")
-            sys.stderr.flush()
+            print_error("Warning: Not hex, trying decode")
             try:
                 seed = mnemonic.mn_decode( seed.split(' ') )
             except:

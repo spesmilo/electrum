@@ -23,6 +23,7 @@ import pygtk
 pygtk.require('2.0')
 import gtk, gobject
 from decimal import Decimal
+from lib.util import print_error
 
 import pyqrnative, mnemonic
 
@@ -206,8 +207,7 @@ def run_recovery_dialog(wallet):
     try:
         seed.decode('hex')
     except:
-        sys.stderr.write("Warning: Not hex, trying decode\n")
-        sys.stderr.flush()
+        print_error("Warning: Not hex, trying decode")
         seed = mnemonic.mn_decode( seed.split(' ') )
     if not seed:
         show_message("no seed")

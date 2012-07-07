@@ -21,6 +21,7 @@ import random, socket, ast, re
 import threading, traceback, sys, time, json, Queue
 
 from version import ELECTRUM_VERSION
+from lib.util import print_error
 
 DEFAULT_TIMEOUT = 5
 DEFAULT_SERVERS = [ 'ecdsa.org:50001:t', 
@@ -247,8 +248,7 @@ class TcpStratumInterface(Interface):
             print "Connected to %s:%d"%(self.host,self.port)
         except:
             self.is_connected = False
-            sys.stderr.write("Not connected\n")
-            sys.stderr.flush()
+            print_error("Not connected")
 
     def run(self):
         try:
@@ -328,8 +328,7 @@ class WalletSynchronizer(threading.Thread):
         elif protocol == 'h':
             InterfaceClass = HttpStratumInterface
         else:
-            sys.stderr.write("Error: Unknown protocol\n")
-            sys.stderr.flush()
+            print_error("Error: Unknown protocol")
             InterfaceClass = TcpStratumInterface
 
         self.interface = InterfaceClass(host, port, self.wallet.debug_server)
@@ -386,8 +385,7 @@ class WalletSynchronizer(threading.Thread):
             pass
 
         else:
-            sys.stderr.write("Error: Unknown message:" + method + ", " + params + ", " + result)
-            sys.stderr.flush()
+            print_error("Error: Unknown message:" + method + ", " + params + ", " + result)
 
 
     def start_interface(self):

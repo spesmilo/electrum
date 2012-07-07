@@ -6,9 +6,10 @@ from distutils.core import setup
 from lib.version import ELECTRUM_VERSION as version
 import lib.util as util
 import os, sys, platform
+from lib.util import print_error
+
 if sys.version_info[:3] < (2,6,0):
-    sys.stderr.write("Electrum requires Python version >= 2.6.0... exiting\n")
-    sys.stderr.flush()
+    print_error("Error: Electrum requires Python version >= 2.6.0...")
     sys.exit(1)
             
 

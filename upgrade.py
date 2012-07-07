@@ -6,6 +6,7 @@ try:
 except ImportError:
     from electrum import prompt_password
 
+from lib.uril import print_error
 
 
 
@@ -30,15 +31,13 @@ if __name__ == "__main__":
         data = f.read()
         f.close()
     except:
-        sys.stderr.write("Error: File not found: " + path + "\n")
-        sys.stderr.flush()
+        print_error("Error: File not found: " + path)
         exit(1)
 
     try:
         x = ast.literal_eval(data)
     except:
-        sys.stderr.write("Error: Could not parse wallet\n")
-        sys.stderr.flush()
+        print_error("Error: Could not parse wallet")
         exit(1)
 
     # version <= 0.33 uses a tuple
@@ -65,8 +64,7 @@ if __name__ == "__main__":
                 seed = DecodeAES( secret, wallet.seed )
                 private_keys = ast.literal_eval( DecodeAES( secret, wallet.private_keys ) )
             except:
-                sys.stderr.write("Error: Password does not decrypt this wallet.\n")
-                sys.stderr.flush()
+                print_error("Error: Password does not decrypt this wallet.")
                 exit(1)
             seed_version = 2
             s = repr( (seed_version, use_encryption, fee, host, port, blocks, seed, all_addresses, private_keys, change_indexes, status, history, labels, addressbook ))

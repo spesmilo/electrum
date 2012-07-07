@@ -17,19 +17,18 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import re, sys
+from lib.util import print_error
 
 try:
     import ecdsa  
 except:
-    sys.stderr.write("Error: python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'\n")
-    sys.stderr.flush()
+    print_error("Error: python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'")
     sys.exit(1)
 
 try:
     import aes
 except:
-    sys.stderr.write("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'\n")
-    sys.stderr.flush()
+    print_error("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
     sys.exit(1)
 
 try:
@@ -144,8 +143,7 @@ if __name__ == '__main__':
             except ImportError:
                 import electrum.gui_lite as gui
         else:
-            sys.stderr.write("Error: Unknown GUI: " + options.gui + "\n")
-            sys.stderr.flush()
+            print_error("Error: Unknown GUI: " + options.gui)
             exit(1)
 
         gui = gui.ElectrumGui(wallet)
@@ -173,14 +171,13 @@ if __name__ == '__main__':
         cmd = 'help'
 
     if not wallet.file_exists and cmd not in ['help','create','restore']:
-        sys.stderr.write("Error: Wallet file not found.\n")
-        sys.stderr.write("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option\n")
-        sys.stderr.flush()
+        print_error("Error: Wallet file not found.")
+        print_error("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
     
     if cmd in ['create', 'restore']:
         if wallet.file_exists:
-            sys.stderr.write("Error: Remove the existing wallet first!\n")
+            print_error("Error: Remove the existing wallet first!")
             sys.stderr.flush()
             sys.exit(0)
         password = prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
@@ -203,12 +200,10 @@ if __name__ == '__main__':
             try:
                 seed.decode('hex')
             except:
-                sys.stderr.write("Warning: Not hex, trying decode.\n")
-                sys.stderr.flush()
+                print_error("Warning: Not hex, trying decode.")
                 seed = mnemonic.mn_decode( seed.split(' ') )
             if not seed:
-                sys.stderr.write("Error: No seed\n")
-                sys.stderr.flush()
+                print_error("Error: No seed")
                 sys.exit(1)
 
             wallet.seed = str(seed)
@@ -222,12 +217,10 @@ if __name__ == '__main__':
                 if wallet.is_found():
                     print "Recovery successful"
                 else:
-                    sys.stderr.write("Warning: Found no history for this wallet\n")
-                    sys.stderr.flush()
+                    print_error("Warning: Found no history for this wallet")
             wallet.fill_addressbook()
             wallet.save()
-            sys.stderr.write("Wallet saved in '" + wallet.path + "'\n")
-            sys.stderr.flush()
+            print_error("Wallet saved in '" + wallet.path)
         else:
             wallet.new_seed(None)
             wallet.init_mpk( wallet.seed )
@@ -276,8 +269,7 @@ if __name__ == '__main__':
         try:
             wallet.pw_decode( wallet.seed, password)
         except:
-            sys.stderr.write("Error: This password does not decode this wallet.\n")
-            sys.stderr.flush()
+            print_error("Error: This password does not decode this wallet.")
             exit(1)
 
     if cmd == 'import':
@@ -287,12 +279,12 @@ if __name__ == '__main__':
             wallet.save()
             print "Keypair imported"
         except BaseException, e:
-            sys.stderr.write("Error: Keypair import failed: " + str(e) + "\n")
-            sys.stderr.flush()
+            print_error("Error: Keypair import failed: " + str(e))
 
     if cmd=='help':
         cmd2 = firstarg
         if cmd2 not in known_commands:
+            print_error("Error: Command not found.")
             print "Type 'electrum help <command>' to see the help for a specific command"
             print "Type 'electrum --help' to see the list of options"
             print "List of commands:", ', '.join(known_commands)
@@ -305,11 +297,9 @@ if __name__ == '__main__':
 
     elif cmd == 'deseed':
         if not wallet.seed:
-            sys.stderr.write("Error: This wallet has no seed\n")
-            sys.stderr.flush()
+            print_error("Error: This wallet has no seed")
         elif wallet.use_encryption:
-            sys.stderr.write("Error: This wallet is encrypted\n")
-            sys.stderr.flush()
+            print_error("Error: This wallet is encrypted")
         else:
             ns = wallet.path + '.seed'
             print "Warning: you are going to extract the seed from '%s'\nThe seed will be saved in '%s'"%(wallet.path,ns)
@@ -322,8 +312,7 @@ if __name__ == '__main__':
                 wallet.save()
                 print "Done."
             else:
-                sys.stderr.write("Action canceled.\n")
-                sys.stderr.flush()
+                print_error("Action canceled.")
 
     elif cmd == 'reseed':
         if wallet.seed:
@@ -335,8 +324,7 @@ if __name__ == '__main__':
                 data = f.read()
                 f.close()
             except:
-                sys.stderr.write("Error: Seed file not found\n")
-                sys.stderr.flush()
+                print_error("Error: Seed file not found")
                 sys.exit()
             try:
                 import ast
@@ -344,8 +332,7 @@ if __name__ == '__main__':
                 seed = d['seed']
                 imported_keys = d.get('imported_keys',{})
             except:
-                sys.stderr.write("Error: Error with seed file\n")
-                sys.stderr.flush()
+                print_error("Error: Error with seed file")
                 sys.exit(1)
 
             mpk = wallet.master_public_key
@@ -357,8 +344,7 @@ if __name__ == '__main__':
                 wallet.save()
                 print "Done: " + wallet.path
             else:
-                sys.stderr.write("Error: Master public key does not match\n")
-                sys.stderr.flush()
+                print_error("Error: Master public key does not match")
 
     elif cmd == 'validateaddress':
         addr = args[1]
@@ -437,8 +423,7 @@ if __name__ == '__main__':
             tx = args[1]
             label = ' '.join(args[2:])
         except:
-            sys.stderr.write("Error. Syntax:  label <tx_hash> <text>\n")
-            sys.stderr.flush()
+            print_error("Error. Syntax:  label <tx_hash> <text>")
             sys.exit(1)
         wallet.labels[tx] = label
         wallet.save()
@@ -451,8 +436,7 @@ if __name__ == '__main__':
                 keypair = from_addr
                 from_addr = keypair.split(':')[0]
             if not wallet.import_key(keypair,password):
-                sys.stderr.write("Error: Invalid key pair\n")
-                sys.stderr.flush()
+                print_error("Error: Invalid key pair")
                 exit(1)
             wallet.history[from_addr] = interface.retrieve_history(from_addr)
             wallet.update_tx_history()
@@ -496,8 +480,7 @@ if __name__ == '__main__':
         try:
             seed = wallet.pw_decode( wallet.seed, password)
         except:
-            sys.stderr.write("Error: Password does not decrypt this wallet.\n")
-            sys.stderr.flush()
+            print_error("Error: Password does not decrypt this wallet.")
             sys.exit(1)
 
         new_password = prompt_password('New password:')
@@ -516,8 +499,7 @@ if __name__ == '__main__':
             signature = args[2]
             message = ' '.join(args[3:])
         except:
-            sys.stderr.write("Error: Not all parameters were given, displaying help instead.\n")
-            sys.stderr.flush()
+            print_error("Error: Not all parameters were given, displaying help instead.")
             print known_commands[cmd]
             sys.exit(1)
         if len(args) > 4:

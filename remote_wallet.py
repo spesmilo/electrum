@@ -21,6 +21,7 @@ import time, thread, sys, socket
 # see http://code.google.com/p/jsonrpclib/
 import jsonrpclib
 from wallet import Wallet
+from lib.util import print_error
 
 """
 Simple wallet daemon for webservers.
@@ -99,8 +100,7 @@ if __name__ == '__main__':
             elif cmd == 'stop':
                 out = server.stop()
         except socket.error:
-            sys.stderr.write("Server not running\n")
-            sys.stderr.flush()
+            print_error("Server not running")
             sys.exit(1)
         print out
         sys.exit(0)

@@ -20,6 +20,7 @@
 import sys, base64, os, re, hashlib, copy, operator, ast, threading, random, getpass
 import aes, ecdsa
 from ecdsa.util import string_to_number, number_to_string
+from lib.util import print_error
 
 ############ functions from pywallet ##################### 
 
@@ -156,8 +157,7 @@ def prompt_password(prompt, confirm=True):
             password2 = getpass.getpass("Confirm: ")
 
             if password != password2:
-                sys.stderr.write("Error: Passwords do not match.\n")
-                sys.stderr.flush()
+                print_error("Error: Passwords do not match.")
                 sys.exit(1)
 
     else:
