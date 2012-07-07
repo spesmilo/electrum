@@ -20,7 +20,7 @@
 import sys, base64, os, re, hashlib, copy, operator, ast, threading, random, getpass
 import aes, ecdsa
 from ecdsa.util import string_to_number, number_to_string
-from lib.util import print_error
+from util import print_error
 
 ############ functions from pywallet ##################### 
 
