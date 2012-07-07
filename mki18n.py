@@ -32,7 +32,12 @@ cmd = 'xgettext -s --no-wrap -f app.fil --output=locale/messages.pot'
 print cmd
 os.system(cmd)
 
-f = open('locale/messages.pot','r')
+# Make locale directory if doesn't exist
+try:
+    os.mkdir('locale')
+except OSError:
+    pass
+f = open(os.path.join('locale', 'messages.pot'),'r')
 s = f.read()
 f.close()
 s = s.replace('CHARSET', 'utf-8')
