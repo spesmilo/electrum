@@ -120,7 +120,8 @@ class MiniWindow(QDialog):
         self.connect(expand_button, SIGNAL("clicked()"), expand_callback)
 
         self.btc_balance = None
-        self.quote_currencies = ("EUR", "USD", "GBP")
+        self.quote_currencies = ["EUR", "USD", "GBP"]
+        self.actuator.set_configured_currency(self.set_quote_currency)
         self.exchanger = exchange_rate.Exchanger(self)
         # Needed because price discovery is done in a different thread
         # which needs to be sent back to this main one to update the GUI
@@ -212,9 +213,16 @@ class MiniWindow(QDialog):
     def deactivate(self):
         pass
 
+    def set_quote_currency(self, currency):
+        assert currency in self.quote_currencies
+        self.quote_currencies.remove(currency)
+        self.quote_currencies = [currency] + self.quote_currencies
+        self.refresh_balance()
+
     def change_quote_currency(self):
         self.quote_currencies = \
             self.quote_currencies[1:] + self.quote_currencies[0:1]
+        self.actuator.set_config_currency(self.quote_currencies[0])
         self.refresh_balance()
 
     def refresh_balance(self):
@@ -440,9 +448,19 @@ class MiniActuator:
     def __init__(self, wallet):
         self.wallet = wallet
 
+    def set_configured_currency(self, set_quote_currency):
+        currency = self.wallet.conversion_currency
+        assert currency is not None
+        set_quote_currency(currency)
+
+    def set_config_currency(self, conversion_currency):
+        self.wallet.conversion_currency = conversion_currency
+
     def copy_address(self, receive_popup):
         addrs = [addr for addr in self.wallet.all_addresses()
                  if not self.wallet.is_change(addr)]
+        # Select most recent addresses from gap limit
+        addrs = addrs[-self.wallet.gap_limit:]
         copied_address = random.choice(addrs)
         qApp.clipboard().setText(copied_address)
         receive_popup.setup(copied_address)

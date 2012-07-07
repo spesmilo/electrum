@@ -281,6 +281,7 @@ class Wallet:
         self.fee = 100000
         self.num_zeros = 0
         self.master_public_key = ''
+        self.conversion_currency = None
 
         # saved fields
         self.use_encryption = False
@@ -638,30 +639,34 @@ class Wallet:
 
 
     def save(self):
+        # TODO: Need special config storage class. Should not be mixed
+        # up with the wallet.
+        # Settings should maybe be stored in a flat ini file.
         s = {
-            'seed_version':self.seed_version,
-            'use_encryption':self.use_encryption,
-            'use_change':self.use_change,
+            'seed_version': self.seed_version,
+            'use_encryption': self.use_encryption,
+            'use_change': self.use_change,
             'master_public_key': self.master_public_key.encode('hex'),
-            'fee':self.fee,
-            'server':self.server,
-            'seed':self.seed,
-            'addresses':self.addresses,
-            'change_addresses':self.change_addresses,
-            'history':self.history, 
-            'labels':self.labels,
-            'contacts':self.addressbook,
-            'imported_keys':self.imported_keys,
-            'aliases':self.aliases,
-            'authorities':self.authorities,
-            'receipts':self.receipts,
-            'num_zeros':self.num_zeros,
-            'frozen_addresses':self.frozen_addresses,
-            'prioritized_addresses':self.prioritized_addresses,
-            'expert_mode':self.expert_mode,
-            'gap_limit':self.gap_limit,
-            'debug_server':self.debug_server,
-            }
+            'fee': self.fee,
+            'server': self.server,
+            'seed': self.seed,
+            'addresses': self.addresses,
+            'change_addresses': self.change_addresses,
+            'history': self.history, 
+            'labels': self.labels,
+            'contacts': self.addressbook,
+            'imported_keys': self.imported_keys,
+            'aliases': self.aliases,
+            'authorities': self.authorities,
+            'receipts': self.receipts,
+            'num_zeros': self.num_zeros,
+            'frozen_addresses': self.frozen_addresses,
+            'prioritized_addresses': self.prioritized_addresses,
+            'expert_mode': self.expert_mode,
+            'gap_limit': self.gap_limit,
+            'debug_server': self.debug_server,
+            'conversion_currency': self.conversion_currency
+        }
         f = open(self.path,"w")
         f.write( repr(s) )
         f.close()
@@ -685,26 +690,26 @@ class Wallet:
             self.seed_version = d.get('seed_version')
             self.master_public_key = d.get('master_public_key').decode('hex')
             self.use_encryption = d.get('use_encryption')
-            self.use_change = bool(d.get('use_change',True))
-            self.fee = int( d.get('fee') )
+            self.use_change = bool(d.get('use_change', True))
+            self.fee = int(d.get('fee'))
             self.seed = d.get('seed')
             self.server = d.get('server')
-            #blocks = d.get('blocks')
             self.addresses = d.get('addresses')
             self.change_addresses = d.get('change_addresses')
             self.history = d.get('history')
             self.labels = d.get('labels')
             self.addressbook = d.get('contacts')
-            self.imported_keys = d.get('imported_keys',{})
-            self.aliases = d.get('aliases',{})
-            self.authorities = d.get('authorities',{})
-            self.receipts = d.get('receipts',{})
-            self.num_zeros = d.get('num_zeros',0)
-            self.frozen_addresses = d.get('frozen_addresses',[])
-            self.prioritized_addresses = d.get('prioritized_addresses',[])
-            self.expert_mode = d.get('expert_mode',False)
-            self.gap_limit = d.get('gap_limit',5)
-            self.debug_server = d.get('debug_server',False)
+            self.imported_keys = d.get('imported_keys', {})
+            self.aliases = d.get('aliases', {})
+            self.authorities = d.get('authorities', {})
+            self.receipts = d.get('receipts', {})
+            self.num_zeros = d.get('num_zeros', 0)
+            self.frozen_addresses = d.get('frozen_addresses', [])
+            self.prioritized_addresses = d.get('prioritized_addresses', [])
+            self.expert_mode = d.get('expert_mode', False)
+            self.gap_limit = d.get('gap_limit', 5)
+            self.debug_server = d.get('debug_server', False)
+            self.conversion_currency = d.get('conversion_currency', 'USD')
         except:
             raise BaseException("cannot read wallet file")
 
