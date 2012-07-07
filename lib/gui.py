@@ -135,7 +135,7 @@ def restore_create_dialog(wallet):
                 # history and addressbook
                 wallet.update_tx_history()
                 wallet.fill_addressbook()
-                print "recovery successful"
+                print "Recovery successful"
 
             gobject.idle_add( dialog.destroy )
 
@@ -206,7 +206,8 @@ def run_recovery_dialog(wallet):
     try:
         seed.decode('hex')
     except:
-        print "not hex, trying decode"
+        sys.stderr.write("Warning: Not hex, trying decode\n")
+        sys.stderr.flush()
         seed = mnemonic.mn_decode( seed.split(' ') )
     if not seed:
         show_message("no seed")

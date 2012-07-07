@@ -7,7 +7,8 @@ from lib.version import ELECTRUM_VERSION as version
 import lib.util as util
 import os, sys, platform
 if sys.version_info[:3] < (2,6,0):
-    print "Electrum requires Python version >= 2.6.0... exiting"
+    sys.stderr.write("Electrum requires Python version >= 2.6.0... exiting\n")
+    sys.stderr.flush()
     sys.exit(1)
             
 

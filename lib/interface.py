@@ -247,7 +247,8 @@ class TcpStratumInterface(Interface):
             print "Connected to %s:%d"%(self.host,self.port)
         except:
             self.is_connected = False
-            print "Not connected"
+            sys.stderr.write("Not connected\n")
+            sys.stderr.flush()
 
     def run(self):
         try:
@@ -262,7 +263,7 @@ class TcpStratumInterface(Interface):
                 self.bytes_received += len(msg)
                 if msg == '': 
                     self.is_connected = False
-                    print "disconnected."
+                    print "Disconnected."
 
                 while True:
                     s = out.find('\n')
@@ -276,7 +277,7 @@ class TcpStratumInterface(Interface):
             traceback.print_exc(file=sys.stdout)
 
         self.is_connected = False
-        print "poking"
+        print "Poking"
         self.poke()
 
     def send(self, messages):
@@ -327,7 +328,8 @@ class WalletSynchronizer(threading.Thread):
         elif protocol == 'h':
             InterfaceClass = HttpStratumInterface
         else:
-            print "unknown protocol"
+            sys.stderr.write("Error: Unknown protocol\n")
+            sys.stderr.flush()
             InterfaceClass = TcpStratumInterface
 
         self.interface = InterfaceClass(host, port, self.wallet.debug_server)
@@ -384,7 +386,8 @@ class WalletSynchronizer(threading.Thread):
             pass
 
         else:
-            print "unknown message:", method, params, result
+            sys.stderr.write("Error: Unknown message:" + method + ", " + params + ", " + result)
+            sys.stderr.flush()
 
 
     def start_interface(self):

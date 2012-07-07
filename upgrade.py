@@ -1,5 +1,11 @@
-import electrum, getpass, base64,ast,sys,os
+import electrum, base64, ast, sys, os
 from version import SEED_VERSION
+
+try:
+    from lib import prompt_password
+except ImportError:
+    from electrum import prompt_password
+
 
 
 
@@ -24,13 +30,15 @@ if __name__ == "__main__":
         data = f.read()
         f.close()
     except:
-        print "file not found", path
+        sys.stderr.write("Error: File not found: " + path + "\n")
+        sys.stderr.flush()
         exit(1)
 
     try:
         x = ast.literal_eval(data)
     except:
-        print "error: could not parse wallet"
+        sys.stderr.write("Error: Could not parse wallet\n")
+        sys.stderr.flush()
         exit(1)
 
     # version <= 0.33 uses a tuple
@@ -50,14 +58,15 @@ if __name__ == "__main__":
             EncodeAES = lambda secret, s: base64.b64encode(AES.new(secret).encrypt(pad(s)))
             DecodeAES = lambda secret, e: AES.new(secret).decrypt(base64.b64decode(e)).rstrip(PADDING)
 
-            print "please enter your password"
-            password = getpass.getpass("Password:")
+            print "Please enter your password"
+            password = prompt_password("Password:")
             secret = electrum.Hash(password)
             try:
                 seed = DecodeAES( secret, wallet.seed )
                 private_keys = ast.literal_eval( DecodeAES( secret, wallet.private_keys ) )
             except:
-                print "sorry"
+                sys.stderr.write("Error: Password does not decrypt this wallet.\n")
+                sys.stderr.flush()
                 exit(1)
             seed_version = 2
             s = repr( (seed_version, use_encryption, fee, host, port, blocks, seed, all_addresses, private_keys, change_indexes, status, history, labels, addressbook ))

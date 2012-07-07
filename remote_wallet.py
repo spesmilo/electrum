@@ -99,7 +99,8 @@ if __name__ == '__main__':
             elif cmd == 'stop':
                 out = server.stop()
         except socket.error:
-            print "server not running"
+            sys.stderr.write("Server not running\n")
+            sys.stderr.flush()
             sys.exit(1)
         print out
         sys.exit(0)

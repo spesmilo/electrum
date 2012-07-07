@@ -21,13 +21,15 @@ import re, sys
 try:
     import ecdsa  
 except:
-    print "python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'"
+    sys.stderr.write("Error: python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'\n")
+    sys.stderr.flush()
     sys.exit(1)
 
 try:
     import aes
 except:
-    print "AES does not seem to be installed. Try 'sudo pip install slowaes'"
+    sys.stderr.write("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'\n")
+    sys.stderr.flush()
     sys.exit(1)
 
 try:
@@ -142,7 +144,8 @@ if __name__ == '__main__':
             except ImportError:
                 import electrum.gui_lite as gui
         else:
-            print "unknown gui", options.gui
+            sys.stderr.write("Error: Unknown GUI: " + options.gui + "\n")
+            sys.stderr.flush()
             exit(1)
 
         gui = gui.ElectrumGui(wallet)
@@ -170,13 +173,15 @@ if __name__ == '__main__':
         cmd = 'help'
 
     if not wallet.file_exists and cmd not in ['help','create','restore']:
-        print "Wallet file not found."
-        print "Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option"
+        sys.stderr.write("Error: Wallet file not found.\n")
+        sys.stderr.write("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option\n")
+        sys.stderr.flush()
         sys.exit(0)
     
     if cmd in ['create', 'restore']:
         if wallet.file_exists:
-            print "remove the existing wallet first!"
+            sys.stderr.write("Error: Remove the existing wallet first!\n")
+            sys.stderr.flush()
             sys.exit(0)
         password = prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
 
@@ -198,27 +203,31 @@ if __name__ == '__main__':
             try:
                 seed.decode('hex')
             except:
-                print "not hex, trying decode"
+                sys.stderr.write("Warning: Not hex, trying decode.\n")
+                sys.stderr.flush()
                 seed = mnemonic.mn_decode( seed.split(' ') )
             if not seed:
-                print "no seed"
+                sys.stderr.write("Error: No seed\n")
+                sys.stderr.flush()
                 sys.exit(1)
 
             wallet.seed = str(seed)
             wallet.init_mpk( wallet.seed )
             if not options.offline:
                 WalletSynchronizer(wallet).start()
-                print "recovering wallet..."
+                print "Recovering wallet..."
                 wallet.up_to_date_event.clear()
                 wallet.up_to_date = False
                 wallet.update()
                 if wallet.is_found():
-                    print "recovery successful"
+                    print "Recovery successful"
                 else:
-                    print "found no history for this wallet"
+                    sys.stderr.write("Warning: Found no history for this wallet\n")
+                    sys.stderr.flush()
             wallet.fill_addressbook()
             wallet.save()
-            print "Wallet saved in '%s'"%wallet.path
+            sys.stderr.write("Wallet saved in '" + wallet.path + "'\n")
+            sys.stderr.flush()
         else:
             wallet.new_seed(None)
             wallet.init_mpk( wallet.seed )
@@ -267,7 +276,8 @@ if __name__ == '__main__':
         try:
             wallet.pw_decode( wallet.seed, password)
         except:
-            print "Error: This password does not decode this wallet."
+            sys.stderr.write("Error: This password does not decode this wallet.\n")
+            sys.stderr.flush()
             exit(1)
 
     if cmd == 'import':
@@ -275,16 +285,17 @@ if __name__ == '__main__':
         try:
             wallet.import_key(keypair,password)
             wallet.save()
-            print "keypair imported"
+            print "Keypair imported"
         except BaseException, e:
-            print( 'Error:' + str(e) )
+            sys.stderr.write("Error: Keypair import failed: " + str(e) + "\n")
+            sys.stderr.flush()
 
     if cmd=='help':
         cmd2 = firstarg
         if cmd2 not in known_commands:
-            print "type 'electrum help <command>' to see the help for a specific command"
-            print "type 'electrum --help' to see the list of options"
-            print "list of commands:", ', '.join(known_commands)
+            print "Type 'electrum help <command>' to see the help for a specific command"
+            print "Type 'electrum --help' to see the list of options"
+            print "List of commands:", ', '.join(known_commands)
         else:
             print known_commands[cmd2]
 
@@ -294,9 +305,11 @@ if __name__ == '__main__':
 
     elif cmd == 'deseed':
         if not wallet.seed:
-            print "Error: This wallet has no seed"
+            sys.stderr.write("Error: This wallet has no seed\n")
+            sys.stderr.flush()
         elif wallet.use_encryption:
-            print "Error: This wallet is encrypted"
+            sys.stderr.write("Error: This wallet is encrypted\n")
+            sys.stderr.flush()
         else:
             ns = wallet.path + '.seed'
             print "Warning: you are going to extract the seed from '%s'\nThe seed will be saved in '%s'"%(wallet.path,ns)
@@ -309,11 +322,12 @@ if __name__ == '__main__':
                 wallet.save()
                 print "Done."
             else:
-                print "Action canceled."
+                sys.stderr.write("Action canceled.\n")
+                sys.stderr.flush()
 
     elif cmd == 'reseed':
         if wallet.seed:
-            print "This wallet already has a seed", wallet.seed
+            print "Warning: This wallet already has a seed", wallet.seed
         else:
             ns = wallet.path + '.seed'
             try:
@@ -321,7 +335,8 @@ if __name__ == '__main__':
                 data = f.read()
                 f.close()
             except:
-                print "seed file not found"
+                sys.stderr.write("Error: Seed file not found\n")
+                sys.stderr.flush()
                 sys.exit()
             try:
                 import ast
@@ -329,7 +344,8 @@ if __name__ == '__main__':
                 seed = d['seed']
                 imported_keys = d.get('imported_keys',{})
             except:
-                print "error with seed file"
+                sys.stderr.write("Error: Error with seed file\n")
+                sys.stderr.flush()
                 sys.exit(1)
 
             mpk = wallet.master_public_key
@@ -341,7 +357,8 @@ if __name__ == '__main__':
                 wallet.save()
                 print "Done: " + wallet.path
             else:
-                print "error: master public key does not match"
+                sys.stderr.write("Error: Master public key does not match\n")
+                sys.stderr.flush()
 
     elif cmd == 'validateaddress':
         addr = args[1]
@@ -420,7 +437,8 @@ if __name__ == '__main__':
             tx = args[1]
             label = ' '.join(args[2:])
         except:
-            print "syntax:  label <tx_hash> <text>"
+            sys.stderr.write("Error. Syntax:  label <tx_hash> <text>\n")
+            sys.stderr.flush()
             sys.exit(1)
         wallet.labels[tx] = label
         wallet.save()
@@ -433,7 +451,8 @@ if __name__ == '__main__':
                 keypair = from_addr
                 from_addr = keypair.split(':')[0]
             if not wallet.import_key(keypair,password):
-                print "invalid key pair"
+                sys.stderr.write("Error: Invalid key pair\n")
+                sys.stderr.flush()
                 exit(1)
             wallet.history[from_addr] = interface.retrieve_history(from_addr)
             wallet.update_tx_history()
@@ -477,7 +496,8 @@ if __name__ == '__main__':
         try:
             seed = wallet.pw_decode( wallet.seed, password)
         except:
-            print "Error: Password does not decrypt this wallet."
+            sys.stderr.write("Error: Password does not decrypt this wallet.\n")
+            sys.stderr.flush()
             sys.exit(1)
 
         new_password = prompt_password('New password:')
@@ -496,7 +516,8 @@ if __name__ == '__main__':
             signature = args[2]
             message = ' '.join(args[3:])
         except:
-            print "Not all parameters were given, displaying help instead."
+            sys.stderr.write("Error: Not all parameters were given, displaying help instead.\n")
+            sys.stderr.flush()
             print known_commands[cmd]
             sys.exit(1)
         if len(args) > 4:

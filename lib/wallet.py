@@ -156,7 +156,8 @@ def prompt_password(prompt, confirm=True):
             password2 = getpass.getpass("Confirm: ")
 
             if password != password2:
-                print "Error: Passwords do not match."
+                sys.stderr.write("Error: Passwords do not match.\n")
+                sys.stderr.flush()
                 sys.exit(1)
 
     else:
@@ -920,7 +921,7 @@ class Wallet:
 
         if not self.use_change and not change_addr:
             change_addr = inputs[0][0]
-            print "sending change to", change_addr
+            print "Sending change to", change_addr
 
         outputs = self.choose_tx_outputs( to_address, amount, fee, total, change_addr )
         s_inputs = self.sign_inputs( inputs, outputs, password )

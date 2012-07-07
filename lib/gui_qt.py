@@ -22,8 +22,9 @@ from i18n import _
 try:
     import PyQt4
 except:
-    print "could not import PyQt4"
-    print "on Linux systems, you may try 'sudo apt-get install python-qt4'"
+    sys.stderr.write("Error: Could not import PyQt4\n")
+    sys.stderr.write("on Linux systems, you may try 'sudo apt-get install python-qt4'\n")
+    sys.stderr.flush()
     sys.exit(1)
 
 from PyQt4.QtGui import *
@@ -35,8 +36,9 @@ from interface import DEFAULT_SERVERS
 try:
     import icons_rc
 except:
-    print "Could not import icons_rc.py"
-    print "Please generate it with: 'pyrcc4 icons.qrc -o lib/icons_rc.py'"
+    sys.stderr.write("Error: Could not import icons_rc.py\n")
+    sys.stderr.write("Please generate it with: 'pyrcc4 icons.qrc -o lib/icons_rc.py'\n")
+    sys.stderr.flush()
     sys.exit(1)
 
 from wallet import format_satoshis
@@ -388,7 +390,8 @@ class ElectrumWindow(QMainWindow):
             if text not in self.wallet.aliases.keys():
                 self.wallet.labels[addr] = text
             else:
-                print "error: this is one of your aliases"
+                sys.stderr.write("Error: This is one of your aliases\n")
+                sys.stderr.flush()
                 label = self.wallet.labels.get(addr,'')
                 item.setText(column_label, QString(label))
         else:
@@ -1141,7 +1144,8 @@ class ElectrumWindow(QMainWindow):
             seed = unicode(seed_e.text())
             seed.decode('hex')
         except:
-            print "not hex, trying decode"
+            sys.stderr.write("Warning: Not hex, trying decode\n")
+            sys.stderr.flush()
             try:
                 seed = mnemonic.mn_decode( seed.split(' ') )
             except:
@@ -1473,7 +1477,7 @@ class ElectrumGui:
                 # history and addressbook
                 wallet.update_tx_history()
                 wallet.fill_addressbook()
-                print "recovery successful"
+                print "Recovery successful"
                 wallet.save()
             else:
                 QMessageBox.information(None, _('Error'), _("No transactions found for this seed"), _('OK'))
