@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import sys, base64, os, re, hashlib, copy, operator, ast, threading, random
+import sys, base64, os, re, hashlib, copy, operator, ast, threading, random, getpass
 import aes, ecdsa
 from ecdsa.util import string_to_number, number_to_string
 
@@ -146,6 +146,26 @@ def ASecretToSecret(key):
         return False
 
 ########### end pywallet functions #######################
+
+# get password routine
+def prompt_password(prompt, confirm=True):
+    if sys.stdin.isatty():
+        password = getpass.getpass(prompt)
+
+        if password and confirm:
+            password2 = getpass.getpass("Confirm: ")
+
+            if password != password2:
+                print "Error: Passwords do not match."
+                sys.exit(1)
+
+    else:
+        password = raw_input(prompt)
+
+    if not password:
+        password = None
+
+    return password
 
 # URL decode
 _ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
