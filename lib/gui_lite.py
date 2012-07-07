@@ -443,6 +443,8 @@ class MiniActuator:
     def copy_address(self, receive_popup):
         addrs = [addr for addr in self.wallet.all_addresses()
                  if not self.wallet.is_change(addr)]
+        # Select most recent addresses from gap limit
+        addrs = addrs[-self.wallet.gap_limit:]
         copied_address = random.choice(addrs)
         qApp.clipboard().setText(copied_address)
         receive_popup.setup(copied_address)
