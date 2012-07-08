@@ -37,9 +37,9 @@ def resize_line_edit_width(line_edit, text_input):
     line_edit.setMinimumWidth(metrics.width(text_input))
 
 def cd_data_dir():
-    try:
-        data_dir = os.environ["ELECTRUM_DATA_PATH"]
-    except KeyError:
+    if os.path.exists(os.path.join("data", "style.css")):
+        data_dir = os.path.join(".", "data")
+    else:
         data_dir = appdata_dir()
     QDir.setCurrent(data_dir)
 
