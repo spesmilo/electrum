@@ -48,6 +48,9 @@ class ElectrumGui:
     def __init__(self, wallet):
         self.wallet = wallet
         self.app = QApplication(sys.argv)
+        # Should probably not modify the current path but instead
+        # change the behaviour of rsrc(...)
+        self.old_path = QDir.currentPath()
         cd_data_dir()
         with open(rsrc("style.css")) as style_file:
             self.app.setStyleSheet(style_file.read())
@@ -56,6 +59,10 @@ class ElectrumGui:
         actuator = MiniActuator(self.wallet)
         self.mini = MiniWindow(actuator, self.expand)
         driver = MiniDriver(self.wallet, self.mini)
+
+        # Reset path back to original value now that loading the GUI
+        # is completed.
+        QDir.setCurrent(self.old_path)
 
         if url:
             self.set_url(url)
