@@ -14,7 +14,8 @@ def appdata_dir():
         return os.path.join(os.environ["APPDATA"], "Electrum")
     elif platform.system() == "Linux":
         return os.path.join(sys.prefix, "share", "electrum")
-    elif platform.system() == "Darwin":
+    elif (platform.system() == "Darwin" or
+          platform.system() == "DragonFly"):
         return "/Library/Application Support/Electrum"
     else:
         raise Exception("Unknown system")
