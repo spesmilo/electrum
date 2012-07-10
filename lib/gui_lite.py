@@ -37,8 +37,11 @@ def resize_line_edit_width(line_edit, text_input):
     line_edit.setMinimumWidth(metrics.width(text_input))
 
 def cd_data_dir():
-    if os.path.exists(os.path.join("data", "style.css")):
-        data_dir = os.path.join(".", "data")
+    assert sys.argv
+    prefix_path = os.path.dirname(sys.argv[0])
+    local_data = os.path.join(prefix_path, "data")
+    if os.path.exists(os.path.join(local_data, "style.css")):
+        data_dir = local_data
     else:
         data_dir = appdata_dir()
     QDir.setCurrent(data_dir)
