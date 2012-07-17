@@ -511,8 +511,8 @@ class MiniActuator:
         fee = 0
         # 0.1 BTC = 10000000
         if amount < bitcoin(1) / 10:
-            # 0.01 BTC
-            fee = bitcoin(1) / 100
+            # 0.001 BTC
+            fee = bitcoin(1) / 1000
 
         try:
             tx = self.wallet.mktx(dest_address, amount, "", password, fee)
