@@ -284,10 +284,11 @@ if __name__ == '__main__':
         except BaseException, e:
             print_error("Error: Keypair import failed: " + str(e))
 
-    if cmd=='help':
+    if cmd == 'help':
         cmd2 = firstarg
         if cmd2 not in known_commands:
-            print_error("Error: Command not found.")
+            parser.print_help()
+            print
             print "Type 'electrum help <command>' to see the help for a specific command"
             print "Type 'electrum --help' to see the list of options"
             print "List of commands:", ', '.join(known_commands)
