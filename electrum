@@ -491,6 +491,10 @@ if __name__ == '__main__':
         wallet.update_password(seed, password, new_password)
 
     elif cmd == 'signmessage':
+        if len(args) < 3:
+            print_error("Error: Invalid usage of signmessage.")
+            print known_commands[cmd]
+            sys.exit(1)
         address = args[1]
         message = ' '.join(args[2:])
         if len(args) > 3:
