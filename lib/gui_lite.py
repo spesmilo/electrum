@@ -11,6 +11,7 @@ import re
 import sys
 import time
 import wallet
+import webbrowser
 
 try:
     import lib.gui_qt as gui_qt
@@ -118,12 +119,15 @@ class MiniWindow(QDialog):
         interact_button.setObjectName("interact_button")
 
         app_menu = QMenu(interact_button)
+        acceptbit_action = app_menu.addAction(_("A&cceptBit"))
         report_action = app_menu.addAction(_("&Report Bug"))
         about_action = app_menu.addAction(_("&About Electrum"))
         app_menu.addSeparator()
         quit_action = app_menu.addAction(_("&Quit"))
         interact_button.setMenu(app_menu)
 
+        self.connect(acceptbit_action, SIGNAL("triggered()"),
+                     self.acceptbit)
         self.connect(report_action, SIGNAL("triggered()"),
                      self.show_report_bug)
         self.connect(about_action, SIGNAL("triggered()"), self.show_about)
@@ -308,6 +312,9 @@ class MiniWindow(QDialog):
 
     def update_completions(self, completions):
         self.address_completions.setStringList(completions)
+
+    def acceptbit(self):
+        self.actuator.acceptbit(self.quote_currencies[0])
 
     def show_about(self):
         QMessageBox.about(self, "Electrum",
@@ -552,6 +559,11 @@ class MiniActuator:
 
     def is_valid(self, address):
         return self.wallet.is_valid(address)
+
+    def acceptbit(self, currency):
+        master_pubkey = self.wallet.master_public_key.encode("hex")
+        url = "http://acceptbit.com/mpk/%s/%s" % (master_pubkey, currency)
+        webbrowser.open(url)
 
 class MiniDriver(QObject):
 
