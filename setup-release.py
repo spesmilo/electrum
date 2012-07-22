@@ -55,7 +55,7 @@ if sys.platform == 'darwin':
     resource = "dist/" + name + ".app/Contents/Resources/"
     # Need to include a copy of qt_menu.nib
     shutil.copytree("/opt/local/lib/Resources/qt_menu.nib", resource + "qt_menu.nib")
-    # Need to touch qt.conf to avoid loading 2 sets of tT libraries
+    # Need to touch qt.conf to avoid loading 2 sets of Qt libraries
     fname = resource + "qt.conf"
     with file(fname, 'a'):
         os.utime(fname, None)
