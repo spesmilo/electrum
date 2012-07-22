@@ -29,6 +29,11 @@ python mki18n.py
 pyrcc4 icons.qrc -o lib/icons_rc.py
 python setup.py sdist --format=zip,gztar
 
+On Mac OS X:
+
+  sudo python setup-release.py py2app
+  sudo hdiutil create -fs HFS+ -volname "Electrum" -srcfolder dist/Electrum.app dist/electrum-v0.61-macosx.dmg
+
 
 == BROWSER CONFIGURATION ==
 
