@@ -386,14 +386,14 @@ class TextedLineEdit(QLineEdit):
         QLineEdit.focusInEvent(self, event)
 
     def become_inactive(self):
-        self.setText(self.inactive_text)
         self.setReadOnly(True)
         self.recompute_style()
+        self.setText(self.inactive_text)
 
     def become_active(self):
-        self.setText("")
         self.setReadOnly(False)
         self.recompute_style()
+        self.setText("")
 
     def recompute_style(self):
         qApp.style().unpolish(self)
