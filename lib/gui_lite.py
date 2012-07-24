@@ -56,7 +56,7 @@ class ElectrumGui:
         # change the behaviour of rsrc(...)
         self.old_path = QDir.currentPath()
         cd_data_dir()
-        with open(rsrc("style.css")) as style_file:
+        with open(rsrc("lighter.css")) as style_file:
             self.app.setStyleSheet(style_file.read())
 
     def main(self, url):
@@ -344,7 +344,7 @@ class BalanceLabel(QLabel):
     def set_balance_text(self, btc_balance, quote_text):
         if self.state == self.SHOW_CONNECTING:
             self.state = self.SHOW_BALANCE
-        self.balance_text = "<span style='font-size: 16pt'>%s</span> <span style='font-size: 10pt'>BTC</span> <span style='font-size: 10pt'>%s</span>" % (btc_balance, quote_text)
+        self.balance_text = "<span style='font-size: 18pt'>%s</span> <span style='font-size: 10pt'>BTC</span> <span style='font-size: 10pt'>%s</span>" % (btc_balance, quote_text)
         if self.state == self.SHOW_BALANCE:
             self.setText(self.balance_text)
 
