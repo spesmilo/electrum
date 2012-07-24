@@ -25,6 +25,17 @@ MiniWindow QPushButton {
   padding: 2px;
 }
 
+#send_button:disabled{
+  color: #D3E8FE;
+  border: 1px solid #6DAEF7;
+  border-radius: 4px;
+  background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+  stop: 0 #A5CFFA, stop: 1 #72B2F8);
+  min-width: 80px;
+  min-height: 23px;
+  padding: 2px;
+}
+
 #address_input[readOnly=true], #amount_input[readOnly=true]
 {
     color: #ABABAB;

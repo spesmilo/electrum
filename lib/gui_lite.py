@@ -191,9 +191,10 @@ class MiniWindow(QDialog):
         amount_layout.addWidget(self.amount_input)
         amount_layout.addStretch()
 
-        send_button = QPushButton(_("&Send"))
-        send_button.setObjectName("send_button")
-        self.connect(send_button, SIGNAL("clicked()"), self.send)
+        self.send_button = QPushButton(_("&Send"))
+        self.send_button.setObjectName("send_button")
+        self.send_button.setDisabled(True);
+        self.connect(self.send_button, SIGNAL("clicked()"), self.send)
 
         main_layout = QGridLayout(self)
         main_layout.addWidget(accounts_button, 0, 0)
@@ -206,7 +207,7 @@ class MiniWindow(QDialog):
         main_layout.addLayout(address_layout, 1, 1, 1, -1)
 
         main_layout.addLayout(amount_layout, 2, 1)
-        main_layout.addWidget(send_button, 2, 2)
+        main_layout.addWidget(self.send_button, 2, 2)
 
         quit_shortcut = QShortcut(QKeySequence("Ctrl+Q"), self)
         self.connect(quit_shortcut, SIGNAL("activated()"), self.close)
@@ -272,6 +273,8 @@ class MiniWindow(QDialog):
                                                     quote_text))
 
     def amount_input_changed(self, amount_text):
+        self.check_button_status()
+
         try:
             amount = D(str(amount_text))
         except decimal.InvalidOperation:
@@ -300,11 +303,19 @@ class MiniWindow(QDialog):
             self.address_input.become_inactive()
             self.amount_input.become_inactive()
 
+    def check_button_status(self):
+      if self.amount_input.text() != _("... and amount") and len(self.amount_input.text()) != 0:
+        self.send_button.setDisabled(False)
+      else:
+        self.send_button.setDisabled(True)
+
     def address_field_changed(self, address):
         if self.actuator.is_valid(address):
             self.valid_address.setChecked(True)
+            self.check_button_status()
         else:
             self.valid_address.setChecked(False)
+            self.send_button.setDisabled(True)
 
     def copy_address(self):
         receive_popup = ReceivePopup(self.receive_button)
