@@ -56,7 +56,7 @@ class ElectrumGui:
         # change the behaviour of rsrc(...)
         self.old_path = QDir.currentPath()
         cd_data_dir()
-        with open(rsrc("lighter.css")) as style_file:
+        with open(rsrc("style.css")) as style_file:
             self.app.setStyleSheet(style_file.read())
 
     def main(self, url):
