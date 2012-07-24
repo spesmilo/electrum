@@ -3,13 +3,13 @@
   background: qlineargradient(x1: 0, y1: 0, x2:0,y2:1, stop: 0 white , stop: 1 #E8E8E8);
 }
 
-QPushButton {
+MiniWindow QPushButton {
   color: #777;
   border: 1px solid #CCC;
   border-radius: 0px;
   background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
   stop: 0 white, stop: 1 #E6E6E6);
-  min-height: 20px;
+  min-height: 25px;
   min-width: 30px;
 }
 
@@ -21,7 +21,8 @@ QPushButton {
   background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
   stop: 0 #72B2F8, stop: 1 #3484E6);
   min-width: 80px;
-  min-height: 20px;
+  min-height: 23px;
+  padding: 2px;
 }
 
 #address_input[readOnly=true], #amount_input[readOnly=true]
@@ -31,6 +32,7 @@ QPushButton {
     border-radius: 4px;
     border: 1px solid #AAA9A9;
     width: 225px;
+    margin-top: 4px;
 }
 #address_input[readOnly=false], #amount_input[readOnly=false]
 {
@@ -41,12 +43,14 @@ QPushButton {
     border-radius: 4px;
     font-size: 95%;
     width: 225px;
+    margin-top: 4px;
 }
 
 #valid_address::indicator
 {
     width: 24px;
     height: 24px;
+    margin-top: 2px;
 }
 #valid_address::indicator:checked
 {
@@ -61,4 +65,3 @@ QPushButton {
 {
     color: #333;
 }
-
