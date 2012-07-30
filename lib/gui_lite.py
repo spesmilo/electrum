@@ -109,33 +109,33 @@ class MiniWindow(QDialog):
 
         self.actuator = actuator
 
-        accounts_button = IconButton(rsrc("icons", "accounts.png"))
-        accounts_button.setObjectName("accounts_button")
+        #accounts_button = IconButton(rsrc("icons", "accounts.png"))
+        #accounts_button.setObjectName("accounts_button")
 
-        self.accounts_selector = QMenu()
-        accounts_button.setMenu(self.accounts_selector)
+        #self.accounts_selector = QMenu()
+        #accounts_button.setMenu(self.accounts_selector)
 
-        interact_button = IconButton(rsrc("icons", "interact.png"))
-        interact_button.setObjectName("interact_button")
+        #interact_button = IconButton(rsrc("icons", "interact.png"))
+        #interact_button.setObjectName("interact_button")
 
-        app_menu = QMenu(interact_button)
-        acceptbit_action = app_menu.addAction(_("A&cceptBit"))
-        report_action = app_menu.addAction(_("&Report Bug"))
-        about_action = app_menu.addAction(_("&About Electrum"))
-        app_menu.addSeparator()
-        quit_action = app_menu.addAction(_("&Quit"))
-        interact_button.setMenu(app_menu)
+        #app_menu = QMenu(interact_button)
+        #acceptbit_action = app_menu.addAction(_("A&cceptBit"))
+        #report_action = app_menu.addAction(_("&Report Bug"))
+        #about_action = app_menu.addAction(_("&About Electrum"))
+        #app_menu.addSeparator()
+        #quit_action = app_menu.addAction(_("&Quit"))
+        #interact_button.setMenu(app_menu)
 
-        self.connect(acceptbit_action, SIGNAL("triggered()"),
-                     self.acceptbit)
-        self.connect(report_action, SIGNAL("triggered()"),
-                     self.show_report_bug)
-        self.connect(about_action, SIGNAL("triggered()"), self.show_about)
-        self.connect(quit_action, SIGNAL("triggered()"), self.close)
+        #self.connect(acceptbit_action, SIGNAL("triggered()"),
+        #             self.acceptbit)
+        #self.connect(report_action, SIGNAL("triggered()"),
+        #             self.show_report_bug)
+        #self.connect(about_action, SIGNAL("triggered()"), self.show_about)
+        #self.connect(quit_action, SIGNAL("triggered()"), self.close)
 
-        expand_button = IconButton(rsrc("icons", "expand.png"))
-        expand_button.setObjectName("expand_button")
-        self.connect(expand_button, SIGNAL("clicked()"), expand_callback)
+        #expand_button = IconButton(rsrc("icons", "expand.png"))
+        #expand_button.setObjectName("expand_button")
+        #self.connect(expand_button, SIGNAL("clicked()"), expand_callback)
 
         self.btc_balance = None
         self.quote_currencies = ["EUR", "USD", "GBP"]
@@ -196,17 +196,19 @@ class MiniWindow(QDialog):
         self.connect(send_button, SIGNAL("clicked()"), self.send)
 
         main_layout = QGridLayout(self)
-        main_layout.addWidget(accounts_button, 0, 0)
-        main_layout.addWidget(interact_button, 1, 0)
-        main_layout.addWidget(expand_button, 2, 0)
 
-        main_layout.addWidget(self.balance_label, 0, 1)
-        main_layout.addWidget(self.receive_button, 0, 2)
+        main_layout.addWidget(self.balance_label, 0, 0)
+        main_layout.addWidget(self.receive_button, 0, 1)
 
-        main_layout.addLayout(address_layout, 1, 1, 1, -1)
+        main_layout.addWidget(self.address_input, 1, 0, 1, -1)
 
-        main_layout.addLayout(amount_layout, 2, 1)
-        main_layout.addWidget(send_button, 2, 2)
+        main_layout.addLayout(amount_layout, 2, 0)
+        main_layout.addWidget(send_button, 2, 1)
+
+        menubar = QMenuBar()
+        file_menu = menubar.addMenu(_("&File"))
+        file_menu.addAction(_("Open"))
+        main_layout.setMenuBar(menubar)
 
         quit_shortcut = QShortcut(QKeySequence("Ctrl+Q"), self)
         self.connect(quit_shortcut, SIGNAL("activated()"), self.close)
