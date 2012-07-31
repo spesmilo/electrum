@@ -56,20 +56,14 @@ MiniWindow QPushButton {
     width: 225px;
     margin-top: 4px;
 }
+#address_input[isValid=true]
+{
+  color: #4D9948
+}
 
-#valid_address::indicator
+#address_input[isValid=false]
 {
-    width: 24px;
-    height: 24px;
-    margin-top: 2px;
-}
-#valid_address::indicator:checked
-{
-    image: url(icons/confirmed.png);
-}
-#valid_address::indicator:unchecked
-{
-    image: url(icons/unconfirmed.png);
+  color: #CE4141
 }
 
 #balance_label

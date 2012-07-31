@@ -167,14 +167,8 @@ class MiniWindow(QDialog):
         address_completer.setModel(self.address_completions)
         self.address_input.setCompleter(address_completer)
 
-        self.valid_address = QCheckBox()
-        self.valid_address.setObjectName("valid_address")
-        self.valid_address.setEnabled(False)
-        self.valid_address.setChecked(False)
-
         address_layout = QHBoxLayout()
         address_layout.addWidget(self.address_input)
-        address_layout.addWidget(self.valid_address)
 
         self.amount_input = TextedLineEdit(_("... and amount"))
         self.amount_input.setObjectName("amount_input")
@@ -220,6 +214,10 @@ class MiniWindow(QDialog):
         self.layout().setSizeConstraint(QLayout.SetFixedSize)
         self.setObjectName("main_window")
         self.show()
+    
+    def recompute_style(self):
+        qApp.style().unpolish(self)
+        qApp.style().polish(self)
 
     def closeEvent(self, event):
         super(MiniWindow, self).closeEvent(event)
@@ -311,11 +309,15 @@ class MiniWindow(QDialog):
 
     def address_field_changed(self, address):
         if self.actuator.is_valid(address):
-            self.valid_address.setChecked(True)
             self.check_button_status()
+            self.address_input.setProperty("isValid", True)
+            self.style().unpolish(self.address_input)
+            self.style().polish(self.address_input)
         else:
-            self.valid_address.setChecked(False)
             self.send_button.setDisabled(True)
+            self.address_input.setProperty("isValid", False)
+            self.style().unpolish(self.address_input)
+            self.style().polish(self.address_input)
 
     def copy_address(self):
         receive_popup = ReceivePopup(self.receive_button)
