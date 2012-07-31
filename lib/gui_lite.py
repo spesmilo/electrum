@@ -180,7 +180,7 @@ class MiniWindow(QDialog):
         view_menu.addAction(_("Show History"))
 
         settings_menu = menubar.addMenu(_("&Settings"))
-        expert_gui = settings_menu.addAction(_("&Expert GUI"))
+        expert_gui = settings_menu.addAction(_("&Switch to expert GUI"))
         self.connect(expert_gui, SIGNAL("triggered()"), expand_callback)
         
         menubar.addMenu(_("&Help"))
