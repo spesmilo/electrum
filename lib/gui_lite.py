@@ -178,7 +178,11 @@ class MiniWindow(QDialog):
         view_menu = menubar.addMenu(_("&View"))
         view_menu.addMenu(_("&Themes"))
         view_menu.addAction(_("Show History"))
-        menubar.addMenu(_("&Settings"))
+
+        settings_menu = menubar.addMenu(_("&Settings"))
+        expert_gui = settings_menu.addAction(_("&Expert GUI"))
+        self.connect(expert_gui, SIGNAL("triggered()"), expand_callback)
+        
         menubar.addMenu(_("&Help"))
         main_layout.setMenuBar(menubar)
 
