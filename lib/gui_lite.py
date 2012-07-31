@@ -109,34 +109,6 @@ class MiniWindow(QDialog):
 
         self.actuator = actuator
 
-        #accounts_button = IconButton(rsrc("icons", "accounts.png"))
-        #accounts_button.setObjectName("accounts_button")
-
-        #self.accounts_selector = QMenu()
-        #accounts_button.setMenu(self.accounts_selector)
-
-        #interact_button = IconButton(rsrc("icons", "interact.png"))
-        #interact_button.setObjectName("interact_button")
-
-        #app_menu = QMenu(interact_button)
-        #acceptbit_action = app_menu.addAction(_("A&cceptBit"))
-        #report_action = app_menu.addAction(_("&Report Bug"))
-        #about_action = app_menu.addAction(_("&About Electrum"))
-        #app_menu.addSeparator()
-        #quit_action = app_menu.addAction(_("&Quit"))
-        #interact_button.setMenu(app_menu)
-
-        #self.connect(acceptbit_action, SIGNAL("triggered()"),
-        #             self.acceptbit)
-        #self.connect(report_action, SIGNAL("triggered()"),
-        #             self.show_report_bug)
-        #self.connect(about_action, SIGNAL("triggered()"), self.show_about)
-        #self.connect(quit_action, SIGNAL("triggered()"), self.close)
-
-        #expand_button = IconButton(rsrc("icons", "expand.png"))
-        #expand_button.setObjectName("expand_button")
-        #self.connect(expand_button, SIGNAL("clicked()"), expand_callback)
-
         self.btc_balance = None
         self.quote_currencies = ["EUR", "USD", "GBP"]
         self.actuator.set_configured_currency(self.set_quote_currency)
@@ -208,6 +180,11 @@ class MiniWindow(QDialog):
         menubar = QMenuBar()
         file_menu = menubar.addMenu(_("&File"))
         file_menu.addAction(_("Open"))
+        view_menu = menubar.addMenu(_("&View"))
+        view_menu.addMenu(_("&Themes"))
+        view_menu.addAction(_("Show History"))
+        menubar.addMenu(_("&Settings"))
+        menubar.addMenu(_("&Help"))
         main_layout.setMenuBar(menubar)
 
         quit_shortcut = QShortcut(QKeySequence("Ctrl+Q"), self)
@@ -266,12 +243,7 @@ class MiniWindow(QDialog):
             quote_text = "(%s)" % quote_text
         btc_balance = "%.2f" % (btc_balance / bitcoin(1))
         self.balance_label.set_balance_text(btc_balance, quote_text)
-        main_account_info = \
-            "Checking - %s BTC" % btc_balance
-        self.setWindowTitle("Electrum - %s" % main_account_info)
-        self.accounts_selector.clear()
-        self.accounts_selector.addAction("%s %s" % (main_account_info,
-                                                    quote_text))
+        self.setWindowTitle("Electrum - %s BTC" % btc_balance)
 
     def amount_input_changed(self, amount_text):
         try:
