@@ -276,7 +276,11 @@ if __name__ == '__main__':
             exit(1)
 
     if cmd == 'import':
-        keypair = args[1]
+        # See if they specificed a key on the cmd line, if not prompt
+        if len(args) > 1:
+            keypair = args[1]
+        else:
+            keypair = prompt_password('Enter Address:PrivateKey (will not echo):', False)
         try:
             wallet.import_key(keypair,password)
             wallet.save()
