@@ -267,7 +267,7 @@ if __name__ == '__main__':
                 
     # commands needing password
     if cmd in protected_commands or ( cmd=='addresses' and options.show_keys):
-        password = prompt_password('Password:') if wallet.use_encryption and not is_temporary else None
+        password = prompt_password('Password:', False) if wallet.use_encryption and not is_temporary else None
         # check password
         try:
             wallet.pw_decode( wallet.seed, password)
