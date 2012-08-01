@@ -1,35 +1,80 @@
 #main_window
 {
-    background-image: url(background.png);
+  background: qlineargradient(x1: 0, y1: 0, x2:0,y2:1, stop: 0 white , stop: 1 #E8E8E8);
 }
 
-#address_input[readOnly=true], #amount_input[readOnly=true]
-{
-    font: italic;
-    color: gray;
-}
-#address_input[readOnly=false], #amount_input[readOnly=false]
-{
-    font: normal;
-    color: black;
-}
-
-#valid_address::indicator
-{
-    width: 24px;
-    height: 24px;
-}
-#valid_address::indicator:checked
-{
-    image: url(icons/confirmed.png);
-}
-#valid_address::indicator:unchecked
-{
-    image: url(icons/unconfirmed.png);
+MiniWindow QPushButton {
+  color: #777;
+  border: 1px solid #CCC;
+  border-radius: 0px;
+  background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+  stop: 0 white, stop: 1 #E6E6E6);
+  min-height: 25px;
+  min-width: 30px;
 }
 
+#send_button{
+  color: #E5F2FF;
+  border: 1px solid #3786E6;
+  border-radius: 4px;
+  background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+  stop: 0 #72B2F8, stop: 1 #3484E6);
+  min-width: 80px;
+  min-height: 23px;
+  padding: 2px;
+}
+
+#send_button:disabled{
+  color: #D3E8FE;
+  border: 1px solid #6DAEF7;
+  border-radius: 4px;
+  background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+  stop: 0 #A5CFFA, stop: 1 #72B2F8);
+  min-width: 80px;
+  min-height: 23px;
+  padding: 2px;
+}
+
+#address_input, #amount_input
+{
+    color: #000;
+    padding: 5px;
+    border-radius: 4px;
+    border: 1px solid #AAA9A9;
+    width: 225px;
+    margin-top: 4px;
+}
+
+#address_input[isValid=true]
+{
+  color: #4D9948;
+  padding: 5px;
+  border-radius: 4px;
+  border: 1px solid #AAA9A9;
+  width: 225px;
+  margin-top: 4px;
+}
+
+#address_input[isValid=false]
+{
+  color: #CE4141;
+  padding: 5px;
+  border-radius: 4px;
+  border: 1px solid #AAA9A9;
+  width: 225px;
+  margin-top: 4px;
+}
+
+#address_input[isValid=placeholder]
+{
+  color: blue;
+  padding: 5px;
+  border-radius: 4px;
+  border: 1px solid #AAA9A9;
+  width: 225px;
+  margin-top: 4px;
+}
 #balance_label
 {
-    color: white;
+    color: #333;
 }
-

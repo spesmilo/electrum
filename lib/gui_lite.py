@@ -109,34 +109,6 @@ class MiniWindow(QDialog):
 
         self.actuator = actuator
 
-        accounts_button = IconButton(rsrc("icons", "accounts.png"))
-        accounts_button.setObjectName("accounts_button")
-
-        self.accounts_selector = QMenu()
-        accounts_button.setMenu(self.accounts_selector)
-
-        interact_button = IconButton(rsrc("icons", "interact.png"))
-        interact_button.setObjectName("interact_button")
-
-        app_menu = QMenu(interact_button)
-        acceptbit_action = app_menu.addAction(_("A&cceptBit"))
-        report_action = app_menu.addAction(_("&Report Bug"))
-        about_action = app_menu.addAction(_("&About Electrum"))
-        app_menu.addSeparator()
-        quit_action = app_menu.addAction(_("&Quit"))
-        interact_button.setMenu(app_menu)
-
-        self.connect(acceptbit_action, SIGNAL("triggered()"),
-                     self.acceptbit)
-        self.connect(report_action, SIGNAL("triggered()"),
-                     self.show_report_bug)
-        self.connect(about_action, SIGNAL("triggered()"), self.show_about)
-        self.connect(quit_action, SIGNAL("triggered()"), self.close)
-
-        expand_button = IconButton(rsrc("icons", "expand.png"))
-        expand_button.setObjectName("expand_button")
-        self.connect(expand_button, SIGNAL("clicked()"), expand_callback)
-
         self.btc_balance = None
         self.quote_currencies = ["EUR", "USD", "GBP"]
         self.actuator.set_configured_currency(self.set_quote_currency)
@@ -151,15 +123,16 @@ class MiniWindow(QDialog):
         self.receive_button = QPushButton(_("&Receive"))
         self.receive_button.setObjectName("receive_button")
         self.receive_button.setDefault(True)
-        self.connect(self.receive_button, SIGNAL("clicked()"),
-                     self.copy_address)
+        self.connect(self.receive_button, SIGNAL("clicked()"), self.copy_address)
 
-        self.address_input = TextedLineEdit(_("Enter a Bitcoin address..."))
+        # Bitcoin address code
+        self.address_input = QLineEdit()
+        self.address_input.setPlaceholderText(_("Enter a Bitcoin address..."))
         self.address_input.setObjectName("address_input")
-        self.connect(self.address_input, SIGNAL("textEdited(QString)"),
-                     self.address_field_changed)
-        resize_line_edit_width(self.address_input,
-                               "1BtaFUr3qVvAmwrsuDuu5zk6e4s2rxd2Gy")
+
+
+        self.connect(self.address_input, SIGNAL("textEdited(QString)"), self.address_field_changed)
+        resize_line_edit_width(self.address_input, "1BtaFUr3qVvAmwrsuDuu5zk6e4s2rxd2Gy")
 
         self.address_completions = QStringListModel()
         address_completer = QCompleter(self.address_input)
@@ -167,16 +140,11 @@ class MiniWindow(QDialog):
         address_completer.setModel(self.address_completions)
         self.address_input.setCompleter(address_completer)
 
-        self.valid_address = QCheckBox()
-        self.valid_address.setObjectName("valid_address")
-        self.valid_address.setEnabled(False)
-        self.valid_address.setChecked(False)
-
         address_layout = QHBoxLayout()
         address_layout.addWidget(self.address_input)
-        address_layout.addWidget(self.valid_address)
 
-        self.amount_input = TextedLineEdit(_("... and amount"))
+        self.amount_input = QLineEdit()
+        self.amount_input.setPlaceholderText(_("... and amount"))
         self.amount_input.setObjectName("amount_input")
         # This is changed according to the user's displayed balance
         self.amount_validator = QDoubleValidator(self.amount_input)
@@ -184,6 +152,10 @@ class MiniWindow(QDialog):
         self.amount_validator.setDecimals(8)
         self.amount_input.setValidator(self.amount_validator)
 
+        # This removes the very ugly OSX highlighting, please leave this in :D
+        self.address_input.setAttribute(Qt.WA_MacShowFocusRect, 0)
+        self.amount_input.setAttribute(Qt.WA_MacShowFocusRect, 0)
+        
         self.connect(self.amount_input, SIGNAL("textChanged(QString)"),
                      self.amount_input_changed)
 
@@ -191,22 +163,34 @@ class MiniWindow(QDialog):
         amount_layout.addWidget(self.amount_input)
         amount_layout.addStretch()
 
-        send_button = QPushButton(_("&Send"))
-        send_button.setObjectName("send_button")
-        self.connect(send_button, SIGNAL("clicked()"), self.send)
+        self.send_button = QPushButton(_("&Send"))
+        self.send_button.setObjectName("send_button")
+        self.send_button.setDisabled(True);
+        self.connect(self.send_button, SIGNAL("clicked()"), self.send)
 
         main_layout = QGridLayout(self)
-        main_layout.addWidget(accounts_button, 0, 0)
-        main_layout.addWidget(interact_button, 1, 0)
-        main_layout.addWidget(expand_button, 2, 0)
 
-        main_layout.addWidget(self.balance_label, 0, 1)
-        main_layout.addWidget(self.receive_button, 0, 2)
+        main_layout.addWidget(self.balance_label, 0, 0)
+        main_layout.addWidget(self.receive_button, 0, 1)
 
-        main_layout.addLayout(address_layout, 1, 1, 1, -1)
+        main_layout.addWidget(self.address_input, 1, 0, 1, -1)
 
-        main_layout.addLayout(amount_layout, 2, 1)
-        main_layout.addWidget(send_button, 2, 2)
+        main_layout.addLayout(amount_layout, 2, 0)
+        main_layout.addWidget(self.send_button, 2, 1)
+
+        menubar = QMenuBar()
+        file_menu = menubar.addMenu(_("&File"))
+        file_menu.addAction(_("Open"))
+        view_menu = menubar.addMenu(_("&View"))
+        view_menu.addMenu(_("&Themes"))
+        view_menu.addAction(_("Show History"))
+
+        settings_menu = menubar.addMenu(_("&Settings"))
+        expert_gui = settings_menu.addAction(_("&Switch to expert GUI"))
+        self.connect(expert_gui, SIGNAL("triggered()"), expand_callback)
+        
+        menubar.addMenu(_("&Help"))
+        main_layout.setMenuBar(menubar)
 
         quit_shortcut = QShortcut(QKeySequence("Ctrl+Q"), self)
         self.connect(quit_shortcut, SIGNAL("activated()"), self.close)
@@ -219,16 +203,18 @@ class MiniWindow(QDialog):
         self.layout().setSizeConstraint(QLayout.SetFixedSize)
         self.setObjectName("main_window")
         self.show()
+    
+    def recompute_style(self):
+        qApp.style().unpolish(self)
+        qApp.style().polish(self)
 
     def closeEvent(self, event):
         super(MiniWindow, self).closeEvent(event)
         qApp.quit()
 
     def set_payment_fields(self, dest_address, amount):
-        self.address_input.become_active()
         self.address_input.setText(dest_address)
         self.address_field_changed(dest_address)
-        self.amount_input.become_active()
         self.amount_input.setText(amount)
 
     def activate(self):
@@ -264,14 +250,11 @@ class MiniWindow(QDialog):
             quote_text = "(%s)" % quote_text
         btc_balance = "%.2f" % (btc_balance / bitcoin(1))
         self.balance_label.set_balance_text(btc_balance, quote_text)
-        main_account_info = \
-            "Checking - %s BTC" % btc_balance
-        self.setWindowTitle("Electrum - %s" % main_account_info)
-        self.accounts_selector.clear()
-        self.accounts_selector.addAction("%s %s" % (main_account_info,
-                                                    quote_text))
+        self.setWindowTitle("Electrum - %s BTC" % btc_balance)
 
     def amount_input_changed(self, amount_text):
+        self.check_button_status()
+
         try:
             amount = D(str(amount_text))
         except decimal.InvalidOperation:
@@ -295,16 +278,33 @@ class MiniWindow(QDialog):
         return quote_text
 
     def send(self):
-        if self.actuator.send(self.address_input.text(),
-                              self.amount_input.text(), self):
-            self.address_input.become_inactive()
-            self.amount_input.become_inactive()
+        if self.actuator.send(self.address_input.text(), self.amount_input.text(), self):
+            self.address_input.setText("")
+            self.amount_input.setText("")
+
+    def check_button_status(self):
+      if self.address_input.property("isValid") == True and len(self.amount_input.text()) != 0:
+        self.send_button.setDisabled(False)
+      else:
+        self.send_button.setDisabled(True)
 
     def address_field_changed(self, address):
         if self.actuator.is_valid(address):
-            self.valid_address.setChecked(True)
+            self.check_button_status()
+            self.address_input.setProperty("isValid", True)
+            self.recompute_style(self.address_input)
         else:
-            self.valid_address.setChecked(False)
+            self.send_button.setDisabled(True)
+            self.address_input.setProperty("isValid", False)
+            self.recompute_style(self.address_input)
+
+        if len(address) == 0:
+            self.address_input.setProperty("isValid", None)
+            self.recompute_style(self.address_input)
+
+    def recompute_style(self, element):
+        self.style().unpolish(element)
+        self.style().polish(element)
 
     def copy_address(self):
         receive_popup = ReceivePopup(self.receive_button)
@@ -344,7 +344,7 @@ class BalanceLabel(QLabel):
     def set_balance_text(self, btc_balance, quote_text):
         if self.state == self.SHOW_CONNECTING:
             self.state = self.SHOW_BALANCE
-        self.balance_text = "<span style='font-size: 16pt'>%s</span> <span style='font-size: 10pt'>BTC</span> <span style='font-size: 10pt'>%s</span>" % (btc_balance, quote_text)
+        self.balance_text = "<span style='font-size: 18pt'>%s</span> <span style='font-size: 10pt'>BTC</span> <span style='font-size: 10pt'>%s</span>" % (btc_balance, quote_text)
         if self.state == self.SHOW_BALANCE:
             self.setText(self.balance_text)
 
@@ -362,44 +362,6 @@ class BalanceLabel(QLabel):
         if self.state == self.SHOW_BALANCE:
             self.state = self.SHOW_AMOUNT
             self.setText(self.amount_text)
-
-class TextedLineEdit(QLineEdit):
-
-    def __init__(self, inactive_text, parent=None):
-        super(QLineEdit, self).__init__(parent)
-        self.inactive_text = inactive_text
-        self.become_inactive()
-
-    def mousePressEvent(self, event):
-        if self.isReadOnly():
-            self.become_active()
-        QLineEdit.mousePressEvent(self, event)
-
-    def focusOutEvent(self, event):
-        if self.text() == "":
-            self.become_inactive()
-        QLineEdit.focusOutEvent(self, event)
-
-    def focusInEvent(self, event):
-        if self.isReadOnly():
-            self.become_active()
-        QLineEdit.focusInEvent(self, event)
-
-    def become_inactive(self):
-        self.setReadOnly(True)
-        self.recompute_style()
-        self.setText(self.inactive_text)
-
-    def become_active(self):
-        self.setReadOnly(False)
-        self.recompute_style()
-        self.setText("")
-
-    def recompute_style(self):
-        qApp.style().unpolish(self)
-        qApp.style().polish(self)
-        # also possible but more expensive:
-        #qApp.setStyleSheet(qApp.styleSheet())
 
 def ok_cancel_buttons(dialog):
     row_layout = QHBoxLayout()
