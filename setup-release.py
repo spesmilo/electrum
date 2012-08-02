@@ -8,7 +8,7 @@ Usage (Windows):
      python setup.py py2exe
 """
 
-import sys, os, shutil
+import sys, os, shutil, re
 from setuptools import setup
 from lib.version import ELECTRUM_VERSION as version
 from lib.util import print_error
@@ -53,8 +53,21 @@ if sys.platform == 'darwin':
     # Remove the copied py file
     os.remove(mainscript)
     resource = "dist/" + name + ".app/Contents/Resources/"
+
+    # Try to locate qt_menu
+    # Let's try the port version first!
+    if os.path.isfile("/opt/local/lib/Resources/qt_menu.nib"):
+      qt_menu_location = "/opt/local/lib/Resources/qt_menu.nib"
+    else:
+      # No dice? Then let's try the brew version
+      qt_menu_location = os.popen("mdfind -name qt_menu.nib | grep Cellar | head").read()
+      qt_menu_location = re.sub('\n','', qt_menu_location)
+
+    if(len(qt_menu_location) == 0):
+      print "Sorry couldn't find your qt_menu.nib this probably won't work"
+
     # Need to include a copy of qt_menu.nib
-    shutil.copytree("/opt/local/lib/Resources/qt_menu.nib", resource + "qt_menu.nib")
+    shutil.copytree(qt_menu_location, resource + "qt_menu.nib")
     # Need to touch qt.conf to avoid loading 2 sets of Qt libraries
     fname = resource + "qt.conf"
     with file(fname, 'a'):
