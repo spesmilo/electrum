@@ -1,0 +1,7 @@
+####-*.patch
+lib/icons_rc.py
+*.pyc
+build/
+dist/
+*.egg/
+/electrum.py

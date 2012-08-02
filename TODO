@@ -1,0 +1,14 @@
+Client:
+
+- Wizard
+- Multiple wallets
+- Themes
+- Extend GUI with history view (View -> Show History)
+- Settings window
+
+Server:
+
+- Reimplementation using libbitcoin
+- New blockchain backend or disable bdb ACID
+- Electrum deterministic wallet impl for Spinner style protocol.
+

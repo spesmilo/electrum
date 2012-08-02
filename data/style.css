@@ -42,7 +42,6 @@ MiniWindow QPushButton {
     border-radius: 4px;
     border: 1px solid #AAA9A9;
     width: 225px;
-    margin-top: 4px;
 }
 
 #address_input[isValid=true]
