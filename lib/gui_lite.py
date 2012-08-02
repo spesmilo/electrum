@@ -159,10 +159,6 @@ class MiniWindow(QDialog):
         self.connect(self.amount_input, SIGNAL("textChanged(QString)"),
                      self.amount_input_changed)
 
-        amount_layout = QHBoxLayout()
-        amount_layout.addWidget(self.amount_input)
-        amount_layout.addStretch()
-
         self.send_button = QPushButton(_("&Send"))
         self.send_button.setObjectName("send_button")
         self.send_button.setDisabled(True);
@@ -175,21 +171,30 @@ class MiniWindow(QDialog):
 
         main_layout.addWidget(self.address_input, 1, 0, 1, -1)
 
-        main_layout.addLayout(amount_layout, 2, 0)
+        main_layout.addWidget(self.amount_input, 2, 0)
         main_layout.addWidget(self.send_button, 2, 1)
 
         menubar = QMenuBar()
-        file_menu = menubar.addMenu(_("&File"))
-        file_menu.addAction(_("Open"))
+        electrum_menu = menubar.addMenu(_("&Electrum"))
+        electrum_menu.addMenu(_("&Servers"))
+        electrum_menu.addSeparator()
+        electrum_menu.addAction(_("&Quit"))
+
         view_menu = menubar.addMenu(_("&View"))
+        expert_gui = view_menu.addAction(_("&Pro Mode"))
+        self.connect(expert_gui, SIGNAL("triggered()"), expand_callback)
         view_menu.addMenu(_("&Themes"))
+        view_menu.addSeparator()
         view_menu.addAction(_("Show History"))
 
         settings_menu = menubar.addMenu(_("&Settings"))
-        expert_gui = settings_menu.addAction(_("&Switch to expert GUI"))
-        self.connect(expert_gui, SIGNAL("triggered()"), expand_callback)
+        settings_menu.addAction(_("&Configure Electrum"))
         
-        menubar.addMenu(_("&Help"))
+        help_menu = menubar.addMenu(_("&Help"))
+        help_menu.addAction(_("&Contents"))
+        help_menu.addSeparator()
+        help_menu.addAction(_("&Report Bug"))
+        help_menu.addAction(_("&About"))
         main_layout.setMenuBar(menubar)
 
         quit_shortcut = QShortcut(QKeySequence("Ctrl+Q"), self)
