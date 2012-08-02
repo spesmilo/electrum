@@ -159,10 +159,6 @@ class MiniWindow(QDialog):
         self.connect(self.amount_input, SIGNAL("textChanged(QString)"),
                      self.amount_input_changed)
 
-        amount_layout = QHBoxLayout()
-        amount_layout.addWidget(self.amount_input)
-        amount_layout.addStretch()
-
         self.send_button = QPushButton(_("&Send"))
         self.send_button.setObjectName("send_button")
         self.send_button.setDisabled(True);
@@ -175,7 +171,7 @@ class MiniWindow(QDialog):
 
         main_layout.addWidget(self.address_input, 1, 0, 1, -1)
 
-        main_layout.addLayout(amount_layout, 2, 0)
+        main_layout.addWidget(self.amount_input, 2, 0)
         main_layout.addWidget(self.send_button, 2, 1)
 
         menubar = QMenuBar()
