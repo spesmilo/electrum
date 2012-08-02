@@ -153,7 +153,7 @@ class QRCodeWidget(QWidget):
     def paintEvent(self, e):
         qp = QtGui.QPainter()
         qp.begin(self)
-        boxsize = 7
+        boxsize = 6
         size = self.qr.getModuleCount()*boxsize
         k = self.qr.getModuleCount()
         black = QColor(0, 0, 0, 255)
