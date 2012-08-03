@@ -283,12 +283,14 @@ class MiniWindow(QDialog):
         return quote_text
 
     def send(self):
-        if self.actuator.send(self.address_input.text(), self.amount_input.text(), self):
+        if self.actuator.send(self.address_input.text(),
+                              self.amount_input.text(), self):
             self.address_input.setText("")
             self.amount_input.setText("")
 
     def check_button_status(self):
-      if self.address_input.property("isValid") == True and len(self.amount_input.text()) != 0:
+      if (self.address_input.property("isValid") is True and
+          len(self.amount_input.text()) > 0):
         self.send_button.setDisabled(False)
       else:
         self.send_button.setDisabled(True)
