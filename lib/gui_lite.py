@@ -124,7 +124,7 @@ class MiniWindow(QDialog):
         self.receive_button = QPushButton(_("&Receive"))
         self.receive_button.setObjectName("receive_button")
         self.receive_button.setDefault(True)
-        self.connect(self.receive_button, SIGNAL("clicked()"), self.copy_address)
+        self.receive_button.clicked.connect(self.copy_address)
 
         # Bitcoin address code
         self.address_input = QLineEdit()
@@ -132,8 +132,9 @@ class MiniWindow(QDialog):
         self.address_input.setObjectName("address_input")
 
 
-        self.connect(self.address_input, SIGNAL("textEdited(QString)"), self.address_field_changed)
-        resize_line_edit_width(self.address_input, "1BtaFUr3qVvAmwrsuDuu5zk6e4s2rxd2Gy")
+        self.address_input.textEdited.connect(self.address_field_changed)
+        resize_line_edit_width(self.address_input,
+                               "1BtaFUr3qVvAmwrsuDuu5zk6e4s2rxd2Gy")
 
         self.address_completions = QStringListModel()
         address_completer = QCompleter(self.address_input)
@@ -156,14 +157,12 @@ class MiniWindow(QDialog):
         # This removes the very ugly OSX highlighting, please leave this in :D
         self.address_input.setAttribute(Qt.WA_MacShowFocusRect, 0)
         self.amount_input.setAttribute(Qt.WA_MacShowFocusRect, 0)
-        
-        self.connect(self.amount_input, SIGNAL("textChanged(QString)"),
-                     self.amount_input_changed)
+        self.amount_input.textChanged.connect(self.amount_input_changed)
 
         self.send_button = QPushButton(_("&Send"))
         self.send_button.setObjectName("send_button")
         self.send_button.setDisabled(True);
-        self.connect(self.send_button, SIGNAL("clicked()"), self.send)
+        self.send_button.clicked.connect(self.send)
 
         main_layout = QGridLayout(self)
 
@@ -183,36 +182,37 @@ class MiniWindow(QDialog):
 
         menubar = QMenuBar()
         electrum_menu = menubar.addMenu(_("&Bitcoin"))
-        electrum_menu.addMenu(_("&Servers"))
+        self.servers_menu = electrum_menu.addMenu(_("&Servers"))
+        self.servers_menu.addAction(_("Foo"))
         electrum_menu.addSeparator()
         electrum_menu.addAction(_("&Quit"))
 
         view_menu = menubar.addMenu(_("&View"))
         expert_gui = view_menu.addAction(_("&Pro Mode"))
-        self.connect(expert_gui, SIGNAL("triggered()"), expand_callback)
+        expert_gui.triggered.connect(expand_callback)
         view_menu.addMenu(_("&Themes"))
         view_menu.addSeparator()
         show_history = view_menu.addAction(_("Show History"))
         show_history.setCheckable(True)
-        self.connect(show_history, SIGNAL("toggled(bool)"), self.show_history)
+        show_history.toggled.connect(self.show_history)
 
         settings_menu = menubar.addMenu(_("&Settings"))
         settings_menu.addAction(_("&Configure Electrum"))
         
         help_menu = menubar.addMenu(_("&Help"))
         the_website = help_menu.addAction(_("&Website"))
-        self.connect(the_website, SIGNAL("triggered()"), self.the_website)
+        the_website.triggered.connect(self.the_website)
         help_menu.addSeparator()
         report_bug = help_menu.addAction(_("&Report Bug"))
-        self.connect(report_bug, SIGNAL("triggered()"), self.show_report_bug)
+        report_bug.triggered.connect(self.show_report_bug)
         show_about = help_menu.addAction(_("&About"))
-        self.connect(show_about, SIGNAL("triggered()"), self.show_about)
+        show_about.triggered.connect(self.show_about)
         main_layout.setMenuBar(menubar)
 
         quit_shortcut = QShortcut(QKeySequence("Ctrl+Q"), self)
-        self.connect(quit_shortcut, SIGNAL("activated()"), self.close)
+        quit_shortcut.activated.connect(self.close)
         close_shortcut = QShortcut(QKeySequence("Ctrl+W"), self)
-        self.connect(close_shortcut, SIGNAL("activated()"), self.close)
+        close_shortcut.activated.connect(self.close)
 
         self.setWindowIcon(QIcon(":electrum.png"))
         self.setWindowTitle("Electrum")
