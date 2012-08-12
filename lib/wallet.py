@@ -897,6 +897,7 @@ class Wallet:
                             default_label = 'to: ' + dest_label
                         else:
                             default_label = 'to: ' + o_addr
+                        dest_address = o_addr
             else:
                 for o_addr in tx['outputs']:
                     if self.is_mine(o_addr) and not self.is_change(o_addr):
@@ -914,8 +915,10 @@ class Wallet:
                         default_label = 'at: ' + dest_label
                     else:
                         default_label = 'at: ' + o_addr
+                    dest_address = o_addr
 
             tx['default_label'] = default_label
+            tx['dest_address'] = dest_address
 
     def mktx(self, to_address, amount, label, password, fee=None, change_addr=None, from_addr= None):
         if not self.is_valid(to_address):

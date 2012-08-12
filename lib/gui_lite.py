@@ -12,6 +12,7 @@ import sys
 import time
 import wallet
 import webbrowser
+import history_widget
 
 try:
     import lib.gui_qt as gui_qt
@@ -174,6 +175,10 @@ class MiniWindow(QDialog):
         main_layout.addWidget(self.amount_input, 2, 0)
         main_layout.addWidget(self.send_button, 2, 1)
 
+        self.history_list = history_widget.HistoryWidget()
+        self.history_list.hide()
+        main_layout.addWidget(self.history_list, 3, 0, 1, -1)
+
         menubar = QMenuBar()
         electrum_menu = menubar.addMenu(_("&Bitcoin"))
         electrum_menu.addMenu(_("&Servers"))
@@ -185,7 +190,9 @@ class MiniWindow(QDialog):
         self.connect(expert_gui, SIGNAL("triggered()"), expand_callback)
         view_menu.addMenu(_("&Themes"))
         view_menu.addSeparator()
-        view_menu.addAction(_("Show History"))
+        show_history = view_menu.addAction(_("Show History"))
+        show_history.setCheckable(True)
+        self.connect(show_history, SIGNAL("toggled(bool)"), self.show_history)
 
         settings_menu = menubar.addMenu(_("&Settings"))
         settings_menu.addAction(_("&Configure Electrum"))
@@ -320,6 +327,12 @@ class MiniWindow(QDialog):
     def update_completions(self, completions):
         self.address_completions.setStringList(completions)
 
+    def update_history(self, tx_history):
+        for tx in tx_history[-10:]:
+            address = tx["dest_address"]
+            amount = D(tx["value"]) / 10**8
+            self.history_list.append(address, amount)
+
     def acceptbit(self):
         self.actuator.acceptbit(self.quote_currencies[0])
 
@@ -330,6 +343,12 @@ class MiniWindow(QDialog):
     def show_report_bug(self):
         QMessageBox.information(self, "Electrum - " + _("Reporting Bugs"),
             _("Email bug reports to %s") % "genjix" + "@" + "riseup.net")
+
+    def show_history(self, toggle_state):
+        if toggle_state:
+            self.history_list.show()
+        else:
+            self.history_list.hide()
 
 class BalanceLabel(QLabel):
 
@@ -576,6 +595,7 @@ class MiniDriver(QObject):
         if self.wallet.up_to_date:
             self.update_balance()
             self.update_completions()
+            self.update_history()
 
     def initializing(self):
         if self.state == self.INITIALIZING:
@@ -613,6 +633,10 @@ class MiniDriver(QObject):
                 completions.append("%s <%s>" % (label, addr))
         completions = completions + self.wallet.aliases.keys()
         self.window.update_completions(completions)
+
+    def update_history(self):
+        tx_history = self.wallet.get_tx_history()
+        self.window.update_history(tx_history)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
