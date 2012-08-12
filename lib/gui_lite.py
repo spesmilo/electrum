@@ -176,19 +176,19 @@ class MiniWindow(QDialog):
 
         menubar = QMenuBar()
         electrum_menu = menubar.addMenu(_("&Electrum"))
-        electrum_menu.addMenu(_("&Servers"))
-        electrum_menu.addSeparator()
+        #electrum_menu.addMenu(_("&Servers"))
+        #electrum_menu.addSeparator()
         electrum_menu.addAction(_("&Quit"))
 
         view_menu = menubar.addMenu(_("&View"))
         expert_gui = view_menu.addAction(_("&Pro Mode"))
         self.connect(expert_gui, SIGNAL("triggered()"), expand_callback)
-        view_menu.addMenu(_("&Themes"))
-        view_menu.addSeparator()
-        view_menu.addAction(_("Show History"))
+        #view_menu.addMenu(_("&Themes"))
+        #view_menu.addSeparator()
+        #view_menu.addAction(_("Show History"))
 
-        settings_menu = menubar.addMenu(_("&Settings"))
-        settings_menu.addAction(_("&Configure Electrum"))
+        #settings_menu = menubar.addMenu(_("&Settings"))
+        #settings_menu.addAction(_("&Configure Electrum"))
         
         help_menu = menubar.addMenu(_("&Help"))
         help_menu.addAction(_("&Contents"))
