@@ -334,7 +334,7 @@ class MiniWindow(QDialog):
 
     def update_history(self, tx_history):
         for tx in tx_history[-10:]:
-            address = tx["dest_address"]
+            address = tx["default_label"]
             amount = D(tx["value"]) / 10**8
             self.history_list.append(address, amount)
 
