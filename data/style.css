@@ -77,3 +77,9 @@ MiniWindow QPushButton {
 {
     color: #333;
 }
+
+#history::item
+{
+    color: #888;
+}
+

@@ -176,6 +176,7 @@ class MiniWindow(QDialog):
         main_layout.addWidget(self.send_button, 2, 1)
 
         self.history_list = history_widget.HistoryWidget()
+        self.history_list.setObjectName("history")
         self.history_list.hide()
         main_layout.addWidget(self.history_list, 3, 0, 1, -1)
 
