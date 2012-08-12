@@ -892,11 +892,10 @@ class Wallet:
             if tx['value']<0:
                 for o_addr in tx['outputs']:
                     if not self.is_mine(o_addr):
-                        dest_label = self.labels.get(o_addr)
-                        if dest_label:
-                            default_label = 'to: ' + dest_label
-                        else:
-                            default_label = 'to: ' + o_addr
+                        try:
+                            default_label = self.labels[o_addr]
+                        except KeyError:
+                            default_label = o_addr
             else:
                 for o_addr in tx['outputs']:
                     if self.is_mine(o_addr) and not self.is_change(o_addr):
@@ -910,10 +909,10 @@ class Wallet:
 
                 if o_addr:
                     dest_label = self.labels.get(o_addr)
-                    if dest_label:
-                        default_label = 'at: ' + dest_label
-                    else:
-                        default_label = 'at: ' + o_addr
+                    try:
+                        default_label = self.labels[o_addr]
+                    except KeyError:
+                        default_label = o_addr
 
             tx['default_label'] = default_label
 

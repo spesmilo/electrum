@@ -291,7 +291,7 @@ class ElectrumWindow(QMainWindow):
         l.setColumnWidth(2, 350) 
         l.setColumnWidth(3, 140) 
         l.setColumnWidth(4, 140) 
-        l.setHeaderLabels( [ '', _( 'Date' ), _( 'Description' ) , _('Amount'), _('Balance')] )
+        l.setHeaderLabels( [ '', _( 'Date' ), _( 'To / From' ) , _('Amount'), _('Balance')] )
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), self.tx_label_clicked)
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), self.tx_label_changed)
         l.setContextMenuPolicy(Qt.CustomContextMenu)
