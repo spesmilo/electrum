@@ -29,10 +29,7 @@ if platform.system() != 'Windows' and platform.system() != 'Darwin':
 data_files += [
     (util.appdata_dir(), ["data/background.png", "data/style.css"]),
     (os.path.join(util.appdata_dir(), "icons"), [
-        "data/icons/accounts.png",
         "data/icons/confirmed.png",
-        "data/icons/expand.png",
-        "data/icons/interact.png",
         "data/icons/unconfirmed.png"
     ])
 ]
@@ -62,7 +59,7 @@ setup(name = "Electrum",
     author = "thomasv",
     author_email = "thomasv@gitorious",
     license = "GNU GPLv3",
-    url = "http://ecdsa/electrum",
+    url = "http://electrum-desktop.com",
     long_description = """Lightweight Bitcoin Wallet""" 
 )
 
