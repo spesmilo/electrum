@@ -200,7 +200,8 @@ class MiniWindow(QDialog):
         settings_menu.addAction(_("&Configure Electrum"))
         
         help_menu = menubar.addMenu(_("&Help"))
-        help_menu.addAction(_("&Contents"))
+        the_website = help_menu.addAction(_("&Website"))
+        self.connect(the_website, SIGNAL("triggered()"), self.the_website)
         help_menu.addSeparator()
         report_bug = help_menu.addAction(_("&Report Bug"))
         self.connect(report_bug, SIGNAL("triggered()"), self.show_report_bug)
@@ -339,6 +340,9 @@ class MiniWindow(QDialog):
 
     def acceptbit(self):
         self.actuator.acceptbit(self.quote_currencies[0])
+
+    def the_website(self):
+        webbrowser.open("http://electrum-desktop.com")
 
     def show_about(self):
         QMessageBox.about(self, "Electrum",
