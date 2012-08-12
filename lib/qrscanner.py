@@ -11,6 +11,14 @@ from urlparse import urlparse, parse_qs
 def is_available():
     if not zbar:
         return False
+
+    try:
+        proc = zbar.Processor()
+        proc.init()
+    except zbar.SystemError:
+        # Cannot open video device
+        return False
+
     return True
 
 def scan_qr():
