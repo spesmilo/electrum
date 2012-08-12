@@ -202,8 +202,10 @@ class MiniWindow(QDialog):
         help_menu = menubar.addMenu(_("&Help"))
         help_menu.addAction(_("&Contents"))
         help_menu.addSeparator()
-        help_menu.addAction(_("&Report Bug"))
-        help_menu.addAction(_("&About"))
+        report_bug = help_menu.addAction(_("&Report Bug"))
+        self.connect(report_bug, SIGNAL("triggered()"), self.show_report_bug)
+        show_about = help_menu.addAction(_("&About"))
+        self.connect(show_about, SIGNAL("triggered()"), self.show_about)
         main_layout.setMenuBar(menubar)
 
         quit_shortcut = QShortcut(QKeySequence("Ctrl+Q"), self)
