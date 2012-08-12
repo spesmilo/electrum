@@ -178,6 +178,7 @@ class MiniWindow(QDialog):
         self.history_list = history_widget.HistoryWidget()
         self.history_list.setObjectName("history")
         self.history_list.hide()
+        self.history_list.setAlternatingRowColors(True)
         main_layout.addWidget(self.history_list, 3, 0, 1, -1)
 
         menubar = QMenuBar()
