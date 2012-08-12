@@ -175,7 +175,7 @@ class MiniWindow(QDialog):
         main_layout.addWidget(self.send_button, 2, 1)
 
         menubar = QMenuBar()
-        electrum_menu = menubar.addMenu(_("&Electrum"))
+        electrum_menu = menubar.addMenu(_("&Bitcoin"))
         electrum_menu.addMenu(_("&Servers"))
         electrum_menu.addSeparator()
         electrum_menu.addAction(_("&Quit"))
