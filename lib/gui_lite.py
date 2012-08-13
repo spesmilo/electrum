@@ -296,7 +296,7 @@ class MiniWindow(QDialog):
             self.amount_input.setText("")
 
     def check_button_status(self):
-      if (self.address_input.property("isValid") is True and
+      if (self.address_input.property("isValid") == True and
           len(self.amount_input.text()) > 0):
         self.send_button.setDisabled(False)
       else:
