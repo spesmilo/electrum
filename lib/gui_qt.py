@@ -916,10 +916,12 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(parent, _('Error'), _('Incorrect Password'), _('OK'))
             return
 
-        msg = _("Your wallet generation seed is") + ":\n\n" + seed + "\n\n"\
-              + _("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.") + "\n\n" \
-              + _("Equivalently, your wallet seed can be stored and recovered with the following mnemonic code") + ":\n\n\"" \
-              + ' '.join(mnemonic.mn_encode(seed)) + "\"\n\n\n"
+        msg = '"' + ' '.join(mnemonic.mn_encode(seed)) + '"\n\n' + \
+              _("If you memorise or write down these 12 words, you will always be able to\nrecover your wallet.\n\nThis is called a 'BrainWallet'. The order of words is important. Case does not\nmatter (capitals or lowercase).")
+        #msg = _("Your wallet generation seed is") + ":\n\n" + seed + "\n\n"\
+        #      + _("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.") + "\n\n" \
+        #      + _("Equivalently, your wallet seed can be stored and recovered with the following mnemonic code") + ":\n\n\"" \
+        #      + ' '.join(mnemonic.mn_encode(seed)) + "\"\n\n\n"
 
         d = QDialog(None)
         d.setModal(1)
@@ -947,7 +949,7 @@ class ElectrumWindow(QMainWindow):
             app = QApplication
 
         b = QPushButton(_("Copy to Clipboard"))
-        b.clicked.connect(lambda: app.clipboard().setText(seed + ' "' + ' '.join(mnemonic.mn_encode(seed))+'"'))
+        b.clicked.connect(lambda: app.clipboard().setText(' '.join(mnemonic.mn_encode(seed))))
         hbox.addWidget(b)
         b = QPushButton(_("View as QR Code"))
         b.clicked.connect(lambda: ElectrumWindow.show_seed_qrcode(seed))
