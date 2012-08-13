@@ -303,11 +303,11 @@ class MiniWindow(QDialog):
             self.amount_input.setText("")
 
     def check_button_status(self):
-      if (self.address_input.property("isValid") is True and
-          len(self.amount_input.text()) > 0):
-        self.send_button.setDisabled(False)
-      else:
-        self.send_button.setDisabled(True)
+        if (self.address_input.property("isValid") is True and
+            len(self.amount_input.text()) > 0):
+            self.send_button.setDisabled(False)
+        else:
+            self.send_button.setDisabled(True)
 
     def address_field_changed(self, address):
         if self.actuator.is_valid(address):
