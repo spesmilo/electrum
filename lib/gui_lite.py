@@ -185,6 +185,8 @@ class MiniWindow(QDialog):
         self.servers_menu = electrum_menu.addMenu(_("&Servers"))
         self.servers_menu.addAction(_("Foo"))
         electrum_menu.addSeparator()
+        brain_seed = electrum_menu.addAction(_("&BrainWallet Info"))
+        brain_seed.triggered.connect(self.actuator.show_seed_dialog)
         electrum_menu.addAction(_("&Quit"))
 
         view_menu = menubar.addMenu(_("&View"))
@@ -560,6 +562,9 @@ class MiniActuator:
         master_pubkey = self.wallet.master_public_key.encode("hex")
         url = "http://acceptbit.com/mpk/%s/%s" % (master_pubkey, currency)
         webbrowser.open(url)
+
+    def show_seed_dialog(self):
+        gui_qt.ElectrumWindow.show_seed_dialog(self.wallet)
 
 class MiniDriver(QObject):
 
