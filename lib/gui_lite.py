@@ -1,5 +1,13 @@
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+import sys
+
+try:
+  from PyQt4.QtCore import *
+  from PyQt4.QtGui import *
+except ImportError:
+  print "You need to have PyQT installed to run Electrum"
+  print "If you have pip installed try 'sudo pip install pyqt' if you are on Debian/Ubuntu try 'sudo apt-get install python-qt4'"
+  sys.exit(1)
+
 from decimal import Decimal as D
 from util import appdata_dir, get_resource_path as rsrc
 from i18n import _
@@ -8,7 +16,6 @@ import exchange_rate
 import os.path
 import random
 import re
-import sys
 import time
 import wallet
 import webbrowser
@@ -51,6 +58,12 @@ def cd_data_dir():
 class ElectrumGui:
 
     def __init__(self, wallet):
+        qtVersion = qVersion()
+        if not(int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
+          print "Sorry, Electrum requires Qt >= 4.7 to run"
+          print "Check your distributions packages or download it at http://qt.nokia.com/downloads"
+          sys.exit(0)
+          
         self.wallet = wallet
         self.app = QApplication(sys.argv)
         # Should probably not modify the current path but instead
