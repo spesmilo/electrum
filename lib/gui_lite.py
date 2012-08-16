@@ -189,6 +189,7 @@ class MiniWindow(QDialog):
         electrum_menu.addSeparator()
         brain_seed = electrum_menu.addAction(_("&BrainWallet Info"))
         brain_seed.triggered.connect(self.actuator.show_seed_dialog)
+
         electrum_menu.addAction(_("&Quit"))
 
         view_menu = menubar.addMenu(_("&View"))
@@ -200,9 +201,6 @@ class MiniWindow(QDialog):
         show_history.setCheckable(True)
         show_history.toggled.connect(self.show_history)
 
-        settings_menu = menubar.addMenu(_("&Settings"))
-        settings_menu.addAction(_("&Configure Electrum"))
-        
         help_menu = menubar.addMenu(_("&Help"))
         the_website = help_menu.addAction(_("&Website"))
         the_website.triggered.connect(self.the_website)
