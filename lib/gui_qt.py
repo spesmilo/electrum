@@ -899,68 +899,65 @@ class ElectrumWindow(QMainWindow):
 
     @staticmethod
     def show_seed_dialog(wallet, parent=None):
-
         if not wallet.seed:
-            QMessageBox.information(parent, _('Message'), _('No seed'), _('OK'))
+            QMessageBox.information(parent, _('Message'),
+                                    _('No seed'), _('OK'))
             return
 
         if wallet.use_encryption:
             password = parent.password_dialog()
-            if not password: return
+            if not password:
+                return
         else:
             password = None
             
         try:
-            seed = wallet.pw_decode( wallet.seed, password)
+            seed = wallet.pw_decode(wallet.seed, password)
         except:
-            QMessageBox.warning(parent, _('Error'), _('Incorrect Password'), _('OK'))
+            QMessageBox.warning(parent, _('Error'),
+                                _('Incorrect Password'), _('OK'))
             return
 
-        msg = '"' + ' '.join(mnemonic.mn_encode(seed)) + '"\n\n' + \
-              _("If you memorise or write down these 12 words, you will always be able to\nrecover your wallet.\n\nThis is called a 'BrainWallet'. The order of words is important. Case does not\nmatter (capitals or lowercase).")
-        #msg = _("Your wallet generation seed is") + ":\n\n" + seed + "\n\n"\
-        #      + _("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.") + "\n\n" \
-        #      + _("Equivalently, your wallet seed can be stored and recovered with the following mnemonic code") + ":\n\n\"" \
-        #      + ' '.join(mnemonic.mn_encode(seed)) + "\"\n\n\n"
+        dialog = QDialog(None)
+        dialog.setModal(1)
+        dialog.setWindowTitle(_("Seed"))
 
-        d = QDialog(None)
-        d.setModal(1)
-        d.setWindowTitle(_("Seed"))
-        d.setMinimumSize(400, 270)
+        brainwallet = ' '.join(mnemonic.mn_encode(seed))
 
-        vbox = QVBoxLayout()
-        hbox = QHBoxLayout()
-        vbox2 = QVBoxLayout()
-        l = QLabel()
-        l.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(56))
-        vbox2.addWidget(l)
-        vbox2.addStretch(1)
-        hbox.addLayout(vbox2)
-        hbox.addWidget(QLabel(msg))
-        vbox.addLayout(hbox)
+        msg = _('<p>"%s"</p>'
+                "<p>If you memorise or write down these 12 words, you will always be able to recover your wallet.</p>"
+                "<p>This is called a 'BrainWallet'. The order of words is important. Case does not matter (capitals or lowercase).</p>") % brainwallet
+        main_text = QLabel(msg)
+        main_text.setWordWrap(True)
 
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-
+        logo = QLabel()
+        logo.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(56))
 
         if parent:
             app = parent.app
         else:
             app = QApplication
 
-        b = QPushButton(_("Copy to Clipboard"))
-        b.clicked.connect(lambda: app.clipboard().setText(' '.join(mnemonic.mn_encode(seed))))
-        hbox.addWidget(b)
-        b = QPushButton(_("View as QR Code"))
-        b.clicked.connect(lambda: ElectrumWindow.show_seed_qrcode(seed))
-        hbox.addWidget(b)
+        copy_function = lambda: app.clipboard().setText(brainwallet)
+        copy_button = QPushButton(_("Copy to Clipboard"))
+        copy_button.clicked.connect(copy_function)
 
-        b = QPushButton(_("OK"))
-        b.clicked.connect(d.accept)
-        hbox.addWidget(b)
-        vbox.addLayout(hbox)
-        d.setLayout(vbox)
-        d.exec_()
+        show_qr_function = lambda: ElectrumWindow.show_seed_qrcode(seed)
+        qr_button = QPushButton(_("View as QR Code"))
+        qr_button.clicked.connect(show_qr_function)
+
+        ok_button = QPushButton(_("OK"))
+        ok_button.clicked.connect(dialog.accept)
+
+        main_layout = QGridLayout()
+        main_layout.addWidget(logo, 0, 0)
+        main_layout.addWidget(main_text, 0, 1, 1, -1)
+        main_layout.addWidget(copy_button, 1, 1)
+        main_layout.addWidget(qr_button, 1, 2)
+        main_layout.addWidget(ok_button, 1, 3)
+        dialog.setLayout(main_layout)
+
+        dialog.exec_()
 
     @staticmethod
     def show_seed_qrcode(seed):
