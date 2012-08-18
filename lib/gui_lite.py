@@ -231,10 +231,12 @@ class MiniWindow(QDialog):
         self.show()
 
     def toggle_theme(self, theme_name):
+        old_path = QDir.currentPath()
         self.actuator.change_theme(theme_name)
         # Recompute style globally
         qApp.style().unpolish(self)
         qApp.style().polish(self)
+        QDir.setCurrent(old_path)
 
     def closeEvent(self, event):
         super(MiniWindow, self).closeEvent(event)
@@ -491,9 +493,8 @@ class MiniActuator:
         except KeyError:
             util.print_error("Theme not found! ", self.theme_name)
             return
-        theme_css = os.path.join(theme_path, "style.css")
-        QDir.setCurrent(theme_prefix)
-        with open(rsrc(theme_css)) as style_file:
+        QDir.setCurrent(os.path.join(theme_prefix, theme_path))
+        with open(rsrc("style.css")) as style_file:
             qApp.setStyleSheet(style_file.read())
 
     def theme_names(self):
