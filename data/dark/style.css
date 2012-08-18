@@ -1,0 +1,12 @@
+#send_button{
+  min-height: 23px;
+  padding: 2px;
+}
+
+#address_input, #amount_input
+{
+    padding: 5px;
+    width: 225px;
+    margin-top: 4px;
+}
+
