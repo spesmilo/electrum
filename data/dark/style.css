@@ -1,12 +1,35 @@
-#send_button{
-  min-height: 23px;
-  padding: 2px;
+#main_window
+{
+    background-image: url(background.png);
 }
 
-#address_input, #amount_input
+#address_input[readOnly=true], #amount_input[readOnly=true]
 {
-    padding: 5px;
-    width: 225px;
-    margin-top: 4px;
+    font: italic;
+    color: gray;
+}
+#address_input[readOnly=false], #amount_input[readOnly=false]
+{
+    font: normal;
+    color: black;
+}
+
+#valid_address::indicator
+{
+    width: 24px;
+    height: 24px;
+}
+#valid_address::indicator:checked
+{
+    image: url(confirmed.png);
+}
+#valid_address::indicator:unchecked
+{
+    image: url(unconfirmed.png);
+}
+
+#balance_label
+{
+    color: white;
 }
 
