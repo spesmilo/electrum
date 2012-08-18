@@ -4,7 +4,7 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
 from decimal import Decimal as D
-from util import appdata_dir, get_resource_path as rsrc
+from util import get_resource_path as rsrc
 from i18n import _
 import decimal
 import exchange_rate
@@ -15,6 +15,7 @@ import time
 import wallet
 import webbrowser
 import history_widget
+import util
 
 try:
     import lib.gui_qt as gui_qt
@@ -40,36 +41,25 @@ def resize_line_edit_width(line_edit, text_input):
     text_input += "A"
     line_edit.setMinimumWidth(metrics.width(text_input))
 
-def cd_data_dir():
-    assert sys.argv
-    prefix_path = os.path.dirname(sys.argv[0])
-    local_data = os.path.join(prefix_path, "data")
-    if os.path.exists(os.path.join(local_data, "style.css")):
-        data_dir = local_data
-    else:
-        data_dir = appdata_dir()
-    QDir.setCurrent(data_dir)
-
 class ElectrumGui:
 
     def __init__(self, wallet):
         self.wallet = wallet
         self.app = QApplication(sys.argv)
-        # Should probably not modify the current path but instead
-        # change the behaviour of rsrc(...)
-        self.old_path = QDir.currentPath()
-        cd_data_dir()
-        with open(rsrc("style.css")) as style_file:
-            self.app.setStyleSheet(style_file.read())
 
     def main(self, url):
         actuator = MiniActuator(self.wallet)
+        # Should probably not modify the current path but instead
+        # change the behaviour of rsrc(...)
+        old_path = QDir.currentPath()
+        actuator.load_theme()
+
         self.mini = MiniWindow(actuator, self.expand)
         driver = MiniDriver(self.wallet, self.mini)
 
         # Reset path back to original value now that loading the GUI
         # is completed.
-        QDir.setCurrent(self.old_path)
+        QDir.setCurrent(old_path)
 
         if url:
             self.set_url(url)
@@ -472,6 +462,25 @@ class MiniActuator:
 
     def __init__(self, wallet):
         self.wallet = wallet
+
+        self.theme_name = self.wallet.theme
+        self.themes = util.load_theme_paths()
+
+    def load_theme(self):
+        try:
+            theme_prefix, theme_path = self.themes[self.theme_name]
+        except KeyError:
+            util.print_error("Theme not found! ", self.theme_name)
+            return
+        theme_css = os.path.join(theme_path, "style.css")
+        QDir.setCurrent(theme_prefix)
+        with open(rsrc(theme_css)) as style_file:
+            qApp.setStyleSheet(style_file.read())
+
+    def theme_names(self):
+        return self.themes.keys()
+    def selected_theme(self):
+        return self.theme_name
 
     def set_configured_currency(self, set_quote_currency):
         currency = self.wallet.conversion_currency
