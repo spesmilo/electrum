@@ -3,10 +3,9 @@ import platform
 import sys
 
 def print_error(*args):
-    """Print out the arguments to standard error."""
-    for item in args:
-      sys.stderr.write(str(item))
-    sys.stderr.write("\n")
+    # Stringify args
+    args = [str(item) for item in args]
+    sys.stderr.write(" ".join(args) + "\n")
     sys.stderr.flush()
 
 def appdata_dir():

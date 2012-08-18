@@ -491,7 +491,7 @@ class MiniActuator:
         try:
             theme_prefix, theme_path = self.themes[self.theme_name]
         except KeyError:
-            util.print_error("Theme not found! ", self.theme_name)
+            util.print_error("Theme not found!", self.theme_name)
             return
         QDir.setCurrent(os.path.join(theme_prefix, theme_path))
         with open(rsrc("style.css")) as style_file:
