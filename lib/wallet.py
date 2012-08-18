@@ -282,6 +282,7 @@ class Wallet:
         self.num_zeros = 0
         self.master_public_key = ''
         self.conversion_currency = None
+        self.theme = None
 
         # saved fields
         self.use_encryption = False
@@ -665,7 +666,8 @@ class Wallet:
             'expert_mode': self.expert_mode,
             'gap_limit': self.gap_limit,
             'debug_server': self.debug_server,
-            'conversion_currency': self.conversion_currency
+            'conversion_currency': self.conversion_currency,
+            'theme': self.theme
         }
         f = open(self.path,"w")
         f.write( repr(s) )
@@ -710,6 +712,7 @@ class Wallet:
             self.gap_limit = d.get('gap_limit', 5)
             self.debug_server = d.get('debug_server', False)
             self.conversion_currency = d.get('conversion_currency', 'USD')
+            self.theme = d.get('theme', 'Cleanlook')
         except:
             raise BaseException("cannot read wallet file")
 
