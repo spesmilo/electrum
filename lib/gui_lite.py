@@ -185,7 +185,24 @@ class MiniWindow(QDialog):
         view_menu = menubar.addMenu(_("&View"))
         expert_gui = view_menu.addAction(_("&Pro Mode"))
         expert_gui.triggered.connect(expand_callback)
-        view_menu.addMenu(_("&Themes"))
+        themes_menu = view_menu.addMenu(_("&Themes"))
+        selected_theme = self.actuator.selected_theme()
+        theme_group = QActionGroup(self)
+        for theme_name in self.actuator.theme_names():
+            theme_action = themes_menu.addAction(theme_name)
+            theme_action.setCheckable(True)
+            if selected_theme == theme_name:
+                theme_action.setChecked(True)
+            class SelectThemeFunctor:
+                def __init__(self, theme_name, toggle_theme):
+                    self.theme_name = theme_name
+                    self.toggle_theme = toggle_theme
+                def __call__(self, checked):
+                    if checked:
+                        self.toggle_theme(self.theme_name)
+            delegate = SelectThemeFunctor(theme_name, self.toggle_theme)
+            theme_action.toggled.connect(delegate)
+            theme_group.addAction(theme_action)
         view_menu.addSeparator()
         show_history = view_menu.addAction(_("Show History"))
         show_history.setCheckable(True)
@@ -212,8 +229,10 @@ class MiniWindow(QDialog):
         self.layout().setSizeConstraint(QLayout.SetFixedSize)
         self.setObjectName("main_window")
         self.show()
-    
-    def recompute_style(self):
+
+    def toggle_theme(self, theme_name):
+        self.actuator.change_theme(theme_name)
+        # Recompute style globally
         qApp.style().unpolish(self)
         qApp.style().polish(self)
 
@@ -482,6 +501,10 @@ class MiniActuator:
     def selected_theme(self):
         return self.theme_name
 
+    def change_theme(self, theme_name):
+        self.wallet.theme = self.theme_name = theme_name
+        self.load_theme()
+    
     def set_configured_currency(self, set_quote_currency):
         currency = self.wallet.conversion_currency
         # currency can be none when Electrum is used for the first
