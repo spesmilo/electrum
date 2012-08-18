@@ -498,7 +498,7 @@ class MiniActuator:
             qApp.setStyleSheet(style_file.read())
 
     def theme_names(self):
-        return self.themes.keys()
+        return sorted(self.themes.keys())
     def selected_theme(self):
         return self.theme_name
 
