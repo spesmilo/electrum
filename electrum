@@ -157,13 +157,17 @@ if __name__ == '__main__':
 
               error_message = QErrorMessage()
               error_message.setFixedSize(350,200)
-              error_message.showMessage("<p>Sorry, Electrum requires Qt >= 4.7 to run.</p><p>Check your distributions packages or download it at http://qt.nokia.com/downloads</p>")
+              error_message.showMessage("<p>Sorry, the Electrum 'Lite GUI' requires Qt >= 4.7 to run. The pro GUI will be started instead.</p><p>Check your distributions packages for upgrades.</p>")
               app.exec_()
-              sys.exit(0)
 
-            try:
+              try:
+                  import lib.gui_qt as gui
+              except ImportError:
+                  import electrum.gui_qt as gui
+            else:
+              try:
                 import lib.gui_lite as gui
-            except ImportError:
+              except ImportError:
                 import electrum.gui_lite as gui
         else:
             print_error("Error: Unknown GUI: " + options.gui)
