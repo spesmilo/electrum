@@ -24,15 +24,13 @@ except ImportError:
 
 try:
     import ecdsa  
-except:
-    print_error("Error: python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'")
-    sys.exit(1)
+except ImportError:
+    sys.exit("Error: python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'")
 
 try:
     import aes
-except:
-    print_error("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
-    sys.exit(1)
+except ImportError:
+    sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
 
 try:
     from lib import Wallet, WalletSynchronizer, format_satoshis, mnemonic, prompt_password
