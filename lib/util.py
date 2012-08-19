@@ -3,13 +3,14 @@ import platform
 import sys
 
 def print_error(*args):
-    '''Print out the arguments to standard error'''
+    '''Print out the arguments to standard error.'''
     for item in args:
       sys.stderr.write(str(item))
     sys.stderr.write("\n")
     sys.stderr.flush()
 
 def appdata_dir():
+    '''Find the path to the application data directory; add an electrum folder and return path.'''
     if platform.system() == "Windows":
         return os.path.join(os.environ["APPDATA"], "Electrum")
     elif platform.system() == "Linux":
