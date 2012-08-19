@@ -3,6 +3,7 @@ import platform
 import sys
 
 def print_error(*args):
+    '''Print out the arguments to standard error'''
     for item in args:
       sys.stderr.write(str(item))
     sys.stderr.write("\n")
