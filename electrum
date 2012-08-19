@@ -192,8 +192,8 @@ if __name__ == '__main__':
         cmd = 'help'
 
     if not wallet.file_exists and cmd not in ['help','create','restore']:
-        print_error("Error: Wallet file not found.")
-        print_error("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
+        print "Error: Wallet file not found."
+        print "Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option"
         sys.exit(0)
     
     if cmd in ['create', 'restore']:
