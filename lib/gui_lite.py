@@ -4,6 +4,7 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
 from decimal import Decimal as D
+from interface import DEFAULT_SERVERS
 from util import get_resource_path as rsrc
 from i18n import _
 import decimal
@@ -174,8 +175,10 @@ class MiniWindow(QDialog):
 
         menubar = QMenuBar()
         electrum_menu = menubar.addMenu(_("&Bitcoin"))
-        self.servers_menu = electrum_menu.addMenu(_("&Servers"))
-        self.servers_menu.addAction(_("Foo"))
+        servers_menu = electrum_menu.addMenu(_("&Servers"))
+        servers_group = QActionGroup(self)
+        self.actuator.set_servers_gui_stuff(servers_menu, servers_group)
+        self.actuator.populate_servers_menu()
         electrum_menu.addSeparator()
         brain_seed = electrum_menu.addAction(_("&BrainWallet Info"))
         brain_seed.triggered.connect(self.actuator.show_seed_dialog)
@@ -515,6 +518,44 @@ class MiniActuator:
 
     def set_config_currency(self, conversion_currency):
         self.wallet.conversion_currency = conversion_currency
+
+    def set_servers_gui_stuff(self, servers_menu, servers_group):
+        self.servers_menu = servers_menu
+        self.servers_group = servers_group
+
+    def populate_servers_menu(self):
+        interface = self.wallet.interface
+        interface.servers_loaded_callback = self.server_list_changed
+        if not interface.servers:
+            print "no servers loaded yet"
+            servers_list = []
+            for x in DEFAULT_SERVERS:
+                h,port,protocol = x.split(':')
+                servers_list.append( (h,[(protocol,port)] ) )
+        else:
+            servers_list = interface.servers
+        server_names = [details[0] for details in servers_list]
+        current_server = self.wallet.server.split(":")[0]
+        for server_name in server_names:
+            server_action = self.servers_menu.addAction(server_name)
+            server_action.setCheckable(True)
+            if server_name == current_server:
+                server_action.setChecked(True)
+            #class SelectServerFunctor:
+            #    def __init__(self, server_name, servers_list):
+            #        self.server_name = server_name
+            #        self.servers_list = servers_list
+            #    def __call__(self, checked):
+            #        if checked:
+            #            # call server_list_changed
+            #            self.
+            self.servers_group.addAction(server_action)
+
+    def server_list_changed(self):
+        # clear servers_menu
+        # clear servers_group?
+        # call populate_servers_menu
+        print "hello"
 
     def copy_address(self, receive_popup):
         addrs = [addr for addr in self.wallet.all_addresses()
