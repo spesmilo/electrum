@@ -9,9 +9,7 @@ import os, sys, platform
 from lib.util import print_error
 
 if sys.version_info[:3] < (2,6,0):
-    print_error("Error: Electrum requires Python version >= 2.6.0...")
-    sys.exit(1)
-            
+    sys.exit("Error: Electrum requires Python version >= 2.6.0...")
 
 data_files = []
 
