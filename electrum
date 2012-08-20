@@ -501,9 +501,8 @@ if __name__ == '__main__':
     elif cmd == 'password':
         try:
             seed = wallet.pw_decode( wallet.seed, password)
-        except:
-            print_error("Error: Password does not decrypt this wallet.")
-            sys.exit(1)
+        except StandardError:
+            sys.exit("Error: Password does not decrypt this wallet.")
 
         new_password = prompt_password('New password:')
         wallet.update_password(seed, password, new_password)
