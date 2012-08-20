@@ -198,10 +198,9 @@ if __name__ == '__main__':
     
     if cmd in ['create', 'restore']:
         if wallet.file_exists:
-            print_error("Error: Remove the existing wallet first!")
-            sys.stderr.flush()
-            sys.exit(0)
-        password = prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
+            sys.exit("Error: Remove the existing wallet first!")
+        
+	password = prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
 
         w_host, w_port, w_protocol = wallet.server.split(':')
         host = raw_input("server (default:%s):"%w_host)
