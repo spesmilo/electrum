@@ -25,10 +25,15 @@ if platform.system() != 'Windows' and platform.system() != 'Darwin':
             data_files.append(  ('/usr/share/locale/%s/LC_MESSAGES'%lang, ['locale/%s/LC_MESSAGES/electrum.mo'%lang]) )
 
 data_files += [
-    (util.appdata_dir(), ["data/background.png", "data/style.css"]),
-    (os.path.join(util.appdata_dir(), "icons"), [
-        "data/icons/confirmed.png",
-        "data/icons/unconfirmed.png"
+    (util.appdata_dir(), ["data/noface.svg", "data/README"]),
+    (os.path.join(util.appdata_dir(), "cleanlook"), [
+        "data/cleanlook/name.cfg",
+        "data/cleanlook/style.css"
+    ]),
+    (os.path.join(util.appdata_dir(), "dark"), [
+        "data/dark/background.png",
+        "data/dark/name.cfg",
+        "data/dark/style.css"
     ])
 ]
 
