@@ -688,7 +688,7 @@ class Wallet:
         except:
             return
         try:
-            d = ast.literal_eval( data )
+            d = ast.literal_eval( data )  #parse raw data from reading wallet file
             interface.old_to_new(d)
             self.seed_version = d.get('seed_version')
             self.master_public_key = d.get('master_public_key').decode('hex')
