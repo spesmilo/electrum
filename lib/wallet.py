@@ -351,7 +351,7 @@ class Wallet:
             self.interface.poke()
 
     def set_path(self, wallet_path):
-        '''Set the path of the wallet.'''
+        """Set the path of the wallet."""
         if wallet_path is not None:
             self.path = wallet_path
         else:

@@ -347,17 +347,15 @@ if __name__ == '__main__':
                 f = open(ns,'r')
                 data = f.read()
                 f.close()
-            except:
-                print_error("Error: Seed file not found")
-                sys.exit()
+            except IOError:
+                sys.exit("Error: Seed file not found")
             try:
                 import ast
                 d = ast.literal_eval( data )
                 seed = d['seed']
                 imported_keys = d.get('imported_keys',{})
-            except:
-                print_error("Error: Error with seed file")
-                sys.exit(1)
+            except IOError:
+                sys.exit("Error: Error with seed file")
 
             mpk = wallet.master_public_key
             wallet.seed = seed
