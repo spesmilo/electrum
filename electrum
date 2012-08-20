@@ -223,8 +223,7 @@ if __name__ == '__main__':
                 print_error("Warning: Not hex, trying decode.")
                 seed = mnemonic.mn_decode( seed.split(' ') )
             if not seed:
-                print_error("Error: No seed")
-                sys.exit(1)
+                sys.exit("Error: No seed")
 
             wallet.seed = str(seed)
             wallet.init_mpk( wallet.seed )
