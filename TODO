@@ -3,6 +3,7 @@ Client:
 - Wizard
 - Multiple wallets
 - Themes
+- Extend GUI with history view (View -> Show History)
 - Settings window
 
 Server:
