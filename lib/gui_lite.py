@@ -488,6 +488,7 @@ class MiniActuator:
         self.themes = util.load_theme_paths()
 
     def load_theme(self):
+        """Load theme retrieved from wallet file."""
         try:
             theme_prefix, theme_path = self.themes[self.theme_name]
         except KeyError:
