@@ -160,7 +160,8 @@ if __name__ == '__main__':
               error_message.showMessage("<p>Sorry, Electrum requires Qt >= 4.7 to run.</p><p>Check your distributions packages or download it at http://qt.nokia.com/downloads</p>")
               app.exec_()
               sys.exit(0)
-
+           
+            #use the lite version if no toolkit specified
             try:
                 import lib.gui_lite as gui
             except ImportError:
