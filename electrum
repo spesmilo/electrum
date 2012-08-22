@@ -126,7 +126,9 @@ if __name__ == '__main__':
     else:
         cmd = args[0]
         firstarg = args[1] if len(args) > 1 else ''
-        
+       
+    #this entire if/else block is just concerned with importing the 
+    #right GUI toolkit based the GUI command line option given 
     if cmd == 'gui':
         
         if options.gui=='gtk':
