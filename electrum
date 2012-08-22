@@ -167,8 +167,7 @@ if __name__ == '__main__':
             except ImportError:
                 import electrum.gui_lite as gui
         else:
-            print_error("Error: Unknown GUI: " + options.gui)
-            exit(1)
+            raise NameError(sys.exit("Error: Unknown GUI: " + options.gui))
 
         gui = gui.ElectrumGui(wallet)
         WalletSynchronizer(wallet,True).start()
