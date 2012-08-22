@@ -180,7 +180,7 @@ class MiniWindow(QDialog):
         brain_seed = electrum_menu.addAction(_("&BrainWallet Info"))
         brain_seed.triggered.connect(self.actuator.show_seed_dialog)
         quit_option = electrum_menu.addAction(_("&Quit"))
-        quit_option.triggered.connect(self.actuator.quit)
+        quit_option.triggered.connect(self.close)
 
         view_menu = menubar.addMenu(_("&View"))
         expert_gui = view_menu.addAction(_("&Pro Mode"))
@@ -612,9 +612,6 @@ class MiniActuator:
 
     def show_seed_dialog(self):
         gui_qt.ElectrumWindow.show_seed_dialog(self.wallet)
-
-    def quit(self):
-        sys.exit(0)
 
 class MiniDriver(QObject):
 
