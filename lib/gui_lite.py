@@ -74,6 +74,7 @@ class ElectrumGui:
         self.app.exec_()
 
     def expand(self):
+        """Hide the lite mode window and show pro-mode."""
         self.mini.hide()
         self.expert.show()
 
