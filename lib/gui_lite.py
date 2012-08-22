@@ -480,7 +480,11 @@ class ReceivePopup(QDialog):
         self.show()
 
 class MiniActuator:
-
+    """Initialize the definitions for all the menubar functions and 
+    sending/recieving bitcoins.
+    """
+    
+    
     def __init__(self, wallet):
         """Retrieve the gui theme used in previous session."""
         self.wallet = wallet
