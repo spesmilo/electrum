@@ -503,15 +503,20 @@ class MiniActuator:
             qApp.setStyleSheet(style_file.read())
 
     def theme_names(self):
+        """Sort themes."""
         return sorted(self.themes.keys())
     def selected_theme(self):
+        """Select theme."""
         return self.theme_name
 
     def change_theme(self, theme_name):
+        """Change theme."""
         self.wallet.theme = self.theme_name = theme_name
         self.load_theme()
     
     def set_configured_currency(self, set_quote_currency):
+        """Set the inital fiat currency conversion country (USD/EUR/GBP) in 
+        the GUI to what it was set to in the wallet."""
         currency = self.wallet.conversion_currency
         # currency can be none when Electrum is used for the first
         # time and no setting has been created yet.
@@ -519,9 +524,11 @@ class MiniActuator:
             set_quote_currency(currency)
 
     def set_config_currency(self, conversion_currency):
+        """Change the fiat currency conversion country."""
         self.wallet.conversion_currency = conversion_currency
 
     def copy_address(self, receive_popup):
+        """Copy the wallet addresses into the client."""
         addrs = [addr for addr in self.wallet.all_addresses()
                  if not self.wallet.is_change(addr)]
         # Select most recent addresses from gap limit
@@ -532,6 +539,7 @@ class MiniActuator:
         receive_popup.popup()
 
     def send(self, address, amount, parent_window):
+        """Send bitcoins to the target address."""
         dest_address = self.fetch_destination(address)
 
         if dest_address is None or not self.wallet.is_valid(dest_address):
@@ -594,6 +602,7 @@ class MiniActuator:
             return recipient
 
     def is_valid(self, address):
+        """Check if bitcoin address is valid."""
         return self.wallet.is_valid(address)
 
     def acceptbit(self, currency):
