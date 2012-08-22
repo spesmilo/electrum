@@ -482,8 +482,8 @@ class ReceivePopup(QDialog):
 class MiniActuator:
 
     def __init__(self, wallet):
+        """Retrieve the gui theme used in previous session."""
         self.wallet = wallet
-
         self.theme_name = self.wallet.theme
         self.themes = util.load_theme_paths()
 
