@@ -255,6 +255,7 @@ class MiniWindow(QDialog):
         pass
 
     def set_quote_currency(self, currency):
+        """Set and display the fiat currency country."""
         assert currency in self.quote_currencies
         self.quote_currencies.remove(currency)
         self.quote_currencies = [currency] + self.quote_currencies
