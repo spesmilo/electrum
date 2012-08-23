@@ -285,6 +285,7 @@ class MiniWindow(QDialog):
         self.setWindowTitle("Electrum - %s BTC" % btc_balance)
 
     def amount_input_changed(self, amount_text):
+        """Update the number of bitcoins displayed."""
         self.check_button_status()
 
         try:
