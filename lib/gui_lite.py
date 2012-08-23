@@ -275,6 +275,7 @@ class MiniWindow(QDialog):
         self.amount_input_changed(self.amount_input.text())
 
     def set_balances(self, btc_balance):
+        """Set the bitcoin balance and update the amount label accordingly."""
         self.btc_balance = btc_balance
         quote_text = self.create_quote_text(btc_balance)
         if quote_text:
@@ -481,7 +482,7 @@ class ReceivePopup(QDialog):
         self.show()
 
 class MiniActuator:
-    """Initialize the definitions for all the menubar functions and 
+    """Initialize the definitions relating to themes and 
     sending/recieving bitcoins.
     """
     
@@ -506,6 +507,7 @@ class MiniActuator:
     def theme_names(self):
         """Sort themes."""
         return sorted(self.themes.keys())
+    
     def selected_theme(self):
         """Select theme."""
         return self.theme_name
