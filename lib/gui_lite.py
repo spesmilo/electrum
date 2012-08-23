@@ -300,6 +300,7 @@ class MiniWindow(QDialog):
                 self.balance_label.show_balance()
 
     def create_quote_text(self, btc_balance):
+        """Return a string copy of the amount of bitcoins in the argument."""
         quote_currency = self.quote_currencies[0]
         quote_balance = self.exchanger.exchange(btc_balance, quote_currency)
         if quote_balance is None:
