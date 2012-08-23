@@ -259,7 +259,6 @@ class MiniWindow(QDialog):
         assert currency in self.quote_currencies
         self.quote_currencies.remove(currency)
         self.quote_currencies.insert(0, currency)
-        #self.quote_currencies = [currency] + self.quote_currencies
         self.refresh_balance()
 
     def change_quote_currency(self):
