@@ -535,7 +535,7 @@ class MiniActuator:
             set_quote_currency(currency)
 
     def set_config_currency(self, conversion_currency):
-        """Change the fiat currency conversion country."""
+        """Change the wallet fiat currency country."""
         self.wallet.conversion_currency = conversion_currency
 
     def copy_address(self, receive_popup):

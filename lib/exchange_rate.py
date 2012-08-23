@@ -31,7 +31,7 @@ class Exchanger(threading.Thread):
         connection = httplib.HTTPSConnection('intersango.com')
         connection.request("GET", "/api/ticker.php")
         response = connection.getresponse()
-        if response.status == 404:
+        if response.reason == httplib.responses[httplib.NOT_FOUND]:
             return
         response = json.loads(response.read())
         # 1 = BTC:GBP
