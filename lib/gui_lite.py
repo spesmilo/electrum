@@ -391,10 +391,12 @@ class BalanceLabel(QLabel):
         self.amount_text = ""
 
     def mousePressEvent(self, event):
+        """Change the fiat currency selection if window background is clicked."""
         if self.state != self.SHOW_CONNECTING:
             self.change_quote_currency()
 
     def set_balance_text(self, btc_balance, quote_text):
+        """Set the amount of bitcoins in the gui."""
         if self.state == self.SHOW_CONNECTING:
             self.state = self.SHOW_BALANCE
         self.balance_text = "<span style='font-size: 18pt'>%s</span> <span style='font-size: 10pt'>BTC</span> <span style='font-size: 10pt'>%s</span>" % (btc_balance, quote_text)
