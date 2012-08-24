@@ -994,7 +994,7 @@ class Wallet:
             self.verify_message(previous, signature, "alias:%s:%s"%(alias,target))
 
         if not self.is_valid(target):
-            raise BaseException("Invalid bitcoin address")
+            raise ValueError("Invalid bitcoin address")
 
         return target, signing_addr, auth_name
 
