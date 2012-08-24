@@ -676,7 +676,7 @@ class Wallet:
         os.chmod(self.path,stat.S_IREAD | stat.S_IWRITE)
 
     def read(self):
-        '''Read the contents of the wallet file.'''
+        """Read the contents of the wallet file."""
         import interface
 
         self.file_exists = False
