@@ -76,8 +76,7 @@ __b58chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 __b58base = len(__b58chars)
 
 def b58encode(v):
-    """ encode v, which is a string of bytes, to base58.		
-    """
+    """ encode v, which is a string of bytes, to base58."""
 
     long_value = 0L
     for (i, c) in enumerate(v[::-1]):
@@ -100,8 +99,7 @@ def b58encode(v):
     return (__b58chars[0]*nPad) + result
 
 def b58decode(v, length):
-    """ decode v into a string of len bytes
-    """
+    """ decode v into a string of len bytes."""
     long_value = 0L
     for (i, c) in enumerate(v[::-1]):
         long_value += __b58chars.find(c) * (__b58base**i)
