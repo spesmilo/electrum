@@ -166,8 +166,7 @@ def prompt_password(prompt, confirm=True):
             password2 = getpass.getpass("Confirm: ")
 
             if password != password2:
-                print_error("Error: Passwords do not match.")
-                sys.exit(1)
+                sys.exit("Error: Passwords do not match.")
 
     else:
         password = raw_input(prompt)
