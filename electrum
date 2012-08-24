@@ -16,7 +16,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import re, sys
+import re
+import sys
+import argparse
+
 try:
     from lib.util import print_error
 except ImportError:
@@ -99,18 +102,18 @@ protected_commands = ['payto', 'password', 'mktx', 'seed', 'import','signmessage
 if __name__ == '__main__':
 
     usage = "usage: %prog [options] command\nCommands: "+ (', '.join(known_commands))
-    parser = OptionParser(usage=usage)
-    parser.add_option("-g", "--gui", dest="gui", default="lite", help="gui")
-    parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
-    parser.add_option("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
-    parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
-    parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance at listed addresses")
-    parser.add_option("-k", "--keys",action="store_true", dest="show_keys",default=False, help="show the private keys of listed addresses")
-    parser.add_option("-f", "--fee", dest="tx_fee", default="0.005", help="set tx fee")
-    parser.add_option("-s", "--fromaddr", dest="from_addr", default=None, help="set source address for payto/mktx. if it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet.")
-    parser.add_option("-c", "--changeaddr", dest="change_addr", default=None, help="set the change address for payto/mktx. default is a spare address, or the source address if it's not in the wallet")
-    parser.add_option("-r", "--remote", dest="remote_url", default=None, help="URL of a remote wallet")
-    options, args = parser.parse_args()
+    parser = argparse.ArgumentParser(prog=usage)
+    parser.add_argument("-g", "--gui", dest="gui", default="lite", help="gui")
+    parser.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
+    parser.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
+    parser.add_argument("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
+    parser.add_argument("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance at listed addresses")
+    parser.add_argument("-k", "--keys",action="store_true", dest="show_keys",default=False, help="show the private keys of listed addresses")
+    parser.add_argument("-f", "--fee", dest="tx_fee", default="0.005", help="set tx fee")
+    parser.add_argument("-s", "--fromaddr", dest="from_addr", default=None, help="set source address for payto/mktx. if it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet.")
+    parser.add_argument("-c", "--changeaddr", dest="change_addr", default=None, help="set the change address for payto/mktx. default is a spare address, or the source address if it's not in the wallet")
+    parser.add_argument("-r", "--remote", dest="remote_url", default=None, help="URL of a remote wallet")
+    args = parser.parse_args()
 
     wallet = Wallet()
     wallet.set_path(options.wallet_path)
@@ -309,7 +312,6 @@ if __name__ == '__main__':
         cmd2 = firstarg
         if cmd2 not in known_commands:
             parser.print_help()
-            print
             print "Type 'electrum help <command>' to see the help for a specific command"
             print "Type 'electrum --help' to see the list of options"
             print "List of commands:", ', '.join(known_commands)
