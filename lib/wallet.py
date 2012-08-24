@@ -679,7 +679,6 @@ class Wallet:
         '''Read the contents of the wallet file.'''
         import interface
 
-        upgrade_msg = """This wallet seed is deprecated. Please run upgrade.py for a diagnostic."""
         self.file_exists = False
         try:
             f = open(self.path,"r")
@@ -720,7 +719,7 @@ class Wallet:
         self.update_tx_history()
 
         if self.seed_version != SEED_VERSION:
-            raise BaseException(upgrade_msg)
+            raise ValueError("This wallet seed is deprecated. Please run upgrade.py for a diagnostic.")
 
         if self.remote_url: assert self.master_public_key.encode('hex') == self.get_remote_mpk()
 
