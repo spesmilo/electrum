@@ -691,10 +691,9 @@ class Wallet:
 
         self.file_exists = False
         try:
-            f = open(self.path,"r")
-            data = f.read()
-            f.close()
-        except:
+            with open(self.path, "r") as f:
+                data = f.read()
+        except IOError:
             return
         try:
             d = ast.literal_eval( data )  #parse raw data from reading wallet file
