@@ -684,9 +684,7 @@ class Wallet:
             f = open(self.path,"r")
             data = f.read()
             f.close()
-        except:
-            return
-        try:
+            
             d = ast.literal_eval( data )  #parse raw data from reading wallet file
             interface.old_to_new(d)
             self.seed_version = d.get('seed_version')
