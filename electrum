@@ -40,7 +40,6 @@ try:
 except ImportError:
     from electrum import Wallet, WalletSynchronizer, format_satoshis, mnemonic, prompt_password
     
-from optparse import OptionParser
 from decimal import Decimal
 
 known_commands = {
