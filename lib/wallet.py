@@ -362,19 +362,21 @@ class Wallet:
         """Set the path of the wallet."""
         if wallet_path is not None:
             self.path = wallet_path
+            return
+        # Look for wallet file in the default data directory.
+        # Keeps backwards compatibility.
+        if "HOME" in os.environ:
+            wallet_dir = os.path.join(os.environ["HOME"], ".electrum")
+        elif "LOCALAPPDATA" in os.environ:
+            wallet_dir = os.path.join(os.environ["LOCALAPPDATA"], "Electrum")
+        elif "APPDATA" in os.environ:
+            wallet_dir = os.path.join(os.environ["APPDATA"], "Electrum")
         else:
-            # backward compatibility: look for wallet file in the default data directory
-            if "HOME" in os.environ:
-                wallet_dir = os.path.join( os.environ["HOME"], '.electrum')
-            elif "LOCALAPPDATA" in os.environ:
-                wallet_dir = os.path.join( os.environ["LOCALAPPDATA"], 'Electrum' )
-            elif "APPDATA" in os.environ:
-                wallet_dir = os.path.join( os.environ["APPDATA"], 'Electrum' )
-            else:
-                raise BaseException("No home directory found in environment variables.")
-
-            if not os.path.exists( wallet_dir ): os.mkdir( wallet_dir )
-            self.path = os.path.join( wallet_dir, 'electrum.dat' )
+            raise BaseException("No home directory found in environment variables.")
+        # Make wallet directory if it does not yet exist.
+        if not os.path.exists(wallet_dir):
+            os.mkdir(wallet_dir)
+        self.path = os.path.join(wallet_dir, "electrum.dat")
 
     def import_key(self, keypair, password):
         address, key = keypair.split(':')
