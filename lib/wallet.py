@@ -715,7 +715,7 @@ class Wallet:
             self.conversion_currency = d.get('conversion_currency', 'USD')
             self.theme = d.get('theme', 'Cleanlook')
         except:
-            raise BaseException("cannot read wallet file")
+            raise IOError("Cannot read wallet file.")
 
         self.update_tx_history()
 
