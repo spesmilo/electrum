@@ -920,10 +920,10 @@ class Wallet:
 
     def mktx(self, to_address, amount, label, password, fee=None, change_addr=None, from_addr= None):
         if not self.is_valid(to_address):
-            raise BaseException("Invalid address")
+            raise ValueError("Invalid address")
         inputs, total, fee = self.choose_tx_inputs( amount, fee, from_addr )
         if not inputs:
-            raise BaseException("Not enough funds")
+            raise ValueError("Not enough funds")
 
         if not self.use_change and not change_addr:
             change_addr = inputs[0][0]
