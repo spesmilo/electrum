@@ -16,9 +16,20 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import sys
+import base64
+import os
+import re
+import hashlib
+import copy
+import operator
+import ast
+import threading
+import random
+import getpass
+import aes
+import ecdsa
 
-import sys, base64, os, re, hashlib, copy, operator, ast, threading, random, getpass
-import aes, ecdsa
 from ecdsa.util import string_to_number, number_to_string
 from util import print_error
 
