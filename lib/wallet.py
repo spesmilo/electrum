@@ -687,6 +687,7 @@ class Wallet:
             
             d = ast.literal_eval( data )  #parse raw data from reading wallet file
             interface.old_to_new(d)
+            
             self.seed_version = d.get('seed_version')
             self.master_public_key = d.get('master_public_key').decode('hex')
             self.use_encryption = d.get('use_encryption')
@@ -836,7 +837,7 @@ class Wallet:
                 try:
                     d.decode('hex')
                 except:
-                    raise BaseException("Invalid password")
+                    raise ValueError("Invalid password")
             return d
         else:
             return s
