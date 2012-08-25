@@ -102,7 +102,7 @@ protected_commands = ['payto', 'password', 'mktx', 'seed', 'import','signmessage
 if __name__ == '__main__':
 
     usage = "usage: %prog [options] command\nCommands: "+ (', '.join(known_commands))
-    parser = OptionParser(prog=usage)
+    parser = optparse.OptionParser(prog=usage)
     parser.add_option("-g", "--gui", dest="gui", default="lite", help="gui")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
     parser.add_option("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
