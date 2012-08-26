@@ -7,13 +7,12 @@ from lib.version import ELECTRUM_VERSION as version
 import lib.util as util
 import os, sys, platform
 from lib.util import print_error
-
 if sys.version_info[:3] < (2,6,0):
     sys.exit("Error: Electrum requires Python version >= 2.6.0...")
 
 data_files = []
-
-if platform.system() != 'Windows' and platform.system() != 'Darwin':
+if (len(sys.argv) > 1 and (sys.argv[1] == "sdist")) or (platform.system() != 'Windows' and platform.system() != 'Darwin'):
+    print "Including all files"
     data_files += [
         ('/usr/share/applications/',['electrum.desktop']),
         ('/usr/share/app-install/icons/',['electrum.png'])
