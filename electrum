@@ -535,7 +535,8 @@ if __name__ == '__main__':
         try:
             wallet.verify_message(address, signature, message)
             print True
-        except:
+        except BaseException as e:
+            print "Verification error: {0}".format(e)
             print False
 
     elif cmd == 'freeze':
