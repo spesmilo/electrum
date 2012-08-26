@@ -78,9 +78,9 @@ options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address 
     'import': 
             'Imports a key pair\nSyntax: import <address>:<privatekey>',
     'signmessage':
-            'Signs a message with a key\nSyntax: signmessage <address> <message>',
+            'Signs a message with a key\nSyntax: signmessage <address> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "',
     'verifymessage':
-             'Verifies a signature\nSyntax: verifymessage <address> <signature> <message>',
+             'Verifies a signature\nSyntax: verifymessage <address> <signature> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "',
     'eval':  
              "Run python eval() on an object\nSyntax: eval <expression>\nExample: eval \"wallet.aliases\"",
     'deseed':
