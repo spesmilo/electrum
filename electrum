@@ -179,8 +179,8 @@ if __name__ == '__main__':
             found = wallet.file_exists
             if not found:
                 found = gui.restore_or_create()
-        except IOError:
-            exit("Error retrieving wallet file.")
+        except SystemExit, e:
+            exit(e)
         except BaseException, e:
             import traceback
             traceback.print_exc(file=sys.stdout)
