@@ -495,7 +495,7 @@ class ReceivePopup(QDialog):
         QCursor.setPos(center_mouse_pos)
         self.show()
 
-class MiniActuator:
+class MiniActuator(QObject):
     """Initialize the definitions relating to themes and 
     sending/recieving bitcoins.
     """
