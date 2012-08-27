@@ -313,7 +313,7 @@ class WalletSynchronizer(threading.Thread):
         self.loop = loop
         self.init_interface()
 
-    def init_interface(self):
+    def init_interface(self, servers_loaded_callback=None):
         try:
             host, port, protocol = self.wallet.server.split(':')
             port = int(port)
@@ -332,6 +332,7 @@ class WalletSynchronizer(threading.Thread):
             InterfaceClass = TcpStratumInterface
 
         self.interface = InterfaceClass(host, port, self.wallet.debug_server)
+        self.interface.servers_loaded_callback = servers_loaded_callback
         self.wallet.interface = self.interface
 
 
@@ -363,7 +364,7 @@ class WalletSynchronizer(threading.Thread):
                 if ports and version:
                     servers.append( (host, ports) )
             self.interface.servers = servers
-            assert self.interface.servers_loaded_callback
+            assert self.interface.servers_loaded_callback is not None
             self.interface.servers_loaded_callback()
 
         elif method == 'blockchain.address.subscribe':
@@ -427,7 +428,8 @@ class WalletSynchronizer(threading.Thread):
             self.wallet.trigger_callbacks()
             if self.loop:
                 time.sleep(5)
-                self.init_interface()
+                # Server has been changed. Copy callback for new interface.
+                self.init_interface(self.interface.servers_loaded_callback)
                 self.start_interface()
                 continue
             else:
