@@ -357,7 +357,7 @@ if __name__ == '__main__':
                 d = ast.literal_eval( data )
                 seed = d['seed']
                 imported_keys = d.get('imported_keys',{})
-            except IOError:
+            except:
                 sys.exit("Error: Error with seed file")
 
             mpk = wallet.master_public_key
