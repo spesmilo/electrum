@@ -363,6 +363,8 @@ class WalletSynchronizer(threading.Thread):
                 if ports and version:
                     servers.append( (host, ports) )
             self.interface.servers = servers
+            assert self.interface.servers_loaded_callback
+            self.interface.servers_loaded_callback()
 
         elif method == 'blockchain.address.subscribe':
             addr = params[0]

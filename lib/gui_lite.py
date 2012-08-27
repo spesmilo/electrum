@@ -4,6 +4,7 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
 from decimal import Decimal as D
+from interface import DEFAULT_SERVERS
 from util import get_resource_path as rsrc
 from i18n import _
 import decimal
@@ -175,8 +176,10 @@ class MiniWindow(QDialog):
 
         menubar = QMenuBar()
         electrum_menu = menubar.addMenu(_("&Bitcoin"))
-        self.servers_menu = electrum_menu.addMenu(_("&Servers"))
-        self.servers_menu.addAction(_("Foo"))
+        servers_menu = electrum_menu.addMenu(_("&Servers"))
+        servers_group = QActionGroup(self)
+        self.actuator.set_servers_gui_stuff(servers_menu, servers_group)
+        self.actuator.populate_servers_menu()
         electrum_menu.addSeparator()
         brain_seed = electrum_menu.addAction(_("&BrainWallet Info"))
         brain_seed.triggered.connect(self.actuator.show_seed_dialog)
@@ -478,7 +481,8 @@ class ReceivePopup(QDialog):
 
         self.setMouseTracking(True)
         self.setWindowTitle("Electrum - " + _("Receive Bitcoin payment"))
-        self.setWindowFlags(Qt.Window|Qt.FramelessWindowHint|Qt.MSWindowsFixedSizeDialogHint)
+        self.setWindowFlags(Qt.Window|Qt.FramelessWindowHint|
+                            Qt.MSWindowsFixedSizeDialogHint)
         self.layout().setSizeConstraint(QLayout.SetFixedSize)
         #self.setFrameStyle(QFrame.WinPanel|QFrame.Raised)
         #self.setAlignment(Qt.AlignCenter)
@@ -499,6 +503,8 @@ class MiniActuator:
     
     def __init__(self, wallet):
         """Retrieve the gui theme used in previous session."""
+        super(QObject, self).__init__()
+
         self.wallet = wallet
         self.theme_name = self.wallet.theme
         self.themes = util.load_theme_paths()
@@ -539,6 +545,70 @@ class MiniActuator:
     def set_config_currency(self, conversion_currency):
         """Change the wallet fiat currency country."""
         self.wallet.conversion_currency = conversion_currency
+
+    def set_servers_gui_stuff(self, servers_menu, servers_group):
+        self.servers_menu = servers_menu
+        self.servers_group = servers_group
+        self.connect(self, SIGNAL("updateservers()"), self.update_servers_list)
+
+    def populate_servers_menu(self):
+        interface = self.wallet.interface
+        interface.servers_loaded_callback = self.server_list_changed
+        if not interface.servers:
+            print "No servers loaded yet."
+            self.servers_list = []
+            for server_string in DEFAULT_SERVERS:
+                host, port, protocol = server_string.split(':')
+                transports = [(protocol,port)]
+                self.servers_list.append((host, transports))
+        else:
+            print "Servers loaded."
+            self.servers_list = interface.servers
+        server_names = [details[0] for details in self.servers_list]
+        current_server = self.wallet.server.split(":")[0]
+        for server_name in server_names:
+            server_action = self.servers_menu.addAction(server_name)
+            server_action.setCheckable(True)
+            if server_name == current_server:
+                server_action.setChecked(True)
+            class SelectServerFunctor:
+                def __init__(self, server_name, server_selected):
+                    self.server_name = server_name
+                    self.server_selected = server_selected
+                def __call__(self, checked):
+                    if checked:
+                        # call server_selected
+                        self.server_selected(self.server_name)
+            delegate = SelectServerFunctor(server_name, self.server_selected)
+            server_action.toggled.connect(delegate)
+            self.servers_group.addAction(server_action)
+
+    def server_list_changed(self):
+        self.emit(SIGNAL("updateservers()"))
+
+    def update_servers_list(self):
+        # Clear servers_group
+        for action in self.servers_group.actions():
+            self.servers_group.removeAction(action)
+        self.populate_servers_menu()
+
+    def server_selected(self, server_name):
+        match = [transports for (host, transports) in self.servers_list
+                 if host == server_name]
+        assert len(match) == 1
+        match = match[0]
+        # Default to TCP if available else use anything
+        # TODO: protocol should be selectable.
+        tcp_port = [port for (protocol, port) in match if protocol == "t"]
+        if len(tcp_port) == 0:
+            protocol = match[0][0]
+            port = match[0][1]
+        else:
+            protocol = "t"
+            port = tcp_port[0]
+        server_line = "%s:%s:%s" % (server_name, port, protocol)
+        # Should this have exception handling?
+        self.wallet.set_server(server_line)
 
     def copy_address(self, receive_popup):
         """Copy the wallet addresses into the client."""
