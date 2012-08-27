@@ -531,14 +531,16 @@ class MiniActuator(QObject):
         interface = self.wallet.interface
         interface.servers_loaded_callback = self.server_list_changed
         if not interface.servers:
-            print "no servers loaded yet"
-            servers_list = []
-            for x in DEFAULT_SERVERS:
-                h,port,protocol = x.split(':')
-                servers_list.append( (h,[(protocol,port)] ) )
+            print "No servers loaded yet."
+            self.servers_list = []
+            for server_string in DEFAULT_SERVERS:
+                host, port, protocol = server_string.split(':')
+                transports = [(protocol,port)]
+                self.servers_list.append((host, transports))
         else:
-            servers_list = interface.servers
-        server_names = [details[0] for details in servers_list]
+            print "Servers loaded."
+            self.servers_list = interface.servers
+        server_names = [details[0] for details in self.servers_list]
         current_server = self.wallet.server.split(":")[0]
         for server_name in server_names:
             server_action = self.servers_menu.addAction(server_name)
@@ -567,7 +569,22 @@ class MiniActuator(QObject):
         self.populate_servers_menu()
 
     def server_selected(self, server_name):
-        print server_name
+        match = [transports for (host, transports) in self.servers_list
+                 if host == server_name]
+        assert len(match) == 1
+        match = match[0]
+        # Default to TCP if available else use anything
+        # TODO: protocol should be selectable.
+        tcp_port = [port for (protocol, port) in match if protocol == "t"]
+        if len(tcp_port) == 0:
+            protocol = match[0][0]
+            port = match[0][1]
+        else:
+            protocol = "t"
+            port = tcp_port[0]
+        server_line = "%s:%s:%s" % (server_name, port, protocol)
+        # Should this have exception handling?
+        self.wallet.set_server(server_line)
 
     def copy_address(self, receive_popup):
         addrs = [addr for addr in self.wallet.all_addresses()
