@@ -469,7 +469,8 @@ class ReceivePopup(QDialog):
 
         self.setMouseTracking(True)
         self.setWindowTitle("Electrum - " + _("Receive Bitcoin payment"))
-        self.setWindowFlags(Qt.Window|Qt.FramelessWindowHint|Qt.MSWindowsFixedSizeDialogHint)
+        self.setWindowFlags(Qt.Window|Qt.FramelessWindowHint|
+                            Qt.MSWindowsFixedSizeDialogHint)
         self.layout().setSizeConstraint(QLayout.SetFixedSize)
         #self.setFrameStyle(QFrame.WinPanel|QFrame.Raised)
         #self.setAlignment(Qt.AlignCenter)
@@ -482,9 +483,11 @@ class ReceivePopup(QDialog):
         QCursor.setPos(center_mouse_pos)
         self.show()
 
-class MiniActuator:
+class MiniActuator(QObject):
 
     def __init__(self, wallet):
+        super(QObject, self).__init__()
+
         self.wallet = wallet
 
         self.theme_name = self.wallet.theme
@@ -522,6 +525,7 @@ class MiniActuator:
     def set_servers_gui_stuff(self, servers_menu, servers_group):
         self.servers_menu = servers_menu
         self.servers_group = servers_group
+        self.connect(self, SIGNAL("updateservers()"), self.update_servers_list)
 
     def populate_servers_menu(self):
         interface = self.wallet.interface
@@ -541,21 +545,29 @@ class MiniActuator:
             server_action.setCheckable(True)
             if server_name == current_server:
                 server_action.setChecked(True)
-            #class SelectServerFunctor:
-            #    def __init__(self, server_name, servers_list):
-            #        self.server_name = server_name
-            #        self.servers_list = servers_list
-            #    def __call__(self, checked):
-            #        if checked:
-            #            # call server_list_changed
-            #            self.
+            class SelectServerFunctor:
+                def __init__(self, server_name, server_selected):
+                    self.server_name = server_name
+                    self.server_selected = server_selected
+                def __call__(self, checked):
+                    if checked:
+                        # call server_selected
+                        self.server_selected(self.server_name)
+            delegate = SelectServerFunctor(server_name, self.server_selected)
+            server_action.toggled.connect(delegate)
             self.servers_group.addAction(server_action)
 
     def server_list_changed(self):
-        # clear servers_menu
-        # clear servers_group?
-        # call populate_servers_menu
-        print "hello"
+        self.emit(SIGNAL("updateservers()"))
+
+    def update_servers_list(self):
+        # Clear servers_group
+        for action in self.servers_group.actions():
+            self.servers_group.removeAction(action)
+        self.populate_servers_menu()
+
+    def server_selected(self, server_name):
+        print server_name
 
     def copy_address(self, receive_popup):
         addrs = [addr for addr in self.wallet.all_addresses()
