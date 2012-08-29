@@ -290,7 +290,7 @@ class Wallet:
         self.num_zeros = 0
         self.master_public_key = ''
         self.conversion_currency = None
-        self.theme = None
+        self.theme = "Cleanlook"
 
         # saved fields
         self.use_encryption = False
