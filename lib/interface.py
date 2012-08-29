@@ -363,9 +363,6 @@ class WalletSynchronizer(threading.Thread):
                 if ports and version:
                     servers.append((host, ports))
             self.interface.servers = servers
-            # TODO: This assert fails with commands so it should be removed
-            # after we've ascertained it never fails when running the GUI.
-            assert self.servers_loaded_callback is not None
             # servers_loaded_callback is None for commands, but should
             # NEVER be None when using the GUI.
             if self.servers_loaded_callback is not None:
