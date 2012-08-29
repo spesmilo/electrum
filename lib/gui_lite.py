@@ -4,6 +4,7 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
 from decimal import Decimal as D
+from interface import DEFAULT_SERVERS
 from util import get_resource_path as rsrc
 from i18n import _
 import decimal
@@ -41,14 +42,18 @@ def resize_line_edit_width(line_edit, text_input):
     text_input += "A"
     line_edit.setMinimumWidth(metrics.width(text_input))
 
-class ElectrumGui:
+class ElectrumGui(QObject):
 
     def __init__(self, wallet):
+        super(QObject, self).__init__()
+
         self.wallet = wallet
         self.app = QApplication(sys.argv)
 
     def main(self, url):
         actuator = MiniActuator(self.wallet)
+        self.connect(self, SIGNAL("updateservers()"),
+                     actuator.update_servers_list)
         # Should probably not modify the current path but instead
         # change the behaviour of rsrc(...)
         old_path = QDir.currentPath()
@@ -73,7 +78,11 @@ class ElectrumGui:
 
         self.app.exec_()
 
+    def server_list_changed(self):
+        self.emit(SIGNAL("updateservers()"))
+
     def expand(self):
+        """Hide the lite mode window and show pro-mode."""
         self.mini.hide()
         self.expert.show()
 
@@ -174,13 +183,15 @@ class MiniWindow(QDialog):
 
         menubar = QMenuBar()
         electrum_menu = menubar.addMenu(_("&Bitcoin"))
-        self.servers_menu = electrum_menu.addMenu(_("&Servers"))
-        self.servers_menu.addAction(_("Foo"))
+        servers_menu = electrum_menu.addMenu(_("&Servers"))
+        servers_group = QActionGroup(self)
+        self.actuator.set_servers_gui_stuff(servers_menu, servers_group)
+        self.actuator.populate_servers_menu()
         electrum_menu.addSeparator()
         brain_seed = electrum_menu.addAction(_("&BrainWallet Info"))
         brain_seed.triggered.connect(self.actuator.show_seed_dialog)
-
-        electrum_menu.addAction(_("&Quit"))
+        quit_option = electrum_menu.addAction(_("&Quit"))
+        quit_option.triggered.connect(self.close)
 
         view_menu = menubar.addMenu(_("&View"))
         expert_gui = view_menu.addAction(_("&Pro Mode"))
@@ -254,9 +265,10 @@ class MiniWindow(QDialog):
         pass
 
     def set_quote_currency(self, currency):
+        """Set and display the fiat currency country."""
         assert currency in self.quote_currencies
         self.quote_currencies.remove(currency)
-        self.quote_currencies = [currency] + self.quote_currencies
+        self.quote_currencies.insert(0, currency)
         self.refresh_balance()
 
     def change_quote_currency(self):
@@ -274,6 +286,7 @@ class MiniWindow(QDialog):
         self.amount_input_changed(self.amount_input.text())
 
     def set_balances(self, btc_balance):
+        """Set the bitcoin balance and update the amount label accordingly."""
         self.btc_balance = btc_balance
         quote_text = self.create_quote_text(btc_balance)
         if quote_text:
@@ -283,6 +296,7 @@ class MiniWindow(QDialog):
         self.setWindowTitle("Electrum - %s BTC" % btc_balance)
 
     def amount_input_changed(self, amount_text):
+        """Update the number of bitcoins displayed."""
         self.check_button_status()
 
         try:
@@ -298,6 +312,8 @@ class MiniWindow(QDialog):
                 self.balance_label.show_balance()
 
     def create_quote_text(self, btc_balance):
+        """Return a string copy of the amount fiat currency the 
+        user has in bitcoins."""
         quote_currency = self.quote_currencies[0]
         quote_balance = self.exchanger.exchange(btc_balance, quote_currency)
         if quote_balance is None:
@@ -314,8 +330,16 @@ class MiniWindow(QDialog):
             self.amount_input.setText("")
 
     def check_button_status(self):
+        """Check that the bitcoin address is valid and that something
+        is entered in the amount before making the send button clickable."""
+        try:
+            value = D(str(self.amount_input.text())) * 10**8
+        except decimal.InvalidOperation:
+            value = None
+        # self.address_input.property(...) returns a qVariant, not a bool.
+        # The == is needed to properly invoke a comparison.
         if (self.address_input.property("isValid") == True and
-            len(self.amount_input.text()) > 0):
+            value is not None and 0 < value <= self.btc_balance):
             self.send_button.setDisabled(False)
         else:
             self.send_button.setDisabled(True)
@@ -385,10 +409,12 @@ class BalanceLabel(QLabel):
         self.amount_text = ""
 
     def mousePressEvent(self, event):
+        """Change the fiat currency selection if window background is clicked."""
         if self.state != self.SHOW_CONNECTING:
             self.change_quote_currency()
 
     def set_balance_text(self, btc_balance, quote_text):
+        """Set the amount of bitcoins in the gui."""
         if self.state == self.SHOW_CONNECTING:
             self.state = self.SHOW_BALANCE
         self.balance_text = "<span style='font-size: 18pt'>%s</span> <span style='font-size: 10pt'>BTC</span> <span style='font-size: 10pt'>%s</span>" % (btc_balance, quote_text)
@@ -466,7 +492,8 @@ class ReceivePopup(QDialog):
 
         self.setMouseTracking(True)
         self.setWindowTitle("Electrum - " + _("Receive Bitcoin payment"))
-        self.setWindowFlags(Qt.Window|Qt.FramelessWindowHint|Qt.MSWindowsFixedSizeDialogHint)
+        self.setWindowFlags(Qt.Window|Qt.FramelessWindowHint|
+                            Qt.MSWindowsFixedSizeDialogHint)
         self.layout().setSizeConstraint(QLayout.SetFixedSize)
         #self.setFrameStyle(QFrame.WinPanel|QFrame.Raised)
         #self.setAlignment(Qt.AlignCenter)
@@ -480,33 +507,43 @@ class ReceivePopup(QDialog):
         self.show()
 
 class MiniActuator:
-
+    """Initialize the definitions relating to themes and 
+    sending/recieving bitcoins."""
+    
+    
     def __init__(self, wallet):
+        """Retrieve the gui theme used in previous session."""
         self.wallet = wallet
-
         self.theme_name = self.wallet.theme
         self.themes = util.load_theme_paths()
 
     def load_theme(self):
+        """Load theme retrieved from wallet file."""
         try:
             theme_prefix, theme_path = self.themes[self.theme_name]
         except KeyError:
-            util.print_error("Theme not found! ", self.theme_name)
+            util.print_error("Theme not found!", self.theme_name)
             return
         QDir.setCurrent(os.path.join(theme_prefix, theme_path))
         with open(rsrc("style.css")) as style_file:
             qApp.setStyleSheet(style_file.read())
 
     def theme_names(self):
-        return self.themes.keys()
+        """Sort themes."""
+        return sorted(self.themes.keys())
+    
     def selected_theme(self):
+        """Select theme."""
         return self.theme_name
 
     def change_theme(self, theme_name):
+        """Change theme."""
         self.wallet.theme = self.theme_name = theme_name
         self.load_theme()
     
     def set_configured_currency(self, set_quote_currency):
+        """Set the inital fiat currency conversion country (USD/EUR/GBP) in 
+        the GUI to what it was set to in the wallet."""
         currency = self.wallet.conversion_currency
         # currency can be none when Electrum is used for the first
         # time and no setting has been created yet.
@@ -514,9 +551,70 @@ class MiniActuator:
             set_quote_currency(currency)
 
     def set_config_currency(self, conversion_currency):
+        """Change the wallet fiat currency country."""
         self.wallet.conversion_currency = conversion_currency
 
+    def set_servers_gui_stuff(self, servers_menu, servers_group):
+        self.servers_menu = servers_menu
+        self.servers_group = servers_group
+
+    def populate_servers_menu(self):
+        interface = self.wallet.interface
+        if not interface.servers:
+            print "No servers loaded yet."
+            self.servers_list = []
+            for server_string in DEFAULT_SERVERS:
+                host, port, protocol = server_string.split(':')
+                transports = [(protocol,port)]
+                self.servers_list.append((host, transports))
+        else:
+            print "Servers loaded."
+            self.servers_list = interface.servers
+        server_names = [details[0] for details in self.servers_list]
+        current_server = self.wallet.server.split(":")[0]
+        for server_name in server_names:
+            server_action = self.servers_menu.addAction(server_name)
+            server_action.setCheckable(True)
+            if server_name == current_server:
+                server_action.setChecked(True)
+            class SelectServerFunctor:
+                def __init__(self, server_name, server_selected):
+                    self.server_name = server_name
+                    self.server_selected = server_selected
+                def __call__(self, checked):
+                    if checked:
+                        # call server_selected
+                        self.server_selected(self.server_name)
+            delegate = SelectServerFunctor(server_name, self.server_selected)
+            server_action.toggled.connect(delegate)
+            self.servers_group.addAction(server_action)
+
+    def update_servers_list(self):
+        # Clear servers_group
+        for action in self.servers_group.actions():
+            self.servers_group.removeAction(action)
+        self.populate_servers_menu()
+
+    def server_selected(self, server_name):
+        match = [transports for (host, transports) in self.servers_list
+                 if host == server_name]
+        assert len(match) == 1
+        match = match[0]
+        # Default to TCP if available else use anything
+        # TODO: protocol should be selectable.
+        tcp_port = [port for (protocol, port) in match if protocol == "t"]
+        if len(tcp_port) == 0:
+            protocol = match[0][0]
+            port = match[0][1]
+        else:
+            protocol = "t"
+            port = tcp_port[0]
+        server_line = "%s:%s:%s" % (server_name, port, protocol)
+        # Should this have exception handling?
+        self.wallet.set_server(server_line)
+
     def copy_address(self, receive_popup):
+        """Copy the wallet addresses into the client."""
         addrs = [addr for addr in self.wallet.all_addresses()
                  if not self.wallet.is_change(addr)]
         # Select most recent addresses from gap limit
@@ -527,6 +625,7 @@ class MiniActuator:
         receive_popup.popup()
 
     def send(self, address, amount, parent_window):
+        """Send bitcoins to the target address."""
         dest_address = self.fetch_destination(address)
 
         if dest_address is None or not self.wallet.is_valid(dest_address):
@@ -589,6 +688,7 @@ class MiniActuator:
             return recipient
 
     def is_valid(self, address):
+        """Check if bitcoin address is valid."""
         return self.wallet.is_valid(address)
 
     def acceptbit(self, currency):

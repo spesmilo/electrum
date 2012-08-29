@@ -16,9 +16,20 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import sys
+import base64
+import os
+import re
+import hashlib
+import copy
+import operator
+import ast
+import threading
+import random
+import getpass
+import aes
+import ecdsa
 
-import sys, base64, os, re, hashlib, copy, operator, ast, threading, random, getpass
-import aes, ecdsa
 from ecdsa.util import string_to_number, number_to_string
 from util import print_error
 
@@ -65,8 +76,7 @@ __b58chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 __b58base = len(__b58chars)
 
 def b58encode(v):
-    """ encode v, which is a string of bytes, to base58.		
-    """
+    """ encode v, which is a string of bytes, to base58."""
 
     long_value = 0L
     for (i, c) in enumerate(v[::-1]):
@@ -89,8 +99,7 @@ def b58encode(v):
     return (__b58chars[0]*nPad) + result
 
 def b58decode(v, length):
-    """ decode v into a string of len bytes
-    """
+    """ decode v into a string of len bytes."""
     long_value = 0L
     for (i, c) in enumerate(v[::-1]):
         long_value += __b58chars.find(c) * (__b58base**i)
@@ -157,8 +166,7 @@ def prompt_password(prompt, confirm=True):
             password2 = getpass.getpass("Confirm: ")
 
             if password != password2:
-                print_error("Error: Passwords do not match.")
-                sys.exit(1)
+                sys.exit("Error: Passwords do not match.")
 
     else:
         password = raw_input(prompt)
@@ -282,7 +290,7 @@ class Wallet:
         self.num_zeros = 0
         self.master_public_key = ''
         self.conversion_currency = None
-        self.theme = None
+        self.theme = "Cleanlook"
 
         # saved fields
         self.use_encryption = False
@@ -342,7 +350,7 @@ class Wallet:
         # raise an error if the format isnt correct
         a,b,c = server.split(':')
         b = int(b)
-        assert c in ['t','h','n']
+        assert c in ['t', 'h', 'n']
         # set the server
         if server != self.server:
             self.server = server
@@ -351,22 +359,24 @@ class Wallet:
             self.interface.poke()
 
     def set_path(self, wallet_path):
-
+        """Set the path of the wallet."""
         if wallet_path is not None:
             self.path = wallet_path
+            return
+        # Look for wallet file in the default data directory.
+        # Keeps backwards compatibility.
+        if "HOME" in os.environ:
+            wallet_dir = os.path.join(os.environ["HOME"], ".electrum")
+        elif "LOCALAPPDATA" in os.environ:
+            wallet_dir = os.path.join(os.environ["LOCALAPPDATA"], "Electrum")
+        elif "APPDATA" in os.environ:
+            wallet_dir = os.path.join(os.environ["APPDATA"], "Electrum")
         else:
-            # backward compatibility: look for wallet file in the default data directory
-            if "HOME" in os.environ:
-                wallet_dir = os.path.join( os.environ["HOME"], '.electrum')
-            elif "LOCALAPPDATA" in os.environ:
-                wallet_dir = os.path.join( os.environ["LOCALAPPDATA"], 'Electrum' )
-            elif "APPDATA" in os.environ:
-                wallet_dir = os.path.join( os.environ["APPDATA"], 'Electrum' )
-            else:
-                raise BaseException("No home directory found in environment variables.")
-
-            if not os.path.exists( wallet_dir ): os.mkdir( wallet_dir )
-            self.path = os.path.join( wallet_dir, 'electrum.dat' )
+            raise BaseException("No home directory found in environment variables.")
+        # Make wallet directory if it does not yet exist.
+        if not os.path.exists(wallet_dir):
+            os.mkdir(wallet_dir)
+        self.path = os.path.join(wallet_dir, "electrum.dat")
 
     def import_key(self, keypair, password):
         address, key = keypair.split(':')
@@ -676,19 +686,19 @@ class Wallet:
         os.chmod(self.path,stat.S_IREAD | stat.S_IWRITE)
 
     def read(self):
+        """Read the contents of the wallet file."""
         import interface
 
-        upgrade_msg = """This wallet seed is deprecated. Please run upgrade.py for a diagnostic."""
         self.file_exists = False
         try:
-            f = open(self.path,"r")
-            data = f.read()
-            f.close()
-        except:
+            with open(self.path, "r") as f:
+                data = f.read()
+        except IOError:
             return
         try:
-            d = ast.literal_eval( data )
+            d = ast.literal_eval( data )  #parse raw data from reading wallet file
             interface.old_to_new(d)
+            
             self.seed_version = d.get('seed_version')
             self.master_public_key = d.get('master_public_key').decode('hex')
             self.use_encryption = d.get('use_encryption')
@@ -714,12 +724,12 @@ class Wallet:
             self.conversion_currency = d.get('conversion_currency', 'USD')
             self.theme = d.get('theme', 'Cleanlook')
         except:
-            raise BaseException("cannot read wallet file")
+            raise IOError("Cannot read wallet file.")
 
         self.update_tx_history()
 
         if self.seed_version != SEED_VERSION:
-            raise BaseException(upgrade_msg)
+            raise ValueError("This wallet seed is deprecated. Please run upgrade.py for a diagnostic.")
 
         if self.remote_url: assert self.master_public_key.encode('hex') == self.get_remote_mpk()
 
@@ -838,7 +848,7 @@ class Wallet:
                 try:
                     d.decode('hex')
                 except:
-                    raise BaseException("Invalid password")
+                    raise ValueError("Invalid password")
             return d
         else:
             return s
@@ -921,10 +931,10 @@ class Wallet:
 
     def mktx(self, to_address, amount, label, password, fee=None, change_addr=None, from_addr= None):
         if not self.is_valid(to_address):
-            raise BaseException("Invalid address")
+            raise ValueError("Invalid address")
         inputs, total, fee = self.choose_tx_inputs( amount, fee, from_addr )
         if not inputs:
-            raise BaseException("Not enough funds")
+            raise ValueError("Not enough funds")
 
         if not self.use_change and not change_addr:
             change_addr = inputs[0][0]
@@ -995,7 +1005,7 @@ class Wallet:
             self.verify_message(previous, signature, "alias:%s:%s"%(alias,target))
 
         if not self.is_valid(target):
-            raise BaseException("Invalid bitcoin address")
+            raise ValueError("Invalid bitcoin address")
 
         return target, signing_addr, auth_name
 

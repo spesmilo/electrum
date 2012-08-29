@@ -16,7 +16,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import re, sys
+import re
+import sys
+# import argparse
+import optparse
+
 try:
     from lib.util import print_error
 except ImportError:
@@ -24,22 +28,19 @@ except ImportError:
 
 try:
     import ecdsa  
-except:
-    print_error("Error: python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'")
-    sys.exit(1)
+except ImportError:
+    sys.exit("Error: python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'")
 
 try:
     import aes
-except:
-    print_error("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
-    sys.exit(1)
+except ImportError:
+    sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
 
 try:
     from lib import Wallet, WalletSynchronizer, format_satoshis, mnemonic, prompt_password
 except ImportError:
     from electrum import Wallet, WalletSynchronizer, format_satoshis, mnemonic, prompt_password
     
-from optparse import OptionParser
 from decimal import Decimal
 
 known_commands = {
@@ -77,9 +78,9 @@ options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address 
     'import': 
             'Imports a key pair\nSyntax: import <address>:<privatekey>',
     'signmessage':
-            'Signs a message with a key\nSyntax: signmessage <address> <message>',
+            'Signs a message with a key\nSyntax: signmessage <address> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "',
     'verifymessage':
-             'Verifies a signature\nSyntax: verifymessage <address> <signature> <message>',
+             'Verifies a signature\nSyntax: verifymessage <address> <signature> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "',
     'eval':  
              "Run python eval() on an object\nSyntax: eval <expression>\nExample: eval \"wallet.aliases\"",
     'deseed':
@@ -101,7 +102,7 @@ protected_commands = ['payto', 'password', 'mktx', 'seed', 'import','signmessage
 if __name__ == '__main__':
 
     usage = "usage: %prog [options] command\nCommands: "+ (', '.join(known_commands))
-    parser = OptionParser(usage=usage)
+    parser = optparse.OptionParser(prog=usage)
     parser.add_option("-g", "--gui", dest="gui", default="lite", help="gui")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
     parser.add_option("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
@@ -128,7 +129,9 @@ if __name__ == '__main__':
     else:
         cmd = args[0]
         firstarg = args[1] if len(args) > 1 else ''
-        
+       
+    #this entire if/else block is just concerned with importing the 
+    #right GUI toolkit based the GUI command line option given 
     if cmd == 'gui':
         
         if options.gui=='gtk':
@@ -165,16 +168,17 @@ if __name__ == '__main__':
               except ImportError:
                   import electrum.gui_qt as gui
             else:
+              #use the lite version if no toolkit specified
               try:
                 import lib.gui_lite as gui
               except ImportError:
                 import electrum.gui_lite as gui
         else:
-            print_error("Error: Unknown GUI: " + options.gui)
-            exit(1)
+            sys.exit("Error: Unknown GUI: " + options.gui)
 
         gui = gui.ElectrumGui(wallet)
-        WalletSynchronizer(wallet,True).start()
+        interface = WalletSynchronizer(wallet, True, gui.server_list_changed)
+        interface.start()
 
         try:
             found = wallet.file_exists
@@ -198,15 +202,13 @@ if __name__ == '__main__':
         cmd = 'help'
 
     if not wallet.file_exists and cmd not in ['help','create','restore']:
-        print_error("Error: Wallet file not found.")
-        print_error("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
+        print "Error: Wallet file not found."
+        print "Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option"
         sys.exit(0)
     
     if cmd in ['create', 'restore']:
         if wallet.file_exists:
-            print_error("Error: Remove the existing wallet first!")
-            sys.stderr.flush()
-            sys.exit(0)
+            sys.exit("Error: Remove the existing wallet first!")
         password = prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
 
         w_host, w_port, w_protocol = wallet.server.split(':')
@@ -230,8 +232,7 @@ if __name__ == '__main__':
                 print_error("Warning: Not hex, trying decode.")
                 seed = mnemonic.mn_decode( seed.split(' ') )
             if not seed:
-                print_error("Error: No seed")
-                sys.exit(1)
+                sys.exit("Error: No seed")
 
             wallet.seed = str(seed)
             wallet.init_mpk( wallet.seed )
@@ -316,7 +317,6 @@ if __name__ == '__main__':
         cmd2 = firstarg
         if cmd2 not in known_commands:
             parser.print_help()
-            print
             print "Type 'electrum help <command>' to see the help for a specific command"
             print "Type 'electrum --help' to see the list of options"
             print "List of commands:", ', '.join(known_commands)
@@ -355,17 +355,15 @@ if __name__ == '__main__':
                 f = open(ns,'r')
                 data = f.read()
                 f.close()
-            except:
-                print_error("Error: Seed file not found")
-                sys.exit()
+            except IOError:
+                sys.exit("Error: Seed file not found")
             try:
                 import ast
                 d = ast.literal_eval( data )
                 seed = d['seed']
                 imported_keys = d.get('imported_keys',{})
             except:
-                print_error("Error: Error with seed file")
-                sys.exit(1)
+                sys.exit("Error: Error with seed file")
 
             mpk = wallet.master_public_key
             wallet.seed = seed
@@ -511,9 +509,8 @@ if __name__ == '__main__':
     elif cmd == 'password':
         try:
             seed = wallet.pw_decode( wallet.seed, password)
-        except:
-            print_error("Error: Password does not decrypt this wallet.")
-            sys.exit(1)
+        except ValueError:
+            sys.exit("Error: Password does not decrypt this wallet.")
 
         new_password = prompt_password('New password:')
         wallet.update_password(seed, password, new_password)
@@ -543,7 +540,8 @@ if __name__ == '__main__':
         try:
             wallet.verify_message(address, signature, message)
             print True
-        except:
+        except BaseException as e:
+            print "Verification error: {0}".format(e)
             print False
 
     elif cmd == 'freeze':

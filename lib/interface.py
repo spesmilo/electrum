@@ -27,7 +27,7 @@ DEFAULT_TIMEOUT = 5
 DEFAULT_SERVERS = [ 'ecdsa.org:50001:t', 
                     'electrum.novit.ro:50001:t', 
                     'uncle-enzo.info:50001:t', 
-                    'electrum.bytesized-hosting.com:50000:t']  # list of default servers
+                    'electrum.bytesized-hosting.com:50001:t']  # list of default servers
 
 
 def replace_keys(obj, old_key, new_key):
@@ -306,12 +306,13 @@ class TcpStratumInterface(Interface):
 
 class WalletSynchronizer(threading.Thread):
 
-    def __init__(self, wallet, loop=False):
+    def __init__(self, wallet, loop=False, servers_loaded_callback=None):
         threading.Thread.__init__(self)
         self.daemon = True
         self.wallet = wallet
         self.loop = loop
         self.init_interface()
+        self.servers_loaded_callback = servers_loaded_callback
 
     def init_interface(self):
         try:
@@ -334,7 +335,6 @@ class WalletSynchronizer(threading.Thread):
         self.interface = InterfaceClass(host, port, self.wallet.debug_server)
         self.wallet.interface = self.interface
 
-
     def handle_response(self, r):
         if r is None:
             return
@@ -354,15 +354,19 @@ class WalletSynchronizer(threading.Thread):
                 host = item[1]
                 ports = []
                 version = None
-                if len(item)>2:
+                if len(item) > 2:
                     for v in item[2]:
-                        if re.match("[th]\d+",v):
-                            ports.append((v[0],v[1:]))
-                        if re.match("v(.?)+",v):
+                        if re.match("[th]\d+", v):
+                            ports.append((v[0], v[1:]))
+                        if re.match("v(.?)+", v):
                             version = v[1:]
                 if ports and version:
-                    servers.append( (host, ports) )
+                    servers.append((host, ports))
             self.interface.servers = servers
+            # servers_loaded_callback is None for commands, but should
+            # NEVER be None when using the GUI.
+            if self.servers_loaded_callback is not None:
+                self.servers_loaded_callback()
 
         elif method == 'blockchain.address.subscribe':
             addr = params[0]
@@ -425,6 +429,7 @@ class WalletSynchronizer(threading.Thread):
             self.wallet.trigger_callbacks()
             if self.loop:
                 time.sleep(5)
+                # Server has been changed. Copy callback for new interface.
                 self.init_interface()
                 self.start_interface()
                 continue

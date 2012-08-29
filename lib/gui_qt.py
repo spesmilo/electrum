@@ -23,9 +23,7 @@ from util import print_error
 try:
     import PyQt4
 except:
-    print_error("Error: Could not import PyQt4")
-    print_error("on Linux systems, you may try 'sudo apt-get install python-qt4'")
-    sys.exit(1)
+    sys.exit("Error: Could not import PyQt4 on Linux systems, you may try 'sudo apt-get install python-qt4'")
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -36,9 +34,7 @@ from interface import DEFAULT_SERVERS
 try:
     import icons_rc
 except:
-    print_error("Error: Could not import icons_rc.py")
-    print_error("Please generate it with: 'pyrcc4 icons.qrc -o lib/icons_rc.py'")
-    sys.exit(1)
+    sys.exit("Error: Could not import icons_rc.py, please generate it with: 'pyrcc4 icons.qrc -o lib/icons_rc.py'")
 
 from wallet import format_satoshis
 import bmp, mnemonic, pyqrnative, qrscanner
@@ -1433,6 +1429,9 @@ class ElectrumGui:
         self.wallet = wallet
         if app is None:
             self.app = QApplication(sys.argv)
+
+    def server_list_changed(self):
+        pass
 
     def waiting_dialog(self):
 
