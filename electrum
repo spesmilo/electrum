@@ -150,6 +150,7 @@ if __name__ == '__main__':
             except ImportError:
                 import electrum.gui_qt as gui
         elif options.gui == 'lite':
+            print 'ohhai'
             # Let's do some dep checking and handle missing ones gracefully
             try:
               from PyQt4.QtCore import *
@@ -166,8 +167,10 @@ if __name__ == '__main__':
               error_message = QErrorMessage()
               error_message.setFixedSize(350,200)
               error_message.showMessage("<p>Sorry, the Electrum 'Lite GUI' requires Qt >= 4.7 to run. The pro GUI will be started instead.</p><p>Check your distributions packages for upgrades.</p>")
+
               simple_config.config["gui"] = "qt"
-              simple_config.save_config
+              simple_config.save_config()
+
               app.exec_()
 
               try:
