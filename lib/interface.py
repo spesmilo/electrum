@@ -355,14 +355,14 @@ class WalletSynchronizer(threading.Thread):
                 host = item[1]
                 ports = []
                 version = None
-                if len(item)>2:
+                if len(item) > 2:
                     for v in item[2]:
-                        if re.match("[th]\d+",v):
-                            ports.append((v[0],v[1:]))
-                        if re.match("v(.?)+",v):
+                        if re.match("[th]\d+", v):
+                            ports.append((v[0], v[1:]))
+                        if re.match("v(.?)+", v):
                             version = v[1:]
                 if ports and version:
-                    servers.append( (host, ports) )
+                    servers.append((host, ports))
             self.interface.servers = servers
             assert self.interface.servers_loaded_callback is not None
             self.interface.servers_loaded_callback()
