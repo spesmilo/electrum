@@ -42,14 +42,18 @@ def resize_line_edit_width(line_edit, text_input):
     text_input += "A"
     line_edit.setMinimumWidth(metrics.width(text_input))
 
-class ElectrumGui:
+class ElectrumGui(QObject):
 
     def __init__(self, wallet):
+        super(QObject, self).__init__()
+
         self.wallet = wallet
         self.app = QApplication(sys.argv)
 
     def main(self, url):
         actuator = MiniActuator(self.wallet)
+        self.connect(self, SIGNAL("updateservers()"),
+                     actuator.update_servers_list)
         # Should probably not modify the current path but instead
         # change the behaviour of rsrc(...)
         old_path = QDir.currentPath()
@@ -73,6 +77,9 @@ class ElectrumGui:
         self.expert.update_wallet()
 
         self.app.exec_()
+
+    def server_list_changed(self):
+        self.emit(SIGNAL("updateservers()"))
 
     def expand(self):
         """Hide the lite mode window and show pro-mode."""
@@ -495,16 +502,13 @@ class ReceivePopup(QDialog):
         QCursor.setPos(center_mouse_pos)
         self.show()
 
-class MiniActuator(QObject):
+class MiniActuator:
     """Initialize the definitions relating to themes and 
-    sending/recieving bitcoins.
-    """
+    sending/recieving bitcoins."""
     
     
     def __init__(self, wallet):
         """Retrieve the gui theme used in previous session."""
-        super(QObject, self).__init__()
-
         self.wallet = wallet
         self.theme_name = self.wallet.theme
         self.themes = util.load_theme_paths()
@@ -549,11 +553,9 @@ class MiniActuator(QObject):
     def set_servers_gui_stuff(self, servers_menu, servers_group):
         self.servers_menu = servers_menu
         self.servers_group = servers_group
-        self.connect(self, SIGNAL("updateservers()"), self.update_servers_list)
 
     def populate_servers_menu(self):
         interface = self.wallet.interface
-        interface.servers_loaded_callback = self.server_list_changed
         if not interface.servers:
             print "No servers loaded yet."
             self.servers_list = []
@@ -582,9 +584,6 @@ class MiniActuator(QObject):
             delegate = SelectServerFunctor(server_name, self.server_selected)
             server_action.toggled.connect(delegate)
             self.servers_group.addAction(server_action)
-
-    def server_list_changed(self):
-        self.emit(SIGNAL("updateservers()"))
 
     def update_servers_list(self):
         # Clear servers_group

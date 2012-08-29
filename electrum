@@ -173,7 +173,8 @@ if __name__ == '__main__':
             sys.exit("Error: Unknown GUI: " + options.gui)
 
         gui = gui.ElectrumGui(wallet)
-        WalletSynchronizer(wallet,True).start()
+        interface = WalletSynchronizer(wallet, True, gui.server_list_changed)
+        interface.start()
 
         try:
             found = wallet.file_exists

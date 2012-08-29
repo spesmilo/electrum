@@ -306,14 +306,15 @@ class TcpStratumInterface(Interface):
 
 class WalletSynchronizer(threading.Thread):
 
-    def __init__(self, wallet, loop=False):
+    def __init__(self, wallet, loop=False, servers_loaded_callback=None):
         threading.Thread.__init__(self)
         self.daemon = True
         self.wallet = wallet
         self.loop = loop
         self.init_interface()
+        self.servers_loaded_callback = servers_loaded_callback
 
-    def init_interface(self, servers_loaded_callback=None):
+    def init_interface(self):
         try:
             host, port, protocol = self.wallet.server.split(':')
             port = int(port)
@@ -332,9 +333,7 @@ class WalletSynchronizer(threading.Thread):
             InterfaceClass = TcpStratumInterface
 
         self.interface = InterfaceClass(host, port, self.wallet.debug_server)
-        self.interface.servers_loaded_callback = servers_loaded_callback
         self.wallet.interface = self.interface
-
 
     def handle_response(self, r):
         if r is None:
@@ -364,8 +363,13 @@ class WalletSynchronizer(threading.Thread):
                 if ports and version:
                     servers.append((host, ports))
             self.interface.servers = servers
-            assert self.interface.servers_loaded_callback is not None
-            self.interface.servers_loaded_callback()
+            # TODO: This assert fails with commands so it should be removed
+            # after we've ascertained it never fails when running the GUI.
+            assert self.servers_loaded_callback is not None
+            # servers_loaded_callback is None for commands, but should
+            # NEVER be None when using the GUI.
+            if self.servers_loaded_callback is not None:
+                self.servers_loaded_callback()
 
         elif method == 'blockchain.address.subscribe':
             addr = params[0]
@@ -429,7 +433,7 @@ class WalletSynchronizer(threading.Thread):
             if self.loop:
                 time.sleep(5)
                 # Server has been changed. Copy callback for new interface.
-                self.init_interface(self.interface.servers_loaded_callback)
+                self.init_interface()
                 self.start_interface()
                 continue
             else:

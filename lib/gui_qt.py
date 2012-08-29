@@ -1430,6 +1430,9 @@ class ElectrumGui:
         if app is None:
             self.app = QApplication(sys.argv)
 
+    def server_list_changed(self):
+        pass
+
     def waiting_dialog(self):
 
         s = Timer()
