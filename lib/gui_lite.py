@@ -332,10 +332,14 @@ class MiniWindow(QDialog):
     def check_button_status(self):
         """Check that the bitcoin address is valid and that something
         is entered in the amount before making the send button clickable."""
+        try:
+            value = D(str(self.amount_input.text())) * 10**8
+        except decimal.InvalidOperation:
+            value = None
         # self.address_input.property(...) returns a qVariant, not a bool.
         # The == is needed to properly invoke a comparison.
         if (self.address_input.property("isValid") == True and
-            len(self.amount_input.text()) > 0):
+            value is not None and 0 < value <= self.btc_balance):
             self.send_button.setDisabled(False)
         else:
             self.send_button.setDisabled(True)
