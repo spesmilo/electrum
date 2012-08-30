@@ -162,14 +162,9 @@ if __name__ == '__main__':
             qtVersion = qVersion()
             if not(int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
               app = QApplication(sys.argv)
-
-              error_message = QErrorMessage()
-              error_message.setFixedSize(350,200)
-              error_message.showMessage("<p>Sorry, the Electrum 'Lite GUI' requires Qt >= 4.7 to run. The pro GUI will be started instead.</p><p>Check your distributions packages for upgrades.</p>")
+              QMessageBox.warning(None,"Could not start Lite GUI.", "Electrum was unable to load the 'Lite GUI' because it needs Qt version >= 4.7.\nElectrum is now setup to load the Pro GUI.")
 
               simple_config.set_key("gui", "qt")
-
-              app.exec_()
 
               try:
                   import lib.gui_qt as gui
