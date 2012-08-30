@@ -4,6 +4,11 @@ import os
 class SimpleConfig:
   default_options = {"gui": "lite"}
 
+  def set_key(self, key, value, save = True):
+    self.config[key] = value
+    if save == True:
+      self.save_config()
+
   def save_config(self):
     f = open(self.config_file_path(), "w+")
     f.write(json.dumps(self.config))
