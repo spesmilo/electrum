@@ -32,6 +32,7 @@ import ecdsa
 
 from ecdsa.util import string_to_number, number_to_string
 from util import print_error
+from util import user_dir
 
 ############ functions from pywallet ##################### 
 
@@ -365,14 +366,8 @@ class Wallet:
             return
         # Look for wallet file in the default data directory.
         # Keeps backwards compatibility.
-        if "HOME" in os.environ:
-            wallet_dir = os.path.join(os.environ["HOME"], ".electrum")
-        elif "LOCALAPPDATA" in os.environ:
-            wallet_dir = os.path.join(os.environ["LOCALAPPDATA"], "Electrum")
-        elif "APPDATA" in os.environ:
-            wallet_dir = os.path.join(os.environ["APPDATA"], "Electrum")
-        else:
-            raise BaseException("No home directory found in environment variables.")
+        wallet_dir = user_dir()
+
         # Make wallet directory if it does not yet exist.
         if not os.path.exists(wallet_dir):
             os.mkdir(wallet_dir)

@@ -1,5 +1,6 @@
 import json
 import os
+from lib.util import user_dir
 
 class SimpleConfig:
   default_options = {"gui": "lite"}
@@ -27,15 +28,7 @@ class SimpleConfig:
 
   def __init__(self):
     # Find electrum data folder
-    if "HOME" in os.environ:
-      self.config_folder = os.path.join(os.environ["HOME"], ".electrum")
-    elif "LOCALAPPDATA" in os.environ:
-      self.config_folder = os.path.join(os.environ["LOCALAPPDATA"], "Electrum")
-    elif "APPDATA" in os.environ:
-      self.config_folder = os.path.join(os.environ["APPDATA"], "Electrum")
-    else:
-      raise BaseException("No home directory found in environment variables.")
-
+    self.config_folder = user_dir()
     # Read the file
     if os.path.exists(self.config_file_path()):
       self.load_config()

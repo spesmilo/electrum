@@ -150,7 +150,6 @@ if __name__ == '__main__':
             except ImportError:
                 import electrum.gui_qt as gui
         elif options.gui == 'lite':
-            print 'ohhai'
             # Let's do some dep checking and handle missing ones gracefully
             try:
               from PyQt4.QtCore import *
