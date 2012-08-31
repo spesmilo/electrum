@@ -18,6 +18,7 @@
 
 import re
 import sys
+from time import sleep
 # import argparse
 import optparse
 
@@ -468,9 +469,15 @@ if __name__ == '__main__':
             
             wallet.interface.get_history(from_addr)
             print "Waiting for history (warning: this won't timeout)"
-            while not from_addr in wallet.history:
-                sleep(0.1)
-            wallet.update_tx_history()
+            try:
+                while not from_addr in wallet.history:
+                    sleep(0.1)
+                wallet.update_tx_history()
+            except:
+                # it seems the key may be saved when interrumpted
+                wallet.imported_keys.pop(from_addr)
+                del(wallet.history[from_addr])
+                raise
             change_addr = from_addr
 
         if options.change_addr:
