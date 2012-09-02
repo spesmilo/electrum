@@ -659,6 +659,11 @@ class MiniActuator:
             
         status, message = self.wallet.sendtx(tx)
         if not status:
+            import tempfile
+            dumpf = tempfile.NamedTemporaryFile(delete=False)
+            dumpf.write(tx)
+            dumpf.close()
+            print "Dumped error tx to", dumpf.name
             QMessageBox.warning(parent_window, _('Error'), message, _('OK'))
             return False
 
