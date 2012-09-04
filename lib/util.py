@@ -8,6 +8,16 @@ def print_error(*args):
     sys.stderr.write(" ".join(args) + "\n")
     sys.stderr.flush()
 
+def user_dir():
+    if "HOME" in os.environ:
+      return os.path.join(os.environ["HOME"], ".electrum")
+    elif "LOCALAPPDATA" in os.environ:
+      return os.path.join(os.environ["LOCALAPPDATA"], "Electrum")
+    elif "APPDATA" in os.environ:
+      return os.path.join(os.environ["APPDATA"], "Electrum")
+    else:
+      raise BaseException("No home directory found in environment variables.")
+
 def appdata_dir():
     """Find the path to the application data directory; add an electrum folder and return path."""
     if platform.system() == "Windows":
