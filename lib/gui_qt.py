@@ -54,6 +54,7 @@ ALIAS_REGEXP = '^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$'
 
 def numbify(entry, is_int = False):
     text = unicode(entry.text()).strip()
+    pos = entry.cursorPosition()
     chars = '0123456789'
     if not is_int: chars +='.'
     s = ''.join([i for i in text if i in chars])
@@ -72,6 +73,7 @@ def numbify(entry, is_int = False):
         except:
             amount = None
     entry.setText(s)
+    entry.setCursorPosition(pos)
     return amount
 
 
