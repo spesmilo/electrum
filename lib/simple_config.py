@@ -1,6 +1,6 @@
 import json
 import os
-from lib.util import user_dir
+from util import user_dir
 
 class SimpleConfig:
   default_options = {"gui": "lite"}
