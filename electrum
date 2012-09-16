@@ -37,12 +37,11 @@ except ImportError:
     sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
 
 try:
-    from lib import Wallet, WalletSynchronizer, format_satoshis, mnemonic, prompt_password
+    from lib import Wallet, WalletSynchronizer, format_satoshis, mnemonic, prompt_password, SimpleConfig
 except ImportError:
-    from electrum import Wallet, WalletSynchronizer, format_satoshis, mnemonic, prompt_password
+    from electrum import Wallet, WalletSynchronizer, format_satoshis, mnemonic, prompt_password, SimpleConfig
 
 from decimal import Decimal
-from lib import SimpleConfig
 
 known_commands = {
     'help':'Prints this help',

@@ -18,10 +18,7 @@ import webbrowser
 import history_widget
 import util
 
-try:
-    import lib.gui_qt as gui_qt
-except ImportError:
-    import electrum.gui_qt as gui_qt
+import gui_qt
 
 bitcoin = lambda v: v * 100000000
 
