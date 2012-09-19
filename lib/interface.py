@@ -26,7 +26,6 @@ from util import print_error
 DEFAULT_TIMEOUT = 5
 DEFAULT_SERVERS = [ 'ecdsa.org:50001:t', 
                     'electrum.novit.ro:50001:t', 
-                    'uncle-enzo.info:50001:t', 
                     'electrum.bytesized-hosting.com:50001:t']  # list of default servers
 
 
