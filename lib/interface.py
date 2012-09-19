@@ -29,6 +29,7 @@ DEFAULT_SERVERS = [ 'ecdsa.org:50001:t',
                     'uncle-enzo.info:50001:t', 
                     'electrum.bytesized-hosting.com:50001:t']  # list of default servers
 
+proxy_modes = ['off', 'socks4', 'socks5', 'http' ]
 
 def replace_keys(obj, old_key, new_key):
     if isinstance(obj, dict):
@@ -48,13 +49,29 @@ def old_to_new(d):
     replace_keys(d, 'is_in', 'is_input')
     replace_keys(d, 'raw_scriptPubKey', 'raw_output_script')
 
+def parse_proxy_options(s):
+    proxy = { "mode":"socks5", "host":"localhost" }
+    args = s.split(':')
+    n = 0
+    if proxy_modes.count(args[n]) == 1:
+        proxy["mode"] = args[n]
+        n += 1
+    if len(args) > n:
+        proxy["host"] = args[n]
+        n += 1
+    if len(args) > n:
+        proxy["port"] = args[n]
+    else:
+        proxy["port"] = "8080" if proxy["mode"] == "http" else "1080"
+    return proxy
 
 class Interface(threading.Thread):
-    def __init__(self, host, port, debug_server):
+    def __init__(self, host, port, debug_server, proxy):
         threading.Thread.__init__(self)
         self.daemon = True
         self.host = host
         self.port = port
+        self.proxy = proxy
 
         self.servers = [] # actual list from IRC
         self.rtime = 0
@@ -122,8 +139,8 @@ class Interface(threading.Thread):
 class PollingInterface(Interface):
     """ non-persistent connection. synchronous calls"""
 
-    def __init__(self, host, port, debug_server):
-        Interface.__init__(self, host, port, debug_server)
+    def __init__(self, host, port, debug_server, proxy):
+        Interface.__init__(self, host, port, debug_server, proxy)
         self.session_id = None
         self.debug_server = debug_server
 
@@ -174,7 +191,11 @@ class HttpStratumInterface(PollingInterface):
 
     def send(self, messages):
         import urllib2, json, time, cookielib
-
+        
+        if self.proxy["mode"] != "off":
+            import socks
+            socks.setdefaultproxy(proxy_modes.index(self.proxy["mode"]), self.proxy["host"], int(self.proxy["port"]) )
+            socks.wrapmodule(urllib2)
         cj = cookielib.CookieJar()
         opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
         urllib2.install_opener(opener)
@@ -233,16 +254,23 @@ class HttpStratumInterface(PollingInterface):
 class TcpStratumInterface(Interface):
     """json-rpc over persistent TCP connection, asynchronous"""
 
-    def __init__(self, host, port, debug_server):
-        Interface.__init__(self, host, port, debug_server)
+    def __init__(self, host, port, debug_server, proxy):
+        Interface.__init__(self, host, port, debug_server, proxy)
         self.debug_server = debug_server
 
     def init_socket(self):
-        self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
+        global proxy_modes
+        if self.proxy["mode"] == "off":
+            self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
+        else:
+            import socks
+            self.s = socks.socksocket()
+            print "Using Proxy", self.proxy
+            self.s.setproxy(proxy_modes.index(self.proxy["mode"]), self.proxy["host"], int(self.proxy["port"]) )
         self.s.settimeout(60)
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
         try:
-            self.s.connect(( self.host, self.port))
+            self.s.connect(( self.host.encode('ascii'), int(self.port)))
             self.is_connected = True
             self.send([('server.version', [ELECTRUM_VERSION])])
             print "Connected to %s:%d"%(self.host,self.port)
@@ -306,13 +334,15 @@ class TcpStratumInterface(Interface):
 
 class WalletSynchronizer(threading.Thread):
 
-    def __init__(self, wallet, loop=False, servers_loaded_callback=None):
+    def __init__(self, wallet, loop=False, servers_loaded_callback=None, proxy=None):
         threading.Thread.__init__(self)
         self.daemon = True
         self.wallet = wallet
         self.loop = loop
+        self.proxy = proxy
         self.init_interface()
         self.servers_loaded_callback = servers_loaded_callback
+        
 
     def init_interface(self):
         try:
@@ -332,7 +362,7 @@ class WalletSynchronizer(threading.Thread):
             print_error("Error: Unknown protocol")
             InterfaceClass = TcpStratumInterface
 
-        self.interface = InterfaceClass(host, port, self.wallet.debug_server)
+        self.interface = InterfaceClass(host, port, self.wallet.debug_server, self.proxy)
         self.wallet.interface = self.interface
 
     def handle_response(self, r):
