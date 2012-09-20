@@ -342,7 +342,6 @@ class WalletSynchronizer(threading.Thread):
         self.proxy = proxy
         self.init_interface()
         self.servers_loaded_callback = servers_loaded_callback
-        
 
     def init_interface(self):
         try:

@@ -37,6 +37,7 @@ except:
     sys.exit("Error: Could not import icons_rc.py, please generate it with: 'pyrcc4 icons.qrc -o lib/icons_rc.py'")
 
 from wallet import format_satoshis
+from simple_config import SimpleConfig
 import bmp, mnemonic, pyqrnative, qrscanner
 
 from decimal import Decimal
@@ -1384,7 +1385,9 @@ class ElectrumWindow(QMainWindow):
         hbox = QHBoxLayout()
         proxy_mode = QComboBox()
         proxy_host = QLineEdit()
+        proxy_host.setFixedWidth(200)
         proxy_port = QLineEdit()
+        proxy_port.setFixedWidth(50)
         proxy_mode.addItems(['NONE', 'SOCKS4', 'SOCKS5', 'HTTP'])
         proxy_mode.setCurrentIndex(proxy_mode.findText(str(interface.proxy["mode"]).upper()))
         proxy_host.setText(interface.proxy["host"])
@@ -1429,10 +1432,12 @@ class ElectrumWindow(QMainWindow):
         server = unicode( host_line.text() )
 
         try:
-            proxy = { u'mode':unicode(proxy_mode.currentText()).lower(), u'host':unicode(proxy_host.text()), u'port':unicode(proxy_port.text()) }
-            wallet.set_server(server, proxy)
-        except:
-            QMessageBox.information(None, _('Error'), 'error', _('OK'))
+            cfg = SimpleConfig()
+            cfg.config["proxy"] = { u'mode':unicode(proxy_mode.currentText()).lower(), u'host':unicode(proxy_host.text()), u'port':unicode(proxy_port.text()) }
+            cfg.save_config()
+            wallet.set_server(server, cfg.config["proxy"])
+        except Exception as err:
+            QMessageBox.information(None, _('Error'), str(err), _('OK'))
             if parent == None:
                 sys.exit(1)
             else:
