@@ -251,8 +251,6 @@ if __name__ == '__main__':
                     print "Recovery successful"
                 else:
                     print_error("Warning: Found no history for this wallet")
-            else:
-                wallet.synchronize()
             wallet.fill_addressbook()
             wallet.save()
             print_error("Wallet saved in '" + wallet.path)
@@ -415,7 +413,6 @@ if __name__ == '__main__':
         wallet.save()
 
     elif cmd in [ 'addresses']:
-
         for addr in wallet.all_addresses():
             if options.show_all or not wallet.is_change(addr):
 
