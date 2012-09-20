@@ -1380,6 +1380,22 @@ class ElectrumWindow(QMainWindow):
         hbox.addWidget(radio2)
 
         vbox.addLayout(hbox)
+        
+        hbox = QHBoxLayout()
+        proxy_mode = QComboBox()
+        proxy_host = QLineEdit()
+        proxy_port = QLineEdit()
+        proxy_mode.addItems(['NONE', 'SOCKS4', 'SOCKS5', 'HTTP'])
+        proxy_mode.setCurrentIndex(proxy_mode.findText(str(interface.proxy["mode"]).upper()))
+        proxy_host.setText(interface.proxy["host"])
+        proxy_port.setText(interface.proxy["port"])
+        hbox.addWidget(QLabel(_('Proxy') + ':'))
+        hbox.addWidget(proxy_mode)
+        hbox.addWidget(proxy_host)
+        hbox.addWidget(proxy_port)
+        vbox.addLayout(hbox)
+
+        hbox = QHBoxLayout()
 
         if wallet.interface.servers:
             label = _('Active Servers')
@@ -1413,7 +1429,8 @@ class ElectrumWindow(QMainWindow):
         server = unicode( host_line.text() )
 
         try:
-            wallet.set_server(server)
+            proxy = { u'mode':unicode(proxy_mode.currentText()).lower(), u'host':unicode(proxy_host.text()), u'port':unicode(proxy_port.text()) }
+            wallet.set_server(server, proxy)
         except:
             QMessageBox.information(None, _('Error'), 'error', _('OK'))
             if parent == None:

@@ -29,7 +29,7 @@ DEFAULT_SERVERS = [ 'ecdsa.org:50001:t',
                     'uncle-enzo.info:50001:t', 
                     'electrum.bytesized-hosting.com:50001:t']  # list of default servers
 
-proxy_modes = ['off', 'socks4', 'socks5', 'http' ]
+proxy_modes = ['none', 'socks4', 'socks5', 'http' ]
 
 def replace_keys(obj, old_key, new_key):
     if isinstance(obj, dict):
@@ -192,7 +192,7 @@ class HttpStratumInterface(PollingInterface):
     def send(self, messages):
         import urllib2, json, time, cookielib
         
-        if self.proxy["mode"] != "off":
+        if self.proxy["mode"] != "none":
             import socks
             socks.setdefaultproxy(proxy_modes.index(self.proxy["mode"]), self.proxy["host"], int(self.proxy["port"]) )
             socks.wrapmodule(urllib2)
@@ -260,7 +260,7 @@ class TcpStratumInterface(Interface):
 
     def init_socket(self):
         global proxy_modes
-        if self.proxy["mode"] == "off":
+        if self.proxy["mode"] == "none":
             self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
         else:
             import socks
@@ -460,6 +460,7 @@ class WalletSynchronizer(threading.Thread):
             if self.loop:
                 time.sleep(5)
                 # Server has been changed. Copy callback for new interface.
+                self.proxy = self.interface.proxy
                 self.init_interface()
                 self.start_interface()
                 continue
