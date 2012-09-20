@@ -18,7 +18,9 @@ class SimpleConfig:
     f = open(self.config_file_path(), "r")
     file_contents = f.read()
     if file_contents:
-      self.config = json.loads(file_contents)
+      user_config = json.loads(file_contents)
+      for i in user_config:
+          self.config[i] = user_config[i]
     else:
       self.config = self.default_options
       self.save_config()
@@ -29,10 +31,9 @@ class SimpleConfig:
   def __init__(self):
     # Find electrum data folder
     self.config_folder = user_dir()
+    self.config = self.default_options
     # Read the file
     if os.path.exists(self.config_file_path()):
       self.load_config()
-    else:
-      self.config = self.default_options
-      self.save_config()
+    self.save_config()
         
