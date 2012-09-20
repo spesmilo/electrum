@@ -347,16 +347,15 @@ class Wallet:
     def is_up_to_date(self):
         return self.interface.responses.empty() and not self.interface.unanswered_requests
 
-    def set_server(self, server, proxy):
+    def set_server(self, server):
         # raise an error if the format isnt correct
         a,b,c = server.split(':')
         b = int(b)
         assert c in ['t', 'h', 'n']
         # set the server
-        if server != self.server or proxy != self.interface.proxy:
+        if server != self.server:
             self.server = server
             self.save()
-            self.interface.proxy = proxy
             self.interface.is_connected = False  # this exits the polling loop
             self.interface.poke()
 

@@ -3,7 +3,7 @@ import os
 from util import user_dir
 
 class SimpleConfig:
-  default_options = {"gui": "lite", "proxy": { "mode": "none", "host":"localhost", "port":"8080" } }
+  default_options = {"gui": "lite", "proxy": { "mode": "off", "host":"localhost", "port":"8080" } }
 
   def set_key(self, key, value, save = True):
     self.config[key] = value
