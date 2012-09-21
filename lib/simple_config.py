@@ -11,6 +11,8 @@ class SimpleConfig:
       self.save_config()
 
   def save_config(self):
+    if not os.path.exists(self.config_folder):
+      os.mkdir(self.config_folder)
     f = open(self.config_file_path(), "w+")
     f.write(json.dumps(self.config))
 
