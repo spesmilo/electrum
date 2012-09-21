@@ -1447,7 +1447,7 @@ class ElectrumWindow(QMainWindow):
 
         try:
             cfg = SimpleConfig()
-            cfg.config["proxy"] = { u'mode':unicode(proxy_mode.currentText()).lower(), u'host':unicode(proxy_host.text()), u'port':unicode(proxy_port.text()) }
+            cfg.set_key("proxy", { u'mode':unicode(proxy_mode.currentText()).lower(), u'host':unicode(proxy_host.text()), u'port':unicode(proxy_port.text()) })
             cfg.save_config()
             wallet.set_server(server, cfg.config["proxy"])
         except Exception as err:
