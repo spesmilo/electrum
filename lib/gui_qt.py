@@ -204,7 +204,9 @@ class ElectrumWindow(QMainWindow):
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
         self.create_status_bar()
-        self.setGeometry(100,100,840,400)
+        cfg = SimpleConfig()
+        g = cfg.config["winpos-qt"]
+        self.setGeometry(g[0], g[1], g[2], g[3])
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.wallet.path
         if not self.wallet.seed: title += ' [seedless]'
         self.setWindowTitle( title )
@@ -1457,6 +1459,12 @@ class ElectrumWindow(QMainWindow):
 
         return True
 
+    def closeEvent(self, event):
+        cfg = SimpleConfig()
+        g = self.geometry()
+        cfg.config["winpos-qt"] = [g.left(),g.top(),g.width(),g.height()]
+        cfg.save_config()
+        event.accept()
 
 
 class ElectrumGui:

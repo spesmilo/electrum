@@ -5,6 +5,7 @@ from PyQt4.QtGui import *
 
 from decimal import Decimal as D
 from interface import DEFAULT_SERVERS
+from simple_config import SimpleConfig
 from util import get_resource_path as rsrc
 from i18n import _
 import decimal
@@ -231,6 +232,12 @@ class MiniWindow(QDialog):
         close_shortcut = QShortcut(QKeySequence("Ctrl+W"), self)
         close_shortcut.activated.connect(self.close)
 
+        cfg = SimpleConfig()
+        g = cfg.config["winpos-lite"]
+        self.setGeometry(g[0], g[1], g[2], g[3])
+        show_history.setChecked(cfg.config["history"])
+        self.show_history(cfg.config["history"])
+        
         self.setWindowIcon(QIcon(":electrum.png"))
         self.setWindowTitle("Electrum")
         self.setWindowFlags(Qt.Window|Qt.MSWindowsFixedSizeDialogHint)
@@ -247,6 +254,12 @@ class MiniWindow(QDialog):
         QDir.setCurrent(old_path)
 
     def closeEvent(self, event):
+        cfg = SimpleConfig()
+        g = self.geometry()
+        cfg.config["winpos-lite"] = [g.left(),g.top(),g.width(),g.height()]
+        cfg.config["history"] = self.history_list.isVisible()
+        cfg.save_config()
+        
         super(MiniWindow, self).closeEvent(event)
         qApp.quit()
 
