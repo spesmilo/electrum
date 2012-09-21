@@ -1222,7 +1222,7 @@ class ElectrumWindow(QMainWindow):
         cb.setChecked(self.wallet.expert_mode)
 
         if self.wallet.expert_mode:
-            
+
             usechange_cb = QCheckBox(_('Use change addresses'))
             grid.addWidget(usechange_cb, 5, 0)
             usechange_cb.setChecked(self.wallet.use_change)
