@@ -1301,7 +1301,7 @@ class ElectrumWindow(QMainWindow):
                     QMessageBox.warning(self, _('Error'), _('Invalid value'), _('OK'))
                     
             cfg = SimpleConfig()
-            cfg.config["gui"] = str(gui.currentText()).lower()
+            cfg.set_key("gui", str(gui.currentText()).lower())
             cfg.save_config()
 
         self.set_expert_mode(cb.isChecked())
