@@ -183,10 +183,11 @@ def ok_cancel_buttons(dialog):
 
 class ElectrumWindow(QMainWindow):
 
-    def __init__(self, wallet):
+    def __init__(self, wallet, shrink_callback=None):
         QMainWindow.__init__(self)
         self.wallet = wallet
         self.wallet.register_callback(self.update_callback)
+        self.shrink = shrink_callback
 
         self.funds_error = False
         self.completions = QStringListModel()
@@ -220,8 +221,7 @@ class ElectrumWindow(QMainWindow):
             n = 3 if self.wallet.seed else 2
             tabs.setCurrentIndex (n)
             tabs.setCurrentIndex (0)
-
-
+            
     def connect_slots(self, sender):
         if self.wallet.seed:
             self.connect(sender, QtCore.SIGNAL('timersignal'), self.check_recipient)
@@ -873,6 +873,8 @@ class ElectrumWindow(QMainWindow):
     def create_status_bar(self):
         sb = QStatusBar()
         sb.setFixedHeight(35)
+        if not self.shrink == None:
+            sb.addPermanentWidget( StatusBarButton( QIcon(":icons/shrink.png"), "Switch to Lite Mode", self.shrink ) )
         if self.wallet.seed:
             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/lock.png"), "Password", lambda: self.change_password_dialog(self.wallet, self) ) )
         sb.addPermanentWidget( StatusBarButton( QIcon(":icons/preferences.png"), "Preferences", self.settings_dialog ) )

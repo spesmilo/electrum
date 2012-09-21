@@ -68,10 +68,14 @@ class ElectrumGui(QObject):
 
         timer = Timer()
         timer.start()
-        self.expert = gui_qt.ElectrumWindow(self.wallet)
+        self.expert = gui_qt.ElectrumWindow(self.wallet, self.shrink)
         self.expert.app = self.app
         self.expert.connect_slots(timer)
         self.expert.update_wallet()
+        
+        cfg = SimpleConfig()
+        if cfg.config["gui"] == 'qt':
+            self.expand()
 
         self.app.exec_()
 
@@ -83,6 +87,11 @@ class ElectrumGui(QObject):
         self.mini.hide()
         self.expert.show()
 
+    def shrink(self):
+        """Hide the pro-mode window and show mini-mode."""
+        self.mini.show()
+        self.expert.hide()
+        
     def set_url(self, url):
         payto, amount, label, message, signature, identity, url = \
             self.wallet.parse_url(url, self.show_message, self.show_question)
@@ -236,7 +245,9 @@ class MiniWindow(QDialog):
         self.setWindowFlags(Qt.Window|Qt.MSWindowsFixedSizeDialogHint)
         self.layout().setSizeConstraint(QLayout.SetFixedSize)
         self.setObjectName("main_window")
-        self.show()
+        
+        if cfg.config["gui"] == "lite":
+            self.show()
 
     def toggle_theme(self, theme_name):
         old_path = QDir.currentPath()
