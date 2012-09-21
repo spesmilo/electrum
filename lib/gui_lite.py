@@ -256,8 +256,8 @@ class MiniWindow(QDialog):
     def closeEvent(self, event):
         cfg = SimpleConfig()
         g = self.geometry()
-        cfg.config["winpos-lite"] = [g.left(),g.top(),g.width(),g.height()]
-        cfg.config["history"] = self.history_list.isVisible()
+        cfg.set_key("winpos-lite", [g.left(),g.top(),g.width(),g.height()])
+        cfg.set_key("history", self.history_list.isVisible())
         cfg.save_config()
         
         super(MiniWindow, self).closeEvent(event)

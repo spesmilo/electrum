@@ -1429,7 +1429,7 @@ class ElectrumWindow(QMainWindow):
     def closeEvent(self, event):
         cfg = SimpleConfig()
         g = self.geometry()
-        cfg.config["winpos-qt"] = [g.left(),g.top(),g.width(),g.height()]
+        cfg.set_key("winpos-qt", [g.left(),g.top(),g.width(),g.height()])
         cfg.save_config()
         event.accept()
 
