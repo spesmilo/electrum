@@ -232,11 +232,11 @@ class MiniWindow(QDialog):
         close_shortcut = QShortcut(QKeySequence("Ctrl+W"), self)
         close_shortcut.activated.connect(self.close)
 
-        cfg = SimpleConfig()
-        g = cfg.config["winpos-lite"]
+        self.cfg = SimpleConfig()
+        g = self.cfg.config["winpos-lite"]
         self.setGeometry(g[0], g[1], g[2], g[3])
-        show_history.setChecked(cfg.config["history"])
-        self.show_history(cfg.config["history"])
+        show_history.setChecked(self.cfg.config["history"])
+        self.show_history(self.cfg.config["history"])
         
         self.setWindowIcon(QIcon(":electrum.png"))
         self.setWindowTitle("Electrum")
@@ -254,11 +254,10 @@ class MiniWindow(QDialog):
         QDir.setCurrent(old_path)
 
     def closeEvent(self, event):
-        cfg = SimpleConfig()
         g = self.geometry()
-        cfg.set_key("winpos-lite", [g.left(),g.top(),g.width(),g.height()])
-        cfg.set_key("history", self.history_list.isVisible())
-        cfg.save_config()
+        self.cfg.set_key("winpos-lite", [g.left(),g.top(),g.width(),g.height()])
+        self.cfg.set_key("history", self.history_list.isVisible())
+        self.cfg.save_config()
         
         super(MiniWindow, self).closeEvent(event)
         qApp.quit()
@@ -620,8 +619,10 @@ class MiniActuator:
             protocol = "t"
             port = tcp_port[0]
         server_line = "%s:%s:%s" % (server_name, port, protocol)
+
         # Should this have exception handling?
-        self.wallet.set_server(server_line)
+        self.cfg = SimpleConfig()
+        self.wallet.set_server(server_line, self.cfg.config["proxy"])
 
     def copy_address(self, receive_popup):
         """Copy the wallet addresses into the client."""
