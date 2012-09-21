@@ -3,7 +3,7 @@ import os
 from util import user_dir
 
 class SimpleConfig:
-  default_options = {"gui": "lite"}
+  default_options = {"gui": "lite", "winpos-qt": [100, 100, 840, 400], "winpos-lite": [4, 25, 351, 149], "history": False }
 
   def set_key(self, key, value, save = True):
     self.config[key] = value
