@@ -38,6 +38,7 @@ except:
 
 from wallet import format_satoshis
 import bmp, mnemonic, pyqrnative, qrscanner
+from simple_config import SimpleConfig
 
 from decimal import Decimal
 
@@ -1241,6 +1242,13 @@ class ElectrumWindow(QMainWindow):
             grid.addWidget(HelpButton(msg), 6, 2)
             gap_e.textChanged.connect(lambda: numbify(nz_e,True))
 
+            gui = QComboBox()
+            gui.addItems(['Lite', 'Qt'])
+            cfg = SimpleConfig()
+            gui.setCurrentIndex(gui.findText(cfg.config["gui"].capitalize()))
+            grid.addWidget(QLabel(_('Default GUI') + ':'), 7, 0)
+            grid.addWidget(gui, 7, 1)
+            grid.addWidget(HelpButton(_('Select which GUI mode to use at start up. ')), 7, 2)
         
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
@@ -1288,6 +1296,10 @@ class ElectrumWindow(QMainWindow):
                     self.update_receive_tab()
                 else:
                     QMessageBox.warning(self, _('Error'), _('Invalid value'), _('OK'))
+                    
+            cfg = SimpleConfig()
+            cfg.set_key("gui", str(gui.currentText()).lower())
+            cfg.save_config()
 
         self.set_expert_mode(cb.isChecked())
 
