@@ -37,9 +37,9 @@ except ImportError:
     sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
 
 try:
-    from lib import Wallet, WalletSynchronizer, format_satoshis, mnemonic, prompt_password, SimpleConfig
+    from lib import Wallet, WalletSynchronizer, format_satoshis, mnemonic, prompt_password, parse_proxy_options, SimpleConfig
 except ImportError:
-    from electrum import Wallet, WalletSynchronizer, format_satoshis, mnemonic, prompt_password, SimpleConfig
+    from electrum import Wallet, WalletSynchronizer, format_satoshis, mnemonic, prompt_password, parse_proxy_options, SimpleConfig
 
 from decimal import Decimal
 
@@ -116,8 +116,11 @@ if __name__ == '__main__':
     parser.add_option("-s", "--fromaddr", dest="from_addr", default=None, help="set source address for payto/mktx. if it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet.")
     parser.add_option("-c", "--changeaddr", dest="change_addr", default=None, help="set the change address for payto/mktx. default is a spare address, or the source address if it's not in the wallet")
     parser.add_option("-r", "--remote", dest="remote_url", default=None, help="URL of a remote wallet")
+    parser.add_option("-p", "--proxy", dest="proxy", default=simple_config.config["proxy"], help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
     options, args = parser.parse_args()
 
+    if type(options.proxy) == type(''):
+		options.proxy = parse_proxy_options(options.proxy)
 
     wallet = Wallet()
     wallet.set_path(options.wallet_path)
@@ -179,7 +182,7 @@ if __name__ == '__main__':
             sys.exit("Error: Unknown GUI: " + options.gui)
 
         gui = gui.ElectrumGui(wallet)
-        interface = WalletSynchronizer(wallet, True, gui.server_list_changed)
+        interface = WalletSynchronizer(wallet, True, gui.server_list_changed, options.proxy)
         interface.start()
 
         try:

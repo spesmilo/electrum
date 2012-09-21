@@ -37,6 +37,7 @@ except:
     sys.exit("Error: Could not import icons_rc.py, please generate it with: 'pyrcc4 icons.qrc -o lib/icons_rc.py'")
 
 from wallet import format_satoshis
+from simple_config import SimpleConfig
 import bmp, mnemonic, pyqrnative, qrscanner
 from simple_config import SimpleConfig
 
@@ -203,7 +204,9 @@ class ElectrumWindow(QMainWindow):
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
         self.create_status_bar()
-        self.setGeometry(100,100,840,400)
+        cfg = SimpleConfig()
+        g = cfg.config["winpos-qt"]
+        self.setGeometry(g[0], g[1], g[2], g[3])
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.wallet.path
         if not self.wallet.seed: title += ' [seedless]'
         self.setWindowTitle( title )
@@ -1392,6 +1395,24 @@ class ElectrumWindow(QMainWindow):
         hbox.addWidget(radio2)
 
         vbox.addLayout(hbox)
+        
+        hbox = QHBoxLayout()
+        proxy_mode = QComboBox()
+        proxy_host = QLineEdit()
+        proxy_host.setFixedWidth(200)
+        proxy_port = QLineEdit()
+        proxy_port.setFixedWidth(50)
+        proxy_mode.addItems(['NONE', 'SOCKS4', 'SOCKS5', 'HTTP'])
+        proxy_mode.setCurrentIndex(proxy_mode.findText(str(interface.proxy["mode"]).upper()))
+        proxy_host.setText(interface.proxy["host"])
+        proxy_port.setText(interface.proxy["port"])
+        hbox.addWidget(QLabel(_('Proxy') + ':'))
+        hbox.addWidget(proxy_mode)
+        hbox.addWidget(proxy_host)
+        hbox.addWidget(proxy_port)
+        vbox.addLayout(hbox)
+
+        hbox = QHBoxLayout()
 
         if wallet.interface.servers:
             label = _('Active Servers')
@@ -1425,9 +1446,12 @@ class ElectrumWindow(QMainWindow):
         server = unicode( host_line.text() )
 
         try:
-            wallet.set_server(server)
-        except:
-            QMessageBox.information(None, _('Error'), 'error', _('OK'))
+            cfg = SimpleConfig()
+            cfg.set_key("proxy", { u'mode':unicode(proxy_mode.currentText()).lower(), u'host':unicode(proxy_host.text()), u'port':unicode(proxy_port.text()) })
+            cfg.save_config()
+            wallet.set_server(server, cfg.config["proxy"])
+        except Exception as err:
+            QMessageBox.information(None, _('Error'), str(err), _('OK'))
             if parent == None:
                 sys.exit(1)
             else:
@@ -1435,6 +1459,12 @@ class ElectrumWindow(QMainWindow):
 
         return True
 
+    def closeEvent(self, event):
+        cfg = SimpleConfig()
+        g = self.geometry()
+        cfg.set_key("winpos-qt", [g.left(),g.top(),g.width(),g.height()])
+        cfg.save_config()
+        event.accept()
 
 
 class ElectrumGui:
