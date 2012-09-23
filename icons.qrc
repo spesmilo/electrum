@@ -5,6 +5,7 @@
     <file>icons/lock.png</file>
     <file>icons/preferences.png</file>
     <file>icons/seed.png</file>
+    <file>icons/shrink.png</file>
     <file>icons/status_connected.png</file>
     <file>icons/status_disconnected.png</file>
     <file>icons/status_waiting.png</file>
