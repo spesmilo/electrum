@@ -18,6 +18,7 @@
 
 import re
 import sys
+from time import sleep
 # import argparse
 import optparse
 
@@ -299,13 +300,16 @@ if __name__ == '__main__':
                 
     # commands needing password
     if cmd in protected_commands or ( cmd=='addresses' and options.show_keys):
-        password = prompt_password('Password:', False) if wallet.use_encryption and not is_temporary else None
-        # check password
-        try:
-            wallet.pw_decode( wallet.seed, password)
-        except:
-            print_error("Error: This password does not decode this wallet.")
-            exit(1)
+        password = None
+        
+        if wallet.use_encryption and not is_temporary:
+            password = prompt_password('Password:', False)
+            # check password
+            try:
+                wallet.pw_decode( wallet.seed, password)
+            except:
+                print_error("Error: This password does not decode this wallet.")
+                exit(1)
 
     if cmd == 'import':
         # See if they specificed a key on the cmd line, if not prompt
@@ -472,11 +476,19 @@ if __name__ == '__main__':
             else:
                 keypair = from_addr
                 from_addr = keypair.split(':')[0]
-            if not wallet.import_key(keypair,password):
-                print_error("Error: Invalid key pair")
-                exit(1)
-            wallet.history[from_addr] = interface.retrieve_history(from_addr)
-            wallet.update_tx_history()
+            wallet.import_key(keypair,password)
+            
+            wallet.interface.get_history(from_addr)
+            print "Waiting for history (warning: this won't timeout)"
+            try:
+                while not from_addr in wallet.history:
+                    sleep(0.1)
+                wallet.update_tx_history()
+            except:
+                # it seems the key may be saved when interrumpted
+                wallet.imported_keys.pop(from_addr)
+                del(wallet.history[from_addr])
+                raise
             change_addr = from_addr
 
         if options.change_addr:
