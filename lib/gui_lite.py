@@ -20,6 +20,7 @@ import history_widget
 import util
 
 import gui_qt
+import shutil
 
 bitcoin = lambda v: v * 100000000
 
@@ -73,6 +74,7 @@ class ElectrumGui(QObject):
         self.expert.app = self.app
         self.expert.connect_slots(timer)
         self.expert.update_wallet()
+
 
         self.app.exec_()
 
@@ -181,17 +183,24 @@ class MiniWindow(QDialog):
 
         menubar = QMenuBar()
         electrum_menu = menubar.addMenu(_("&Bitcoin"))
+
         servers_menu = electrum_menu.addMenu(_("&Servers"))
         servers_group = QActionGroup(self)
         self.actuator.set_servers_gui_stuff(servers_menu, servers_group)
         self.actuator.populate_servers_menu()
         electrum_menu.addSeparator()
+
         brain_seed = electrum_menu.addAction(_("&BrainWallet Info"))
         brain_seed.triggered.connect(self.actuator.show_seed_dialog)
         quit_option = electrum_menu.addAction(_("&Quit"))
         quit_option.triggered.connect(self.close)
 
         view_menu = menubar.addMenu(_("&View"))
+        extra_menu = menubar.addMenu(_("&Extra"))
+
+        backup_wallet = extra_menu.addAction( _("&Create wallet backup"))
+        backup_wallet.triggered.connect(self.backup_wallet)
+
         expert_gui = view_menu.addAction(_("&Pro Mode"))
         expert_gui.triggered.connect(expand_callback)
         themes_menu = view_menu.addMenu(_("&Themes"))
@@ -403,6 +412,19 @@ class MiniWindow(QDialog):
             self.history_list.show()
         else:
             self.history_list.hide()
+
+    def backup_wallet(self):
+        try:
+          folderName = QFileDialog.getExistingDirectory(QWidget(), 'Select folder to save a copy of your wallet to', os.path.expanduser('~/'))
+          if folderName:
+            sourceFile = util.user_dir() + '/electrum.dat'
+            shutil.copy2(sourceFile, str(folderName))
+            QMessageBox.information(None,"Wallet backup created", "A copy of your wallet file was created in '%s'" % str(folderName))
+        except (IOError, os.error), reason:
+          QMessageBox.critical(None,"Unable to create backup", "Electrum was unable copy your wallet file to the specified location.\n" + str(reason))
+
+
+
 
 class BalanceLabel(QLabel):
 
