@@ -16,6 +16,20 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+# python-ecdsa (EC_KEY implementation, MIT License)
+# http://github.com/warner/python-ecdsa
+# "python-ecdsa" Copyright (c) 2010 Brian Warner
+# Portions written in 2005 by Peter Pearson and placed in the public domain.
+
+# BitcoinTools (wallet.dat handling code, MIT License)
+# https://github.com/gavinandresen/bitcointools
+# Copyright (c) 2010 Gavin Andresen
+
+# PyWallet 1.2.1 (Public Domain)
+# http://github.com/joric/pywallet
+# Most of the actual PyWallet code placed in the public domain.
+# PyWallet includes portions of free software, listed below.
+
 import sys
 import base64
 import os
@@ -34,20 +48,240 @@ from ecdsa.util import string_to_number, number_to_string
 from util import print_error
 from util import user_dir
 
-############ functions from pywallet ##################### 
-
 addrtype = 0
 
-def hash_160(public_key):
-    try:
-        md = hashlib.new('ripemd160')
-        md.update(hashlib.sha256(public_key).digest())
-        return md.digest()
-    except:
-        import ripemd
-        md = ripemd.new(hashlib.sha256(public_key).digest())
-        return md.digest()
+# python-ecdsa code (EC_KEY implementation)
 
+class CurveFp( object ):
+    def __init__( self, p, a, b ):
+        self.__p = p
+        self.__a = a
+        self.__b = b
+
+    def p( self ):
+        return self.__p
+
+    def a( self ):
+        return self.__a
+
+    def b( self ):
+        return self.__b
+
+    def contains_point( self, x, y ):
+        return ( y * y - ( x * x * x + self.__a * x + self.__b ) ) % self.__p == 0
+
+class Point( object ):
+    def __init__( self, curve, x, y, order = None ):
+        self.__curve = curve
+        self.__x = x
+        self.__y = y
+        self.__order = order
+        if self.__curve: assert self.__curve.contains_point( x, y )
+        if order: assert self * order == INFINITY
+ 
+    def __add__( self, other ):
+        if other == INFINITY: return self
+        if self == INFINITY: return other
+        assert self.__curve == other.__curve
+        if self.__x == other.__x:
+            if ( self.__y + other.__y ) % self.__curve.p() == 0:
+                return INFINITY
+            else:
+                return self.double()
+
+        p = self.__curve.p()
+        l = ( ( other.__y - self.__y ) * \
+                    inverse_mod( other.__x - self.__x, p ) ) % p
+        x3 = ( l * l - self.__x - other.__x ) % p
+        y3 = ( l * ( self.__x - x3 ) - self.__y ) % p
+        return Point( self.__curve, x3, y3 )
+
+    def __mul__( self, other ):
+        def leftmost_bit( x ):
+            assert x > 0
+            result = 1L
+            while result <= x: result = 2 * result
+            return result / 2
+
+        e = other
+        if self.__order: e = e % self.__order
+        if e == 0: return INFINITY
+        if self == INFINITY: return INFINITY
+        assert e > 0
+        e3 = 3 * e
+        negative_self = Point( self.__curve, self.__x, -self.__y, self.__order )
+        i = leftmost_bit( e3 ) / 2
+        result = self
+        while i > 1:
+            result = result.double()
+            if ( e3 & i ) != 0 and ( e & i ) == 0: result = result + self
+            if ( e3 & i ) == 0 and ( e & i ) != 0: result = result + negative_self
+            i = i / 2
+        return result
+
+    def __rmul__( self, other ):
+        return self * other
+
+    def __str__( self ):
+        if self == INFINITY: return "infinity"
+        return "(%d,%d)" % ( self.__x, self.__y )
+
+    def double( self ):
+        if self == INFINITY:
+            return INFINITY
+
+        p = self.__curve.p()
+        a = self.__curve.a()
+        l = ( ( 3 * self.__x * self.__x + a ) * \
+                    inverse_mod( 2 * self.__y, p ) ) % p
+        x3 = ( l * l - 2 * self.__x ) % p
+        y3 = ( l * ( self.__x - x3 ) - self.__y ) % p
+        return Point( self.__curve, x3, y3 )
+
+    def x( self ):
+        return self.__x
+
+    def y( self ):
+        return self.__y
+
+    def curve( self ):
+        return self.__curve
+    
+    def order( self ):
+        return self.__order
+        
+INFINITY = Point( None, None, None )
+
+def inverse_mod( a, m ):
+    if a < 0 or m <= a: a = a % m
+    c, d = a, m
+    uc, vc, ud, vd = 1, 0, 0, 1
+    while c != 0:
+        q, c, d = divmod( d, c ) + ( c, )
+        uc, vc, ud, vd = ud - q*uc, vd - q*vc, uc, vc
+    assert d == 1
+    if ud > 0: return ud
+    else: return ud + m
+
+class Signature( object ):
+    def __init__( self, r, s ):
+        self.r = r
+        self.s = s
+        
+class Public_key( object ):
+    def __init__( self, generator, point ):
+        self.curve = generator.curve()
+        self.generator = generator
+        self.point = point
+        n = generator.order()
+        if not n:
+            raise RuntimeError, "Generator point must have order."
+        if not n * point == INFINITY:
+            raise RuntimeError, "Generator point order is bad."
+        if point.x() < 0 or n <= point.x() or point.y() < 0 or n <= point.y():
+            raise RuntimeError, "Generator point has x or y out of range."
+
+    def verifies( self, hash, signature ):
+        G = self.generator
+        n = G.order()
+        r = signature.r
+        s = signature.s
+        if r < 1 or r > n-1: return False
+        if s < 1 or s > n-1: return False
+        c = inverse_mod( s, n )
+        u1 = ( hash * c ) % n
+        u2 = ( r * c ) % n
+        xy = u1 * G + u2 * self.point
+        v = xy.x() % n
+        return v == r
+
+class Private_key( object ):
+    def __init__( self, public_key, secret_multiplier ):
+        self.public_key = public_key
+        self.secret_multiplier = secret_multiplier
+
+    def der( self ):
+        hex_der_key = '06052b8104000a30740201010420' + \
+            '%064x' % self.secret_multiplier + \
+            'a00706052b8104000aa14403420004' + \
+            '%064x' % self.public_key.point.x() + \
+            '%064x' % self.public_key.point.y()
+        return hex_der_key.decode('hex')
+
+    def sign( self, hash, random_k ):
+        G = self.public_key.generator
+        n = G.order()
+        k = random_k % n
+        p1 = k * G
+        r = p1.x()
+        if r == 0: raise RuntimeError, "amazingly unlucky random number r"
+        s = ( inverse_mod( k, n ) * \
+                    ( hash + ( self.secret_multiplier * r ) % n ) ) % n
+        if s == 0: raise RuntimeError, "amazingly unlucky random number s"
+        return Signature( r, s )
+
+class EC_KEY(object):
+    def __init__( self, secret ):
+        curve = CurveFp( _p, _a, _b )
+        generator = Point( curve, _Gx, _Gy, _r )
+        self.pubkey = Public_key( generator, generator * secret )
+        self.privkey = Private_key( self.pubkey, secret )
+        self.secret = secret
+
+# end of python-ecdsa code
+
+# pywallet openssl private key implementation
+
+def i2d_ECPrivateKey(pkey, compressed=False):
+    if compressed:
+        key = '3081d30201010420' + \
+            '%064x' % pkey.secret + \
+            'a081a53081a2020101302c06072a8648ce3d0101022100' + \
+            '%064x' % _p + \
+            '3006040100040107042102' + \
+            '%064x' % _Gx + \
+            '022100' + \
+            '%064x' % _r + \
+            '020101a124032200'
+    else:
+        key = '308201130201010420' + \
+            '%064x' % pkey.secret + \
+            'a081a53081a2020101302c06072a8648ce3d0101022100' + \
+            '%064x' % _p + \
+            '3006040100040107044104' + \
+            '%064x' % _Gx + \
+            '%064x' % _Gy + \
+            '022100' + \
+            '%064x' % _r + \
+            '020101a144034200'
+
+    return key.decode('hex') + i2o_ECPublicKey(pkey, compressed)
+
+def i2o_ECPublicKey(pkey, compressed=False):
+    # public keys are 65 bytes long (520 bits)
+    # 0x04 + 32-byte X-coordinate + 32-byte Y-coordinate
+    # 0x00 = point at infinity, 0x02 and 0x03 = compressed, 0x04 = uncompressed
+    # compressed keys: <sign> <x> where <sign> is 0x02 if y is even and 0x03 if y is odd
+    if compressed:
+        if pkey.pubkey.point.y() & 1:
+            key = '03' + '%064x' % pkey.pubkey.point.x()
+        else:
+            key = '02' + '%064x' % pkey.pubkey.point.x()
+    else:
+        key = '04' + \
+            '%064x' % pkey.pubkey.point.x() + \
+            '%064x' % pkey.pubkey.point.y()
+
+    return key.decode('hex')
+
+# end pywallet openssl private key implementation
+
+#Bitcointools hashes and base58 implementation
+
+def hash_160(public_key):
+    md = hashlib.new('ripemd160')
+    md.update(hashlib.sha256(public_key).digest())
+    return md.digest()
 
 def public_key_to_bc_address(public_key):
     h160 = hash_160(public_key)
@@ -63,21 +297,12 @@ def bc_address_to_hash_160(addr):
     bytes = b58decode(addr, 25)
     return bytes[1:21]
 
-def encode_point(pubkey, compressed=False):
-    order = generator_secp256k1.order()
-    p = pubkey.pubkey.point
-    x_str = ecdsa.util.number_to_string(p.x(), order)
-    y_str = ecdsa.util.number_to_string(p.y(), order)
-    if compressed:
-        return chr(2 + (p.y() & 1)) + x_str
-    else:
-        return chr(4) + pubkey.to_string() #x_str + y_str
-
 __b58chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 __b58base = len(__b58chars)
 
 def b58encode(v):
-    """ encode v, which is a string of bytes, to base58."""
+    """ encode v, which is a string of bytes, to base58.        
+    """
 
     long_value = 0L
     for (i, c) in enumerate(v[::-1]):
@@ -100,7 +325,8 @@ def b58encode(v):
     return (__b58chars[0]*nPad) + result
 
 def b58decode(v, length):
-    """ decode v into a string of len bytes."""
+    """ decode v into a string of len bytes
+    """
     long_value = 0L
     for (i, c) in enumerate(v[::-1]):
         long_value += __b58chars.find(c) * (__b58base**i)
@@ -123,40 +349,69 @@ def b58decode(v, length):
 
     return result
 
+# end of bitcointools base58 implementation
+
+# address handling code from pywallet's pywallet.py
 
 def Hash(data):
     return hashlib.sha256(hashlib.sha256(data).digest()).digest()
 
-def EncodeBase58Check(vchIn):
-    hash = Hash(vchIn)
-    return b58encode(vchIn + hash[0:4])
+def EncodeBase58Check(secret):
+    hash = Hash(secret)
+    return b58encode(secret + hash[0:4])
 
-def DecodeBase58Check(psz):
-    vchRet = b58decode(psz, None)
-    key = vchRet[0:-4]
+def DecodeBase58Check(sec):
+    vchRet = b58decode(sec, None)
+    secret = vchRet[0:-4]
     csum = vchRet[-4:]
-    hash = Hash(key)
+    hash = Hash(secret)
     cs32 = hash[0:4]
     if cs32 != csum:
         return None
     else:
-        return key
+        return secret
 
 def PrivKeyToSecret(privkey):
-    return privkey[9:9+32]
+    if len(privkey) == 279:
+        return privkey[9:9+32]
+    else:
+        return privkey[8:8+32]
 
-def SecretToASecret(secret):
-    vchIn = chr(addrtype+128) + secret
+def SecretToASecret(secret, compressed=False):
+    vchIn = chr((addrtype+128)&255) + secret
+    if compressed: vchIn += '\01'
     return EncodeBase58Check(vchIn)
 
-def ASecretToSecret(key):
-    vch = DecodeBase58Check(key)
-    if vch and vch[0] == chr(addrtype+128):
+def ASecretToSecret(sec):
+    vch = DecodeBase58Check(sec)
+    if vch and vch[0] == chr((addrtype+128)&255):
         return vch[1:]
     else:
         return False
 
-########### end pywallet functions #######################
+def regenerate_key(sec):
+    b = ASecretToSecret(sec)
+    if not b:
+        return False
+    b = b[0:32]
+    secret = int('0x' + b.encode('hex'), 16)
+    return EC_KEY(secret)
+
+def GetPubKey(pkey, compressed=False):
+    return i2o_ECPublicKey(pkey, compressed)
+
+def GetPrivKey(pkey, compressed=False):
+    return i2d_ECPrivateKey(pkey, compressed)
+
+def GetSecret(pkey):
+    return ('%064x' % pkey.secret).decode('hex')
+
+def is_compressed(sec):
+    b = ASecretToSecret(sec)
+    return len(b) == 33
+
+# end address handling code from pywallet pywallet.py
+
 
 # get password routine
 def prompt_password(prompt, confirm=True):
@@ -375,21 +630,33 @@ class Wallet:
         self.path = os.path.join(wallet_dir, "electrum.dat")
 
     def import_key(self, keypair, password):
-        address, key = keypair.split(':')
+        
+        address, sec = keypair.split(':')
         if not self.is_valid(address):
             raise BaseException('Invalid Bitcoin address')
         if address in self.all_addresses():
             raise BaseException('Address already in wallet')
-        b = ASecretToSecret( key )
-        if not b: 
-            raise BaseException('Unsupported key format')
-        secexp = int( b.encode('hex'), 16)
-        private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve=SECP256k1 )
+        
+        # for a sanity check, rebuild public key from private key, compressed or uncompressed
+        pkey = regenerate_key(sec)
+        if not pkey:
+            return False
+
+        # figure out if private key is compressed
+        compressed = is_compressed(sec)
+
+        # rebuild private and public key from regenerated secret 
+        secret = GetSecret(pkey)
+        private_key = GetPrivKey(pkey, compressed)
+        public_key = GetPubKey(pkey, compressed)
+        addr = public_key_to_bc_address(public_key)
+
         # sanity check
-        public_key = private_key.get_verifying_key()
-        if not address == public_key_to_bc_address( '04'.decode('hex') + public_key.to_string() ):
+        if not address == addr :
             raise BaseException('Address does not match private key')
-        self.imported_keys[address] = self.pw_encode( key, password )
+        
+        # store the originally requested keypair into the imported keys table
+        self.imported_keys[address] = self.pw_encode(sec,  password )
 
     def new_seed(self, password):
         seed = "%032x"%ecdsa.util.randrange( pow(2,128) )
