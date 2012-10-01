@@ -969,9 +969,9 @@ class Wallet:
         m1 = re.match('([\w\-\.]+)@((\w[\w\-]+\.)+[\w\-]+)', alias)
         m2 = re.match('((\w[\w\-]+\.)+[\w\-]+)', alias)
         if m1:
-            url = 'http://' + m1.group(2) + '/bitcoin.id/' + m1.group(1) 
+            url = 'https://' + m1.group(2) + '/bitcoin.id/' + m1.group(1) 
         elif m2:
-            url = 'http://' + alias + '/bitcoin.id'
+            url = 'https://' + alias + '/bitcoin.id'
         else:
             return ''
         try:
