@@ -28,7 +28,7 @@ DEFAULT_SERVERS = [ 'ecdsa.org:50001:t',
                     'electrum.novit.ro:50001:t', 
                     'electrum.bytesized-hosting.com:50001:t']  # list of default servers
 
-proxy_modes = ['none', 'socks4', 'socks5', 'http' ]
+proxy_modes = ['socks4', 'socks5', 'http']
 
 def replace_keys(obj, old_key, new_key):
     if isinstance(obj, dict):
@@ -65,7 +65,7 @@ def parse_proxy_options(s):
     return proxy
 
 class Interface(threading.Thread):
-    def __init__(self, host, port, proxy):
+    def __init__(self, host, port, proxy=None):
         threading.Thread.__init__(self)
         self.daemon = True
         self.host = host
@@ -136,7 +136,7 @@ class Interface(threading.Thread):
 class PollingInterface(Interface):
     """ non-persistent connection. synchronous calls"""
 
-    def __init__(self, host, port, proxy):
+    def __init__(self, host, port, proxy=None):
         Interface.__init__(self, host, port, proxy)
         self.session_id = None
 
@@ -188,7 +188,7 @@ class HttpStratumInterface(PollingInterface):
     def send(self, messages):
         import urllib2, json, time, cookielib
         
-        if self.proxy["mode"] != "none":
+        if self.proxy:
             import socks
             socks.setdefaultproxy(proxy_modes.index(self.proxy["mode"]), self.proxy["host"], int(self.proxy["port"]) )
             socks.wrapmodule(urllib2)
@@ -250,12 +250,12 @@ class HttpStratumInterface(PollingInterface):
 class TcpStratumInterface(Interface):
     """json-rpc over persistent TCP connection, asynchronous"""
 
-    def __init__(self, host, port, proxy):
+    def __init__(self, host, port, proxy=None):
         Interface.__init__(self, host, port, proxy)
 
     def init_socket(self):
         global proxy_modes
-        if self.proxy["mode"] == "none":
+        if self.proxy is None:
             self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
         else:
             import socks
