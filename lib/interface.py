@@ -24,8 +24,7 @@ from version import ELECTRUM_VERSION
 from util import print_error
 
 DEFAULT_TIMEOUT = 5
-DEFAULT_SERVERS = [ 'ecdsa.org:50001:t', 
-                    'electrum.novit.ro:50001:t', 
+DEFAULT_SERVERS = [ 'electrum.novit.ro:50001:t', 
                     'electrum.bytesized-hosting.com:50001:t']  # list of default servers
 
 proxy_modes = ['socks4', 'socks5', 'http']

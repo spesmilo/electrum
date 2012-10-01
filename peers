@@ -2,7 +2,7 @@
 
 from electrum import TcpStratumInterface
 
-i = TcpStratumInterface('ecdsa.org', 50001)
+i = TcpStratumInterface('electrum.novit.ro', 50001)
 i.init_socket()
 i.start()
 i.send([('server.peers.subscribe',[])])
