@@ -531,23 +531,26 @@ class Wallet:
     
 
     def create_new_address(self, for_change):
-        """   Publickey(type,n) = Master_public_key + H(n|S|type)*point  """
-        curve = SECP256k1
         n = len(self.change_addresses) if for_change else len(self.addresses)
-        z = self.get_sequence(n,for_change)
-        master_public_key = ecdsa.VerifyingKey.from_string( self.master_public_key, curve = SECP256k1 )
-        pubkey_point = master_public_key.pubkey.point + z*curve.generator
-        public_key2 = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
-        address = public_key_to_bc_address( '04'.decode('hex') + public_key2.to_string() )
+        address = self.get_new_address(n, for_change)
         if for_change:
             self.change_addresses.append(address)
         else:
             self.addresses.append(address)
-
         self.history[address] = []
+        return address
+        
+    def get_new_address(self, n, for_change):
+        """   Publickey(type,n) = Master_public_key + H(n|S|type)*point  """
+        curve = SECP256k1
+        z = self.get_sequence(n, for_change)
+        master_public_key = ecdsa.VerifyingKey.from_string( self.master_public_key, curve = SECP256k1 )
+        pubkey_point = master_public_key.pubkey.point + z*curve.generator
+        public_key2 = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
+        address = public_key_to_bc_address( '04'.decode('hex') + public_key2.to_string() )
         print address
         return address
-
+                                                                      
 
     def change_gap_limit(self, value):
         if value >= self.gap_limit:
