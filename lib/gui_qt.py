@@ -1450,7 +1450,11 @@ class ElectrumWindow(QMainWindow):
 
         try:
             cfg.set_key("proxy", { u'mode':unicode(proxy_mode.currentText()).lower(), u'host':unicode(proxy_host.text()), u'port':unicode(proxy_port.text()) }, True)
-            wallet.set_server(server, cfg.config["proxy"])
+            if cfg.config["proxy"]["mode"] != "none":
+                wallet.set_server(server, cfg.config["proxy"])
+            else:
+                wallet.set_server(server)
+                
         except Exception as err:
             QMessageBox.information(None, _('Error'), str(err), _('OK'))
             if parent == None:

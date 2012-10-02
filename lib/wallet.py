@@ -347,7 +347,7 @@ class Wallet:
     def is_up_to_date(self):
         return self.interface.responses.empty() and not self.interface.unanswered_requests
 
-    def set_server(self, server, proxy):
+    def set_server(self, server, proxy=None):
         # raise an error if the format isnt correct
         a,b,c = server.split(':')
         b = int(b)
