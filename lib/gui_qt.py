@@ -926,9 +926,11 @@ class ElectrumWindow(QMainWindow):
 
         brainwallet = ' '.join(mnemonic.mn_encode(seed))
 
-        msg = _('<p>"%s"</p>'
-                "<p>If you memorise or write down these 12 words, you will always be able to recover your wallet.</p>"
-                "<p>This is called a 'BrainWallet'. The order of words is important. Case does not matter (capitals or lowercase).</p>") % brainwallet
+        msg =   _("Your wallet generation seed is") +":<p>\"" + brainwallet + "\"<p>" \
+              + _("Please write down or memorize these 12 words (order is important).") + " " \
+              + _("This seed will allow you to recover your wallet in case of computer failure.") + "<p>" \
+              + _("WARNING: Never disclose your seed. Never type it on a website.") + "<p>"
+
         main_text = QLabel(msg)
         main_text.setWordWrap(True)
 
