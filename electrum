@@ -297,6 +297,12 @@ if __name__ == '__main__':
         if from_addr not in wallet.all_addresses():
             is_temporary = True
                 
+    # important warning
+    if cmd=='addresses' and options.show_keys:
+        print "WARNING: ALL your private keys are secret."
+        print "Exposing a single private key can compromise your entire wallet!"
+        print "In particular, DO NOT use 'redeem private key' services proposed by third parties."
+
     # commands needing password
     if cmd in protected_commands or ( cmd=='addresses' and options.show_keys):
         password = prompt_password('Password:', False) if wallet.use_encryption and not is_temporary else None
