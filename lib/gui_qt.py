@@ -1403,9 +1403,12 @@ class ElectrumWindow(QMainWindow):
         proxy_port = QLineEdit()
         proxy_port.setFixedWidth(50)
         proxy_mode.addItems(['NONE', 'SOCKS4', 'SOCKS5', 'HTTP'])
-        proxy_mode.setCurrentIndex(proxy_mode.findText(str(interface.proxy["mode"]).upper()))
-        proxy_host.setText(interface.proxy["host"])
-        proxy_port.setText(interface.proxy["port"])
+
+        cfg = SimpleConfig()
+        proxy_config = cfg.config['proxy']
+        proxy_mode.setCurrentIndex(proxy_mode.findText(str(proxy_config["mode"]).upper()))
+        proxy_host.setText(proxy_config["host"])
+        proxy_port.setText(proxy_config["port"])
         hbox.addWidget(QLabel(_('Proxy') + ':'))
         hbox.addWidget(proxy_mode)
         hbox.addWidget(proxy_host)
@@ -1446,7 +1449,6 @@ class ElectrumWindow(QMainWindow):
         server = unicode( host_line.text() )
 
         try:
-            cfg = SimpleConfig()
             cfg.set_key("proxy", { u'mode':unicode(proxy_mode.currentText()).lower(), u'host':unicode(proxy_host.text()), u'port':unicode(proxy_port.text()) }, True)
             wallet.set_server(server, cfg.config["proxy"])
         except Exception as err:
