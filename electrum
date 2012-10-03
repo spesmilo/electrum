@@ -559,17 +559,17 @@ if __name__ == '__main__':
 
     elif cmd == 'freeze':
         addr = args[1]
-        print self.wallet.freeze(addr)
+        print wallet.freeze(addr)
         
     elif cmd == 'unfreeze':
         addr = args[1]
-        print self.wallet.unfreeze(addr)
+        print wallet.unfreeze(addr)
 
     elif cmd == 'prioritize':
         addr = args[1]
-        print self.wallet.prioritize(addr)
+        print wallet.prioritize(addr)
 
     elif cmd == 'unprioritize':
         addr = args[1]
-        print self.wallet.unprioritize(addr)
+        print wallet.unprioritize(addr)
 
