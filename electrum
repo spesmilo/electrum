@@ -115,7 +115,6 @@ if __name__ == '__main__':
     parser.add_option("-f", "--fee", dest="tx_fee", default="0.005", help="set tx fee")
     parser.add_option("-s", "--fromaddr", dest="from_addr", default=None, help="set source address for payto/mktx. if it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet.")
     parser.add_option("-c", "--changeaddr", dest="change_addr", default=None, help="set the change address for payto/mktx. default is a spare address, or the source address if it's not in the wallet")
-    parser.add_option("-r", "--remote", dest="remote_url", default=None, help="URL of a remote wallet")
     parser.add_option("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
     options, args = parser.parse_args()
 
@@ -125,7 +124,6 @@ if __name__ == '__main__':
     wallet = Wallet()
     wallet.set_path(options.wallet_path)
     wallet.read()
-    wallet.remote_url = options.remote_url
 
     if len(args)==0:
         url = None

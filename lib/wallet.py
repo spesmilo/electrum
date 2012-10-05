@@ -315,7 +315,6 @@ class Wallet:
         self.tx_history = {}
 
         self.imported_keys = {}
-        self.remote_url = None
 
         self.was_updated = True
         self.blocks = -1
@@ -615,25 +614,8 @@ class Wallet:
             else:
                 new_addresses.append( self.create_new_address(False) )
 
-        if self.remote_url:
-            num = self.get_remote_number()
-            while len(self.addresses)<num:
-                new_addresses.append( self.create_new_address(False) )
-
         return new_addresses
 
-
-    def get_remote_number(self):
-        import jsonrpclib
-        server = jsonrpclib.Server(self.remote_url)
-        out = server.getnum()
-        return out
-
-    def get_remote_mpk(self):
-        import jsonrpclib
-        server = jsonrpclib.Server(self.remote_url)
-        out = server.getkey()
-        return out
 
     def is_found(self):
         return (len(self.change_addresses) > 1 ) or ( len(self.addresses) > self.gap_limit )
@@ -729,8 +711,6 @@ class Wallet:
 
         if self.seed_version != SEED_VERSION:
             raise ValueError("This wallet seed is deprecated. Please run upgrade.py for a diagnostic.")
-
-        if self.remote_url: assert self.master_public_key.encode('hex') == self.get_remote_mpk()
 
         self.file_exists = True
 
