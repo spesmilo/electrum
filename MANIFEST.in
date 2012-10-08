@@ -6,6 +6,6 @@ recursive-include ecdsa *.py
 recursive-include aes *.py
 include app.fil
 include icons.qrc
-include remote.php
 recursive-include icons *
-
+include scripts
+recursive_include scripts/*
