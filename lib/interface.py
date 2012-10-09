@@ -48,6 +48,7 @@ def old_to_new(d):
     replace_keys(d, 'raw_scriptPubKey', 'raw_output_script')
 
 def parse_proxy_options(s):
+    if s.lower() == 'none': return None
     proxy = { "mode":"socks5", "host":"localhost" }
     args = s.split(':')
     n = 0
