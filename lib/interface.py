@@ -255,12 +255,13 @@ class TcpStratumInterface(Interface):
 
     def init_socket(self):
         global proxy_modes
+        connection_msg = "%s:%d"%(self.host,self.port)
         if self.proxy is None:
             self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
         else:
+            connection_msg += " using proxy %s:%s:%s"%(self.proxy.get('mode'), self.proxy.get('host'), self.proxy.get('port'))
             import socks
             self.s = socks.socksocket()
-            print "Using Proxy", self.proxy
             self.s.setproxy(proxy_modes.index(self.proxy["mode"]), self.proxy["host"], int(self.proxy["port"]) )
         self.s.settimeout(60)
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
@@ -268,10 +269,10 @@ class TcpStratumInterface(Interface):
             self.s.connect(( self.host.encode('ascii'), int(self.port)))
             self.is_connected = True
             self.send([('server.version', [ELECTRUM_VERSION])])
-            print "Connected to %s:%d"%(self.host,self.port)
+            print "Connected to " + connection_msg
         except:
             self.is_connected = False
-            print_error("Not connected")
+            print_error("Failed to connect" + connection_msg)
 
     def run(self):
         try:
