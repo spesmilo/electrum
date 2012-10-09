@@ -1406,11 +1406,11 @@ class ElectrumWindow(QMainWindow):
         proxy_port.setFixedWidth(50)
         proxy_mode.addItems(['NONE', 'SOCKS4', 'SOCKS5', 'HTTP'])
 
-        cfg = SimpleConfig()
-        proxy_config = cfg.config['proxy']
-        proxy_mode.setCurrentIndex(proxy_mode.findText(str(proxy_config["mode"]).upper()))
-        proxy_host.setText(proxy_config["host"])
-        proxy_port.setText(proxy_config["port"])
+        proxy_config = interface.proxy if interface.proxy else { "mode":"none", "host":"localhost", "port":"8080"}
+        proxy_mode.setCurrentIndex(proxy_mode.findText(str(proxy_config.get("mode").upper())))
+        proxy_host.setText(proxy_config.get("host"))
+        proxy_port.setText(proxy_config.get("port"))
+
         hbox.addWidget(QLabel(_('Proxy') + ':'))
         hbox.addWidget(proxy_mode)
         hbox.addWidget(proxy_host)
@@ -1451,11 +1451,14 @@ class ElectrumWindow(QMainWindow):
         server = unicode( host_line.text() )
 
         try:
-            cfg.set_key("proxy", { u'mode':unicode(proxy_mode.currentText()).lower(), u'host':unicode(proxy_host.text()), u'port':unicode(proxy_port.text()) }, True)
-            if cfg.config["proxy"]["mode"] != "none":
-                wallet.set_server(server, cfg.config["proxy"])
+            if proxy_mode.currentText() != 'NONE':
+                proxy = { u'mode':unicode(proxy_mode.currentText()).lower(), u'host':unicode(proxy_host.text()), u'port':unicode(proxy_port.text()) }
             else:
-                wallet.set_server(server)
+                proxy = None
+
+            cfg = SimpleConfig()
+            cfg.set_key("proxy", proxy, True)
+            wallet.set_server(server, proxy)
                 
         except Exception as err:
             QMessageBox.information(None, _('Error'), str(err), _('OK'))

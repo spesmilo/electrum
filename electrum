@@ -118,9 +118,7 @@ if __name__ == '__main__':
     parser.add_option("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
     options, args = parser.parse_args()
 
-    if options.proxy:
-        options.proxy = parse_proxy_options(options.proxy)
-
+    proxy = parse_proxy_options(options.proxy) if options.proxy else simple_config.config["proxy"]
     wallet = Wallet()
     wallet.set_path(options.wallet_path)
     wallet.read()
@@ -180,7 +178,7 @@ if __name__ == '__main__':
             sys.exit("Error: Unknown GUI: " + options.gui)
 
         gui = gui.ElectrumGui(wallet)
-        interface = WalletSynchronizer(wallet, True, gui.server_list_changed, options.proxy)
+        interface = WalletSynchronizer(wallet, True, gui.server_list_changed, proxy)
         interface.start()
 
         try:
