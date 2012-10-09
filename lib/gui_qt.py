@@ -1406,6 +1406,19 @@ class ElectrumWindow(QMainWindow):
         proxy_port.setFixedWidth(50)
         proxy_mode.addItems(['NONE', 'SOCKS4', 'SOCKS5', 'HTTP'])
 
+        def check_for_disable(index = False):
+            if proxy_mode.currentText() != 'NONE':
+                proxy_host.setEnabled(True)
+                proxy_port.setEnabled(True)
+            else:
+                proxy_host.setEnabled(False)
+                proxy_port.setEnabled(False)
+
+        check_for_disable()
+
+        proxy_mode.connect(proxy_mode, SIGNAL('currentIndexChanged(int)'), check_for_disable)
+
+
         proxy_config = interface.proxy if interface.proxy else { "mode":"none", "host":"localhost", "port":"8080"}
         proxy_mode.setCurrentIndex(proxy_mode.findText(str(proxy_config.get("mode").upper())))
         proxy_host.setText(proxy_config.get("host"))
