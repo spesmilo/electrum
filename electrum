@@ -238,7 +238,7 @@ if __name__ == '__main__':
             wallet.seed = str(seed)
             wallet.init_mpk( wallet.seed )
             if not options.offline:
-                WalletSynchronizer(wallet).start()
+                WalletSynchronizer(wallet, proxy=proxy).start()
                 print "Recovering wallet..."
                 wallet.up_to_date_event.clear()
                 wallet.up_to_date = False
@@ -281,7 +281,7 @@ if __name__ == '__main__':
 
     # open session
     if cmd not in offline_commands and not options.offline:
-        WalletSynchronizer(wallet).start()
+        WalletSynchronizer(wallet, proxy=proxy).start()
         wallet.update()
         wallet.save()
 
