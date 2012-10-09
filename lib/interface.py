@@ -22,6 +22,7 @@ import threading, traceback, sys, time, json, Queue
 
 from version import ELECTRUM_VERSION
 from util import print_error
+from simple_config import SimpleConfig
 
 DEFAULT_TIMEOUT = 5
 DEFAULT_SERVERS = [ 'electrum.novit.ro:50001:t', 
@@ -189,9 +190,17 @@ class HttpStratumInterface(PollingInterface):
         import urllib2, json, time, cookielib
         
         if self.proxy:
+            # This is a friendly fallback to the old style default proxy options
+            if(self.proxy["mode"] == "none"):
+                simple_config = SimpleConfig()
+                simple_config.set_key("proxy", None, True)
+                return
+                
             import socks
+
             socks.setdefaultproxy(proxy_modes.index(self.proxy["mode"]), self.proxy["host"], int(self.proxy["port"]) )
             socks.wrapmodule(urllib2)
+
         cj = cookielib.CookieJar()
         opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
         urllib2.install_opener(opener)
