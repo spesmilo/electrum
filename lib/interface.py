@@ -190,14 +190,7 @@ class HttpStratumInterface(PollingInterface):
         import urllib2, json, time, cookielib
         
         if self.proxy:
-            # This is a friendly fallback to the old style default proxy options
-            if(self.proxy["mode"] == "none"):
-                simple_config = SimpleConfig()
-                simple_config.set_key("proxy", None, True)
-                return
-                
             import socks
-
             socks.setdefaultproxy(proxy_modes.index(self.proxy["mode"]), self.proxy["host"], int(self.proxy["port"]) )
             socks.wrapmodule(urllib2)
 

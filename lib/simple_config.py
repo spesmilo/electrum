@@ -4,7 +4,6 @@ from util import user_dir
 
 class SimpleConfig:
 
-
     default_options = {
         "gui": "lite",
         "proxy": None,
@@ -25,6 +24,10 @@ class SimpleConfig:
             if not os.path.exists(self.config_folder):
                 os.mkdir(self.config_folder)
             self.save_config()
+
+        # This is a friendly fallback to the old style default proxy options
+        if(self.config.get("proxy") is not None and self.config["proxy"]["mode"] == "none"):
+            self.set_key("proxy", None, True)
 
     def set_key(self, key, value, save = True):
         self.config[key] = value
