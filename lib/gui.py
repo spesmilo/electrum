@@ -437,13 +437,13 @@ def run_network_dialog( wallet, parent ):
         return False
 
     try:
-        wallet.set_server(server)
+        interface.set_server(server)
     except:
         show_message("error:" + server)
         return False
 
     if parent:
-        wallet.save()
+        wallet.config.set_key("server", server, True)
     return True
 
 
