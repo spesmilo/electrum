@@ -158,11 +158,6 @@ class SimpleConfig:
         self.wallet_file_exists = True
 
 
-    def set_interface(self, interface):
-        pass
-
-    def set_gui(self, gui):
-        pass
 
     def save(self):
         self.save_wallet_config()
