@@ -18,7 +18,6 @@
 
 import re
 import sys
-# import argparse
 import optparse
 
 try:
@@ -37,9 +36,9 @@ except ImportError:
     sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
 
 try:
-    from lib import Wallet, WalletSynchronizer, format_satoshis, mnemonic, prompt_password, parse_proxy_options, SimpleConfig
+    from lib import Wallet, WalletSynchronizer, format_satoshis, mnemonic, prompt_password, SimpleConfig, pick_random_server
 except ImportError:
-    from electrum import Wallet, WalletSynchronizer, format_satoshis, mnemonic, prompt_password, parse_proxy_options, SimpleConfig
+    from electrum import Wallet, WalletSynchronizer, format_satoshis, mnemonic, prompt_password, SimpleConfig, pick_random_server
 
 from decimal import Decimal
 
@@ -95,33 +94,39 @@ options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address 
 
 
 
-offline_commands = [ 'password', 'mktx', 'label', 'contacts', 'help', 'validateaddress', 'signmessage', 'verifymessage', 'eval', 'create', 'addresses', 'import', 'seed','deseed','reseed','freeze','unfreeze','prioritize','unprioritize']
+offline_commands = [ 'password', 'mktx',
+                     'label', 'contacts',
+                     'help', 'validateaddress',
+                     'signmessage', 'verifymessage',
+                     'eval', 'create', 'addresses',
+                     'import', 'seed',
+                     'deseed','reseed',
+                     'freeze','unfreeze',
+                     'prioritize','unprioritize']
+
 
 protected_commands = ['payto', 'password', 'mktx', 'seed', 'import','signmessage' ]
 
 if __name__ == '__main__':
 
-    # Load simple config class
-    simple_config = SimpleConfig()
-
     usage = "usage: %prog [options] command\nCommands: "+ (', '.join(known_commands))
     parser = optparse.OptionParser(prog=usage)
-    parser.add_option("-g", "--gui", dest="gui", default=simple_config.config["gui"], help="gui")
+    parser.add_option("-g", "--gui", dest="gui", help="gui")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
     parser.add_option("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
     parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance at listed addresses")
     parser.add_option("-k", "--keys",action="store_true", dest="show_keys",default=False, help="show the private keys of listed addresses")
     parser.add_option("-f", "--fee", dest="tx_fee", default="0.005", help="set tx fee")
-    parser.add_option("-s", "--fromaddr", dest="from_addr", default=None, help="set source address for payto/mktx. if it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet.")
+    parser.add_option("-F", "--fromaddr", dest="from_addr", default=None, help="set source address for payto/mktx. if it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet.")
     parser.add_option("-c", "--changeaddr", dest="change_addr", default=None, help="set the change address for payto/mktx. default is a spare address, or the source address if it's not in the wallet")
+    parser.add_option("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is t or h")
     parser.add_option("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
     options, args = parser.parse_args()
 
-    proxy = parse_proxy_options(options.proxy) if options.proxy else simple_config.config["proxy"]
-    wallet = Wallet()
-    wallet.set_path(options.wallet_path)
-    wallet.read()
+    # config is an object passed to the various constructors (wallet, interface, gui)
+    config = SimpleConfig(options)
+    wallet = Wallet(config)
 
     if len(args)==0:
         url = None
@@ -136,31 +141,31 @@ if __name__ == '__main__':
     #this entire if/else block is just concerned with importing the 
     #right GUI toolkit based the GUI command line option given 
     if cmd == 'gui':
-        
-        if options.gui=='gtk':
+        pref_gui = config.get('gui','qt')
+        if pref_gui == 'gtk':
             try:
                 import lib.gui as gui
             except ImportError:
                 import electrum.gui as gui
-        elif options.gui=='qt':
+        elif pref_gui == 'qt':
             try:
                 import lib.gui_qt as gui
             except ImportError:
                 import electrum.gui_qt as gui
-        elif options.gui == 'lite':
+        elif pref_gui == 'lite':
               try:
                   import lib.gui_lite as gui
               except ImportError:
                   import electrum.gui_lite as gui
         else:
-            sys.exit("Error: Unknown GUI: " + options.gui)
+            sys.exit("Error: Unknown GUI: " + pref_gui )
 
-        gui = gui.ElectrumGui(wallet)
-        interface = WalletSynchronizer(wallet, True, gui.server_list_changed, proxy)
+        gui = gui.ElectrumGui(wallet, config)
+        interface = WalletSynchronizer(wallet, config, True, gui.server_list_changed)
         interface.start()
 
         try:
-            found = wallet.file_exists
+            found = config.wallet_file_exists
             if not found:
                 found = gui.restore_or_create()
         except SystemExit, e:
@@ -180,17 +185,19 @@ if __name__ == '__main__':
     if cmd not in known_commands:
         cmd = 'help'
 
-    if not wallet.file_exists and cmd not in ['help','create','restore']:
+    if not config.wallet_file_exists and cmd not in ['help','create','restore']:
         print "Error: Wallet file not found."
         print "Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option"
         sys.exit(0)
     
     if cmd in ['create', 'restore']:
-        if wallet.file_exists:
+        if config.wallet_file_exists:
             sys.exit("Error: Remove the existing wallet first!")
         password = prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
 
-        w_host, w_port, w_protocol = wallet.server.split(':')
+        server = config.get('server')
+        if not server: server = pick_random_server()
+        w_host, w_port, w_protocol = server.split(':')
         host = raw_input("server (default:%s):"%w_host)
         port = raw_input("port (default:%s):"%w_port)
         protocol = raw_input("protocol [t=tcp;h=http;n=native] (default:%s):"%w_protocol)
@@ -199,7 +206,7 @@ if __name__ == '__main__':
         if host: w_host = host
         if port: w_port = port
         if protocol: w_protocol = protocol
-        wallet.server = w_host + ':' + w_port + ':' +w_protocol
+        wallet.config.set_key('server', w_host + ':' + w_port + ':' +w_protocol)
         if fee: wallet.fee = float(fee)
         if gap: wallet.gap_limit = int(gap)
 
@@ -216,7 +223,7 @@ if __name__ == '__main__':
             wallet.seed = str(seed)
             wallet.init_mpk( wallet.seed )
             if not options.offline:
-                WalletSynchronizer(wallet, proxy=proxy).start()
+                WalletSynchronizer(wallet, config).start()
                 print "Recovering wallet..."
                 wallet.up_to_date_event.clear()
                 wallet.up_to_date = False
@@ -239,7 +246,7 @@ if __name__ == '__main__':
             print "Please keep it in a safe place; if you lose it, you will not be able to restore your wallet."
             print "Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:"
             print "\""+' '.join(mnemonic.mn_encode(wallet.seed))+"\""
-            print "Wallet saved in '%s'"%wallet.path
+            print "Wallet saved in '%s'"%wallet.config.path
             
         if password:
             wallet.update_password(wallet.seed, None, password)
@@ -259,7 +266,7 @@ if __name__ == '__main__':
 
     # open session
     if cmd not in offline_commands and not options.offline:
-        WalletSynchronizer(wallet, proxy=proxy).start()
+        WalletSynchronizer(wallet, config).start()
         wallet.update()
         wallet.save()
 

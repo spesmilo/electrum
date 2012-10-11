@@ -37,9 +37,7 @@ except:
     sys.exit("Error: Could not import icons_rc.py, please generate it with: 'pyrcc4 icons.qrc -o lib/icons_rc.py'")
 
 from wallet import format_satoshis
-from simple_config import SimpleConfig
 import bmp, mnemonic, pyqrnative, qrscanner
-from simple_config import SimpleConfig
 
 from decimal import Decimal
 
@@ -185,10 +183,13 @@ def ok_cancel_buttons(dialog):
 
 class ElectrumWindow(QMainWindow):
 
-    def __init__(self, wallet):
+    def __init__(self, wallet, config):
         QMainWindow.__init__(self)
         self.wallet = wallet
+        self.config = config
         self.wallet.register_callback(self.update_callback)
+
+        self.detailed_view = config.get('qt_detailed_view', False)
 
         self.funds_error = False
         self.completions = QStringListModel()
@@ -204,10 +205,10 @@ class ElectrumWindow(QMainWindow):
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
         self.create_status_bar()
-        cfg = SimpleConfig()
-        g = cfg.config["winpos-qt"]
+
+        g = self.config.get("winpos-qt",[100, 100, 840, 400])
         self.setGeometry(g[0], g[1], g[2], g[3])
-        title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.wallet.path
+        title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.config.path
         if not self.wallet.seed: title += ' [seedless]'
         self.setWindowTitle( title )
 
@@ -696,10 +697,12 @@ class ElectrumWindow(QMainWindow):
         return w
 
     def details_button_text(self):
-        return _('Hide details') if self.wallet.gui_detailed_view else _('Show details')
+        return _('Hide details') if self.detailed_view else _('Show details')
 
     def toggle_detailed_view(self):
-        self.wallet.gui_detailed_view = not self.wallet.gui_detailed_view
+        self.detailed_view = not self.detailed_view
+        self.config.set_key('qt_detailed_view', self.detailed_view, True)
+
         self.details_button.setText(self.details_button_text())
         self.wallet.save()
         self.update_receive_tab()
@@ -731,11 +734,11 @@ class ElectrumWindow(QMainWindow):
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
         menu.addAction(_("Edit label"), lambda: self.edit_label(True))
-        if self.wallet.gui_detailed_view:
-            t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
-            menu.addAction(t, lambda: self.toggle_freeze(addr))
-            t = _("Unprioritize") if addr in self.wallet.prioritized_addresses else _("Prioritize")
-            menu.addAction(t, lambda: self.toggle_priority(addr))
+
+        t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
+        menu.addAction(t, lambda: self.toggle_freeze(addr))
+        t = _("Unprioritize") if addr in self.wallet.prioritized_addresses else _("Prioritize")
+        menu.addAction(t, lambda: self.toggle_priority(addr))
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
 
@@ -790,9 +793,9 @@ class ElectrumWindow(QMainWindow):
     def update_receive_tab(self):
         l = self.receive_list
         l.clear()
-        l.setColumnHidden(0,not self.wallet.gui_detailed_view)
-        l.setColumnHidden(3,not self.wallet.gui_detailed_view)
-        l.setColumnHidden(4,not self.wallet.gui_detailed_view)
+        l.setColumnHidden(0,not self.detailed_view)
+        l.setColumnHidden(3,not self.detailed_view)
+        l.setColumnHidden(4,not self.detailed_view)
         l.setColumnWidth(0, 50) 
         l.setColumnWidth(1, 310) 
         l.setColumnWidth(2, 250)
@@ -803,7 +806,7 @@ class ElectrumWindow(QMainWindow):
         is_red = False
         for address in self.wallet.all_addresses():
 
-            if self.wallet.is_change(address) and not self.wallet.gui_detailed_view:
+            if self.wallet.is_change(address) and not self.detailed_view:
                 continue
 
             label = self.wallet.labels.get(address,'')
@@ -855,7 +858,7 @@ class ElectrumWindow(QMainWindow):
 
         l = self.contacts_list
         l.clear()
-        l.setColumnHidden(2, not self.wallet.gui_detailed_view)
+        l.setColumnHidden(2, not self.detailed_view)
         l.setColumnWidth(0, 350) 
         l.setColumnWidth(1, 330)
         l.setColumnWidth(2, 100) 
@@ -1247,9 +1250,8 @@ class ElectrumWindow(QMainWindow):
         gap_e.textChanged.connect(lambda: numbify(nz_e,True))
         
         gui = QComboBox()
-        gui.addItems(['Lite', 'Qt'])
-        cfg = SimpleConfig()
-        gui.setCurrentIndex(gui.findText(cfg.config["gui"].capitalize()))
+        gui.addItems(['Lite', 'Qt', 'Gtk'])
+        gui.setCurrentIndex(gui.findText(self.config.get("gui","lite").capitalize()))
         grid.addWidget(QLabel(_('Default GUI') + ':'), 7, 0)
         grid.addWidget(gui, 7, 1)
         grid.addWidget(HelpButton(_('Select which GUI mode to use at start up. ')), 7, 2)
@@ -1298,9 +1300,7 @@ class ElectrumWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, _('Error'), _('Invalid value'), _('OK'))
                     
-        cfg = SimpleConfig()
-        cfg.set_key("gui", str(gui.currentText()).lower())
-        cfg.save_config()
+        self.config.set_key("gui", str(gui.currentText()).lower(), True)
 
 
 
@@ -1312,7 +1312,7 @@ class ElectrumWindow(QMainWindow):
                 status = _("Connected to")+" %s:%d\n%d blocks"%(interface.host, interface.port, wallet.blocks)
             else:
                 status = _("Not connected")
-            server = wallet.server
+            server = interface.server
         else:
             import random
             status = _("Please choose a server.")
@@ -1458,37 +1458,28 @@ class ElectrumWindow(QMainWindow):
         if not d.exec_(): return
         server = unicode( host_line.text() )
 
-        try:
-            if proxy_mode.currentText() != 'NONE':
-                proxy = { u'mode':unicode(proxy_mode.currentText()).lower(), u'host':unicode(proxy_host.text()), u'port':unicode(proxy_port.text()) }
-            else:
-                proxy = None
+        if proxy_mode.currentText() != 'NONE':
+            proxy = { u'mode':unicode(proxy_mode.currentText()).lower(), u'host':unicode(proxy_host.text()), u'port':unicode(proxy_port.text()) }
+        else:
+            proxy = None
 
-            cfg = SimpleConfig()
-            cfg.set_key("proxy", proxy, True)
-            wallet.set_server(server, proxy)
+        wallet.config.set_key("proxy", proxy, True)
+        wallet.config.set_key("server", server, True)
+        interface.set_server(server, proxy)
                 
-        except Exception as err:
-            QMessageBox.information(None, _('Error'), str(err), _('OK'))
-            if parent == None:
-                sys.exit(1)
-            else:
-                return
-
         return True
 
     def closeEvent(self, event):
-        cfg = SimpleConfig()
         g = self.geometry()
-        cfg.set_key("winpos-qt", [g.left(),g.top(),g.width(),g.height()])
-        cfg.save_config()
+        self.config.set_key("winpos-qt", [g.left(),g.top(),g.width(),g.height()], True)
         event.accept()
 
 
 class ElectrumGui:
 
-    def __init__(self, wallet, app=None):
+    def __init__(self, wallet, config, app=None):
         self.wallet = wallet
+        self.config = config
         if app is None:
             self.app = QApplication(sys.argv)
 
@@ -1563,7 +1554,7 @@ class ElectrumGui:
     def main(self,url):
         s = Timer()
         s.start()
-        w = ElectrumWindow(self.wallet)
+        w = ElectrumWindow(self.wallet, self.config)
         if url: w.set_url(url)
         w.app = self.app
         w.connect_slots(s)

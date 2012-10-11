@@ -13,17 +13,13 @@ except ImportError:
 qtVersion = qVersion()
 if not(int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
     app = QApplication(sys.argv)
-    QMessageBox.warning(None,"Could not start Lite GUI.", "Electrum was unable to load the 'Lite GUI' because it needs Qt version >= 4.7.\nElectrum was set to use the 'Qt' GUI")
-    from simple_config import SimpleConfig
-    cfg = SimpleConfig()
-    cfg.set_key("gui", "qt",True)
+    QMessageBox.warning(None,"Could not start Lite GUI.", "Electrum was unable to load the 'Lite GUI' because it needs Qt version >= 4.7.\nPlease use the 'Qt' GUI")
     sys.exit(0)
 
 
 
 from decimal import Decimal as D
 from interface import DEFAULT_SERVERS
-from simple_config import SimpleConfig
 from util import get_resource_path as rsrc
 from i18n import _
 import decimal
@@ -61,10 +57,11 @@ def resize_line_edit_width(line_edit, text_input):
 
 class ElectrumGui(QObject):
 
-    def __init__(self, wallet):
+    def __init__(self, wallet, config):
         super(QObject, self).__init__()
 
         self.wallet = wallet
+        self.config = config
         self.app = QApplication(sys.argv)
 
     def main(self, url):
@@ -76,7 +73,7 @@ class ElectrumGui(QObject):
         old_path = QDir.currentPath()
         actuator.load_theme()
 
-        self.mini = MiniWindow(actuator, self.expand)
+        self.mini = MiniWindow(actuator, self.expand, self.config)
         driver = MiniDriver(self.wallet, self.mini)
 
         # Reset path back to original value now that loading the GUI
@@ -88,12 +85,10 @@ class ElectrumGui(QObject):
 
         timer = Timer()
         timer.start()
-        self.expert = gui_qt.ElectrumWindow(self.wallet)
+        self.expert = gui_qt.ElectrumWindow(self.wallet, self.config)
         self.expert.app = self.app
         self.expert.connect_slots(timer)
         self.expert.update_wallet()
-
-
         self.app.exec_()
 
     def server_list_changed(self):
@@ -124,10 +119,11 @@ class ElectrumGui(QObject):
 
 class MiniWindow(QDialog):
 
-    def __init__(self, actuator, expand_callback):
+    def __init__(self, actuator, expand_callback, config):
         super(MiniWindow, self).__init__()
 
         self.actuator = actuator
+        self.config = config
 
         self.btc_balance = None
         self.quote_currencies = ["EUR", "USD", "GBP"]
@@ -259,11 +255,12 @@ class MiniWindow(QDialog):
         close_shortcut = QShortcut(QKeySequence("Ctrl+W"), self)
         close_shortcut.activated.connect(self.close)
 
-        self.cfg = SimpleConfig()
-        g = self.cfg.config["winpos-lite"]
+        g = self.config.get("winpos-lite",[4, 25, 351, 149])
         self.setGeometry(g[0], g[1], g[2], g[3])
-        show_history.setChecked(self.cfg.config["history"])
-        self.show_history(self.cfg.config["history"])
+
+        show_hist = self.config.get("gui_show_history",False)
+        show_history.setChecked(show_hist)
+        self.show_history(show_hist)
         
         self.setWindowIcon(QIcon(":electrum.png"))
         self.setWindowTitle("Electrum")
@@ -282,9 +279,8 @@ class MiniWindow(QDialog):
 
     def closeEvent(self, event):
         g = self.geometry()
-        self.cfg.set_key("winpos-lite", [g.left(),g.top(),g.width(),g.height()])
-        self.cfg.set_key("history", self.history_list.isVisible())
-        self.cfg.save_config()
+        self.config.set_key("winpos-lite", [g.left(),g.top(),g.width(),g.height()],True)
+        self.config.set_key("history", self.history_list.isVisible(),True)
         
         super(MiniWindow, self).closeEvent(event)
         qApp.quit()
@@ -563,7 +559,7 @@ class MiniActuator:
     def __init__(self, wallet):
         """Retrieve the gui theme used in previous session."""
         self.wallet = wallet
-        self.theme_name = self.wallet.theme
+        self.theme_name = self.wallet.config.get('litegui_theme','Cleanlook')
         self.themes = util.load_theme_paths()
 
     def load_theme(self):
@@ -587,13 +583,14 @@ class MiniActuator:
 
     def change_theme(self, theme_name):
         """Change theme."""
-        self.wallet.theme = self.theme_name = theme_name
+        self.theme_name = theme_name
+        self.wallet.config.set_key('litegui_theme',theme_name)
         self.load_theme()
     
     def set_configured_currency(self, set_quote_currency):
         """Set the inital fiat currency conversion country (USD/EUR/GBP) in 
         the GUI to what it was set to in the wallet."""
-        currency = self.wallet.conversion_currency
+        currency = self.wallet.config.get('conversion_currency')
         # currency can be none when Electrum is used for the first
         # time and no setting has been created yet.
         if currency is not None:
@@ -601,7 +598,7 @@ class MiniActuator:
 
     def set_config_currency(self, conversion_currency):
         """Change the wallet fiat currency country."""
-        self.wallet.conversion_currency = conversion_currency
+        self.wallet.config.set_key('conversion_currency',conversion_currency,True)
 
     def set_servers_gui_stuff(self, servers_menu, servers_group):
         self.servers_menu = servers_menu
@@ -620,7 +617,7 @@ class MiniActuator:
             print "Servers loaded."
             self.servers_list = interface.servers
         server_names = [details[0] for details in self.servers_list]
-        current_server = self.wallet.server.split(":")[0]
+        current_server = interface.server.split(":")[0]
         for server_name in server_names:
             server_action = self.servers_menu.addAction(server_name)
             server_action.setCheckable(True)
@@ -661,8 +658,7 @@ class MiniActuator:
         server_line = "%s:%s:%s" % (server_name, port, protocol)
 
         # Should this have exception handling?
-        self.cfg = SimpleConfig()
-        self.wallet.set_server(server_line, self.cfg.config["proxy"])
+        self.wallet.set_server(server_line, self.config.get(["proxy"]))
 
     def copy_address(self, receive_popup):
         """Copy the wallet addresses into the client."""

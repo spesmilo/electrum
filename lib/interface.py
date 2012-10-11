@@ -22,7 +22,7 @@ import threading, traceback, sys, time, json, Queue
 
 from version import ELECTRUM_VERSION
 from util import print_error
-from simple_config import SimpleConfig
+
 
 DEFAULT_TIMEOUT = 5
 DEFAULT_SERVERS = [ 'electrum.novit.ro:50001:t', 
@@ -30,23 +30,10 @@ DEFAULT_SERVERS = [ 'electrum.novit.ro:50001:t',
 
 proxy_modes = ['socks4', 'socks5', 'http']
 
-def replace_keys(obj, old_key, new_key):
-    if isinstance(obj, dict):
-        if old_key in obj:
-            obj[new_key] = obj[old_key]
-            del obj[old_key]
-        for elem in obj.itervalues():
-            replace_keys(elem, old_key, new_key)
-    elif isinstance(obj, list):
-        for elem in obj:
-            replace_keys(elem, old_key, new_key)
+def pick_random_server():
+    print "using random server"
+    return random.choice( DEFAULT_SERVERS )
 
-def old_to_new(d):
-    replace_keys(d, 'blk_hash', 'block_hash')
-    replace_keys(d, 'pos', 'index')
-    replace_keys(d, 'nTime', 'timestamp')
-    replace_keys(d, 'is_in', 'is_input')
-    replace_keys(d, 'raw_scriptPubKey', 'raw_output_script')
 
 def parse_proxy_options(s):
     if s.lower() == 'none': return None
@@ -65,7 +52,11 @@ def parse_proxy_options(s):
         proxy["port"] = "8080" if proxy["mode"] == "http" else "1080"
     return proxy
 
-class Interface(threading.Thread):
+
+
+
+class InterfaceAncestor(threading.Thread):
+
     def __init__(self, host, port, proxy=None):
         threading.Thread.__init__(self)
         self.daemon = True
@@ -134,11 +125,11 @@ class Interface(threading.Thread):
 
 
 
-class PollingInterface(Interface):
+class PollingInterface(InterfaceAncestor):
     """ non-persistent connection. synchronous calls"""
 
     def __init__(self, host, port, proxy=None):
-        Interface.__init__(self, host, port, proxy)
+        InterfaceAncestor.__init__(self, host, port, proxy)
         self.session_id = None
 
     def get_history(self, address):
@@ -146,14 +137,6 @@ class PollingInterface(Interface):
 
     def poll(self):
         pass
-        #if is_new or wallet.remote_url:
-        #    self.was_updated = True
-        #    is_new = wallet.synchronize()
-        #    wallet.update_tx_history()
-        #    wallet.save()
-        #    return is_new
-        #else:
-        #    return False
 
     def run(self):
         self.is_connected = True
@@ -249,11 +232,11 @@ class HttpStratumInterface(PollingInterface):
 
 
 
-class TcpStratumInterface(Interface):
+class TcpStratumInterface(InterfaceAncestor):
     """json-rpc over persistent TCP connection, asynchronous"""
 
     def __init__(self, host, port, proxy=None):
-        Interface.__init__(self, host, port, proxy)
+        InterfaceAncestor.__init__(self, host, port, proxy)
 
     def init_socket(self):
         global proxy_modes
@@ -328,38 +311,63 @@ class TcpStratumInterface(Interface):
 
 
 
+class Interface(TcpStratumInterface, HttpStratumInterface):
+    
+    def __init__(self, config):
+
+        try:
+            s = config.get('server')
+            host, port, protocol = s.split(':')
+            port = int(port)
+        except:
+            s = pick_random_server()
+            host, port, protocol = s.split(':')
+            port = int(port)
+
+        proxy = config.get('proxy')
+        self.server = host + ':%d:%s'%(port, protocol)
+
+        #print protocol, host, port
+        if protocol == 't':
+            TcpStratumInterface.__init__(self, host, port, proxy)
+        elif protocol == 'h':
+            HttpStratumInterface.__init__(self, host, port, proxy)
+        else:
+            print_error("Error: Unknown protocol")
+            TcpStratumInterface.__init__(self, host, port, proxy)
+
+
+    def set_server(self, server, proxy=None):
+        # raise an error if the format isnt correct
+        a,b,c = server.split(':')
+        b = int(b)
+        assert c in ['t', 'h']
+        # set the server
+        if server != self.server or proxy != self.proxy:
+            print "changing server:", server, proxy
+            self.server = server
+            self.proxy = proxy
+            self.is_connected = False  # this exits the polling loop
+            self.poke()
+
+
+
+
 
 
 class WalletSynchronizer(threading.Thread):
 
-    def __init__(self, wallet, loop=False, servers_loaded_callback=None, proxy=None):
+    def __init__(self, wallet, config, loop=False, servers_loaded_callback=None):
         threading.Thread.__init__(self)
         self.daemon = True
         self.wallet = wallet
         self.loop = loop
-        self.proxy = proxy
+        self.config = config
         self.init_interface()
         self.servers_loaded_callback = servers_loaded_callback
 
     def init_interface(self):
-        try:
-            host, port, protocol = self.wallet.server.split(':')
-            port = int(port)
-        except:
-            self.wallet.pick_random_server()
-            host, port, protocol = self.wallet.server.split(':')
-            port = int(port)
-
-        #print protocol, host, port
-        if protocol == 't':
-            InterfaceClass = TcpStratumInterface
-        elif protocol == 'h':
-            InterfaceClass = HttpStratumInterface
-        else:
-            print_error("Error: Unknown protocol")
-            InterfaceClass = TcpStratumInterface
-
-        self.interface = InterfaceClass(host, port, self.proxy)
+        self.interface = Interface(self.config)
         self.wallet.interface = self.interface
 
     def handle_response(self, r):

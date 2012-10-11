@@ -558,12 +558,13 @@ class ElectrumWindow:
     def show_message(self, msg):
         show_message(msg, self.window)
 
-    def __init__(self, wallet):
+    def __init__(self, wallet, config):
+        self.config = config
         self.wallet = wallet
         self.funds_error = False # True if not enough funds
 
         self.window = MyWindow(gtk.WINDOW_TOPLEVEL)
-        title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.wallet.path
+        title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.config.path
         if not self.wallet.seed: title += ' [seedless]'
         self.window.set_title(title)
         self.window.connect("destroy", gtk.main_quit)
@@ -1298,11 +1299,12 @@ class ElectrumWindow:
 
 class ElectrumGui():
 
-    def __init__(self, wallet):
+    def __init__(self, wallet, config):
         self.wallet = wallet
+        self.config = config
 
     def main(self, url=None):
-        ew = ElectrumWindow(self.wallet)
+        ew = ElectrumWindow(self.wallet, self.config)
         if url: ew.set_url(url)
         gtk.main()
 

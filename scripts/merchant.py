@@ -21,7 +21,7 @@ import time, thread, sys, socket, os
 import urllib2,json
 import MySQLdb as mdb
 import Queue
-from electrum import Wallet, TcpStratumInterface
+from electrum import Wallet, Interface
 
 import ConfigParser
 config = ConfigParser.ConfigParser()
@@ -157,7 +157,7 @@ if __name__ == '__main__':
     print "using database", db_name
     conn = mdb.connect(db_instance, db_user, db_password, db_name);
 
-    i = TcpStratumInterface(electrum_server, 50001)
+    i = Interface({'server':"%s:%d:t"%(electrum_server, 50001)})
     i.init_socket()
     i.start()
     

@@ -273,49 +273,40 @@ def format_satoshis(x, is_diff=False, num_zeros = 0):
 
 
 from version import ELECTRUM_VERSION, SEED_VERSION
-from interface import DEFAULT_SERVERS
-
 
 
 
 class Wallet:
-    def __init__(self):
+    def __init__(self, config={}):
 
+        self.config = config
         self.electrum_version = ELECTRUM_VERSION
-        self.seed_version = SEED_VERSION
         self.update_callbacks = []
 
-        self.gap_limit = 5           # configuration
-        self.use_change = True
-        self.fee = 100000
-        self.num_zeros = 0
-        self.master_public_key = ''
-        self.conversion_currency = None
-        self.theme = "Cleanlook"
-
         # saved fields
-        self.use_encryption = False
-        self.addresses = []          # receiving addresses visible for user
-        self.change_addresses = []   # addresses used as change
-        self.seed = ''               # encrypted
-        self.history = {}
-        self.labels = {}             # labels for addresses and transactions
-        self.aliases = {}            # aliases for addresses
-        self.authorities = {}        # trusted addresses
-        self.frozen_addresses = []
-        self.prioritized_addresses = []
-        self.gui_detailed_view = False
-        
-        self.receipts = {}           # signed URIs
-        self.receipt = None          # next receipt
-        self.addressbook = []        # outgoing addresses, for payments
-        self.debug_server = False    # write server communication debug info to stdout
+        self.seed_version          = config.get('seed_version', SEED_VERSION)
+        self.gap_limit             = config.get('gap_limit', 5)
+        self.use_change            = config.get('use_change',True)
+        self.fee                   = int(config.get('fee',100000))
+        self.num_zeros             = int(config.get('num_zeros',0))
+        self.master_public_key     = config.get('master_public_key','').decode('hex')
+        self.use_encryption        = config.get('use_encryption', False)
+        self.addresses             = config.get('addresses', [])          # receiving addresses visible for user
+        self.change_addresses      = config.get('change_addresses', [])   # addresses used as change
+        self.seed                  = config.get('seed', '')               # encrypted
+        self.history               = config.get('history',{})
+        self.labels                = config.get('labels',{})              # labels for addresses and transactions
+        self.aliases               = config.get('aliases', {})            # aliases for addresses
+        self.authorities           = config.get('authorities', {})        # trusted addresses
+        self.frozen_addresses      = config.get('frozen_addresses',[])
+        self.prioritized_addresses = config.get('prioritized_addresses',[])
+        self.receipts              = config.get('receipts',{})            # signed URIs
+        self.addressbook           = config.get('contacts', [])           # outgoing addresses, for payments
+        self.imported_keys         = config.get('imported_keys',{})
 
         # not saved
+        self.receipt = None          # next receipt
         self.tx_history = {}
-
-        self.imported_keys = {}
-
         self.was_updated = True
         self.blocks = -1
         self.banner = ''
@@ -329,7 +320,10 @@ class Wallet:
         self.lock = threading.Lock()
         self.tx_event = threading.Event()
 
-        self.pick_random_server()
+        self.update_tx_history()
+        if self.seed_version != SEED_VERSION:
+            raise ValueError("This wallet seed is deprecated. Please run upgrade.py for a diagnostic.")
+
 
     def register_callback(self, update_callback):
         with self.lock:
@@ -340,38 +334,9 @@ class Wallet:
             callbacks = self.update_callbacks[:]
         [update() for update in callbacks]
 
-    def pick_random_server(self):
-        self.server = random.choice( DEFAULT_SERVERS )         # random choice when the wallet is created
-
     def is_up_to_date(self):
         return self.interface.responses.empty() and not self.interface.unanswered_requests
 
-    def set_server(self, server, proxy=None):
-        # raise an error if the format isnt correct
-        a,b,c = server.split(':')
-        b = int(b)
-        assert c in ['t', 'h', 'n']
-        # set the server
-        if server != self.server or proxy != self.interface.proxy:
-            self.server = server
-            self.save()
-            self.interface.proxy = proxy
-            self.interface.is_connected = False  # this exits the polling loop
-            self.interface.poke()
-
-    def set_path(self, wallet_path):
-        """Set the path of the wallet."""
-        if wallet_path is not None:
-            self.path = wallet_path
-            return
-        # Look for wallet file in the default data directory.
-        # Keeps backwards compatibility.
-        wallet_dir = user_dir()
-
-        # Make wallet directory if it does not yet exist.
-        if not os.path.exists(wallet_dir):
-            os.mkdir(wallet_dir)
-        self.path = os.path.join(wallet_dir, "electrum.dat")
 
     def import_key(self, keypair, password):
         address, key = keypair.split(':')
@@ -389,6 +354,7 @@ class Wallet:
         if not address == public_key_to_bc_address( '04'.decode('hex') + public_key.to_string() ):
             raise BaseException('Address does not match private key')
         self.imported_keys[address] = self.pw_encode( key, password )
+
 
     def new_seed(self, password):
         seed = "%032x"%ecdsa.util.randrange( pow(2,128) )
@@ -628,91 +594,6 @@ class Wallet:
                         self.addressbook.append(i)
         # redo labels
         self.update_tx_labels()
-
-
-    def save(self):
-        # TODO: Need special config storage class. Should not be mixed
-        # up with the wallet.
-        # Settings should maybe be stored in a flat ini file.
-        s = {
-            'seed_version': self.seed_version,
-            'use_encryption': self.use_encryption,
-            'use_change': self.use_change,
-            'master_public_key': self.master_public_key.encode('hex'),
-            'fee': self.fee,
-            'server': self.server,
-            'seed': self.seed,
-            'addresses': self.addresses,
-            'change_addresses': self.change_addresses,
-            'history': self.history, 
-            'labels': self.labels,
-            'contacts': self.addressbook,
-            'imported_keys': self.imported_keys,
-            'aliases': self.aliases,
-            'authorities': self.authorities,
-            'receipts': self.receipts,
-            'num_zeros': self.num_zeros,
-            'frozen_addresses': self.frozen_addresses,
-            'prioritized_addresses': self.prioritized_addresses,
-            'gui_detailed_view': self.gui_detailed_view,
-            'gap_limit': self.gap_limit,
-            'debug_server': self.debug_server,
-            'conversion_currency': self.conversion_currency,
-            'theme': self.theme
-        }
-        f = open(self.path,"w")
-        f.write( repr(s) )
-        f.close()
-        import stat
-        os.chmod(self.path,stat.S_IREAD | stat.S_IWRITE)
-
-    def read(self):
-        """Read the contents of the wallet file."""
-        import interface
-
-        self.file_exists = False
-        try:
-            with open(self.path, "r") as f:
-                data = f.read()
-        except IOError:
-            return
-        try:
-            d = ast.literal_eval( data )  #parse raw data from reading wallet file
-            interface.old_to_new(d)
-            
-            self.seed_version = d.get('seed_version')
-            self.master_public_key = d.get('master_public_key').decode('hex')
-            self.use_encryption = d.get('use_encryption')
-            self.use_change = bool(d.get('use_change', True))
-            self.fee = int(d.get('fee'))
-            self.seed = d.get('seed')
-            self.server = d.get('server')
-            self.addresses = d.get('addresses')
-            self.change_addresses = d.get('change_addresses')
-            self.history = d.get('history')
-            self.labels = d.get('labels')
-            self.addressbook = d.get('contacts')
-            self.imported_keys = d.get('imported_keys', {})
-            self.aliases = d.get('aliases', {})
-            self.authorities = d.get('authorities', {})
-            self.receipts = d.get('receipts', {})
-            self.num_zeros = d.get('num_zeros', 0)
-            self.frozen_addresses = d.get('frozen_addresses', [])
-            self.prioritized_addresses = d.get('prioritized_addresses', [])
-            self.gui_detailed_view = d.get('gui_detailed_view', False)
-            self.gap_limit = d.get('gap_limit', 5)
-            self.debug_server = d.get('debug_server', False)
-            self.conversion_currency = d.get('conversion_currency', 'USD')
-            self.theme = d.get('theme', 'Cleanlook')
-        except:
-            raise IOError("Cannot read wallet file.")
-
-        self.update_tx_history()
-
-        if self.seed_version != SEED_VERSION:
-            raise ValueError("This wallet seed is deprecated. Please run upgrade.py for a diagnostic.")
-
-        self.file_exists = True
 
 
     def get_address_flags(self, addr):
@@ -1134,3 +1015,29 @@ class Wallet:
             return True
         else:
             return False
+
+    def save(self):
+        s = {
+            'seed_version': self.seed_version,
+            'use_encryption': self.use_encryption,
+            'use_change': self.use_change,
+            'master_public_key': self.master_public_key.encode('hex'),
+            'fee': self.fee,
+            'seed': self.seed,
+            'addresses': self.addresses,
+            'change_addresses': self.change_addresses,
+            'history': self.history, 
+            'labels': self.labels,
+            'contacts': self.addressbook,
+            'imported_keys': self.imported_keys,
+            'aliases': self.aliases,
+            'authorities': self.authorities,
+            'receipts': self.receipts,
+            'num_zeros': self.num_zeros,
+            'frozen_addresses': self.frozen_addresses,
+            'prioritized_addresses': self.prioritized_addresses,
+            'gap_limit': self.gap_limit,
+        }
+        for k, v in s.items():
+            self.config.set_key(k,v)
+        self.config.save()
