@@ -36,9 +36,9 @@ except ImportError:
     sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
 
 try:
-    from lib import Wallet, WalletSynchronizer, format_satoshis, mnemonic, prompt_password, SimpleConfig, pick_random_server
+    from lib import Wallet, WalletSynchronizer, format_satoshis, mnemonic, SimpleConfig, pick_random_server
 except ImportError:
-    from electrum import Wallet, WalletSynchronizer, format_satoshis, mnemonic, prompt_password, SimpleConfig, pick_random_server
+    from electrum import Wallet, WalletSynchronizer, format_satoshis, mnemonic, SimpleConfig, pick_random_server
 
 from decimal import Decimal
 
@@ -106,6 +106,23 @@ offline_commands = [ 'password', 'mktx',
 
 
 protected_commands = ['payto', 'password', 'mktx', 'seed', 'import','signmessage' ]
+
+# get password routine
+def prompt_password(prompt, confirm=True):
+    import getpass
+    if sys.stdin.isatty():
+        password = getpass.getpass(prompt)
+        if password and confirm:
+            password2 = getpass.getpass("Confirm: ")
+            if password != password2:
+                sys.exit("Error: Passwords do not match.")
+    else:
+        password = raw_input(prompt)
+    if not password:
+        password = None
+    return password
+
+
 
 if __name__ == '__main__':
 

@@ -1,11 +1,9 @@
-import electrum, base64, ast, sys, os
+import electrum, base64, ast, sys, os, getpass
 from version import SEED_VERSION
 
 try:
-    from lib import prompt_password
     from lib.util import print_error
 except ImportError:
-    from electrum import prompt_password
     from electrum.util import print_error
 
 if __name__ == "__main__":
@@ -55,7 +53,7 @@ if __name__ == "__main__":
             DecodeAES = lambda secret, e: AES.new(secret).decrypt(base64.b64decode(e)).rstrip(PADDING)
 
             print "Please enter your password"
-            password = prompt_password("Password:")
+            password = getpass.getpass("Password:")
             secret = electrum.Hash(password)
             try:
                 seed = DecodeAES( secret, wallet.seed )

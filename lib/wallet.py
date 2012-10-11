@@ -26,7 +26,6 @@ import operator
 import ast
 import threading
 import random
-import getpass
 import aes
 import ecdsa
 
@@ -158,24 +157,6 @@ def ASecretToSecret(key):
 
 ########### end pywallet functions #######################
 
-# get password routine
-def prompt_password(prompt, confirm=True):
-    if sys.stdin.isatty():
-        password = getpass.getpass(prompt)
-
-        if password and confirm:
-            password2 = getpass.getpass("Confirm: ")
-
-            if password != password2:
-                sys.exit("Error: Passwords do not match.")
-
-    else:
-        password = raw_input(prompt)
-
-    if not password:
-        password = None
-
-    return password
 
 # URL decode
 _ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
