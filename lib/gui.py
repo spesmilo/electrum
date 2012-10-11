@@ -306,7 +306,7 @@ def run_network_dialog( wallet, parent ):
             status = "Connected to %s:%d\n%d blocks"%(interface.host, interface.port, wallet.blocks)
         else:
             status = "Not connected"
-        server = wallet.server
+        server = interface.server
     else:
         import random
         status = "Please choose a server."
@@ -1160,7 +1160,7 @@ class ElectrumWindow:
                 if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True,self.wallet.num_zeros).strip() )
         else:
             self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
-            self.network_button.set_tooltip_text("Trying to contact %s.\n%d blocks"%(self.wallet.server, self.wallet.blocks))
+            self.network_button.set_tooltip_text("Trying to contact %s.\n%d blocks"%(interface.server, self.wallet.blocks))
             text = "Not connected"
 
         self.status_bar.pop(self.context_id) 
