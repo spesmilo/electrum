@@ -102,11 +102,15 @@ class SimpleConfig:
                 p = ConfigParser.ConfigParser()
                 p.read(name)
                 try:
-                    self.common_config['server'] = p.get('interface','server')
+                    self.common_config['server'] = p.get('client','server')
                 except:
                     pass
                 try:
-                    self.common_config['proxy'] = parse_proxy_options(p.get('interface','proxy'))
+                    self.common_config['proxy'] = parse_proxy_options(p.get('client','proxy'))
+                except:
+                    pass
+                try:
+                    self.common_config['gui'] = p.get('client','gui')
                 except:
                     pass
                 break
