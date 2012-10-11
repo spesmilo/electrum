@@ -109,7 +109,8 @@ class InterfaceAncestor(threading.Thread):
 
 
 
-class PollingInterface(InterfaceAncestor):
+
+class HttpStratumInterface(InterfaceAncestor):
     """ non-persistent connection. synchronous calls"""
 
     def __init__(self, host, port, proxy=None):
@@ -118,9 +119,6 @@ class PollingInterface(InterfaceAncestor):
 
     def get_history(self, address):
         self.send([('blockchain.address.get_history', [address] )])
-
-    def poll(self):
-        pass
 
     def run(self):
         self.is_connected = True
@@ -141,15 +139,6 @@ class PollingInterface(InterfaceAncestor):
         self.poke()
 
                 
-
-
-
-
-
-
-
-class HttpStratumInterface(PollingInterface):
-
     def poll(self):
         self.send([])
 
@@ -308,6 +297,7 @@ class Interface(TcpStratumInterface, HttpStratumInterface):
             host, port, protocol = s.split(':')
             port = int(port)
 
+        self.protocol = protocol
         proxy = self.parse_proxy_options(config.get('proxy','none'))
         self.server = host + ':%d:%s'%(port, protocol)
 
@@ -319,6 +309,19 @@ class Interface(TcpStratumInterface, HttpStratumInterface):
         else:
             print_error("Error: Unknown protocol")
             TcpStratumInterface.__init__(self, host, port, proxy)
+
+
+    def run(self):
+        if self.protocol == 't':
+            TcpStratumInterface.run(self)
+        else:
+            HttpStratumInterface.run(self)
+
+    def send(self, messages):
+        if self.protocol == 't':
+            TcpStratumInterface.send(self, messages)
+        else:
+            HttpStratumInterface.send(self, messages)
 
 
     def parse_proxy_options(self, s):
