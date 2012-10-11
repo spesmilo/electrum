@@ -3,7 +3,6 @@ import os, ast
 from util import user_dir
 
 from version import ELECTRUM_VERSION, SEED_VERSION
-from interface import parse_proxy_options
 
 
 # old stuff.. should be removed at some point
@@ -40,7 +39,7 @@ class SimpleConfig:
         self.options_config = {}
 
         if options.server: self.options_config['server'] = options.server
-        if options.proxy: self.options_config['proxy'] = parse_proxy_options(options.proxy)
+        if options.proxy: self.options_config['proxy'] = options.proxy
         if options.gui: self.options_config['gui'] = options.gui
         
         
@@ -92,7 +91,6 @@ class SimpleConfig:
     def read_common_config(self):
         for name in [ os.path.join( user_dir(), 'electrum.conf') , '/etc/electrum.conf']:
             if os.path.exists(name):
-                from interface import parse_proxy_options
                 try:
                     import ConfigParser
                 except:
@@ -106,7 +104,7 @@ class SimpleConfig:
                 except:
                     pass
                 try:
-                    self.common_config['proxy'] = parse_proxy_options(p.get('client','proxy'))
+                    self.common_config['proxy'] = p.get('client','proxy')
                 except:
                     pass
                 try:

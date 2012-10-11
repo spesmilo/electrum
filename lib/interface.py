@@ -35,22 +35,6 @@ def pick_random_server():
     return random.choice( DEFAULT_SERVERS )
 
 
-def parse_proxy_options(s):
-    if s.lower() == 'none': return None
-    proxy = { "mode":"socks5", "host":"localhost" }
-    args = s.split(':')
-    n = 0
-    if proxy_modes.count(args[n]) == 1:
-        proxy["mode"] = args[n]
-        n += 1
-    if len(args) > n:
-        proxy["host"] = args[n]
-        n += 1
-    if len(args) > n:
-        proxy["port"] = args[n]
-    else:
-        proxy["port"] = "8080" if proxy["mode"] == "http" else "1080"
-    return proxy
 
 
 
@@ -324,7 +308,7 @@ class Interface(TcpStratumInterface, HttpStratumInterface):
             host, port, protocol = s.split(':')
             port = int(port)
 
-        proxy = config.get('proxy')
+        proxy = self.parse_proxy_options(config.get('proxy','none'))
         self.server = host + ':%d:%s'%(port, protocol)
 
         #print protocol, host, port
@@ -335,6 +319,25 @@ class Interface(TcpStratumInterface, HttpStratumInterface):
         else:
             print_error("Error: Unknown protocol")
             TcpStratumInterface.__init__(self, host, port, proxy)
+
+
+    def parse_proxy_options(self, s):
+        if type(s) != type(""): return None  
+        if s.lower() == 'none': return None
+        proxy = { "mode":"socks5", "host":"localhost" }
+        args = s.split(':')
+        n = 0
+        if proxy_modes.count(args[n]) == 1:
+            proxy["mode"] = args[n]
+            n += 1
+        if len(args) > n:
+            proxy["host"] = args[n]
+            n += 1
+        if len(args) > n:
+            proxy["port"] = args[n]
+        else:
+            proxy["port"] = "8080" if proxy["mode"] == "http" else "1080"
+        return proxy
 
 
     def set_server(self, server, proxy=None):
