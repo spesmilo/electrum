@@ -304,7 +304,7 @@ class Wallet:
         self.authorities = {}        # trusted addresses
         self.frozen_addresses = []
         self.prioritized_addresses = []
-        self.expert_mode = False
+        self.gui_detailed_view = False
         
         self.receipts = {}           # signed URIs
         self.receipt = None          # next receipt
@@ -654,7 +654,7 @@ class Wallet:
             'num_zeros': self.num_zeros,
             'frozen_addresses': self.frozen_addresses,
             'prioritized_addresses': self.prioritized_addresses,
-            'expert_mode': self.expert_mode,
+            'gui_detailed_view': self.gui_detailed_view,
             'gap_limit': self.gap_limit,
             'debug_server': self.debug_server,
             'conversion_currency': self.conversion_currency,
@@ -699,7 +699,7 @@ class Wallet:
             self.num_zeros = d.get('num_zeros', 0)
             self.frozen_addresses = d.get('frozen_addresses', [])
             self.prioritized_addresses = d.get('prioritized_addresses', [])
-            self.expert_mode = d.get('expert_mode', False)
+            self.gui_detailed_view = d.get('gui_detailed_view', False)
             self.gap_limit = d.get('gap_limit', 5)
             self.debug_server = d.get('debug_server', False)
             self.conversion_currency = d.get('conversion_currency', 'USD')

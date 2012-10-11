@@ -690,7 +690,20 @@ class ElectrumWindow(QMainWindow):
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,1,2))
         self.receive_list = l
         self.receive_buttons_hbox = hbox
+        self.details_button = EnterButton(self.details_button_text(), self.toggle_detailed_view)
+        hbox.addWidget(self.details_button)
+        hbox.addStretch(1)
         return w
+
+    def details_button_text(self):
+        return _('Hide details') if self.wallet.gui_detailed_view else _('Show details')
+
+    def toggle_detailed_view(self):
+        self.wallet.gui_detailed_view = not self.wallet.gui_detailed_view
+        self.details_button.setText(self.details_button_text())
+        self.wallet.save()
+        self.update_receive_tab()
+        self.update_contacts_tab()
 
 
     def create_contacts_tab(self):
@@ -718,7 +731,7 @@ class ElectrumWindow(QMainWindow):
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
         menu.addAction(_("Edit label"), lambda: self.edit_label(True))
-        if self.wallet.expert_mode:
+        if self.wallet.gui_detailed_view:
             t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
             menu.addAction(t, lambda: self.toggle_freeze(addr))
             t = _("Unprioritize") if addr in self.wallet.prioritized_addresses else _("Prioritize")
@@ -777,9 +790,9 @@ class ElectrumWindow(QMainWindow):
     def update_receive_tab(self):
         l = self.receive_list
         l.clear()
-        l.setColumnHidden(0,not self.wallet.expert_mode)
-        l.setColumnHidden(3,not self.wallet.expert_mode)
-        l.setColumnHidden(4,not self.wallet.expert_mode)
+        l.setColumnHidden(0,not self.wallet.gui_detailed_view)
+        l.setColumnHidden(3,not self.wallet.gui_detailed_view)
+        l.setColumnHidden(4,not self.wallet.gui_detailed_view)
         l.setColumnWidth(0, 50) 
         l.setColumnWidth(1, 310) 
         l.setColumnWidth(2, 250)
@@ -790,7 +803,7 @@ class ElectrumWindow(QMainWindow):
         is_red = False
         for address in self.wallet.all_addresses():
 
-            if self.wallet.is_change(address) and not self.wallet.expert_mode:
+            if self.wallet.is_change(address) and not self.wallet.gui_detailed_view:
                 continue
 
             label = self.wallet.labels.get(address,'')
@@ -842,7 +855,7 @@ class ElectrumWindow(QMainWindow):
 
         l = self.contacts_list
         l.clear()
-        l.setColumnHidden(2, not self.wallet.expert_mode)
+        l.setColumnHidden(2, not self.wallet.gui_detailed_view)
         l.setColumnWidth(0, 350) 
         l.setColumnWidth(1, 330)
         l.setColumnWidth(2, 100) 
@@ -1179,14 +1192,6 @@ class ElectrumWindow(QMainWindow):
         return True
 
 
-    def set_expert_mode(self, b):
-        self.wallet.expert_mode = b
-        self.wallet.save()
-        self.update_receive_tab()
-        self.update_contacts_tab()
-        # if self.wallet.seed:
-        # self.nochange_cb.setHidden(not self.wallet.expert_mode)
-        
 
     def settings_dialog(self):
         d = QDialog(self)
@@ -1222,38 +1227,32 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(nz_e, 3, 1)
         nz_e.textChanged.connect(lambda: numbify(nz_e,True))
 
-        cb = QCheckBox(_('Expert mode'))
-        grid.addWidget(cb, 4, 0)
-        cb.setChecked(self.wallet.expert_mode)
+        usechange_cb = QCheckBox(_('Use change addresses'))
+        grid.addWidget(usechange_cb, 5, 0)
+        usechange_cb.setChecked(self.wallet.use_change)
+        grid.addWidget(HelpButton(_('Using a change addresses makes it more difficult for other people to track your transactions. ')), 5, 2)
 
-        if self.wallet.expert_mode:
-
-            usechange_cb = QCheckBox(_('Use change addresses'))
-            grid.addWidget(usechange_cb, 5, 0)
-            usechange_cb.setChecked(self.wallet.use_change)
-            grid.addWidget(HelpButton(_('Using a change addresses makes it more difficult for other people to track your transactions. ')), 5, 2)
-
-            msg =  _('The gap limit is the maximal number of contiguous unused addresses in your sequence of receiving addresses.') + '\n' \
-                  + _('You may increase it if you need more receiving addresses.') + '\n\n' \
-                  + _('Your current gap limit is') + ': %d'%self.wallet.gap_limit + '\n' \
-                  + _('Given the current status of your address sequence, the minimum gap limit you can use is: ') + '%d'%self.wallet.min_acceptable_gap() + '\n\n' \
-                  + _('Warning') + ': ' \
-                  + _('The gap limit parameter must be provided in order to recover your wallet from seed.') + ' ' \
-                  + _('Do not modify it if you do not understand what you are doing, or if you expect to recover your wallet without knowing it!') + '\n\n' 
-            gap_e = QLineEdit()
-            gap_e.setText("%d"% self.wallet.gap_limit)
-            grid.addWidget(QLabel(_('Gap limit')), 6, 0)
-            grid.addWidget(gap_e, 6, 1)
-            grid.addWidget(HelpButton(msg), 6, 2)
-            gap_e.textChanged.connect(lambda: numbify(nz_e,True))
-
-            gui = QComboBox()
-            gui.addItems(['Lite', 'Qt'])
-            cfg = SimpleConfig()
-            gui.setCurrentIndex(gui.findText(cfg.config["gui"].capitalize()))
-            grid.addWidget(QLabel(_('Default GUI') + ':'), 7, 0)
-            grid.addWidget(gui, 7, 1)
-            grid.addWidget(HelpButton(_('Select which GUI mode to use at start up. ')), 7, 2)
+        msg =  _('The gap limit is the maximal number of contiguous unused addresses in your sequence of receiving addresses.') + '\n' \
+              + _('You may increase it if you need more receiving addresses.') + '\n\n' \
+              + _('Your current gap limit is') + ': %d'%self.wallet.gap_limit + '\n' \
+              + _('Given the current status of your address sequence, the minimum gap limit you can use is: ') + '%d'%self.wallet.min_acceptable_gap() + '\n\n' \
+              + _('Warning') + ': ' \
+              + _('The gap limit parameter must be provided in order to recover your wallet from seed.') + ' ' \
+              + _('Do not modify it if you do not understand what you are doing, or if you expect to recover your wallet without knowing it!') + '\n\n' 
+        gap_e = QLineEdit()
+        gap_e.setText("%d"% self.wallet.gap_limit)
+        grid.addWidget(QLabel(_('Gap limit')), 6, 0)
+        grid.addWidget(gap_e, 6, 1)
+        grid.addWidget(HelpButton(msg), 6, 2)
+        gap_e.textChanged.connect(lambda: numbify(nz_e,True))
+        
+        gui = QComboBox()
+        gui.addItems(['Lite', 'Qt'])
+        cfg = SimpleConfig()
+        gui.setCurrentIndex(gui.findText(cfg.config["gui"].capitalize()))
+        grid.addWidget(QLabel(_('Default GUI') + ':'), 7, 0)
+        grid.addWidget(gui, 7, 1)
+        grid.addWidget(HelpButton(_('Select which GUI mode to use at start up. ')), 7, 2)
         
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
@@ -1286,27 +1285,23 @@ class ElectrumWindow(QMainWindow):
             self.update_receive_tab()
             self.wallet.save()
 
-        if self.wallet.expert_mode:
-
-            self.wallet.use_change = usechange_cb.isChecked()
-
-            try:
-                n = int(gap_e.text())
-            except:
+        self.wallet.use_change = usechange_cb.isChecked()
+        try:
+            n = int(gap_e.text())
+        except:
+            QMessageBox.warning(self, _('Error'), _('Invalid value'), _('OK'))
+            return
+        if self.wallet.gap_limit != n:
+            r = self.wallet.change_gap_limit(n)
+            if r:
+                self.update_receive_tab()
+            else:
                 QMessageBox.warning(self, _('Error'), _('Invalid value'), _('OK'))
-                return
-            if self.wallet.gap_limit != n:
-                r = self.wallet.change_gap_limit(n)
-                if r:
-                    self.update_receive_tab()
-                else:
-                    QMessageBox.warning(self, _('Error'), _('Invalid value'), _('OK'))
                     
-            cfg = SimpleConfig()
-            cfg.set_key("gui", str(gui.currentText()).lower())
-            cfg.save_config()
+        cfg = SimpleConfig()
+        cfg.set_key("gui", str(gui.currentText()).lower())
+        cfg.save_config()
 
-        self.set_expert_mode(cb.isChecked())
 
 
     @staticmethod 
