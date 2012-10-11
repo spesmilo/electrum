@@ -1308,3 +1308,6 @@ class ElectrumGui():
 
     def restore_or_create(self):
         return restore_create_dialog(self.wallet)
+
+    def server_list_changed(self):
+        pass
