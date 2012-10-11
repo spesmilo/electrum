@@ -148,32 +148,10 @@ if __name__ == '__main__':
             except ImportError:
                 import electrum.gui_qt as gui
         elif options.gui == 'lite':
-            # Let's do some dep checking and handle missing ones gracefully
-            try:
-              from PyQt4.QtCore import *
-              from PyQt4.QtGui import *
-            except ImportError:
-              print "You need to have PyQT installed to run Electrum in graphical mode."
-              print "If you have pip installed try 'sudo pip install pyqt' if you are on Debian/Ubuntu try 'sudo apt-get install python-qt4'."
-              sys.exit(0)
-
-            qtVersion = qVersion()
-            if not(int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
-              app = QApplication(sys.argv)
-              QMessageBox.warning(None,"Could not start Lite GUI.", "Electrum was unable to load the 'Lite GUI' because it needs Qt version >= 4.7.\nElectrum is now setup to load the Pro GUI.")
-
-              simple_config.set_key("gui", "qt")
-
               try:
-                  import lib.gui_qt as gui
+                  import lib.gui_lite as gui
               except ImportError:
-                  import electrum.gui_qt as gui
-            else:
-              #use the lite version if no toolkit specified
-              try:
-                import lib.gui_lite as gui
-              except ImportError:
-                import electrum.gui_lite as gui
+                  import electrum.gui_lite as gui
         else:
             sys.exit("Error: Unknown GUI: " + options.gui)
 

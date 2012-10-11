@@ -1,7 +1,25 @@
 import sys
 
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+# Let's do some dep checking and handle missing ones gracefully
+try:
+    from PyQt4.QtCore import *
+    from PyQt4.QtGui import *
+except ImportError:
+    print "You need to have PyQT installed to run Electrum in graphical mode."
+    print "If you have pip installed try 'sudo pip install pyqt' if you are on Debian/Ubuntu try 'sudo apt-get install python-qt4'."
+    sys.exit(0)
+
+
+qtVersion = qVersion()
+if not(int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
+    app = QApplication(sys.argv)
+    QMessageBox.warning(None,"Could not start Lite GUI.", "Electrum was unable to load the 'Lite GUI' because it needs Qt version >= 4.7.\nElectrum was set to use the 'Qt' GUI")
+    from simple_config import SimpleConfig
+    cfg = SimpleConfig()
+    cfg.set_key("gui", "qt",True)
+    sys.exit(0)
+
+
 
 from decimal import Decimal as D
 from interface import DEFAULT_SERVERS
