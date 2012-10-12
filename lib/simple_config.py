@@ -72,12 +72,19 @@ class SimpleConfig:
         # 2. configuration file overrides wallet file
         elif self.common_config.has_key(key):
             out = self.common_config.get(key)
-            
+
+        # 3. use the wallet file config
         else:
             out = self.wallet_config.get(key)
 
         if out is None and default is not None:
             out = default
+
+        # try to fix the type
+        if default is not None and type(out) != type(default):
+            import ast
+            out = ast.literal_eval(out)
+            
         return out
 
 
