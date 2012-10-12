@@ -1456,7 +1456,7 @@ class ElectrumWindow(QMainWindow):
 
         if not d.exec_(): return
 
-        server = unicode( server_host.text() ) + ':' + unicode( server_port.text() ) + ':' + 't' if server_protocol.currentIndex() == 0 else 'h'
+        server = unicode( server_host.text() ) + ':' + unicode( server_port.text() ) + ':' + ('t' if server_protocol.currentIndex() == 0 else 'h')
         if proxy_mode.currentText() != 'NONE':
             proxy = { u'mode':unicode(proxy_mode.currentText()).lower(), u'host':unicode(proxy_host.text()), u'port':unicode(proxy_port.text()) }
         else:
