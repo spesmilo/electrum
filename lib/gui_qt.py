@@ -1213,24 +1213,28 @@ class ElectrumWindow(QMainWindow):
         grid.setSpacing(8)
         vbox.addLayout(grid)
 
+        fee_label = QLabel(_('Transaction fee'))
+        grid.addWidget(fee_label, 2, 0)
         fee_e = QLineEdit()
         fee_e.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
-        if not self.config.is_modifiable('fee'): fee_e.setEnabled(False)
-        grid.addWidget(QLabel(_('Transaction fee')), 2, 0)
         grid.addWidget(fee_e, 2, 1)
         msg = _('Fee per transaction input. Transactions involving multiple inputs tend to require a higher fee.') + ' ' \
             + _('Recommended value') + ': 0.001'
         grid.addWidget(HelpButton(msg), 2, 2)
         fee_e.textChanged.connect(lambda: numbify(fee_e,False))
+        if not self.config.is_modifiable('fee'):
+            for w in [fee_e, fee_label]: w.setEnabled(False)
 
+        nz_label = QLabel(_('Display zeros'))
+        grid.addWidget(nz_label, 3, 0)
         nz_e = QLineEdit()
         nz_e.setText("%d"% self.wallet.num_zeros)
-        grid.addWidget(QLabel(_('Display zeros')), 3, 0)
+        grid.addWidget(nz_e, 3, 1)
         msg = _('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"')
         grid.addWidget(HelpButton(msg), 3, 2)
-        grid.addWidget(nz_e, 3, 1)
         nz_e.textChanged.connect(lambda: numbify(nz_e,True))
-        if not self.config.is_modifiable('num_zeros'): nz_e.setEnabled(False)
+        if not self.config.is_modifiable('num_zeros'):
+            for w in [nz_e, nz_label]: w.setEnabled(False)
 
         usechange_cb = QCheckBox(_('Use change addresses'))
         grid.addWidget(usechange_cb, 5, 0)
@@ -1238,6 +1242,11 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions. ')), 5, 2)
         if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
 
+        gap_label = QLabel(_('Gap limit'))
+        grid.addWidget(gap_label, 6, 0)
+        gap_e = QLineEdit()
+        gap_e.setText("%d"% self.wallet.gap_limit)
+        grid.addWidget(gap_e, 6, 1)
         msg =  _('The gap limit is the maximal number of contiguous unused addresses in your sequence of receiving addresses.') + '\n' \
               + _('You may increase it if you need more receiving addresses.') + '\n\n' \
               + _('Your current gap limit is') + ': %d'%self.wallet.gap_limit + '\n' \
@@ -1245,23 +1254,21 @@ class ElectrumWindow(QMainWindow):
               + _('Warning') + ': ' \
               + _('The gap limit parameter must be provided in order to recover your wallet from seed.') + ' ' \
               + _('Do not modify it if you do not understand what you are doing, or if you expect to recover your wallet without knowing it!') + '\n\n' 
-        gap_e = QLineEdit()
-        gap_e.setText("%d"% self.wallet.gap_limit)
-        grid.addWidget(QLabel(_('Gap limit')), 6, 0)
-        grid.addWidget(gap_e, 6, 1)
         grid.addWidget(HelpButton(msg), 6, 2)
         gap_e.textChanged.connect(lambda: numbify(nz_e,True))
-        if not self.config.is_modifiable('gap_limit'): gap_e.setEnabled(False)
+        if not self.config.is_modifiable('gap_limit'):
+            for w in [gap_e, gap_label]: w.setEnabled(False)
         
+        gui_label=QLabel(_('Default GUI') + ':')
+        grid.addWidget(gui_label , 7, 0)
         gui_combo = QComboBox()
         gui_combo.addItems(['Lite', 'Qt', 'Gtk'])
         gui_combo.setCurrentIndex(gui_combo.findText(self.config.get("gui","lite").capitalize()))
-        if not self.config.is_modifiable('gui'): gui_combo.setEnabled(False)
-
-        grid.addWidget(QLabel(_('Default GUI') + ':'), 7, 0)
         grid.addWidget(gui_combo, 7, 1)
         grid.addWidget(HelpButton(_('Select which GUI mode to use at start up. ')), 7, 2)
-        
+        if not self.config.is_modifiable('gui'):
+            for w in [gui_combo, gui_label]: w.setEnabled(False)
+
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
 
