@@ -28,20 +28,27 @@ def old_to_new(d):
 
 class SimpleConfig:
 
-    def __init__(self, options):
+    def __init__(self, options=None):
 
         self.wallet_config = {}
-        self.read_wallet_config(options.wallet_path)
+        if options and options.wallet_path:
+            self.read_wallet_config(options.wallet_path)
 
-        self.common_config = {}
-        self.read_common_config()
+        # system conf, readonly
+        self.system_config = {}
+        self.read_system_config()
 
+        # user conf, writeable
+        self.user_config = {}
+        self.read_user_config()
+
+        # command-line options
         self.options_config = {}
-
-        if options.server: self.options_config['server'] = options.server
-        if options.proxy: self.options_config['proxy'] = options.proxy
-        if options.gui: self.options_config['gui'] = options.gui
-        
+        if options:
+            if options.server: self.options_config['server'] = options.server
+            if options.proxy: self.options_config['proxy'] = options.proxy
+            if options.gui: self.options_config['gui'] = options.gui
+            
         
 
     def set_key(self, key, value, save = False):
@@ -49,13 +56,17 @@ class SimpleConfig:
         if self.options_config.get(key):
             return
 
+        elif self.user_config.get(key):
+            self.user_config[key] = value
+            if save: self.save_user_config()
+
+        elif self.system_config.get(key):
+            self.system_config[key] = value
+            print "warning: cannot save", key
+
         elif self.wallet_config.get(key):
             self.wallet_config[key] = value
             if save: self.save_wallet_config()
-
-        elif self.common_config.get(key):
-            self.common_config[key] = value
-            if save: self.save_common_config()
 
         else:
             # add key to wallet config
@@ -69,9 +80,13 @@ class SimpleConfig:
             # print "found", key, "in options"
             out = self.options_config.get(key)
 
-        # 2. configuration file overrides wallet file
-        elif self.common_config.has_key(key):
-            out = self.common_config.get(key)
+        # 2. user configuration 
+        elif self.user_config.has_key(key):
+            out = self.user_config.get(key)
+
+        # 2. system configuration
+        elif self.system_config.has_key(key):
+            out = self.system_config.get(key)
 
         # 3. use the wallet file config
         else:
@@ -89,27 +104,44 @@ class SimpleConfig:
 
 
     def is_modifiable(self, key):
-        if self.options_config.has_key(key) or self.common_config.has_key(key):
+        if self.options_config.has_key(key):
+            return False
+        elif self.user_config.has_key(key):
+            return True
+        elif self.system_config.has_key(key):
             return False
         else:
             return True
 
 
-    def read_common_config(self):
-        for name in ['/etc/electrum.conf', os.path.join( user_dir(), 'electrum.conf')]:
-            if os.path.exists(name):
-                try:
-                    import ConfigParser
-                except:
-                    print "cannot parse electrum.conf. please install ConfigParser"
-                    return
+    def read_system_config(self):
+        name = '/etc/electrum.conf'
+        if os.path.exists(name):
+            try:
+                import ConfigParser
+            except:
+                print "cannot parse electrum.conf. please install ConfigParser"
+                return
                 
-                p = ConfigParser.ConfigParser()
-                p.read(name)
-                for k, v in p.items('client'):
-                    self.common_config[k] = v
+            p = ConfigParser.ConfigParser()
+            p.read(name)
+            for k, v in p.items('client'):
+                self.system_config[k] = v
 
 
+    def read_user_config(self):
+        name = os.path.join( user_dir(), 'electrum.conf')
+        if os.path.exists(name):
+            try:
+                import ConfigParser
+            except:
+                print "cannot parse electrum.conf. please install ConfigParser"
+                return
+                
+            p = ConfigParser.ConfigParser()
+            p.read(name)
+            for k, v in p.items('client'):
+                self.user_config[k] = v
 
 
     def init_path(self, wallet_path):
@@ -128,11 +160,16 @@ class SimpleConfig:
         self.path = os.path.join(wallet_dir, "electrum.dat")
 
 
+    def save_user_config(self):
+        import ConfigParser
+        config = ConfigParser.RawConfigParser()
+        config.add_section('client')
+        for k,v in self.user_config.items():
+            config.set('client', k, v)
 
-    def save_common_config(self):
-        s = repr(self.common_config)
-        # todo: decide what to do 
-        print "not saving settings in common config:", s
+        with open( os.path.join( user_dir(), 'electrum.conf'), 'wb') as configfile:
+            config.write(configfile)
+        
 
 
 
