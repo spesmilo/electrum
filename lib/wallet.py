@@ -285,6 +285,7 @@ class Wallet:
         self.addressbook           = config.get('contacts', [])           # outgoing addresses, for payments
         self.imported_keys         = config.get('imported_keys',{})
 
+
         # not saved
         self.receipt = None          # next receipt
         self.tx_history = {}
@@ -967,7 +968,7 @@ class Wallet:
         if addr in self.all_addresses() and addr not in self.frozen_addresses:
             self.unprioritize(addr)
             self.frozen_addresses.append(addr)
-            self.save()
+            self.config.set_key('frozen_addresses', self.frozen_addresses, True)
             return True
         else:
             return False
@@ -975,7 +976,7 @@ class Wallet:
     def unfreeze(self,addr):
         if addr in self.all_addresses() and addr in self.frozen_addresses:
             self.frozen_addresses.remove(addr)
-            self.save()
+            self.config.set_key('frozen_addresses', self.frozen_addresses, True)
             return True
         else:
             return False
@@ -984,7 +985,7 @@ class Wallet:
         if addr in self.all_addresses() and addr not in self.prioritized_addresses:
             self.unfreeze(addr)
             self.prioritized_addresses.append(addr)
-            self.save()
+            self.config.set_key('prioritized_addresses', self.prioritized_addresses, True)
             return True
         else:
             return False
@@ -992,7 +993,7 @@ class Wallet:
     def unprioritize(self,addr):
         if addr in self.all_addresses() and addr in self.prioritized_addresses:
             self.prioritized_addresses.remove(addr)
-            self.save()
+            self.config.set_key('prioritized_addresses', self.prioritized_addresses, True)
             return True
         else:
             return False

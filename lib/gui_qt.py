@@ -1215,6 +1215,7 @@ class ElectrumWindow(QMainWindow):
 
         fee_e = QLineEdit()
         fee_e.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
+        if not self.config.is_modifiable('fee'): fee_e.setEnabled(False)
         grid.addWidget(QLabel(_('Transaction fee')), 2, 0)
         grid.addWidget(fee_e, 2, 1)
         msg = _('Fee per transaction input. Transactions involving multiple inputs tend to require a higher fee.') + ' ' \
@@ -1229,11 +1230,13 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(HelpButton(msg), 3, 2)
         grid.addWidget(nz_e, 3, 1)
         nz_e.textChanged.connect(lambda: numbify(nz_e,True))
+        if not self.config.is_modifiable('num_zeros'): nz_e.setEnabled(False)
 
         usechange_cb = QCheckBox(_('Use change addresses'))
         grid.addWidget(usechange_cb, 5, 0)
         usechange_cb.setChecked(self.wallet.use_change)
         grid.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions. ')), 5, 2)
+        if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
 
         msg =  _('The gap limit is the maximal number of contiguous unused addresses in your sequence of receiving addresses.') + '\n' \
               + _('You may increase it if you need more receiving addresses.') + '\n\n' \
@@ -1248,12 +1251,15 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(gap_e, 6, 1)
         grid.addWidget(HelpButton(msg), 6, 2)
         gap_e.textChanged.connect(lambda: numbify(nz_e,True))
+        if not self.config.is_modifiable('gap_limit'): gap_e.setEnabled(False)
         
-        gui = QComboBox()
-        gui.addItems(['Lite', 'Qt', 'Gtk'])
-        gui.setCurrentIndex(gui.findText(self.config.get("gui","lite").capitalize()))
+        gui_combo = QComboBox()
+        gui_combo.addItems(['Lite', 'Qt', 'Gtk'])
+        gui_combo.setCurrentIndex(gui_combo.findText(self.config.get("gui","lite").capitalize()))
+        if not self.config.is_modifiable('gui'): gui_combo.setEnabled(False)
+
         grid.addWidget(QLabel(_('Default GUI') + ':'), 7, 0)
-        grid.addWidget(gui, 7, 1)
+        grid.addWidget(gui_combo, 7, 1)
         grid.addWidget(HelpButton(_('Select which GUI mode to use at start up. ')), 7, 2)
         
         vbox.addLayout(ok_cancel_buttons(d))
@@ -1283,24 +1289,29 @@ class ElectrumWindow(QMainWindow):
 
         if self.wallet.num_zeros != nz:
             self.wallet.num_zeros = nz
+            self.config.set_key('num_zeros', nz, True)
             self.update_history_tab()
             self.update_receive_tab()
-            self.wallet.save()
 
-        self.wallet.use_change = usechange_cb.isChecked()
+        if self.wallet.use_change != usechange_cb.isChecked():
+            self.wallet.use_change = usechange_cb.isChecked()
+            self.config.set_key('use_change', self.wallet.use_change, True)
+        
         try:
             n = int(gap_e.text())
         except:
             QMessageBox.warning(self, _('Error'), _('Invalid value'), _('OK'))
             return
+
         if self.wallet.gap_limit != n:
             r = self.wallet.change_gap_limit(n)
             if r:
                 self.update_receive_tab()
+                self.config.set_key('gap_limit', self.wallet.gap_limit, True)
             else:
                 QMessageBox.warning(self, _('Error'), _('Invalid value'), _('OK'))
                     
-        self.config.set_key("gui", str(gui.currentText()).lower(), True)
+        self.config.set_key("gui", str(gui_combo.currentText()).lower(), True)
 
 
 
