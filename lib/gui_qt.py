@@ -1415,6 +1415,9 @@ class ElectrumWindow(QMainWindow):
         servers_list_widget.connect(servers_list_widget, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), change_server)
         grid.addWidget(servers_list_widget, 1, 1, 1, 3)
 
+        if not wallet.config.is_modifiable('server'):
+            for w in [server_host, server_port, server_protocol, servers_list_widget]: w.setEnabled(False)
+
         # proxy setting
         proxy_mode = QComboBox()
         proxy_host = QLineEdit()
@@ -1433,6 +1436,9 @@ class ElectrumWindow(QMainWindow):
 
         check_for_disable()
         proxy_mode.connect(proxy_mode, SIGNAL('currentIndexChanged(int)'), check_for_disable)
+
+        if not wallet.config.is_modifiable('proxy'):
+            for w in [proxy_host, proxy_port, proxy_mode]: w.setEnabled(False)
 
         proxy_config = interface.proxy if interface.proxy else { "mode":"none", "host":"localhost", "port":"8080"}
         proxy_mode.setCurrentIndex(proxy_mode.findText(str(proxy_config.get("mode").upper())))
