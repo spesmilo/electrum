@@ -1309,7 +1309,7 @@ class ElectrumWindow(QMainWindow):
         interface = wallet.interface
         if parent:
             if interface.is_connected:
-                status = _("Connected to")+" %s:%d\n%d blocks"%(interface.host, interface.port, wallet.blocks)
+                status = _("Connected to")+" %s\n%d blocks"%(interface.host, wallet.blocks)
             else:
                 status = _("Not connected")
             server = interface.server
@@ -1341,92 +1341,54 @@ class ElectrumWindow(QMainWindow):
         d.setMinimumSize(375, 20)
 
         vbox = QVBoxLayout()
-        vbox.setSpacing(20)
+        vbox.setSpacing(30)
 
         hbox = QHBoxLayout()
         l = QLabel()
         l.setPixmap(QPixmap(":icons/network.png"))
+        hbox.addStretch(10)
         hbox.addWidget(l)        
         hbox.addWidget(QLabel(status))
-
+        hbox.addStretch(50)
         vbox.addLayout(hbox)
 
-        hbox = QHBoxLayout()
-        host_line = QLineEdit()
-        host_line.setText(server)
-        hbox.addWidget(QLabel(_('Connect to') + ':'))
-        hbox.addWidget(host_line)
-        vbox.addLayout(hbox)
 
-        hbox = QHBoxLayout()
+        # grid layout
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        vbox.addLayout(grid)
 
-        buttonGroup = QGroupBox(_("Protocol"))
-        radio1 = QRadioButton("tcp", buttonGroup)
-        radio2 = QRadioButton("http", buttonGroup)
+        # server
+        server_protocol = QComboBox()
+        server_host = QLineEdit()
+        server_host.setFixedWidth(200)
+        server_port = QLineEdit()
+        server_port.setFixedWidth(60)
+        server_protocol.addItems(['TCP', 'HTTP'])
 
-        def current_line():
-            return unicode(host_line.text()).split(':')
-            
-        def set_button(protocol):
-            if protocol == 't':
-                radio1.setChecked(1)
-            elif protocol == 'h':
-                radio2.setChecked(1)
+        host, port, protocol = server.split(':')
+        server_host.setText(host)
+        server_port.setText(port)
+        server_protocol.setCurrentIndex(0 if protocol=='t' else 1)
 
-        def set_protocol(protocol):
-            host = current_line()[0]
+        grid.addWidget(QLabel(_('Server') + ':'), 0, 0)
+        grid.addWidget(server_protocol, 0, 1)
+        grid.addWidget(server_host, 0, 2)
+        grid.addWidget(server_port, 0, 3)
+
+        def change_protocol(p):
+            protocol = 't' if p == 0 else 'h'
+            host = unicode(server_host.text())
             pp = plist[host]
             if protocol not in pp.keys():
                 protocol = pp.keys()[0]
-                set_button(protocol)
             port = pp[protocol]
-            host_line.setText( host + ':' + port + ':' + protocol)
+            server_host.setText( host )
+            server_port.setText( port )
 
-        radio1.clicked.connect(lambda x: set_protocol('t') )
-        radio2.clicked.connect(lambda x: set_protocol('h') )
+        server_protocol.connect(server_protocol, SIGNAL('currentIndexChanged(int)'), change_protocol)
 
-        set_button(current_line()[2])
-
-        hbox.addWidget(QLabel(_('Protocol')+':'))
-        hbox.addWidget(radio1)
-        hbox.addWidget(radio2)
-
-        vbox.addLayout(hbox)
         
-        hbox = QHBoxLayout()
-        proxy_mode = QComboBox()
-        proxy_host = QLineEdit()
-        proxy_host.setFixedWidth(200)
-        proxy_port = QLineEdit()
-        proxy_port.setFixedWidth(50)
-        proxy_mode.addItems(['NONE', 'SOCKS4', 'SOCKS5', 'HTTP'])
-
-        def check_for_disable(index = False):
-            if proxy_mode.currentText() != 'NONE':
-                proxy_host.setEnabled(True)
-                proxy_port.setEnabled(True)
-            else:
-                proxy_host.setEnabled(False)
-                proxy_port.setEnabled(False)
-
-        check_for_disable()
-
-        proxy_mode.connect(proxy_mode, SIGNAL('currentIndexChanged(int)'), check_for_disable)
-
-
-        proxy_config = interface.proxy if interface.proxy else { "mode":"none", "host":"localhost", "port":"8080"}
-        proxy_mode.setCurrentIndex(proxy_mode.findText(str(proxy_config.get("mode").upper())))
-        proxy_host.setText(proxy_config.get("host"))
-        proxy_port.setText(proxy_config.get("port"))
-
-        hbox.addWidget(QLabel(_('Proxy') + ':'))
-        hbox.addWidget(proxy_mode)
-        hbox.addWidget(proxy_host)
-        hbox.addWidget(proxy_port)
-        vbox.addLayout(hbox)
-
-        hbox = QHBoxLayout()
-
         if wallet.interface.servers:
             label = _('Active Servers')
         else:
@@ -1438,7 +1400,7 @@ class ElectrumWindow(QMainWindow):
         for host in plist.keys():
             servers_list_widget.addTopLevelItem(QTreeWidgetItem( [ host ] ))
 
-        def do_set_line(x):
+        def change_server(x):
             host = unicode(x.text(0))
             pp = plist[host]
             if 't' in pp.keys():
@@ -1446,18 +1408,49 @@ class ElectrumWindow(QMainWindow):
             else:
                 protocol = pp.keys()[0]
             port = pp[protocol]
-            host_line.setText( host + ':' + port + ':' + protocol)
-            set_button(protocol)
+            server_host.setText( host )
+            server_port.setText( port )
+            server_protocol.setCurrentIndex(0 if protocol == 't' else 1)
 
-        servers_list_widget.connect(servers_list_widget, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), do_set_line)
-        vbox.addWidget(servers_list_widget)
+        servers_list_widget.connect(servers_list_widget, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), change_server)
+        grid.addWidget(servers_list_widget, 1, 1, 1, 3)
 
+        # proxy setting
+        proxy_mode = QComboBox()
+        proxy_host = QLineEdit()
+        proxy_host.setFixedWidth(200)
+        proxy_port = QLineEdit()
+        proxy_port.setFixedWidth(60)
+        proxy_mode.addItems(['NONE', 'SOCKS4', 'SOCKS5', 'HTTP'])
+
+        def check_for_disable(index = False):
+            if proxy_mode.currentText() != 'NONE':
+                proxy_host.setEnabled(True)
+                proxy_port.setEnabled(True)
+            else:
+                proxy_host.setEnabled(False)
+                proxy_port.setEnabled(False)
+
+        check_for_disable()
+        proxy_mode.connect(proxy_mode, SIGNAL('currentIndexChanged(int)'), check_for_disable)
+
+        proxy_config = interface.proxy if interface.proxy else { "mode":"none", "host":"localhost", "port":"8080"}
+        proxy_mode.setCurrentIndex(proxy_mode.findText(str(proxy_config.get("mode").upper())))
+        proxy_host.setText(proxy_config.get("host"))
+        proxy_port.setText(proxy_config.get("port"))
+
+        grid.addWidget(QLabel(_('Proxy') + ':'), 2, 0)
+        grid.addWidget(proxy_mode, 2, 1)
+        grid.addWidget(proxy_host, 2, 2)
+        grid.addWidget(proxy_port, 2, 3)
+
+        # buttons
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
 
         if not d.exec_(): return
-        server = unicode( host_line.text() )
 
+        server = unicode( server_host.text() ) + ':' + unicode( server_port.text() ) + ':' + 't' if server_protocol.currentIndex() == 0 else 'h'
         if proxy_mode.currentText() != 'NONE':
             proxy = { u'mode':unicode(proxy_mode.currentText()).lower(), u'host':unicode(proxy_host.text()), u'port':unicode(proxy_port.text()) }
         else:
