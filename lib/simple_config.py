@@ -89,7 +89,7 @@ class SimpleConfig:
 
 
     def read_common_config(self):
-        for name in [ os.path.join( user_dir(), 'electrum.conf') , '/etc/electrum.conf']:
+        for name in ['/etc/electrum.conf', os.path.join( user_dir(), 'electrum.conf')]:
             if os.path.exists(name):
                 try:
                     import ConfigParser
@@ -99,19 +99,9 @@ class SimpleConfig:
                 
                 p = ConfigParser.ConfigParser()
                 p.read(name)
-                try:
-                    self.common_config['server'] = p.get('client','server')
-                except:
-                    pass
-                try:
-                    self.common_config['proxy'] = p.get('client','proxy')
-                except:
-                    pass
-                try:
-                    self.common_config['gui'] = p.get('client','gui')
-                except:
-                    pass
-                break
+                for k, v in p.items('client'):
+                    self.common_config[k] = v
+
 
 
 
