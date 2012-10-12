@@ -31,8 +31,13 @@ class SimpleConfig:
     def __init__(self, options=None):
 
         self.wallet_config = {}
-        if options and options.wallet_path:
-            self.read_wallet_config(options.wallet_path)
+        if options:
+            # this will call read_wallet_config only if there is a wallet_path value in options
+            try:
+                self.read_wallet_config(options.wallet_path)
+            except:
+                pass
+            
 
         # system conf, readonly
         self.system_config = {}
