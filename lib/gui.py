@@ -266,10 +266,30 @@ def run_settings_dialog(wallet, parent):
     nz.show()
     vbox.pack_start(nz, False,False, 5)
             
+    # gui setting
+    gui_box = gtk.HBox()
+    gui_label = gtk.Label('Default GUI:')
+    gui_label.set_size_request(150,10)
+    gui_label.show()
+    gui_box.pack_start(gui_label,False, False, 10)
+    gui_combo = gtk.combo_box_new_text()
+    gui_combo.append_text('Lite')
+    gui_combo.append_text('Qt')
+    gui_combo.append_text('Gtk')
+    gui_combo.show()
+    gui_box.pack_start(gui_combo,False, False, 10)
+    gui_names = ['lite','qt','gtk']
+    gui_combo.set_active( gui_names.index( wallet.config.get("gui","lite")) )
+    gui_box.show()
+    add_help_button(gui_box, "Select which GUI mode to use at start up.")
+
+    vbox.pack_start(gui_box, False,False, 5)
+
     dialog.show()
     r = dialog.run()
     fee = fee_entry.get_text()
     nz = nz_entry.get_text()
+    gui = gui_names[ gui_combo.get_active()]
         
     dialog.destroy()
     if r==gtk.RESPONSE_CANCEL:
@@ -293,6 +313,8 @@ def run_settings_dialog(wallet, parent):
     if wallet.num_zeros != nz:
         wallet.num_zeros = nz
         wallet.save()
+
+    wallet.config.set_key('gui',gui,True)
 
 
 
