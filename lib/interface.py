@@ -298,7 +298,7 @@ class Interface(TcpStratumInterface, HttpStratumInterface):
             port = int(port)
 
         self.protocol = protocol
-        proxy = self.parse_proxy_options(config.get('proxy','none'))
+        proxy = self.parse_proxy_options(config.get('proxy'))
         self.server = host + ':%d:%s'%(port, protocol)
 
         #print protocol, host, port
@@ -325,6 +325,7 @@ class Interface(TcpStratumInterface, HttpStratumInterface):
 
 
     def parse_proxy_options(self, s):
+        if type(s) == type({}): return s  # fixme: type should be fixed
         if type(s) != type(""): return None  
         if s.lower() == 'none': return None
         proxy = { "mode":"socks5", "host":"localhost" }
