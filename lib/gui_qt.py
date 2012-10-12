@@ -1233,7 +1233,7 @@ class ElectrumWindow(QMainWindow):
         usechange_cb = QCheckBox(_('Use change addresses'))
         grid.addWidget(usechange_cb, 5, 0)
         usechange_cb.setChecked(self.wallet.use_change)
-        grid.addWidget(HelpButton(_('Using a change addresses makes it more difficult for other people to track your transactions. ')), 5, 2)
+        grid.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions. ')), 5, 2)
 
         msg =  _('The gap limit is the maximal number of contiguous unused addresses in your sequence of receiving addresses.') + '\n' \
               + _('You may increase it if you need more receiving addresses.') + '\n\n' \
