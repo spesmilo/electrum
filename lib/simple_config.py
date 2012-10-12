@@ -62,7 +62,7 @@ class SimpleConfig:
 
         elif self.system_config.get(key):
             self.system_config[key] = value
-            print "warning: cannot save", key
+            print "Warning: cannot save '%s' because it is set in the system configuration file"%key
 
         elif self.wallet_config.get(key):
             self.wallet_config[key] = value
