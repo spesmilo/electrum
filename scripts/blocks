@@ -2,8 +2,7 @@
 
 import electrum
 
-i = electrum.Interface({'server':'electrum.novit.ro:50001:t'})
-
+i = electrum.Interface()
 i.start()
 i.send([('blockchain.numblocks.subscribe',[])])
 

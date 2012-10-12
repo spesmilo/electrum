@@ -285,8 +285,12 @@ class TcpStratumInterface(InterfaceAncestor):
 
 class Interface(TcpStratumInterface, HttpStratumInterface):
     
-    def __init__(self, config):
+    def __init__(self, config = None):
 
+        if config is None:
+            from simple_config import SimpleConfig
+            config = SimpleConfig()
+            
         try:
             s = config.get('server')
             host, port, protocol = s.split(':')
