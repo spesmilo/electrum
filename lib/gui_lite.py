@@ -658,7 +658,7 @@ class MiniActuator:
         server_line = "%s:%s:%s" % (server_name, port, protocol)
 
         # Should this have exception handling?
-        self.wallet.set_server(server_line, self.config.get(["proxy"]))
+        self.wallet.interface.set_server(server_line, self.wallet.config.get("proxy"))
 
     def copy_address(self, receive_popup):
         """Copy the wallet addresses into the client."""
