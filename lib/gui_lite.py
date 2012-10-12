@@ -280,7 +280,7 @@ class MiniWindow(QDialog):
     def closeEvent(self, event):
         g = self.geometry()
         self.config.set_key("winpos-lite", [g.left(),g.top(),g.width(),g.height()],True)
-        self.config.set_key("history", self.history_list.isVisible(),True)
+        self.config.set_key("gui_show_history", self.history_list.isVisible(),True)
         
         super(MiniWindow, self).closeEvent(event)
         qApp.quit()
