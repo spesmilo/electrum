@@ -130,8 +130,11 @@ class SimpleConfig:
                 
             p = ConfigParser.ConfigParser()
             p.read(name)
-            for k, v in p.items('client'):
-                self.system_config[k] = v
+            try:
+                for k, v in p.items('client'):
+                    self.system_config[k] = v
+            except ConfigParser.NoSectionError:
+                pass
 
 
     def read_user_config(self):
@@ -145,8 +148,11 @@ class SimpleConfig:
                 
             p = ConfigParser.ConfigParser()
             p.read(name)
-            for k, v in p.items('client'):
-                self.user_config[k] = v
+            try:
+                for k, v in p.items('client'):
+                    self.user_config[k] = v
+            except ConfigParser.NoSectionError:
+                pass
 
 
     def init_path(self, wallet_path):
