@@ -10,7 +10,6 @@ except:
     sys.exit(1)
 
 i = Interface({'server':'electrum.novit.ro:50001:t'})
-i.init_socket()
 i.start()
 i.send([('blockchain.address.get_history',[addr])])
 

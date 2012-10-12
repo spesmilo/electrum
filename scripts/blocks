@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
-from electrum import Interface
+import electrum
 
-i = Interface({'server':'electrum.novit.ro:50001:t'})
-i.init_socket()
+i = electrum.Interface({'server':'electrum.novit.ro:50001:t'})
+
 i.start()
 i.send([('blockchain.numblocks.subscribe',[])])
 

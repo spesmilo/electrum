@@ -60,8 +60,6 @@ class InterfaceAncestor(threading.Thread):
         self.responses = Queue.Queue()
         self.unanswered_requests = {}
 
-    def init_socket(self):
-        pass
 
     def poke(self):
         # push a fake response so that the getting thread exits its loop
@@ -210,6 +208,7 @@ class TcpStratumInterface(InterfaceAncestor):
 
     def __init__(self, host, port, proxy=None):
         InterfaceAncestor.__init__(self, host, port, proxy)
+        self.init_socket()
 
     def init_socket(self):
         global proxy_modes
@@ -435,7 +434,6 @@ class WalletSynchronizer(threading.Thread):
 
 
     def start_interface(self):
-        self.interface.init_socket()
         self.interface.start()
         if self.interface.is_connected:
             self.wallet.start_session(self.interface)

@@ -158,7 +158,6 @@ if __name__ == '__main__':
     conn = mdb.connect(db_instance, db_user, db_password, db_name);
 
     i = Interface({'server':"%s:%d:t"%(electrum_server, 50001)})
-    i.init_socket()
     i.start()
     
 
