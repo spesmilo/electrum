@@ -481,5 +481,3 @@ class WalletSynchronizer(threading.Thread):
             else:
                 break
 
-
-

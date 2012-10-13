@@ -10,12 +10,6 @@ except ImportError:
     sys.exit(0)
 
 
-qtVersion = qVersion()
-if not(int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
-    app = QApplication(sys.argv)
-    QMessageBox.warning(None,"Could not start Lite GUI.", "Electrum was unable to load the 'Lite GUI' because it needs Qt version >= 4.7.\nPlease use the 'Qt' GUI")
-    sys.exit(0)
-
 
 
 from decimal import Decimal as D
@@ -62,7 +56,18 @@ class ElectrumGui(QObject):
 
         self.wallet = wallet
         self.config = config
+        self.check_qt_version()
         self.app = QApplication(sys.argv)
+
+
+    def check_qt_version(self):
+        qtVersion = qVersion()
+        if not(int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
+            app = QApplication(sys.argv)
+            QMessageBox.warning(None,"Could not start Lite GUI.", "Electrum was unable to load the 'Lite GUI' because it needs Qt version >= 4.7.\nChanging your config to use the 'Qt' GUI")
+            self.config.set_key('gui','qt',True)
+            sys.exit(0)
+
 
     def main(self, url):
         actuator = MiniActuator(self.wallet)
