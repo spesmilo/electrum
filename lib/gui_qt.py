@@ -410,7 +410,10 @@ class ElectrumWindow(QMainWindow):
             if tx['height']:
                 conf = self.wallet.blocks - tx['height'] + 1
                 time_str = datetime.datetime.fromtimestamp( tx['timestamp']).isoformat(' ')[:-3]
-                icon = QIcon(":icons/confirmed.png")
+                if conf < 6:
+                    icon = QIcon(":icons/clock%d.png"%conf)
+                else:
+                    icon = QIcon(":icons/confirmed.png")
             else:
                 conf = 0
                 time_str = 'pending'
