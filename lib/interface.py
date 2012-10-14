@@ -25,17 +25,31 @@ from util import print_error
 
 
 DEFAULT_TIMEOUT = 5
-DEFAULT_SERVERS = [ 'electrum.novit.ro:50001:t', 
-                    'electrum.bytesized-hosting.com:50001:t']  # list of default servers
+DEFAULT_SERVERS = [ 
+    'electrum.novit.ro:50001:t', 
+    'ecdsa.org:50001:t',
+    'electrum.bitcoins.sk:50001:t',
+    'uncle-enzo.info:50001:t',
+    'electrum.bytesized-hosting.com:50001:t',
+    'california.stratum.bitcoin.cz:50001:t',
+    'electrum.bitfoo.org:50001:t'
+    ]
 
 proxy_modes = ['socks4', 'socks5', 'http']
 
+
 def pick_random_server():
-    print "using random server"
-    return random.choice( DEFAULT_SERVERS )
+    return random_choice( DEFAULT_SERVERS )
 
-
-
+def pick_random_interface():
+    servers = DEFAULT_SERVERS
+    while servers:
+        server = random.choice( servers )
+        servers.remove(server)
+        i = Interface({'server':server})
+        if i.is_connected:
+            return i
+    raise BaseException('no server available')
 
 
 
@@ -212,11 +226,11 @@ class TcpStratumInterface(InterfaceAncestor):
 
     def init_socket(self):
         global proxy_modes
-        connection_msg = "%s:%d"%(self.host,self.port)
+        self.connection_msg = "%s:%d"%(self.host,self.port)
         if self.proxy is None:
             self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
         else:
-            connection_msg += " using proxy %s:%s:%s"%(self.proxy.get('mode'), self.proxy.get('host'), self.proxy.get('port'))
+            self.connection_msg += " using proxy %s:%s:%s"%(self.proxy.get('mode'), self.proxy.get('host'), self.proxy.get('port'))
             import socks
             self.s = socks.socksocket()
             self.s.setproxy(proxy_modes.index(self.proxy["mode"]), self.proxy["host"], int(self.proxy["port"]) )
@@ -226,10 +240,8 @@ class TcpStratumInterface(InterfaceAncestor):
             self.s.connect(( self.host.encode('ascii'), int(self.port)))
             self.is_connected = True
             self.send([('server.version', [ELECTRUM_VERSION])])
-            print "Connected to " + connection_msg
         except:
             self.is_connected = False
-            print_error("Failed to connect" + connection_msg)
 
     def run(self):
         try:
@@ -291,14 +303,9 @@ class Interface(TcpStratumInterface, HttpStratumInterface):
             from simple_config import SimpleConfig
             config = SimpleConfig()
             
-        try:
-            s = config.get('server')
-            host, port, protocol = s.split(':')
-            port = int(port)
-        except:
-            s = pick_random_server()
-            host, port, protocol = s.split(':')
-            port = int(port)
+        s = config.get('server')
+        host, port, protocol = s.split(':')
+        port = int(port)
 
         self.protocol = protocol
         proxy = self.parse_proxy_options(config.get('proxy'))
@@ -377,7 +384,17 @@ class WalletSynchronizer(threading.Thread):
         self.servers_loaded_callback = servers_loaded_callback
 
     def init_interface(self):
-        self.interface = Interface(self.config)
+        if self.config.get('server'):
+            self.interface = Interface(self.config)
+        else:
+            print "Using random server..."
+            self.interface = pick_random_interface()
+
+        if self.interface.is_connected:
+            print "Connected to " + self.interface.connection_msg
+        else:
+            print_error("Failed to connect " + self.interface.connection_msg)
+
         self.wallet.interface = self.interface
 
     def handle_response(self, r):
