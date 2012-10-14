@@ -168,6 +168,26 @@ class QRCodeWidget(QWidget):
         qp.end()
         
 
+def waiting_dialog(f):
+
+    s = Timer()
+    s.start()
+    w = QDialog()
+    w.resize(200, 70)
+    w.setWindowTitle('Electrum')
+    l = QLabel('')
+    vbox = QVBoxLayout()
+    vbox.addWidget(l)
+    w.setLayout(vbox)
+    w.show()
+    def ff():
+        s = f()
+        if s: l.setText(s)
+        else: w.close()
+    w.connect(s, QtCore.SIGNAL('timersignal'), ff)
+    w.exec_()
+    w.destroy()
+
 
 def ok_cancel_buttons(dialog):
     hbox = QHBoxLayout()
@@ -598,7 +618,10 @@ class ElectrumWindow(QMainWindow):
             self.show_message(str(e))
             return
             
-        status, msg = self.wallet.sendtx( tx )
+        h = self.wallet.send_tx(tx)
+        waiting_dialog(lambda: False if self.wallet.tx_event.isSet() else _("Please wait..."))
+        status, msg = self.wallet.receive_tx( h )
+
         if status:
             QMessageBox.information(self, '', _('Payment sent.')+'\n'+msg, _('OK'))
             self.do_clear()
@@ -1506,30 +1529,6 @@ class ElectrumGui:
     def server_list_changed(self):
         pass
 
-    def waiting_dialog(self):
-
-        s = Timer()
-        s.start()
-        w = QDialog()
-        w.resize(200, 70)
-        w.setWindowTitle('Electrum')
-        l = QLabel('')
-        vbox = QVBoxLayout()
-        vbox.addWidget(l)
-        w.setLayout(vbox)
-        w.show()
-        def f():
-            if self.wallet.up_to_date: 
-                w.close()
-            else:
-                l.setText("Please wait...\nAddresses generated: %d\nKilobytes received: %.1f"\
-                              %(len(self.wallet.all_addresses()), self.wallet.interface.bytes_received/1024.))
-
-        w.connect(s, QtCore.SIGNAL('timersignal'), f)
-        self.wallet.interface.poke()
-        w.exec_()
-        w.destroy()
-
 
     def restore_or_create(self):
 
@@ -1542,12 +1541,16 @@ class ElectrumGui:
         # ask for the server.
         if not ElectrumWindow.network_dialog( wallet, parent=None ): return False
 
+        waiting = lambda: False if wallet.up_to_date else "Please wait...\nAddresses generated: %d\nKilobytes received: %.1f"\
+            %(len(wallet.all_addresses()), wallet.interface.bytes_received/1024.)
+
         if not is_recovery:
             wallet.new_seed(None)
             wallet.init_mpk( wallet.seed )
             wallet.up_to_date_event.clear()
             wallet.up_to_date = False
-            self.waiting_dialog()
+            wallet.interface.poke()
+            waiting_dialog(waiting)
             # run a dialog indicating the seed, ask the user to remember it
             ElectrumWindow.show_seed_dialog(wallet)
             #ask for password
@@ -1558,7 +1561,8 @@ class ElectrumGui:
             wallet.init_mpk( wallet.seed )
             wallet.up_to_date_event.clear()
             wallet.up_to_date = False
-            self.waiting_dialog()
+            wallet.interface.poke()
+            waiting_dialog(waiting)
             if wallet.is_found():
                 # history and addressbook
                 wallet.update_tx_history()
