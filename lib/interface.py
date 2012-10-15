@@ -367,6 +367,9 @@ class Interface(TcpStratumInterface, HttpStratumInterface):
             self.is_connected = False  # this exits the polling loop
             self.poke()
 
+    def is_up_to_date(self):
+        return self.responses.empty() and not self.unanswered_requests
+
 
 
 
@@ -470,7 +473,7 @@ class WalletSynchronizer(threading.Thread):
                 if new_addresses:
                     self.interface.subscribe(new_addresses)
 
-                if self.wallet.is_up_to_date():
+                if self.interface.is_up_to_date():
                     if not self.wallet.up_to_date:
                         self.wallet.up_to_date = True
                         self.wallet.was_updated = True

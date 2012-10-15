@@ -790,7 +790,7 @@ class MiniDriver(QObject):
             self.connecting()
         elif not self.wallet.blocks == -1:
             self.connecting()
-        elif not self.wallet.is_up_to_date:
+        elif not self.wallet.up_to_date:
             self.synchronizing()
         else:
             self.ready()
