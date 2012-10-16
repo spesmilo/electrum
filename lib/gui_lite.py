@@ -749,7 +749,7 @@ class MiniActuator:
         return self.wallet.is_valid(address)
 
     def acceptbit(self, currency):
-        master_pubkey = self.wallet.master_public_key.encode("hex")
+        master_pubkey = self.wallet.master_public_key
         url = "http://acceptbit.com/mpk/%s/%s" % (master_pubkey, currency)
         webbrowser.open(url)
 

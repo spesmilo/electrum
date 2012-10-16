@@ -33,7 +33,6 @@ db_password = config.get('db','password')
 db_name = config.get('db','name')
 
 electrum_server = config.get('electrum','server')
-mpk = config.get('electrum','mpk')
 
 my_password = config.get('main','password')
 my_host = config.get('main','host')
@@ -44,7 +43,7 @@ cb_expired = config.get('callback','expired')
 cb_password = config.get('callback','password')
 
 wallet = Wallet()
-wallet.master_public_key = mpk.decode('hex')
+wallet.master_public_key = config.get('electrum','mpk')
 
 
 
@@ -114,7 +113,7 @@ def process_request(i, amount, confirmations, expires_in, password):
     return addr
 
 def get_mpk():
-    return wallet.master_public_key.encode('hex')
+    return wallet.master_public_key
 
 
 def server_thread(conn):

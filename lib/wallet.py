@@ -270,7 +270,7 @@ class Wallet:
         self.use_change            = config.get('use_change',True)
         self.fee                   = int(config.get('fee',100000))
         self.num_zeros             = int(config.get('num_zeros',0))
-        self.master_public_key     = config.get('master_public_key','').decode('hex')
+        self.master_public_key     = config.get('master_public_key','')
         self.use_encryption        = config.get('use_encryption', False)
         self.addresses             = config.get('addresses', [])          # receiving addresses visible for user
         self.change_addresses      = config.get('change_addresses', [])   # addresses used as change
@@ -347,7 +347,7 @@ class Wallet:
         curve = SECP256k1
         secexp = self.stretch_key(seed)
         master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
-        self.master_public_key = master_private_key.get_verifying_key().to_string()
+        self.master_public_key = master_private_key.get_verifying_key().to_string().encode('hex')
 
     def all_addresses(self):
         return self.addresses + self.change_addresses + self.imported_keys.keys()
@@ -374,7 +374,7 @@ class Wallet:
         return string_to_number( seed )
 
     def get_sequence(self,n,for_change):
-        return string_to_number( Hash( "%d:%d:"%(n,for_change) + self.master_public_key ) )
+        return string_to_number( Hash( "%d:%d:"%(n,for_change) + self.master_public_key.decode('hex') ) )
 
     def get_private_key_base58(self, address, password):
         pk = self.get_private_key(address, password)
@@ -488,7 +488,7 @@ class Wallet:
         """   Publickey(type,n) = Master_public_key + H(n|S|type)*point  """
         curve = SECP256k1
         z = self.get_sequence(n, for_change)
-        master_public_key = ecdsa.VerifyingKey.from_string( self.master_public_key, curve = SECP256k1 )
+        master_public_key = ecdsa.VerifyingKey.from_string( self.master_public_key.decode('hex'), curve = SECP256k1 )
         pubkey_point = master_public_key.pubkey.point + z*curve.generator
         public_key2 = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
         address = public_key_to_bc_address( '04'.decode('hex') + public_key2.to_string() )
@@ -1009,7 +1009,7 @@ class Wallet:
             'seed_version': self.seed_version,
             'use_encryption': self.use_encryption,
             'use_change': self.use_change,
-            'master_public_key': self.master_public_key.encode('hex'),
+            'master_public_key': self.master_public_key,
             'fee': self.fee,
             'seed': self.seed,
             'addresses': self.addresses,
