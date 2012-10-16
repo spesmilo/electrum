@@ -1356,11 +1356,11 @@ class ElectrumWindow(QMainWindow):
                 status = _("Connected to")+" %s\n%d blocks"%(interface.host, wallet.blocks)
             else:
                 status = _("Not connected")
-            server = interface.server
         else:
             import random
             status = _("Please choose a server.")
-            server = random.choice( DEFAULT_SERVERS )
+
+        server = interface.server
 
         if not wallet.interface.servers:
             servers_list = []
