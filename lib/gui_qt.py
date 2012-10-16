@@ -993,6 +993,7 @@ class ElectrumWindow(QMainWindow):
         qr_button.clicked.connect(show_qr_function)
 
         ok_button = QPushButton(_("OK"))
+        ok_button.setDefault(True)
         ok_button.clicked.connect(dialog.accept)
 
         main_layout = QGridLayout()
