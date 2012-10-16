@@ -234,11 +234,12 @@ class TcpStratumInterface(InterfaceAncestor):
             import socks
             self.s = socks.socksocket()
             self.s.setproxy(proxy_modes.index(self.proxy["mode"]), self.proxy["host"], int(self.proxy["port"]) )
-        self.s.settimeout(60)
+        self.s.settimeout(2)
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
         try:
             self.s.connect(( self.host.encode('ascii'), int(self.port)))
             self.is_connected = True
+            self.s.settimeout(60)
             self.send([('server.version', [ELECTRUM_VERSION])])
         except:
             self.is_connected = False
