@@ -328,11 +328,11 @@ def run_network_dialog( wallet, parent ):
             status = "Connected to %s:%d\n%d blocks"%(interface.host, interface.port, wallet.blocks)
         else:
             status = "Not connected"
-        server = interface.server
     else:
         import random
         status = "Please choose a server."
-        server = random.choice( DEFAULT_SERVERS )
+
+    server = interface.server
 
     if not wallet.interface.servers:
         servers_list = []
