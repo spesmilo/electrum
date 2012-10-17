@@ -27,7 +27,7 @@ from util import print_error
 DEFAULT_TIMEOUT = 5
 DEFAULT_SERVERS = [ 
     'electrum.novit.ro:50001:t', 
-    'ecdsa.org:50001:t',
+    #'ecdsa.org:50002:s',
     'electrum.bitcoins.sk:50001:t',
     'uncle-enzo.info:50001:t',
     'electrum.bytesized-hosting.com:50001:t',
@@ -55,12 +55,13 @@ def pick_random_interface():
 
 class InterfaceAncestor(threading.Thread):
 
-    def __init__(self, host, port, proxy=None):
+    def __init__(self, host, port, proxy=None, use_ssl=True):
         threading.Thread.__init__(self)
         self.daemon = True
         self.host = host
         self.port = port
         self.proxy = proxy
+        self.use_ssl = use_ssl
 
         self.servers = [] # actual list from IRC
         self.rtime = 0
@@ -125,9 +126,10 @@ class InterfaceAncestor(threading.Thread):
 class HttpStratumInterface(InterfaceAncestor):
     """ non-persistent connection. synchronous calls"""
 
-    def __init__(self, host, port, proxy=None):
-        InterfaceAncestor.__init__(self, host, port, proxy)
+    def __init__(self, host, port, proxy=None, use_ssl=True):
+        InterfaceAncestor.__init__(self, host, port, proxy, use_ssl)
         self.session_id = None
+        self.connection_msg = "http://%s:%d"%(self.host,self.port)
 
     def get_history(self, address):
         self.send([('blockchain.address.get_history', [address] )])
@@ -182,7 +184,11 @@ class HttpStratumInterface(InterfaceAncestor):
             # poll with GET
             data_json = None 
 
-        host = 'http://%s:%d'%( self.host, self.port )
+        if self.use_ssl:
+            host = 'https://%s:%d'%( self.host, self.port )
+        else:
+            host = 'http://%s:%d'%( self.host, self.port )
+            
         headers = {'content-type': 'application/json'}
         if self.session_id:
             headers['cookie'] = 'SESSION=%s'%self.session_id
@@ -220,29 +226,37 @@ class HttpStratumInterface(InterfaceAncestor):
 class TcpStratumInterface(InterfaceAncestor):
     """json-rpc over persistent TCP connection, asynchronous"""
 
-    def __init__(self, host, port, proxy=None):
-        InterfaceAncestor.__init__(self, host, port, proxy)
+    def __init__(self, host, port, proxy=None, use_ssl=True):
+        InterfaceAncestor.__init__(self, host, port, proxy, use_ssl)
         self.init_socket()
 
     def init_socket(self):
+        import ssl
         global proxy_modes
         self.connection_msg = "%s:%d"%(self.host,self.port)
         if self.proxy is None:
-            self.s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
+            s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
         else:
             self.connection_msg += " using proxy %s:%s:%s"%(self.proxy.get('mode'), self.proxy.get('host'), self.proxy.get('port'))
             import socks
-            self.s = socks.socksocket()
-            self.s.setproxy(proxy_modes.index(self.proxy["mode"]), self.proxy["host"], int(self.proxy["port"]) )
-        self.s.settimeout(2)
-        self.s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            s = socks.socksocket()
+            s.setproxy(proxy_modes.index(self.proxy["mode"]), self.proxy["host"], int(self.proxy["port"]) )
+
+        if self.use_ssl:
+            s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_TLSv1)
+            
+        s.settimeout(2)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+
         try:
-            self.s.connect(( self.host.encode('ascii'), int(self.port)))
+            s.connect(( self.host.encode('ascii'), int(self.port)))
+            s.settimeout(60)
+            self.s = s
             self.is_connected = True
-            self.s.settimeout(60)
             self.send([('server.version', [ELECTRUM_VERSION])])
         except:
             self.is_connected = False
+            self.s = None
 
     def run(self):
         try:
@@ -313,23 +327,22 @@ class Interface(TcpStratumInterface, HttpStratumInterface):
         self.server = host + ':%d:%s'%(port, protocol)
 
         #print protocol, host, port
-        if protocol == 't':
-            TcpStratumInterface.__init__(self, host, port, proxy)
-        elif protocol == 'h':
-            HttpStratumInterface.__init__(self, host, port, proxy)
+        if protocol in 'st':
+            TcpStratumInterface.__init__(self, host, port, proxy, use_ssl=(protocol=='s'))
+        elif protocol in 'gh':
+            HttpStratumInterface.__init__(self, host, port, proxy, use_ssl=(protocol=='g'))
         else:
-            print_error("Error: Unknown protocol")
-            TcpStratumInterface.__init__(self, host, port, proxy)
+            raise BaseException('Unknown protocol: %s'%protocol)
 
 
     def run(self):
-        if self.protocol == 't':
+        if self.protocol  in 'st':
             TcpStratumInterface.run(self)
         else:
             HttpStratumInterface.run(self)
 
     def send(self, messages):
-        if self.protocol == 't':
+        if self.protocol in 'st':
             TcpStratumInterface.send(self, messages)
         else:
             HttpStratumInterface.send(self, messages)
