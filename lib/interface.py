@@ -243,7 +243,7 @@ class TcpStratumInterface(InterfaceAncestor):
             s.setproxy(proxy_modes.index(self.proxy["mode"]), self.proxy["host"], int(self.proxy["port"]) )
 
         if self.use_ssl:
-            s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_TLSv1)
+            s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23)
             
         s.settimeout(2)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
