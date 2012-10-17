@@ -14,16 +14,20 @@ for i in interfaces:
     else:
         servers.remove(i.server)
 
-while servers:
-    for i in interfaces:
+for i in interfaces:
+    while True:
         try:
-            r = i.responses.get(False)
+            r = i.responses.get(True,1)
         except Queue.Empty:
-            continue
+            break
 
         if r.get('method') == 'blockchain.numblocks.subscribe':
             results.append((i.host, r.get('result')))
             servers.remove(i.server)
+            break
+
+for s in servers:
+    print "%30s    "%s, "timed out"
 
 from collections import defaultdict
 d = defaultdict(int)
