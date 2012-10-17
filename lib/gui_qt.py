@@ -408,19 +408,29 @@ class ElectrumWindow(QMainWindow):
     def address_label_changed(self, item, column, l, column_addr, column_label):
         addr = unicode( item.text(column_addr) )
         text = unicode( item.text(column_label) )
+        changed = False
+
         if text:
             if text not in self.wallet.aliases.keys():
-                self.wallet.labels[addr] = text
+                old_addr = self.wallet.labels.get(text)
+                if old_addr != addr:
+                    self.wallet.labels[addr] = text
+                    changed = True
             else:
                 print_error("Error: This is one of your aliases")
                 label = self.wallet.labels.get(addr,'')
                 item.setText(column_label, QString(label))
         else:
             s = self.wallet.labels.get(addr)
-            if s: self.wallet.labels.pop(addr)
+            if s: 
+                self.wallet.labels.pop(addr)
+                changed = True
 
-        self.update_history_tab()
-        self.update_completions()
+        if changed:
+            self.wallet.update_tx_labels()
+            self.update_history_tab()
+            self.update_completions()
+
 
     def update_history_tab(self):
         self.history_list.clear()
