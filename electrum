@@ -176,6 +176,11 @@ if __name__ == '__main__':
                   import lib.gui_lite as gui
               except ImportError:
                   import electrum.gui_lite as gui
+        elif pref_gui == 'text':
+              try:
+                  import lib.gui_text as gui
+              except ImportError:
+                  import electrum.gui_text as gui
         else:
             sys.exit("Error: Unknown GUI: " + pref_gui )
 
