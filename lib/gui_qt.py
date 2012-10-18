@@ -1419,12 +1419,15 @@ class ElectrumWindow(QMainWindow):
         server_host.setFixedWidth(200)
         server_port = QLineEdit()
         server_port.setFixedWidth(60)
-        server_protocol.addItems(['TCP', 'HTTP'])
+
+        protocol_names = ['TCP', 'HTTP', 'TCP/SSL', 'HTTPS']
+        protocol_letters = 'thsg'
+        server_protocol.addItems(protocol_names)
 
         host, port, protocol = server.split(':')
         server_host.setText(host)
         server_port.setText(port)
-        server_protocol.setCurrentIndex(0 if protocol=='t' else 1)
+        server_protocol.setCurrentIndex(protocol_letters.index(protocol))
 
         grid.addWidget(QLabel(_('Server') + ':'), 0, 0)
         grid.addWidget(server_protocol, 0, 1)
@@ -1432,7 +1435,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(server_port, 0, 3)
 
         def change_protocol(p):
-            protocol = 't' if p == 0 else 'h'
+            protocol = protocol_letters[p]
             host = unicode(server_host.text())
             pp = plist[host]
             if protocol not in pp.keys():
@@ -1465,7 +1468,16 @@ class ElectrumWindow(QMainWindow):
             port = pp[protocol]
             server_host.setText( host )
             server_port.setText( port )
-            server_protocol.setCurrentIndex(0 if protocol == 't' else 1)
+            server_protocol.setCurrentIndex(protocol_letters.index(protocol))
+
+            for p in protocol_letters:
+                i = protocol_letters.index(p)
+                j = server_protocol.model().index(i,0)
+                if p not in pp.keys():
+                    server_protocol.model().setData(j, QtCore.QVariant(0), QtCore.Qt.UserRole-1)
+                else:
+                    server_protocol.model().setData(j, QtCore.QVariant(0,False), QtCore.Qt.UserRole-1)
+
 
         servers_list_widget.connect(servers_list_widget, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), change_server)
         grid.addWidget(servers_list_widget, 1, 1, 1, 3)
@@ -1511,7 +1523,7 @@ class ElectrumWindow(QMainWindow):
 
         if not d.exec_(): return
 
-        server = unicode( server_host.text() ) + ':' + unicode( server_port.text() ) + ':' + ('t' if server_protocol.currentIndex() == 0 else 'h')
+        server = unicode( server_host.text() ) + ':' + unicode( server_port.text() ) + ':' + (protocol_letters[server_protocol.currentIndex()])
         if proxy_mode.currentText() != 'NONE':
             proxy = { u'mode':unicode(proxy_mode.currentText()).lower(), u'host':unicode(proxy_host.text()), u'port':unicode(proxy_port.text()) }
         else:

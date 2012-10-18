@@ -27,6 +27,7 @@ from util import print_error
 DEFAULT_TIMEOUT = 5
 DEFAULT_SERVERS = [ 
     'electrum.novit.ro:50001:t', 
+    'electrum.pdmc.net:50001:t',
     #'ecdsa.org:50002:s',
     'electrum.bitcoins.sk:50001:t',
     'uncle-enzo.info:50001:t',
@@ -372,7 +373,7 @@ class Interface(TcpStratumInterface, HttpStratumInterface):
         # raise an error if the format isnt correct
         a,b,c = server.split(':')
         b = int(b)
-        assert c in ['t', 'h']
+        assert c in 'stgh'
         # set the server
         if server != self.server or proxy != self.proxy:
             print "changing server:", server, proxy
@@ -435,7 +436,7 @@ class WalletSynchronizer(threading.Thread):
                 version = None
                 if len(item) > 2:
                     for v in item[2]:
-                        if re.match("[th]\d+", v):
+                        if re.match("[stgh]\d+", v):
                             ports.append((v[0], v[1:]))
                         if re.match("v(.?)+", v):
                             version = v[1:]
