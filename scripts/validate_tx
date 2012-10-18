@@ -1,0 +1,93 @@
+#!/usr/bin/env python
+
+import sys, hashlib
+from electrum import Interface
+
+"""validate a transaction (SPV)"""
+
+
+Hash = lambda x: hashlib.sha256(hashlib.sha256(x).digest()).digest()
+
+def rev_hex(s):
+    return s.decode('hex')[::-1].encode('hex')
+
+def int_to_hex(i, length=1):
+    s = hex(i)[2:].rstrip('L')
+    s = "0"*(2*length - len(s)) + s
+    return rev_hex(s)
+
+
+i = Interface({'server':'ecdsa.org:50002:s'})
+i.start()
+
+
+def get_header(i, block_height):
+    i.send([('blockchain.block.get_header',[block_height])])
+    while True:
+        r = i.responses.get(True, 100000000000)
+        method = r.get('method') 
+        if method == 'blockchain.block.get_header':
+            break
+    return r.get('result')
+
+
+
+def get_merkle(i, tx_hash):
+
+    i.send([('blockchain.transaction.get_merkle',[tx_hash])])
+    while True:
+        r = i.responses.get(True, 100000000000)
+        method = r.get('method') 
+        if method == 'blockchain.transaction.get_merkle':
+            break
+
+    return r.get('result')
+
+
+def merkle_root(merkle):
+
+    merkle = map (lambda tx_hash: tx_hash.decode('hex')[::-1], merkle)
+    while len(merkle) != 1:
+        if len(merkle)%2: merkle.append( merkle[-1] )
+        n = []
+        while merkle:
+            n.append( Hash( merkle[0] + merkle[1] ) )
+            merkle = merkle[2:]
+
+        merkle = n
+            
+    return merkle[0][::-1].encode('hex')
+
+
+def hash_header(res):
+    header = int_to_hex(res.get('version'),4) \
+        + rev_hex(res.get('prev_block_hash')) \
+        + rev_hex(res.get('merkle_root')) \
+        + int_to_hex(int(res.get('timestamp')),4) \
+        + int_to_hex(int(res.get('bits')),4) \
+        + int_to_hex(int(res.get('nonce')),4)
+    return rev_hex(Hash(header.decode('hex')).encode('hex'))
+
+
+def verify_tx(tx_hash):
+    res = get_merkle(i, tx_hash)
+    assert res.get('merkle_root') == merkle_root(res['merkle'])
+    block_height = res.get('block_height')
+    _hash = None
+    for height in range(block_height-10,block_height+10):
+        header = get_header(i, height)
+        if _hash: assert _hash == header.get('prev_block_hash')
+        _hash = hash_header(header)
+        #print _hash
+        if height==block_height:
+            assert header.get('merkle_root') == res.get('merkle_root')
+        
+
+
+try:
+    tx = sys.argv[1]
+except:
+    tx = '587430e52af2cec98b3fd543083469ffa7a5f5dd2bd569898a7897a64e2eb031'
+
+verify_tx(tx)
+
