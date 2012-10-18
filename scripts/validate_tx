@@ -71,6 +71,7 @@ def hash_header(res):
 
 def verify_tx(tx_hash):
     res = get_merkle(i, tx_hash)
+    assert tx_hash in res.get('merkle')
     assert res.get('merkle_root') == merkle_root(res['merkle'])
     block_height = res.get('block_height')
     _hash = None
