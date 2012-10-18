@@ -24,7 +24,7 @@ if (len(sys.argv) > 1 and (sys.argv[1] == "sdist")) or (platform.system() != 'Wi
             data_files.append(  ('/usr/share/locale/%s/LC_MESSAGES'%lang, ['locale/%s/LC_MESSAGES/electrum.mo'%lang]) )
 
 data_files += [
-    (util.appdata_dir(), ["data/noface.svg", "data/README"]),
+    (util.appdata_dir(), ["data/README"]),
     (os.path.join(util.appdata_dir(), "cleanlook"), [
         "data/cleanlook/name.cfg",
         "data/cleanlook/style.css"
