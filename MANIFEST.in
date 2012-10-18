@@ -11,3 +11,4 @@ include icons.qrc
 recursive-include icons *
 include scripts
 recursive_include scripts/*
+recursive-include data *
