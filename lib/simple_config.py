@@ -59,7 +59,7 @@ class SimpleConfig:
     def set_key(self, key, value, save = False):
         # find where a setting comes from and save it there
         if self.options_config.get(key):
-            print "Warning: cannot change '%s' because it was passed as a command-line option"%key
+            print "Warning: not changing '%s' because it was passed as a command-line option"%key
             return
 
         elif self.user_config.get(key):
