@@ -15,7 +15,7 @@ if (len(sys.argv) > 1 and (sys.argv[1] == "sdist")) or (platform.system() != 'Wi
     print "Including all files"
     data_files += [
         ('/usr/share/applications/',['electrum.desktop']),
-        ('/usr/share/app-install/icons/',['electrum.png'])
+        ('/usr/share/app-install/icons/',['icons/electrum.png'])
     ]
     if not os.path.exists('locale'):
         os.mkdir('locale')
