@@ -110,7 +110,7 @@ class InterfaceAncestor(threading.Thread):
                 result = params[1]
                 params = [addr]
 
-        self.responses.put({'method':method, 'params':params, 'result':result})
+        self.responses.put({'method':method, 'params':params, 'result':result, 'id':msg_id})
 
 
 
@@ -286,21 +286,22 @@ class TcpStratumInterface(InterfaceAncestor):
         self.poke()
 
     def send(self, messages):
+        """return the ids of the requests that we sent"""
         out = ''
+        ids = []
         for m in messages:
             method, params = m 
             request = json.dumps( { 'id':self.message_id, 'method':method, 'params':params } )
             self.unanswered_requests[self.message_id] = method, params
-
+            ids.append(self.message_id)
             # uncomment to debug
             # print "-->",request
-
             self.message_id += 1
             out += request + '\n'
-
         while out:
             sent = self.s.send( out )
             out = out[sent:]
+        return ids
 
     def get_history(self, addr):
         self.send([('blockchain.address.get_history', [addr])])
@@ -340,9 +341,9 @@ class Interface(TcpStratumInterface, HttpStratumInterface):
 
     def send(self, messages):
         if self.protocol in 'st':
-            TcpStratumInterface.send(self, messages)
+            return TcpStratumInterface.send(self, messages)
         else:
-            HttpStratumInterface.send(self, messages)
+            return HttpStratumInterface.send(self, messages)
 
 
     def parse_proxy_options(self, s):
@@ -378,10 +379,26 @@ class Interface(TcpStratumInterface, HttpStratumInterface):
             self.is_connected = False  # this exits the polling loop
             self.poke()
 
+
     def is_up_to_date(self):
         return self.responses.empty() and not self.unanswered_requests
 
 
+    def synchronous_get(self, requests, timeout=100000000):
+        # todo: use generators, unanswered_requests should be a list of arrays...
+        ids = self.send(requests)
+        id2 = ids[:]
+        res = {}
+        while ids:
+            r = self.responses.get(True, timeout)
+            _id = r.get('id')
+            if _id in ids:
+                ids.remove(_id)
+                res[_id] = r.get('result')
+        out = []
+        for _id in id2:
+            out.append(res[_id])
+        return out
 
 
 

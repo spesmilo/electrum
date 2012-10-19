@@ -11,18 +11,7 @@ except:
 
 i = Interface({'server':'electrum.novit.ro:50001:t'})
 i.start()
-i.send([('blockchain.address.get_history',[addr])])
+h = i.synchronous_get([ ('blockchain.address.get_history',[addr]) ])[0]
+for item in h:
+    print item['tx_hash'], item['value']
 
-while True:
-    try:
-        r = i.responses.get(True, 100000000000)
-    except KeyboardInterrupt:
-        break
-    method = r.get('method') 
-    if method == 'blockchain.address.get_history':
-        confirmed = unconfirmed = 0
-        h = r.get('result')
-        for item in h:
-            print item['tx_hash'], item['value']
-
-        break
