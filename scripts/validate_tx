@@ -11,19 +11,19 @@ i = Interface({'server':'ecdsa.org:50002:s'})
 i.start()
 
 
-def merkle_root(merkle):
+encode = lambda x: x[::-1].encode('hex')
+decode = lambda x: x.decode('hex')[::-1]
 
-    merkle = map (lambda tx_hash: tx_hash.decode('hex')[::-1], merkle)
-    while len(merkle) != 1:
-        if len(merkle)%2: merkle.append( merkle[-1] )
-        n = []
-        while merkle:
-            n.append( Hash( merkle[0] + merkle[1] ) )
-            merkle = merkle[2:]
 
-        merkle = n
-            
-    return merkle[0][::-1].encode('hex')
+def merkle_root(merkle_s, target_hash):
+    h = decode(target_hash)
+    for item in merkle_s:
+        is_left = item[0] == 'L'
+        if is_left:
+            h = Hash( h + decode(item[1:]) )
+        else:
+            h = Hash( decode(item[1:]) + h )
+    return encode(h)
 
 
 def hash_header(res):
@@ -39,8 +39,7 @@ def hash_header(res):
 def verify_tx(tx_hash):
     
     res = i.synchronous_get([ ('blockchain.transaction.get_merkle',[tx_hash]) ])[0]
-    assert tx_hash in res.get('merkle')
-    assert res.get('merkle_root') == merkle_root(res['merkle'])
+    assert res.get('merkle_root') == merkle_root(res['merkle'], tx_hash)
     block_height = res.get('block_height')
     print block_height
 
@@ -56,7 +55,6 @@ def verify_tx(tx_hash):
         print _hash
         if height==block_height:
             assert header.get('merkle_root') == res.get('merkle_root')
-        
 
 
 try:
