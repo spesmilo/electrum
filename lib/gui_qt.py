@@ -1425,9 +1425,6 @@ class ElectrumWindow(QMainWindow):
         server_protocol.addItems(protocol_names)
 
         host, port, protocol = server.split(':')
-        server_host.setText(host)
-        server_port.setText(port)
-        server_protocol.setCurrentIndex(protocol_letters.index(protocol))
 
         grid.addWidget(QLabel(_('Server') + ':'), 0, 0)
         grid.addWidget(server_protocol, 0, 1)
@@ -1458,14 +1455,21 @@ class ElectrumWindow(QMainWindow):
         for host in plist.keys():
             servers_list_widget.addTopLevelItem(QTreeWidgetItem( [ host ] ))
 
-        def change_server(x):
-            host = unicode(x.text(0))
+        def change_server(host, protocol=None):
+            
             pp = plist[host]
-            if 't' in pp.keys():
-                protocol = 't'
-            else:
-                protocol = pp.keys()[0]
-            port = pp[protocol]
+            if protocol:
+                port = pp.get(protocol)
+                if not port: protocol = None
+                    
+            if not protocol:
+                if 't' in pp.keys():
+                    protocol = 't'
+                else:
+                    protocol = pp.keys()[0]
+                port = pp.get(protocol)
+
+            
             server_host.setText( host )
             server_port.setText( port )
             server_protocol.setCurrentIndex(protocol_letters.index(protocol))
@@ -1478,8 +1482,10 @@ class ElectrumWindow(QMainWindow):
                 else:
                     server_protocol.model().setData(j, QtCore.QVariant(0,False), QtCore.Qt.UserRole-1)
 
+        change_server(host,protocol)
 
-        servers_list_widget.connect(servers_list_widget, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), change_server)
+
+        servers_list_widget.connect(servers_list_widget, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), lambda x: change_server(unicode(x.text(0))))
         grid.addWidget(servers_list_widget, 1, 1, 1, 3)
 
         if not wallet.config.is_modifiable('server'):
