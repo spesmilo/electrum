@@ -49,6 +49,37 @@ def resize_line_edit_width(line_edit, text_input):
     text_input += "A"
     line_edit.setMinimumWidth(metrics.width(text_input))
 
+def load_theme_name(theme_path):
+    try:
+        with open(os.path.join(theme_path, "name.cfg")) as name_cfg_file:
+            return name_cfg_file.read().rstrip("\n").strip()
+    except IOError:
+        return None
+
+
+def theme_dirs_from_prefix(prefix):
+    if not os.path.exists(prefix):
+        return []
+    theme_paths = {}
+    for potential_theme in os.listdir(prefix):
+        theme_full_path = os.path.join(prefix, potential_theme)
+        theme_css = os.path.join(theme_full_path, "style.css")
+        if not os.path.exists(theme_css):
+            continue
+        theme_name = load_theme_name(theme_full_path)
+        if theme_name is None:
+            continue
+        theme_paths[theme_name] = prefix, potential_theme
+    return theme_paths
+
+def load_theme_paths():
+    theme_paths = {}
+    prefixes = (util.local_data_dir(), util.appdata_dir())
+    for prefix in prefixes:
+        theme_paths.update(theme_dirs_from_prefix(prefix))
+    return theme_paths
+
+
 class ElectrumGui(QObject):
 
     def __init__(self, wallet, config):
@@ -565,7 +596,7 @@ class MiniActuator:
         """Retrieve the gui theme used in previous session."""
         self.wallet = wallet
         self.theme_name = self.wallet.config.get('litegui_theme','Cleanlook')
-        self.themes = util.load_theme_paths()
+        self.themes = load_theme_paths()
 
     def load_theme(self):
         """Load theme retrieved from wallet file."""
