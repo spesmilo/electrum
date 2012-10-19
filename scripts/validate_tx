@@ -2,19 +2,9 @@
 
 import sys, hashlib
 from electrum import Interface
+from electrum.bitcoin import Hash, rev_hex, int_to_hex
 
 """validate a transaction (SPV)"""
-
-
-Hash = lambda x: hashlib.sha256(hashlib.sha256(x).digest()).digest()
-
-def rev_hex(s):
-    return s.decode('hex')[::-1].encode('hex')
-
-def int_to_hex(i, length=1):
-    s = hex(i)[2:].rstrip('L')
-    s = "0"*(2*length - len(s)) + s
-    return rev_hex(s)
 
 
 i = Interface({'server':'ecdsa.org:50002:s'})
