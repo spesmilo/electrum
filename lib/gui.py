@@ -274,11 +274,11 @@ def run_settings_dialog(wallet, parent):
     gui_box.pack_start(gui_label,False, False, 10)
     gui_combo = gtk.combo_box_new_text()
     gui_combo.append_text('Lite')
-    gui_combo.append_text('Qt')
+    gui_combo.append_text('Classic')
     gui_combo.append_text('Gtk')
     gui_combo.show()
     gui_box.pack_start(gui_combo,False, False, 10)
-    gui_names = ['lite','qt','gtk']
+    gui_names = ['lite','classic','gtk']
     gui_combo.set_active( gui_names.index( wallet.config.get("gui","lite")) )
     gui_box.show()
     add_help_button(gui_box, "Select which GUI mode to use at start up.")

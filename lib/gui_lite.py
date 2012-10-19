@@ -64,8 +64,8 @@ class ElectrumGui(QObject):
         qtVersion = qVersion()
         if not(int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
             app = QApplication(sys.argv)
-            QMessageBox.warning(None,"Could not start Lite GUI.", "Electrum was unable to load the 'Lite GUI' because it needs Qt version >= 4.7.\nChanging your config to use the 'Qt' GUI")
-            self.config.set_key('gui','qt',True)
+            QMessageBox.warning(None,"Could not start Lite GUI.", "Electrum was unable to load the 'Lite GUI' because it needs Qt version >= 4.7.\nChanging your config to use the 'Classic' GUI")
+            self.config.set_key('gui','classic',True)
             sys.exit(0)
 
 
@@ -220,7 +220,7 @@ class MiniWindow(QDialog):
         backup_wallet = extra_menu.addAction( _("&Create wallet backup"))
         backup_wallet.triggered.connect(self.backup_wallet)
 
-        expert_gui = view_menu.addAction(_("&Pro Mode"))
+        expert_gui = view_menu.addAction(_("&Classic GUI"))
         expert_gui.triggered.connect(expand_callback)
         themes_menu = view_menu.addMenu(_("&Themes"))
         selected_theme = self.actuator.selected_theme()

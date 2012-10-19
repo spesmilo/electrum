@@ -158,13 +158,13 @@ if __name__ == '__main__':
     #this entire if/else block is just concerned with importing the 
     #right GUI toolkit based the GUI command line option given 
     if cmd == 'gui':
-        pref_gui = config.get('gui','qt')
+        pref_gui = config.get('gui','classic')
         if pref_gui == 'gtk':
             try:
                 import lib.gui as gui
             except ImportError:
                 import electrum.gui as gui
-        elif pref_gui == 'qt':
+        elif pref_gui in ['classic', 'qt']:
             try:
                 import lib.gui_qt as gui
             except ImportError:
