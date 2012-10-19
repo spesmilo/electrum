@@ -130,7 +130,7 @@ class HttpStratumInterface(InterfaceAncestor):
     def __init__(self, host, port, proxy=None, use_ssl=True):
         InterfaceAncestor.__init__(self, host, port, proxy, use_ssl)
         self.session_id = None
-        self.connection_msg = "http://%s:%d"%(self.host,self.port)
+        self.connection_msg = ('https' if self.use_ssl else 'http') + '://%s:%d'%( self.host, self.port )
 
     def get_history(self, address):
         self.send([('blockchain.address.get_history', [address] )])
@@ -185,16 +185,12 @@ class HttpStratumInterface(InterfaceAncestor):
             # poll with GET
             data_json = None 
 
-        if self.use_ssl:
-            host = 'https://%s:%d'%( self.host, self.port )
-        else:
-            host = 'http://%s:%d'%( self.host, self.port )
             
         headers = {'content-type': 'application/json'}
         if self.session_id:
             headers['cookie'] = 'SESSION=%s'%self.session_id
 
-        req = urllib2.Request(host, data_json, headers)
+        req = urllib2.Request(self.connection_msg, data_json, headers)
         response_stream = urllib2.urlopen(req)
 
         for index, cookie in enumerate(cj):
