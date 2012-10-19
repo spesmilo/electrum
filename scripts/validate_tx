@@ -6,23 +6,18 @@ from electrum.bitcoin import Hash, rev_hex, int_to_hex
 
 """validate a transaction (SPV)"""
 
-
 i = Interface({'server':'ecdsa.org:50002:s'})
 i.start()
-
 
 encode = lambda x: x[::-1].encode('hex')
 decode = lambda x: x.decode('hex')[::-1]
 
 
-def merkle_root(merkle_s, target_hash):
+def do_merkle_root(merkle_s, target_hash):
     h = decode(target_hash)
     for item in merkle_s:
         is_left = item[0] == 'L'
-        if is_left:
-            h = Hash( h + decode(item[1:]) )
-        else:
-            h = Hash( decode(item[1:]) + h )
+        h = Hash( h + decode(item[1:]) ) if is_left else Hash( decode(item[1:]) + h )
     return encode(h)
 
 
@@ -37,25 +32,23 @@ def hash_header(res):
 
 
 def verify_tx(tx_hash):
-    
     res = i.synchronous_get([ ('blockchain.transaction.get_merkle',[tx_hash]) ])[0]
-    assert res.get('merkle_root') == merkle_root(res['merkle'], tx_hash)
-    block_height = res.get('block_height')
-    print block_height
-
+    merkle_root = do_merkle_root(res['merkle'], tx_hash)
+    tx_height = res.get('block_height')
     headers_requests = []
-    for height in range(block_height-10,block_height+10):
+    for height in range(tx_height-10,tx_height+10):
         headers_requests.append( ('blockchain.block.get_header',[height]) )
-    res = i.synchronous_get(headers_requests)
-
+    headers = i.synchronous_get(headers_requests)
     _hash = None
-    for header in res:
+    for header in headers:
         if _hash: assert _hash == header.get('prev_block_hash')
         _hash = hash_header(header)
-        print _hash
-        if height==block_height:
-            assert header.get('merkle_root') == res.get('merkle_root')
-
+        height = header.get('block_height')
+        if height==tx_height:
+            assert header.get('merkle_root') == merkle_root
+            print height, _hash, '*'
+        else:
+            print height, _hash
 
 try:
     tx = sys.argv[1]
