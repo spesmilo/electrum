@@ -1383,12 +1383,12 @@ class ElectrumWindow(QMainWindow):
             
         plist = {}
         for item in servers_list:
-            host, pp = item
+            _host, pp = item
             z = {}
             for item2 in pp:
-                protocol, port = item2
-                z[protocol] = port
-            plist[host] = z
+                _protocol, _port = item2
+                z[_protocol] = _port
+            plist[_host] = z
 
         d = QDialog(parent)
         d.setModal(1)
@@ -1424,12 +1424,12 @@ class ElectrumWindow(QMainWindow):
         protocol_letters = 'thsg'
         server_protocol.addItems(protocol_names)
 
-        host, port, protocol = server.split(':')
-
         grid.addWidget(QLabel(_('Server') + ':'), 0, 0)
         grid.addWidget(server_protocol, 0, 1)
         grid.addWidget(server_host, 0, 2)
         grid.addWidget(server_port, 0, 3)
+
+        host, port, protocol = server.split(':')
 
         def change_protocol(p):
             protocol = protocol_letters[p]
@@ -1442,32 +1442,31 @@ class ElectrumWindow(QMainWindow):
             server_port.setText( port )
 
         server_protocol.connect(server_protocol, SIGNAL('currentIndexChanged(int)'), change_protocol)
-
         
-        if wallet.interface.servers:
-            label = _('Active Servers')
-        else:
-            label = _('Default Servers')
-        
+        label = _('Active Servers') if wallet.interface.servers else _('Default Servers')
         servers_list_widget = QTreeWidget(parent)
         servers_list_widget.setHeaderLabels( [ label ] )
         servers_list_widget.setMaximumHeight(150)
-        for host in plist.keys():
-            servers_list_widget.addTopLevelItem(QTreeWidgetItem( [ host ] ))
+        for _host in plist.keys():
+            servers_list_widget.addTopLevelItem(QTreeWidgetItem( [ _host ] ))
+
 
         def change_server(host, protocol=None):
-            
-            pp = plist[host]
+            pp = plist.get(host,{})
             if protocol:
                 port = pp.get(protocol)
                 if not port: protocol = None
                     
             if not protocol:
-                if 't' in pp.keys():
+                if not pp:
                     protocol = 't'
+                    port = '50001'
+                elif 't' in pp.keys():
+                    protocol = 't'
+                    port = pp.get(protocol)
                 else:
                     protocol = pp.keys()[0]
-                port = pp.get(protocol)
+                    port = pp.get(protocol)
 
             
             server_host.setText( host )
