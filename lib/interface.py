@@ -40,7 +40,7 @@ proxy_modes = ['socks4', 'socks5', 'http']
 
 
 def pick_random_server():
-    return random_choice( DEFAULT_SERVERS )
+    return random.choice( DEFAULT_SERVERS )
 
 def pick_random_interface():
     servers = DEFAULT_SERVERS
