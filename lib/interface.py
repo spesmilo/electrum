@@ -42,12 +42,13 @@ proxy_modes = ['socks4', 'socks5', 'http']
 def pick_random_server():
     return random.choice( DEFAULT_SERVERS )
 
-def pick_random_interface():
+def pick_random_interface(config):
     servers = DEFAULT_SERVERS
     while servers:
         server = random.choice( servers )
         servers.remove(server)
-        i = Interface({'server':server})
+        config.set_key('server', server, False)
+        i = Interface(config)
         if i.is_connected:
             return i
     raise BaseException('no server available')
@@ -419,7 +420,7 @@ class WalletSynchronizer(threading.Thread):
             self.interface = Interface(self.config)
         else:
             print "Using random server..."
-            self.interface = pick_random_interface()
+            self.interface = pick_random_interface(self.config)
 
         if self.interface.is_connected:
             print "Connected to " + self.interface.connection_msg
