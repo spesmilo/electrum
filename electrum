@@ -82,6 +82,8 @@ options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address 
              'Verifies a signature\nSyntax: verifymessage <address> <signature> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "',
     'eval':  
              "Run python eval() on an object\nSyntax: eval <expression>\nExample: eval \"wallet.aliases\"",
+    'set': 
+             "Set wallet parameter. (gui)",
     'deseed':
             "Remove seed from the wallet. The seed is stored in a file that has the name of the wallet plus '.seed'",
     'reseed':
@@ -98,7 +100,7 @@ offline_commands = [ 'password', 'mktx',
                      'label', 'contacts',
                      'help', 'validateaddress',
                      'signmessage', 'verifymessage',
-                     'eval', 'create', 'addresses',
+                     'eval', 'set', 'create', 'addresses',
                      'import', 'seed',
                      'deseed','reseed',
                      'freeze','unfreeze',
@@ -417,6 +419,14 @@ if __name__ == '__main__':
     elif cmd == 'eval':
         print eval(args[1])
         wallet.save()
+
+    elif cmd == 'set':
+        key, value = args[1:3]
+        if key in ['gui', 'server', 'proxy', 'fee', 'gap_limit', 'use_change']:
+            wallet.config.set_key(key, value, True)
+            print True
+        else:
+            print False
 
     elif cmd in [ 'addresses']:
         for addr in wallet.all_addresses():
