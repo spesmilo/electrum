@@ -3,10 +3,11 @@
 # python setup.py sdist --format=zip,gztar
 
 from distutils.core import setup
-from lib.version import ELECTRUM_VERSION as version
-import lib.util as util
-import os, sys, platform
-from lib.util import print_error
+import os, sys, platform, imp
+
+version = imp.load_source('version', 'lib/version.py')
+util = imp.load_source('version', 'lib/util.py')
+
 if sys.version_info[:3] < (2,6,0):
     sys.exit("Error: Electrum requires Python version >= 2.6.0...")
 
@@ -37,7 +38,7 @@ data_files += [
 ]
 
 setup(name = "Electrum",
-    version = version,
+    version = version.ELECTRUM_VERSION,
     install_requires = ['slowaes','ecdsa'],
     package_dir = {'electrum': 'lib'},
     scripts= ['electrum'],
