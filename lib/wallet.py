@@ -749,7 +749,7 @@ class Wallet:
 
 
     def update(self):
-        self.interface.poke()
+        self.interface.poke('synchronizer')
         self.up_to_date_event.wait(10000000000)
 
 

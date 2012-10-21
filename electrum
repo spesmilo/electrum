@@ -293,6 +293,8 @@ if __name__ == '__main__':
 
     # open session
     if cmd not in offline_commands and not options.offline:
+        wallet.interface = Interface(config)
+        wallet.interface.start()
         WalletSynchronizer(wallet, config).start()
         wallet.update()
         wallet.save()
