@@ -5,12 +5,12 @@ import time, Queue
 
 servers = DEFAULT_SERVERS
 interfaces = map ( lambda server: Interface({'server':server} ), servers )
-results = []
 
 for i in interfaces:
     if i.is_connected:
         i.start()
         i.send([('blockchain.numblocks.subscribe',[])])
+        i.status = "timed out"
     else:
         servers.remove(i.server)
         i.status = "unreachable"
@@ -18,29 +18,25 @@ for i in interfaces:
 for i in interfaces:
     while True:
         try:
-            r = i.responses.get(True,1)
+            r = i.get_response(timeout=1)
         except Queue.Empty:
             break
 
         if r.get('method') == 'blockchain.numblocks.subscribe':
-            results.append((i.host, r.get('result')))
-            i.status = "ok"
             servers.remove(i.server)
+            i.status = "ok"
+            i.blocks = r.get('result')
             break
 
-for s in servers:
-    i.status = "timed out"
 
 from collections import defaultdict
 d = defaultdict(int)
-for e in results:
-    d[e[1]] += 1
+for i in interfaces:
+    if i.status == 'ok':
+        d[i.blocks] += 1
 v = d.values()
 numblocks = d.keys()[v.index(max(v))]
 
 for i in interfaces:
-    print i.host, i.status
-
-for s,n in results:
-    print "%30s   %d   "%(s, n), "ok" if abs(n-numblocks)<2 else "lagging"
+    print "%30s   %s   "%(i.host, i.status) #,  "ok" if abs(n-numblocks)<2 else "lagging"
 

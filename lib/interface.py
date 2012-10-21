@@ -28,11 +28,11 @@ DEFAULT_TIMEOUT = 5
 DEFAULT_SERVERS = [ 
     'electrum.novit.ro:50001:t', 
     'electrum.pdmc.net:50001:t',
-    #'ecdsa.org:50002:s',
+    'ecdsa.org:50001:t',
     'electrum.bitcoins.sk:50001:t',
     'uncle-enzo.info:50001:t',
     'electrum.bytesized-hosting.com:50001:t',
-    'california.stratum.bitcoin.cz:50001:t',
+    'electrum.bitcoin.cz:50001:t',
     'electrum.bitfoo.org:50001:t'
     ]
 
@@ -42,24 +42,22 @@ proxy_modes = ['socks4', 'socks5', 'http']
 def pick_random_server():
     return random.choice( DEFAULT_SERVERS )
 
-def pick_random_interface(config):
-    servers = DEFAULT_SERVERS
-    while servers:
-        server = random.choice( servers )
-        servers.remove(server)
-        config.set_key('server', server, False)
-        i = Interface(config)
-        if i.is_connected:
-            return i
-    raise BaseException('no server available')
 
 
 
-class InterfaceAncestor(threading.Thread):
+class Interface(threading.Thread):
 
-    def __init__(self, host, port, proxy=None, use_ssl=True):
-        threading.Thread.__init__(self)
-        self.daemon = True
+    def register_callback(self, update_callback):
+        with self.lock:
+            self.update_callbacks.append(update_callback)
+
+    def trigger_callbacks(self):
+        with self.lock:
+            callbacks = self.update_callbacks[:]
+        [update() for update in callbacks]
+
+
+    def init_server(self, host, port, proxy=None, use_ssl=True):
         self.host = host
         self.port = port
         self.proxy = proxy
@@ -74,13 +72,9 @@ class InterfaceAncestor(threading.Thread):
 
         #json
         self.message_id = 0
-        self.responses = Queue.Queue()
         self.unanswered_requests = {}
 
 
-    def poke(self):
-        # push a fake response so that the getting thread exits its loop
-        self.responses.put(None)
 
     def queue_json_response(self, c):
 
@@ -95,12 +89,19 @@ class InterfaceAncestor(threading.Thread):
             return
 
         if msg_id is not None:
-            method, params = self.unanswered_requests.pop(msg_id)
+            with self.lock: 
+                method, params, channel = self.unanswered_requests.pop(msg_id)
             result = c.get('result')
         else:
-            # notification
+            # notification. we should find the channel(s)..
             method = c.get('method')
             params = c.get('params')
+            with self.lock:
+                for k,v in self.subscriptions.items():
+                    if (method, params) in v:
+                        channel = k
+                else:
+                    raise
 
             if method == 'blockchain.numblocks.subscribe':
                 result = params[0]
@@ -111,32 +112,29 @@ class InterfaceAncestor(threading.Thread):
                 result = params[1]
                 params = [addr]
 
-        self.responses.put({'method':method, 'params':params, 'result':result, 'id':msg_id})
+        response_queue = self.responses[channel]
+        response_queue.put({'method':method, 'params':params, 'result':result, 'id':msg_id})
 
 
 
-    def subscribe(self, addresses):
-        messages = []
-        for addr in addresses:
-            messages.append(('blockchain.address.subscribe', [addr]))
-        self.send(messages)
+    def get_response(self, channel='default', block=True, timeout=10000000000):
+        return self.responses[channel].get(block, timeout)
+
+    def register_channel(self, channel):
+        with self.lock:
+            self.responses[channel] = Queue.Queue()
+
+    def poke(self, channel):
+        self.responses[channel].put(None)
 
 
-
-
-
-class HttpStratumInterface(InterfaceAncestor):
-    """ non-persistent connection. synchronous calls"""
-
-    def __init__(self, host, port, proxy=None, use_ssl=True):
-        InterfaceAncestor.__init__(self, host, port, proxy, use_ssl)
+    def init_http(self, host, port, proxy=None, use_ssl=True):
+        self.init_server(host, port, proxy, use_ssl)
         self.session_id = None
         self.connection_msg = ('https' if self.use_ssl else 'http') + '://%s:%d'%( self.host, self.port )
 
-    def get_history(self, address):
-        self.send([('blockchain.address.get_history', [address] )])
 
-    def run(self):
+    def run_http(self):
         self.is_connected = True
         while self.is_connected:
             try:
@@ -152,13 +150,13 @@ class HttpStratumInterface(InterfaceAncestor):
                 break
             
         self.is_connected = False
-        self.poke()
 
                 
     def poll(self):
         self.send([])
 
-    def send(self, messages):
+
+    def send_http(self, messages, channel='default'):
         import urllib2, json, time, cookielib
         
         if self.proxy:
@@ -177,7 +175,7 @@ class HttpStratumInterface(InterfaceAncestor):
             method, params = m
             if type(params) != type([]): params = [params]
             data.append( { 'method':method, 'id':self.message_id, 'params':params } )
-            self.unanswered_requests[self.message_id] = method, params
+            self.unanswered_requests[self.message_id] = method, params, channel
             self.message_id += 1
 
         if data:
@@ -221,14 +219,9 @@ class HttpStratumInterface(InterfaceAncestor):
 
 
 
-class TcpStratumInterface(InterfaceAncestor):
-    """json-rpc over persistent TCP connection, asynchronous"""
+    def init_tcp(self, host, port, proxy=None, use_ssl=True):
+        self.init_server(host, port, proxy, use_ssl)
 
-    def __init__(self, host, port, proxy=None, use_ssl=True):
-        InterfaceAncestor.__init__(self, host, port, proxy, use_ssl)
-        self.init_socket()
-
-    def init_socket(self):
         import ssl
         global proxy_modes
         self.connection_msg = "%s:%d"%(self.host,self.port)
@@ -251,17 +244,18 @@ class TcpStratumInterface(InterfaceAncestor):
             s.settimeout(60)
             self.s = s
             self.is_connected = True
-            self.send([('server.version', [ELECTRUM_VERSION])])
         except:
             self.is_connected = False
             self.s = None
 
-    def run(self):
+
+    def run_tcp(self):
         try:
             out = ''
             while self.is_connected:
                 try: msg = self.s.recv(1024)
                 except socket.timeout:
+                    print "timeout"
                     # ping the server with server.version, as a real ping does not exist yet
                     self.send([('server.version', [ELECTRUM_VERSION])])
                     continue
@@ -283,17 +277,16 @@ class TcpStratumInterface(InterfaceAncestor):
             traceback.print_exc(file=sys.stdout)
 
         self.is_connected = False
-        print "Poking"
-        self.poke()
 
-    def send(self, messages):
+
+    def send_tcp(self, messages, channel='default'):
         """return the ids of the requests that we sent"""
         out = ''
         ids = []
         for m in messages:
             method, params = m 
             request = json.dumps( { 'id':self.message_id, 'method':method, 'params':params } )
-            self.unanswered_requests[self.message_id] = method, params
+            self.unanswered_requests[self.message_id] = method, params, channel
             ids.append(self.message_id)
             # uncomment to debug
             # print "-->",request
@@ -304,18 +297,55 @@ class TcpStratumInterface(InterfaceAncestor):
             out = out[sent:]
         return ids
 
-    def get_history(self, addr):
-        self.send([('blockchain.address.get_history', [addr])])
 
 
-
-class Interface(TcpStratumInterface, HttpStratumInterface):
-    
-    def __init__(self, config = None):
+    def __init__(self, config=None, loop=False, servers_loaded_callback=None):
 
         if config is None:
             from simple_config import SimpleConfig
             config = SimpleConfig()
+
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self.loop = loop
+        self.config = config
+        self.servers_loaded_callback = servers_loaded_callback
+
+        self.subscriptions = {}
+        self.responses = {}
+        self.responses['default'] = Queue.Queue()
+
+        self.update_callbacks = []
+        self.lock = threading.Lock()
+        self.init_interface()
+
+
+
+    def init_interface(self):
+        if self.config.get('server'):
+            self.init_with_server(self.config)
+        else:
+            print "Using random server..."
+            servers = DEFAULT_SERVERS
+            while servers:
+                server = random.choice( servers )
+                servers.remove(server)
+                self.config.set_key('server', server, False)
+                self.init_with_server(self.config)
+                if self.is_connected: break
+
+            if not servers:
+                raise BaseException('no server available')
+
+        if self.is_connected:
+            print "Connected to " + self.connection_msg
+            self.send([('server.version', [ELECTRUM_VERSION])])
+            #self.send([('server.banner',[])], 'synchronizer')
+        else:
+            print_error("Failed to connect " + self.connection_msg)
+
+
+    def init_with_server(self, config):
             
         s = config.get('server')
         host, port, protocol = s.split(':')
@@ -327,24 +357,41 @@ class Interface(TcpStratumInterface, HttpStratumInterface):
 
         #print protocol, host, port
         if protocol in 'st':
-            TcpStratumInterface.__init__(self, host, port, proxy, use_ssl=(protocol=='s'))
+            self.init_tcp(host, port, proxy, use_ssl=(protocol=='s'))
         elif protocol in 'gh':
-            HttpStratumInterface.__init__(self, host, port, proxy, use_ssl=(protocol=='g'))
+            self.init_http(host, port, proxy, use_ssl=(protocol=='g'))
         else:
             raise BaseException('Unknown protocol: %s'%protocol)
 
 
-    def run(self):
-        if self.protocol  in 'st':
-            TcpStratumInterface.run(self)
-        else:
-            HttpStratumInterface.run(self)
+    def send(self, messages, channel='default'):
 
-    def send(self, messages):
+        sub = []
+        for message in messages:
+            m, v = message
+            if m[-10:] == '.subscribe':
+                sub.append(message)
+
+        if sub:
+            with self.lock:
+                if self.subscriptions.get(channel) is None: 
+                    self.subscriptions[channel] = []
+                self.subscriptions[channel] += sub
+
         if self.protocol in 'st':
-            return TcpStratumInterface.send(self, messages)
+            with self.lock:
+                out = self.send_tcp(messages, channel)
         else:
-            return HttpStratumInterface.send(self, messages)
+            # do not use lock, http is synchronous
+            out = self.send_http(messages, channel)
+
+        return out
+
+    def resend_subscriptions(self):
+        for channel, messages in self.subscriptions.items():
+            if messages:
+                self.send(messages, channel)
+
 
 
     def parse_proxy_options(self, s):
@@ -377,12 +424,30 @@ class Interface(TcpStratumInterface, HttpStratumInterface):
             print "changing server:", server, proxy
             self.server = server
             self.proxy = proxy
+            if self.protocol in 'st':
+                self.s.shutdown(socket.SHUT_RDWR)
+                self.s.close()
             self.is_connected = False  # this exits the polling loop
-            self.poke()
 
 
-    def is_up_to_date(self):
-        return self.responses.empty() and not self.unanswered_requests
+    def is_empty(self, channel):
+        q = self.responses.get(channel)
+        if q: 
+            return q.empty()
+        else:
+            return True
+
+
+    def get_pending_requests(self, channel):
+        result = []
+        with self.lock:
+            for k, v in self.unanswered_requests.items():
+                a, b, c = v
+                if c == channel: result.append(k)
+        return result
+
+    def is_up_to_date(self, channel):
+        return self.is_empty(channel) and not self.get_pending_requests(channel)
 
 
     def synchronous_get(self, requests, timeout=100000000):
@@ -391,7 +456,7 @@ class Interface(TcpStratumInterface, HttpStratumInterface):
         id2 = ids[:]
         res = {}
         while ids:
-            r = self.responses.get(True, timeout)
+            r = self.responses['default'].get(True, timeout)
             _id = r.get('id')
             if _id in ids:
                 ids.remove(_id)
@@ -403,130 +468,15 @@ class Interface(TcpStratumInterface, HttpStratumInterface):
 
 
 
-
-class WalletSynchronizer(threading.Thread):
-
-    def __init__(self, wallet, config, loop=False, servers_loaded_callback=None):
-        threading.Thread.__init__(self)
-        self.daemon = True
-        self.wallet = wallet
-        self.loop = loop
-        self.config = config
-        self.init_interface()
-        self.servers_loaded_callback = servers_loaded_callback
-
-    def init_interface(self):
-        if self.config.get('server'):
-            self.interface = Interface(self.config)
-        else:
-            print "Using random server..."
-            self.interface = pick_random_interface(self.config)
-
-        if self.interface.is_connected:
-            print "Connected to " + self.interface.connection_msg
-        else:
-            print_error("Failed to connect " + self.interface.connection_msg)
-
-        self.wallet.interface = self.interface
-
-    def handle_response(self, r):
-        if r is None:
-            return
-
-        method = r['method']
-        params = r['params']
-        result = r['result']
-
-        if method == 'server.banner':
-            self.wallet.banner = result
-            self.wallet.was_updated = True
-
-        elif method == 'server.peers.subscribe':
-            servers = []
-            for item in result:
-                s = []
-                host = item[1]
-                ports = []
-                version = None
-                if len(item) > 2:
-                    for v in item[2]:
-                        if re.match("[stgh]\d+", v):
-                            ports.append((v[0], v[1:]))
-                        if re.match("v(.?)+", v):
-                            version = v[1:]
-                if ports and version:
-                    servers.append((host, ports))
-            self.interface.servers = servers
-            # servers_loaded_callback is None for commands, but should
-            # NEVER be None when using the GUI.
-            if self.servers_loaded_callback is not None:
-                self.servers_loaded_callback()
-
-        elif method == 'blockchain.address.subscribe':
-            addr = params[0]
-            self.wallet.receive_status_callback(addr, result)
-                            
-        elif method == 'blockchain.address.get_history':
-            addr = params[0]
-            self.wallet.receive_history_callback(addr, result)
-            self.wallet.was_updated = True
-
-        elif method == 'blockchain.transaction.broadcast':
-            self.wallet.tx_result = result
-            self.wallet.tx_event.set()
-
-        elif method == 'blockchain.numblocks.subscribe':
-            self.wallet.blocks = result
-            self.wallet.was_updated = True
-
-        elif method == 'server.version':
-            pass
-
-        else:
-            print_error("Error: Unknown message:" + method + ", " + params + ", " + result)
-
-
-    def start_interface(self):
-        self.interface.start()
-        if self.interface.is_connected:
-            self.wallet.start_session(self.interface)
-
-
-
     def run(self):
-        import socket, time
-        self.start_interface()
         while True:
-            while self.interface.is_connected:
-                new_addresses = self.wallet.synchronize()
-                if new_addresses:
-                    self.interface.subscribe(new_addresses)
+            self.run_tcp() if self.protocol in 'st' else self.run_http()
+            self.trigger_callbacks()
+            if not self.loop: break
 
-                if self.interface.is_up_to_date():
-                    if not self.wallet.up_to_date:
-                        self.wallet.up_to_date = True
-                        self.wallet.was_updated = True
-                        self.wallet.up_to_date_event.set()
-                else:
-                    if self.wallet.up_to_date:
-                        self.wallet.up_to_date = False
-                        self.wallet.was_updated = True
+            time.sleep(5)
+            self.init_interface()
+            self.resend_subscriptions()
 
-                if self.wallet.was_updated:
-                    self.wallet.trigger_callbacks()
-                    self.wallet.was_updated = False
 
-                response = self.interface.responses.get()
-                self.handle_response(response)
-
-            self.wallet.trigger_callbacks()
-            if self.loop:
-                time.sleep(5)
-                # Server has been changed. Copy callback for new interface.
-                self.proxy = self.interface.proxy
-                self.init_interface()
-                self.start_interface()
-                continue
-            else:
-                break
 

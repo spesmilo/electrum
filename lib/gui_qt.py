@@ -207,7 +207,7 @@ class ElectrumWindow(QMainWindow):
         QMainWindow.__init__(self)
         self.wallet = wallet
         self.config = config
-        self.wallet.register_callback(self.update_callback)
+        self.wallet.interface.register_callback(self.update_callback)
 
         self.detailed_view = config.get('qt_detailed_view', False)
 
@@ -1577,7 +1577,7 @@ class ElectrumGui:
             wallet.init_mpk( wallet.seed )
             wallet.up_to_date_event.clear()
             wallet.up_to_date = False
-            wallet.interface.poke()
+            wallet.interface.poke('synchronizer')
             waiting_dialog(waiting)
             # run a dialog indicating the seed, ask the user to remember it
             ElectrumWindow.show_seed_dialog(wallet)
@@ -1589,7 +1589,7 @@ class ElectrumGui:
             wallet.init_mpk( wallet.seed )
             wallet.up_to_date_event.clear()
             wallet.up_to_date = False
-            wallet.interface.poke()
+            wallet.interface.poke('synchronizer')
             waiting_dialog(waiting)
             if wallet.is_found():
                 # history and addressbook

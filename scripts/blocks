@@ -8,7 +8,7 @@ i.send([('blockchain.numblocks.subscribe',[])])
 
 while True:
     try:
-        r = i.responses.get(True, 100000000000)
+        r = i.get_response()
     except KeyboardInterrupt:
         break
     if r.get('method') == 'blockchain.numblocks.subscribe':

@@ -36,9 +36,9 @@ except ImportError:
     sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
 
 try:
-    from lib import Wallet, WalletSynchronizer, format_satoshis, mnemonic, SimpleConfig, pick_random_server
+    from lib import Wallet, Interface, WalletSynchronizer, WalletVerifier, format_satoshis, mnemonic, SimpleConfig, pick_random_server
 except ImportError:
-    from electrum import Wallet, WalletSynchronizer, format_satoshis, mnemonic, SimpleConfig, pick_random_server
+    from electrum import Wallet, Interface, WalletSynchronizer, WalletVerifier, format_satoshis, mnemonic, SimpleConfig, pick_random_server
 
 from decimal import Decimal
 
@@ -185,8 +185,11 @@ if __name__ == '__main__':
             sys.exit("Error: Unknown GUI: " + pref_gui )
 
         gui = gui.ElectrumGui(wallet, config)
-        interface = WalletSynchronizer(wallet, config, True, gui.server_list_changed)
-        interface.start()
+        wallet.interface = Interface(config, True, gui.server_list_changed)
+        wallet.interface.start()
+
+        WalletSynchronizer(wallet, config).start()
+        WalletVerifier(wallet, config).start()
 
         try:
             found = config.wallet_file_exists

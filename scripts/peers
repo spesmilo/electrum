@@ -2,10 +2,10 @@
 
 from electrum import Interface
 
-i = Interface({'server':'electrum.novit.ro:50001:t'})
+i = Interface({'server':'ecdsa.org:50001:t'})
 i.start()
 i.send([('server.peers.subscribe',[])])
 
 while True:
-    r = i.responses.get(True, 100000000000)
+    r = i.get_response()
     print r.get('result')

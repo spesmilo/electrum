@@ -800,7 +800,7 @@ class MiniDriver(QObject):
         self.wallet = wallet
         self.window = window
 
-        self.wallet.register_callback(self.update_callback)
+        self.wallet.interface.register_callback(self.update_callback)
 
         self.state = None
 

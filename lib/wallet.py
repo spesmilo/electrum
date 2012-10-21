@@ -28,6 +28,7 @@ import threading
 import random
 import aes
 import ecdsa
+import Queue
 
 from ecdsa.util import string_to_number, number_to_string
 from util import print_error, user_dir, format_satoshis
@@ -50,7 +51,6 @@ class Wallet:
 
         self.config = config
         self.electrum_version = ELECTRUM_VERSION
-        self.update_callbacks = []
 
         # saved fields
         self.seed_version          = config.get('seed_version', SEED_VERSION)
@@ -92,16 +92,6 @@ class Wallet:
         self.update_tx_history()
         if self.seed_version != SEED_VERSION:
             raise ValueError("This wallet seed is deprecated. Please run upgrade.py for a diagnostic.")
-
-
-    def register_callback(self, update_callback):
-        with self.lock:
-            self.update_callbacks.append(update_callback)
-
-    def trigger_callbacks(self):
-        with self.lock:
-            callbacks = self.update_callbacks[:]
-        [update() for update in callbacks]
 
 
     def import_key(self, keypair, password):
@@ -480,7 +470,8 @@ class Wallet:
             return s
 
     def get_status(self, address):
-        h = self.history.get(address)
+        with self.lock:
+            h = self.history.get(address)
         if not h:
             status = None
         else:
@@ -490,11 +481,6 @@ class Wallet:
                 status = status + ':%d'% len(h)
         return status
 
-    def receive_status_callback(self, addr, status):
-        with self.lock:
-            if self.get_status(addr) != status:
-                #print "updating status for", addr, status
-                self.interface.get_history(addr)
 
     def receive_history_callback(self, addr, data): 
         #print "updating history for", addr
@@ -504,9 +490,25 @@ class Wallet:
             self.save()
 
     def get_tx_history(self):
-        lines = self.tx_history.values()
+        with self.lock:
+            lines = self.tx_history.values()
         lines = sorted(lines, key=operator.itemgetter("timestamp"))
         return lines
+
+    def get_tx_hashes(self):
+        with self.lock:
+            hashes = self.tx_history.keys()
+        return hashes
+
+    def get_transactions_at_height(self, height):
+        with self.lock:
+            values = self.tx_history.values()[:]
+
+        out = []
+        for tx in values:
+            if tx['height'] == height:
+                out.append(tx['tx_hash'])
+        return out
 
     def update_tx_history(self):
         self.tx_history= {}
@@ -751,12 +753,6 @@ class Wallet:
         self.up_to_date_event.wait(10000000000)
 
 
-    def start_session(self, interface):
-        self.interface = interface
-        self.interface.send([('server.banner',[]), ('blockchain.numblocks.subscribe',[]), ('server.peers.subscribe',[])])
-        self.interface.subscribe(self.all_addresses())
-
-
     def freeze(self,addr):
         if addr in self.all_addresses() and addr not in self.frozen_addresses:
             self.unprioritize(addr)
@@ -816,3 +812,223 @@ class Wallet:
         for k, v in s.items():
             self.config.set_key(k,v)
         self.config.save()
+
+
+
+
+
+
+class WalletSynchronizer(threading.Thread):
+
+
+    def __init__(self, wallet, config):
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self.wallet = wallet
+        self.interface = self.wallet.interface
+        self.interface.register_channel('synchronizer')
+
+
+    def synchronize_wallet(self):
+        new_addresses = self.wallet.synchronize()
+        if new_addresses:
+            self.subscribe_to_addresses(new_addresses)
+            
+        if self.interface.is_up_to_date('synchronizer'):
+            if not self.wallet.up_to_date:
+                self.wallet.up_to_date = True
+                self.wallet.was_updated = True
+                self.wallet.up_to_date_event.set()
+        else:
+            if self.wallet.up_to_date:
+                self.wallet.up_to_date = False
+                self.wallet.was_updated = True
+
+        if self.wallet.was_updated:
+            self.interface.trigger_callbacks()
+            self.wallet.was_updated = False
+
+
+    def subscribe_to_addresses(self, addresses):
+        messages = []
+        for addr in addresses:
+            messages.append(('blockchain.address.subscribe', [addr]))
+        self.interface.send( messages, 'synchronizer')
+
+
+    def run(self):
+
+        # subscriptions
+        self.interface.send([('blockchain.numblocks.subscribe',[]), ('server.peers.subscribe',[])], 'synchronizer')
+        self.subscribe_to_addresses(self.wallet.all_addresses())
+
+        while True:
+            # 1. send new requests
+            self.synchronize_wallet()
+
+            # 2. get a response
+            r = self.interface.get_response('synchronizer')
+            if not r: continue
+
+            # 3. handle response
+            method = r['method']
+            params = r['params']
+            result = r['result']
+
+            if method == 'blockchain.address.subscribe':
+                addr = params[0]
+                if self.wallet.get_status(addr) != result:
+                    self.interface.send([('blockchain.address.get_history', [address] )])
+                            
+            elif method == 'blockchain.address.get_history':
+                addr = params[0]
+                self.wallet.receive_history_callback(addr, result)
+                self.wallet.was_updated = True
+
+            elif method == 'blockchain.transaction.broadcast':
+                self.wallet.tx_result = result
+                self.wallet.tx_event.set()
+
+            elif method == 'blockchain.numblocks.subscribe':
+                self.wallet.blocks = result
+                self.wallet.was_updated = True
+
+            elif method == 'server.banner':
+                self.wallet.banner = result
+                self.wallet.was_updated = True
+
+            elif method == 'server.peers.subscribe':
+                servers = []
+                for item in result:
+                    s = []
+                    host = item[1]
+                    ports = []
+                    version = None
+                    if len(item) > 2:
+                        for v in item[2]:
+                            if re.match("[stgh]\d+", v):
+                                ports.append((v[0], v[1:]))
+                            if re.match("v(.?)+", v):
+                                version = v[1:]
+                    if ports and version:
+                        servers.append((host, ports))
+                self.interface.servers = servers
+
+                # servers_loaded_callback is None for commands, but should
+                # NEVER be None when using the GUI.
+                #if self.servers_loaded_callback is not None:
+                #    self.servers_loaded_callback()
+
+            elif method == 'server.version':
+                pass
+
+            else:
+                print_error("Error: Unknown message:" + method + ", " + params + ", " + result)
+
+
+encode = lambda x: x[::-1].encode('hex')
+decode = lambda x: x.decode('hex')[::-1]
+from bitcoin import Hash, rev_hex, int_to_hex
+
+class WalletVerifier(threading.Thread):
+
+    def __init__(self, wallet, config):
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self.wallet = wallet
+        self.interface = self.wallet.interface
+        self.interface.register_channel('verifier')
+        self.validated = []
+        self.merkle_roots = {}
+        self.headers = {}
+        self.lock = threading.Lock()
+
+    def run(self):
+        requested = []
+
+        while True:
+            txlist = self.wallet.get_tx_hashes()
+            for tx in txlist:
+                if tx not in requested:
+                    requested.append(tx)
+                    self.request_merkle(tx)
+                    break
+            try:
+                r = self.interface.get_response('verifier',timeout=1)
+            except Queue.Empty:
+                continue
+
+            # 3. handle response
+            method = r['method']
+            params = r['params']
+            result = r['result']
+
+            if method == 'blockchain.transaction.get_merkle':
+                tx_hash = params[0]
+                tx_height = result.get('block_height')
+                self.merkle_roots[tx_hash] = self.hash_merkle_root(result['merkle'], tx_hash)
+                # if we already have the header, check merkle root directly
+                header = self.headers.get(tx_height)
+                if header:
+                    self.validated.append(tx_hash)
+                    assert header.get('merkle_root') == self.merkle_roots[tx_hash]
+                self.request_headers(tx_height) 
+
+            elif method == 'blockchain.block.get_header':
+                self.validate_header(result)
+
+
+    def request_merkle(self, tx_hash):
+        self.interface.send([ ('blockchain.transaction.get_merkle',[tx_hash]) ], 'verifier')
+        
+
+    def request_headers(self, tx_height, delta=10):
+        headers_requests = []
+        for height in range(tx_height-delta,tx_height+delta): # we might can request blocks that do not exist yet
+            if height not in self.headers:
+                headers_requests.append( ('blockchain.block.get_header',[height]) )
+        self.interface.send(headers_requests,'verifier')
+
+
+    def validate_header(self, header):
+        """ if there is a previous or a next block in the list, check the hash"""
+        height = header.get('block_height')
+        with self.lock:
+            self.headers[height] = header # detect conflicts
+            prev_header = next_header = None
+            if height-1 in self.headers:
+                prev_header = self.headers[height-1]
+            if height+1 in self.headers:
+                next_header = self.headers[height+1]
+
+        if prev_header:
+            prev_hash = self.hash_header(prev_header)
+            assert prev_hash == header.get('prev_block_hash')
+        if next_header:
+            _hash = self.hash_header(header)
+            assert _hash == next_header.get('prev_block_hash')
+            
+        # check if there are transactions at that height
+        for tx_hash in self.wallet.get_transactions_at_height(height):
+            if tx_hash in self.validated: continue
+            # check if we already have the merkle root
+            merkle_root = self.merkle_roots.get(tx_hash)
+            if merkle_root:
+                self.validated.append(tx_hash)
+                assert header.get('merkle_root') == merkle_root
+
+    def hash_header(self, res):
+        header = int_to_hex(res.get('version'),4) \
+            + rev_hex(res.get('prev_block_hash')) \
+            + rev_hex(res.get('merkle_root')) \
+            + int_to_hex(int(res.get('timestamp')),4) \
+            + int_to_hex(int(res.get('bits')),4) \
+            + int_to_hex(int(res.get('nonce')),4)
+        return rev_hex(Hash(header.decode('hex')).encode('hex'))
+
+    def hash_merkle_root(self, merkle_s, target_hash):
+        h = decode(target_hash)
+        for item in merkle_s:
+            is_left = item[0] == 'L'
+            h = Hash( h + decode(item[1:]) ) if is_left else Hash( decode(item[1:]) + h )
+        return encode(h)
