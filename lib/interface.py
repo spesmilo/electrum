@@ -49,15 +49,15 @@ class Interface(threading.Thread):
 
     def register_callback(self, event, callback):
         with self.lock:
-            self.callbacks[event] = callback
+            if not self.callbacks.get(event):
+                self.callbacks[event] = []
+            self.callbacks[event].append(callback)
 
     def trigger_callback(self, event):
         with self.lock:
-            callback = self.callbacks.get(event)
-        if callback:
-            callback()
-            
-
+            callbacks = self.callbacks.get(event,[])[:]
+        if callbacks:
+            [callback() for callback in callbacks]
 
     def init_server(self, host, port, proxy=None, use_ssl=True):
         self.host = host

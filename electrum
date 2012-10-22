@@ -185,15 +185,13 @@ if __name__ == '__main__':
             sys.exit("Error: Unknown GUI: " + pref_gui )
 
         interface = Interface(config, True)
-        interface.start()
         wallet.interface = interface
-
         gui = gui.ElectrumGui(wallet, config)
         interface.register_callback('peers', gui.server_list_changed)
-        # need to wait until interface is connected..
+
+        interface.start()
         WalletSynchronizer(wallet, config).start()
         WalletVerifier(wallet, config).start()
-        
 
         try:
             found = config.wallet_file_exists

@@ -801,6 +801,8 @@ class MiniDriver(QObject):
         self.window = window
 
         self.wallet.interface.register_callback('updated',self.update_callback)
+        self.wallet.interface.register_callback('connected', self.update_callback)
+        self.wallet.interface.register_callback('disconnected', self.update_callback)
 
         self.state = None
 

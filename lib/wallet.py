@@ -844,9 +844,6 @@ class WalletSynchronizer(threading.Thread):
                 self.wallet.up_to_date = False
                 self.wallet.was_updated = True
 
-        if self.wallet.was_updated:
-            self.interface.trigger_callback('updated')
-            self.wallet.was_updated = False
 
 
     def subscribe_to_addresses(self, addresses):
@@ -867,6 +864,10 @@ class WalletSynchronizer(threading.Thread):
         while True:
             # 1. send new requests
             self.synchronize_wallet()
+
+            if self.wallet.was_updated:
+                self.interface.trigger_callback('updated')
+                self.wallet.was_updated = False
 
             # 2. get a response
             r = self.interface.get_response('synchronizer')
@@ -918,10 +919,14 @@ class WalletSynchronizer(threading.Thread):
 
             elif method == 'server.banner':
                 self.wallet.banner = result
-                self.interface.trigger_callback('updated')
+                self.wallet.was_updated = True
 
             else:
                 print_error("Error: Unknown message:" + method + ", " + repr(params) + ", " + repr(result) )
+
+            if self.wallet.was_updated:
+                self.interface.trigger_callback('updated')
+                self.wallet.was_updated = False
 
 
 encode = lambda x: x[::-1].encode('hex')
