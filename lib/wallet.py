@@ -831,7 +831,7 @@ class WalletSynchronizer(threading.Thread):
         self.interface = self.wallet.interface
         self.interface.register_channel('synchronizer')
         self.wallet.interface.register_callback('connected', self.wallet.init_up_to_date)
-
+        self.wallet.interface.register_callback('connected', lambda: self.interface.send([('server.banner',[])],'synchronizer') )
 
     def synchronize_wallet(self):
         new_addresses = self.wallet.synchronize()
@@ -858,9 +858,10 @@ class WalletSynchronizer(threading.Thread):
 
 
     def run(self):
+        # request banner, because 'connected' event happends before this thread is started
+        self.interface.send([('server.banner',[])],'synchronizer')
 
         # subscriptions
-        self.interface.send([('server.banner',[])],'synchronizer')
         self.interface.send([('blockchain.numblocks.subscribe',[])], 'synchronizer')
         self.interface.send([('server.peers.subscribe',[])],'synchronizer')
         self.subscribe_to_addresses(self.wallet.all_addresses())
