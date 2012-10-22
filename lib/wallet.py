@@ -943,27 +943,36 @@ class WalletVerifier(threading.Thread):
     def __init__(self, wallet, config):
         threading.Thread.__init__(self)
         self.daemon = True
+        self.config = config
         self.wallet = wallet
         self.interface = self.wallet.interface
         self.interface.register_channel('verifier')
-        self.validated = []
-        self.merkle_roots = {}
-        self.headers = {}
+        self.validated       = config.get('verified_tx',[])
+        self.merkle_roots    = config.get('merkle_roots',{})
+        self.headers         = config.get('block_headers',{})
         self.lock = threading.Lock()
+        self.saved = False
 
     def run(self):
         requested = []
 
         while True:
             txlist = self.wallet.get_tx_hashes()
+
             for tx in txlist:
-                if tx not in requested:
-                    requested.append(tx)
-                    self.request_merkle(tx)
-                    break
+                if tx not in self.validated:
+                    if tx not in requested:
+                        requested.append(tx)
+                        self.request_merkle(tx)
+                        break
+
             try:
                 r = self.interface.get_response('verifier',timeout=1)
             except Queue.Empty:
+                if len(self.validated) == len(txlist) and not self.saved:
+                    print "verified %d transactions"%len(txlist)
+                    self.config.set_key('verified_tx', self.validated, True)
+                    self.saved = True
                 continue
 
             # 3. handle response
