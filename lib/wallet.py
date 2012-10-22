@@ -845,7 +845,7 @@ class WalletSynchronizer(threading.Thread):
                 self.wallet.was_updated = True
 
         if self.wallet.was_updated:
-            self.interface.trigger_callbacks()
+            self.interface.trigger_callback('updated')
             self.wallet.was_updated = False
 
 
@@ -859,7 +859,9 @@ class WalletSynchronizer(threading.Thread):
     def run(self):
 
         # subscriptions
-        self.interface.send([('blockchain.numblocks.subscribe',[]), ('server.peers.subscribe',[])], 'synchronizer')
+        self.interface.send([('server.banner',[])],'synchronizer')
+        self.interface.send([('blockchain.numblocks.subscribe',[])], 'synchronizer')
+        self.interface.send([('server.peers.subscribe',[])],'synchronizer')
         self.subscribe_to_addresses(self.wallet.all_addresses())
 
         while True:
@@ -893,9 +895,8 @@ class WalletSynchronizer(threading.Thread):
                 self.wallet.blocks = result
                 self.wallet.was_updated = True
 
-            elif method == 'server.banner':
-                self.wallet.banner = result
-                self.wallet.was_updated = True
+            elif method == 'server.version':
+                pass
 
             elif method == 'server.peers.subscribe':
                 servers = []
@@ -913,17 +914,14 @@ class WalletSynchronizer(threading.Thread):
                     if ports and version:
                         servers.append((host, ports))
                 self.interface.servers = servers
+                self.interface.trigger_callback('peers')
 
-                # servers_loaded_callback is None for commands, but should
-                # NEVER be None when using the GUI.
-                #if self.servers_loaded_callback is not None:
-                #    self.servers_loaded_callback()
-
-            elif method == 'server.version':
-                pass
+            elif method == 'server.banner':
+                self.wallet.banner = result
+                self.interface.trigger_callback('updated')
 
             else:
-                print_error("Error: Unknown message:" + method + ", " + params + ", " + result)
+                print_error("Error: Unknown message:" + method + ", " + repr(params) + ", " + repr(result) )
 
 
 encode = lambda x: x[::-1].encode('hex')

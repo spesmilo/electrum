@@ -185,8 +185,10 @@ if __name__ == '__main__':
             sys.exit("Error: Unknown GUI: " + pref_gui )
 
         gui = gui.ElectrumGui(wallet, config)
-        wallet.interface = Interface(config, True, gui.server_list_changed)
-        wallet.interface.start()
+        interface = Interface(config, True)
+        interface.register_callback('peers', gui.server_list_changed)
+        interface.start()
+        wallet.interface = interface
 
         WalletSynchronizer(wallet, config).start()
         WalletVerifier(wallet, config).start()
@@ -293,8 +295,10 @@ if __name__ == '__main__':
 
     # open session
     if cmd not in offline_commands and not options.offline:
-        wallet.interface = Interface(config)
-        wallet.interface.start()
+        interface = Interface(config)
+        interface.register_callback('connected', lambda: print_error("Connected to " + interface.connection_msg))
+        interface.start()
+        wallet.interface = interface
         WalletSynchronizer(wallet, config).start()
         wallet.update()
         wallet.save()

@@ -207,7 +207,7 @@ class ElectrumWindow(QMainWindow):
         QMainWindow.__init__(self)
         self.wallet = wallet
         self.config = config
-        self.wallet.interface.register_callback(self.update_callback)
+        self.wallet.interface.register_callback('updated', self.update_callback)
 
         self.detailed_view = config.get('qt_detailed_view', False)
 

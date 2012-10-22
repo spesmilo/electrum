@@ -38,5 +38,9 @@ v = d.values()
 numblocks = d.keys()[v.index(max(v))]
 
 for i in interfaces:
-    print "%30s   %s   "%(i.host, i.status) #,  "ok" if abs(n-numblocks)<2 else "lagging"
+    if i.status == 'ok':
+        if abs(i.blocks-numblocks)>1: i.status = "lagging" 
+    else:
+        i.blocks = 0
+    print "%30s   %d   %s   "%(i.host, i.blocks, i.status)
 

@@ -47,14 +47,16 @@ def pick_random_server():
 
 class Interface(threading.Thread):
 
-    def register_callback(self, update_callback):
+    def register_callback(self, event, callback):
         with self.lock:
-            self.update_callbacks.append(update_callback)
+            self.callbacks[event] = callback
 
-    def trigger_callbacks(self):
+    def trigger_callback(self, event):
         with self.lock:
-            callbacks = self.update_callbacks[:]
-        [update() for update in callbacks]
+            callback = self.callbacks.get(event)
+        if callback:
+            callback()
+            
 
 
     def init_server(self, host, port, proxy=None, use_ssl=True):
@@ -112,6 +114,7 @@ class Interface(threading.Thread):
                 result = params[1]
                 params = [addr]
 
+                
         response_queue = self.responses[channel]
         response_queue.put({'method':method, 'params':params, 'result':result, 'id':msg_id})
 
@@ -299,7 +302,7 @@ class Interface(threading.Thread):
 
 
 
-    def __init__(self, config=None, loop=False, servers_loaded_callback=None):
+    def __init__(self, config=None, loop=False):
 
         if config is None:
             from simple_config import SimpleConfig
@@ -309,13 +312,12 @@ class Interface(threading.Thread):
         self.daemon = True
         self.loop = loop
         self.config = config
-        self.servers_loaded_callback = servers_loaded_callback
 
         self.subscriptions = {}
         self.responses = {}
         self.responses['default'] = Queue.Queue()
 
-        self.update_callbacks = []
+        self.callbacks = {}
         self.lock = threading.Lock()
         self.init_interface()
 
@@ -338,11 +340,11 @@ class Interface(threading.Thread):
                 raise BaseException('no server available')
 
         if self.is_connected:
-            print "Connected to " + self.connection_msg
             self.send([('server.version', [ELECTRUM_VERSION])])
-            #self.send([('server.banner',[])], 'synchronizer')
+            self.trigger_callback('connected')
         else:
-            print_error("Failed to connect " + self.connection_msg)
+            self.trigger_callback('notconnected')
+            #print_error("Failed to connect " + self.connection_msg)
 
 
     def init_with_server(self, config):
@@ -471,7 +473,7 @@ class Interface(threading.Thread):
     def run(self):
         while True:
             self.run_tcp() if self.protocol in 'st' else self.run_http()
-            self.trigger_callbacks()
+            self.trigger_callback('disconnected')
             if not self.loop: break
 
             time.sleep(5)
