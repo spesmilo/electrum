@@ -93,6 +93,9 @@ class Wallet:
         if self.seed_version != SEED_VERSION:
             raise ValueError("This wallet seed is deprecated. Please run upgrade.py for a diagnostic.")
 
+    def init_up_to_date(self):
+        self.up_to_date_event.clear()
+        self.up_to_date = False
 
     def import_key(self, keypair, password):
         address, key = keypair.split(':')
@@ -827,6 +830,7 @@ class WalletSynchronizer(threading.Thread):
         self.wallet = wallet
         self.interface = self.wallet.interface
         self.interface.register_channel('synchronizer')
+        self.wallet.interface.register_callback('connected', self.wallet.init_up_to_date)
 
 
     def synchronize_wallet(self):
