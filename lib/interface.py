@@ -295,8 +295,13 @@ class Interface(threading.Thread):
             self.message_id += 1
             out += request + '\n'
         while out:
-            sent = self.s.send( out )
-            out = out[sent:]
+            try:
+                sent = self.s.send( out )
+                out = out[sent:]
+            except:
+                # this happens when we get disconnected
+                print "Not connected, cannot send"
+                return None
         return ids
 
 
