@@ -951,7 +951,7 @@ class WalletVerifier(threading.Thread):
         self.merkle_roots    = config.get('merkle_roots',{})
         self.headers         = config.get('block_headers',{})
         self.lock = threading.Lock()
-        self.saved = False
+        self.saved = True
 
     def run(self):
         requested = []
@@ -964,13 +964,14 @@ class WalletVerifier(threading.Thread):
                     if tx not in requested:
                         requested.append(tx)
                         self.request_merkle(tx)
+                        self.saved = False
                         break
 
             try:
                 r = self.interface.get_response('verifier',timeout=1)
             except Queue.Empty:
                 if len(self.validated) == len(txlist) and not self.saved:
-                    print "verified %d transactions"%len(txlist)
+                    print "saving verified transactions"
                     self.config.set_key('verified_tx', self.validated, True)
                     self.saved = True
                 continue
