@@ -29,6 +29,7 @@ import random
 import aes
 import ecdsa
 import Queue
+import time
 
 from ecdsa.util import string_to_number, number_to_string
 from util import print_error, user_dir, format_satoshis
@@ -858,7 +859,12 @@ class WalletSynchronizer(threading.Thread):
 
 
     def run(self):
-        # request banner, because 'connected' event happends before this thread is started
+
+        # wait until we are connected, in case the user is not connected
+        while not self.interface.is_connected:
+            time.sleep(1)
+        
+        # request banner, because 'connected' event happens before this thread is started
         self.interface.send([('server.banner',[])],'synchronizer')
 
         # subscriptions

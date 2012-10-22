@@ -64,12 +64,6 @@ class Interface(threading.Thread):
         self.port = port
         self.proxy = proxy
         self.use_ssl = use_ssl
-
-        self.servers = [] # actual list from IRC
-        self.rtime = 0
-        self.bytes_received = 0
-
-        self.is_connected = True
         self.poll_interval = 1
 
         #json
@@ -136,7 +130,7 @@ class Interface(threading.Thread):
         self.init_server(host, port, proxy, use_ssl)
         self.session_id = None
         self.connection_msg = ('https' if self.use_ssl else 'http') + '://%s:%d'%( self.host, self.port )
-
+        self.is_connected = True
 
     def run_http(self):
         self.is_connected = True
@@ -326,6 +320,10 @@ class Interface(threading.Thread):
         self.callbacks = {}
         self.lock = threading.Lock()
 
+        self.servers = [] # actual list from IRC
+        self.rtime = 0
+        self.bytes_received = 0
+
 
 
     def init_interface(self):
@@ -342,7 +340,12 @@ class Interface(threading.Thread):
                 if self.is_connected: break
 
             if not servers:
-                raise BaseException('no server available')
+                print 'no server available'
+                self.is_connected = False
+                self.connect_event.set() # to finish start
+                self.server = 'ecdsa.org:50001:t'
+                self.proxy = None
+                return
 
         self.connect_event.set()
         if self.is_connected:
@@ -483,12 +486,13 @@ class Interface(threading.Thread):
     def run(self):
         while True:
             self.init_interface()
-            self.resend_subscriptions()
+            if self.is_connected:
+                self.resend_subscriptions()
+                self.run_tcp() if self.protocol in 'st' else self.run_http()
 
-            self.run_tcp() if self.protocol in 'st' else self.run_http()
             self.trigger_callback('disconnected')
-            if not self.loop: break
 
+            if not self.loop: break
             time.sleep(5)
 
 
