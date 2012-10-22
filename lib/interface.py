@@ -103,7 +103,7 @@ class Interface(threading.Thread):
                     if (method, params) in v:
                         channel = k
                 else:
-                    print "received expected notification", method, params
+                    print "received unexpected notification", method, params
                     return
 
             if method == 'blockchain.numblocks.subscribe':
