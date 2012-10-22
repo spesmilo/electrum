@@ -103,7 +103,8 @@ class Interface(threading.Thread):
                     if (method, params) in v:
                         channel = k
                 else:
-                    raise
+                    print "received expected notification", method, params
+                    return
 
             if method == 'blockchain.numblocks.subscribe':
                 result = params[0]
@@ -435,7 +436,7 @@ class Interface(threading.Thread):
                 self.s.shutdown(socket.SHUT_RDWR)
                 self.s.close()
             self.is_connected = False  # this exits the polling loop
-
+            self.trigger_callback('disconnecting') # for actively disconnecting
 
     def is_empty(self, channel):
         q = self.responses.get(channel)

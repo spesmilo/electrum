@@ -210,6 +210,7 @@ class ElectrumWindow(QMainWindow):
         self.wallet.interface.register_callback('updated', self.update_callback)
         self.wallet.interface.register_callback('connected', self.update_callback)
         self.wallet.interface.register_callback('disconnected', self.update_callback)
+        self.wallet.interface.register_callback('disconnecting', self.update_callback)
 
         self.detailed_view = config.get('qt_detailed_view', False)
 
