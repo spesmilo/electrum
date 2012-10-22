@@ -977,7 +977,7 @@ class ElectrumWindow(QMainWindow):
 
         dialog = QDialog(None)
         dialog.setModal(1)
-        dialog.setWindowTitle(_("Seed"))
+        dialog.setWindowTitle("Electrum")
 
         brainwallet = ' '.join(mnemonic.mn_encode(seed))
 
