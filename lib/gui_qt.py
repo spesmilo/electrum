@@ -1572,6 +1572,11 @@ class ElectrumGui:
         # ask for the server.
         if not ElectrumWindow.network_dialog( wallet, parent=None ): return False
 
+        # wait until we are connected, because the user might have selected another server
+        if not wallet.interface.is_connected:
+            waiting = lambda: False if wallet.interface.is_connected else "connecting...\n"
+            waiting_dialog(waiting)
+
         waiting = lambda: False if wallet.up_to_date else "Please wait...\nAddresses generated: %d\nKilobytes received: %.1f"\
             %(len(wallet.all_addresses()), wallet.interface.bytes_received/1024.)
 
