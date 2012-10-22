@@ -331,7 +331,7 @@ class Interface(threading.Thread):
             self.init_with_server(self.config)
         else:
             print "Using random server..."
-            servers = DEFAULT_SERVERS
+            servers = DEFAULT_SERVERS[:]
             while servers:
                 server = random.choice( servers )
                 servers.remove(server)
