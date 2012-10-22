@@ -266,7 +266,6 @@ class Interface(threading.Thread):
                 self.bytes_received += len(msg)
                 if msg == '': 
                     self.is_connected = False
-                    print "Disconnected."
 
                 while True:
                     s = out.find('\n')
@@ -312,6 +311,7 @@ class Interface(threading.Thread):
         self.daemon = True
         self.loop = loop
         self.config = config
+        self.connect_event = threading.Event()
 
         self.subscriptions = {}
         self.responses = {}
@@ -319,7 +319,6 @@ class Interface(threading.Thread):
 
         self.callbacks = {}
         self.lock = threading.Lock()
-        self.init_interface()
 
 
 
@@ -339,6 +338,7 @@ class Interface(threading.Thread):
             if not servers:
                 raise BaseException('no server available')
 
+        self.connect_event.set()
         if self.is_connected:
             self.send([('server.version', [ELECTRUM_VERSION])])
             self.trigger_callback('connected')
@@ -469,16 +469,21 @@ class Interface(threading.Thread):
         return out
 
 
+    def start(self):
+        threading.Thread.start(self)
+        # wait until connection is established
+        self.connect_event.wait()
 
     def run(self):
         while True:
+            self.init_interface()
+            self.resend_subscriptions()
+
             self.run_tcp() if self.protocol in 'st' else self.run_http()
             self.trigger_callback('disconnected')
             if not self.loop: break
 
             time.sleep(5)
-            self.init_interface()
-            self.resend_subscriptions()
 
 
 
