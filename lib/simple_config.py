@@ -58,19 +58,19 @@ class SimpleConfig:
 
     def set_key(self, key, value, save = False):
         # find where a setting comes from and save it there
-        if self.options_config.get(key):
+        if self.options_config.get(key) is not None:
             print "Warning: not changing '%s' because it was passed as a command-line option"%key
             return
 
-        elif self.user_config.get(key):
+        elif self.user_config.get(key) is not None:
             self.user_config[key] = value
             if save: self.save_user_config()
 
-        elif self.system_config.get(key):
+        elif self.system_config.get(key) is not None:
             if str(self.system_config[key]) != str(value):
                 print "Warning: not changing '%s' because it was set in the system configuration"%key
 
-        elif self.wallet_config.get(key):
+        elif self.wallet_config.get(key) is not None:
             self.wallet_config[key] = value
             if save: self.save_wallet_config()
 
