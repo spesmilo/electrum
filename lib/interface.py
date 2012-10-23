@@ -106,6 +106,7 @@ class Interface(threading.Thread):
                 for k,v in self.subscriptions.items():
                     if (method, params) in v:
                         channel = k
+                        break
                 else:
                     print "received unexpected notification", method, params
                     print self.subscriptions
