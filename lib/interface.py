@@ -92,13 +92,6 @@ class Interface(threading.Thread):
             # notification. we should find the channel(s)..
             method = c.get('method')
             params = c.get('params')
-            with self.lock:
-                for k,v in self.subscriptions.items():
-                    if (method, params) in v:
-                        channel = k
-                else:
-                    print "received unexpected notification", method, params
-                    return
 
             if method == 'blockchain.numblocks.subscribe':
                 result = params[0]
@@ -109,6 +102,14 @@ class Interface(threading.Thread):
                 result = params[1]
                 params = [addr]
 
+            with self.lock:
+                for k,v in self.subscriptions.items():
+                    if (method, params) in v:
+                        channel = k
+                else:
+                    print "received unexpected notification", method, params
+                    print self.subscriptions
+                    return
                 
         response_queue = self.responses[channel]
         response_queue.put({'method':method, 'params':params, 'result':result, 'id':msg_id})
