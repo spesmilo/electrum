@@ -89,7 +89,7 @@ class Interface(threading.Thread):
                 method, params, channel = self.unanswered_requests.pop(msg_id)
             result = c.get('result')
         else:
-            # notification. we should find the channel(s)..
+            # notification: find the channel(s)
             method = c.get('method')
             params = c.get('params')
 

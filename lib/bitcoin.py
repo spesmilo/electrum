@@ -28,10 +28,9 @@ def int_to_hex(i, length=1):
     s = "0"*(2*length - len(s)) + s
     return rev_hex(s)
 
-
-def Hash(data):
-    return hashlib.sha256(hashlib.sha256(data).digest()).digest()
-
+Hash = lambda x: hashlib.sha256(hashlib.sha256(x).digest()).digest()
+hash_encode = lambda x: x[::-1].encode('hex')
+hash_decode = lambda x: x.decode('hex')[::-1]
 
 ############ functions from pywallet ##################### 
 
