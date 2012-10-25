@@ -277,13 +277,7 @@ class ElectrumWindow(QMainWindow):
 
     def update_wallet(self):
         if self.wallet.interface and self.wallet.interface.is_connected:
-            if self.wallet.blocks == -1:
-                text = _( "Connecting..." )
-                icon = QIcon(":icons/status_disconnected.png")
-            elif self.wallet.blocks == 0:
-                text = _( "Server not ready" )
-                icon = QIcon(":icons/status_disconnected.png")
-            elif not self.wallet.up_to_date:
+            if not self.wallet.up_to_date:
                 text = _( "Synchronizing..." )
                 icon = QIcon(":icons/status_waiting.png")
             else:
@@ -339,7 +333,7 @@ class ElectrumWindow(QMainWindow):
         tx = self.wallet.tx_history.get(tx_hash)
 
         if tx['height']:
-            conf = self.wallet.blocks - tx['height'] + 1
+            conf = self.wallet.verifier.get_confirmations(tx_hash)
             time_str = datetime.datetime.fromtimestamp( tx['timestamp']).isoformat(' ')[:-3]
         else:
             conf = 0
@@ -441,7 +435,7 @@ class ElectrumWindow(QMainWindow):
         for tx in self.wallet.get_tx_history():
             tx_hash = tx['tx_hash']
             if tx['height']:
-                conf = self.wallet.blocks - tx['height'] + 1
+                conf = self.wallet.verifier.get_confirmations(tx_hash)
                 time_str = datetime.datetime.fromtimestamp( tx['timestamp']).isoformat(' ')[:-3]
                 if conf < 6:
                     icon = QIcon(":icons/clock%d.png"%conf)
@@ -1367,7 +1361,7 @@ class ElectrumWindow(QMainWindow):
         interface = wallet.interface
         if parent:
             if interface.is_connected:
-                status = _("Connected to")+" %s\n%d blocks"%(interface.host, wallet.blocks)
+                status = _("Connected to")+" %s\n%d blocks"%(interface.host, wallet.verifier.height)
             else:
                 status = _("Not connected")
         else:

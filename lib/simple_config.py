@@ -104,8 +104,12 @@ class SimpleConfig:
         # try to fix the type
         if default is not None and type(out) != type(default):
             import ast
-            out = ast.literal_eval(out)
-            
+            try:
+                out = ast.literal_eval(out)
+            except:
+                print "type error, using default value"
+                out = default
+
         return out
 
 

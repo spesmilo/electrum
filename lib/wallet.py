@@ -78,7 +78,6 @@ class Wallet:
         self.receipt = None          # next receipt
         self.tx_history = {}
         self.was_updated = True
-        self.blocks = -1
         self.banner = ''
 
         # there is a difference between wallet.up_to_date and interface.is_up_to_date()
@@ -868,7 +867,6 @@ class WalletSynchronizer(threading.Thread):
         self.interface.send([('server.banner',[])],'synchronizer')
 
         # subscriptions
-        self.interface.send([('blockchain.numblocks.subscribe',[])], 'synchronizer')
         self.interface.send([('server.peers.subscribe',[])],'synchronizer')
         self.subscribe_to_addresses(self.wallet.all_addresses())
 
@@ -902,10 +900,6 @@ class WalletSynchronizer(threading.Thread):
             elif method == 'blockchain.transaction.broadcast':
                 self.wallet.tx_result = result
                 self.wallet.tx_event.set()
-
-            elif method == 'blockchain.numblocks.subscribe':
-                self.wallet.blocks = result
-                self.wallet.was_updated = True
 
             elif method == 'server.version':
                 pass

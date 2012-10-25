@@ -33,17 +33,17 @@ class WalletVerifier(threading.Thread):
         self.interface = interface
         self.get_transactions = get_transactions
         self.interface.register_channel('verifier')
-        self.verified_tx     = config.get('verified_tx',[])
+        self.verified_tx     = config.get('verified_tx',{})
         self.merkle_roots    = config.get('merkle_roots',{})      # hashed by me
         self.targets         = config.get('targets',{})           # compute targets
         self.lock = threading.Lock()
         self.pending_headers = [] # headers that have not been verified
         self.height = 0
         self.local_height = 0
-        self.set_local_numblocks()
+        self.set_local_height()
 
-
-        
+    def get_confirmations(self, tx):
+        return (self.local_height - self.verified_tx[tx] + 1) if tx in self.verified_tx else None
 
     def run(self):
         requested_merkle = []
@@ -138,7 +138,7 @@ class WalletVerifier(threading.Thread):
         header = self.read_header(tx_height)
         if header:
             assert header.get('merkle_root') == self.merkle_roots[tx_hash]
-            self.verified_tx.append(tx_hash)
+            self.verified_tx[tx_hash] = tx_height
             print "verified", tx_hash
             self.config.set_key('verified_tx', self.verified_tx, True)
 
@@ -257,7 +257,7 @@ class WalletVerifier(threading.Thread):
         f.seek(index*2016*80)
         h = f.write(chunk)
         f.close()
-        self.set_local_numblocks()
+        self.set_local_height()
 
     def save_header(self, header):
         data = self.header_to_string(header).decode('hex')
@@ -268,13 +268,16 @@ class WalletVerifier(threading.Thread):
         f.seek(height*80)
         h = f.write(data)
         f.close()
-        self.set_local_numblocks()
+        self.set_local_height()
 
-    def set_local_numblocks(self):
+
+    def set_local_height(self):
         name = self.path()
         if os.path.exists(name):
-            self.local_height = os.path.getsize(name)/80 - 1
-            # print "local height", self.local_height, os.path.getsize(name)/80.
+            h = os.path.getsize(name)/80 - 1
+            if self.local_height != h:
+                self.local_height = h
+                self.interface.trigger_callback('updated')
 
 
     def read_header(self, block_height):
