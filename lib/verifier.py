@@ -49,6 +49,7 @@ class WalletVerifier(threading.Thread):
         requested_merkle = []
         requested_chunks = []
         requested_headers = []
+        pending_headers_changed = False
         
         # subscribe to block headers
         self.interface.send([ ('blockchain.headers.subscribe',[])], 'verifier')
@@ -106,17 +107,24 @@ class WalletVerifier(threading.Thread):
             elif method == 'blockchain.headers.subscribe':
                 self.height = result.get('block_height')
                 self.pending_headers.append(result)
+                pending_headers_changed = True
 
             elif method == 'blockchain.block.get_header':
                 height = result.get('block_height')
                 requested_headers.remove(height)
                 self.pending_headers.append(result)
+                pending_headers_changed = True
 
             # process pending headers
-            # todo: sort them first
-            for header in self.pending_headers:
-                self.verify_header(header)
-            self.pending_headers = []
+            if pending_headers_changed:
+                self.pending_headers.sort(key=lambda x: x.get('block_height'))
+                print "pending headers", map(lambda x: x.get('block_height'), self.pending_headers)
+                for header in self.pending_headers:
+                    if self.verify_header(header):
+                        self.pending_headers.remove(header)
+                    else:
+                        break
+                pending_headers_changed = False
 
 
 
@@ -173,7 +181,7 @@ class WalletVerifier(threading.Thread):
 
         prev_header = self.read_header(height -1)
         if not prev_header:
-            raise "no previous header", height
+            print "no previous header", height
             return
 
         #prev_hash = prev_header.get('block_height')
@@ -195,6 +203,7 @@ class WalletVerifier(threading.Thread):
         if ok:
             self.save_header(header)
             print "verify header: ok", height
+            return True
         
 
             
