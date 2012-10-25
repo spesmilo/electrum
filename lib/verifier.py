@@ -38,8 +38,14 @@ class WalletVerifier(threading.Thread):
         self.targets         = config.get('targets',{})           # compute targets
         self.lock = threading.Lock()
 
-        #self.config.set_key('verified_tx', [], True)
-        #for i in range(70): self.get_target(i)
+        self.pending_headers = [] # headers that have not been verified
+
+        self.height = 0
+        self.local_height = 0
+        self.set_local_numblocks()
+
+        #prev_header = self.read_header(0)
+        #print prev_header
         #sys.exit()
 
         
@@ -47,10 +53,14 @@ class WalletVerifier(threading.Thread):
     def run(self):
         requested_merkle = []
         requested_chunks = []
+        requested_headers = []
+        
+        # subscribe to block headers
+        self.interface.send([ ('blockchain.headers.subscribe',[])], 'verifier')
 
         while True:
             # request missing chunks
-            max_index = self.wallet.blocks/2016
+            max_index = (self.height+1)/2016
             if not requested_chunks:
                 for i in range(0, max_index + 1):
                     # test if we can read the first header of the chunk
@@ -60,8 +70,14 @@ class WalletVerifier(threading.Thread):
                     requested_chunks.append(i)
                     break
 
-            # todo: request missing blocks too
-
+            # request missing headers
+            if not requested_chunks and self.local_height:
+                for i in range(self.local_height + 1, self.height + 1):
+                    if i not in requested_headers:
+                        print "requesting header", i
+                        self.interface.send([ ('blockchain.block.get_header',[i])], 'verifier')
+                        requested_headers.append(i)
+            
             # request missing tx merkle
             txlist = self.wallet.get_tx_hashes()
             for tx in txlist:
@@ -92,8 +108,21 @@ class WalletVerifier(threading.Thread):
                 self.verify_chunk(index, result)
                 requested_chunks.remove(index)
 
+            elif method == 'blockchain.headers.subscribe':
+                self.height = result.get('block_height')
+                self.pending_headers.append(result)
+
             elif method == 'blockchain.block.get_header':
-                self.verify_header(result)
+                height = result.get('block_height')
+                requested_headers.remove(height)
+                self.pending_headers.append(result)
+
+            # process pending headers
+            # todo: sort them first
+            for header in self.pending_headers:
+                self.verify_header(header)
+            self.pending_headers = []
+
 
 
     def request_merkle(self, tx_hash):
@@ -114,8 +143,8 @@ class WalletVerifier(threading.Thread):
     def verify_chunk(self, index, hexdata):
         data = hexdata.decode('hex')
         height = index*2016
-        numblocks = len(data)/80
-        print "validate_chunk", index, numblocks
+        num = len(data)/80
+        print "validate_chunk", index, num
 
         if index == 0:  
             previous_hash = ("0"*64)
@@ -126,7 +155,7 @@ class WalletVerifier(threading.Thread):
 
         bits, target = self.get_target(index)
 
-        for i in range(numblocks):
+        for i in range(num):
             height = index*2016 + i
             raw_header = data[i*80:(i+1)*80]
             header = self.header_from_string(raw_header)
@@ -141,24 +170,38 @@ class WalletVerifier(threading.Thread):
         self.save_chunk(index, data)
 
 
-    def validate_header(self, header):
-        """ if there is a previous or a next block in the list, check the hash"""
-        height = header.get('block_height')
-        with self.lock:
-            self.headers[height] = header # detect conflicts
-            prev_header = next_header = None
-            if height-1 in self.headers:
-                prev_header = self.headers[height-1]
-            if height+1 in self.headers:
-                next_header = self.headers[height+1]
+    def verify_header(self, header):
+        # add header to the blockchain file
+        # if there is a reorg, push it in a stack
 
-        if prev_header:
-            prev_hash = self.hash_header(prev_header)
+        height = header.get('block_height')
+
+        prev_header = self.read_header(height -1)
+        if not prev_header:
+            raise "no previous header", height
+            return
+
+        #prev_hash = prev_header.get('block_height')
+        prev_hash = self.hash_header(prev_header)
+        bits, target = self.get_target(height/2016)
+        _hash = self.hash_header(header)
+        try:
             assert prev_hash == header.get('prev_block_hash')
+            assert bits == header.get('bits')
+            assert eval('0x'+_hash) < target
+            ok = True
+        except:
+            print "verify header failed", header
+            raise
+            # this could be caused by a reorg. request the previous header
+            ok = False
+            #request previous one
+
+        if ok:
             self.save_header(header)
-        if next_header:
-            _hash = self.hash_header(header)
-            assert _hash == next_header.get('prev_block_hash')
+            print "verify header: ok", height
+        
+
             
 
     def header_to_string(self, res):
@@ -194,13 +237,11 @@ class WalletVerifier(threading.Thread):
             h = Hash( h + hash_decode(item[1:]) ) if is_left else Hash( hash_decode(item[1:]) + h )
         return hash_encode(h)
 
-
     def path(self):
         wdir = user_dir()
         if not os.path.exists( wdir ):
             wdir = os.path.dirname(self.config.path)
         return os.path.join( wdir, 'blockchain_headers')
-
 
     def save_chunk(self, index, chunk):
         filename = self.path()
@@ -212,6 +253,24 @@ class WalletVerifier(threading.Thread):
         f.seek(index*2016*80)
         h = f.write(chunk)
         f.close()
+        self.set_local_numblocks()
+
+    def save_header(self, header):
+        data = self.header_to_string(header).decode('hex')
+        assert len(data) == 80
+        height = header.get('block_height')
+        filename = self.path()
+        f = open(filename,'rw+')
+        f.seek(height*80)
+        h = f.write(data)
+        f.close()
+        self.set_local_numblocks()
+
+    def set_local_numblocks(self):
+        name = self.path()
+        if os.path.exists(name):
+            self.local_height = os.path.getsize(name)/80 - 1
+            # print "local height", self.local_height, os.path.getsize(name)/80.
 
 
     def read_header(self, block_height):

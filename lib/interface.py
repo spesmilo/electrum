@@ -97,6 +97,10 @@ class Interface(threading.Thread):
                 result = params[0]
                 params = []
 
+            elif method == 'blockchain.headers.subscribe':
+                result = params[0]
+                params = []
+
             elif method == 'blockchain.address.subscribe':
                 addr = params[0]
                 result = params[1]
