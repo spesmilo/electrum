@@ -191,7 +191,7 @@ if __name__ == '__main__':
 
         interface.start()
         WalletSynchronizer(wallet, config).start()
-        WalletVerifier(wallet, config).start()
+        WalletVerifier(interface, config, wallet.get_tx_hashes).start()
 
         try:
             found = config.wallet_file_exists

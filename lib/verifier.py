@@ -26,27 +26,22 @@ from bitcoin import *
 
 class WalletVerifier(threading.Thread):
 
-    def __init__(self, wallet, config):
+    def __init__(self, interface, config, get_transactions):
         threading.Thread.__init__(self)
         self.daemon = True
         self.config = config
-        self.wallet = wallet
-        self.interface = self.wallet.interface
+        self.interface = interface
+        self.get_transactions = get_transactions
         self.interface.register_channel('verifier')
         self.verified_tx     = config.get('verified_tx',[])
         self.merkle_roots    = config.get('merkle_roots',{})      # hashed by me
         self.targets         = config.get('targets',{})           # compute targets
         self.lock = threading.Lock()
-
         self.pending_headers = [] # headers that have not been verified
-
         self.height = 0
         self.local_height = 0
         self.set_local_numblocks()
 
-        #prev_header = self.read_header(0)
-        #print prev_header
-        #sys.exit()
 
         
 
@@ -79,13 +74,13 @@ class WalletVerifier(threading.Thread):
                         requested_headers.append(i)
             
             # request missing tx merkle
-            txlist = self.wallet.get_tx_hashes()
+            txlist = self.get_transactions()
             for tx in txlist:
                 if tx not in self.verified_tx:
                     if tx not in requested_merkle:
                         requested_merkle.append(tx)
                         self.request_merkle(tx)
-                        break
+                        #break
 
             try:
                 r = self.interface.get_response('verifier',timeout=1)
