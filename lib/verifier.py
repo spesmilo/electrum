@@ -132,15 +132,8 @@ class WalletVerifier(threading.Thread):
             header = self.header_from_string(raw_header)
             _hash = self.hash_header(header)
             assert previous_hash == header.get('prev_block_hash')
-            try:
-                assert bits == header.get('bits')
-            except:
-                print index, hex(bits), hex(header.get('bits'))
-
-            try:
-                assert eval('0x'+_hash) < target
-            except:
-                print _hash, hex(target)
+            assert bits == header.get('bits')
+            assert eval('0x'+_hash) < target
 
             previous_header = header
             previous_hash = _hash 
@@ -202,20 +195,27 @@ class WalletVerifier(threading.Thread):
         return hash_encode(h)
 
 
-    def save_chunk(self, index, chunk):
-        name = os.path.join( user_dir(), 'blockchain_headers')
-        if os.path.exists(name):
-            f = open(name,'rw+')
-        else:
-            f = open(name,'w+')
+    def path(self):
+        wdir = user_dir()
+        if not os.path.exists( wdir ):
+            wdir = os.path.dirname(self.config.path)
+        return os.path.join( wdir, 'blockchain_headers')
 
+
+    def save_chunk(self, index, chunk):
+        filename = self.path()
+        if os.path.exists(filename):
+            f = open(filename,'rw+')
+        else:
+            print "creating file", filename
+            f = open(filename,'w+')
         f.seek(index*2016*80)
         h = f.write(chunk)
         f.close()
 
 
     def read_header(self, block_height):
-        name = os.path.join( user_dir(), 'blockchain_headers')
+        name = self.path()
         if os.path.exists(name):
             f = open(name,'rb')
             f.seek(block_height*80)
