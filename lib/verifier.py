@@ -251,9 +251,8 @@ class WalletVerifier(threading.Thread):
         return hash_encode(h)
 
     def path(self):
-        wdir = user_dir()
-        if not os.path.exists( wdir ):
-            wdir = os.path.dirname(self.config.path)
+        wdir = self.config.get('blockchain_headers_path', user_dir())
+        if not os.path.exists( wdir ): os.mkdir(wdir)
         return os.path.join( wdir, 'blockchain_headers')
 
     def save_chunk(self, index, chunk):
