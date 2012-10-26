@@ -80,6 +80,9 @@ class Wallet:
         self.was_updated = True
         self.banner = ''
 
+        # spv
+        self.verifier = None
+
         # there is a difference between wallet.up_to_date and interface.is_up_to_date()
         # interface.is_up_to_date() returns true when all requests have been answered and processed
         # wallet.up_to_date is true when the wallet is synchronized (stronger requirement)
@@ -498,11 +501,6 @@ class Wallet:
         lines = sorted(lines, key=operator.itemgetter("timestamp"))
         return lines
 
-    def get_tx_hashes(self):
-        with self.lock:
-            hashes = self.tx_history.keys()
-        return hashes
-
     def get_transactions_at_height(self, height):
         with self.lock:
             values = self.tx_history.values()[:]
@@ -522,6 +520,7 @@ class Wallet:
                 tx_hash = tx['tx_hash']
                 line = self.tx_history.get(tx_hash)
                 if not line:
+                    if self.verifier: self.verifier.add(tx_hash)
                     self.tx_history[tx_hash] = copy.copy(tx)
                     line = self.tx_history.get(tx_hash)
                 else:
@@ -815,6 +814,13 @@ class Wallet:
         for k, v in s.items():
             self.config.set_key(k,v)
         self.config.save()
+
+    def set_verifier(self, verifier):
+        self.verifier = verifier
+        with self.lock:
+            for tx in self.tx_history.keys():
+                self.verifier.add(tx)
+        
 
 
 

@@ -207,8 +207,8 @@ if __name__ == '__main__':
         if not found:
             exit(1)
 
-        verifier = WalletVerifier(interface, config, wallet.get_tx_hashes)
-        wallet.verifier = verifier
+        verifier = WalletVerifier(interface, config)
+        wallet.set_verifier(verifier)
         verifier.start()
 
         gui.main(url)
