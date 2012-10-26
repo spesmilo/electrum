@@ -43,7 +43,7 @@ class WalletVerifier(threading.Thread):
         self.set_local_height()
 
     def get_confirmations(self, tx):
-        return (self.local_height - self.verified_tx[tx] + 1) if tx in self.verified_tx else None
+        return (self.local_height - self.verified_tx[tx] + 1) if tx in self.verified_tx else 0
 
     def run(self):
         requested_merkle = []
