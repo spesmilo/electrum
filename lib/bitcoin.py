@@ -28,6 +28,17 @@ def int_to_hex(i, length=1):
     s = "0"*(2*length - len(s)) + s
     return rev_hex(s)
 
+def var_int(i):
+    if i<0xfd:
+        return int_to_hex(i)
+    elif i<0xffff:
+        return "fd"+int_to_hex(i,2)
+    elif i<0xffffffff:
+        return "fe"+int_to_hex(i,4)
+    else:
+        return "ff"+int_to_hex(i,8)
+
+
 Hash = lambda x: hashlib.sha256(hashlib.sha256(x).digest()).digest()
 hash_encode = lambda x: x[::-1].encode('hex')
 hash_decode = lambda x: x.decode('hex')[::-1]
@@ -172,9 +183,10 @@ def filter(s):
     out = out.replace('\n','')
     return out
 
+# https://en.bitcoin.it/wiki/Protocol_specification#Variable_length_integer
 def raw_tx( inputs, outputs, for_sig = None ):
     s  = int_to_hex(1,4)                                     +   '     version\n' 
-    s += int_to_hex( len(inputs) )                           +   '     number of inputs\n'
+    s += var_int( len(inputs) )                              +   '     number of inputs\n'
     for i in range(len(inputs)):
         _, _, p_hash, p_index, p_script, pubkey, sig = inputs[i]
         s += p_hash.decode('hex')[::-1].encode('hex')        +  '     prev hash\n'
@@ -190,10 +202,10 @@ def raw_tx( inputs, outputs, for_sig = None ):
             script = p_script                                +  '     scriptsig \n'
         else:
             script=''
-        s += int_to_hex( len(filter(script))/2 )             +  '     script length \n'
+        s += var_int( len(filter(script))/2 )                +  '     script length \n'
         s += script
         s += "ffffffff"                                      +  '     sequence\n'
-    s += int_to_hex( len(outputs) )                          +  '     number of outputs\n'
+    s += var_int( len(outputs) )                             +  '     number of outputs\n'
     for output in outputs:
         addr, amount = output
         s += int_to_hex( amount, 8)                          +  '     amount: %d\n'%amount 
@@ -201,7 +213,7 @@ def raw_tx( inputs, outputs, for_sig = None ):
         script += '14'                                       # push 0x14 bytes
         script += bc_address_to_hash_160(addr).encode('hex')
         script += '88ac'                                     # op_equalverify, op_checksig
-        s += int_to_hex( len(filter(script))/2 )             +  '     script length \n'
+        s += var_int( len(filter(script))/2 )                +  '     script length \n'
         s += script                                          +  '     script \n'
     s += int_to_hex(0,4)                                     # lock time
     if for_sig is not None: s += int_to_hex(1, 4)            # hash type
