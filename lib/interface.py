@@ -81,7 +81,7 @@ class Interface(threading.Thread):
         error = c.get('error')
         
         if error:
-            print "received error:", c
+            print_error("received error:", c)
             return
 
         if msg_id is not None:
@@ -112,8 +112,8 @@ class Interface(threading.Thread):
                         channel = k
                         break
                 else:
-                    print "received unexpected notification", method, params
-                    print self.subscriptions
+                    print_error( "received unexpected notification", method, params)
+                    print_error( self.subscriptions )
                     return
                 
         response_queue = self.responses[channel]
@@ -259,7 +259,6 @@ class Interface(threading.Thread):
             while self.is_connected:
                 try: msg = self.s.recv(1024)
                 except socket.timeout:
-                    print "timeout"
                     # ping the server with server.version, as a real ping does not exist yet
                     self.send([('server.version', [ELECTRUM_VERSION])])
                     continue
@@ -301,7 +300,7 @@ class Interface(threading.Thread):
                 out = out[sent:]
             except:
                 # this happens when we get disconnected
-                print "Not connected, cannot send"
+                print_error( "Not connected, cannot send" )
                 return None
         return ids
 

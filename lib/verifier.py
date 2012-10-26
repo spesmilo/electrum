@@ -18,7 +18,7 @@
 
 
 import threading, time, Queue, os, sys
-from util import user_dir
+from util import user_dir, print_error
 from bitcoin import *
 
 
@@ -77,7 +77,7 @@ class WalletVerifier(threading.Thread):
                     break
                 else:
                     all_chunks = True
-                    print "all chunks"
+                    print_error("downloaded all chunks")
 
             # request missing tx merkle
             for tx in self.transactions:
@@ -98,7 +98,7 @@ class WalletVerifier(threading.Thread):
                         # request previous header
                         i = header.get('block_height') - 1
                         if i not in requested_headers:
-                            print "requesting header", i
+                            print_error("requesting header %d"%i)
                             self.interface.send([ ('blockchain.block.get_header',[i])], 'verifier')
                             requested_headers.append(i)
                         # no point continuing
@@ -154,7 +154,7 @@ class WalletVerifier(threading.Thread):
         if header:
             assert header.get('merkle_root') == self.merkle_roots[tx_hash]
             self.verified_tx[tx_hash] = tx_height
-            print "verified", tx_hash
+            print_error("verified %s"%tx_hash)
             self.config.set_key('verified_tx', self.verified_tx, True)
 
 
@@ -162,7 +162,7 @@ class WalletVerifier(threading.Thread):
         data = hexdata.decode('hex')
         height = index*2016
         num = len(data)/80
-        print "validating headers", height, num
+        print_error("validating headers %d"%height)
 
         if index == 0:  
             previous_hash = ("0"*64)
@@ -196,7 +196,7 @@ class WalletVerifier(threading.Thread):
 
         prev_header = self.read_header(height -1)
         if not prev_header:
-            print "no previous header", height
+            print_error("no previous header: %s"%height)
             return False
 
         #prev_hash = prev_header.get('block_height')
@@ -208,12 +208,12 @@ class WalletVerifier(threading.Thread):
             assert bits == header.get('bits')
             assert eval('0x'+_hash) < target
         except:
-            print "verify header failed", header
+            print_error("verify header failed"+ repr(header))
             # this can be caused by a reorg. returning False will request the previous header.
             return False
 
         self.save_header(header)
-        print "verify header: ok", height
+        print_error("verify header: ok %d"%height)
         return True
         
 
@@ -337,6 +337,5 @@ class WalletVerifier(threading.Thread):
             i += 1
 
         new_bits = c + MM * i
-        # print "%3d"%index, "%8x"%bits, "%64X"%new_target, hex(c)[2:].upper(), hex(new_bits)
         return new_bits, new_target
 
