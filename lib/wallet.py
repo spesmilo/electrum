@@ -592,7 +592,7 @@ class Wallet:
         # asynchronous
         self.tx_event.clear()
         tx_hash = Hash(tx.decode('hex') )[::-1].encode('hex')
-        self.interface.send([('blockchain.transaction.broadcast', [tx])])
+        self.interface.send([('blockchain.transaction.broadcast', [tx])], 'synchronizer')
         return tx_hash
 
     def receive_tx(self,tx_hash):
@@ -896,7 +896,7 @@ class WalletSynchronizer(threading.Thread):
             if method == 'blockchain.address.subscribe':
                 addr = params[0]
                 if self.wallet.get_status(addr) != result:
-                    self.interface.send([('blockchain.address.get_history', [addr] )])
+                    self.interface.send([('blockchain.address.get_history', [addr])], 'synchronizer')
                             
             elif method == 'blockchain.address.get_history':
                 addr = params[0]
