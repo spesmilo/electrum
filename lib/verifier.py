@@ -25,7 +25,7 @@ from bitcoin import *
 
 
 class WalletVerifier(threading.Thread):
-    """ Simple Verification Protocol """
+    """ Simple Payment Verification """
 
     def __init__(self, interface, config):
         threading.Thread.__init__(self)
@@ -76,14 +76,6 @@ class WalletVerifier(threading.Thread):
                     requested_chunks.append(i)
                     break
 
-            # request missing headers
-            if not requested_chunks and self.local_height:
-                for i in range(self.local_height + 1, self.height + 1):
-                    if i not in requested_headers:
-                        print "requesting header", i
-                        self.interface.send([ ('blockchain.block.get_header',[i])], 'verifier')
-                        requested_headers.append(i)
-            
             # request missing tx merkle
             for tx in self.transactions:
                 if tx not in self.verified_tx:
@@ -127,12 +119,22 @@ class WalletVerifier(threading.Thread):
             # process pending headers
             if pending_headers_changed:
                 self.pending_headers.sort(key=lambda x: x.get('block_height'))
-                print "pending headers", map(lambda x: x.get('block_height'), self.pending_headers)
+                # print "pending headers", map(lambda x: x.get('block_height'), self.pending_headers)
+                done = []
                 for header in self.pending_headers:
                     if self.verify_header(header):
-                        self.pending_headers.remove(header)
+                        done.append(header)
                     else:
+                        # request previous header
+                        i = header.get('block_height') - 1
+                        if i not in requested_headers:
+                            print "requesting header", i
+                            self.interface.send([ ('blockchain.block.get_header',[i])], 'verifier')
+                            requested_headers.append(i)
+                        # no point continuing
                         break
+
+                for header in done: self.pending_headers.remove(header)
                 pending_headers_changed = False
 
             self.interface.trigger_callback('updated')
@@ -192,7 +194,7 @@ class WalletVerifier(threading.Thread):
         prev_header = self.read_header(height -1)
         if not prev_header:
             print "no previous header", height
-            return
+            return False
 
         #prev_hash = prev_header.get('block_height')
         prev_hash = self.hash_header(prev_header)
@@ -202,18 +204,14 @@ class WalletVerifier(threading.Thread):
             assert prev_hash == header.get('prev_block_hash')
             assert bits == header.get('bits')
             assert eval('0x'+_hash) < target
-            ok = True
         except:
             print "verify header failed", header
-            raise
-            # this could be caused by a reorg. request the previous header
-            ok = False
-            #request previous one
+            # this can be caused by a reorg. returning False will request the previous header.
+            return False
 
-        if ok:
-            self.save_header(header)
-            print "verify header: ok", height
-            return True
+        self.save_header(header)
+        print "verify header: ok", height
+        return True
         
 
             
@@ -268,6 +266,7 @@ class WalletVerifier(threading.Thread):
         self.set_local_height()
 
     def save_header(self, header):
+        # todo: invalidate tx verifications if we rewind
         data = self.header_to_string(header).decode('hex')
         assert len(data) == 80
         height = header.get('block_height')
