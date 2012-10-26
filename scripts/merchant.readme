@@ -1,0 +1,23 @@
+merchant.py is a daemon that manages payments for a web server. It
+creates Bitcoin addresses using a master public key (so you do not
+leave your private keys on the server), detects when payments are
+received and notifies your web application.
+
+The workflow goes like this:
+
+ - the server sends a request to the daemon via POST. the request
+   contains an ID, an amount to be paid, an expiration period.
+
+ - the daemon answers with a Bitcoin address, where the customer needs
+   to send the coins.
+
+ - later, the daemon will send a POST to the webserver, to notify that
+   payment has been received OR that the request has expired
+
+
+Since addresses are generated using an Electrum master public key, it
+is possible to visualize payments in the Electrum client; you will,
+however, need to manually adjust your "gap limit". 
+
+In order to use this script, first edit and rename
+merchant.conf.template to merchant.conf
