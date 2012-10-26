@@ -185,17 +185,13 @@ if __name__ == '__main__':
             sys.exit("Error: Unknown GUI: " + pref_gui )
 
         interface = Interface(config, True)
+        interface.start()
+
         wallet.interface = interface
+        WalletSynchronizer(wallet, config).start()
+        
         gui = gui.ElectrumGui(wallet, config)
         interface.register_callback('peers', gui.server_list_changed)
-
-        interface.start()
-        WalletSynchronizer(wallet, config).start()
-
-        verifier = WalletVerifier(interface, config, wallet.get_tx_hashes)
-        verifier.start()
-        wallet.verifier = verifier
-
         try:
             found = config.wallet_file_exists
             if not found:
@@ -210,6 +206,11 @@ if __name__ == '__main__':
 
         if not found:
             exit(1)
+
+        verifier = WalletVerifier(interface, config, wallet.get_tx_hashes)
+        wallet.verifier = verifier
+        verifier.start()
+
         gui.main(url)
         wallet.save()
         sys.exit(0)
