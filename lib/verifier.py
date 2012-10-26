@@ -126,6 +126,7 @@ class WalletVerifier(threading.Thread):
                         break
                 pending_headers_changed = False
 
+            self.interface.trigger_callback('updated')
 
 
     def request_merkle(self, tx_hash):
@@ -277,7 +278,6 @@ class WalletVerifier(threading.Thread):
             h = os.path.getsize(name)/80 - 1
             if self.local_height != h:
                 self.local_height = h
-                self.interface.trigger_callback('updated')
 
 
     def read_header(self, block_height):
