@@ -337,7 +337,7 @@ class Wallet:
             if len(self.addresses) < n:
                 new_addresses.append( self.create_new_address(False) )
                 continue
-            if map( lambda a: self.history.get(a), self.addresses[-n:] ) == n*[[]]:
+            if map( lambda a: self.history.get(a, []), self.addresses[-n:] ) == n*[[]]:
                 break
             else:
                 new_addresses.append( self.create_new_address(False) )
