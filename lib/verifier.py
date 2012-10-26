@@ -144,7 +144,7 @@ class WalletVerifier(threading.Thread):
 
     def verify_merkle(self, tx_hash, result):
         tx_height = result.get('block_height')
-        self.merkle_roots[tx_hash] = self.hash_merkle_root(result['merkle'], tx_hash)
+        self.merkle_roots[tx_hash] = self.hash_merkle_root(result['merkle'], tx_hash, result.get('pos'))
         header = self.read_header(tx_height)
         if header:
             assert header.get('merkle_root') == self.merkle_roots[tx_hash]
@@ -239,16 +239,14 @@ class WalletVerifier(threading.Thread):
         h['nonce'] = hex_to_int(s[76:80])
         return h
 
-
     def hash_header(self, header):
         return rev_hex(Hash(self.header_to_string(header).decode('hex')).encode('hex'))
 
-
-    def hash_merkle_root(self, merkle_s, target_hash):
+    def hash_merkle_root(self, merkle_s, target_hash, pos):
         h = hash_decode(target_hash)
-        for item in merkle_s:
-            is_left = item[0] == 'L'
-            h = Hash( h + hash_decode(item[1:]) ) if is_left else Hash( hash_decode(item[1:]) + h )
+        for i in range(len(merkle_s)):
+            item = merkle_s[i]
+            h = Hash( hash_decode(item) + h ) if ((pos >> i) & 1) else Hash( h + hash_decode(item) )
         return hash_encode(h)
 
     def path(self):
