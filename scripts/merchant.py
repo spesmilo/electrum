@@ -21,7 +21,7 @@ import time, thread, sys, socket, os
 import urllib2,json
 import MySQLdb as mdb
 import Queue
-from electrum import Wallet, Interface
+from electrum import Wallet, Interface, WalletVerifier
 
 import ConfigParser
 config = ConfigParser.ConfigParser()
@@ -76,7 +76,11 @@ def electrum_output_thread(out_queue):
             h = r.get('result')
             if h is None:
                 continue
+
             for item in h:
+                tx_hash = item.get('tx_hash')
+                verifier.add(tx_hash)
+                
                 v = item['value']
                 if v<0: continue
                 if item['height']:
@@ -89,6 +93,9 @@ def electrum_output_thread(out_queue):
             amount = float(omg_addresses.get(addr))
             if s>=amount:
                 out_queue.put( ('payment',addr) )
+
+        elif method == 'blockchain.numblocks.subscribe':
+            pass
 
 
 stopping = False
@@ -158,6 +165,7 @@ if __name__ == '__main__':
 
     interface = Interface({'server':"%s:%d:t"%(electrum_server, 50001)})
     interface.start()
+    interface.send([('blockchain.numblocks.subscribe',[])])
 
     verifier = WalletVerifier(interface, config)
     verifier.start()

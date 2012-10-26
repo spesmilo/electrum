@@ -59,7 +59,7 @@ class WalletVerifier(threading.Thread):
         requested_merkle = []
         requested_chunks = []
         requested_headers = []
-        pending_headers_changed = False
+        all_chunks = False
         
         # subscribe to block headers
         self.interface.send([ ('blockchain.headers.subscribe',[])], 'verifier')
@@ -67,14 +67,17 @@ class WalletVerifier(threading.Thread):
         while True:
             # request missing chunks
             max_index = (self.height+1)/2016
-            if not requested_chunks:
+            if not all_chunks and self.height and not requested_chunks:
                 for i in range(0, max_index + 1):
                     # test if we can read the first header of the chunk
                     if self.read_header(i*2016): continue
-                    print "requesting chunk", i
+                    # print "requesting chunk", i
                     self.interface.send([ ('blockchain.block.get_chunk',[i])], 'verifier')
                     requested_chunks.append(i)
                     break
+                else:
+                    all_chunks = True
+                    print "all chunks"
 
             # request missing tx merkle
             for tx in self.transactions:
@@ -83,6 +86,25 @@ class WalletVerifier(threading.Thread):
                         requested_merkle.append(tx)
                         self.request_merkle(tx)
                         #break
+
+
+            # process pending headers
+            if self.pending_headers and all_chunks:
+                done = []
+                for header in self.pending_headers:
+                    if self.verify_header(header):
+                        done.append(header)
+                    else:
+                        # request previous header
+                        i = header.get('block_height') - 1
+                        if i not in requested_headers:
+                            print "requesting header", i
+                            self.interface.send([ ('blockchain.block.get_header',[i])], 'verifier')
+                            requested_headers.append(i)
+                        # no point continuing
+                        break
+                for header in done: self.pending_headers.remove(header)
+                self.interface.trigger_callback('updated')
 
             try:
                 r = self.interface.get_response('verifier',timeout=1)
@@ -105,37 +127,18 @@ class WalletVerifier(threading.Thread):
                 self.verify_chunk(index, result)
                 requested_chunks.remove(index)
 
-            elif method == 'blockchain.headers.subscribe':
-                self.height = result.get('block_height')
-                self.pending_headers.append(result)
-                pending_headers_changed = True
+            elif method in ['blockchain.headers.subscribe', 'blockchain.block.get_header']:
 
-            elif method == 'blockchain.block.get_header':
-                height = result.get('block_height')
-                requested_headers.remove(height)
                 self.pending_headers.append(result)
-                pending_headers_changed = True
-
-            # process pending headers
-            if pending_headers_changed:
+                if method == 'blockchain.block.get_header':
+                    requested_headers.remove(result.get('block_height'))
+                else:
+                    self.height = result.get('block_height')
+                
                 self.pending_headers.sort(key=lambda x: x.get('block_height'))
                 # print "pending headers", map(lambda x: x.get('block_height'), self.pending_headers)
-                done = []
-                for header in self.pending_headers:
-                    if self.verify_header(header):
-                        done.append(header)
-                    else:
-                        # request previous header
-                        i = header.get('block_height') - 1
-                        if i not in requested_headers:
-                            print "requesting header", i
-                            self.interface.send([ ('blockchain.block.get_header',[i])], 'verifier')
-                            requested_headers.append(i)
-                        # no point continuing
-                        break
 
-                for header in done: self.pending_headers.remove(header)
-                pending_headers_changed = False
+
 
             self.interface.trigger_callback('updated')
 
@@ -159,7 +162,7 @@ class WalletVerifier(threading.Thread):
         data = hexdata.decode('hex')
         height = index*2016
         num = len(data)/80
-        print "validate_chunk", index, num
+        print "validating headers", height, num
 
         if index == 0:  
             previous_hash = ("0"*64)
