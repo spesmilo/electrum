@@ -25,6 +25,7 @@ from bitcoin import *
 
 
 class WalletVerifier(threading.Thread):
+    """ Simple Verification Protocol """
 
     def __init__(self, interface, config):
         threading.Thread.__init__(self)
@@ -43,9 +44,13 @@ class WalletVerifier(threading.Thread):
         self.set_local_height()
 
     def get_confirmations(self, tx):
-        return (self.local_height - self.verified_tx[tx] + 1) if tx in self.verified_tx else 0
+        """ return the number of confirmations of a monitored transaction. """
+        with self.lock:
+            assert tx in self.transactions
+            return (self.local_height - self.verified_tx[tx] + 1) if tx in self.verified_tx else 0
 
     def add(self, tx):
+        """ add a transaction to the list of monitored transactions. """
         with self.lock:
             if tx not in self.transactions:
                 self.transactions.append(tx)

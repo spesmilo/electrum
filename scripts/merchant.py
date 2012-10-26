@@ -49,7 +49,7 @@ wallet.master_public_key = config.get('electrum','mpk')
 
 omg_addresses = {}
 
-def electrum_input_thread(in_queue, i):
+def electrum_input_thread(in_queue):
     while True:
         addr, amount = in_queue.get(True,1000000000)
         if addr in omg_addresses: 
@@ -57,17 +57,17 @@ def electrum_input_thread(in_queue, i):
         else:
             print "subscribing to ", addr
             omg_addresses[addr] = amount
-            i.send([('blockchain.address.subscribe',[addr])])
+            interface.send([('blockchain.address.subscribe',[addr])])
 
 
-def electrum_output_thread(out_queue, i):
+def electrum_output_thread(out_queue):
     while True:
-        r = i.responses.get(True, 100000000000)
+        r = interface.responses.get(True, 100000000000)
         method = r.get('method') 
 
         if method == 'blockchain.address.subscribe':
             addr = r.get('params')[0]
-            i.send([('blockchain.address.get_history',[addr])])
+            interface.send([('blockchain.address.get_history',[addr])])
 
         elif method == 'blockchain.address.get_history':
             addr = r.get('params')[0]
@@ -156,15 +156,18 @@ if __name__ == '__main__':
     print "using database", db_name
     conn = mdb.connect(db_instance, db_user, db_password, db_name);
 
-    i = Interface({'server':"%s:%d:t"%(electrum_server, 50001)})
-    i.start()
+    interface = Interface({'server':"%s:%d:t"%(electrum_server, 50001)})
+    interface.start()
+
+    verifier = WalletVerifier(interface, config)
+    verifier.start()
     
 
     # this process detects when addresses have paid
     in_queue = Queue.Queue()
     out_queue = Queue.Queue()
-    thread.start_new_thread(electrum_input_thread, (in_queue,i))
-    thread.start_new_thread(electrum_output_thread, (out_queue,i))
+    thread.start_new_thread(electrum_input_thread, (in_queue,))
+    thread.start_new_thread(electrum_output_thread, (out_queue,))
 
     thread.start_new_thread(server_thread, (conn,))
 
