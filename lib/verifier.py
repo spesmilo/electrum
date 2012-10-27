@@ -196,10 +196,9 @@ class WalletVerifier(threading.Thread):
 
         prev_header = self.read_header(height -1)
         if not prev_header:
-            print_error("no previous header: %s"%height)
+            # return False to request previous header
             return False
 
-        #prev_hash = prev_header.get('block_height')
         prev_hash = self.hash_header(prev_header)
         bits, target = self.get_target(height/2016)
         _hash = self.hash_header(header)
@@ -209,7 +208,8 @@ class WalletVerifier(threading.Thread):
             assert eval('0x'+_hash) < target
         except:
             print_error("verify header failed"+ repr(header))
-            # this can be caused by a reorg. returning False will request the previous header.
+            # this can be caused by a reorg. 
+            # return False to request previous header.
             return False
 
         self.save_header(header)
