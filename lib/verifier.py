@@ -215,6 +215,7 @@ class WalletVerifier(threading.Thread):
                 if tx_height >= height:
                     print "redoing", tx_hash
                     self.verified_tx.pop(tx_hash)
+                    if tx_hash in self.merkle_roots: self.merkle_roots.pop(tx_hash)
             # return False to request previous header.
             return False
 
