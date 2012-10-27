@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import random, socket, ast, re
+import random, socket, ast, re, ssl
 import threading, traceback, sys, time, json, Queue
 
 from version import ELECTRUM_VERSION
@@ -226,7 +226,6 @@ class Interface(threading.Thread):
     def init_tcp(self, host, port, proxy=None, use_ssl=True):
         self.init_server(host, port, proxy, use_ssl)
 
-        import ssl
         global proxy_modes
         self.connection_msg = "%s:%d"%(self.host,self.port)
         if self.proxy is None:
@@ -257,9 +256,13 @@ class Interface(threading.Thread):
         try:
             out = ''
             while self.is_connected:
-                try: msg = self.s.recv(1024)
+                try: 
+                    msg = self.s.recv(1024)
                 except socket.timeout:
                     # ping the server with server.version, as a real ping does not exist yet
+                    self.send([('server.version', [ELECTRUM_VERSION])])
+                    continue
+                except ssl.SSLError:
                     self.send([('server.version', [ELECTRUM_VERSION])])
                     continue
                 out += msg
