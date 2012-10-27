@@ -264,10 +264,10 @@ class WalletVerifier(threading.Thread):
     def save_chunk(self, index, chunk):
         filename = self.path()
         if os.path.exists(filename):
-            f = open(filename,'rw+')
+            f = open(filename,'rwb+')
         else:
             print "creating file", filename
-            f = open(filename,'w+')
+            f = open(filename,'wb+')
         f.seek(index*2016*80)
         h = f.write(chunk)
         f.close()
@@ -278,7 +278,7 @@ class WalletVerifier(threading.Thread):
         assert len(data) == 80
         height = header.get('block_height')
         filename = self.path()
-        f = open(filename,'rw+')
+        f = open(filename,'rwb+')
         f.seek(height*80)
         h = f.write(data)
         f.close()
