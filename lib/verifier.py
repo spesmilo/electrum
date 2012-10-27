@@ -208,8 +208,13 @@ class WalletVerifier(threading.Thread):
             assert bits == header.get('bits')
             assert eval('0x'+_hash) < target
         except:
+            # this can be caused by a reorg.
             print_error("verify header failed"+ repr(header))
-            # this can be caused by a reorg. 
+            # undo verifications
+            for tx_hash, tx_height in self.verified_tx.items():
+                if tx_height >= height:
+                    print "redoing", tx_hash
+                    self.verified_tx.pop(tx_hash)
             # return False to request previous header.
             return False
 
@@ -269,7 +274,6 @@ class WalletVerifier(threading.Thread):
         self.set_local_height()
 
     def save_header(self, header):
-        # todo: invalidate tx verifications if we rewind
         data = self.header_to_string(header).decode('hex')
         assert len(data) == 80
         height = header.get('block_height')
