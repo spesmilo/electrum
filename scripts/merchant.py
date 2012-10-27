@@ -51,18 +51,19 @@ omg_addresses = {}
 
 def electrum_input_thread(in_queue):
     while True:
-        addr, amount = in_queue.get(True,1000000000)
+        addr, amount, confirmations = in_queue.get(True,1000000000)
         if addr in omg_addresses: 
             continue
         else:
             print "subscribing to ", addr
-            omg_addresses[addr] = amount
+            omg_addresses[addr] = {'requested':float(amount), 'confirmations':int(confirmations)}
             interface.send([('blockchain.address.subscribe',[addr])])
 
 
 def electrum_output_thread(out_queue):
     while True:
-        r = interface.responses.get(True, 100000000000)
+        r = interface.get_response()
+        print r
         method = r.get('method') 
 
         if method == 'blockchain.address.subscribe':
@@ -71,31 +72,31 @@ def electrum_output_thread(out_queue):
 
         elif method == 'blockchain.address.get_history':
             addr = r.get('params')[0]
-            #print "received history for", addr
-            confirmed = unconfirmed = 0
             h = r.get('result')
-            if h is None:
-                continue
-
+            if h is None: continue
+            omg_addresses[addr]['history'] = h
             for item in h:
                 tx_hash = item.get('tx_hash')
                 verifier.add(tx_hash)
-                
-                v = item['value']
-                if v<0: continue
-                if item['height']:
-                    confirmed += v
-                else:
-                    unconfirmed += v
-                
-            s = (confirmed+unconfirmed)/1.e8
-            print "balance for %s:"%addr, s
-            amount = float(omg_addresses.get(addr))
-            if s>=amount:
-                out_queue.put( ('payment',addr) )
 
         elif method == 'blockchain.numblocks.subscribe':
-            pass
+            for addr in omg_addresses:
+                h = omg_addresses[addr].get('history',[])
+                amount = omg_addresses[addr].get('requested')
+                confs = omg_addresses[addr].get('confirmations')
+                val = 0
+
+                for item in h:
+                    tx_hash = item.get('tx_hash')
+                    v = item['value']
+                    if v<0: continue
+                    if verifier.get_confirmations(tx_hash) >= conf:
+                        val += v
+                
+                s = (val)/1.e8
+                print "balance for %s:"%addr, s
+                if s>=amount:
+                    out_queue.put( ('payment',addr) )
 
 
 stopping = False
@@ -107,7 +108,7 @@ def do_stop():
 def do_create(conn):
     # creation
     cur = conn.cursor()
-    cur.execute("CREATE TABLE electrum_payments (id INT PRIMARY KEY, address VARCHAR(40), amount FLOAT, received_at TIMESTAMP, expires_at TIMESTAMP, paid INT(1), processed INT(1));")
+    cur.execute("CREATE TABLE electrum_payments (id INT PRIMARY KEY, address VARCHAR(40), amount FLOAT, confirmations INT(8), received_at TIMESTAMP, expires_at TIMESTAMP, paid INT(1), processed INT(1));")
     conn.commit()
 
 def process_request(i, amount, confirmations, expires_in, password):
@@ -167,7 +168,7 @@ if __name__ == '__main__':
     interface.start()
     interface.send([('blockchain.numblocks.subscribe',[])])
 
-    verifier = WalletVerifier(interface, config)
+    verifier = WalletVerifier(interface, {})
     verifier.start()
     
 
@@ -184,7 +185,7 @@ if __name__ == '__main__':
         cur = conn.cursor()
 
         # get a list of addresses to watch
-        cur.execute("SELECT address, amount FROM electrum_payments WHERE paid IS NULL;")
+        cur.execute("SELECT address, amount, confirmations FROM electrum_payments WHERE paid IS NULL;")
         data = cur.fetchall()
         for item in data: 
             in_queue.put(item)
@@ -201,9 +202,9 @@ if __name__ == '__main__':
             id = cur.fetchone()[0]
             cur.execute("update electrum_payments set paid=1 where id=%d;"%(id))
         elif cmd == 'request':
-            i, addr, amount, hours = params
-            sql = "INSERT INTO electrum_payments (id, address, amount, received_at, expires_at, paid, processed)"\
-                + " VALUES (%d, '%s', %f, CURRENT_TIMESTAMP, ADDTIME(CURRENT_TIMESTAMP, '0 %d:0:0'), NULL, NULL);"%(i, addr, amount, hours)
+            i, addr, amount, confs, hours = params
+            sql = "INSERT INTO electrum_payments (id, address, amount, confirmations, received_at, expires_at, paid, processed)"\
+                + " VALUES (%d, '%s', %f, %d, CURRENT_TIMESTAMP, ADDTIME(CURRENT_TIMESTAMP, '0 %d:0:0'), NULL, NULL);"%(i, addr, amount, confs, hours)
             cur.execute(sql)
 
 
