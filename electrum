@@ -188,6 +188,7 @@ if __name__ == '__main__':
 
         interface = Interface(config, True)
         interface.start()
+        interface.send([('server.peers.subscribe',[])])
 
         wallet.interface = interface
         WalletSynchronizer(wallet, config).start()

@@ -873,7 +873,6 @@ class WalletSynchronizer(threading.Thread):
         self.interface.send([('server.banner',[])],'synchronizer')
 
         # subscriptions
-        self.interface.send([('server.peers.subscribe',[])],'synchronizer')
         self.subscribe_to_addresses(self.wallet.all_addresses())
 
         while True:
@@ -906,27 +905,6 @@ class WalletSynchronizer(threading.Thread):
             elif method == 'blockchain.transaction.broadcast':
                 self.wallet.tx_result = result
                 self.wallet.tx_event.set()
-
-            elif method == 'server.version':
-                pass
-
-            elif method == 'server.peers.subscribe':
-                servers = []
-                for item in result:
-                    s = []
-                    host = item[1]
-                    ports = []
-                    version = None
-                    if len(item) > 2:
-                        for v in item[2]:
-                            if re.match("[stgh]\d+", v):
-                                ports.append((v[0], v[1:]))
-                            if re.match("v(.?)+", v):
-                                version = v[1:]
-                    if ports and version:
-                        servers.append((host, ports))
-                self.interface.servers = servers
-                self.interface.trigger_callback('peers')
 
             elif method == 'server.banner':
                 self.wallet.banner = result

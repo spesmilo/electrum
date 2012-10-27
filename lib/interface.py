@@ -88,6 +88,28 @@ class Interface(threading.Thread):
             with self.lock: 
                 method, params, channel = self.unanswered_requests.pop(msg_id)
             result = c.get('result')
+
+            if method == 'server.version':
+                self.server_version = result
+
+            elif method == 'server.peers.subscribe':
+                servers = []
+                for item in result:
+                    s = []
+                    host = item[1]
+                    ports = []
+                    version = None
+                    if len(item) > 2:
+                        for v in item[2]:
+                            if re.match("[stgh]\d+", v):
+                                ports.append((v[0], v[1:]))
+                            if re.match("v(.?)+", v):
+                                version = v[1:]
+                    if ports and version:
+                        servers.append((host, ports))
+                self.servers = servers
+                self.trigger_callback('peers')
+
         else:
             # notification: find the channel(s)
             method = c.get('method')
