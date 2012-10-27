@@ -66,15 +66,16 @@ class WalletVerifier(threading.Thread):
 
         while True:
             # request missing chunks
-            max_index = (self.height+1)/2016
             if not all_chunks and self.height and not requested_chunks:
-                for i in range(0, max_index + 1):
-                    # test if we can read the first header of the chunk
-                    if self.read_header(i*2016): continue
-                    # print "requesting chunk", i
-                    self.interface.send([ ('blockchain.block.get_chunk',[i])], 'verifier')
-                    requested_chunks.append(i)
-                    break
+
+                if self.local_height + 50 < self.height:
+                    min_index = (self.local_height + 1)/2016
+                    max_index = (self.height + 1)/2016
+                    for i in range(min_index, max_index + 1):
+                        # print "requesting chunk", i
+                        self.interface.send([ ('blockchain.block.get_chunk',[i])], 'verifier')
+                        requested_chunks.append(i)
+                        break
                 else:
                     all_chunks = True
                     print_error("downloaded all chunks")
