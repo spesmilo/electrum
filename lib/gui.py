@@ -669,6 +669,10 @@ class ElectrumWindow:
         self.context_id = self.status_bar.get_context_id("statusbar")
         self.update_status_bar()
 
+        self.wallet_updated = False
+        self.wallet.interface.register_callback('updated', self.update_callback)
+
+
         def update_status_bar_thread():
             while True:
                 gobject.idle_add( self.update_status_bar )
@@ -699,6 +703,9 @@ class ElectrumWindow:
         if self.wallet.seed:
             thread.start_new_thread(check_recipient_thread, ())
         self.notebook.set_current_page(0)
+
+    def update_callback(self):
+        self.wallet_updated = True
 
 
     def add_tab(self, page, name):
@@ -1182,13 +1189,12 @@ class ElectrumWindow:
         self.status_bar.pop(self.context_id) 
         self.status_bar.push(self.context_id, text)
 
-        if self.wallet.was_updated and self.wallet.up_to_date:
+        if self.wallet.up_to_date and self.wallet_updated:
             self.update_history_tab()
             self.update_receiving_tab()
             # addressbook too...
             self.info.set_text( self.wallet.banner )
-            self.wallet.was_updated = False
-        
+            self.wallet_updated = False
 
     def update_receiving_tab(self):
         self.recv_list.clear()

@@ -77,7 +77,6 @@ class Wallet:
         # not saved
         self.receipt = None          # next receipt
         self.tx_history = {}
-        self.was_updated = True
         self.banner = ''
 
         # spv
@@ -838,6 +837,7 @@ class WalletSynchronizer(threading.Thread):
         self.interface.register_channel('synchronizer')
         self.wallet.interface.register_callback('connected', self.wallet.init_up_to_date)
         self.wallet.interface.register_callback('connected', lambda: self.interface.send([('server.banner',[])],'synchronizer') )
+        self.was_updated = True
 
     def synchronize_wallet(self):
         new_addresses = self.wallet.synchronize()
@@ -847,12 +847,12 @@ class WalletSynchronizer(threading.Thread):
         if self.interface.is_up_to_date('synchronizer'):
             if not self.wallet.up_to_date:
                 self.wallet.up_to_date = True
-                self.wallet.was_updated = True
+                self.was_updated = True
                 self.wallet.up_to_date_event.set()
         else:
             if self.wallet.up_to_date:
                 self.wallet.up_to_date = False
-                self.wallet.was_updated = True
+                self.was_updated = True
 
 
 
@@ -879,9 +879,9 @@ class WalletSynchronizer(threading.Thread):
             # 1. send new requests
             self.synchronize_wallet()
 
-            if self.wallet.was_updated:
+            if self.was_updated:
                 self.interface.trigger_callback('updated')
-                self.wallet.was_updated = False
+                self.was_updated = False
 
             # 2. get a response
             r = self.interface.get_response('synchronizer')
@@ -900,7 +900,7 @@ class WalletSynchronizer(threading.Thread):
             elif method == 'blockchain.address.get_history':
                 addr = params[0]
                 self.wallet.receive_history_callback(addr, result)
-                self.wallet.was_updated = True
+                self.was_updated = True
 
             elif method == 'blockchain.transaction.broadcast':
                 self.wallet.tx_result = result
@@ -908,13 +908,13 @@ class WalletSynchronizer(threading.Thread):
 
             elif method == 'server.banner':
                 self.wallet.banner = result
-                self.wallet.was_updated = True
+                self.was_updated = True
 
             else:
                 print_error("Error: Unknown message:" + method + ", " + repr(params) + ", " + repr(result) )
 
-            if self.wallet.was_updated:
+            if self.was_updated:
                 self.interface.trigger_callback('updated')
-                self.wallet.was_updated = False
+                self.was_updated = False
 
 

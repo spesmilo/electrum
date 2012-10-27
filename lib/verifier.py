@@ -219,7 +219,7 @@ class WalletVerifier(threading.Thread):
             return False
 
         self.save_header(header)
-        print_error("verify header: ok %d"%height)
+        print_error("verify header:", _hash, height)
         return True
         
 
