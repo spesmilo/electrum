@@ -470,7 +470,7 @@ class Interface(threading.Thread):
             print "changing server:", server, proxy
             self.server = server
             self.proxy = proxy
-            if self.protocol in 'st':
+            if self.protocol in 'st' and self.s:
                 self.s.shutdown(socket.SHUT_RDWR)
                 self.s.close()
             self.is_connected = False  # this exits the polling loop
