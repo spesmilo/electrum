@@ -256,15 +256,20 @@ class Interface(threading.Thread):
         try:
             out = ''
             while self.is_connected:
+
                 try: 
+                    timeout = False
                     msg = self.s.recv(1024)
                 except socket.timeout:
+                    timeout = True
+                except ssl.SSLError:
+                    timeout = True
+
+                if timeout:
                     # ping the server with server.version, as a real ping does not exist yet
                     self.send([('server.version', [ELECTRUM_VERSION])])
                     continue
-                except ssl.SSLError:
-                    self.send([('server.version', [ELECTRUM_VERSION])])
-                    continue
+
                 out += msg
                 self.bytes_received += len(msg)
                 if msg == '': 
