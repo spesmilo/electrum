@@ -212,7 +212,10 @@ if __name__ == '__main__':
 
         verifier = WalletVerifier(interface, config)
         wallet.set_verifier(verifier)
-        verifier.start()
+        if not config.get('disable_spv'): 
+            verifier.start()
+        else:
+            print "warning: SPV is disabled"
 
         gui.main(url)
         wallet.save()
