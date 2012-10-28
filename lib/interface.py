@@ -422,7 +422,9 @@ class Interface(threading.Thread):
             with self.lock:
                 if self.subscriptions.get(channel) is None: 
                     self.subscriptions[channel] = []
-                self.subscriptions[channel] += sub
+                for message in sub:
+                    if message not in self.subscriptions[channel]:
+                        self.subscriptions[channel].append(message)
 
         if self.protocol in 'st':
             with self.lock:
