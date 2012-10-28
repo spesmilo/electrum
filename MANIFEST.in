@@ -10,5 +10,13 @@ include app.fil
 include icons.qrc
 recursive-include icons *
 include scripts
-recursive_include scripts/*
+include scripts/blocks
+include scripts/get_history
+include scripts/merchant.conf.template
+include scripts/merchant.py
+include scripts/merchant.readme
+include scripts/peers
+include scripts/servers
+include scripts/validate_tx
+include scripts/watch_address
 recursive-include data *
