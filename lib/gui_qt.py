@@ -1296,7 +1296,7 @@ class ElectrumWindow(QMainWindow):
         gui_label=QLabel(_('Default GUI') + ':')
         grid.addWidget(gui_label , 7, 0)
         gui_combo = QComboBox()
-        gui_combo.addItems(['Lite', 'Classic', 'Gtk', 'Text'])
+        gui_combo.addItems(['Lite', 'Classic', 'Gtk'])
         index = gui_combo.findText(self.config.get("gui","classic").capitalize())
         if index==-1: index = 1
         gui_combo.setCurrentIndex(index)
