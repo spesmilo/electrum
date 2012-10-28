@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
-import electrum
+import sys, electrum
 
 i = electrum.Interface()
+i.register_callback('connected', lambda: sys.stderr.write("Connected to %s\n" % i.connection_msg))
 i.start()
 i.send([('blockchain.numblocks.subscribe',[])])
 
