@@ -14,8 +14,9 @@ for line in lines:
     if not l: continue
     if l[0] != '*': continue
     if l[0:2] == '**':
-        lang, translation = l.split(':')
-        lang = lang[2:]
+        n = l.find(':')
+        translation = l[n+1:]
+        lang = l[2:n]
         if dicts.get(lang) is None: dicts[lang] = {}
         dicts[lang][message] = translation.strip()
     else:
