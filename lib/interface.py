@@ -187,7 +187,7 @@ class Interface(threading.Thread):
         
         if self.proxy:
             import socks
-            socks.setdefaultproxy(proxy_modes.index(self.proxy["mode"]), self.proxy["host"], int(self.proxy["port"]) )
+            socks.setdefaultproxy(proxy_modes.index(self.proxy["mode"]) + 1, self.proxy["host"], int(self.proxy["port"]) )
             socks.wrapmodule(urllib2)
 
         cj = cookielib.CookieJar()
@@ -256,7 +256,7 @@ class Interface(threading.Thread):
             self.connection_msg += " using proxy %s:%s:%s"%(self.proxy.get('mode'), self.proxy.get('host'), self.proxy.get('port'))
             import socks
             s = socks.socksocket()
-            s.setproxy(proxy_modes.index(self.proxy["mode"]), self.proxy["host"], int(self.proxy["port"]) )
+            s.setproxy(proxy_modes.index(self.proxy["mode"]) + 1, self.proxy["host"], int(self.proxy["port"]) )
 
         if self.use_ssl:
             s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23)
