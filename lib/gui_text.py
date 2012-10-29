@@ -17,6 +17,7 @@ class ElectrumGui:
         self.stdscr.border(0)
         self.maxy, self.maxx = self.stdscr.getmaxyx()
         set_verbosity(False)
+        self.tab = 0
         
     def server_list_changed(self):
         pass
@@ -49,7 +50,14 @@ class ElectrumGui:
         if u:
             msg += "  [%f unconfirmed]"%(Decimal( u ) / 100000000)
         self.stdscr.addstr( self.maxy -3, 2, msg)
-        self.stdscr.addstr( self.maxy -1, 1, " History Send Receive Contacts Quit ")
+
+        tab_names = ["History", "Send", "Receive", "Contacts"]
+        for i in range(4):
+            self.stdscr.addstr( 0, 2+9*i, tab_names[i], curses.A_BOLD if self.tab == i else 0)
+            
+        self.stdscr.addstr( self.maxy -1, self.maxx-30, " Settings Network Quit ")
+
+        
 
     def print_contacts(self):
         messages = map(lambda addr: "%30s    %30s       "%(addr, self.wallet.labels.get(addr,"")), self.wallet.addressbook)
@@ -65,6 +73,7 @@ class ElectrumGui:
         self.stdscr.addstr( 5, 2, "Description")
         self.stdscr.addstr( 7, 2, "Amount")
         self.stdscr.addstr( 9, 2, "Fee")
+        return
         
         while True:
             curses.echo()
@@ -84,6 +93,7 @@ class ElectrumGui:
             self.stdscr.addstr( i+2, 1, msg[0:self.maxx - 2])
 
     def refresh(self):
+        self.stdscr.border(0)
         self.print_balance()
         self.stdscr.refresh()
 
@@ -93,12 +103,23 @@ class ElectrumGui:
 
         while 1:
             c = self.stdscr.getch()
-            if c == ord('h'): self.print_history()
-            if c == ord('c'): self.print_contacts()
-            if c == ord('r'): self.print_receive()
-            if c == ord('s'): self.print_send_dialog()
+            if c == curses.KEY_RIGHT: self.tab = (self.tab + 1)%4
+            if c == curses.KEY_LEFT: self.tab = (self.tab - 1)%4
+            elif c == ord('h'): self.tab = 0
+            elif c == ord('s'): self.tab = 1
+            elif c == ord('r'): self.tab = 2
+            elif c == ord('c'): self.tab = 3
             elif c == ord('q'): break
             elif c == curses.KEY_HOME: x = y = 0
+
+            if self.tab == 0:
+                self.print_history()
+            elif self.tab == 1:
+                self.print_send_dialog()
+            elif self.tab == 2:
+                self.print_receive()
+            else:
+                self.print_contacts()
             self.refresh()
 
         curses.nocbreak();
