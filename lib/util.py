@@ -1,7 +1,14 @@
 import os, sys
 import platform
 
+is_verbose = True
+
+def set_verbosity(b):
+    global is_verbose
+    is_verbose = b
+
 def print_error(*args):
+    if not is_verbose: return
     # Stringify args
     args = [str(item) for item in args]
     sys.stderr.write(" ".join(args) + "\n")

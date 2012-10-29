@@ -215,7 +215,7 @@ class WalletVerifier(threading.Thread):
             # undo verifications
             for tx_hash, tx_height in self.verified_tx.items():
                 if tx_height >= height:
-                    print "redoing", tx_hash
+                    print_error("redoing", tx_hash)
                     self.verified_tx.pop(tx_hash)
                     if tx_hash in self.merkle_roots: self.merkle_roots.pop(tx_hash)
             # return False to request previous header.
@@ -269,7 +269,7 @@ class WalletVerifier(threading.Thread):
         if os.path.exists(filename):
             f = open(filename,'rb+')
         else:
-            print "creating file", filename
+            print_error( "creating file", filename )
             f = open(filename,'wb+')
         f.seek(index*2016*80)
         h = f.write(chunk)
