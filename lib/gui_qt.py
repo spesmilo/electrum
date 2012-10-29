@@ -437,7 +437,9 @@ class ElectrumWindow(QMainWindow):
             if tx['height']:
                 conf = self.wallet.verifier.get_confirmations(tx_hash)
                 time_str = datetime.datetime.fromtimestamp( tx['timestamp']).isoformat(' ')[:-3]
-                if conf < 6:
+                if conf == 0:
+                    icon = QIcon(":icons/unconfirmed.png")
+                elif conf < 6:
                     icon = QIcon(":icons/clock%d.png"%conf)
                 else:
                     icon = QIcon(":icons/confirmed.png")

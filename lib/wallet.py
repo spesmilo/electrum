@@ -519,13 +519,15 @@ class Wallet:
                 tx_hash = tx['tx_hash']
                 line = self.tx_history.get(tx_hash)
                 if not line:
-                    if self.verifier: self.verifier.add(tx_hash)
                     self.tx_history[tx_hash] = copy.copy(tx)
                     line = self.tx_history.get(tx_hash)
                 else:
                     line['value'] += tx['value']
                 if line['height'] == 0:
                     line['timestamp'] = 1e12
+                else:
+                    if self.verifier: self.verifier.add(tx_hash)
+                    
         self.update_tx_labels()
 
     def update_tx_labels(self):
@@ -816,11 +818,7 @@ class Wallet:
 
     def set_verifier(self, verifier):
         self.verifier = verifier
-        with self.lock:
-            for tx in self.tx_history.keys():
-                self.verifier.add(tx)
-        
-
+        self.update_tx_history()
 
 
 

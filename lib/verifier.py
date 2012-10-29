@@ -46,8 +46,10 @@ class WalletVerifier(threading.Thread):
     def get_confirmations(self, tx):
         """ return the number of confirmations of a monitored transaction. """
         with self.lock:
-            assert tx in self.transactions
-            return (self.local_height - self.verified_tx[tx] + 1) if tx in self.verified_tx else 0
+            if tx in self.transactions:
+                return (self.local_height - self.verified_tx[tx] + 1) if tx in self.verified_tx else 0
+            else:
+                return 0
 
     def add(self, tx):
         """ add a transaction to the list of monitored transactions. """
