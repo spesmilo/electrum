@@ -43,7 +43,7 @@ class ElectrumGui:
         self.tab_names = [_("History"), _("Send"), _("Receive"), _("Contacts"), _("Wall")]
         self.num_tabs = len(self.tab_names)
         curses.curs_set(0)
-        if not self.w: self.w = curses.newwin(10, 30, 5, 5)
+        if not self.w: self.w = curses.newwin(10, 50, 5, 5)
         
     def server_list_changed(self):
         pass
@@ -165,10 +165,6 @@ class ElectrumGui:
 
             if   c == curses.KEY_RIGHT: self.tab = (self.tab + 1)%self.num_tabs
             elif c == curses.KEY_LEFT: self.tab = (self.tab - 1)%self.num_tabs
-            elif c == ord('h'): self.tab = 0
-            elif c == ord('s'): self.tab = 1
-            elif c == ord('r'): self.tab = 2
-            elif c == ord('c'): self.tab = 3
                 
             elif c == curses.KEY_DOWN: self.pos +=1
             elif c == curses.KEY_UP: self.pos -= 1
@@ -196,6 +192,7 @@ class ElectrumGui:
         self.stdscr.keypad(0);
         curses.echo()            
         curses.endwin()
+
 
     def exec_popup(self):
         if self.tab == 0:
@@ -240,15 +237,6 @@ class ElectrumGui:
         else:
             password = None
 
-    def password_dialog(self):
-        w = self.w
-        w.clear()
-        w.border(0)
-        self.print_edit_line(9, _("Password"), self.str_fee, 3, 15)
-
-        if answer: return items[self.popup_pos%(len(items))]
-
-
 
     def show_message(self, message):
         w = self.w
@@ -260,6 +248,7 @@ class ElectrumGui:
 
 
     def run_popup(self, text, items):
+        "multiple choices"
         w = self.w
         while True:
             w.clear()
@@ -284,7 +273,106 @@ class ElectrumGui:
 
 
     def network_dialog(self):
-        pass
+        out = self.run_dialog('Network', [
+            {'label':'server', 'type':'str', 'value':self.wallet.interface.server},
+            {'label':'proxy', 'type':'str', 'value':self.config.get('proxy')},
+            ])
+        if out:
+            if out.get('server'):  self.wallet.interface.set_server(out.get('server'))
 
     def settings_dialog(self):
-        pass
+        out = self.run_dialog('Settings', [
+            {'label':'Default GUI', 'type':'list', 'choices':['classic','lite','gtk','text'], 'value':self.config.get('gui')},
+            {'label':'Default fee', 'type':'satoshis', 'value':self.config.get('fee')}
+            ])
+        if out:
+            if out.get('Default GUI'): self.config.set_key('gui', out['Default GUI'], True)
+
+    def password_dialog(self):
+        out = self.run_dialog('Password', [
+            {'label':'Password', 'type':'str'}
+            ])
+        return out
+        
+                              
+
+
+    def run_dialog(self, title, items):
+        w = self.w
+        #items.append({'label':'cancel','type':'button'})
+        items.append({'label':' ok ','type':'button'})
+        out = {}
+        while True:
+            w.clear()
+            w.border(0)
+            w.addstr( 0, 2, title)
+
+            num = len(items)
+            for i in range(num):
+                item = items[i]
+                label = item.get('label')
+                if item.get('type') == 'list':
+                    value = item.get('value','')
+                elif item.get('type') == 'satoshis':
+                    value = format_satoshis(item.get('value'))
+                elif item.get('type') == 'str':
+                    value = item.get('value','')
+                else:
+                    value = None
+                if value:
+                    w.addstr( 2+2*i, 2, label)
+                    w.addstr( 2+2*i, 15, value, curses.A_REVERSE if self.popup_pos%num==i else curses.color_pair(1) )
+                else:
+                    w.addstr( 2+2*i, 15, label, curses.A_REVERSE if self.popup_pos%num==i else 0)
+                
+            w.refresh()
+
+            c = self.stdscr.getch()
+            if c in [ord('q'), 27]: break
+            elif c == curses.KEY_UP: self.popup_pos -= 1
+            elif c == curses.KEY_DOWN: self.popup_pos +=1
+            elif c == 10:
+                i = self.popup_pos%num
+                item = items[i]
+                _type = item.get('type')
+                if _type == 'str':
+                    curses.curs_set(1)
+                    curses.echo()
+                    s = w.getstr(2+2*i, 15)
+                    curses.noecho()
+                    curses.curs_set(0)
+                    item['value'] = s
+                    out[item.get('label')] = item.get('value')
+
+                elif _type == 'satoshis':
+                    curses.curs_set(1)
+                    curses.echo()
+                    s = w.getstr(2+2*i, 15)
+                    curses.noecho()
+                    curses.curs_set(0)
+                    try:
+                        s = int( Decimal(s)*100000000 )
+                        item['value'] = s
+                        out[item.get('label')] = item.get('value')
+                    except:
+                        pass
+                elif _type == 'list':
+                    choices = item.get('choices')
+                    try:
+                        j = choices.index(item.get('value'))
+                    except:
+                        j = 0
+                    new_choice = choices[(j + 1)% len(choices)]
+                    item['value'] = new_choice
+                    out[item.get('label')] = item.get('value')
+                    
+
+                elif _type == 'button':
+                    break
+
+        
+        return out
+
+
+
+
