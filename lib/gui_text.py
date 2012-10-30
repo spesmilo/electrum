@@ -92,7 +92,7 @@ class ElectrumGui:
         self.stdscr.addstr( self.maxy -1, 3, msg)
 
         for i in range(self.num_tabs):
-            self.stdscr.addstr( 0, 2 + 2*i + len(''.join(self.tab_names[0:i])), self.tab_names[i], curses.A_BOLD if self.tab == i else 0)
+            self.stdscr.addstr( 0, 2 + 2*i + len(''.join(self.tab_names[0:i])), ' '+self.tab_names[i]+' ', curses.A_BOLD if self.tab == i else 0)
             
         self.stdscr.addstr( self.maxy -1, self.maxx-30, ' '.join([_("Settings"), _("Network"), _("Quit")]))
 
