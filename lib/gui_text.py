@@ -46,6 +46,17 @@ class ElectrumGui:
     def restore_or_create(self):
         pass
 
+
+    def get_string(self, y, x):
+        curses.curs_set(1)
+        curses.echo()
+        self.stdscr.addstr( y, x, " "*20, curses.A_REVERSE)
+        s = self.stdscr.getstr(y,x)
+        curses.noecho()
+        curses.curs_set(0)
+        return s
+
+
     def print_history(self):
         width = [20, 40, 14, 14]
         delta = (self.maxx - sum(width) - 4)/3
@@ -186,18 +197,20 @@ class ElectrumGui:
             
     def run_receive_tab(self, c):
         if c == 10:
-            out = self.run_popup('Address', ["Edit label","Freeze","Prioritize"])
+            out = self.run_popup('Address', ["Edit label", "Freeze", "Prioritize"])
             
     def run_contacts_tab(self, c):
         if c == 10:
             out = self.run_popup('Adress', ["Copy", "Pay to", "Edit label", "Delete"]).get('button')
+            address = self.wallet.addressbook[self.pos%len(self.wallet.addressbook)]
             if out == "Pay to":
                 self.tab = 1
-                self.str_recipient = self.wallet.addressbook[self.pos%len(self.wallet.addressbook)]
+                self.str_recipient = address 
                 self.pos = 2
             elif out == "Edit label":
-                s = self.stdscr.getstr(3+i, 15)
-                pass
+                s = self.get_string(6 + self.pos, 18)
+                if s:
+                    self.wallet.labels[address] = s
             
     def run_banner_tab(self, c):
         pass
@@ -319,12 +332,7 @@ class ElectrumGui:
                 item = items[i]
                 _type = item.get('type')
                 if _type == 'str':
-                    curses.curs_set(1)
-                    curses.echo()
-                    s = w.getstr(2+2*i, 15)
-                    curses.noecho()
-                    curses.curs_set(0)
-                    item['value'] = s
+                    item['value'] = self.get_string(2+2*i, 15)
                     out[item.get('label')] = item.get('value')
 
                 elif _type == 'satoshis':
