@@ -5,7 +5,6 @@ _ = lambda x:x
 from util import format_satoshis, set_verbosity
 
 
-EMPTY = " "*15
 
 class ElectrumGui:
 
@@ -19,7 +18,10 @@ class ElectrumGui:
         
         curses.noecho()
         curses.cbreak()
-        #curses.start_color()
+        curses.start_color()
+        curses.use_default_colors()
+        curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLUE)
+        
         self.stdscr.keypad(1)
         self.stdscr.border(0)
         self.maxy, self.maxx = self.stdscr.getmaxyx()
@@ -28,12 +30,11 @@ class ElectrumGui:
         self.pos = 0
         self.popup_pos = 0
         self.w = None
-        self.is_popup = False
 
-        self.str_recipient = EMPTY
-        self.str_description = EMPTY
-        self.str_amount = EMPTY
-        self.str_fee = EMPTY
+        self.str_recipient = ""
+        self.str_description = ""
+        self.str_amount = ""
+        self.str_fee = ""
         
         self.wallet.interface.register_callback('updated', self.refresh)
         self.wallet.interface.register_callback('connected', self.refresh)
@@ -42,6 +43,7 @@ class ElectrumGui:
         self.tab_names = [_("History"), _("Send"), _("Receive"), _("Contacts"), _("Wall")]
         self.num_tabs = len(self.tab_names)
         curses.curs_set(0)
+        if not self.w: self.w = curses.newwin(10, 30, 5, 5)
         
     def server_list_changed(self):
         pass
@@ -103,23 +105,20 @@ class ElectrumGui:
         messages = map(lambda addr: "%30s    %30s       "%(addr, self.wallet.labels.get(addr,"")), self.wallet.addresses)
         self.print_list(messages, "%19s  %25s "%("Address", "Label"))
 
-    def print_send_dialog(self):
+    def print_edit_line(self, y, label, text, index, size):
+        text += " "*(size - len(text) )
+        self.stdscr.addstr( y, 2, label)
+        self.stdscr.addstr( y, 15, text, curses.A_REVERSE if self.pos%5==index else curses.color_pair(1))
+
+    def print_send_tab(self):
         self.stdscr.clear()
-        self.stdscr.addstr( 3, 2, _("Pay to"))
-        self.stdscr.addstr( 3, 15, self.str_recipient, curses.A_REVERSE if self.pos%5==0 else 0)
+        self.print_edit_line(3, _("Pay to"), self.str_recipient, 0, 40)
+        self.print_edit_line(5, _("Description"), self.str_description, 1, 40)
+        self.print_edit_line(7, _("Amount"), self.str_amount, 2, 15)
+        self.print_edit_line(9, _("Fee"), self.str_fee, 3, 15)
+        self.stdscr.addstr( 12, 15, _("Send"), curses.A_REVERSE if self.pos%5==4 else 0)
 
-        self.stdscr.addstr( 5, 2, _("Description"))
-        self.stdscr.addstr( 5, 15, self.str_description, curses.A_REVERSE if self.pos%5==1 else 0)
-
-        self.stdscr.addstr( 7, 2, _("Amount"))
-        self.stdscr.addstr( 7, 15, self.str_amount, curses.A_REVERSE if self.pos%5==2 else 0)
-
-        self.stdscr.addstr( 9, 2, _("Fee"))
-        self.stdscr.addstr( 9, 15, self.str_fee, curses.A_REVERSE if self.pos%5==3 else 0)
-
-        self.stdscr.addstr( 11, 15, _("Send"), curses.A_REVERSE if self.pos%5==4 else 0)
-
-    def exec_send(self):
+    def getstr_send(self):
         curses.curs_set(1)
         curses.echo()
         if self.pos%5==0:
@@ -138,7 +137,7 @@ class ElectrumGui:
             pass
         curses.noecho()
         curses.curs_set(0)
-        self.print_send_dialog()
+        self.print_send_tab()
 
     def print_banner(self):
         self.stdscr.clear()
@@ -161,61 +160,36 @@ class ElectrumGui:
         self.print_history()
         self.refresh()
 
-        self.is_popup = False
-        while 1:
+        while True:
             c = self.stdscr.getch()
 
-            if not self.is_popup:
-                if   c == curses.KEY_RIGHT: self.tab = (self.tab + 1)%self.num_tabs
-                elif c == curses.KEY_LEFT: self.tab = (self.tab - 1)%self.num_tabs
-                elif c == ord('h'): self.tab = 0
-                elif c == ord('s'): self.tab = 1
-                elif c == ord('r'): self.tab = 2
-                elif c == ord('c'): self.tab = 3
+            if   c == curses.KEY_RIGHT: self.tab = (self.tab + 1)%self.num_tabs
+            elif c == curses.KEY_LEFT: self.tab = (self.tab - 1)%self.num_tabs
+            elif c == ord('h'): self.tab = 0
+            elif c == ord('s'): self.tab = 1
+            elif c == ord('r'): self.tab = 2
+            elif c == ord('c'): self.tab = 3
+                
+            elif c == curses.KEY_DOWN: self.pos +=1
+            elif c == curses.KEY_UP: self.pos -= 1
+            elif c == 9: self.pos +=1 # tab
 
-                elif c == curses.KEY_DOWN: self.pos +=1
-                elif c == curses.KEY_UP: self.pos -= 1
-                elif c == 9: self.pos +=1 # tab
+            elif c in [27, ord('q')]: break
+            elif c == 10: self.exec_popup()
 
-                elif c in [27, ord('q')]: break
-                elif c == 10: self.is_popup = True
+            elif c == ord('n'): self.network_dialog()
+            elif c == ord('s'): self.settings_dialog()
 
-                elif c == ord('n'): self.network_dialog()
-                elif c == ord('s'): self.settings_dialog()
-
+            if self.tab == 0:
+                self.print_history()
+            elif self.tab == 1:
+                self.print_send_tab()
+            elif self.tab == 2:
+                self.print_receive()
+            elif self.tab == 3:
+                self.print_contacts()
             else:
-                if c == 10: self.is_popup = False
-                elif c == 27: self.is_popup = False
-                elif c == curses.KEY_UP: self.popup_pos -= 1
-                elif c == curses.KEY_DOWN: self.popup_pos +=1
-                #else: raise BaseException("zz %d"%c)
-
-            if self.is_popup:
-                if self.tab == 0:
-                    self.context_popup('',["blah","foo"])
-                elif self.tab == 1 and self.pos%5==4:
-                    self.context_popup('Pay?',["Pay","Cancel"])
-                elif self.tab == 2:
-                    self.context_popup('', ["blah"])
-                elif self.tab == 3:
-                    self.context_popup('', ["Pay to"])
-                else:
-                    self.exec_send()
-                    self.is_popup = False
-                    #self.print_send_dialog()
-                    
-            else:
-                if self.tab == 0:
-                    self.print_history()
-                elif self.tab == 1:
-                    self.print_send_dialog()
-                elif self.tab == 2:
-                    self.print_receive()
-                elif self.tab == 3:
-                    self.print_contacts()
-                else:
-                    self.print_banner()
-
+                self.print_banner()
             self.refresh()
 
         curses.nocbreak();
@@ -223,20 +197,91 @@ class ElectrumGui:
         curses.echo()            
         curses.endwin()
 
-    def context_popup(self, text, items):
-        if not self.w: self.w = curses.newwin(10, 30, 5, 5)
+    def exec_popup(self):
+        if self.tab == 0:
+            out = self.run_popup('',["blah","foo"])
+        elif self.tab == 1:
+            if self.pos%5==4:
+                self.do_send()
+            else:
+                self.getstr_send()
+                self.print_send_tab()
+        elif self.tab == 2:
+            out = self.run_popup('', ["blah"])
+        elif self.tab == 3:
+            out = self.run_popup('', ["Pay to","Edit label"])
+            if out == "Pay to":
+                self.tab = 1
+                self.str_recipient = self.wallet.addressbook[self.pos%len(self.wallet.addressbook)]
+                self.pos = 2
+                
+
+
+
+    def do_send(self):
+        if not self.wallet.is_valid(self.str_recipient):
+            self.show_message(_('Invalid Bitcoin address'))
+            return
+        try:
+            amount = int( Decimal( self.str_amount) * 100000000 )
+        except:
+            self.show_message(_('Invalid Amount'))
+            return
+        try:
+            fee = int( Decimal( self.str_fee) * 100000000 )
+        except:
+            self.show_message(_('Invalid Fee'))
+            return
+
+        if self.wallet.use_encryption:
+            password = self.password_dialog()
+            if not password:
+                return
+        else:
+            password = None
+
+    def password_dialog(self):
         w = self.w
         w.clear()
         w.border(0)
+        self.print_edit_line(9, _("Password"), self.str_fee, 3, 15)
 
-        w.addstr( 2,2,text)
-        
-        for i in range(len(items)):
-            item = items[i]
-            w.addstr( 4 + 2*i, 2, item, curses.A_REVERSE if self.popup_pos%(len(items))==i else 0)
-            
+        if answer: return items[self.popup_pos%(len(items))]
 
+
+
+    def show_message(self, message):
+        w = self.w
+        w.clear()
+        w.border(0)
+        w.addstr(2,2,message)
         w.refresh()
+        c = self.stdscr.getch()
+
+
+    def run_popup(self, text, items):
+        w = self.w
+        while True:
+            w.clear()
+            w.border(0)
+            w.addstr(2,2,text)
+            for i in range(len(items)):
+                item = items[i]
+                w.addstr( 4 + i, 2, item, curses.A_REVERSE if self.popup_pos%(len(items))==i else 0)
+            w.refresh()
+
+            answer = False
+            c = self.stdscr.getch()
+            if c == 10:
+                answer = True
+                break
+            elif c == 27:
+                break
+            elif c == curses.KEY_UP: self.popup_pos -= 1
+            elif c == curses.KEY_DOWN: self.popup_pos +=1
+
+        if answer: return items[self.popup_pos%(len(items))]
+
 
     def network_dialog(self):
         pass
