@@ -1374,6 +1374,7 @@ class ElectrumWindow(QMainWindow):
 
         server = interface.server
 
+        plist = {}
         if not wallet.interface.servers:
             servers_list = []
             for x in DEFAULT_SERVERS:
@@ -1381,15 +1382,13 @@ class ElectrumWindow(QMainWindow):
                 servers_list.append( (h,[(protocol,port)] ) )
         else:
             servers_list = wallet.interface.servers
-            
-        plist = {}
-        for item in servers_list:
-            _host, pp = item
-            z = {}
-            for item2 in pp:
-                _protocol, _port = item2
-                z[_protocol] = _port
-            plist[_host] = z
+            for item in servers_list:
+                _host, pp = item
+                z = {}
+                for item2 in pp:
+                    _protocol, _port = item2
+                    z[_protocol] = _port
+                plist[_host] = z
 
         d = QDialog(parent)
         d.setModal(1)
@@ -1403,7 +1402,7 @@ class ElectrumWindow(QMainWindow):
         l = QLabel()
         l.setPixmap(QPixmap(":icons/network.png"))
         hbox.addStretch(10)
-        hbox.addWidget(l)        
+        hbox.addWidget(l)
         hbox.addWidget(QLabel(status))
         hbox.addStretch(50)
         vbox.addLayout(hbox)
@@ -1423,6 +1422,7 @@ class ElectrumWindow(QMainWindow):
 
         protocol_names = ['TCP', 'HTTP', 'TCP/SSL', 'HTTPS']
         protocol_letters = 'thsg'
+        DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
         server_protocol.addItems(protocol_names)
 
         grid.addWidget(QLabel(_('Server') + ':'), 0, 0)
@@ -1435,7 +1435,7 @@ class ElectrumWindow(QMainWindow):
         def change_protocol(p):
             protocol = protocol_letters[p]
             host = unicode(server_host.text())
-            pp = plist[host]
+            pp = plist.get(host,DEFAULT_PORTS)
             if protocol not in pp.keys():
                 protocol = pp.keys()[0]
             port = pp[protocol]
@@ -1448,32 +1448,29 @@ class ElectrumWindow(QMainWindow):
         servers_list_widget = QTreeWidget(parent)
         servers_list_widget.setHeaderLabels( [ label ] )
         servers_list_widget.setMaximumHeight(150)
-        for _host in plist.keys():
+        for _host, _x in servers_list:
             servers_list_widget.addTopLevelItem(QTreeWidgetItem( [ _host ] ))
 
 
         def change_server(host, protocol=None):
-            pp = plist.get(host,{})
+            pp = plist.get(host,DEFAULT_PORTS)
             if protocol:
                 port = pp.get(protocol)
                 if not port: protocol = None
                     
             if not protocol:
-                if not pp:
-                    protocol = 't'
-                    port = '50001'
-                elif 't' in pp.keys():
+                if 't' in pp.keys():
                     protocol = 't'
                     port = pp.get(protocol)
                 else:
                     protocol = pp.keys()[0]
                     port = pp.get(protocol)
-
             
             server_host.setText( host )
             server_port.setText( port )
             server_protocol.setCurrentIndex(protocol_letters.index(protocol))
 
+            if not plist: return
             for p in protocol_letters:
                 i = protocol_letters.index(p)
                 j = server_protocol.model().index(i,0)
@@ -1482,9 +1479,8 @@ class ElectrumWindow(QMainWindow):
                 else:
                     server_protocol.model().setData(j, QtCore.QVariant(0,False), QtCore.Qt.UserRole-1)
 
+
         change_server(host,protocol)
-
-
         servers_list_widget.connect(servers_list_widget, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), lambda x: change_server(unicode(x.text(0))))
         grid.addWidget(servers_list_widget, 1, 1, 1, 3)
 
