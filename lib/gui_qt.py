@@ -330,7 +330,7 @@ class ElectrumWindow(QMainWindow):
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
     def tx_details(self, tx_hash):
-        tx = self.wallet.tx_history.get(tx_hash)
+        tx = self.wallet.transactions.get(tx_hash)
 
         if tx['height']:
             conf = self.wallet.verifier.get_confirmations(tx_hash)
@@ -371,7 +371,7 @@ class ElectrumWindow(QMainWindow):
             return
         self.is_edit=True
         tx_hash = str(item.toolTip(0))
-        tx = self.wallet.tx_history.get(tx_hash)
+        tx = self.wallet.transactions.get(tx_hash)
         s = self.wallet.labels.get(tx_hash)
         text = unicode( item.text(2) )
         if text: 
@@ -447,11 +447,12 @@ class ElectrumWindow(QMainWindow):
                 conf = 0
                 time_str = 'pending'
                 icon = QIcon(":icons/unconfirmed.png")
-            v = tx['value']
+            v = self.wallet.get_tx_value(tx_hash)
             balance += v 
             label = self.wallet.labels.get(tx_hash)
             is_default_label = (label == '') or (label is None)
-            if is_default_label: label = tx['default_label']
+            if is_default_label:
+                label = self.wallet.get_default_label(tx_hash)
 
             item = QTreeWidgetItem( [ '', time_str, label, format_satoshis(v,True,self.wallet.num_zeros), format_satoshis(balance,False,self.wallet.num_zeros)] )
             item.setFont(2, QFont(MONOSPACE_FONT))
@@ -847,8 +848,9 @@ class ElectrumWindow(QMainWindow):
             label = self.wallet.labels.get(address,'')
             n = 0 
             h = self.wallet.history.get(address,[])
-            for item in h:
-                if not item['is_input'] : n=n+1
+            for tx_hash, tx_height in h:
+                tx = self.wallet.transactions.get(tx_hash)
+                if tx: n += 1
 
             tx = "%d "%n
             if n==0:
@@ -910,7 +912,7 @@ class ElectrumWindow(QMainWindow):
             if address in alias_targets: continue
             label = self.wallet.labels.get(address,'')
             n = 0 
-            for item in self.wallet.tx_history.values():
+            for item in self.wallet.transactions.values():
                 if address in item['outputs'] : n=n+1
             tx = "%d"%n
             item = QTreeWidgetItem( [ address, label, tx] )
@@ -1595,7 +1597,6 @@ class ElectrumGui:
             waiting_dialog(waiting)
             if wallet.is_found():
                 # history and addressbook
-                wallet.update_tx_history()
                 wallet.fill_addressbook()
                 print "Recovery successful"
                 wallet.save()
