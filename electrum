@@ -481,7 +481,7 @@ if __name__ == '__main__':
         b = 0 
         for line in lines:
             import datetime
-            v = line['value'] 
+            v = wallet.get_tx_value(line['tx_hash'])
             b += v
             try:
                 time_str = str( datetime.datetime.fromtimestamp( line['timestamp']))
