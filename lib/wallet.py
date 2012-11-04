@@ -72,7 +72,7 @@ class Wallet:
         self.receipts              = config.get('receipts',{})            # signed URIs
         self.addressbook           = config.get('contacts', [])           # outgoing addresses, for payments
         self.imported_keys         = config.get('imported_keys',{})
-        self.history               = config.get('history',{})             # address -> list(txid, height, timestamp)
+        self.history               = config.get('addr_history',{})        # address -> list(txid, height)
         self.transactions          = config.get('transactions',{})        # txid -> deserialised
 
         # not saved
@@ -848,7 +848,7 @@ class Wallet:
             'seed': self.seed,
             'addresses': self.addresses,
             'change_addresses': self.change_addresses,
-            'history': self.history, 
+            'addr_history': self.history, 
             'labels': self.labels,
             'contacts': self.addressbook,
             'imported_keys': self.imported_keys,
