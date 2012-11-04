@@ -372,24 +372,22 @@ class Wallet:
     def get_tx_value(self, tx_hash, addresses = None):
         # return the balance for that tx
         if addresses is None: addresses = self.all_addresses()
-        v = 0
-        d = self.transactions.get(tx_hash)
-        if not d: return 0
-
-        for item in d.get('inputs'):
-            addr = item.get('address')
-            if addr in addresses:
-                key = item['prevout_hash']  + ':%d'%item['prevout_n']
-                value = self.prevout_values[ key ]
-                v -= value
-
-        for item in d.get('outputs'):
-            addr = item.get('address')
-            if addr in addresses: 
-                value = item.get('value')
-                v += value 
-
-        return v
+        with self.lock:
+            v = 0
+            d = self.transactions.get(tx_hash)
+            if not d: return 0
+            for item in d.get('inputs'):
+                addr = item.get('address')
+                if addr in addresses:
+                    key = item['prevout_hash']  + ':%d'%item['prevout_n']
+                    value = self.prevout_values[ key ]
+                    v -= value
+            for item in d.get('outputs'):
+                addr = item.get('address')
+                if addr in addresses: 
+                    value = item.get('value')
+                    v += value 
+            return v
 
 
     
@@ -541,9 +539,9 @@ class Wallet:
         #print "updating history for", addr
         with self.lock:
             self.transactions[tx_hash] = d
+            self.update_tx_outputs(tx_hash)
 
         if self.verifier: self.verifier.add(tx_hash)
-        self.update_tx_outputs(tx_hash)
         self.save()
 
 
