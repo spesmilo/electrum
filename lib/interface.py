@@ -388,7 +388,7 @@ class Interface(threading.Thread):
 
         self.connect_event.set()
         if self.is_connected:
-            self.send([('server.version', [ELECTRUM_VERSION])])
+            self.send([('server.version', [ELECTRUM_VERSION, '0.5'])])
             self.trigger_callback('connected')
         else:
             self.trigger_callback('notconnected')
