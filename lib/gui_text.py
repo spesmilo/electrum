@@ -65,7 +65,7 @@ class ElectrumGui:
         b = 0 
         messages = []
         for tx in self.wallet.get_tx_history():
-            v = tx['value'] 
+            v = self.wallet.get_tx_value(tx['tx_hash'])
             b += v
             try:
                 time_str = str( datetime.datetime.fromtimestamp( tx['timestamp']))
