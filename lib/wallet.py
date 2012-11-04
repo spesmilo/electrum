@@ -924,6 +924,14 @@ class WalletSynchronizer(threading.Thread):
 
     def run(self):
         requested_tx = []
+        missing_tx = []
+
+        # request any missing transactions
+        for history in self.wallet.history.values():
+            for tx_hash, tx_height in history:
+                if self.wallet.transactions.get(tx_hash) is None and (tx_hash, tx_height) not in missing_tx:
+                    missing_tx.append( (tx_hash, tx_height) )
+        print_error("missing tx", missing_tx)
 
         # wait until we are connected, in case the user is not connected
         while not self.interface.is_connected:
@@ -938,6 +946,12 @@ class WalletSynchronizer(threading.Thread):
         while True:
             # 1. send new requests
             self.synchronize_wallet()
+
+            for tx_hash, tx_height in missing_tx:
+                if (tx_hash, tx_height) not in requested_tx:
+                    self.interface.send([ ('blockchain.transaction.get',[tx_hash, tx_height]) ], 'synchronizer')
+                    requested_tx.append( (tx_hash, tx_height) )
+            missing_tx = []
 
             if self.was_updated:
                 self.interface.trigger_callback('updated')
@@ -967,20 +981,20 @@ class WalletSynchronizer(threading.Thread):
                 # request transactions that we don't have 
                 for tx_hash, tx_height in hist:
                     if self.wallet.transactions.get(tx_hash) is None:
-                        if tx_hash not in requested_tx:
-                            self.interface.send([ ('blockchain.transaction.get',[tx_hash, tx_height]) ], 'synchronizer')
-                            requested_tx.append(tx_hash)
+                        if (tx_hash, tx_height) not in requested_tx and (tx_hash, tx_height) not in wanted_tx:
+                            missing_tx.append( (tx_hash, tx_height) )
                     else:
                         self.wallet.set_tx_timestamp(tx_hash, tx_height)
 
             elif method == 'blockchain.transaction.get':
                 tx_hash = params[0]
                 tx_height = params[1]
-                self.receive_tx(tx_hash, tx_height, result)
+                d = self.deserialize_tx(tx_hash, tx_height, result)
+                self.wallet.receive_tx_callback(tx_hash, d)
                 self.wallet.set_tx_timestamp(tx_hash, tx_height)
-                requested_tx.remove(tx_hash)
                 self.was_updated = True
-
+                requested_tx.remove( (tx_hash, tx_height) )
+                print_error("received tx:", d)
 
             elif method == 'blockchain.transaction.broadcast':
                 self.wallet.tx_result = result
@@ -993,12 +1007,12 @@ class WalletSynchronizer(threading.Thread):
             else:
                 print_error("Error: Unknown message:" + method + ", " + repr(params) + ", " + repr(result) )
 
-            if self.was_updated:
+            if self.was_updated and not requested_tx:
                 self.interface.trigger_callback('updated')
                 self.was_updated = False
 
 
-    def receive_tx(self, tx_hash, tx_height, raw_tx):
+    def deserialize_tx(self, tx_hash, tx_height, raw_tx):
 
         assert tx_hash == hash_encode(Hash(raw_tx.decode('hex')))
         import deserialize
@@ -1006,5 +1020,5 @@ class WalletSynchronizer(threading.Thread):
         vds.write(raw_tx.decode('hex'))
         d = deserialize.parse_Transaction(vds)
         d['tx_hash'] = tx_hash
-        self.wallet.receive_tx_callback(tx_hash, d)
+        return d
 
