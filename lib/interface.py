@@ -75,7 +75,7 @@ class Interface(threading.Thread):
     def queue_json_response(self, c):
 
         # uncomment to debug
-        # print_error( "<--",c )
+        print_error( "<--",c )
 
         msg_id = c.get('id')
         error = c.get('error')

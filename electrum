@@ -193,6 +193,10 @@ if __name__ == '__main__':
         
         gui = gui.ElectrumGui(wallet, config)
         interface.register_callback('peers', gui.server_list_changed)
+
+        verifier = WalletVerifier(interface, config)
+        wallet.set_verifier(verifier)
+
         try:
             found = config.wallet_file_exists
             if not found:
@@ -208,12 +212,7 @@ if __name__ == '__main__':
         if not found:
             exit(1)
 
-        verifier = WalletVerifier(interface, config)
-        wallet.set_verifier(verifier)
-        if not config.get('disable_spv'): 
-            verifier.start()
-        else:
-            print "warning: SPV is disabled"
+        verifier.start()
 
         gui.main(url)
         wallet.save()

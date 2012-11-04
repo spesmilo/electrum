@@ -344,3 +344,11 @@ class WalletVerifier(threading.Thread):
         new_bits = c + MM * i
         return new_bits, new_target
 
+    def get_timestamp(self, tx_height):
+        if tx_height>0:
+            header = self.read_header(tx_height)
+            timestamp = header.get('timestamp')
+        else:
+            timestamp = 1e12
+        return timestamp
+

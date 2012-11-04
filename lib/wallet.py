@@ -356,11 +356,12 @@ class Wallet:
     def fill_addressbook(self):
         for tx_hash, tx in self.transactions.items():
             if self.get_tx_value(tx_hash)<0:
-                for i in tx['outputs']:
-                    if not self.is_mine(i) and i not in self.addressbook:
-                        self.addressbook.append(i)
+                for o in tx['outputs']:
+                    addr = o.get('address')
+                    if not self.is_mine(addr) and addr not in self.addressbook:
+                        self.addressbook.append(addr)
         # redo labels
-        self.update_tx_labels()
+        # self.update_tx_labels()
 
 
     def get_address_flags(self, addr):
@@ -537,9 +538,9 @@ class Wallet:
 
     def receive_tx_callback(self, tx_hash, d):
         #print "updating history for", addr
-        with self.lock:
-            self.transactions[tx_hash] = d
-            self.update_tx_outputs(tx_hash)
+        #with self.lock:
+        self.transactions[tx_hash] = d
+        self.update_tx_outputs(tx_hash)
 
         if self.verifier: self.verifier.add(tx_hash)
         self.save()
@@ -869,13 +870,7 @@ class Wallet:
             self.verifier.add(tx_hash)
 
 
-    def set_tx_timestamp(self, tx_hash, tx_height):
-        if tx_height>0:
-            header = self.verifier.read_header(tx_height)
-            timestamp = header.get('timestamp')
-        else:
-            timestamp = 1e12
-
+    def set_tx_timestamp(self, tx_hash, timestamp):
         with self.lock:
             self.transactions[tx_hash]['timestamp'] = timestamp
 
@@ -957,7 +952,8 @@ class WalletSynchronizer(threading.Thread):
 
             # 2. get a response
             r = self.interface.get_response('synchronizer')
-            if not r: continue
+            if not r: 
+                continue
 
             # 3. handle response
             method = r['method']
@@ -982,14 +978,14 @@ class WalletSynchronizer(threading.Thread):
                         if (tx_hash, tx_height) not in requested_tx and (tx_hash, tx_height) not in missing_tx:
                             missing_tx.append( (tx_hash, tx_height) )
                     else:
-                        self.wallet.set_tx_timestamp(tx_hash, tx_height)
+                        timestamp = self.wallet.verifier.get_timestamp(tx_height)
+                        self.wallet.set_tx_timestamp(tx_hash, timestamp)
 
             elif method == 'blockchain.transaction.get':
                 tx_hash = params[0]
                 tx_height = params[1]
                 d = self.deserialize_tx(tx_hash, tx_height, result)
                 self.wallet.receive_tx_callback(tx_hash, d)
-                self.wallet.set_tx_timestamp(tx_hash, tx_height)
                 self.was_updated = True
                 requested_tx.remove( (tx_hash, tx_height) )
                 print_error("received tx:", d)
@@ -1018,5 +1014,6 @@ class WalletSynchronizer(threading.Thread):
         vds.write(raw_tx.decode('hex'))
         d = deserialize.parse_Transaction(vds)
         d['tx_hash'] = tx_hash
+        d['timestamp'] = self.wallet.verifier.get_timestamp(tx_height)
         return d
 
