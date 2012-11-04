@@ -1226,12 +1226,11 @@ class ElectrumWindow:
         balance = 0 
         for tx in self.wallet.get_tx_history():
             tx_hash = tx['tx_hash']
-            if tx['height']:
-                conf = self.wallet.verifier.get_confirmations(tx_hash)
+            conf = self.wallet.verifier.get_confirmations(tx_hash)
+            if conf:
                 time_str = datetime.datetime.fromtimestamp( tx['timestamp']).isoformat(' ')[:-3]
                 conf_icon = gtk.STOCK_APPLY
             else:
-                conf = 0
                 time_str = 'pending'
                 conf_icon = gtk.STOCK_EXECUTE
             v = self.wallet.get_tx_value(tx_hash)
@@ -1243,7 +1242,6 @@ class ElectrumWindow:
 
             inputs = map(lambda x: x.get('address'), tx['inputs'])
             outputs = map(lambda x: x.get('address'), tx['outputs'])
-            # tx = self.wallet.tx_history.get(tx_hash)
             details = "Transaction Details:\n\n" \
                       + "Transaction ID:\n" + tx_hash + "\n\n" \
                       + "Status: %d confirmations\n\n"%conf  \

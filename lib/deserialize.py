@@ -215,7 +215,6 @@ def parse_Transaction(vds):
   for i in xrange(n_vout):
     d['outputs'].append(parse_TxOut(vds, i))
   d['lockTime'] = vds.read_uint32()
-  print d
   return d
 
 

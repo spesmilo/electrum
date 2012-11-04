@@ -332,11 +332,10 @@ class ElectrumWindow(QMainWindow):
     def tx_details(self, tx_hash):
         tx = self.wallet.transactions.get(tx_hash)
 
-        if tx['height']:
-            conf = self.wallet.verifier.get_confirmations(tx_hash)
+        conf = self.wallet.verifier.get_confirmations(tx_hash)
+        if conf:
             time_str = datetime.datetime.fromtimestamp( tx['timestamp']).isoformat(' ')[:-3]
         else:
-            conf = 0
             time_str = 'pending'
 
         inputs = map(lambda x: x.get('address'), tx['inputs'])
@@ -436,8 +435,8 @@ class ElectrumWindow(QMainWindow):
         balance = 0
         for tx in self.wallet.get_tx_history():
             tx_hash = tx['tx_hash']
-            if tx['height']:
-                conf = self.wallet.verifier.get_confirmations(tx_hash)
+            conf = self.wallet.verifier.get_confirmations(tx_hash)
+            if conf:
                 time_str = datetime.datetime.fromtimestamp( tx['timestamp']).isoformat(' ')[:-3]
                 if conf == 0:
                     icon = QIcon(":icons/unconfirmed.png")
@@ -446,7 +445,6 @@ class ElectrumWindow(QMainWindow):
                 else:
                     icon = QIcon(":icons/confirmed.png")
             else:
-                conf = 0
                 time_str = 'pending'
                 icon = QIcon(":icons/unconfirmed.png")
             v = self.wallet.get_tx_value(tx_hash)

@@ -871,6 +871,16 @@ class Wallet:
             self.verifier.add(tx_hash)
 
 
+    def set_tx_timestamp(self, tx_hash, tx_height):
+        if tx_height>0:
+            header = self.verifier.read_header(tx_height)
+            timestamp = header.get('timestamp')
+        else:
+            timestamp = 1e12
+
+        with self.lock:
+            self.transactions[tx_hash]['timestamp'] = timestamp
+
 
 
 
@@ -951,22 +961,23 @@ class WalletSynchronizer(threading.Thread):
                 addr = params[0]
                 hist = []
                 # in the new protocol, we will receive a list of (tx_hash, height)
-                for tx in result: hist.append( (tx['tx_hash'], tx['height']) )
+                for item in result: hist.append( (item['tx_hash'], item['height']) )
                 # store it
                 self.wallet.receive_history_callback(addr, hist)
                 # request transactions that we don't have 
                 for tx_hash, tx_height in hist:
-                    if self.wallet.transactions.get(tx_hash) is None and tx_hash not in requested_tx:
-                        self.interface.send([ ('blockchain.transaction.get',[tx_hash, tx_height]) ], 'synchronizer')
-                        requested_tx.append(tx_hash)
+                    if self.wallet.transactions.get(tx_hash) is None:
+                        if tx_hash not in requested_tx:
+                            self.interface.send([ ('blockchain.transaction.get',[tx_hash, tx_height]) ], 'synchronizer')
+                            requested_tx.append(tx_hash)
+                    else:
+                        self.wallet.set_tx_timestamp(tx_hash, tx_height)
 
             elif method == 'blockchain.transaction.get':
                 tx_hash = params[0]
                 tx_height = params[1]
-                header = self.wallet.verifier.read_header(tx_height)
-                timestamp = header.get('timestamp')
-                tx = result
-                self.receive_tx(tx_hash, tx_height, timestamp, tx)
+                self.receive_tx(tx_hash, tx_height, result)
+                self.wallet.set_tx_timestamp(tx_hash, tx_height)
                 requested_tx.remove(tx_hash)
                 self.was_updated = True
 
@@ -987,20 +998,13 @@ class WalletSynchronizer(threading.Thread):
                 self.was_updated = False
 
 
-    def receive_tx(self, tx_hash, tx_height, timestamp, raw_tx):
+    def receive_tx(self, tx_hash, tx_height, raw_tx):
 
         assert tx_hash == hash_encode(Hash(raw_tx.decode('hex')))
-
-        import deserialize, BCDataStream
-
-        # deserialize
-        vds = BCDataStream.BCDataStream()
+        import deserialize
+        vds = deserialize.BCDataStream()
         vds.write(raw_tx.decode('hex'))
         d = deserialize.parse_Transaction(vds)
-        d['height'] = tx_height
         d['tx_hash'] = tx_hash
-        d['timestamp'] = timestamp
-        d['default_label'] = tx_hash
-        print d
         self.wallet.receive_tx_callback(tx_hash, d)
 
