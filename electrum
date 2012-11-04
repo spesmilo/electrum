@@ -259,7 +259,15 @@ if __name__ == '__main__':
             wallet.seed = str(seed)
             wallet.init_mpk( wallet.seed )
             if not options.offline:
+
+                interface = Interface(config)
+                interface.start()
+                wallet.interface = interface
                 WalletSynchronizer(wallet, config).start()
+
+                verifier = WalletVerifier(interface, config)
+                wallet.set_verifier(verifier)
+
                 print "Recovering wallet..."
                 wallet.up_to_date_event.clear()
                 wallet.up_to_date = False
@@ -267,12 +275,12 @@ if __name__ == '__main__':
                 if wallet.is_found():
                     print "Recovery successful"
                 else:
-                    print_error("Warning: Found no history for this wallet")
+                    print "Warning: Found no history for this wallet"
             else:
                 wallet.synchronize()
             wallet.fill_addressbook()
             wallet.save()
-            print_error("Wallet saved in '" + wallet.path)
+            print "Wallet saved in '%s'"%wallet.config.path
         else:
             wallet.new_seed(None)
             wallet.init_mpk( wallet.seed )
