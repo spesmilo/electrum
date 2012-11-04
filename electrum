@@ -253,7 +253,7 @@ if __name__ == '__main__':
                 seed.decode('hex')
             except:
                 print_error("Warning: Not hex, trying decode.")
-                seed = mnemonic.mn_decode( seed.split(' ') )
+                seed = mnemonic_decode( seed.split(' ') )
             if not seed:
                 sys.exit("Error: No seed")
 
@@ -282,7 +282,7 @@ if __name__ == '__main__':
             print "Your wallet generation seed is: " + wallet.seed
             print "Please keep it in a safe place; if you lose it, you will not be able to restore your wallet."
             print "Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:"
-            print "\""+' '.join(mnemonic.mn_encode(wallet.seed))+"\""
+            print "\""+' '.join(mnemonic_encode(wallet.seed))+"\""
             print "Wallet saved in '%s'"%wallet.config.path
             
         if password:
@@ -360,7 +360,7 @@ if __name__ == '__main__':
 
     elif cmd == 'seed':
         seed = wallet.pw_decode( wallet.seed, password)
-        print seed + ' "' + ' '.join(mnemonic.mn_encode(seed)) + '"'
+        print seed + ' "' + ' '.join(mnemonic_encode(seed)) + '"'
 
     elif cmd == 'deseed':
         if not wallet.seed:
