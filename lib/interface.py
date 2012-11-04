@@ -105,7 +105,11 @@ class Interface(threading.Thread):
                                 ports.append((v[0], v[1:]))
                             if re.match("v(.?)+", v):
                                 version = v[1:]
-                    if ports and version:
+                    try: 
+                        is_recent = float(version)>=0.5
+                    except: 
+                        is_recent = False
+                    if ports and is_recent:
                         servers.append((host, ports))
                 self.servers = servers
                 self.trigger_callback('peers')
