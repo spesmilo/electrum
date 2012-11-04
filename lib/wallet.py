@@ -979,7 +979,7 @@ class WalletSynchronizer(threading.Thread):
                 # request transactions that we don't have 
                 for tx_hash, tx_height in hist:
                     if self.wallet.transactions.get(tx_hash) is None:
-                        if (tx_hash, tx_height) not in requested_tx and (tx_hash, tx_height) not in wanted_tx:
+                        if (tx_hash, tx_height) not in requested_tx and (tx_hash, tx_height) not in missing_tx:
                             missing_tx.append( (tx_hash, tx_height) )
                     else:
                         self.wallet.set_tx_timestamp(tx_hash, tx_height)
