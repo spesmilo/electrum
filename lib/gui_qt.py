@@ -339,12 +339,14 @@ class ElectrumWindow(QMainWindow):
             conf = 0
             time_str = 'pending'
 
+        inputs = map(lambda x: x.get('address'), tx['inputs'])
+        outputs = map(lambda x: x.get('address'), tx['outputs'])
         tx_details = _("Transaction Details") +"\n\n" \
             + "Transaction ID:\n" + tx_hash + "\n\n" \
             + "Status: %d confirmations\n\n"%conf  \
             + "Date: %s\n\n"%time_str \
-            + "Inputs:\n-"+ '\n-'.join(tx['inputs']) + "\n\n" \
-            + "Outputs:\n-"+ '\n-'.join(tx['outputs'])
+            + "Inputs:\n-"+ '\n-'.join(inputs) + "\n\n" \
+            + "Outputs:\n-"+ '\n-'.join(outputs)
 
         r = self.wallet.receipts.get(tx_hash)
         if r:

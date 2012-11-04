@@ -1199,10 +1199,8 @@ class ElectrumWindow:
         for address in self.wallet.all_addresses():
             if self.wallet.is_change(address):continue
             label = self.wallet.labels.get(address)
-            n = 0 
             h = self.wallet.history.get(address,[])
-            for item in h:
-                if not item['is_input'] : n=n+1
+            n = len(h)
             tx = "None" if n==0 else "%d"%n
             self.recv_list.append((address, label, tx ))
 
@@ -1217,7 +1215,7 @@ class ElectrumWindow:
         for address in self.wallet.addressbook:
             label = self.wallet.labels.get(address)
             n = 0 
-            for item in self.wallet.tx_history.values():
+            for item in self.wallet.transactions.values():
                 if address in item['outputs'] : n=n+1
             tx = "None" if n==0 else "%d"%n
             self.addressbook_list.append((address, label, tx))
@@ -1236,20 +1234,22 @@ class ElectrumWindow:
                 conf = 0
                 time_str = 'pending'
                 conf_icon = gtk.STOCK_EXECUTE
-            v = tx['value']
+            v = self.wallet.get_tx_value(tx_hash)
             balance += v 
             label = self.wallet.labels.get(tx_hash)
             is_default_label = (label == '') or (label is None)
             if is_default_label: label = tx['default_label']
             tooltip = tx_hash + "\n%d confirmations"%conf 
 
+            inputs = map(lambda x: x.get('address'), tx['inputs'])
+            outputs = map(lambda x: x.get('address'), tx['outputs'])
             # tx = self.wallet.tx_history.get(tx_hash)
             details = "Transaction Details:\n\n" \
                       + "Transaction ID:\n" + tx_hash + "\n\n" \
                       + "Status: %d confirmations\n\n"%conf  \
                       + "Date: %s\n\n"%time_str \
-                      + "Inputs:\n-"+ '\n-'.join(tx['inputs']) + "\n\n" \
-                      + "Outputs:\n-"+ '\n-'.join(tx['outputs'])
+                      + "Inputs:\n-"+ '\n-'.join(inputs) + "\n\n" \
+                      + "Outputs:\n-"+ '\n-'.join(outputs)
             r = self.wallet.receipts.get(tx_hash)
             if r:
                 details += "\n_______________________________________" \
