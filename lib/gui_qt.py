@@ -380,7 +380,7 @@ class ElectrumWindow(QMainWindow):
             item.setForeground(2, QBrush(QColor('black')))
         else:
             if s: self.wallet.labels.pop(tx_hash)
-            text = tx['default_label']
+            text = self.wallet.get_default_label(tx_hash)
             item.setText(2, text)
             item.setForeground(2, QBrush(QColor('gray')))
         self.is_edit=False
