@@ -29,11 +29,11 @@ def hash_header(res):
 
 
 def verify_tx(tx_hash):
-    rawtx = i.synchronous_get([ ('blockchain.transaction.get',[tx_hash]) ])[0]
-    print rawtx
-    return
     
     res = i.synchronous_get([ ('blockchain.transaction.get_merkle',[tx_hash]) ])[0]
+    raw_tx = i.synchronous_get([ ('blockchain.transaction.get',[tx_hash, res['block_height']]) ])[0]
+    assert hash_encode(Hash(raw_tx.decode('hex'))) == tx_hash
+
     merkle_root = hash_merkle_root(res['merkle'], tx_hash, res['pos'])
     tx_height = res.get('block_height')
     headers_requests = []
