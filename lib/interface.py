@@ -31,7 +31,7 @@ DEFAULT_SERVERS = [
     'ecdsa.org:50001:t',
     'electrum.bitcoins.sk:50001:t',
     'uncle-enzo.info:50001:t',
-    'electrum.bytesized-hosting.com:50001:t',
+    'electrum.bysh.me:50001:t',
     'electrum.bitcoin.cz:50001:t',
     'electrum.bitfoo.org:50001:t'
     ]
