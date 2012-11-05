@@ -1235,9 +1235,7 @@ class ElectrumWindow:
                 conf_icon = gtk.STOCK_EXECUTE
             v = self.wallet.get_tx_value(tx_hash)
             balance += v 
-            label = self.wallet.labels.get(tx_hash)
-            is_default_label = (label == '') or (label is None)
-            if is_default_label: label = tx['default_label']
+            label, is_default_label = self.wallet.get_label(tx_hash)
             tooltip = tx_hash + "\n%d confirmations"%conf 
 
             inputs = map(lambda x: x.get('address'), tx['inputs'])

@@ -449,10 +449,7 @@ class ElectrumWindow(QMainWindow):
                 icon = QIcon(":icons/unconfirmed.png")
             v = self.wallet.get_tx_value(tx_hash)
             balance += v 
-            label = self.wallet.labels.get(tx_hash)
-            is_default_label = (label == '') or (label is None)
-            if is_default_label:
-                label = self.wallet.get_default_label(tx_hash)
+            label, is_default_label = self.wallet.get_label(tx_hash)
 
             item = QTreeWidgetItem( [ '', time_str, label, format_satoshis(v,True,self.wallet.num_zeros), format_satoshis(balance,False,self.wallet.num_zeros)] )
             item.setFont(2, QFont(MONOSPACE_FONT))

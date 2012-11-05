@@ -74,10 +74,7 @@ class ElectrumGui:
                 time_str = 'pending'
             tx_hash = tx['tx_hash']
 
-            label = self.wallet.labels.get(tx_hash)
-            is_default_label = (label == '') or (label is None)
-            if is_default_label: label = tx['default_label']
-
+            label, is_default_label = self.wallet.get_label(tx_hash)
             #label += ' '*(40 - len(label) )
             messages.append( format_str%( time_str, label, format_satoshis(v), format_satoshis(b) ) )
 

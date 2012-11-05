@@ -572,6 +572,12 @@ class Wallet:
         return out
 
 
+    def get_label(self, tx_hash):
+        label = self.labels.get(tx_hash)
+        is_default = (label == '') or (label is None)
+        if is_default: label = self.get_default_label(tx_hash)
+        return label, is_default
+
     def get_default_label(self, tx_hash):
         tx = self.transactions.get(tx_hash)
         if tx:
