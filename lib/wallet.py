@@ -542,7 +542,6 @@ class Wallet:
         self.transactions[tx_hash] = d
         self.update_tx_outputs(tx_hash)
 
-        if self.verifier: self.verifier.add(tx_hash)
         self.save()
 
 
@@ -551,7 +550,9 @@ class Wallet:
         with self.lock:
             self.history[addr] = hist
             self.save()
-
+            for tx_hash, tx_height in hist:
+                if tx_height>0:
+                    self.verifier.add(tx_hash)
 
 
     def get_tx_history(self):
@@ -872,18 +873,18 @@ class Wallet:
 
     def set_verifier(self, verifier):
         self.verifier = verifier
-        for tx_hash in self.transactions.keys(): 
-            self.verifier.add(tx_hash)
             
         # set the timestamp for transactions that need it
-        for l in self.history.values():
-            for tx_hash, tx_height in l:
+        for hist in self.history.values():
+            for tx_hash, tx_height in hist:
                 tx = self.transactions.get(tx_hash)
                 if tx and not tx.get('timestamp'):
                     timestamp = self.verifier.get_timestamp(tx_height)
                     if timestamp:
                         self.set_tx_timestamp(tx_hash, timestamp)
 
+                if tx_height>0:
+                    self.verifier.add(tx_hash)
 
 
 
