@@ -189,7 +189,6 @@ if __name__ == '__main__':
         interface.send([('server.peers.subscribe',[])])
 
         wallet.interface = interface
-        WalletSynchronizer(wallet, config).start()
         
         gui = gui.ElectrumGui(wallet, config)
         interface.register_callback('peers', gui.server_list_changed)
@@ -197,6 +196,7 @@ if __name__ == '__main__':
         verifier = WalletVerifier(interface, config)
         wallet.set_verifier(verifier)
 
+        WalletSynchronizer(wallet, config).start()
         try:
             found = config.wallet_file_exists
             if not found:
@@ -263,12 +263,12 @@ if __name__ == '__main__':
                 interface = Interface(config)
                 interface.start()
                 wallet.interface = interface
-                WalletSynchronizer(wallet, config).start()
 
                 verifier = WalletVerifier(interface, config)
                 wallet.set_verifier(verifier)
 
                 print "Recovering wallet..."
+                WalletSynchronizer(wallet, config).start()
                 wallet.up_to_date_event.clear()
                 wallet.up_to_date = False
                 wallet.update()
