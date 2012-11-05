@@ -29,7 +29,7 @@ class WalletVerifier(threading.Thread):
 
     def __init__(self, interface, config):
         threading.Thread.__init__(self)
-        self.daemon = True
+        #self.daemon = True
         self.config = config
         self.interface = interface
         self.transactions    = {}                                 # requested verifications (with height sent by the requestor)
@@ -45,6 +45,7 @@ class WalletVerifier(threading.Thread):
         self.local_height = 0
         self.init_headers_file()
         self.set_local_height()
+        self.running = False
 
     def get_confirmations(self, tx):
         """ return the number of confirmations of a monitored transaction. """
@@ -62,7 +63,15 @@ class WalletVerifier(threading.Thread):
             if tx_hash not in self.transactions.keys():
                 self.transactions[tx_hash] = tx_height
 
+    def stop(self):
+        with self.lock: self.running = False
+
+    def is_running(self):
+        with self.lock: return self.running
+
     def run(self):
+        with self.lock:
+            self.running = True
         requested_merkle = []
         requested_chunks = []
         requested_headers = []
@@ -71,7 +80,7 @@ class WalletVerifier(threading.Thread):
         # subscribe to block headers
         self.interface.send([ ('blockchain.headers.subscribe',[])], 'verifier')
 
-        while True:
+        while self.is_running():
             # request missing chunks
             if not all_chunks and self.height and not requested_chunks:
 
@@ -117,9 +126,8 @@ class WalletVerifier(threading.Thread):
                         self.pending_headers.remove(header)
 
             try:
-                r = self.interface.get_response('verifier',timeout=1)
+                r = self.interface.get_response('verifier',timeout=0.1)
             except Queue.Empty:
-                time.sleep(1)
                 continue
 
             # 3. handle response

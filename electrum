@@ -250,6 +250,9 @@ if __name__ == '__main__':
         verifier.start()
         gui.main(url)
         wallet.save()
+        verifier.stop()
+        synchronizer.stop()
+        #interface.stop()
         sys.exit(0)
 
     if cmd not in known_commands:
@@ -343,10 +346,11 @@ if __name__ == '__main__':
     # open session
     if cmd not in offline_commands and not options.offline:
         interface = Interface(config)
-        interface.register_callback('connected', lambda: print_error("Connected to " + interface.connection_msg))
+        interface.register_callback('connected', lambda: sys.stderr.write("Connected to " + interface.connection_msg + "\n"))
         interface.start()
         wallet.interface = interface
-        WalletSynchronizer(wallet, config).start()
+        synchronizer = WalletSynchronizer(wallet, config)
+        synchronizer.start()
         wallet.update()
         wallet.save()
 
@@ -643,3 +647,6 @@ if __name__ == '__main__':
         addr = args[1]
         print_msg(wallet.unprioritize(addr))
 
+
+    if cmd not in offline_commands and not options.offline:
+        synchronizer.stop()

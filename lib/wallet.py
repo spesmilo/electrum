@@ -1153,13 +1153,21 @@ class WalletSynchronizer(threading.Thread):
 
     def __init__(self, wallet, config):
         threading.Thread.__init__(self)
-        self.daemon = True
+        # self.daemon = True
         self.wallet = wallet
         self.interface = self.wallet.interface
         self.interface.register_channel('synchronizer')
         self.wallet.interface.register_callback('connected', lambda: self.wallet.set_up_to_date(False))
         self.wallet.interface.register_callback('connected', lambda: self.interface.send([('server.banner',[])],'synchronizer') )
         self.was_updated = True
+        self.running = False
+        self.lock = threading.Lock()
+
+    def stop(self):
+        with self.lock: self.running = False
+
+    def is_running(self):
+        with self.lock: return self.running
 
     def synchronize_wallet(self):
         new_addresses = self.wallet.synchronize()
@@ -1186,6 +1194,8 @@ class WalletSynchronizer(threading.Thread):
 
 
     def run(self):
+        with self.lock: self.running = True
+
         requested_tx = []
         missing_tx = []
         requested_histories = {}
@@ -1208,7 +1218,7 @@ class WalletSynchronizer(threading.Thread):
         # subscriptions
         self.subscribe_to_addresses(self.wallet.all_addresses())
 
-        while True:
+        while self.is_running():
             # 1. send new requests
             self.synchronize_wallet()
 
@@ -1223,7 +1233,12 @@ class WalletSynchronizer(threading.Thread):
                 self.was_updated = False
 
             # 2. get a response
-            r = self.interface.get_response('synchronizer')
+            try:
+                r = self.interface.get_response('synchronizer', timeout=0.1)
+            except:
+                continue
+
+            # poke sends None. (check if still needed)
             if not r: 
                 continue
 
