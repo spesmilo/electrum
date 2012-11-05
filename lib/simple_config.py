@@ -48,18 +48,10 @@ class SimpleConfig:
 
         self.wallet_config = {}
         self.wallet_file_exists = False
-        path = None
-        if options:
-            # this will call read_wallet_config only if there is a wallet_path value in options
-            try:
-                path = options.wallet_path
-            except:
-                pass
-        if not path:
-            path = self.get('default_wallet_path')
-        print_error( "path", path )
-        if path:
-            self.read_wallet_config(path)
+        self.init_path(options)
+        print_error( "path", self.path )
+        if self.path:
+            self.read_wallet_config(self.path)
             
             
         
@@ -168,10 +160,22 @@ class SimpleConfig:
                 pass
 
 
-    def init_path(self, wallet_path):
+    def init_path(self, options):
         """Set the path of the wallet."""
-        if wallet_path is not None:
-            self.path = wallet_path
+
+        path = None
+        if options:
+            # this will call read_wallet_config only if there is a wallet_path value in options
+            try:
+                path = options.wallet_path
+            except:
+                pass
+
+        if not path:
+            path = self.get('default_wallet_path')
+
+        if path is not None:
+            self.path = path
             return
 
         # Look for wallet file in the default data directory.
@@ -199,7 +203,6 @@ class SimpleConfig:
 
     def read_wallet_config(self, path):
         """Read the contents of the wallet file."""
-        self.init_path(path)
         try:
             with open(self.path, "r") as f:
                 data = f.read()
