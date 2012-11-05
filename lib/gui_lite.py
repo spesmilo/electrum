@@ -442,7 +442,7 @@ class MiniWindow(QDialog):
             tx_hash = tx['tx_hash']
             address = self.actuator.wallet.get_default_label(tx_hash)
             value = self.actuator.wallet.get_tx_value(tx_hash)
-            amount = D(value / 10**8)
+            amount = D(value / 10.**8)
             self.history_list.append(address, amount)
 
     def acceptbit(self):
