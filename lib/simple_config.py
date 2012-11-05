@@ -1,6 +1,6 @@
 import json, ast
 import os, ast
-from util import user_dir
+from util import user_dir, print_error
 
 from version import ELECTRUM_VERSION, SEED_VERSION
 
@@ -57,7 +57,7 @@ class SimpleConfig:
                 pass
         if not path:
             path = self.get('default_wallet_path')
-        print "path", path 
+        print_error( "path", path )
         if path:
             self.read_wallet_config(path)
             
