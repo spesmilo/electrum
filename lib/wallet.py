@@ -868,6 +868,17 @@ class Wallet:
         self.verifier = verifier
         for tx_hash in self.transactions.keys(): 
             self.verifier.add(tx_hash)
+            
+        # set the timestamp for transactions that need it
+        for l in self.history.values():
+            for tx_hash, tx_height in l:
+                tx = self.transactions.get(tx_hash)
+                if tx and not tx.get('timestamp'):
+                    timestamp = self.verifier.get_timestamp(tx_height)
+                    if timestamp:
+                        self.set_tx_timestamp(tx_hash, timestamp)
+
+
 
 
     def set_tx_timestamp(self, tx_hash, timestamp):
