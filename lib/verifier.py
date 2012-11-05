@@ -17,8 +17,8 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import threading, time, Queue, os, sys
-from util import user_dir, print_error
+import threading, time, Queue, os, sys, shutil
+from util import user_dir, appdata_dir, print_error
 from bitcoin import *
 
 
@@ -266,8 +266,15 @@ class WalletVerifier(threading.Thread):
         if os.path.exists(filename):
             f = open(filename,'rb+')
         else:
-            print_error( "creating file", filename )
-            f = open(filename,'wb+')
+            src = os.path.join(appdata_dir(),'blockchain_headers')
+            if os.path.exists(src):
+                # copy it from appdata dir
+                print_error( "copying headers to", filename )
+                shutil.copy(src, filename)
+                f = open(filename,'rb+')
+            else:
+                print_error( "creating file", filename )
+                f = open(filename,'wb+')
         f.seek(index*2016*80)
         h = f.write(chunk)
         f.close()
