@@ -30,15 +30,6 @@ class SimpleConfig:
 
     def __init__(self, options=None):
 
-        self.wallet_config = {}
-        if options:
-            # this will call read_wallet_config only if there is a wallet_path value in options
-            try:
-                self.read_wallet_config(options.wallet_path)
-            except:
-                pass
-            
-
         # system conf, readonly
         self.system_config = {}
         self.read_system_config()
@@ -53,6 +44,23 @@ class SimpleConfig:
             if options.server: self.options_config['server'] = options.server
             if options.proxy: self.options_config['proxy'] = options.proxy
             if options.gui: self.options_config['gui'] = options.gui
+
+
+        self.wallet_config = {}
+        self.wallet_file_exists = False
+        path = None
+        if options:
+            # this will call read_wallet_config only if there is a wallet_path value in options
+            try:
+                path = options.wallet_path
+            except:
+                pass
+        if not path:
+            path = self.get('default_wallet_path')
+        print "path", path 
+        if path:
+            self.read_wallet_config(path)
+            
             
         
 
@@ -191,7 +199,6 @@ class SimpleConfig:
 
     def read_wallet_config(self, path):
         """Read the contents of the wallet file."""
-        self.wallet_file_exists = False
         self.init_path(path)
         try:
             with open(self.path, "r") as f:
