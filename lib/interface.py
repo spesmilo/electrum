@@ -20,7 +20,7 @@
 import random, socket, ast, re, ssl
 import threading, traceback, sys, time, json, Queue
 
-from version import ELECTRUM_VERSION
+from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from util import print_error
 
 
@@ -106,8 +106,8 @@ class Interface(threading.Thread):
                             if re.match("v(.?)+", v):
                                 version = v[1:]
                     try: 
-                        is_recent = float(version)>=0.5
-                    except: 
+                        is_recent = float(version)>=float(PROTOCOL_VERSION)
+                    except:
                         is_recent = False
                     if ports and is_recent:
                         servers.append((host, ports))
@@ -293,7 +293,7 @@ class Interface(threading.Thread):
 
                 if timeout:
                     # ping the server with server.version, as a real ping does not exist yet
-                    self.send([('server.version', [ELECTRUM_VERSION])])
+                    self.send([('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])])
                     continue
 
                 out += msg
@@ -388,7 +388,7 @@ class Interface(threading.Thread):
 
         self.connect_event.set()
         if self.is_connected:
-            self.send([('server.version', [ELECTRUM_VERSION, '0.5'])])
+            self.send([('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])])
             self.trigger_callback('connected')
         else:
             self.trigger_callback('notconnected')
