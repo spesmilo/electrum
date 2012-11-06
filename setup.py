@@ -25,7 +25,7 @@ if (len(sys.argv) > 1 and (sys.argv[1] == "sdist")) or (platform.system() != 'Wi
             data_files.append(  ('/usr/share/locale/%s/LC_MESSAGES'%lang, ['locale/%s/LC_MESSAGES/electrum.mo'%lang]) )
 
 data_files += [
-    (util.appdata_dir(), ["data/README", "data/blockchain_headers"]),
+    (util.appdata_dir(), ["data/README"]),
     (os.path.join(util.appdata_dir(), "cleanlook"), [
         "data/cleanlook/name.cfg",
         "data/cleanlook/style.css"
@@ -36,6 +36,9 @@ data_files += [
         "data/dark/style.css"
     ])
 ]
+
+if os.path.exists("data/blockchain_headers"):
+    data_files.append( (util.appdata_dir(), ["data/blockchain_headers"]) )
 
 setup(name = "Electrum",
     version = version.ELECTRUM_VERSION,
