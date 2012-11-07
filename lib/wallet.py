@@ -525,9 +525,11 @@ class Wallet:
             return s
 
 
-    def get_status(self, address):
+    def get_history(self, address):
         with self.lock:
-            h = self.history.get(address)
+            return self.history.get(address)
+
+    def get_status(self, h):
         if not h: return None
         status = ''
         for tx_hash, height in h:
@@ -981,17 +983,34 @@ class WalletSynchronizer(threading.Thread):
 
             if method == 'blockchain.address.subscribe':
                 addr = params[0]
-                if self.wallet.get_status(addr) != result:
+                if self.wallet.get_status(self.wallet.get_history(addr)) != result:
                     self.interface.send([('blockchain.address.get_history', [addr])], 'synchronizer')
                     requested_histories[addr] = result
 
             elif method == 'blockchain.address.get_history':
                 addr = params[0]
                 hist = []
-                # in the new protocol, we will receive a list of (tx_hash, height)
-                for item in result: hist.append( (item['tx_hash'], item['height']) )
-                # store it
+
+                # check that txids are unique
+                txids = []
+                for item in result:
+                    tx_hash = item['tx_hash']
+                    if tx_hash not in txids:
+                        txids.append(tx_hash)
+                        hist.append( (tx_hash, item['height']) )
+
+                if len(hist) != len(result):
+                    print "error: non-unique txid"
+                    continue
+
+                # check that the status corresponds to what was announced
+                if self.wallet.get_status(hist) != requested_histories.pop(addr):
+                    print "error: status mismatch:", addr
+                    continue
+                
+                # store received history
                 self.wallet.receive_history_callback(addr, hist)
+
                 # request transactions that we don't have 
                 for tx_hash, tx_height in hist:
                     if self.wallet.transactions.get(tx_hash) is None:

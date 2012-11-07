@@ -31,6 +31,7 @@ DEFAULT_SERVERS = [
     #'uncle-enzo.info:50001:t',
     #'electrum.bitcoin.cz:50001:t',
     #'electrum.bitfoo.org:50001:t',
+    'webbtc.net:50001:t',
     'electrum.bysh.me:50001:t',
     'electrum.pdmc.net:50001:t',
     'ecdsa.org:50001:t'
