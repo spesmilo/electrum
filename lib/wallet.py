@@ -538,23 +538,33 @@ class Wallet:
 
 
 
-    def receive_tx_callback(self, tx_hash, d):
-        #print "updating history for", addr
-        #with self.lock:
-        self.transactions[tx_hash] = d
+    def receive_tx_callback(self, tx_hash, tx):
+
+        if not self.check_new_tx(tx_hash, tx):
+            print "error: transaction not consistent with history", tx_hash
+            return
+
+        with self.lock:
+            self.transactions[tx_hash] = tx
+
         self.update_tx_outputs(tx_hash)
 
         self.save()
 
 
     def receive_history_callback(self, addr, hist):
-        #print "updating history for", addr
+
+        if not self.check_new_history(addr, hist):
+            print "error: history check failed", tx_hash
+            return
+            
         with self.lock:
             self.history[addr] = hist
             self.save()
             for tx_hash, tx_height in hist:
                 if tx_height>0:
                     self.verifier.add(tx_hash)
+
 
 
     def get_tx_history(self):
@@ -896,6 +906,53 @@ class Wallet:
 
 
 
+    def is_addr_in_tx(self, addr, tx):
+        found = False
+        for txin in tx.get('inputs'):
+            if addr == txin.get('address'): 
+                found = True
+                break
+        for txout in tx.get('outputs'):
+            if addr == txout.get('address'): 
+                found = True
+                break
+        return found
+
+
+    def check_new_history(self, addr, hist):
+        # - check that all tx in hist are relevant
+        for tx_hash, height in hist:
+            tx = self.transactions.get(tx_hash)
+            if not tx: continue
+            if not self.is_addr_in_tx(addr,tx):
+                return False
+
+        # todo: check that we are not "orphaning" a transaction
+        # if we are, reject tx if unconfirmed, else reject the server
+
+        return True
+
+
+
+    def check_new_tx(self, tx_hash, tx):
+        # 1 check that tx is referenced in addr_history. 
+        addresses = []
+        for addr, hist in self.history.items():
+            for txh, height in hist:
+                if txh == tx_hash: 
+                    addresses.append(addr)
+
+        if not addresses:
+            return False
+
+        # 2 check that referencing addresses are in the tx
+        for addr in addresses:
+            if not self.is_addr_in_tx(addr, tx):
+                return False
+
+        return True
+
+
 
 
 class WalletSynchronizer(threading.Thread):
@@ -915,19 +972,20 @@ class WalletSynchronizer(threading.Thread):
         new_addresses = self.wallet.synchronize()
         if new_addresses:
             self.subscribe_to_addresses(new_addresses)
+            self.wallet.up_to_date = False
+            return
             
-        if self.interface.is_up_to_date('synchronizer'):
-            if not self.wallet.up_to_date:
-                self.wallet.up_to_date = True
-                self.was_updated = True
-                self.wallet.up_to_date_event.set()
-        else:
+        if not self.interface.is_up_to_date('synchronizer'):
             if self.wallet.up_to_date:
                 self.wallet.up_to_date = False
                 self.was_updated = True
+            return
 
+        self.wallet.up_to_date = True
+        self.was_updated = True
+        self.wallet.up_to_date_event.set()
 
-
+    
     def subscribe_to_addresses(self, addresses):
         messages = []
         for addr in addresses:
