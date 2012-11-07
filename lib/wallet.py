@@ -1060,8 +1060,7 @@ class WalletSynchronizer(threading.Thread):
 
                 # check that the status corresponds to what was announced
                 if self.wallet.get_status(hist) != requested_histories.pop(addr):
-                    print "error: status mismatch:", addr
-                    continue
+                    raise BaseException("error: status mismatch: %s"%addr)
                 
                 # store received history
                 self.wallet.receive_history_callback(addr, hist)
