@@ -111,7 +111,7 @@ class ElectrumGui:
     def print_edit_line(self, y, label, text, index, size):
         text += " "*(size - len(text) )
         self.stdscr.addstr( y, 2, label)
-        self.stdscr.addstr( y, 15, text, curses.A_REVERSE if self.pos%5==index else curses.color_pair(1))
+        self.stdscr.addstr( y, 15, text, curses.A_REVERSE if self.pos%6==index else curses.color_pair(1))
 
     def print_send_tab(self):
         self.stdscr.clear()
@@ -119,7 +119,8 @@ class ElectrumGui:
         self.print_edit_line(5, _("Description"), self.str_description, 1, 40)
         self.print_edit_line(7, _("Amount"), self.str_amount, 2, 15)
         self.print_edit_line(9, _("Fee"), self.str_fee, 3, 15)
-        self.stdscr.addstr( 12, 15, _("Send"), curses.A_REVERSE if self.pos%5==4 else 0)
+        self.stdscr.addstr( 12, 15, _("Send"), curses.A_REVERSE if self.pos%6==4 else 0)
+        self.stdscr.addstr( 12, 21, _("Clear"), curses.A_REVERSE if self.pos%6==5 else 0)
 
     def getstr_send(self):
         curses.curs_set(1)
@@ -146,12 +147,13 @@ class ElectrumGui:
         self.stdscr.addstr( 1, 1, self.wallet.banner )
 
     def print_list(self, list, firstline):
+        self.maxpos = len(list)
         firstline += " "*(self.maxx -2 - len(firstline))
         self.stdscr.addstr( 1, 1, firstline )
         for i in range(self.maxy-4):
             msg = list[i] if i < len(list) else ""
             msg += " "*(self.maxx - 2 - len(msg))
-            self.stdscr.addstr( i+2, 1, msg[0:self.maxx - 2], curses.A_REVERSE if i == (self.pos % len(list)) else 0)
+            self.stdscr.addstr( i+2, 1, msg[0:self.maxx - 2], curses.A_REVERSE if i == (self.pos % self.maxpos) else 0)
 
     def refresh(self):
         self.stdscr.border(0)
@@ -169,6 +171,8 @@ class ElectrumGui:
         elif c == ord('n'): self.network_dialog()
         elif c == ord('s'): self.settings_dialog()
         else: return c
+        if self.pos<0: self.pos=0
+        if self.pos>=self.maxpos: self.pos=self.maxpos - 1
 
     def run_tab(self, i, print_func, exec_func):
         while self.tab == i:
@@ -186,8 +190,10 @@ class ElectrumGui:
     
     def run_send_tab(self, c):
         if c == 10:
-            if self.pos%5==4:
+            if self.pos%6==4:
                 self.do_send()
+            elif self.pos%6==5:
+                self.do_clear()
             else:
                 self.getstr_send()
                 self.print_send_tab()
@@ -227,6 +233,11 @@ class ElectrumGui:
         curses.endwin()
 
 
+    def do_clear(self):
+        self.str_amount = ''
+        self.str_recipient = ''
+        self.str_fee = ''
+
 
     def do_send(self):
         if not self.wallet.is_valid(self.str_recipient):
@@ -249,6 +260,24 @@ class ElectrumGui:
                 return
         else:
             password = None
+
+        try:
+            tx = self.wallet.mktx( to_address, amount, label, password, fee)
+        except BaseException, e:
+            self.show_message(str(e))
+            return
+            
+        h = self.wallet.send_tx(tx)
+        self.show_message(_("Please wait..."))
+        self.wallet.tx_event.wait()
+        status, msg = self.wallet.receive_tx( h )
+
+        if status:
+            self.show_message(_('Payment sent.')+'\n'+msg, _('OK'))
+            self.do_clear()
+            self.update_contacts_tab()
+        else:
+            self.show_message(_('Error:')+ msg)
 
 
     def show_message(self, message):
