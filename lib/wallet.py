@@ -1056,8 +1056,7 @@ class WalletSynchronizer(threading.Thread):
                         hist.append( (tx_hash, item['height']) )
 
                 if len(hist) != len(result):
-                    print "error: non-unique txid"
-                    continue
+                    raise BaseException("error: server sent history with non-unique txid")
 
                 # check that the status corresponds to what was announced
                 if self.wallet.get_status(hist) != requested_histories.pop(addr):
