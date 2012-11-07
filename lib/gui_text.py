@@ -237,7 +237,7 @@ class ElectrumGui:
         self.str_amount = ''
         self.str_recipient = ''
         self.str_fee = ''
-
+        self.str_description = ''
 
     def do_send(self):
         if not self.wallet.is_valid(self.str_recipient):
@@ -262,31 +262,31 @@ class ElectrumGui:
             password = None
 
         try:
-            tx = self.wallet.mktx( to_address, amount, label, password, fee)
+            tx = self.wallet.mktx( self.str_recipient, amount, self.str_description, password, fee)
         except BaseException, e:
             self.show_message(str(e))
             return
             
         h = self.wallet.send_tx(tx)
-        self.show_message(_("Please wait..."))
+        self.show_message(_("Please wait..."), getchar=False)
         self.wallet.tx_event.wait()
         status, msg = self.wallet.receive_tx( h )
 
         if status:
-            self.show_message(_('Payment sent.')+'\n'+msg, _('OK'))
+            self.show_message(_('Payment sent.'))
             self.do_clear()
             self.update_contacts_tab()
         else:
-            self.show_message(_('Error:')+ msg)
+            self.show_message(_('Error'))
 
 
-    def show_message(self, message):
+    def show_message(self, message, getchar = True):
         w = self.w
         w.clear()
         w.border(0)
         w.addstr(2,2,message)
         w.refresh()
-        c = self.stdscr.getch()
+        if getchar: c = self.stdscr.getch()
 
 
     def run_popup(self, title, items):
@@ -315,7 +315,7 @@ class ElectrumGui:
         out = self.run_dialog('Password', [
             {'label':'Password', 'type':'str'}
             ], buttons = 1)
-        return out
+        return out.get('Password')
         
 
     def run_dialog(self, title, items, interval=2, buttons=None, y_pos=3):
