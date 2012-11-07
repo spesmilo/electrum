@@ -43,6 +43,7 @@ class WalletVerifier(threading.Thread):
         self.pending_headers = [] # headers that have not been verified
         self.height = 0
         self.local_height = 0
+        self.init_headers_file()
         self.set_local_height()
 
     def get_confirmations(self, tx):
@@ -76,7 +77,7 @@ class WalletVerifier(threading.Thread):
                     min_index = (self.local_height + 1)/2016
                     max_index = (self.height + 1)/2016
                     for i in range(min_index, max_index + 1):
-                        # print "requesting chunk", i
+                        print_error( "requesting chunk", i )
                         self.interface.send([ ('blockchain.block.get_chunk',[i])], 'verifier')
                         requested_chunks.append(i)
                         break
@@ -108,8 +109,10 @@ class WalletVerifier(threading.Thread):
                             requested_headers.append(i)
                         # no point continuing
                         break
-                for header in done: self.pending_headers.remove(header)
-                self.interface.trigger_callback('updated')
+                if done:
+                    self.interface.trigger_callback('updated')
+                    for header in done: 
+                        self.pending_headers.remove(header)
 
             try:
                 r = self.interface.get_response('verifier',timeout=1)
@@ -143,8 +146,6 @@ class WalletVerifier(threading.Thread):
                 self.pending_headers.sort(key=lambda x: x.get('block_height'))
                 # print "pending headers", map(lambda x: x.get('block_height'), self.pending_headers)
 
-            self.interface.trigger_callback('updated')
-
 
 
     def verify_merkle(self, tx_hash, result):
@@ -157,6 +158,8 @@ class WalletVerifier(threading.Thread):
         self.verified_tx[tx_hash] = tx_height
         print_error("verified %s"%tx_hash)
         self.config.set_key('verified_tx', self.verified_tx, True)
+        self.interface.trigger_callback('updated')
+
 
     def verify_chunk(self, index, hexdata):
         data = hexdata.decode('hex')
@@ -261,20 +264,22 @@ class WalletVerifier(threading.Thread):
         if not os.path.exists( wdir ): os.mkdir(wdir)
         return os.path.join( wdir, 'blockchain_headers')
 
-    def save_chunk(self, index, chunk):
+    def init_headers_file(self):
         filename = self.path()
         if os.path.exists(filename):
-            f = open(filename,'rb+')
+            return
+        src = os.path.join(appdata_dir(), 'blockchain_headers')
+        if os.path.exists(src):
+            # copy it from appdata dir
+            print_error( "copying headers to", filename )
+            shutil.copy(src, filename)
         else:
-            src = os.path.join(appdata_dir(),'blockchain_headers')
-            if os.path.exists(src):
-                # copy it from appdata dir
-                print_error( "copying headers to", filename )
-                shutil.copy(src, filename)
-                f = open(filename,'rb+')
-            else:
-                print_error( "creating file", filename )
-                f = open(filename,'wb+')
+            print_error( "creating headers file", filename )
+            open(filename,'wb+').close()
+
+    def save_chunk(self, index, chunk):
+        filename = self.path()
+        f = open(filename,'rb+')
         f.seek(index*2016*80)
         h = f.write(chunk)
         f.close()

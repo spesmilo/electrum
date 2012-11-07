@@ -936,6 +936,7 @@ class WalletSynchronizer(threading.Thread):
     def run(self):
         requested_tx = []
         missing_tx = []
+        requested_histories = {}
 
         # request any missing transactions
         for history in self.wallet.history.values():
@@ -982,7 +983,8 @@ class WalletSynchronizer(threading.Thread):
                 addr = params[0]
                 if self.wallet.get_status(addr) != result:
                     self.interface.send([('blockchain.address.get_history', [addr])], 'synchronizer')
-                            
+                    requested_histories[addr] = result
+
             elif method == 'blockchain.address.get_history':
                 addr = params[0]
                 hist = []
