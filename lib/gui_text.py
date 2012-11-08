@@ -314,10 +314,20 @@ class ElectrumGui:
     def network_dialog(self):
         out = self.run_dialog('Network', [
             {'label':'server', 'type':'str', 'value':self.wallet.interface.server},
-            {'label':'proxy', 'type':'str', 'value':self.config.get('proxy')},
+            {'label':'proxy', 'type':'str', 'value':self.config.get('proxy', '')},
             ], buttons = 1)
         if out:
-            if out.get('server'):  self.wallet.interface.set_server(out.get('server'))
+            if out.get('server'):
+                server = out.get('server')
+                if out.get('proxy'):
+                    proxy = self.parse_proxy_options(out.get('proxy'))
+                else:
+                    proxy = None
+
+                self.wallet.config.set_key("proxy", proxy, True)
+                self.wallet.config.set_key("server", server, True)
+                self.wallet.interface.set_server(server, proxy)
+                
 
 
     def settings_dialog(self):
@@ -361,15 +371,18 @@ class ElectrumGui:
                 if item.get('type') == 'list':
                     value = item.get('value','')
                 elif item.get('type') == 'satoshis':
-                    value = item.get('value')
+                    value = item.get('value','')
                 elif item.get('type') == 'str':
                     value = item.get('value','')
                 elif item.get('type') == 'password':
                     value = '*'*len(item.get('value',''))
-                    if not value: value = '        '
                 else:
-                    value = None
-                if value:
+                    value = ''
+
+                if len(value)<20:
+                    value += ' '*(20-len(value))
+
+                if item.has_key('value'):
                     w.addstr( 2+interval*i, 2, label)
                     w.addstr( 2+interval*i, 15, value, curses.A_REVERSE if self.popup_pos%num==i else curses.color_pair(1) )
                 else:
