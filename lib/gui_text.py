@@ -4,6 +4,7 @@ _ = lambda x:x
 #from i18n import _
 from util import format_satoshis, set_verbosity
 
+import tty, sys
 
 
 class ElectrumGui:
@@ -167,9 +168,9 @@ class ElectrumGui:
         elif c == curses.KEY_DOWN: self.pos +=1
         elif c == curses.KEY_UP: self.pos -= 1
         elif c == 9: self.pos +=1 # tab
-        elif c in [27, ord('q')]: self.tab = -1
-        elif c == ord('n'): self.network_dialog()
-        elif c == ord('s'): self.settings_dialog()
+        elif curses.unctrl(c) in ['^W', '^C', '^X', '^Q']: self.tab = -1
+        elif curses.unctrl(c) in ['^N']: self.network_dialog()
+        elif curses.unctrl(c) == '^S': self.settings_dialog()
         else: return c
         if self.pos<0: self.pos=0
         if self.pos>=self.maxpos: self.pos=self.maxpos - 1
@@ -187,16 +188,30 @@ class ElectrumGui:
         if c == 10:
             out = self.run_popup('',["blah","foo"])
             
-    
+
+    def edit_str(self, target, c, is_num=False):
+        chars = '0123456789.' if is_num else '0123456789.:;,!?abcdefghigklmnoprstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        if curses.unctrl(c) in chars:
+            target += curses.unctrl(c)
+        elif c==263 and target:
+            target = target[:-1]
+        return target
+
+
     def run_send_tab(self, c):
-        if c == 10:
-            if self.pos%6==4:
-                self.do_send()
-            elif self.pos%6==5:
-                self.do_clear()
-            else:
-                self.getstr_send()
-                self.print_send_tab()
+        if self.pos%6 == 0:
+            self.str_recipient = self.edit_str(self.str_recipient, c)
+        if self.pos%6 == 1:
+            self.str_description = self.edit_str(self.str_description, c)
+        if self.pos%6 == 2:
+            self.str_amount = self.edit_str(self.str_amount, c, True)
+        elif self.pos%6 == 3:
+            self.str_fee = self.edit_str(self.str_fee, c, True)
+        elif self.pos%6==4:
+            if c == 10: self.do_send()
+        elif self.pos%6==5:
+            if c == 10: self.do_clear()
+
             
     def run_receive_tab(self, c):
         if c == 10:
@@ -216,10 +231,12 @@ class ElectrumGui:
                     self.wallet.labels[address] = s
             
     def run_banner_tab(self, c):
+        self.show_message(repr(c))
         pass
 
     def main(self,url):
 
+        tty.setraw(sys.stdin)
         while self.tab != -1:
             self.run_tab(0, self.print_history, self.run_history_tab)
             self.run_tab(1, self.print_send_tab, self.run_send_tab)
@@ -227,6 +244,7 @@ class ElectrumGui:
             self.run_tab(3, self.print_contacts, self.run_contacts_tab)
             self.run_tab(4, self.print_banner, self.run_banner_tab)
 
+        tty.setcbreak(sys.stdin)
         curses.nocbreak();
         self.stdscr.keypad(0);
         curses.echo()            
@@ -305,24 +323,31 @@ class ElectrumGui:
     def settings_dialog(self):
         out = self.run_dialog('Settings', [
             {'label':'Default GUI', 'type':'list', 'choices':['classic','lite','gtk','text'], 'value':self.config.get('gui')},
-            {'label':'Default fee', 'type':'satoshis', 'value':self.config.get('fee')}
+            {'label':'Default fee', 'type':'satoshis', 'value': format_satoshis(self.config.get('fee')).strip() }
             ], buttons = 1)
         if out:
-            if out.get('Default GUI'): self.config.set_key('gui', out['Default GUI'], True)
+            if out.get('Default GUI'):
+                self.config.set_key('gui', out['Default GUI'], True)
+            if out.get('Default fee'):
+                fee = int ( Decimal( out['Default fee']) *10000000 )
+                self.config.set_key('fee', fee, True)
 
 
     def password_dialog(self):
         out = self.run_dialog('Password', [
-            {'label':'Password', 'type':'str'}
+            {'label':'Password', 'type':'password', 'value':''}
             ], buttons = 1)
         return out.get('Password')
         
 
     def run_dialog(self, title, items, interval=2, buttons=None, y_pos=3):
-        self.w = curses.newwin( 2+len(items)*interval, 50, y_pos, 5)
+        self.popup_pos = 0
+        if buttons:
+            items.append({'label':'  ok  ','type':'button'})
+            items.append({'label':'cancel','type':'button'})
+        
+        self.w = curses.newwin( 5 + len(items)*interval + (2 if buttons else 0), 50, y_pos, 5)
         w = self.w
-        #items.append({'label':'cancel','type':'button'})
-        if buttons: items.append({'label':' ok ','type':'button'})
         out = {}
         while True:
             w.clear()
@@ -336,16 +361,19 @@ class ElectrumGui:
                 if item.get('type') == 'list':
                     value = item.get('value','')
                 elif item.get('type') == 'satoshis':
-                    value = format_satoshis(item.get('value'))
+                    value = item.get('value')
                 elif item.get('type') == 'str':
                     value = item.get('value','')
+                elif item.get('type') == 'password':
+                    value = '*'*len(item.get('value',''))
+                    if not value: value = '        '
                 else:
                     value = None
                 if value:
-                    w.addstr( 1+interval*i, 2, label)
-                    w.addstr( 1+interval*i, 15, value, curses.A_REVERSE if self.popup_pos%num==i else curses.color_pair(1) )
+                    w.addstr( 2+interval*i, 2, label)
+                    w.addstr( 2+interval*i, 15, value, curses.A_REVERSE if self.popup_pos%num==i else curses.color_pair(1) )
                 else:
-                    w.addstr( 1+interval*i, 2, label, curses.A_REVERSE if self.popup_pos%num==i else 0)
+                    w.addstr( 2+interval*i, 2, label, curses.A_REVERSE if self.popup_pos%num==i else 0)
                 
             w.refresh()
 
@@ -353,26 +381,23 @@ class ElectrumGui:
             if c in [ord('q'), 27]: break
             elif c == curses.KEY_UP: self.popup_pos -= 1
             elif c == curses.KEY_DOWN: self.popup_pos +=1
-            elif c == 10:
-                i = self.popup_pos%num
+            else:
+                i = self.popup_pos%num                
                 item = items[i]
                 _type = item.get('type')
+
                 if _type == 'str':
-                    item['value'] = self.get_string(2+2*i, 15)
+                    item['value'] = self.edit_str(item['value'], c)
                     out[item.get('label')] = item.get('value')
 
+                elif _type == 'password':
+                    item['value'] = self.edit_str(item['value'], c)
+                    out[item.get('label')] = item ['value']
+
                 elif _type == 'satoshis':
-                    curses.curs_set(1)
-                    curses.echo()
-                    s = w.getstr(2+2*i, 15)
-                    curses.noecho()
-                    curses.curs_set(0)
-                    try:
-                        s = int( Decimal(s)*100000000 )
-                        item['value'] = s
-                        out[item.get('label')] = item.get('value')
-                    except:
-                        pass
+                    item['value'] = self.edit_str(item['value'], c, True)
+                    out[item.get('label')] = item.get('value')
+
                 elif _type == 'list':
                     choices = item.get('choices')
                     try:
@@ -388,6 +413,8 @@ class ElectrumGui:
                     out['button'] = item.get('label')
                     break
 
+        if buttons and out.get('button') == 'cancel':
+            return
         
         return out
 
