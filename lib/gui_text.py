@@ -16,6 +16,7 @@ class ElectrumGui:
         curses.start_color()
         curses.use_default_colors()
         curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLUE)
+        curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_CYAN)
         self.stdscr.keypad(1)
         self.stdscr.border(0)
         self.maxy, self.maxx = self.stdscr.getmaxyx()
@@ -120,8 +121,8 @@ class ElectrumGui:
         self.print_edit_line(5, _("Description"), self.str_description, 1, 40)
         self.print_edit_line(7, _("Amount"), self.str_amount, 2, 15)
         self.print_edit_line(9, _("Fee"), self.str_fee, 3, 15)
-        self.stdscr.addstr( 12, 15, _("Send"), curses.A_REVERSE if self.pos%6==4 else 0)
-        self.stdscr.addstr( 12, 21, _("Clear"), curses.A_REVERSE if self.pos%6==5 else 0)
+        self.stdscr.addstr( 12, 15, _("[Send]"), curses.A_REVERSE if self.pos%6==4 else curses.color_pair(2))
+        self.stdscr.addstr( 12, 25, _("[Clear]"), curses.A_REVERSE if self.pos%6==5 else curses.color_pair(2))
 
     def getstr_send(self):
         curses.curs_set(1)
@@ -352,9 +353,6 @@ class ElectrumGui:
 
     def run_dialog(self, title, items, interval=2, buttons=None, y_pos=3):
         self.popup_pos = 0
-        if buttons:
-            items.append({'label':'  ok  ','type':'button'})
-            items.append({'label':'cancel','type':'button'})
         
         self.w = curses.newwin( 5 + len(items)*interval + (2 if buttons else 0), 50, y_pos, 5)
         w = self.w
@@ -365,6 +363,10 @@ class ElectrumGui:
             w.addstr( 0, 2, title)
 
             num = len(items)
+
+            numpos = num
+            if buttons: numpos += 2
+
             for i in range(num):
                 item = items[i]
                 label = item.get('label')
@@ -379,14 +381,17 @@ class ElectrumGui:
                 else:
                     value = ''
 
-                if len(value)<20:
-                    value += ' '*(20-len(value))
+                if len(value)<20: value += ' '*(20-len(value))
 
                 if item.has_key('value'):
                     w.addstr( 2+interval*i, 2, label)
-                    w.addstr( 2+interval*i, 15, value, curses.A_REVERSE if self.popup_pos%num==i else curses.color_pair(1) )
+                    w.addstr( 2+interval*i, 15, value, curses.A_REVERSE if self.popup_pos%numpos==i else curses.color_pair(1) )
                 else:
-                    w.addstr( 2+interval*i, 2, label, curses.A_REVERSE if self.popup_pos%num==i else 0)
+                    w.addstr( 2+interval*i, 2, label, curses.A_REVERSE if self.popup_pos%numpos==i else 0)
+
+            if buttons:
+                w.addstr( 5+interval*i, 10, "[  ok  ]",     curses.A_REVERSE if self.popup_pos%numpos==(numpos-2) else curses.color_pair(2))
+                w.addstr( 5+interval*i, 25, "[cancel]", curses.A_REVERSE if self.popup_pos%numpos==(numpos-1) else curses.color_pair(2))
                 
             w.refresh()
 
@@ -395,7 +400,13 @@ class ElectrumGui:
             elif c == curses.KEY_UP: self.popup_pos -= 1
             elif c == curses.KEY_DOWN: self.popup_pos +=1
             else:
-                i = self.popup_pos%num                
+                i = self.popup_pos%numpos
+                if buttons and c==10:
+                    if i == numpos-2:
+                        return out
+                    elif i == numpos -1:
+                        return {}
+
                 item = items[i]
                 _type = item.get('type')
 
@@ -421,13 +432,9 @@ class ElectrumGui:
                     item['value'] = new_choice
                     out[item.get('label')] = item.get('value')
                     
-
                 elif _type == 'button':
                     out['button'] = item.get('label')
                     break
 
-        if buttons and out.get('button') == 'cancel':
-            return
-        
         return out
 
