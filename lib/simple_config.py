@@ -5,26 +5,6 @@ from util import user_dir, print_error
 from version import ELECTRUM_VERSION, SEED_VERSION
 
 
-# old stuff.. should be removed at some point
-def replace_keys(obj, old_key, new_key):
-    if isinstance(obj, dict):
-        if old_key in obj:
-            obj[new_key] = obj[old_key]
-            del obj[old_key]
-        for elem in obj.itervalues():
-            replace_keys(elem, old_key, new_key)
-    elif isinstance(obj, list):
-        for elem in obj:
-            replace_keys(elem, old_key, new_key)
-
-def old_to_new(d):
-    replace_keys(d, 'blk_hash', 'block_hash')
-    replace_keys(d, 'pos', 'index')
-    replace_keys(d, 'nTime', 'timestamp')
-    replace_keys(d, 'is_in', 'is_input')
-    replace_keys(d, 'raw_scriptPubKey', 'raw_output_script')
-
-
 
 class SimpleConfig:
 
@@ -210,7 +190,6 @@ class SimpleConfig:
             return
         try:
             d = ast.literal_eval( data )  #parse raw data from reading wallet file
-            old_to_new(d)
         except:
             raise IOError("Cannot read wallet file.")
 
