@@ -21,7 +21,7 @@ import time, thread, sys, socket, os
 import urllib2,json
 import MySQLdb as mdb
 import Queue
-from electrum import Wallet, Interface, WalletVerifier
+from electrum import Wallet, Interface, WalletVerifier, SimpleConfig, WalletSynchronizer
 
 import ConfigParser
 config = ConfigParser.ConfigParser()
@@ -42,61 +42,58 @@ cb_received = config.get('callback','received')
 cb_expired = config.get('callback','expired')
 cb_password = config.get('callback','password')
 
-wallet = Wallet()
-wallet.master_public_key = config.get('electrum','mpk')
 
+wallet_config = SimpleConfig()
+master_public_key = config.get('electrum','mpk')
+wallet_config.set_key('master_public_key',master_public_key)
+wallet = Wallet(wallet_config)
+wallet.synchronize = lambda: None # prevent address creation by the wallet
 
 
 omg_addresses = {}
 
-def electrum_input_thread(in_queue):
+def input_reader_thread(request_queue):
     while True:
-        addr, amount, confirmations = in_queue.get(True,1000000000)
+        addr, amount, confirmations = request_queue.get(True,1000000000)
         if addr in omg_addresses: 
             continue
         else:
             print "subscribing to ", addr
             omg_addresses[addr] = {'requested':float(amount), 'confirmations':int(confirmations)}
-            interface.send([('blockchain.address.subscribe',[addr])])
+
+        if addr not in wallet.addresses:
+            with wallet.lock:
+                print "adding %s to wallet"%addr
+                wallet.addresses.append(addr)
+                wallet.history[addr] = []
+                synchronizer.subscribe_to_addresses([addr])
+                wallet.up_to_date = False
 
 
-def electrum_output_thread(out_queue):
-    while True:
-        r = interface.get_response()
-        print r
-        method = r.get('method') 
 
-        if method == 'blockchain.address.subscribe':
-            addr = r.get('params')[0]
-            interface.send([('blockchain.address.get_history',[addr])])
+def on_wallet_update():
+    print "updated_callback"
+    for addr in omg_addresses:
+        h = wallet.history.get(addr)
 
-        elif method == 'blockchain.address.get_history':
-            addr = r.get('params')[0]
-            h = r.get('result')
-            if h is None: continue
-            omg_addresses[addr]['history'] = h
-            for item in h:
-                tx_hash = item.get('tx_hash')
-                verifier.add(tx_hash)
+        requested_amount = omg_addresses[addr].get('requested')
+        requested_confs  = omg_addresses[addr].get('confirmations')
 
-        elif method == 'blockchain.numblocks.subscribe':
-            for addr in omg_addresses:
-                h = omg_addresses[addr].get('history',[])
-                amount = omg_addresses[addr].get('requested')
-                confs = omg_addresses[addr].get('confirmations')
-                val = 0
+        value = 0
+        for tx_hash, tx_height in h:
 
-                for item in h:
-                    tx_hash = item.get('tx_hash')
-                    v = item['value']
-                    if v<0: continue
-                    if verifier.get_confirmations(tx_hash) >= conf:
-                        val += v
-                
-                s = (val)/1.e8
-                print "balance for %s:"%addr, s
-                if s>=amount:
-                    out_queue.put( ('payment',addr) )
+            tx = wallet.transactions.get(tx_hash)
+            if not tx: continue
+            if verifier.get_confirmations(tx_hash) < requested_confs: continue
+            for o in tx.get('outputs'):
+                if o.get('address') == addr:
+                    value += o.get('value')
+
+        s = (value)/1.e8
+        print "balance for %s:"%addr, s, requested_amount
+        if s>= requested_amount: 
+            print "payment accepted", addr
+            out_queue.put( ('payment', addr))
 
 
 stopping = False
@@ -115,7 +112,7 @@ def process_request(i, amount, confirmations, expires_in, password):
     print "process_request", i, amount, confirmations, expires_in
     if password!=my_password:
         print "wrong password ", password
-        return
+        return 
     addr = wallet.get_new_address(i, 0)
     out_queue.put( ('request',(i,addr,amount,expires_in) ))
     return addr
@@ -168,27 +165,32 @@ if __name__ == '__main__':
     interface.start()
     interface.send([('blockchain.numblocks.subscribe',[])])
 
-    verifier = WalletVerifier(interface, {})
+    wallet.interface = interface
+    interface.register_callback('updated', on_wallet_update)
+
+    verifier = WalletVerifier(interface, wallet_config)
+    wallet.set_verifier(verifier)
+
+    synchronizer = WalletSynchronizer(wallet, wallet_config)
+    synchronizer.start()
+
     verifier.start()
     
 
     # this process detects when addresses have paid
-    in_queue = Queue.Queue()
+    request_queue = Queue.Queue()
     out_queue = Queue.Queue()
-    thread.start_new_thread(electrum_input_thread, (in_queue,))
-    thread.start_new_thread(electrum_output_thread, (out_queue,))
-
+    thread.start_new_thread(input_reader_thread, (request_queue,))
     thread.start_new_thread(server_thread, (conn,))
-
 
     while not stopping:
         cur = conn.cursor()
 
-        # get a list of addresses to watch
+        # read pending requests from table
         cur.execute("SELECT address, amount, confirmations FROM electrum_payments WHERE paid IS NULL;")
         data = cur.fetchall()
         for item in data: 
-            in_queue.put(item)
+            request_queue.put(item)
 
         try:
             cmd, params = out_queue.get(True, 10)
@@ -196,12 +198,15 @@ if __name__ == '__main__':
             cmd = ''
 
         if cmd == 'payment':
+            addr = params
             # set paid=1 for received payments
             print "received payment from", addr
             cur.execute("select id from electrum_payments where address='%s';"%addr)
             id = cur.fetchone()[0]
             cur.execute("update electrum_payments set paid=1 where id=%d;"%(id))
+
         elif cmd == 'request':
+            # add a new request to the table.
             i, addr, amount, confs, hours = params
             sql = "INSERT INTO electrum_payments (id, address, amount, confirmations, received_at, expires_at, paid, processed)"\
                 + " VALUES (%d, '%s', %f, %d, CURRENT_TIMESTAMP, ADDTIME(CURRENT_TIMESTAMP, '0 %d:0:0'), NULL, NULL);"%(i, addr, amount, confs, hours)
@@ -234,5 +239,7 @@ if __name__ == '__main__':
 
 
     conn.close()
+    print "terminated"
+
 
 
