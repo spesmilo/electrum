@@ -32,7 +32,7 @@ class WalletVerifier(threading.Thread):
         self.daemon = True
         self.config = config
         self.interface = interface
-        self.transactions    = []                                 # monitored transactions
+        self.transactions    = {}                                 # monitored transactions
         self.interface.register_channel('verifier')
 
         self.verified_tx     = config.get('verified_tx',{})       # height of verified tx
@@ -49,16 +49,16 @@ class WalletVerifier(threading.Thread):
     def get_confirmations(self, tx):
         """ return the number of confirmations of a monitored transaction. """
         with self.lock:
-            if tx in self.transactions:
+            if tx in self.transactions.keys():
                 return (self.local_height - self.verified_tx[tx] + 1) if tx in self.verified_tx else 0
             else:
                 return 0
 
-    def add(self, tx_hash):
+    def add(self, tx_hash, tx_height):
         """ add a transaction to the list of monitored transactions. """
         with self.lock:
-            if tx_hash not in self.transactions:
-                self.transactions.append(tx_hash)
+            if tx_hash not in self.transactions.keys():
+                self.transactions[tx_hash] = tx_height
 
     def run(self):
         requested_merkle = []
@@ -87,11 +87,11 @@ class WalletVerifier(threading.Thread):
 
             # request missing tx
             if all_chunks:
-                for tx_hash in self.transactions:
+                for tx_hash, tx_height in self.transactions.items():
                     if tx_hash not in self.verified_tx:
                         if self.merkle_roots.get(tx_hash) is None and tx_hash not in requested_merkle:
                             print_error('requesting merkle', tx_hash)
-                            self.interface.send([ ('blockchain.transaction.get_merkle',[tx_hash]) ], 'verifier')
+                            self.interface.send([ ('blockchain.transaction.get_merkle',[tx_hash, tx_height]) ], 'verifier')
                             requested_merkle.append(tx_hash)
 
             # process pending headers

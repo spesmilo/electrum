@@ -845,6 +845,8 @@ class ElectrumWindow(QMainWindow):
             label = self.wallet.labels.get(address,'')
             n = 0 
             h = self.wallet.history.get(address,[])
+            if h == ['*']: h = []
+
             for tx_hash, tx_height in h:
                 tx = self.wallet.transactions.get(tx_hash)
                 if tx: n += 1

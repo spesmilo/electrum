@@ -381,7 +381,8 @@ class Wallet:
                 addr = item.get('address')
                 if addr in addresses:
                     key = item['prevout_hash']  + ':%d'%item['prevout_n']
-                    value = self.prevout_values[ key ]
+                    value = self.prevout_values.get( key )
+                    if value is None: continue
                     v -= value
             for item in d.get('outputs'):
                 addr = item.get('address')
@@ -409,6 +410,7 @@ class Wallet:
     def get_addr_balance(self, addr):
         assert self.is_mine(addr)
         h = self.history.get(addr,[])
+        if h == ['*']: return 0,0
         c = u = 0
         for tx_hash, tx_height in h:
             v = self.get_tx_value(tx_hash, [addr])
@@ -531,6 +533,7 @@ class Wallet:
 
     def get_status(self, h):
         if not h: return None
+        if h == ['*']: return '*'
         status = ''
         for tx_hash, height in h:
             status += tx_hash + ':%d:' % height
@@ -553,16 +556,18 @@ class Wallet:
 
     def receive_history_callback(self, addr, hist):
 
-        if not self.check_new_history(addr, hist):
-            raise BaseException("error: received history for %s is not consistent with known transactions"%addr)
+        if hist != ['*']:
+            if not self.check_new_history(addr, hist):
+                raise BaseException("error: received history for %s is not consistent with known transactions"%addr)
             
         with self.lock:
             self.history[addr] = hist
             self.save()
+
+        if hist != ['*']:
             for tx_hash, tx_height in hist:
                 if tx_height>0:
-                    self.verifier.add(tx_hash)
-
+                    self.verifier.add(tx_hash, tx_height)
 
 
     def get_tx_history(self):
@@ -886,6 +891,7 @@ class Wallet:
             
         # set the timestamp for transactions that need it
         for hist in self.history.values():
+            if hist == ['*']: continue
             for tx_hash, tx_height in hist:
                 tx = self.transactions.get(tx_hash)
                 if tx and not tx.get('timestamp'):
@@ -894,7 +900,7 @@ class Wallet:
                         self.set_tx_timestamp(tx_hash, timestamp)
 
                 if tx_height>0:
-                    self.verifier.add(tx_hash)
+                    self.verifier.add(tx_hash, tx_height)
 
 
 
@@ -936,6 +942,7 @@ class Wallet:
         # 1 check that tx is referenced in addr_history. 
         addresses = []
         for addr, hist in self.history.items():
+            if hist == ['*']:continue
             for txh, height in hist:
                 if txh == tx_hash: 
                     addresses.append(addr)
@@ -998,6 +1005,7 @@ class WalletSynchronizer(threading.Thread):
 
         # request any missing transactions
         for history in self.wallet.history.values():
+            if history == ['*']: continue
             for tx_hash, tx_height in history:
                 if self.wallet.transactions.get(tx_hash) is None and (tx_hash, tx_height) not in missing_tx:
                     missing_tx.append( (tx_hash, tx_height) )
@@ -1035,7 +1043,11 @@ class WalletSynchronizer(threading.Thread):
             # 3. handle response
             method = r['method']
             params = r['params']
-            result = r['result']
+            result = r.get('result')
+            error = r.get('error')
+            if error:
+                print "error", r
+                continue
 
             if method == 'blockchain.address.subscribe':
                 addr = params[0]
@@ -1045,34 +1057,38 @@ class WalletSynchronizer(threading.Thread):
 
             elif method == 'blockchain.address.get_history':
                 addr = params[0]
-                hist = []
+                if result == ['*']:
+                    assert requested_histories.pop(addr) == '*'
+                    self.wallet.receive_history_callback(addr, result)
+                else:
+                    hist = []
+                    # check that txids are unique
+                    txids = []
+                    for item in result:
+                        tx_hash = item['tx_hash']
+                        if tx_hash not in txids:
+                            txids.append(tx_hash)
+                            hist.append( (tx_hash, item['height']) )
 
-                # check that txids are unique
-                txids = []
-                for item in result:
-                    tx_hash = item['tx_hash']
-                    if tx_hash not in txids:
-                        txids.append(tx_hash)
-                        hist.append( (tx_hash, item['height']) )
+                    if len(hist) != len(result):
+                        raise BaseException("error: server sent history with non-unique txid")
 
-                if len(hist) != len(result):
-                    raise BaseException("error: server sent history with non-unique txid")
-
-                # check that the status corresponds to what was announced
-                if self.wallet.get_status(hist) != requested_histories.pop(addr):
-                    raise BaseException("error: status mismatch: %s"%addr)
+                    # check that the status corresponds to what was announced
+                    rs = requested_histories.pop(addr)
+                    if self.wallet.get_status(hist) != rs:
+                        raise BaseException("error: status mismatch: %s"%addr)
                 
-                # store received history
-                self.wallet.receive_history_callback(addr, hist)
+                    # store received history
+                    self.wallet.receive_history_callback(addr, hist)
 
-                # request transactions that we don't have 
-                for tx_hash, tx_height in hist:
-                    if self.wallet.transactions.get(tx_hash) is None:
-                        if (tx_hash, tx_height) not in requested_tx and (tx_hash, tx_height) not in missing_tx:
-                            missing_tx.append( (tx_hash, tx_height) )
-                    else:
-                        timestamp = self.wallet.verifier.get_timestamp(tx_height)
-                        self.wallet.set_tx_timestamp(tx_hash, timestamp)
+                    # request transactions that we don't have 
+                    for tx_hash, tx_height in hist:
+                        if self.wallet.transactions.get(tx_hash) is None:
+                            if (tx_hash, tx_height) not in requested_tx and (tx_hash, tx_height) not in missing_tx:
+                                missing_tx.append( (tx_hash, tx_height) )
+                        else:
+                            timestamp = self.wallet.verifier.get_timestamp(tx_height)
+                            self.wallet.set_tx_timestamp(tx_hash, timestamp)
 
             elif method == 'blockchain.transaction.get':
                 tx_hash = params[0]

@@ -84,6 +84,12 @@ class Interface(threading.Thread):
         
         if error:
             print_error("received error:", c)
+            if msg_id is not None:
+                with self.lock: 
+                    method, params, channel = self.unanswered_requests.pop(msg_id)
+                response_queue = self.responses[channel]
+                response_queue.put({'method':method, 'params':params, 'error':error, 'id':msg_id})
+
             return
 
         if msg_id is not None:
