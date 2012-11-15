@@ -446,7 +446,7 @@ class Wallet:
         for addr in domain:
             h = self.history.get(addr, [])
             if h == ['*']: continue
-            for tx_hash, tx_height, in h:
+            for tx_hash, tx_height in h:
                 tx = self.transactions.get(tx_hash)
                 for output in tx.get('outputs'):
                     if output.get('address') != addr: continue
@@ -459,7 +459,8 @@ class Wallet:
 
         for addr in self.prioritized_addresses:
             h = self.history.get(addr, [])
-            for tx_hash, tx_height, in h:
+            if h == ['*']: continue
+            for tx_hash, tx_height in h:
                 for output in tx.get('outputs'):
                     if output.get('address') != addr: continue
                     key = tx_hash + ":%d" % output.get('index')
@@ -571,7 +572,14 @@ class Wallet:
         if hist != ['*']:
             for tx_hash, tx_height in hist:
                 if tx_height>0:
+                    # add it in case it was previously unconfirmed
                     self.verifier.add(tx_hash, tx_height)
+                    # set the height in case it changed
+                    tx = self.transactions.get(tx_hash)
+                    if tx:
+                        if tx.get('height') != tx_height:
+                            print_error( "changing height for tx", tx_hash )
+                            tx['height'] = tx_height
 
 
     def get_tx_history(self):
@@ -892,7 +900,8 @@ class Wallet:
 
     def set_verifier(self, verifier):
         self.verifier = verifier
-            
+
+        # review transactions (they might not all be in history)
         for tx_hash, tx in self.transactions.items():
             tx_height = tx.get('height')
             if tx_height <1:
@@ -908,6 +917,20 @@ class Wallet:
                 if timestamp:
                     self.set_tx_timestamp(tx_hash, timestamp)
 
+
+        # review existing history
+        for addr, hist in self.history.items():
+            if hist == ['*']: continue
+            for tx_hash, tx_height in hist:
+                if tx_height>0:
+                    # add it in case it was previously unconfirmed
+                    self.verifier.add(tx_hash, tx_height)
+                    # set the height in case it changed
+                    tx = self.transactions.get(tx_hash)
+                    if tx:
+                        if tx.get('height') != tx_height:
+                            print_error( "changing height for tx", tx_hash )
+                            tx['height'] = tx_height
 
 
 
@@ -1064,6 +1087,7 @@ class WalletSynchronizer(threading.Thread):
 
             elif method == 'blockchain.address.get_history':
                 addr = params[0]
+                print_error("receiving history", addr, result)
                 if result == ['*']:
                     assert requested_histories.pop(addr) == '*'
                     self.wallet.receive_history_callback(addr, result)
