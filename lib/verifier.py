@@ -32,7 +32,7 @@ class WalletVerifier(threading.Thread):
         self.daemon = True
         self.config = config
         self.interface = interface
-        self.transactions    = {}                                 # monitored transactions
+        self.transactions    = {}                                 # requested verifications (with height sent by the requestor)
         self.interface.register_channel('verifier')
 
         self.verified_tx     = config.get('verified_tx',{})       # height of verified tx
@@ -52,10 +52,12 @@ class WalletVerifier(threading.Thread):
             if tx in self.transactions.keys():
                 return (self.local_height - self.verified_tx[tx] + 1) if tx in self.verified_tx else -1
             else:
+                #print "verifier: tx not in list", tx
                 return 0
 
     def add(self, tx_hash, tx_height):
         """ add a transaction to the list of monitored transactions. """
+        assert tx_height > 0
         with self.lock:
             if tx_hash not in self.transactions.keys():
                 self.transactions[tx_hash] = tx_height

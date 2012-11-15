@@ -550,6 +550,9 @@ class Wallet:
         with self.lock:
             self.transactions[tx_hash] = tx
 
+        tx_height = tx.get('height')
+        if tx_height>0: self.verifier.add(tx_hash, tx_height)
+
         self.update_tx_outputs(tx_hash)
 
         self.save()
@@ -890,18 +893,21 @@ class Wallet:
     def set_verifier(self, verifier):
         self.verifier = verifier
             
-        # set the timestamp for transactions that need it
-        for hist in self.history.values():
-            if hist == ['*']: continue
-            for tx_hash, tx_height in hist:
-                tx = self.transactions.get(tx_hash)
-                if tx and not tx.get('timestamp'):
-                    timestamp = self.verifier.get_timestamp(tx_height)
-                    if timestamp:
-                        self.set_tx_timestamp(tx_hash, timestamp)
+        for tx_hash, tx in self.transactions.items():
+            tx_height = tx.get('height')
+            if tx_height <1:
+                print_error( "skipping", tx_hash, tx_height )
+                continue
+            
+            if tx_height>0:
+                self.verifier.add(tx_hash, tx_height)
 
-                if tx_height>0:
-                    self.verifier.add(tx_hash, tx_height)
+            # set the timestamp for transactions that need it
+            if tx and not tx.get('timestamp'):
+                timestamp = self.verifier.get_timestamp(tx_height)
+                if timestamp:
+                    self.set_tx_timestamp(tx_hash, timestamp)
+
 
 
 
@@ -1123,6 +1129,7 @@ class WalletSynchronizer(threading.Thread):
         vds = deserialize.BCDataStream()
         vds.write(raw_tx.decode('hex'))
         d = deserialize.parse_Transaction(vds)
+        d['height'] = tx_height
         d['tx_hash'] = tx_hash
         d['timestamp'] = self.wallet.verifier.get_timestamp(tx_height)
         return d
