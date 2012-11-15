@@ -437,7 +437,12 @@ class ElectrumWindow(QMainWindow):
             tx_hash = tx['tx_hash']
             conf = self.wallet.verifier.get_confirmations(tx_hash)
             if conf:
-                time_str = datetime.datetime.fromtimestamp( tx['timestamp']).isoformat(' ')[:-3]
+                try:
+                    time_str = datetime.datetime.fromtimestamp( tx['timestamp']).isoformat(' ')[:-3]
+                except:
+                    time_str = "unknown"
+                if conf == -1:
+                    icon = None
                 if conf == 0:
                     icon = QIcon(":icons/unconfirmed.png")
                 elif conf < 6:
@@ -845,13 +850,16 @@ class ElectrumWindow(QMainWindow):
             label = self.wallet.labels.get(address,'')
             n = 0 
             h = self.wallet.history.get(address,[])
-            if h == ['*']: h = []
 
-            for tx_hash, tx_height in h:
-                tx = self.wallet.transactions.get(tx_hash)
-                if tx: n += 1
+            if h != ['*']: 
+                for tx_hash, tx_height in h:
+                    tx = self.wallet.transactions.get(tx_hash)
+                    if tx: n += 1
+                num_tx = "%d "%n
+            else:
+                n = -1
+                num_tx = "*"
 
-            tx = "%d "%n
             if n==0:
                 if address in self.wallet.addresses:
                     gap += 1
@@ -864,7 +872,7 @@ class ElectrumWindow(QMainWindow):
             c, u = self.wallet.get_addr_balance(address)
             balance = format_satoshis( c + u, False, self.wallet.num_zeros )
             flags = self.wallet.get_address_flags(address)
-            item = QTreeWidgetItem( [ flags, address, label, balance, tx] )
+            item = QTreeWidgetItem( [ flags, address, label, balance, num_tx] )
 
             item.setFont(0, QFont(MONOSPACE_FONT))
             item.setFont(1, QFont(MONOSPACE_FONT))

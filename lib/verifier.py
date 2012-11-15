@@ -50,7 +50,7 @@ class WalletVerifier(threading.Thread):
         """ return the number of confirmations of a monitored transaction. """
         with self.lock:
             if tx in self.transactions.keys():
-                return (self.local_height - self.verified_tx[tx] + 1) if tx in self.verified_tx else 0
+                return (self.local_height - self.verified_tx[tx] + 1) if tx in self.verified_tx else -1
             else:
                 return 0
 

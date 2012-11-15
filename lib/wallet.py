@@ -445,6 +445,7 @@ class Wallet:
 
         for addr in domain:
             h = self.history.get(addr, [])
+            if h == ['*']: continue
             for tx_hash, tx_height, in h:
                 tx = self.transactions.get(tx_hash)
                 for output in tx.get('outputs'):
@@ -1071,7 +1072,7 @@ class WalletSynchronizer(threading.Thread):
                             hist.append( (tx_hash, item['height']) )
 
                     if len(hist) != len(result):
-                        raise BaseException("error: server sent history with non-unique txid")
+                        raise BaseException("error: server sent history with non-unique txid", result)
 
                     # check that the status corresponds to what was announced
                     rs = requested_histories.pop(addr)
