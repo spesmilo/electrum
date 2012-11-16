@@ -841,7 +841,9 @@ class ElectrumWindow:
         tv.set_editable(False)
         tv.set_cursor_visible(False)
         tv.modify_font(pango.FontDescription(MONOSPACE_FONT))
-        page.pack_start(tv)
+        scroll = gtk.ScrolledWindow()
+        scroll.add(tv)
+        page.pack_start(scroll)
         self.info = tv.get_buffer()
         self.add_tab(page, 'Wall')
 
