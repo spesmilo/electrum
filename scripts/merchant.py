@@ -114,7 +114,7 @@ def process_request(i, amount, confirmations, expires_in, password):
         print "wrong password ", password
         return 
     addr = wallet.get_new_address(i, 0)
-    out_queue.put( ('request',(i,addr,amount,expires_in) ))
+    out_queue.put( ('request', (i, addr, amount, confirmations, expires_in) ))
     return addr
 
 def get_mpk():
