@@ -333,8 +333,9 @@ class ElectrumWindow(QMainWindow):
         tx = self.wallet.transactions.get(tx_hash)
 
         conf = self.wallet.verifier.get_confirmations(tx_hash)
-        if conf:
-            time_str = datetime.datetime.fromtimestamp( tx['timestamp']).isoformat(' ')[:-3]
+        timestamp = tx.get('timestamp')
+        if conf and timestamp:
+            time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
         else:
             time_str = 'pending'
 

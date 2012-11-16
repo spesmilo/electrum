@@ -585,8 +585,7 @@ class Wallet:
     def get_tx_history(self):
         with self.lock:
             lines = self.transactions.values()
-
-        lines = sorted(lines, key=operator.itemgetter("timestamp"))
+        lines.sort(key = lambda x: x.get('timestamp') if x.get('timestamp') else 1e12)
         return lines
 
     def get_transactions_at_height(self, height):
@@ -901,7 +900,8 @@ class Wallet:
     def set_verifier(self, verifier):
         self.verifier = verifier
 
-        # review transactions (they might not all be in history)
+        # review stored transactions and send them to the verifier
+        # (they are not necessarily in the history, because history items might have have been pruned)
         for tx_hash, tx in self.transactions.items():
             tx_height = tx.get('height')
             if tx_height <1:
@@ -914,11 +914,9 @@ class Wallet:
             # set the timestamp for transactions that need it
             if tx and not tx.get('timestamp'):
                 timestamp = self.verifier.get_timestamp(tx_height)
-                if timestamp:
-                    self.set_tx_timestamp(tx_hash, timestamp)
+                self.set_tx_timestamp(tx_hash, timestamp)
 
-
-        # review existing history
+        # review transactions that are in the history
         for addr, hist in self.history.items():
             if hist == ['*']: continue
             for tx_hash, tx_height in hist:
