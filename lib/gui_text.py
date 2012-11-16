@@ -66,19 +66,19 @@ class ElectrumGui:
 
         b = 0 
         messages = []
-        for tx in self.wallet.get_tx_history():
-            v = self.wallet.get_tx_value(tx['tx_hash'])
-            b += v
-            try:
-                time_str = str( datetime.datetime.fromtimestamp( tx['timestamp']))
-            except:
-                print tx['timestamp']
+
+        for item in self.wallet.get_tx_history():
+            tx_hash, conf, is_mine, value, fee, balance, timestamp = item
+            if conf:
+                try:
+                    time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
+                except:
+                    time_str = "------"
+            else:
                 time_str = 'pending'
-            tx_hash = tx['tx_hash']
 
             label, is_default_label = self.wallet.get_label(tx_hash)
-            #label += ' '*(40 - len(label) )
-            messages.append( format_str%( time_str, label, format_satoshis(v), format_satoshis(b) ) )
+            messages.append( format_str%( time_str, label, format_satoshis(value), format_satoshis(balance) ) )
 
         self.print_list(messages[::-1], format_str%( _("Date"), _("Description"), _("Amount"), _("Balance")))
 

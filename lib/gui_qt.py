@@ -323,38 +323,16 @@ class ElectrumWindow(QMainWindow):
         item = self.history_list.currentItem()
         if not item: return
         tx_hash = str(item.toolTip(0))
+        if not tx_hash: return
         menu = QMenu()
         menu.addAction(_("Copy ID to Clipboard"), lambda: self.app.clipboard().setText(tx_hash))
         menu.addAction(_("Details"), lambda: self.tx_details(tx_hash))
         menu.addAction(_("Edit description"), lambda: self.tx_label_clicked(item,2))
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
+
     def tx_details(self, tx_hash):
-        tx = self.wallet.transactions.get(tx_hash)
-
-        conf = self.wallet.verifier.get_confirmations(tx_hash)
-        timestamp = tx.get('timestamp')
-        if conf and timestamp:
-            time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
-        else:
-            time_str = 'pending'
-
-        inputs = map(lambda x: x.get('address'), tx['inputs'])
-        outputs = map(lambda x: x.get('address'), tx['outputs'])
-        tx_details = _("Transaction Details") +"\n\n" \
-            + "Transaction ID:\n" + tx_hash + "\n\n" \
-            + "Status: %d confirmations\n\n"%conf  \
-            + "Date: %s\n\n"%time_str \
-            + "Inputs:\n-"+ '\n-'.join(inputs) + "\n\n" \
-            + "Outputs:\n-"+ '\n-'.join(outputs)
-
-        r = self.wallet.receipts.get(tx_hash)
-        if r:
-            tx_details += "\n_______________________________________" \
-                + '\n\nSigned URI: ' + r[2] \
-                + "\n\nSigned by: " + r[0] \
-                + '\n\nSignature: ' + r[1]
-
+        tx_details = self.wallet.get_tx_details(tx_hash)
         QMessageBox.information(self, 'Details', tx_details, 'OK')
 
 
@@ -432,14 +410,13 @@ class ElectrumWindow(QMainWindow):
 
 
     def update_history_tab(self):
+
         self.history_list.clear()
-        balance = 0
-        for tx in self.wallet.get_tx_history():
-            tx_hash = tx['tx_hash']
-            conf = self.wallet.verifier.get_confirmations(tx_hash)
+        for item in self.wallet.get_tx_history():
+            tx_hash, conf, is_mine, value, fee, balance, timestamp = item
             if conf:
                 try:
-                    time_str = datetime.datetime.fromtimestamp( tx['timestamp']).isoformat(' ')[:-3]
+                    time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
                 except:
                     time_str = "unknown"
                 if conf == -1:
@@ -453,20 +430,32 @@ class ElectrumWindow(QMainWindow):
             else:
                 time_str = 'pending'
                 icon = QIcon(":icons/unconfirmed.png")
-            v = self.wallet.get_tx_value(tx_hash)
-            balance += v 
-            label, is_default_label = self.wallet.get_label(tx_hash)
 
-            item = QTreeWidgetItem( [ '', time_str, label, format_satoshis(v,True,self.wallet.num_zeros), format_satoshis(balance,False,self.wallet.num_zeros)] )
+            if value is not None:
+                v_str = format_satoshis(value, True, self.wallet.num_zeros)
+            else:
+                v_str = '--'
+
+            balance_str = format_satoshis(balance, False, self.wallet.num_zeros)
+            
+            if tx_hash:
+                label, is_default_label = self.wallet.get_label(tx_hash)
+            else:
+                label = _('Pruned transaction outputs')
+                is_default_label = False
+
+            item = QTreeWidgetItem( [ '', time_str, label, v_str, balance_str] )
             item.setFont(2, QFont(MONOSPACE_FONT))
             item.setFont(3, QFont(MONOSPACE_FONT))
             item.setFont(4, QFont(MONOSPACE_FONT))
-            item.setToolTip(0, tx_hash)
+            if tx_hash:
+                item.setToolTip(0, tx_hash)
             if is_default_label:
                 item.setForeground(2, QBrush(QColor('grey')))
 
             item.setIcon(0, icon)
             self.history_list.insertTopLevelItem(0,item)
+            
 
         self.history_list.setCurrentItem(self.history_list.topLevelItem(0))
 

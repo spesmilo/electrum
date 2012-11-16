@@ -10,10 +10,6 @@ class HistoryWidget(QTreeWidget):
         self.setIndentation(0)
 
     def append(self, address, amount):
-        if amount >= 0:
-            display_amount = "+%s" % amount
-        else:
-            display_amount = "-%s" % (-amount)
-        item = QTreeWidgetItem([display_amount, address])
+        item = QTreeWidgetItem([amount, address])
         self.insertTopLevelItem(0, item)
 

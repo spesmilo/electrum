@@ -76,7 +76,7 @@ class Wallet:
         self.transactions          = config.get('transactions',{})        # txid -> deserialised
 
         # not saved
-        self.prevout_values = {}
+        self.prevout_values = {}     # my own transaction outputs
         self.spent_outputs = []
         self.receipt = None          # next receipt
         self.banner = ''
@@ -355,7 +355,8 @@ class Wallet:
 
     def fill_addressbook(self):
         for tx_hash, tx in self.transactions.items():
-            if self.get_tx_value(tx_hash)<0:
+            is_send, _, _ = self.get_tx_value(tx_hash)
+            if is_send:
                 for o in tx['outputs']:
                     addr = o.get('address')
                     if not self.is_mine(addr) and addr not in self.addressbook:
@@ -374,23 +375,78 @@ class Wallet:
         # return the balance for that tx
         if addresses is None: addresses = self.all_addresses()
         with self.lock:
-            v = 0
+            is_send = False
+            is_pruned = False
+            v_in = v_out = v = 0
             d = self.transactions.get(tx_hash)
             if not d: return 0
             for item in d.get('inputs'):
                 addr = item.get('address')
                 if addr in addresses:
+                    is_send = True
                     key = item['prevout_hash']  + ':%d'%item['prevout_n']
                     value = self.prevout_values.get( key )
-                    if value is None: continue
+                    if value is None:
+                        is_pruned = True
+                        break
+
                     v -= value
+                    v_in += value
+
+            if is_pruned: v = 0
             for item in d.get('outputs'):
                 addr = item.get('address')
-                if addr in addresses: 
-                    value = item.get('value')
-                    v += value 
-            return v
+                value = item.get('value')
+                v_out += value
+                if not is_pruned:
+                    if addr in addresses: v += value
+                else:
+                    if addr not in addresses: v -= value
 
+            # I can compute the fee only if I am the spender and inputs were not pruned
+            fee = v_in - v_out if is_send and not is_pruned else None
+            return is_send, v, fee
+
+
+    def get_tx_details(self, tx_hash):
+        import datetime
+        if not tx_hash: return ''
+        tx = self.transactions.get(tx_hash)
+        is_mine, v, fee = self.get_tx_value(tx_hash)
+        conf = self.verifier.get_confirmations(tx_hash)
+        timestamp = tx.get('timestamp')
+        if conf and timestamp:
+            time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+        else:
+            time_str = 'pending'
+
+        inputs = map(lambda x: x.get('address'), tx['inputs'])
+        outputs = map(lambda x: x.get('address'), tx['outputs'])
+        tx_details = "Transaction Details" +"\n\n" \
+            + "Transaction ID:\n" + tx_hash + "\n\n" \
+            + "Status: %d confirmations\n"%conf
+        if is_mine:
+            if fee: 
+                tx_details += "Amount sent: %s\n"% format_satoshis(v+fee, False) \
+                              + "Transaction fee: %s\n"% format_satoshis(fee, False)
+            else:
+                tx_details += "Amount sent: %s\n"% format_satoshis(v, False) \
+                              + "Transaction fee: unknown\n"
+        else:
+            tx_details += "Amount received: %s\n"% format_satoshis(v, False) \
+
+        tx_details += "Date: %s\n\n"%time_str \
+            + "Inputs:\n-"+ '\n-'.join(inputs) + "\n\n" \
+            + "Outputs:\n-"+ '\n-'.join(outputs)
+
+        r = self.receipts.get(tx_hash)
+        if r:
+            tx_details += "\n_______________________________________" \
+                + '\n\nSigned URI: ' + r[2] \
+                + "\n\nSigned by: " + r[0] \
+                + '\n\nSignature: ' + r[1]
+
+        return tx_details
 
     
     def update_tx_outputs(self, tx_hash):
@@ -412,8 +468,13 @@ class Wallet:
         h = self.history.get(addr,[])
         if h == ['*']: return 0,0
         c = u = 0
+
         for tx_hash, tx_height in h:
-            v = self.get_tx_value(tx_hash, [addr])
+            # if the tx is mine, then I know its outputs and input values
+            # if it is not mine, I only need its outputs
+            is_mine, v, fee = self.get_tx_value(tx_hash, [addr])
+            if v is None:raise
+
             if tx_height:
                 c += v
             else:
@@ -455,7 +516,6 @@ class Wallet:
                     output['tx_hash'] = tx_hash
                     coins.append(output)
 
-        #coins = sorted( coins, key = lambda x: x[1]['timestamp'] )
 
         for addr in self.prioritized_addresses:
             h = self.history.get(addr, [])
@@ -468,7 +528,6 @@ class Wallet:
                     output['tx_hash'] = tx_hash
                     prioritized_coins.append(output)
 
-        #prioritized_coins = sorted( prioritized_coins, key = lambda x: x[1]['timestamp'] )
 
         inputs = []
         coins = prioritized_coins + coins
@@ -584,9 +643,35 @@ class Wallet:
 
     def get_tx_history(self):
         with self.lock:
-            lines = self.transactions.values()
-        lines.sort(key = lambda x: x.get('timestamp') if x.get('timestamp') else 1e12)
-        return lines
+            history = self.transactions.values()
+        history.sort(key = lambda x: x.get('timestamp') if x.get('timestamp') else 1e12)
+        result = []
+    
+        balance = 0
+        for tx in history:
+            is_mine, v, fee = self.get_tx_value(tx['tx_hash'])
+            if v is not None: balance += v
+        c, u = self.get_balance()
+
+        if balance != c+u:
+            v_str = format_satoshis( c+u - balance, True, self.num_zeros)
+            result.append( ('', 1000, 0, c+u-balance, None, c+u-balance, None ) )
+
+        balance = c + u - balance
+        for tx in history:
+            tx_hash = tx['tx_hash']
+            timestamp = tx.get('timestamp')
+            conf = self.verifier.get_confirmations(tx_hash) if self.verifier else None
+            is_mine, v, fee = self.get_tx_value(tx_hash)
+            if v is not None:
+                balance += v
+                value = v + fee if fee is not None else v
+            else:
+                value = None
+
+            result.append( (tx_hash, conf, is_mine, value, fee, balance, timestamp) )
+
+        return result
 
     def get_transactions_at_height(self, height):
         with self.lock:
@@ -609,7 +694,8 @@ class Wallet:
         tx = self.transactions.get(tx_hash)
         if tx:
             default_label = ''
-            if self.get_tx_value(tx_hash)<0:
+            is_mine, _, _ = self.get_tx_value(tx_hash)
+            if is_mine:
                 for o in tx['outputs']:
                     o_addr = o.get('address')
                     if not self.is_mine(o_addr):

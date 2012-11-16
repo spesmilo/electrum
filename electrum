@@ -484,23 +484,20 @@ if __name__ == '__main__':
                 print flags, m_addr, b, label
 
     if cmd == 'history':
-        lines = wallet.get_tx_history()
-        b = 0 
-        for line in lines:
-            import datetime
-            v = wallet.get_tx_value(line['tx_hash'])
-            b += v
+        import datetime
+        for item in wallet.get_tx_history():
+            tx_hash, conf, is_mine, value, fee, balance, timestamp = item
             try:
-                time_str = str( datetime.datetime.fromtimestamp( line['timestamp']))
+                time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
             except:
-                print line['timestamp']
-                time_str = 'pending'
-            label = line.get('label')
-            if not label: label = line['tx_hash']
+                time_str = "----"
+
+            label, is_default_label = wallet.get_label(tx_hash)
+            if not label: label = tx_hash
             else: label = label + ' '*(64 - len(label) )
 
-            print time_str , "  " + label + "  " + format_satoshis(v)+ "  "+ format_satoshis(b)
-        print "# balance: ", format_satoshis(b)
+            print "%17s"%time_str, "  " + label + "  " + format_satoshis(value)+ "  "+ format_satoshis(balance)
+        print "# balance: ", format_satoshis(balance)
 
     elif cmd == 'label':
         try:

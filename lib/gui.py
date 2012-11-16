@@ -1223,39 +1223,26 @@ class ElectrumWindow:
     def update_history_tab(self):
         cursor = self.history_treeview.get_cursor()[0]
         self.history_list.clear()
-        balance = 0 
-        for tx in self.wallet.get_tx_history():
-            tx_hash = tx['tx_hash']
-            conf = self.wallet.verifier.get_confirmations(tx_hash)
+
+        for item in self.wallet.get_tx_history():
+            tx_hash, conf, is_mine, value, fee, balance, timestamp = item
             if conf:
-                time_str = datetime.datetime.fromtimestamp( tx['timestamp']).isoformat(' ')[:-3]
+                try:
+                    time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
+                except:
+                    time_str = "------"
                 conf_icon = gtk.STOCK_APPLY
             else:
                 time_str = 'pending'
                 conf_icon = gtk.STOCK_EXECUTE
-            v = self.wallet.get_tx_value(tx_hash)
-            balance += v 
-            label, is_default_label = self.wallet.get_label(tx_hash)
-            tooltip = tx_hash + "\n%d confirmations"%conf 
 
-            inputs = map(lambda x: x.get('address'), tx['inputs'])
-            outputs = map(lambda x: x.get('address'), tx['outputs'])
-            details = "Transaction Details:\n\n" \
-                      + "Transaction ID:\n" + tx_hash + "\n\n" \
-                      + "Status: %d confirmations\n\n"%conf  \
-                      + "Date: %s\n\n"%time_str \
-                      + "Inputs:\n-"+ '\n-'.join(inputs) + "\n\n" \
-                      + "Outputs:\n-"+ '\n-'.join(outputs)
-            r = self.wallet.receipts.get(tx_hash)
-            if r:
-                details += "\n_______________________________________" \
-                           + '\n\nSigned URI: ' + r[2] \
-                           + "\n\nSigned by: " + r[0] \
-                           + '\n\nSignature: ' + r[1]
-                
+            label, is_default_label = self.wallet.get_label(tx_hash)
+            tooltip = tx_hash + "\n%d confirmations"%conf if tx_hash else ''
+            details = self.wallet.get_tx_details(tx_hash)
 
             self.history_list.prepend( [tx_hash, conf_icon, time_str, label, is_default_label,
-                                        format_satoshis(v,True,self.wallet.num_zeros), format_satoshis(balance,False,self.wallet.num_zeros), tooltip, details] )
+                                        format_satoshis(value,True,self.wallet.num_zeros),
+                                        format_satoshis(balance,False,self.wallet.num_zeros), tooltip, details] )
         if cursor: self.history_treeview.set_cursor( cursor )
 
 

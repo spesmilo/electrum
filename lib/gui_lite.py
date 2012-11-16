@@ -438,12 +438,13 @@ class MiniWindow(QDialog):
         self.address_completions.setStringList(completions)
 
     def update_history(self, tx_history):
-        for tx in tx_history[-10:]:
-            tx_hash = tx['tx_hash']
+        from util import format_satoshis
+        for item in tx_history[-10:]:
+            tx_hash, conf, is_mine, value, fee, balance, timestamp = item
             label = self.actuator.wallet.get_label(tx_hash)[0]
-            value = self.actuator.wallet.get_tx_value(tx_hash)
-            amount = D(value) / 10**8
-            self.history_list.append(label, amount)
+            #amount = D(value) / 10**8
+            v_str = format_satoshis(value, True)
+            self.history_list.append(label, v_str)
 
     def acceptbit(self):
         self.actuator.acceptbit(self.quote_currencies[0])
