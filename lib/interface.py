@@ -490,6 +490,28 @@ class Interface(threading.Thread):
             self.is_connected = False  # this exits the polling loop
             self.trigger_callback('disconnecting') # for actively disconnecting
 
+
+    def get_servers_list(self):
+        plist = {}
+        if not self.servers:
+            servers_list = []
+            for x in DEFAULT_SERVERS:
+                h,port,protocol = x.split(':')
+                servers_list.append( (h,[(protocol,port)] ) )
+        else:
+            servers_list = self.servers
+        
+        for item in servers_list:
+            _host, pp = item
+            z = {}
+            for item2 in pp:
+                _protocol, _port = item2
+                z[_protocol] = _port
+            plist[_host] = z
+                
+        return plist, servers_list
+
+
     def is_empty(self, channel):
         q = self.responses.get(channel)
         if q: 

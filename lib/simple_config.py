@@ -8,30 +8,27 @@ from version import ELECTRUM_VERSION, SEED_VERSION
 
 class SimpleConfig:
 
-    def __init__(self, options=None):
+    def __init__(self, options={}):
 
         # system conf, readonly
         self.system_config = {}
         self.read_system_config()
 
         # user conf, writeable
+        self.user_dir = user_dir()
         self.user_config = {}
         self.read_user_config()
 
         # command-line options
-        self.options_config = {}
-        if options:
-            if options.server: self.options_config['server'] = options.server
-            if options.proxy: self.options_config['proxy'] = options.proxy
-            if options.gui: self.options_config['gui'] = options.gui
-
+        self.options_config = options
 
         self.wallet_config = {}
         self.wallet_file_exists = False
-        self.init_path(options)
+        self.init_path(self.options_config.get('wallet_path'))
         print_error( "path", self.path )
         if self.path:
             self.read_wallet_config(self.path)
+            
             
             
         
@@ -62,8 +59,7 @@ class SimpleConfig:
 
     def get(self, key, default=None):
         # 1. command-line options always override everything
-        if self.options_config.has_key(key):
-            # print "found", key, "in options"
+        if self.options_config.has_key(key) and self.options_config.get(key) is not None:
             out = self.options_config.get(key)
 
         # 2. user configuration 
@@ -123,7 +119,9 @@ class SimpleConfig:
 
 
     def read_user_config(self):
-        name = os.path.join( user_dir(), 'electrum.conf')
+        if not self.user_dir: return
+
+        name = os.path.join( self.user_dir, 'electrum.conf')
         if os.path.exists(name):
             try:
                 import ConfigParser
@@ -140,16 +138,8 @@ class SimpleConfig:
                 pass
 
 
-    def init_path(self, options):
+    def init_path(self, path):
         """Set the path of the wallet."""
-
-        path = None
-        if options:
-            # this will call read_wallet_config only if there is a wallet_path value in options
-            try:
-                path = options.wallet_path
-            except:
-                pass
 
         if not path:
             path = self.get('default_wallet_path')
@@ -159,23 +149,22 @@ class SimpleConfig:
             return
 
         # Look for wallet file in the default data directory.
-        # Keeps backwards compatibility.
-        wallet_dir = user_dir()
-
         # Make wallet directory if it does not yet exist.
-        if not os.path.exists(wallet_dir):
-            os.mkdir(wallet_dir)
-        self.path = os.path.join(wallet_dir, "electrum.dat")
+        if not os.path.exists(self.user_dir):
+            os.mkdir(self.user_dir)
+        self.path = os.path.join(self.user_dir, "electrum.dat")
 
 
     def save_user_config(self):
+        if not self.user_dir: return
+
         import ConfigParser
         config = ConfigParser.RawConfigParser()
         config.add_section('client')
         for k,v in self.user_config.items():
             config.set('client', k, v)
 
-        with open( os.path.join( user_dir(), 'electrum.conf'), 'wb') as configfile:
+        with open( os.path.join( self.user_dir, 'electrum.conf'), 'wb') as configfile:
             config.write(configfile)
         
 
@@ -207,6 +196,7 @@ class SimpleConfig:
         f = open(self.path,"w")
         f.write( s )
         f.close()
-        import stat
-        os.chmod(self.path,stat.S_IREAD | stat.S_IWRITE)
+        if self.get('gui') != 'android':
+            import stat
+            os.chmod(self.path,stat.S_IREAD | stat.S_IWRITE)
 

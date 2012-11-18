@@ -1372,22 +1372,7 @@ class ElectrumWindow(QMainWindow):
             status = _("Please choose a server.")
 
         server = interface.server
-
-        plist = {}
-        if not wallet.interface.servers:
-            servers_list = []
-            for x in DEFAULT_SERVERS:
-                h,port,protocol = x.split(':')
-                servers_list.append( (h,[(protocol,port)] ) )
-        else:
-            servers_list = wallet.interface.servers
-            for item in servers_list:
-                _host, pp = item
-                z = {}
-                for item2 in pp:
-                    _protocol, _port = item2
-                    z[_protocol] = _port
-                plist[_host] = z
+        plist, servers_list = interface.get_servers_list()
 
         d = QDialog(parent)
         d.setModal(1)

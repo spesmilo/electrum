@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import re
-import sys
+import sys, os
 import optparse
 
 try:
@@ -121,10 +121,7 @@ def prompt_password(prompt, confirm=True):
         password = None
     return password
 
-
-
-if __name__ == '__main__':
-
+def parse_args():
     usage = "usage: %prog [options] command\nCommands: "+ (', '.join(known_commands))
     parser = optparse.OptionParser(prog=usage)
     parser.add_option("-g", "--gui", dest="gui", help="User interface: qt, lite, gtk or text")
@@ -139,12 +136,20 @@ if __name__ == '__main__':
     parser.add_option("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is t or h")
     parser.add_option("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
     parser.add_option("-v", "--verbose", action="store_true", dest="verbose", default=False, help="show debugging information")
-    options, args = parser.parse_args()
+    return parser.parse_args()
 
+
+if __name__ == '__main__':
+
+    options, args = parse_args()
     set_verbosity(options.verbose)
 
     # config is an object passed to the various constructors (wallet, interface, gui)
-    config = SimpleConfig(options)
+    if 'ANDROID_DATA' in os.environ:
+        config = SimpleConfig({'wallet_path':"/sdcard/electrum.dat", 'blockchain_headers_path':'/sdcard', 'gui':'android'})
+    else:
+        config = SimpleConfig(eval(str(options)))
+
     wallet = Wallet(config)
 
     if len(args)==0:
@@ -181,6 +186,11 @@ if __name__ == '__main__':
                   import lib.gui_text as gui
               except ImportError:
                   import electrum.gui_text as gui
+        elif pref_gui == 'android':
+              try:
+                  import lib.gui_android as gui
+              except ImportError:
+                  import electrum.gui_android as gui
         else:
             sys.exit("Error: Unknown GUI: " + pref_gui )
 
@@ -201,9 +211,9 @@ if __name__ == '__main__':
             found = config.wallet_file_exists
             if not found:
                 found = gui.restore_or_create()
-        except SystemExit, e:
+        except SystemExit(e):
             exit(e)
-        except BaseException, e:
+        except BaseException(e):
             import traceback
             traceback.print_exc(file=sys.stdout)
             #gui.show_message(e.message)
@@ -222,8 +232,8 @@ if __name__ == '__main__':
         cmd = 'help'
 
     if not config.wallet_file_exists and cmd not in ['help','create','restore']:
-        print "Error: Wallet file not found."
-        print "Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option"
+        print("Error: Wallet file not found.")
+        print("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
     
     if cmd in ['create', 'restore']:
@@ -267,30 +277,30 @@ if __name__ == '__main__':
                 verifier = WalletVerifier(interface, config)
                 wallet.set_verifier(verifier)
 
-                print "Recovering wallet..."
+                print("Recovering wallet...")
                 WalletSynchronizer(wallet, config).start()
                 wallet.up_to_date_event.clear()
                 wallet.up_to_date = False
                 wallet.update()
                 if wallet.is_found():
-                    print "Recovery successful"
+                    print("Recovery successful")
                 else:
-                    print "Warning: Found no history for this wallet"
+                    print("Warning: Found no history for this wallet")
             else:
                 wallet.synchronize()
             wallet.fill_addressbook()
             wallet.save()
-            print "Wallet saved in '%s'"%wallet.config.path
+            print("Wallet saved in '%s'"%wallet.config.path)
         else:
             wallet.new_seed(None)
             wallet.init_mpk( wallet.seed )
             wallet.synchronize() # there is no wallet thread 
             wallet.save()
-            print "Your wallet generation seed is: " + wallet.seed
-            print "Please keep it in a safe place; if you lose it, you will not be able to restore your wallet."
-            print "Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:"
-            print "\""+' '.join(mnemonic_encode(wallet.seed))+"\""
-            print "Wallet saved in '%s'"%wallet.config.path
+            print("Your wallet generation seed is: " + wallet.seed)
+            print("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
+            print("Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:")
+            print("\""+' '.join(mnemonic_encode(wallet.seed))+"\"")
+            print("Wallet saved in '%s'"%wallet.config.path)
             
         if password:
             wallet.update_password(wallet.seed, None, password)
@@ -328,9 +338,9 @@ if __name__ == '__main__':
                 
     # important warning
     if cmd=='addresses' and options.show_keys:
-        print "WARNING: ALL your private keys are secret."
-        print "Exposing a single private key can compromise your entire wallet!"
-        print "In particular, DO NOT use 'redeem private key' services proposed by third parties."
+        print("WARNING: ALL your private keys are secret.")
+        print("Exposing a single private key can compromise your entire wallet!")
+        print("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
 
     # commands needing password
     if cmd in protected_commands or ( cmd=='addresses' and options.show_keys):
@@ -351,23 +361,23 @@ if __name__ == '__main__':
         try:
             wallet.import_key(keypair,password)
             wallet.save()
-            print "Keypair imported"
-        except BaseException, e:
+            print("Keypair imported")
+        except BaseException(e):
             print_error("Error: Keypair import failed: " + str(e))
 
     if cmd == 'help':
         cmd2 = firstarg
         if cmd2 not in known_commands:
             parser.print_help()
-            print "Type 'electrum help <command>' to see the help for a specific command"
-            print "Type 'electrum --help' to see the list of options"
-            print "List of commands:", ', '.join(known_commands)
+            print("Type 'electrum help <command>' to see the help for a specific command")
+            print("Type 'electrum --help' to see the list of options")
+            print("List of commands:", ', '.join(known_commands))
         else:
-            print known_commands[cmd2]
+            print(known_commands[cmd2])
 
     elif cmd == 'seed':
         seed = wallet.pw_decode( wallet.seed, password)
-        print seed + ' "' + ' '.join(mnemonic_encode(seed)) + '"'
+        print(seed + ' "' + ' '.join(mnemonic_encode(seed)) + '"')
 
     elif cmd == 'deseed':
         if not wallet.seed:
@@ -376,7 +386,7 @@ if __name__ == '__main__':
             print_error("Error: This wallet is encrypted")
         else:
             ns = wallet.path + '.seed'
-            print "Warning: you are going to extract the seed from '%s'\nThe seed will be saved in '%s'"%(wallet.path,ns)
+            print("Warning: you are going to extract the seed from '%s'\nThe seed will be saved in '%s'"%(wallet.path,ns))
             if raw_input("Are you sure you want to continue? (y/n) ") in ['y','Y','yes']:
                 f = open(ns,'w')
                 f.write(repr({'seed':wallet.seed, 'imported_keys':wallet.imported_keys})+"\n")
@@ -384,13 +394,13 @@ if __name__ == '__main__':
                 wallet.seed = ''
                 for k in wallet.imported_keys.keys(): wallet.imported_keys[k] = ''
                 wallet.save()
-                print "Done."
+                print("Done.")
             else:
                 print_error("Action canceled.")
 
     elif cmd == 'reseed':
         if wallet.seed:
-            print "Warning: This wallet already has a seed", wallet.seed
+            print("Warning: This wallet already has a seed", wallet.seed)
         else:
             ns = wallet.path + '.seed'
             try:
@@ -414,13 +424,13 @@ if __name__ == '__main__':
             wallet.init_mpk(seed)
             if mpk == wallet.master_public_key:
                 wallet.save()
-                print "Done: " + wallet.path
+                print("Done: " + wallet.path)
             else:
                 print_error("Error: Master public key does not match")
 
     elif cmd == 'validateaddress':
         addr = args[1]
-        print wallet.is_valid(addr)
+        print(wallet.is_valid(addr))
 
     elif cmd == 'balance':
         try:
@@ -430,36 +440,36 @@ if __name__ == '__main__':
         if addrs == []:
             c, u = wallet.get_balance()
             if u:
-                print Decimal( c ) / 100000000 , Decimal( u ) / 100000000
+                print(Decimal( c ) / 100000000 , Decimal( u ) / 100000000)
             else:
-                print Decimal( c ) / 100000000
+                print(Decimal( c ) / 100000000)
         else:
             for addr in addrs:
                 c, u = wallet.get_addr_balance(addr)
                 if u:
-                    print "%s %s, %s" % (addr, str(Decimal(c)/100000000), str(Decimal(u)/100000000))
+                    print("%s %s, %s" % (addr, str(Decimal(c)/100000000), str(Decimal(u)/100000000)))
                 else:
-                    print "%s %s" % (addr, str(Decimal(c)/100000000))
+                    print("%s %s" % (addr, str(Decimal(c)/100000000)))
 
     elif cmd in [ 'contacts']:
         for addr in wallet.addressbook:
-            print addr, "   ", wallet.labels.get(addr)
+            print(addr, "   ", wallet.labels.get(addr))
 
     elif cmd == 'eval':
-        print eval(args[1])
+        print(eval(args[1]))
         wallet.save()
 
     elif cmd == 'get':
         key = args[1]
-        print wallet.config.get(key)
+        print(wallet.config.get(key))
 
     elif cmd == 'set':
         key, value = args[1:3]
         if key not in ['seed', 'seed_version', 'master_public_key', 'use_encryption']:
             wallet.config.set_key(key, value, True)
-            print True
+            print(True)
         else:
-            print False
+            print(False)
 
     elif cmd in [ 'addresses']:
         for addr in wallet.all_addresses():
@@ -481,7 +491,7 @@ if __name__ == '__main__':
                 m_addr = "%34s"%addr
                 if options.show_keys:
                     m_addr += ':' + str(wallet.get_private_key_base58(addr, password))
-                print flags, m_addr, b, label
+                print(flags, m_addr, b, label)
 
     if cmd == 'history':
         import datetime
@@ -496,8 +506,8 @@ if __name__ == '__main__':
             if not label: label = tx_hash
             else: label = label + ' '*(64 - len(label) )
 
-            print "%17s"%time_str, "  " + label + "  " + format_satoshis(value)+ "  "+ format_satoshis(balance)
-        print "# balance: ", format_satoshis(balance)
+            print("%17s"%time_str, "  " + label + "  " + format_satoshis(value)+ "  "+ format_satoshis(balance))
+        print("# balance: ", format_satoshis(balance))
 
     elif cmd == 'label':
         try:
@@ -529,7 +539,7 @@ if __name__ == '__main__':
         for k, v in wallet.labels.items():
             if v == to_address:
                 to_address = k
-                print "alias", to_address
+                print("alias", to_address)
                 break
             if change_addr and v == change_addr:
                 change_addr = k
@@ -543,9 +553,9 @@ if __name__ == '__main__':
 
         if tx and cmd=='payto': 
             r, h = wallet.sendtx( tx )
-            print h
+            print(h)
         else:
-            print tx
+            print(tx)
 
         if is_temporary:
             wallet.imported_keys.pop(from_addr)
@@ -555,7 +565,7 @@ if __name__ == '__main__':
     elif cmd == 'sendtx':
         tx = args[1]
         r, h = wallet.sendtx( tx )
-        print h
+        print(h)
 
     elif cmd == 'password':
         try:
@@ -569,13 +579,13 @@ if __name__ == '__main__':
     elif cmd == 'signmessage':
         if len(args) < 3:
             print_error("Error: Invalid usage of signmessage.")
-            print known_commands[cmd]
+            print(known_commands[cmd])
             sys.exit(1)
         address = args[1]
         message = ' '.join(args[2:])
         if len(args) > 3:
-            print "Warning: Message was reconstructed from several arguments:", repr(message)
-        print wallet.sign_message(address, message, password)
+            print("Warning: Message was reconstructed from several arguments:", repr(message))
+        print(wallet.sign_message(address, message, password))
 
     elif cmd == 'verifymessage':
         try:
@@ -584,30 +594,30 @@ if __name__ == '__main__':
             message = ' '.join(args[3:])
         except:
             print_error("Error: Not all parameters were given, displaying help instead.")
-            print known_commands[cmd]
+            print(known_commands[cmd])
             sys.exit(1)
         if len(args) > 4:
-            print "Warning: Message was reconstructed from several arguments:", repr(message)
+            print("Warning: Message was reconstructed from several arguments:", repr(message))
         try:
             wallet.verify_message(address, signature, message)
-            print True
+            print(True)
         except BaseException as e:
-            print "Verification error: {0}".format(e)
-            print False
+            print_error("Verification error: {0}".format(e))
+            print(False)
 
     elif cmd == 'freeze':
         addr = args[1]
-        print wallet.freeze(addr)
+        print(wallet.freeze(addr))
         
     elif cmd == 'unfreeze':
         addr = args[1]
-        print wallet.unfreeze(addr)
+        print(wallet.unfreeze(addr))
 
     elif cmd == 'prioritize':
         addr = args[1]
-        print wallet.prioritize(addr)
+        print(wallet.prioritize(addr))
 
     elif cmd == 'unprioritize':
         addr = args[1]
-        print wallet.unprioritize(addr)
+        print(wallet.unprioritize(addr))
 

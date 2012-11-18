@@ -331,23 +331,7 @@ def run_network_dialog( wallet, parent ):
         status = "Please choose a server."
 
     server = interface.server
-
-    if not wallet.interface.servers:
-        servers_list = []
-        for x in DEFAULT_SERVERS:
-            h,port,protocol = x.split(':')
-            servers_list.append( (h,[(protocol,port)] ) )
-    else:
-        servers_list = wallet.interface.servers
-
-    plist = {}
-    for item in servers_list:
-        host, pp = item
-        z = {}
-        for item2 in pp:
-            protocol, port = item2
-            z[protocol] = port
-        plist[host] = z
+    plist, servers_list = interface.get_servers_list()
 
     dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                                     gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, status)

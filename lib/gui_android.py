@@ -21,9 +21,7 @@
 
 import android
 
-from interface import WalletSynchronizer
-from wallet import Wallet, format_satoshis
-import mnemonic
+from electrum import SimpleConfig, Interface, WalletSynchronizer, Wallet, format_satoshis, mnemonic_encode, mnemonic_decode
 from decimal import Decimal
 import datetime, re
 
@@ -320,29 +318,21 @@ settings_layout = make_layout(""" <ListView
 def get_history_values(n):
     values = []
     h = wallet.get_tx_history()
-
     length = min(n, len(h))
     for i in range(length):
-        line = h[-i-1]
-        v = line['value']
+        tx_hash, conf, is_mine, value, fee, balance, timestamp = h[-i-1]
         try:
-            dt = datetime.datetime.fromtimestamp( line['timestamp'] )
+            dt = datetime.datetime.fromtimestamp( timestamp )
             if dt.date() == dt.today().date():
                 time_str = str( dt.time() )
             else:
                 time_str = str( dt.date() )
-            conf = 'v'
-
         except:
-            print line['timestamp']
             time_str = 'pending'
-            conf = 'o'
 
-        tx_hash = line['tx_hash']
-        label = wallet.labels.get(tx_hash)
-        is_default_label = (label == '') or (label is None)
-        if is_default_label: label = line['default_label']
-        values.append((conf, '  ' + time_str, '  ' + format_satoshis(v,True), '  ' + label ))
+        conf_str = 'v' if conf else 'o'
+        label, is_default_label = wallet.get_label(tx_hash)
+        values.append((conf_str, '  ' + time_str, '  ' + format_satoshis(value,True), '  ' + label ))
 
     return values
 
@@ -415,8 +405,6 @@ def update_layout():
     global status_text
     if not wallet.interface.is_connected:
         text = "Not connected..."
-    elif wallet.blocks == 0:
-        text = "Server not ready"
     elif not wallet.up_to_date:
         text = "Synchronizing..."
     else:
@@ -497,7 +485,7 @@ def recover():
         else:
             m = modal_input('Mnemonic','please enter your code')
             try:
-                seed = mnemonic.mn_decode(m.split(' '))
+                seed = mnemonic_decode(m.split(' '))
             except:
                 modal_dialog('error: could not decode this seed')
                 exit(1)
@@ -505,7 +493,7 @@ def recover():
         wallet.seed = str(seed)
 
     modal_dialog('Your seed is:', wallet.seed)
-    modal_dialog('Mnemonic code:', ' '.join(mnemonic.mn_encode(wallet.seed)) )
+    modal_dialog('Mnemonic code:', ' '.join(mnemonic_encode(wallet.seed)) )
 
     msg = "recovering wallet..." if is_recovery else "creating wallet..."
     droid.dialogCreateSpinnerProgress("Electrum", msg)
@@ -748,6 +736,7 @@ def server_dialog(plist):
     droid.dialogShow()
     response = droid.dialogGetResponse().result
     droid.dialogDismiss()
+    if not response: return
 
     if response.get('which') == 'positive':
         return modal_input('Private server', None)
@@ -772,7 +761,7 @@ def seed_dialog():
         return
 
     modal_dialog('Your seed is',seed)
-    modal_dialog('Mnemonic code:', ' '.join(mnemonic.mn_encode(seed)) )
+    modal_dialog('Mnemonic code:', ' '.join(mnemonic_encode(seed)) )
 
 def change_password_dialog():
     if wallet.use_encryption:
@@ -809,7 +798,7 @@ def settings_loop():
 
 
     def set_listview():
-        server, port, p = wallet.server.split(':')
+        server, port, p = interface.server.split(':')
         fee = str( Decimal( wallet.fee)/100000000 )
         is_encrypted = 'yes' if wallet.use_encryption else 'no'
         protocol = protocol_name(p)
@@ -825,18 +814,11 @@ def settings_loop():
         if event == 'OK': continue
         if not event: continue
 
-        plist = {}
-        for item in wallet.interface.servers:
-            host, pp = item
-            z = {}
-            for item2 in pp:
-                protocol, port = item2
-                z[protocol] = port
-            plist[host] = z
+        plist, servers_list = interface.get_servers_list()
 
         if event["name"] == "itemclick":
             pos = event["data"]["position"]
-            host, port, protocol = wallet.server.split(':')
+            host, port, protocol = interface.server.split(':')
 
             if pos == "0": #server
                 host = server_dialog(plist)
@@ -844,8 +826,9 @@ def settings_loop():
                     p = plist[host]
                     port = p['t']
                     srv = host + ':' + port + ':t'
+                    wallet.config.set_key("server", srv, True)
                     try:
-                        wallet.set_server(srv)
+                        wallet.interface.set_server(srv)
                     except:
                         modal_dialog('error','invalid server')
                     set_listview()
@@ -855,7 +838,7 @@ def settings_loop():
                     srv = protocol_dialog(host, protocol, plist[host])
                     if srv:
                         try:
-                            wallet.set_server(srv)
+                            wallet.interface.set_server(srv)
                         except:
                             modal_dialog('error','invalid server')
                         set_listview()
@@ -866,7 +849,7 @@ def settings_loop():
                     if a_port != port:
                         srv = host + ':' + a_port + ':'+ protocol
                         try:
-                            wallet.set_server(srv)
+                            wallet.interface.set_server(srv)
                         except:
                             modal_dialog('error','invalid port number')
                         set_listview()
@@ -903,24 +886,6 @@ def settings_loop():
 
     return out
 
-
-
-
-menu_commands = ["send", "receive", "settings", "contacts", "main"]
-droid = android.Android()
-wallet = Wallet()
-wallet.register_callback(update_callback)
-
-wallet.set_path("/sdcard/electrum.dat")
-wallet.read()
-if not wallet.file_exists:
-    recover()
-else:
-    WalletSynchronizer(wallet,True).start()
-
-
-s = 'main'
-
 def add_menu(s):
     droid.clearOptionsMenu()
     if s == 'main':
@@ -936,6 +901,7 @@ def add_menu(s):
         droid.addOptionsMenuItem("Label","edit",None,"")
         droid.addOptionsMenuItem("Pay to","paytocontact",None,"")
         #droid.addOptionsMenuItem("Delete","deletecontact",None,"")
+
 
 def make_bitmap(addr):
     # fixme: this is highly inefficient
@@ -954,33 +920,51 @@ def make_bitmap(addr):
 
         
 
-while True:
-    add_menu(s)
-    if s == 'main':
-        droid.fullShow(main_layout())
-        s = main_loop()
-        #droid.fullDismiss()
 
-    elif s == 'send':
-        droid.fullShow(payto_layout)
-        s = payto_loop()
-        #droid.fullDismiss()
+droid = android.Android()
+menu_commands = ["send", "receive", "settings", "contacts", "main"]
+wallet = None
+interface = None
 
-    elif s == 'receive':
-        make_bitmap(receive_addr)
-        droid.fullShow(qr_layout(receive_addr))
-        s = receive_loop()
+class ElectrumGui:
 
-    elif s == 'contacts':
-        make_bitmap(contact_addr)
-        droid.fullShow(qr_layout(contact_addr))
-        s = contacts_loop()
+    def __init__(self, w, config, app=None):
+        global wallet, interface
+        wallet = w
+        interface = wallet.interface
+        interface.register_callback('updated',update_callback)
+        interface.register_callback('connected', update_callback)
+        interface.register_callback('disconnected', update_callback)
+        interface.register_callback('disconnecting', update_callback)
 
-    elif s == 'settings':
-        #droid.fullShow(settings_layout)
-        s = settings_loop()
-        #droid.fullDismiss()
-    else:
-        break
+    def server_list_changed(self): pass
 
-droid.makeToast("Bye!")
+    def main(self, url):
+        s = 'main'
+        while True:
+            add_menu(s)
+            if s == 'main':
+                droid.fullShow(main_layout())
+                s = main_loop()
+
+            elif s == 'send':
+                droid.fullShow(payto_layout)
+                s = payto_loop()
+
+            elif s == 'receive':
+                make_bitmap(receive_addr)
+                droid.fullShow(qr_layout(receive_addr))
+                s = receive_loop()
+
+            elif s == 'contacts':
+                make_bitmap(contact_addr)
+                droid.fullShow(qr_layout(contact_addr))
+                s = contacts_loop()
+
+            elif s == 'settings':
+                s = settings_loop()
+
+            else:
+                break
+
+        droid.makeToast("Bye!")
