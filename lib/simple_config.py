@@ -58,6 +58,7 @@ class SimpleConfig:
 
 
     def get(self, key, default=None):
+        """Retrieve the filepath of the configuration file specified in the 'key' parameter."""
         # 1. command-line options always override everything
         if self.options_config.has_key(key) and self.options_config.get(key) is not None:
             out = self.options_config.get(key)
@@ -101,7 +102,7 @@ class SimpleConfig:
 
 
     def read_system_config(self):
-        """Parse and store the system config settings in electrum.conf into system_config[]"""
+        """Parse and store the system config settings in electrum.conf into system_config[]."""
         name = '/etc/electrum.conf'
         if os.path.exists(name):
             try:
