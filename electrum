@@ -146,10 +146,13 @@ if __name__ == '__main__':
 
     # config is an object passed to the various constructors (wallet, interface, gui)
     if 'ANDROID_DATA' in os.environ:
-        config = SimpleConfig({'wallet_path':"/sdcard/electrum.dat", 'blockchain_headers_path':'/sdcard', 'gui':'android'})
+        config_options = {'wallet_path':"/sdcard/electrum.dat", 'blockchain_headers_path':'/sdcard', 'gui':'android'}
     else:
-        config = SimpleConfig(eval(str(options)))
+        config_options = eval(str(options))
+        for k, v in config_options.items():
+            if v is None: config_options.pop(k)
 
+    config = SimpleConfig(config_options)
     wallet = Wallet(config)
 
     if len(args)==0:
