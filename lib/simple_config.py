@@ -88,7 +88,7 @@ a SimpleConfig instance then reads the wallet file.
             import ast
             try:
                 out = ast.literal_eval(out)
-            except TypeError:
+            except:
                 print "type error, using default value"
                 out = default
 
