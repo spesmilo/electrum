@@ -105,7 +105,7 @@ class SimpleConfig:
         if os.path.exists(name):
             try:
                 import ConfigParser
-            except:
+            except ImportError:
                 print "cannot parse electrum.conf. please install ConfigParser"
                 return
                 
@@ -125,7 +125,7 @@ class SimpleConfig:
         if os.path.exists(name):
             try:
                 import ConfigParser
-            except:
+            except ImportError:
                 print "cannot parse electrum.conf. please install ConfigParser"
                 return
                 
