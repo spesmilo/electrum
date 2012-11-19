@@ -66,7 +66,7 @@ a SimpleConfig instance then reads the wallet file.
 
     def get(self, key, default=None):
         """Retrieve the filepath of the configuration file specified in the 'key' parameter."""
-        # 1. command-line options always override everything
+# 1. command-line options always override everything
         if self.options_config.has_key(key) and self.options_config.get(key) is not None:
             out = self.options_config.get(key)
 
@@ -98,6 +98,7 @@ a SimpleConfig instance then reads the wallet file.
 
 
     def is_modifiable(self, key):
+        """Check if the config file is modifiable."""
         if self.options_config.has_key(key):
             return False
         elif self.user_config.has_key(key):
