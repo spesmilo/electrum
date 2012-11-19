@@ -101,7 +101,7 @@ class SimpleConfig:
 
 
     def read_system_config(self):
-        """Parse and store the config settings in electrum.conf into system_config[]"""
+        """Parse and store the system config settings in electrum.conf into system_config[]"""
         name = '/etc/electrum.conf'
         if os.path.exists(name):
             try:
@@ -120,6 +120,7 @@ class SimpleConfig:
 
 
     def read_user_config(self):
+        """Parse and store the user config settings in electrum.conf into user_config[]."""
         if not self.user_dir: return
 
         name = os.path.join( self.user_dir, 'electrum.conf')
