@@ -83,7 +83,7 @@ class SimpleConfig:
             import ast
             try:
                 out = ast.literal_eval(out)
-            except:
+            except TypeError:
                 print "type error, using default value"
                 out = default
 
