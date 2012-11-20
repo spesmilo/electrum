@@ -1,3 +1,4 @@
+from version import ELECTRUM_VERSION
 from util import format_satoshis, print_error, set_verbosity
 from wallet import Wallet, WalletSynchronizer
 from verifier import WalletVerifier
