@@ -87,8 +87,7 @@ class Wallet:
         # there is a difference between wallet.up_to_date and interface.is_up_to_date()
         # interface.is_up_to_date() returns true when all requests have been answered and processed
         # wallet.up_to_date is true when the wallet is synchronized (stronger requirement)
-        self.up_to_date_event = threading.Event()
-        self.up_to_date_event.clear()
+        
         self.up_to_date = False
         self.lock = threading.Lock()
         self.tx_event = threading.Event()
@@ -100,9 +99,11 @@ class Wallet:
             self.update_tx_outputs(tx_hash)
 
 
-    def init_up_to_date(self):
-        self.up_to_date_event.clear()
-        self.up_to_date = False
+    def set_up_to_date(self,b):
+        with self.lock: self.up_to_date = b
+
+    def is_up_to_date(self):
+        with self.lock: return self.up_to_date
 
 
     def import_key(self, keypair, password):
@@ -920,10 +921,6 @@ class Wallet:
         return address, amount, label, message, signature, identity, url
 
 
-    def update(self):
-        self.interface.poke('synchronizer')
-        self.up_to_date_event.wait(10000000000)
-
 
     def freeze(self,addr):
         if addr in self.all_addresses() and addr not in self.frozen_addresses:
@@ -1086,7 +1083,7 @@ class WalletSynchronizer(threading.Thread):
         self.wallet = wallet
         self.interface = self.wallet.interface
         self.interface.register_channel('synchronizer')
-        self.wallet.interface.register_callback('connected', self.wallet.init_up_to_date)
+        self.wallet.interface.register_callback('connected', lambda: self.wallet.set_up_to_date(False))
         self.wallet.interface.register_callback('connected', lambda: self.interface.send([('server.banner',[])],'synchronizer') )
         self.was_updated = True
 
@@ -1098,14 +1095,13 @@ class WalletSynchronizer(threading.Thread):
             return
             
         if not self.interface.is_up_to_date('synchronizer'):
-            if self.wallet.up_to_date:
-                self.wallet.up_to_date = False
+            if self.wallet.is_up_to_date():
+                self.wallet.set_up_to_date(False)
                 self.was_updated = True
             return
 
-        self.wallet.up_to_date = True
+        self.wallet.set_up_to_date(True)
         self.was_updated = True
-        self.wallet.up_to_date_event.set()
 
     
     def subscribe_to_addresses(self, addresses):

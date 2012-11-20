@@ -209,6 +209,8 @@ if __name__ == '__main__':
         if not found:
             a = gui.restore_or_create()
             if not a: exit()
+            # select a server.
+            s = gui.network_dialog()
 
             if a =='create':
                 wallet.new_seed(None)
@@ -217,12 +219,13 @@ if __name__ == '__main__':
                 # ask for seed and gap.
                 if not gui.seed_dialog(): exit()
                 wallet.init_mpk( wallet.seed )
-            
-            # select a server.
-            s = gui.network_dialog()
-            if s is None:
-                gui.create_wallet()
 
+            # generate the first addresses
+            wallet.synchronize()
+            # display seed
+            gui.show_seed()
+            gui.password_dialog()
+            wallet.save()
 
         verifier = WalletVerifier(interface, config)
         wallet.set_verifier(verifier)
@@ -230,14 +233,16 @@ if __name__ == '__main__':
 
         if not found and a == 'restore' and s is not None:
             try:
-                ok = gui.restore_wallet()
+                keep_it = gui.restore_wallet()
+                wallet.fill_addressbook()
             except:
                 import traceback
                 traceback.print_exc(file=sys.stdout)
                 exit()
 
-            if not ok: exit()
+            if not keep_it: exit()
 
+        wallet.save()
         verifier.start()
         gui.main(url)
         wallet.save()

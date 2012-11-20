@@ -295,7 +295,7 @@ class ElectrumWindow(QMainWindow):
         self.statusBar().showMessage(text)
         self.status_button.setIcon( icon )
 
-        if self.wallet.up_to_date:
+        if self.wallet.up_to_date or not self.wallet.interface.is_connected:
             self.textbox.setText( self.wallet.banner )
             self.update_history_tab()
             self.update_receive_tab()
@@ -1552,15 +1552,13 @@ class ElectrumGui:
     def network_dialog(self):
         return ElectrumWindow.network_dialog( self.wallet, parent=None )
         
-    def create_wallet(self):
-        wallet = self.wallet
-        # generate the first addresses
-        wallet.synchronize()
-        # run a dialog indicating the seed, ask the user to remember it
-        ElectrumWindow.show_seed_dialog(wallet)
-        # ask for password
-        ElectrumWindow.change_password_dialog(wallet)
-        wallet.save()
+
+    def show_seed(self):
+        ElectrumWindow.show_seed_dialog(self.wallet)
+
+
+    def password_dialog(self):
+        ElectrumWindow.change_password_dialog(self.wallet)
 
 
     def restore_wallet(self):
@@ -1570,23 +1568,17 @@ class ElectrumGui:
             waiting = lambda: False if wallet.interface.is_connected else "connecting...\n"
             waiting_dialog(waiting)
 
-        waiting = lambda: False if wallet.up_to_date else "Please wait...\nAddresses generated: %d\nKilobytes received: %.1f"\
+        waiting = lambda: False if wallet.is_up_to_date() else "Please wait...\nAddresses generated: %d\nKilobytes received: %.1f"\
             %(len(wallet.all_addresses()), wallet.interface.bytes_received/1024.)
 
-        wallet.up_to_date_event.clear()
-        wallet.up_to_date = False
+        wallet.set_up_to_date(False)
         wallet.interface.poke('synchronizer')
         waiting_dialog(waiting)
         if wallet.is_found():
-            # history and addressbook
-            wallet.fill_addressbook()
-            print "Recovery successful"
-            wallet.save()
+            print_error( "Recovery successful" )
         else:
             QMessageBox.information(None, _('Error'), _("No transactions found for this seed"), _('OK'))
-            return False
 
-        wallet.save()
         return True
 
     def main(self,url):

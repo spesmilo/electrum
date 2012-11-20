@@ -954,15 +954,13 @@ class ElectrumGui:
         pass
 
         
-    def create_wallet(self):
-
-        # generate the first addresses
-        wallet.synchronize()
-        # run a dialog indicating the seed, ask the user to remember it
+    def show_seed(self):
         modal_dialog('Your seed is:', wallet.seed)
         modal_dialog('Mnemonic code:', ' '.join(mnemonic_encode(wallet.seed)) )
+
+
+    def password_dialog(self):
         change_password_dialog()
-        wallet.save()
 
 
     def restore_wallet(self):
@@ -970,7 +968,6 @@ class ElectrumGui:
         msg = "recovering wallet..."
         droid.dialogCreateSpinnerProgress("Electrum", msg)
         droid.dialogShow()
-
 
         wallet.up_to_date_event.clear()
         wallet.up_to_date = False

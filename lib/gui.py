@@ -1253,24 +1253,16 @@ class ElectrumGui():
         return restore_create_dialog(self.wallet)
 
     def seed_dialog(self):
-        # ask for seed and gap.
         return run_recovery_dialog( self.wallet )
 
     def network_dialog(self):
         return run_network_dialog( self.wallet, parent=None )
 
-    def create_wallet(self):
-        wallet = self.wallet
-        wallet.new_seed(None)
-        # generate first key
-        wallet.init_mpk( wallet.seed )
-        wallet.synchronize()
-        #wallet.up_to_date_event.clear()
-        #wallet.update()
-        # run a dialog indicating the seed, ask the user to remember it
-        show_seed_dialog(wallet, None, None)
-        #ask for password
-        change_password_dialog(wallet, None, None)
+    def show_seed(self):
+        show_seed_dialog(self.wallet, None, None)
+
+    def password_dialog(self):
+        change_password_dialog(self.wallet, None, None)
 
     def restore_wallet(self):
         wallet = self.wallet
@@ -1281,26 +1273,17 @@ class ElectrumGui():
             buttons = gtk.BUTTONS_CANCEL, 
             message_format = "Please wait..."  )
         dialog.show()
-        wallet.save()
 
         def recover_thread( wallet, dialog ):
-            wallet.init_mpk( wallet.seed ) # not encrypted at this point
-            wallet.up_to_date_event.clear()
-            wallet.update()
-
-            if wallet.is_found():
-                # history and addressbook
-                wallet.update_tx_history()
-                wallet.fill_addressbook()
-                print "Recovery successful"
-
+            while not wallet.is_up_to_date(): 
+                time.sleep(0.1)
             gobject.idle_add( dialog.destroy )
 
         thread.start_new_thread( recover_thread, ( wallet, dialog ) )
         r = dialog.run()
         dialog.destroy()
         if r==gtk.RESPONSE_CANCEL: return False
-        if not wallet.is_found:
+        if not wallet.is_found():
             show_message("No transactions found for this seed")
 
         wallet.save()
