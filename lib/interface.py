@@ -101,24 +101,27 @@ class Interface(threading.Thread):
                 self.server_version = result
 
             elif method == 'server.peers.subscribe':
-                servers = []
+                servers = {}
                 for item in result:
                     s = []
                     host = item[1]
                     ports = []
                     version = None
+                    pruning = False
                     if len(item) > 2:
                         for v in item[2]:
                             if re.match("[stgh]\d+", v):
                                 ports.append((v[0], v[1:]))
-                            if re.match("v(.?)+", v):
+                            elif re.match("v(.?)+", v):
                                 version = v[1:]
+                            elif v == 'p':
+                                pruning = True
                     try: 
                         is_recent = float(version)>=float(PROTOCOL_VERSION)
                     except:
                         is_recent = False
                     if ports and is_recent:
-                        servers.append((host, ports))
+                        servers[host] = {'ports':ports, 'pruning':pruning}
                 self.servers = servers
                 self.trigger_callback('peers')
 
@@ -367,7 +370,7 @@ class Interface(threading.Thread):
         self.callbacks = {}
         self.lock = threading.Lock()
 
-        self.servers = [] # actual list from IRC
+        self.servers = {} # actual list from IRC
         self.rtime = 0
         self.bytes_received = 0
 
@@ -494,15 +497,15 @@ class Interface(threading.Thread):
     def get_servers_list(self):
         plist = {}
         if not self.servers:
-            servers_list = []
+            servers_list = {}
             for x in DEFAULT_SERVERS:
                 h,port,protocol = x.split(':')
-                servers_list.append( (h,[(protocol,port)] ) )
+                servers_list[h] = {'ports':[(protocol,port)]}
         else:
             servers_list = self.servers
         
-        for item in servers_list:
-            _host, pp = item
+        for _host, v in servers_list.items():
+            pp = v['ports']
             z = {}
             for item2 in pp:
                 _protocol, _port = item2
