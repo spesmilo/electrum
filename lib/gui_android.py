@@ -886,7 +886,6 @@ class ElectrumGui:
         interface.register_callback('disconnected', update_callback)
         interface.register_callback('disconnecting', update_callback)
 
-    def server_list_changed(self): pass
 
     def main(self, url):
         s = 'main'

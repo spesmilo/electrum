@@ -89,6 +89,7 @@ class ElectrumGui(QObject):
         self.config = config
         self.check_qt_version()
         self.app = QApplication(sys.argv)
+        self.wallet.interface.register_callback('peers', self.server_list_changed)
 
 
     def check_qt_version(self):

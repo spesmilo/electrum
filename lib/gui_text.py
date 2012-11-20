@@ -42,8 +42,6 @@ class ElectrumGui:
         self.tab_names = [_("History"), _("Send"), _("Receive"), _("Contacts"), _("Wall")]
         self.num_tabs = len(self.tab_names)
         
-    def server_list_changed(self):
-        pass
 
     def restore_or_create(self):
         pass

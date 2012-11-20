@@ -224,8 +224,6 @@ if __name__ == '__main__':
                 gui.create_wallet()
 
 
-        interface.register_callback('peers', gui.server_list_changed)
-
         verifier = WalletVerifier(interface, config)
         wallet.set_verifier(verifier)
         WalletSynchronizer(wallet, config).start()

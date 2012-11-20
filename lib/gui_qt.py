@@ -1539,9 +1539,6 @@ class ElectrumGui:
         if app is None:
             self.app = QApplication(sys.argv)
 
-    def server_list_changed(self):
-        pass
-
 
     def restore_or_create(self):
         msg = _("Wallet file not found.")+"\n"+_("Do you want to create a new wallet, or to restore an existing one?")

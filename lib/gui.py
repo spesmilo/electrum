@@ -1252,9 +1252,6 @@ class ElectrumGui():
     def restore_or_create(self):
         return restore_create_dialog(self.wallet)
 
-    def server_list_changed(self):
-        pass
-
     def seed_dialog(self):
         # ask for seed and gap.
         return run_recovery_dialog( self.wallet )
