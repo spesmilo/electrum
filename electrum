@@ -197,36 +197,49 @@ if __name__ == '__main__':
         else:
             sys.exit("Error: Unknown GUI: " + pref_gui )
 
+        gui = gui.ElectrumGui(wallet, config)
+        
         interface = Interface(config, True)
+        wallet.interface = interface
         interface.start()
         interface.send([('server.peers.subscribe',[])])
 
-        wallet.interface = interface
-        
-        gui = gui.ElectrumGui(wallet, config)
+        found = config.wallet_file_exists
+        if not found:
+            a = gui.restore_or_create()
+            if not a: exit()
+
+            if a =='create':
+                wallet.new_seed(None)
+                wallet.init_mpk( wallet.seed )
+            else:
+                # ask for seed and gap.
+                if not gui.seed_dialog(): exit()
+                wallet.init_mpk( wallet.seed )
+            
+            # select a server.
+            s = gui.network_dialog()
+            if s is None:
+                gui.create_wallet()
+
+
         interface.register_callback('peers', gui.server_list_changed)
 
         verifier = WalletVerifier(interface, config)
         wallet.set_verifier(verifier)
-
         WalletSynchronizer(wallet, config).start()
-        try:
-            found = config.wallet_file_exists
-            if not found:
-                found = gui.restore_or_create()
-        except SystemExit(e):
-            exit(e)
-        except BaseException(e):
-            import traceback
-            traceback.print_exc(file=sys.stdout)
-            #gui.show_message(e.message)
-            exit(1)
 
-        if not found:
-            exit(1)
+        if not found and a == 'restore' and s is not None:
+            try:
+                ok = gui.restore_wallet()
+            except:
+                import traceback
+                traceback.print_exc(file=sys.stdout)
+                exit()
+
+            if not ok: exit()
 
         verifier.start()
-
         gui.main(url)
         wallet.save()
         sys.exit(0)

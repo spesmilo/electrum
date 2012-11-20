@@ -352,6 +352,8 @@ class Interface(threading.Thread):
 
 
     def __init__(self, config=None, loop=False):
+        self.server = None
+        self.proxy = None
 
         if config is None:
             from simple_config import SimpleConfig

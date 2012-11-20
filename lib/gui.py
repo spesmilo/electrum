@@ -97,58 +97,8 @@ def restore_create_dialog(wallet):
     dialog.destroy()
 
     if r==2: return False
-        
-    is_recovery = (r==1)
+    return 'restore' if r==1 else 'create'
 
-    # ask for the server.
-    if not run_network_dialog( wallet, parent=None ): return False
-
-    if not is_recovery:
-
-        wallet.new_seed(None)
-        # generate first key
-        wallet.init_mpk( wallet.seed )
-        wallet.up_to_date_event.clear()
-        wallet.update()
-
-        # run a dialog indicating the seed, ask the user to remember it
-        show_seed_dialog(wallet, None, None)
-            
-        #ask for password
-        change_password_dialog(wallet, None, None)
-    else:
-        # ask for seed and gap.
-        run_recovery_dialog( wallet )
-
-        dialog = gtk.MessageDialog(
-            parent = None,
-            flags = gtk.DIALOG_MODAL, 
-            buttons = gtk.BUTTONS_CANCEL, 
-            message_format = "Please wait..."  )
-        dialog.show()
-
-        def recover_thread( wallet, dialog ):
-            wallet.init_mpk( wallet.seed ) # not encrypted at this point
-            wallet.up_to_date_event.clear()
-            wallet.update()
-
-            if wallet.is_found():
-                # history and addressbook
-                wallet.update_tx_history()
-                wallet.fill_addressbook()
-                print "Recovery successful"
-
-            gobject.idle_add( dialog.destroy )
-
-        thread.start_new_thread( recover_thread, ( wallet, dialog ) )
-        r = dialog.run()
-        dialog.destroy()
-        if r==gtk.RESPONSE_CANCEL: return False
-        if not wallet.is_found:
-            show_message("No transactions found for this seed")
-
-    wallet.save()
-    return True
 
 
 def run_recovery_dialog(wallet):
@@ -197,12 +147,13 @@ def run_recovery_dialog(wallet):
     dialog.destroy()
 
     if r==gtk.RESPONSE_CANCEL:
-        sys.exit(1)
+        return False
+
     try:
         gap = int(gap)
     except:
         show_message("error")
-        sys.exit(1)
+        return False
 
     try:
         seed.decode('hex')
@@ -211,11 +162,12 @@ def run_recovery_dialog(wallet):
         seed = mnemonic.mn_decode( seed.split(' ') )
     if not seed:
         show_message("no seed")
-        sys.exit(1)
+        return False
         
     wallet.seed = seed
     wallet.gap_limit = gap
     wallet.save()
+    return True
 
 
 
@@ -328,7 +280,7 @@ def run_network_dialog( wallet, parent ):
             status = "Not connected"
     else:
         import random
-        status = "Please choose a server."
+        status = "Please choose a server.\nSelect cancel if you are offline."
 
     server = interface.server
     plist, servers_list = interface.get_servers_list()
@@ -575,6 +527,7 @@ class ElectrumWindow:
         self.window.set_border_width(0)
         self.window.connect('mykeypress', gtk.main_quit)
         self.window.set_default_size(720, 350)
+        self.wallet_updated = False
 
         vbox = gtk.VBox()
 
@@ -651,7 +604,6 @@ class ElectrumWindow:
         self.context_id = self.status_bar.get_context_id("statusbar")
         self.update_status_bar()
 
-        self.wallet_updated = False
         self.wallet.interface.register_callback('updated', self.update_callback)
 
 
@@ -1302,3 +1254,57 @@ class ElectrumGui():
 
     def server_list_changed(self):
         pass
+
+    def seed_dialog(self):
+        # ask for seed and gap.
+        return run_recovery_dialog( self.wallet )
+
+    def network_dialog(self):
+        return run_network_dialog( self.wallet, parent=None )
+
+    def create_wallet(self):
+        wallet = self.wallet
+        wallet.new_seed(None)
+        # generate first key
+        wallet.init_mpk( wallet.seed )
+        wallet.synchronize()
+        #wallet.up_to_date_event.clear()
+        #wallet.update()
+        # run a dialog indicating the seed, ask the user to remember it
+        show_seed_dialog(wallet, None, None)
+        #ask for password
+        change_password_dialog(wallet, None, None)
+
+    def restore_wallet(self):
+        wallet = self.wallet
+
+        dialog = gtk.MessageDialog(
+            parent = None,
+            flags = gtk.DIALOG_MODAL, 
+            buttons = gtk.BUTTONS_CANCEL, 
+            message_format = "Please wait..."  )
+        dialog.show()
+        wallet.save()
+
+        def recover_thread( wallet, dialog ):
+            wallet.init_mpk( wallet.seed ) # not encrypted at this point
+            wallet.up_to_date_event.clear()
+            wallet.update()
+
+            if wallet.is_found():
+                # history and addressbook
+                wallet.update_tx_history()
+                wallet.fill_addressbook()
+                print "Recovery successful"
+
+            gobject.idle_add( dialog.destroy )
+
+        thread.start_new_thread( recover_thread, ( wallet, dialog ) )
+        r = dialog.run()
+        dialog.destroy()
+        if r==gtk.RESPONSE_CANCEL: return False
+        if not wallet.is_found:
+            show_message("No transactions found for this seed")
+
+        wallet.save()
+        return True

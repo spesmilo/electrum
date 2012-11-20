@@ -1367,11 +1367,13 @@ class ElectrumWindow(QMainWindow):
                 status = _("Connected to")+" %s\n%d blocks"%(interface.host, wallet.verifier.height)
             else:
                 status = _("Not connected")
+            server = interface.server
         else:
             import random
-            status = _("Please choose a server.")
+            status = _("Please choose a server.") + "\n" + _("Select 'Cancel' if you are offline.")
+            server = None
+            interface.proxy = None
 
-        server = interface.server
         plist, servers_list = interface.get_servers_list()
 
         d = QDialog(parent)
@@ -1413,8 +1415,6 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(server_protocol, 0, 1)
         grid.addWidget(server_host, 0, 2)
         grid.addWidget(server_port, 0, 3)
-
-        host, port, protocol = server.split(':')
 
         def change_protocol(p):
             protocol = protocol_letters[p]
@@ -1465,7 +1465,10 @@ class ElectrumWindow(QMainWindow):
                     server_protocol.model().setData(j, QtCore.QVariant(0,False), QtCore.Qt.UserRole-1)
 
 
-        change_server(host,protocol)
+        if server:
+            host, port, protocol = server.split(':')
+            change_server(host,protocol)
+
         servers_list_widget.connect(servers_list_widget, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), lambda x: change_server(unicode(x.text(0))))
         grid.addWidget(servers_list_widget, 1, 1, 1, 3)
 
@@ -1541,16 +1544,30 @@ class ElectrumGui:
 
 
     def restore_or_create(self):
-
         msg = _("Wallet file not found.")+"\n"+_("Do you want to create a new wallet, or to restore an existing one?")
         r = QMessageBox.question(None, _('Message'), msg, _('Create'), _('Restore'), _('Cancel'), 0, 2)
-        if r==2: return False
-        
-        is_recovery = (r==1)
-        wallet = self.wallet
-        # ask for the server.
-        if not ElectrumWindow.network_dialog( wallet, parent=None ): return False
+        if r==2: return None
+        return 'restore' if r==1 else 'create'
 
+    def seed_dialog(self):
+        return ElectrumWindow.seed_dialog( self.wallet )
+
+    def network_dialog(self):
+        return ElectrumWindow.network_dialog( self.wallet, parent=None )
+        
+    def create_wallet(self):
+        wallet = self.wallet
+        # generate the first addresses
+        wallet.synchronize()
+        # run a dialog indicating the seed, ask the user to remember it
+        ElectrumWindow.show_seed_dialog(wallet)
+        # ask for password
+        ElectrumWindow.change_password_dialog(wallet)
+        wallet.save()
+
+
+    def restore_wallet(self):
+        wallet = self.wallet
         # wait until we are connected, because the user might have selected another server
         if not wallet.interface.is_connected:
             waiting = lambda: False if wallet.interface.is_connected else "connecting...\n"
@@ -1559,32 +1576,18 @@ class ElectrumGui:
         waiting = lambda: False if wallet.up_to_date else "Please wait...\nAddresses generated: %d\nKilobytes received: %.1f"\
             %(len(wallet.all_addresses()), wallet.interface.bytes_received/1024.)
 
-        if not is_recovery:
-            wallet.new_seed(None)
-            wallet.init_mpk( wallet.seed )
-            wallet.up_to_date_event.clear()
-            wallet.up_to_date = False
-            wallet.interface.poke('synchronizer')
-            waiting_dialog(waiting)
-            # run a dialog indicating the seed, ask the user to remember it
-            ElectrumWindow.show_seed_dialog(wallet)
-            #ask for password
-            ElectrumWindow.change_password_dialog(wallet)
+        wallet.up_to_date_event.clear()
+        wallet.up_to_date = False
+        wallet.interface.poke('synchronizer')
+        waiting_dialog(waiting)
+        if wallet.is_found():
+            # history and addressbook
+            wallet.fill_addressbook()
+            print "Recovery successful"
+            wallet.save()
         else:
-            # ask for seed and gap.
-            if not ElectrumWindow.seed_dialog( wallet ): return False
-            wallet.init_mpk( wallet.seed )
-            wallet.up_to_date_event.clear()
-            wallet.up_to_date = False
-            wallet.interface.poke('synchronizer')
-            waiting_dialog(waiting)
-            if wallet.is_found():
-                # history and addressbook
-                wallet.fill_addressbook()
-                print "Recovery successful"
-                wallet.save()
-            else:
-                QMessageBox.information(None, _('Error'), _("No transactions found for this seed"), _('OK'))
+            QMessageBox.information(None, _('Error'), _("No transactions found for this seed"), _('OK'))
+            return False
 
         wallet.save()
         return True
