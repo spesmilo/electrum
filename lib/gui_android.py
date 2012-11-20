@@ -107,16 +107,18 @@ def select_from_addresses():
 
 
 def protocol_name(p):
-    if p == 't': return 'TCP/stratum'
-    if p == 'h': return 'HTTP/Stratum'
-    if p == 'n': return 'TCP/native'
+    if p == 't': return 'TCP'
+    if p == 'h': return 'HTTP'
+    if p == 's': return 'TCP/SSL'
+    if p == 'g': return 'HTTPS'
+
 
 def protocol_dialog(host, protocol, z):
     droid.dialogCreateAlert('Protocol',host)
     if z:
         protocols = z.keys()
     else:
-        protocols = ['t','h','n']
+        protocols = 'thsg'
     l = []
     current = protocols.index(protocol)
     for p in protocols:
@@ -126,11 +128,13 @@ def protocol_dialog(host, protocol, z):
     droid.dialogSetNegativeButtonText('Cancel')
     droid.dialogShow()
     response = droid.dialogGetResponse().result
+    selected_item = droid.dialogGetSelectedItems().result
+    droid.dialogDismiss()
+
     if not response: return
+    if not selected_item: return
     if response.get('which') == 'positive':
-        response = droid.dialogGetSelectedItems().result[0]
-        droid.dialogDismiss()
-        p = protocols[response]
+        p = protocols[selected_item[0]]
         port = z[p]
         return host + ':' + port + ':' + p
 
@@ -458,66 +462,6 @@ def pay_to(recipient, amount, fee, label):
 
 
 
-def recover():
-
-    droid.dialogCreateAlert("Wallet not found","Do you want to create a new wallet, or restore an existing one?")
-    droid.dialogSetPositiveButtonText('Create')
-    droid.dialogSetNeutralButtonText('Restore')
-    droid.dialogSetNegativeButtonText('Cancel')
-    droid.dialogShow()
-    response = droid.dialogGetResponse().result
-    droid.dialogDismiss()
-    if response.get('which') == 'negative':
-        exit(1)
-
-    is_recovery = response.get('which') == 'neutral'
-
-    if not is_recovery:
-        wallet.new_seed(None)
-    else:
-        if modal_question("Input method",None,'QR Code', 'mnemonic'):
-            code = droid.scanBarcode()
-            r = code.result
-            if r:
-                seed = r['extras']['SCAN_RESULT']
-            else:
-                exit(1)
-        else:
-            m = modal_input('Mnemonic','please enter your code')
-            try:
-                seed = mnemonic_decode(m.split(' '))
-            except:
-                modal_dialog('error: could not decode this seed')
-                exit(1)
-
-        wallet.seed = str(seed)
-
-    modal_dialog('Your seed is:', wallet.seed)
-    modal_dialog('Mnemonic code:', ' '.join(mnemonic_encode(wallet.seed)) )
-
-    msg = "recovering wallet..." if is_recovery else "creating wallet..."
-    droid.dialogCreateSpinnerProgress("Electrum", msg)
-    droid.dialogShow()
-
-    wallet.init_mpk( wallet.seed )
-    WalletSynchronizer(wallet,True).start()
-    wallet.update()
-
-    droid.dialogDismiss()
-    droid.vibrate()
-
-    if is_recovery:
-        if wallet.is_found():
-            wallet.update_tx_history()
-            wallet.fill_addressbook()
-            modal_dialog("recovery successful")
-        else:
-            if not modal_question("no transactions found for this seed","do you want to keep this wallet?"):
-                exit(1)
-
-    change_password_dialog()
-    wallet.save()
-
 
 
 def make_new_contact():
@@ -566,8 +510,7 @@ def main_loop():
         print "got event in main loop", repr(event)
         if event == 'OK': continue
         if event is None: continue
-        #if event["name"]=="refresh":
-
+        if not event.get("name"): continue
 
         # request 2 taps before we exit
         if event["name"]=="key":
@@ -621,6 +564,7 @@ def payto_loop():
     while out is None:
         event = droid.eventWait().result
         print "got event in payto loop", event
+        if not event.get("name"): continue
 
         if event["name"] == "click":
             id = event["data"]["id"]
@@ -809,14 +753,17 @@ def settings_loop():
 
     out = None
     while out is None:
-        event = droid.eventWait().result
+        event = droid.eventWait()
+        event = event.result
         print "got event", event
         if event == 'OK': continue
         if not event: continue
 
         plist, servers_list = interface.get_servers_list()
+        name = event.get("name")
+        if not name: continue
 
-        if event["name"] == "itemclick":
+        if name == "itemclick":
             pos = event["data"]["position"]
             host, port, protocol = interface.server.split(':')
 
@@ -837,6 +784,7 @@ def settings_loop():
                 if host in plist:
                     srv = protocol_dialog(host, protocol, plist[host])
                     if srv:
+                        wallet.config.set_key("server", srv, True)
                         try:
                             wallet.interface.set_server(srv)
                         except:
@@ -848,6 +796,7 @@ def settings_loop():
                 if a_port:
                     if a_port != port:
                         srv = host + ':' + a_port + ':'+ protocol
+                        wallet.config.set_key("server", srv, True)
                         try:
                             wallet.interface.set_server(srv)
                         except:
@@ -874,13 +823,13 @@ def settings_loop():
                 seed_dialog()
 
 
-        elif event["name"] in menu_commands:
+        elif name in menu_commands:
             out = event["name"]
 
-        elif event["name"] == 'cancel':
+        elif name == 'cancel':
             out = 'main'
 
-        elif event["name"] == "key":
+        elif name == "key":
             if event["data"]["key"] == '4':
                 out = 'main'
 
@@ -968,3 +917,78 @@ class ElectrumGui:
                 break
 
         droid.makeToast("Bye!")
+
+    def restore_or_create(self):
+        droid.dialogCreateAlert("Wallet not found","Do you want to create a new wallet, or restore an existing one?")
+        droid.dialogSetPositiveButtonText('Create')
+        droid.dialogSetNeutralButtonText('Restore')
+        droid.dialogSetNegativeButtonText('Cancel')
+        droid.dialogShow()
+        response = droid.dialogGetResponse().result
+        droid.dialogDismiss()
+        if not response: return
+        if response.get('which') == 'negative':
+            return
+
+        return 'restore' if response.get('which') == 'neutral' else 'create'
+
+    def seed_dialog(self):
+        if modal_question("Input method",None,'QR Code', 'mnemonic'):
+            code = droid.scanBarcode()
+            r = code.result
+            if r:
+                seed = r['extras']['SCAN_RESULT']
+            else:
+                return
+        else:
+            m = modal_input('Mnemonic','please enter your code')
+            try:
+                seed = mnemonic_decode(m.split(' '))
+            except:
+                modal_dialog('error: could not decode this seed')
+                return
+        wallet.seed = str(seed)
+        return True
+
+
+    def network_dialog(self):
+        pass
+
+        
+    def create_wallet(self):
+
+        # generate the first addresses
+        wallet.synchronize()
+        # run a dialog indicating the seed, ask the user to remember it
+        modal_dialog('Your seed is:', wallet.seed)
+        modal_dialog('Mnemonic code:', ' '.join(mnemonic_encode(wallet.seed)) )
+        change_password_dialog()
+        wallet.save()
+
+
+    def restore_wallet(self):
+
+        msg = "recovering wallet..."
+        droid.dialogCreateSpinnerProgress("Electrum", msg)
+        droid.dialogShow()
+
+
+        wallet.up_to_date_event.clear()
+        wallet.up_to_date = False
+        wallet.interface.poke('synchronizer')
+        while not wallet.up_to_date:
+            time.sleep(0.1)
+
+        droid.dialogDismiss()
+        droid.vibrate()
+
+        if wallet.is_found():
+            wallet.update_tx_history()
+            wallet.fill_addressbook()
+            modal_dialog("recovery successful")
+        else:
+            if not modal_question("no transactions found for this seed","do you want to keep this wallet?"):
+                return
+
+        wallet.save()
+

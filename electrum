@@ -197,12 +197,13 @@ if __name__ == '__main__':
         else:
             sys.exit("Error: Unknown GUI: " + pref_gui )
 
-        gui = gui.ElectrumGui(wallet, config)
         
         interface = Interface(config, True)
         wallet.interface = interface
         interface.start()
         interface.send([('server.peers.subscribe',[])])
+
+        gui = gui.ElectrumGui(wallet, config)
 
         found = config.wallet_file_exists
         if not found:
