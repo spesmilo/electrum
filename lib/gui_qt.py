@@ -1371,8 +1371,7 @@ class ElectrumWindow(QMainWindow):
         else:
             import random
             status = _("Please choose a server.") + "\n" + _("Select 'Cancel' if you are offline.")
-            server = None
-            interface.proxy = None
+            server = interface.server
 
         plist, servers_list = interface.get_servers_list()
 

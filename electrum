@@ -222,10 +222,9 @@ if __name__ == '__main__':
 
             # generate the first addresses
             wallet.synchronize()
-            # display seed
-            gui.show_seed()
-            gui.password_dialog()
-            wallet.save()
+            if a == 'create':
+                # display seed
+                gui.show_seed()
 
         verifier = WalletVerifier(interface, config)
         wallet.set_verifier(verifier)
@@ -241,6 +240,9 @@ if __name__ == '__main__':
                 exit()
 
             if not keep_it: exit()
+
+        if not found:
+            gui.password_dialog()
 
         wallet.save()
         verifier.start()
