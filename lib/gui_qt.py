@@ -404,7 +404,6 @@ class ElectrumWindow(QMainWindow):
                 changed = True
 
         if changed:
-            self.wallet.update_tx_labels()
             self.update_history_tab()
             self.update_completions()
 

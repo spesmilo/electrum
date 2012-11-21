@@ -1008,7 +1008,6 @@ class ElectrumWindow:
             address = liststore.get_value( liststore.get_iter(path), 0)
             self.wallet.labels[address] = new_text
             self.wallet.save() 
-            self.wallet.update_tx_labels()
             self.update_receiving_tab()
             self.update_sending_tab()
             self.update_history_tab()
