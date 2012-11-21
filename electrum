@@ -407,8 +407,8 @@ if __name__ == '__main__':
         elif wallet.use_encryption:
             print_error("Error: This wallet is encrypted")
         else:
-            ns = wallet.path + '.seed'
-            print("Warning: you are going to extract the seed from '%s'\nThe seed will be saved in '%s'"%(wallet.path,ns))
+            ns = wallet.config.path + '.seed'
+            print("Warning: you are going to extract the seed from '%s'\nThe seed will be saved in '%s'"%(wallet.config.path,ns))
             if raw_input("Are you sure you want to continue? (y/n) ") in ['y','Y','yes']:
                 f = open(ns,'w')
                 f.write(repr({'seed':wallet.seed, 'imported_keys':wallet.imported_keys})+"\n")
@@ -424,7 +424,7 @@ if __name__ == '__main__':
         if wallet.seed:
             print("Warning: This wallet already has a seed", wallet.seed)
         else:
-            ns = wallet.path + '.seed'
+            ns = wallet.config.path + '.seed'
             try:
                 f = open(ns,'r')
                 data = f.read()
@@ -446,7 +446,7 @@ if __name__ == '__main__':
             wallet.init_mpk(seed)
             if mpk == wallet.master_public_key:
                 wallet.save()
-                print("Done: " + wallet.path)
+                print("Done: " + wallet.config.path)
             else:
                 print_error("Error: Master public key does not match")
 
