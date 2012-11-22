@@ -108,7 +108,7 @@ class Wallet:
     def update(self):
         self.up_to_date = False
         self.interface.poke('synchronizer')
-        while not self.up_to_date: time.sleep(0.1)
+        while not self.is_up_to_date(): time.sleep(0.1)
 
     def import_key(self, keypair, password):
         address, key = keypair.split(':')
