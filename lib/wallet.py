@@ -416,9 +416,6 @@ class Wallet:
             fee = None
             v = v_out_mine - v_in
             
-        #fee = v_in - v_out if not is_pruned else None
-        if tx_hash=='ed20d95ea9ce044f3267a36b9dea328e839934ee4545f7da9586e6d752a2ab32' and addresses == ['1PeahnfNNXF4jidEwjWKShe5KbD9j4eAh1']:
-            print v, fee, v_in, v_out, is_pruned
         return is_send, v, fee
 
 
