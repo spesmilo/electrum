@@ -4,6 +4,8 @@ import sys
 try:
     from PyQt4.QtCore import *
     from PyQt4.QtGui import *
+    import PyQt4.QtCore as QtCore
+
 except ImportError:
     print "You need to have PyQT installed to run Electrum in graphical mode."
     print "If you have pip installed try 'sudo pip install pyqt' if you are on Debian/Ubuntu try 'sudo apt-get install python-qt4'."
@@ -711,6 +713,25 @@ class MiniActuator:
         receive_popup.setup(copied_address)
         receive_popup.popup()
 
+    def waiting_dialog(self, f):
+        s = Timer()
+        s.start()
+        w = QDialog()
+        w.resize(200, 70)
+        w.setWindowTitle('Electrum')
+        l = QLabel('Sending transaction, please wait.')
+        vbox = QVBoxLayout()
+        vbox.addWidget(l)
+        w.setLayout(vbox)
+        w.show()
+        def ff():
+            s = f()
+            if s: l.setText(s)
+            else: w.close()
+        w.connect(s, QtCore.SIGNAL('timersignal'), ff)
+        w.exec_()
+        w.destroy()
+
     def send(self, address, amount, parent_window):
         """Send bitcoins to the target address."""
         dest_address = self.fetch_destination(address)
@@ -743,8 +764,13 @@ class MiniActuator:
         except BaseException as error:
             QMessageBox.warning(parent_window, _('Error'), str(error), _('OK'))
             return False
-            
-        status, message = self.wallet.sendtx(tx)
+
+        h = self.wallet.send_tx(tx)
+
+        self.waiting_dialog(lambda: False if self.wallet.tx_event.isSet() else _("Sending transaction, please wait..."))
+          
+        status, message = self.wallet.receive_tx(h)
+
         if not status:
             import tempfile
             dumpf = tempfile.NamedTemporaryFile(delete=False)
@@ -755,7 +781,7 @@ class MiniActuator:
             return False
 
         QMessageBox.information(parent_window, '',
-            _('Payment sent.') + '\n' + message, _('OK'))
+            _('Your transaction has been sent.') + '\n' + message, _('OK'))
         return True
 
     def fetch_destination(self, address):
