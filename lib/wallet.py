@@ -783,7 +783,7 @@ class Wallet:
         # synchronous
         h = self.send_tx(tx)
         self.tx_event.wait()
-        self.receive_tx(h)
+        return self.receive_tx(h)
 
     def send_tx(self, tx):
         # asynchronous
