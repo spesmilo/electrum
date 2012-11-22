@@ -301,8 +301,6 @@ if __name__ == '__main__':
 
                 print("Recovering wallet...")
                 WalletSynchronizer(wallet, config).start()
-                wallet.up_to_date_event.clear()
-                wallet.up_to_date = False
                 wallet.update()
                 if wallet.is_found():
                     print("Recovery successful")

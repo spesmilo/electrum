@@ -969,11 +969,7 @@ class ElectrumGui:
         droid.dialogCreateSpinnerProgress("Electrum", msg)
         droid.dialogShow()
 
-        wallet.up_to_date_event.clear()
-        wallet.up_to_date = False
-        wallet.interface.poke('synchronizer')
-        while not wallet.up_to_date:
-            time.sleep(0.1)
+        wallet.update()
 
         droid.dialogDismiss()
         droid.vibrate()

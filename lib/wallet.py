@@ -105,6 +105,10 @@ class Wallet:
     def is_up_to_date(self):
         with self.lock: return self.up_to_date
 
+    def update(self):
+        self.up_to_date = False
+        self.interface.poke('synchronizer')
+        while not self.up_to_date: time.sleep(0.1)
 
     def import_key(self, keypair, password):
         address, key = keypair.split(':')
@@ -378,7 +382,7 @@ class Wallet:
         with self.lock:
             is_send = False
             is_pruned = False
-            v_in = v_out = v = 0
+            v_in = v_out = v_out_mine = 0
             d = self.transactions.get(tx_hash)
             if not d: 
                 return 0, 0, 0
@@ -391,24 +395,31 @@ class Wallet:
                     value = self.prevout_values.get( key )
                     if value is None:
                         is_pruned = True
-                        break
-
-                    v -= value
-                    v_in += value
-
-            if is_pruned: v = 0
+                    else:
+                        v_in += value
+                else:
+                    is_pruned = True
+                    
             for item in d.get('outputs'):
                 addr = item.get('address')
                 value = item.get('value')
                 v_out += value
-                if not is_pruned:
-                    if addr in addresses: v += value
-                else:
-                    if addr not in addresses: v -= value
+                if addr in addresses:
+                    v_out_mine += value
 
-            # I can compute the fee only if I am the spender and inputs were not pruned
-            fee = v_in - v_out if is_send and not is_pruned else None
-            return is_send, v, fee
+        if not is_pruned:
+            # all inputs are mine:
+            fee = v_out - v_in
+            v = v_out_mine - v_in
+        else:
+            # some inputs are mine:
+            fee = None
+            v = v_out_mine - v_in
+            
+        #fee = v_in - v_out if not is_pruned else None
+        if tx_hash=='ed20d95ea9ce044f3267a36b9dea328e839934ee4545f7da9586e6d752a2ab32' and addresses == ['1PeahnfNNXF4jidEwjWKShe5KbD9j4eAh1']:
+            print v, fee, v_in, v_out, is_pruned
+        return is_send, v, fee
 
 
     def get_tx_details(self, tx_hash):
@@ -466,17 +477,32 @@ class Wallet:
                 self.spent_outputs.append(key)
 
 
-    def get_addr_balance(self, addr):
-        assert self.is_mine(addr)
-        h = self.history.get(addr,[])
+    def get_addr_balance(self, address):
+        assert self.is_mine(address)
+        h = self.history.get(address,[])
         if h == ['*']: return 0,0
         c = u = 0
-
+        received_coins = [] 
+        
         for tx_hash, tx_height in h:
-            # if the tx is mine, then I know its outputs and input values
-            # if it is not mine, I only need its outputs
-            is_mine, v, fee = self.get_tx_value(tx_hash, [addr])
-            if v is None:raise
+            d = self.transactions.get(tx_hash)
+            if not d: continue
+            v = 0
+
+            for item in d.get('inputs'):
+                addr = item.get('address')
+                if addr == address:
+                    key = item['prevout_hash']  + ':%d'%item['prevout_n']
+                    value = self.prevout_values.get( key )
+                    if key in received_coins: 
+                        v -= value
+                    
+            for item in d.get('outputs'):
+                addr = item.get('address')
+                key = tx_hash + ':%d'%item['index']
+                if addr == address:
+                    v += item.get('value')
+                received_coins.append(key)
 
             if tx_height:
                 c += v
