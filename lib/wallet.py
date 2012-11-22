@@ -487,6 +487,14 @@ class Wallet:
         for tx_hash, tx_height in h:
             d = self.transactions.get(tx_hash)
             if not d: continue
+            for item in d.get('outputs'):
+                addr = item.get('address')
+                key = tx_hash + ':%d'%item['index']
+                received_coins.append(key)
+
+        for tx_hash, tx_height in h:
+            d = self.transactions.get(tx_hash)
+            if not d: continue
             v = 0
 
             for item in d.get('inputs'):
@@ -502,7 +510,6 @@ class Wallet:
                 key = tx_hash + ':%d'%item['index']
                 if addr == address:
                     v += item.get('value')
-                received_coins.append(key)
 
             if tx_height:
                 c += v
