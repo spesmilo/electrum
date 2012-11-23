@@ -1079,7 +1079,7 @@ class Wallet:
                     return False
 
         # check that we are not "orphaning" a transaction
-        old_hist = self.history.get(addr)
+        old_hist = self.history.get(addr,[])
         if old_hist == ['*']: return True
 
         for tx_hash, height in old_hist:
