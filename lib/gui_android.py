@@ -979,7 +979,8 @@ class ElectrumGui:
             modal_dialog("recovery successful")
         else:
             if not modal_question("no transactions found for this seed","do you want to keep this wallet?"):
-                return
+                return False
 
         wallet.save()
+        return True
 

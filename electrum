@@ -222,7 +222,8 @@ if __name__ == '__main__':
                 wallet.init_mpk( wallet.seed )
 
             # generate the first addresses, in case we are offline
-            wallet.synchronize()
+            if s is None or a == 'create':
+                wallet.synchronize()
             if a == 'create':
                 # display seed
                 gui.show_seed()
