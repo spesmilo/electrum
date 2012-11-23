@@ -1114,6 +1114,7 @@ class Wallet:
                     for item in h:
                         if item.get('tx_hash') == tx_hash:
                             height = item.get('height')
+                            tx['height'] = height
                 if height:
                     print_error("found height for", tx_hash, height)
                     self.verifier.add(tx_hash, height)
