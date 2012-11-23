@@ -9,6 +9,9 @@ def set_verbosity(b):
 
 def print_error(*args):
     if not is_verbose: return
+    print_msg(args)
+
+def print_msg(*args):
     # Stringify args
     args = [str(item) for item in args]
     sys.stderr.write(" ".join(args) + "\n")
