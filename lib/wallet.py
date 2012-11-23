@@ -414,7 +414,11 @@ class Wallet:
         else:
             # some inputs are mine:
             fee = None
-            v = v_out_mine - v_in
+            if is_send:
+                v = v_out_mine - v_out
+            else:
+                # no input is mine
+                v = v_out_mine
             
         return is_send, v, fee
 
@@ -438,7 +442,7 @@ class Wallet:
             + "Status: %d confirmations\n"%conf
         if is_mine:
             if fee: 
-                tx_details += "Amount sent: %s\n"% format_satoshis(v+fee, False) \
+                tx_details += "Amount sent: %s\n"% format_satoshis(v-fee, False) \
                               + "Transaction fee: %s\n"% format_satoshis(fee, False)
             else:
                 tx_details += "Amount sent: %s\n"% format_satoshis(v, False) \
@@ -655,9 +659,8 @@ class Wallet:
 
     def receive_history_callback(self, addr, hist):
 
-        if hist != ['*']:
-            if not self.check_new_history(addr, hist):
-                raise BaseException("error: received history for %s is not consistent with known transactions"%addr)
+        if not self.check_new_history(addr, hist):
+            raise BaseException("error: received history for %s is not consistent with known transactions"%addr)
             
         with self.lock:
             self.history[addr] = hist
@@ -697,12 +700,9 @@ class Wallet:
             tx_hash = tx['tx_hash']
             timestamp = tx.get('timestamp')
             conf = self.verifier.get_confirmations(tx_hash) if self.verifier else None
-            is_mine, v, fee = self.get_tx_value(tx_hash)
-            if v is not None:
-                balance += v
-                value = v + fee if fee is not None else v
-            else:
-                value = None
+            is_mine, value, fee = self.get_tx_value(tx_hash)
+            if value is not None:
+                balance += value
 
             result.append( (tx_hash, conf, is_mine, value, fee, balance, timestamp) )
 
@@ -1069,15 +1069,57 @@ class Wallet:
 
 
     def check_new_history(self, addr, hist):
-        # - check that all tx in hist are relevant
-        for tx_hash, height in hist:
-            tx = self.transactions.get(tx_hash)
-            if not tx: continue
-            if not self.is_addr_in_tx(addr,tx):
-                return False
+        
+        # check that all tx in hist are relevant
+        if hist != ['*']:
+            for tx_hash, height in hist:
+                tx = self.transactions.get(tx_hash)
+                if not tx: continue
+                if not self.is_addr_in_tx(addr,tx):
+                    return False
 
-        # todo: check that we are not "orphaning" a transaction
-        # if we are, reject tx if unconfirmed, else reject the server
+        # check that we are not "orphaning" a transaction
+        old_hist = self.history.get(addr)
+        if old_hist == ['*']: return True
+
+        for tx_hash, height in old_hist:
+            if tx_hash in map(lambda x:x[0], hist): continue
+            found = False
+            for _addr, _hist in self.history.items():
+                if _addr == addr: continue
+                if _hist == ['*']: continue
+                _tx_hist = map(lambda x:x[0], _hist)
+                if tx_hash in _tx_hist:
+                    found = True
+                    break
+
+            if not found:
+                tx = self.transactions.get(tx_hash)
+                # already verified?
+                if tx.get('height'):
+                    continue
+                # unconfirmed tx
+                print_error("new history is orphaning transaction:", tx_hash)
+                # check that all outputs are not mine, request histories
+                ext_requests = []
+                for o in tx.get('outputs'):
+                    _addr = o.get('address')
+                    assert not self.is_mine(_addr)
+                    ext_requests.append( ('blockchain.address.get_history', [_addr]) )
+
+                ext_h = self.interface.synchronous_get(ext_requests)
+                height = None
+                for h in ext_h:
+                    if h == ['*']: continue
+                    for item in h:
+                        if item.get('tx_hash') == tx_hash:
+                            height = item.get('height')
+                if height:
+                    print_error("found height for", tx_hash, height)
+                    self.verifier.add(tx_hash, height)
+                else:
+                    print_error("removing orphaned tx from history", tx_hash)
+                    self.transactions.pop(tx_hash)
 
         return True
 
