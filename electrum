@@ -121,7 +121,7 @@ def prompt_password(prompt, confirm=True):
         password = None
     return password
 
-def parse_args():
+def arg_parser():
     usage = "usage: %prog [options] command\nCommands: "+ (', '.join(known_commands))
     parser = optparse.OptionParser(prog=usage)
     parser.add_option("-g", "--gui", dest="gui", help="User interface: qt, lite, gtk or text")
@@ -136,12 +136,13 @@ def parse_args():
     parser.add_option("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is t or h")
     parser.add_option("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
     parser.add_option("-v", "--verbose", action="store_true", dest="verbose", default=False, help="show debugging information")
-    return parser.parse_args()
+    return parser
 
 
 if __name__ == '__main__':
 
-    options, args = parse_args()
+    parser = arg_parser()
+    options, args = parser.parse_args()
     set_verbosity(options.verbose)
 
     # config is an object passed to the various constructors (wallet, interface, gui)
