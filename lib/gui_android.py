@@ -951,7 +951,7 @@ class ElectrumGui:
 
 
     def network_dialog(self):
-        pass
+        return True
 
         
     def show_seed(self):
@@ -975,7 +975,6 @@ class ElectrumGui:
         droid.vibrate()
 
         if wallet.is_found():
-            wallet.update_tx_history()
             wallet.fill_addressbook()
             modal_dialog("recovery successful")
         else:
