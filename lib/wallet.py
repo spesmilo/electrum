@@ -554,6 +554,7 @@ class Wallet:
             h = self.history.get(addr, [])
             if h == ['*']: continue
             for tx_hash, tx_height in h:
+                tx = self.transactions.get(tx_hash)
                 for output in tx.get('outputs'):
                     if output.get('address') != addr: continue
                     key = tx_hash + ":%d" % output.get('index')
