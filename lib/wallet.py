@@ -1165,6 +1165,7 @@ class WalletSynchronizer(threading.Thread):
 
     def stop(self):
         with self.lock: self.running = False
+        self.interface.poke('synchronizer')
 
     def is_running(self):
         with self.lock: return self.running
@@ -1233,14 +1234,10 @@ class WalletSynchronizer(threading.Thread):
                 self.was_updated = False
 
             # 2. get a response
-            try:
-                r = self.interface.get_response('synchronizer', timeout=0.1)
-            except:
-                continue
+            r = self.interface.get_response('synchronizer')
 
-            # poke sends None. (check if still needed)
-            if not r: 
-                continue
+            # poke sends None. (needed during stop)
+            if not r: continue
 
             # 3. handle response
             method = r['method']

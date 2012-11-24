@@ -65,6 +65,7 @@ class WalletVerifier(threading.Thread):
 
     def stop(self):
         with self.lock: self.running = False
+        self.interface.poke('verifier')
 
     def is_running(self):
         with self.lock: return self.running
@@ -126,9 +127,10 @@ class WalletVerifier(threading.Thread):
                         self.pending_headers.remove(header)
 
             try:
-                r = self.interface.get_response('verifier',timeout=0.1)
+                r = self.interface.get_response('verifier',timeout=1)
             except Queue.Empty:
                 continue
+            if not r: continue
 
             # 3. handle response
             method = r['method']

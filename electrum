@@ -230,7 +230,8 @@ if __name__ == '__main__':
 
         verifier = WalletVerifier(interface, config)
         wallet.set_verifier(verifier)
-        WalletSynchronizer(wallet, config).start()
+        synchronizer = WalletSynchronizer(wallet, config)
+        synchronizer.start()
 
         if not found and a == 'restore' and s is not None:
             try:
@@ -250,9 +251,11 @@ if __name__ == '__main__':
         verifier.start()
         gui.main(url)
         wallet.save()
+
         verifier.stop()
         synchronizer.stop()
-        #interface.stop()
+        interface.stop()
+
         sys.exit(0)
 
     if cmd not in known_commands:

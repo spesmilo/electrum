@@ -495,6 +495,11 @@ class Interface(threading.Thread):
             self.is_connected = False  # this exits the polling loop
             self.trigger_callback('disconnecting') # for actively disconnecting
 
+    def stop(self):
+        if self.protocol in 'st' and self.s:
+            self.s.shutdown(socket.SHUT_RDWR)
+            self.s.close()
+
 
     def get_servers_list(self):
         plist = {}
