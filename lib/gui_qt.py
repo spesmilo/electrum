@@ -1430,7 +1430,7 @@ class ElectrumWindow(QMainWindow):
         servers_list_widget = QTreeWidget(parent)
         servers_list_widget.setHeaderLabels( [ label, _('Type') ] )
         servers_list_widget.setMaximumHeight(150)
-        servers_list_widget.setColumnWidth(0, 250)
+        servers_list_widget.setColumnWidth(0, 240)
         for _host in servers_list.keys():
             _type = 'pruning' if servers_list[_host].get('pruning') else 'full'
             servers_list_widget.addTopLevelItem(QTreeWidgetItem( [ _host, _type ] ))
