@@ -1104,7 +1104,7 @@ class Wallet:
                 ext_requests = []
                 for o in tx.get('outputs'):
                     _addr = o.get('address')
-                    assert not self.is_mine(_addr)
+                    # assert not self.is_mine(_addr)
                     ext_requests.append( ('blockchain.address.get_history', [_addr]) )
 
                 ext_h = self.interface.synchronous_get(ext_requests)
