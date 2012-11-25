@@ -761,6 +761,7 @@ class ElectrumWindow(QMainWindow):
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
         menu.addAction(_("Edit label"), lambda: self.edit_label(True))
+        menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
 
         t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
         menu.addAction(t, lambda: self.toggle_freeze(addr))
@@ -1032,6 +1033,95 @@ class ElectrumWindow(QMainWindow):
         d.setLayout(vbox)
         d.exec_()
 
+    def sign_message(self,address):
+        if not address: return
+        d = QDialog(self)
+        d.setModal(1)
+        d.setWindowTitle('Sign Message')
+        d.setMinimumSize(270, 350)
+
+        tab_widget = QTabWidget()
+        tab = QWidget()
+        layout = QGridLayout(tab)
+
+        sign_address = QLineEdit()
+        sign_address.setText(address)
+        layout.addWidget(QLabel(_('Address')), 1, 0)
+        layout.addWidget(sign_address, 1, 1)
+
+        sign_message = QTextEdit()
+        layout.addWidget(QLabel(_('Message')), 2, 0)
+        layout.addWidget(sign_message, 2, 1, 2, 1)
+
+        sign_signature = QLineEdit()
+        layout.addWidget(QLabel(_('Signature')), 3, 0)
+        layout.addWidget(sign_signature, 3, 1)
+
+        def do_sign():
+            if self.wallet.use_encryption:
+                password = self.password_dialog()
+                if not password:
+                    return
+            else:
+                password = None
+
+            try:
+                signature = self.wallet.sign_message(sign_address.text(), sign_message.toPlainText(), password)
+                sign_signature.setText(signature)
+            except BaseException, e:
+                self.show_message(str(e))
+                return
+
+        hbox = QHBoxLayout()
+        b = QPushButton(_("Sign"))
+        hbox.addWidget(b)
+        b.clicked.connect(do_sign)
+        b = QPushButton(_("Close"))
+        b.clicked.connect(d.accept)
+        hbox.addWidget(b)
+        layout.addLayout(hbox, 4, 1)
+        tab_widget.addTab(tab, "Sign")
+
+
+        tab = QWidget()
+        layout = QGridLayout(tab)
+
+        verify_address = QLineEdit()
+        layout.addWidget(QLabel(_('Address')), 1, 0)
+        layout.addWidget(verify_address, 1, 1)
+
+        verify_message = QTextEdit()
+        layout.addWidget(QLabel(_('Message')), 2, 0)
+        layout.addWidget(verify_message, 2, 1, 2, 1)
+
+        verify_signature = QLineEdit()
+        layout.addWidget(QLabel(_('Signature')), 3, 0)
+        layout.addWidget(verify_signature, 3, 1)
+
+        def do_verify():
+            try:
+                self.wallet.verify_message(verify_address.text(), verify_signature.text(), verify_message.toPlainText())
+                self.show_message("Signature verified")
+            except BaseException, e:
+                self.show_message(str(e))
+                return
+
+        hbox = QHBoxLayout()
+        b = QPushButton(_("Verify"))
+        b.clicked.connect(do_verify)
+        hbox.addWidget(b)
+        b = QPushButton(_("Close"))
+        b.clicked.connect(d.accept)
+        hbox.addWidget(b)
+        layout.addLayout(hbox, 4, 1)
+        tab_widget.addTab(tab, "Verify")
+
+        vbox = QVBoxLayout()
+        vbox.addWidget(tab_widget)
+        d.setLayout(vbox)
+        d.exec_()
+
+        
 
     def show_address_qrcode(self,address):
         if not address: return
