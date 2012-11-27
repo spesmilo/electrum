@@ -9,7 +9,7 @@ except:
     print "usage: get_history <bitcoin_address>"
     sys.exit(1)
 
-i = Interface({'server':'webbtc.com:50001:t'})
+i = Interface({'server':'electrum.be:50001:t'})
 i.start()
 h = i.synchronous_get([ ('blockchain.address.get_history',[addr]) ])[0]
 for item in h:
