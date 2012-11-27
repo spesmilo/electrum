@@ -769,8 +769,8 @@ class Wallet:
             raise ValueError("Not enough funds")
 
         if not self.use_change and not change_addr:
-            change_addr = inputs[0][0]
-            print "Sending change to", change_addr
+            change_addr = inputs[-1][0]
+            print_error( "Sending change to", change_addr )
 
         outputs = self.choose_tx_outputs( to_address, amount, fee, total, change_addr )
         s_inputs = self.sign_inputs( inputs, outputs, password )
