@@ -28,13 +28,14 @@ DEFAULT_TIMEOUT = 5
 DEFAULT_SERVERS = [ 
     #'electrum.bitcoins.sk:50001:t',
     #'uncle-enzo.info:50001:t',
-    #'electrum.bitcoin.cz:50001:t',
     #'electrum.bitfoo.org:50001:t',
+    #'webbtc.net:50001:t',
+    'electrum.bitcoin.cz:50001:t',
     'electrum.novit.ro:50001:t', 
     'electrum.be:50001:t',
-    'webbtc.net:50001:t',
     'electrum.bysh.me:50001:t',
     'electrum.pdmc.net:50001:t',
+    'electrum.no-ip.org:50001:t',
     'ecdsa.org:50001:t'
     ]
 
