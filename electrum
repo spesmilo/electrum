@@ -378,7 +378,7 @@ if __name__ == '__main__':
         try:
             wallet.pw_decode( wallet.seed, password)
         except:
-            print_error("Error: This password does not decode this wallet.")
+            print_msg("Error: This password does not decode this wallet.")
             exit(1)
 
     if cmd == 'import':
@@ -391,8 +391,8 @@ if __name__ == '__main__':
             wallet.import_key(keypair,password)
             wallet.save()
             print_msg("Keypair imported")
-        except BaseException(e):
-            print_error("Error: Keypair import failed: " + str(e))
+        except BaseException as e:
+            print_msg("Error: Keypair import failed: " + str(e))
 
     if cmd == 'help':
         cmd2 = firstarg
@@ -410,9 +410,9 @@ if __name__ == '__main__':
 
     elif cmd == 'deseed':
         if not wallet.seed:
-            print_error("Error: This wallet has no seed")
+            print_msg("Error: This wallet has no seed")
         elif wallet.use_encryption:
-            print_error("Error: This wallet is encrypted")
+            print_msg("Error: This wallet is encrypted")
         else:
             ns = wallet.config.path + '.seed'
             print_msg("Warning: you are going to extract the seed from '%s'\nThe seed will be saved in '%s'"%(wallet.config.path,ns))
@@ -425,7 +425,7 @@ if __name__ == '__main__':
                 wallet.save()
                 print_msg("Done.")
             else:
-                print_error("Action canceled.")
+                print_msg("Action canceled.")
 
     elif cmd == 'reseed':
         if wallet.seed:
@@ -455,7 +455,7 @@ if __name__ == '__main__':
                 wallet.save()
                 print_msg("Done: " + wallet.config.path)
             else:
-                print_error("Error: Master public key does not match")
+                print_msg("Error: Master public key does not match")
 
     elif cmd == 'validateaddress':
         addr = args[1]
@@ -543,7 +543,7 @@ if __name__ == '__main__':
             tx = args[1]
             label = ' '.join(args[2:])
         except:
-            print_error("Error. Syntax:  label <tx_hash> <text>")
+            print_msg("Error. Syntax:  label <tx_hash> <text>")
             sys.exit(1)
         wallet.labels[tx] = label
         wallet.save()
@@ -556,7 +556,7 @@ if __name__ == '__main__':
                 keypair = from_addr
                 from_addr = keypair.split(':')[0]
             if not wallet.import_key(keypair,password):
-                print_error("Error: Invalid key pair")
+                print_msg("Error: Invalid key pair")
                 exit(1)
             wallet.history[from_addr] = interface.retrieve_history(from_addr)
             wallet.update_tx_history()
@@ -607,7 +607,7 @@ if __name__ == '__main__':
 
     elif cmd == 'signmessage':
         if len(args) < 3:
-            print_error("Error: Invalid usage of signmessage.")
+            print_msg("Error: Invalid usage of signmessage.")
             print_msg(known_commands[cmd])
             sys.exit(1)
         address = args[1]
@@ -622,7 +622,7 @@ if __name__ == '__main__':
             signature = args[2]
             message = ' '.join(args[3:])
         except:
-            print_error("Error: Not all parameters were given, displaying help instead.")
+            print_msg("Error: Not all parameters were given, displaying help instead.")
             print_msg(known_commands[cmd])
             sys.exit(1)
         if len(args) > 4:
