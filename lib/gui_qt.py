@@ -145,7 +145,7 @@ class QRCodeWidget(QWidget):
     def set_addr(self, addr):
         self.addr = addr
         self.qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.L)
-        self.qr.addData(addr)
+        self.qr.addData(self.addr)
         self.qr.make()
         
     def paintEvent(self, e):
@@ -222,9 +222,7 @@ class QR_Window(QWidget):
         self.label = label
         label_text = "<span style='font-size: 21pt'>%s</span>" % label if label else ""
         self.label_label.setText(label_text)
-        self.update()
 
-    def update(self):
         msg = 'bitcoin:'+self.address
         if self.amount is not None:
             msg += '?amount=%s'%(str( Decimal(self.amount) /100000000))
@@ -234,7 +232,7 @@ class QR_Window(QWidget):
             msg += '?label=%s'%(self.label)
             
         self.qrw.set_addr( msg )
-        self.qrw.repaint()
+        self.qrw.update()
 
             
 
@@ -493,7 +491,7 @@ class ElectrumWindow(QMainWindow):
 
     def recv_changed(self, a):
         "current item changed"
-        if a is not None and self.qr_window:
+        if a is not None and self.qr_window and self.qr_window.isVisible():
             address = str(a.text(1))
             label = self.wallet.labels.get(address)
             amount = self.wallet.requested_amounts.get(address)
