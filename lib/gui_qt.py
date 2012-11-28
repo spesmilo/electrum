@@ -139,7 +139,7 @@ class QRCodeWidget(QWidget):
 
     def __init__(self, addr):
         super(QRCodeWidget, self).__init__()
-        self.setMinimumSize(250, 250)
+        self.setMinimumSize(210, 210)
         self.set_addr(addr)
 
     def set_addr(self, addr):
@@ -193,6 +193,7 @@ class QR_Window(QWidget):
         main_box.addStretch(1)
 
         self.address_label = QLabel("")
+        self.address_label.setFont(QFont(MONOSPACE_FONT))
         vbox.addWidget(self.address_label)
 
         self.label_label = QLabel("")
@@ -211,15 +212,15 @@ class QR_Window(QWidget):
 
     def set_content(self, addr, label, amount):
         self.address = addr
-        address_text = "<span style='font-size: 18pt'>%s</span>" % addr if addr else ""
+        address_text = "<span style='font-size: 21pt'>%s</span>" % addr if addr else ""
         self.address_label.setText(address_text)
 
         self.amount = amount
-        amount_text = "<span style='font-size: 18pt'>%s</span> <span style='font-size: 10pt'>BTC</span> " % format_satoshis(amount) if amount else ""
+        amount_text = "<span style='font-size: 21pt'>%s</span> <span style='font-size: 16pt'>BTC</span> " % format_satoshis(amount) if amount else ""
         self.amount_label.setText(amount_text)
 
         self.label = label
-        label_text = "<span style='font-size: 18pt'>%s</span>" % label if label else ""
+        label_text = "<span style='font-size: 21pt'>%s</span>" % label if label else ""
         self.label_label.setText(label_text)
         self.update()
 
