@@ -75,6 +75,8 @@ class Wallet:
         self.history               = config.get('addr_history',{})        # address -> list(txid, height)
         self.transactions          = config.get('transactions',{})        # txid -> deserialised
 
+        self.requested_amounts     = config.get('requested_amounts',{})   # txid -> deserialised
+
         # not saved
         self.prevout_values = {}     # my own transaction outputs
         self.spent_outputs = []
@@ -1009,6 +1011,7 @@ class Wallet:
             'prioritized_addresses': self.prioritized_addresses,
             'gap_limit': self.gap_limit,
             'transactions': self.transactions,
+            'requested_amounts': self.requested_amounts,
         }
         for k, v in s.items():
             self.config.set_key(k,v)

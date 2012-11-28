@@ -139,7 +139,7 @@ class QRCodeWidget(QWidget):
 
     def __init__(self, addr):
         super(QRCodeWidget, self).__init__()
-        self.setGeometry(300, 300, 350, 350)
+        self.setMinimumSize(250, 250)
         self.set_addr(addr)
 
     def set_addr(self, addr):
@@ -149,6 +149,8 @@ class QRCodeWidget(QWidget):
         self.qr.make()
         
     def paintEvent(self, e):
+        if not self.addr: return
+        
         qp = QtGui.QPainter()
         qp.begin(self)
         boxsize = 6
@@ -167,6 +169,72 @@ class QRCodeWidget(QWidget):
                 qp.drawRect(c*boxsize, r*boxsize, boxsize, boxsize)
         qp.end()
         
+
+
+class QR_Window(QWidget):
+
+    def __init__(self):
+        QWidget.__init__(self)
+        self.setWindowTitle('Bitcoin Electrum')
+        self.setMinimumSize(800, 250)
+        self.address = ''
+        self.labe = ''
+        self.amount = 0
+        self.setFocusPolicy(QtCore.Qt.NoFocus)
+
+        main_box = QHBoxLayout()
+        
+        self.qrw = QRCodeWidget('')
+        main_box.addWidget(self.qrw)
+
+        vbox = QVBoxLayout()
+        main_box.addLayout(vbox)
+
+        main_box.addStretch(1)
+
+        self.address_label = QLabel("")
+        vbox.addWidget(self.address_label)
+
+        self.label_label = QLabel("")
+        vbox.addWidget(self.label_label)
+
+        self.amount_label = QLabel("")
+        vbox.addWidget(self.amount_label)
+
+        vbox.addStretch(1)
+
+        self.setLayout(main_box)
+
+    def do_save(self):
+        self.filename = "qrcode.bmp"
+        bmp.save_qrcode(self.qrw.qr, self.filename)
+
+    def set_content(self, addr, label, amount):
+        self.address = addr
+        address_text = "<span style='font-size: 18pt'>%s</span>" % addr if addr else ""
+        self.address_label.setText(address_text)
+
+        self.amount = amount
+        amount_text = "<span style='font-size: 18pt'>%s</span> <span style='font-size: 10pt'>BTC</span> " % format_satoshis(amount) if amount else ""
+        self.amount_label.setText(amount_text)
+
+        self.label = label
+        label_text = "<span style='font-size: 18pt'>%s</span>" % label if label else ""
+        self.label_label.setText(label_text)
+        self.update()
+
+    def update(self):
+        msg = 'bitcoin:'+self.address
+        if self.amount is not None:
+            msg += '?amount=%s'%(str( Decimal(self.amount) /100000000))
+        if self.label is not None:
+            msg += '&label=%s'%(self.label)
+            
+        self.qrw.set_addr( msg )
+        self.qrw.repaint()
+
+            
+
 
 def waiting_dialog(f):
 
@@ -214,6 +282,7 @@ class ElectrumWindow(QMainWindow):
 
         self.detailed_view = config.get('qt_detailed_view', False)
 
+        self.qr_window = None
         self.funds_error = False
         self.completions = QStringListModel()
 
@@ -241,6 +310,7 @@ class ElectrumWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() + 1 )%tabs.count() ))
         
         self.connect(self, QtCore.SIGNAL('updatesignal'), self.update_wallet)
+        #self.connect(self, SIGNAL('editamount'), self.edit_amount)
         self.history_list.setFocus(True)
 
         # dark magic fix by flatfly; https://bitcointalk.org/index.php?topic=73651.msg959913#msg959913
@@ -314,9 +384,11 @@ class ElectrumWindow(QMainWindow):
         l.setHeaderLabels( [ '', _( 'Date' ), _( 'Description' ) , _('Amount'), _('Balance')] )
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), self.tx_label_clicked)
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), self.tx_label_changed)
+
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_history_menu)
         return l
+
 
     def create_history_menu(self, position):
         self.history_list.selectedIndexes() 
@@ -364,6 +436,7 @@ class ElectrumWindow(QMainWindow):
             item.setForeground(2, QBrush(QColor('gray')))
         self.is_edit=False
 
+
     def edit_label(self, is_recv):
         l = self.receive_list if is_recv else self.contacts_list
         c = 2 if is_recv else 1
@@ -372,8 +445,10 @@ class ElectrumWindow(QMainWindow):
         l.editItem( item, c )
         item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
 
+
+
     def address_label_clicked(self, item, column, l, column_addr, column_label):
-        if column==column_label and item.isSelected():
+        if column == column_label and item.isSelected():
             addr = unicode( item.text(column_addr) )
             label = unicode( item.text(column_label) )
             if label in self.wallet.aliases.keys():
@@ -382,30 +457,44 @@ class ElectrumWindow(QMainWindow):
             l.editItem( item, column )
             item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
 
+
     def address_label_changed(self, item, column, l, column_addr, column_label):
-        addr = unicode( item.text(column_addr) )
-        text = unicode( item.text(column_label) )
-        changed = False
 
-        if text:
-            if text not in self.wallet.aliases.keys():
-                old_addr = self.wallet.labels.get(text)
-                if old_addr != addr:
-                    self.wallet.labels[addr] = text
-                    changed = True
+        if column == column_label:
+            addr = unicode( item.text(column_addr) )
+            text = unicode( item.text(column_label) )
+            changed = False
+
+            if text:
+                if text not in self.wallet.aliases.keys():
+                    old_addr = self.wallet.labels.get(text)
+                    if old_addr != addr:
+                        self.wallet.labels[addr] = text
+                        changed = True
+                else:
+                    print_error("Error: This is one of your aliases")
+                    label = self.wallet.labels.get(addr,'')
+                    item.setText(column_label, QString(label))
             else:
-                print_error("Error: This is one of your aliases")
-                label = self.wallet.labels.get(addr,'')
-                item.setText(column_label, QString(label))
-        else:
-            s = self.wallet.labels.get(addr)
-            if s: 
-                self.wallet.labels.pop(addr)
-                changed = True
+                s = self.wallet.labels.get(addr)
+                if s: 
+                    self.wallet.labels.pop(addr)
+                    changed = True
 
-        if changed:
-            self.update_history_tab()
-            self.update_completions()
+            if changed:
+                self.update_history_tab()
+                self.update_completions()
+                
+            self.recv_changed(item)
+
+
+    def recv_changed(self, a):
+        "current item changed"
+        if a is not None and self.qr_window:
+            address = str(a.text(1))
+            label = self.wallet.labels.get(address)
+            amount = self.wallet.requested_amounts.get(address)
+            self.qr_window.set_content( address, label, amount )
 
 
     def update_history_tab(self):
@@ -711,20 +800,93 @@ class ElectrumWindow(QMainWindow):
 
 
     def create_receive_tab(self):
-        l,w,hbox = self.create_list_tab([_('Flags'), _('Address'), _('Label'), _('Balance'), _('Tx')])
+        l,w,hbox = self.create_list_tab([_('Flags'), _('Address'), _('Label'), _('Requested'), _('Balance'), _('Tx')])
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_receive_menu)
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,1,2))
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,1,2))
+        self.connect(l, SIGNAL('currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)'), lambda a,b: self.recv_changed(a))
         self.receive_list = l
         self.receive_buttons_hbox = hbox
+        self.qr_button = EnterButton(self.qr_button_text(), self.toggle_QR_window)
+        hbox.addWidget(self.qr_button)
+        self.print_button = EnterButton(_("Print QR"), self.print_qr)
+        self.print_button.setHidden(True)
+        hbox.addWidget(self.print_button)
+
         self.details_button = EnterButton(self.details_button_text(), self.toggle_detailed_view)
         hbox.addWidget(self.details_button)
         hbox.addStretch(1)
         return w
 
+    def print_qr(self):
+        if self.qr_window:
+            self.qr_window.do_save()
+            self.show_message(_("QR code saved to file") + " " + self.qr_window.filename)
+
+
+    def request_amount_dialog(self, address):
+        # pick the first unused address
+        # print "please wait" in qr window
+        # enter amount in usd
+
+        d = QDialog()
+        d.setWindowTitle('Request payment')
+
+        vbox = QVBoxLayout()
+        vbox.addWidget(QLabel(address))
+
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        vbox.addLayout(grid)
+
+        try:
+            index = self.wallet.addresses.index(address)
+        except:
+            return
+
+        label = self.wallet.labels.get(address,'invoice %04d'%(index+1))
+        grid.addWidget(QLabel(_('Label')), 0, 0)
+        label_e = QLineEdit()
+        label_e.setText(label)
+        grid.addWidget(label_e, 0, 1)
+
+        amount_e = QLineEdit()
+        amount_e.textChanged.connect(lambda: numbify(amount_e))
+
+        grid.addWidget(QLabel(_('Amount')), 1, 0)
+        grid.addWidget(amount_e, 1, 1, 1, 3)
+
+        vbox.addLayout(ok_cancel_buttons(d))
+        d.setLayout(vbox)
+
+        amount_e.setFocus()
+        if not d.exec_(): return
+        try:
+            amount = int( Decimal( unicode( amount_e.text())) * 100000000 )
+        except:
+            return
+        self.wallet.requested_amounts[address] = amount
+
+        label = unicode(label_e.text())
+        if label:
+            self.wallet.labels[address] = label
+
+        self.update_receive_item(self.receive_list.currentItem())
+
+        if self.qr_window:
+            self.qr_window.set_content( address, label, amount )
+            #print "raise"
+            #self.raise_()
+            #self.receive_list.currentItem().setFocus(True)
+
+        
     def details_button_text(self):
         return _('Hide details') if self.detailed_view else _('Show details')
+
+    def qr_button_text(self):
+        return _('Hide QR') if self.qr_window else _('Show QR')
+
 
     def toggle_detailed_view(self):
         self.detailed_view = not self.detailed_view
@@ -759,7 +921,7 @@ class ElectrumWindow(QMainWindow):
         addr = unicode(item.text(1))
         menu = QMenu()
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
-        menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
+        if self.qr_window: menu.addAction(_("Request payment"), lambda: self.request_amount_dialog(addr))
         menu.addAction(_("Edit label"), lambda: self.edit_label(True))
         menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
 
@@ -818,17 +980,42 @@ class ElectrumWindow(QMainWindow):
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
 
+    def update_receive_item(self, item):
+        address = str( item.data(1,0).toString() )
+
+        flags = self.wallet.get_address_flags(address)
+        item.setData(0,0,flags)
+
+        label = self.wallet.labels.get(address,'')
+        item.setData(2,0,label)
+
+        amount_str = format_satoshis( self.wallet.requested_amounts.get(address,0) )
+        item.setData(3,0,amount_str)
+        
+        c, u = self.wallet.get_addr_balance(address)
+        balance = format_satoshis( c + u, False, self.wallet.num_zeros )
+        item.setData(4,0,balance)
+
+        if address in self.wallet.frozen_addresses: 
+            item.setBackgroundColor(1, QColor('lightblue'))
+        elif address in self.wallet.prioritized_addresses: 
+            item.setBackgroundColor(1, QColor('lightgreen'))
+        
+
     def update_receive_tab(self):
         l = self.receive_list
+        
         l.clear()
-        l.setColumnHidden(0,not self.detailed_view)
-        l.setColumnHidden(3,not self.detailed_view)
-        l.setColumnHidden(4,not self.detailed_view)
-        l.setColumnWidth(0, 50) 
+        l.setColumnHidden(0, not self.detailed_view)
+        l.setColumnHidden(3, self.qr_window is None)
+        l.setColumnHidden(4, not self.detailed_view)
+        l.setColumnHidden(5, not self.detailed_view)
+        l.setColumnWidth(0, 50)
         l.setColumnWidth(1, 310) 
-        l.setColumnWidth(2, 250)
-        l.setColumnWidth(3, 130) 
-        l.setColumnWidth(4, 10)
+        l.setColumnWidth(2, 200)
+        l.setColumnWidth(3, 130)
+        l.setColumnWidth(4, 130)
+        l.setColumnWidth(5, 10)
 
         gap = 0
         is_red = False
@@ -837,7 +1024,6 @@ class ElectrumWindow(QMainWindow):
             if self.wallet.is_change(address) and not self.detailed_view:
                 continue
 
-            label = self.wallet.labels.get(address,'')
             n = 0 
             h = self.wallet.history.get(address,[])
 
@@ -859,18 +1045,11 @@ class ElectrumWindow(QMainWindow):
                 if address in self.wallet.addresses:
                     gap = 0
 
-            c, u = self.wallet.get_addr_balance(address)
-            balance = format_satoshis( c + u, False, self.wallet.num_zeros )
-            flags = self.wallet.get_address_flags(address)
-            item = QTreeWidgetItem( [ flags, address, label, balance, num_tx] )
-
+            item = QTreeWidgetItem( [ '', address, '', '', '', num_tx] )
             item.setFont(0, QFont(MONOSPACE_FONT))
             item.setFont(1, QFont(MONOSPACE_FONT))
             item.setFont(3, QFont(MONOSPACE_FONT))
-            if address in self.wallet.frozen_addresses: 
-                item.setBackgroundColor(1, QColor('lightblue'))
-            elif address in self.wallet.prioritized_addresses: 
-                item.setBackgroundColor(1, QColor('lightgreen'))
+            self.update_receive_item(item)
             if is_red and address in self.wallet.addresses:
                 item.setBackgroundColor(1, QColor('red'))
             l.addTopLevelItem(item)
@@ -1122,56 +1301,23 @@ class ElectrumWindow(QMainWindow):
         d.exec_()
 
         
+    def toggle_QR_window(self):
+        if self.qr_window:
+            self.qr_window.close()
+            self.qr_window = None
+        else:
+            self.qr_window = QR_Window()
+            item = self.receive_list.currentItem()
+            if item:
+                address = str(item.text(1))
+                label = self.wallet.labels.get(address)
+                amount = self.wallet.requested_amounts.get(address)
+                self.qr_window.set_content( address, label, amount )
+            self.qr_window.show()
 
-    def show_address_qrcode(self,address):
-        if not address: return
-        d = QDialog(self)
-        d.setModal(1)
-        d.setWindowTitle(address)
-        d.setMinimumSize(270, 350)
-        vbox = QVBoxLayout()
-        qrw = QRCodeWidget(address)
-        vbox.addWidget(qrw)
-
-        hbox = QHBoxLayout()
-        amount_e = QLineEdit()
-        hbox.addWidget(QLabel(_('Amount')))
-        hbox.addWidget(amount_e)
-        vbox.addLayout(hbox)
-
-        #hbox = QHBoxLayout()
-        #label_e = QLineEdit()
-        #hbox.addWidget(QLabel('Label'))
-        #hbox.addWidget(label_e)
-        #vbox.addLayout(hbox)
-
-        def amount_changed():
-            amount = numbify(amount_e)
-            #label = str( label_e.getText() )
-            if amount is not None:
-                qrw.set_addr('bitcoin:%s?amount=%s'%(address,str( Decimal(amount) /100000000)))
-            else:
-                qrw.set_addr( address )
-            qrw.repaint()
-
-        def do_save():
-            bmp.save_qrcode(qrw.qr, "qrcode.bmp")
-            self.show_message(_("QR code saved to file") + " 'qrcode.bmp'")
-            
-        amount_e.textChanged.connect( amount_changed )
-
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-        b = QPushButton(_("Save"))
-        b.clicked.connect(do_save)
-        hbox.addWidget(b)
-        b = QPushButton(_("Close"))
-        hbox.addWidget(b)
-        b.clicked.connect(d.accept)
-
-        vbox.addLayout(hbox)
-        d.setLayout(vbox)
-        d.exec_()
+        self.qr_button.setText(self.qr_button_text())
+        self.print_button.setHidden(self.qr_window is None)
+        self.update_receive_tab()
 
     def question(self, msg):
         return QMessageBox.question(self, _('Message'), msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes
@@ -1225,9 +1371,12 @@ class ElectrumWindow(QMainWindow):
 
         vbox = QVBoxLayout()
         if parent:
-            msg = (_('Your wallet is encrypted. Use this dialog to change your password.')+'\n'+_('To disable wallet encryption, enter an empty new password.')) if wallet.use_encryption else _('Your wallet keys are not encrypted')
+            msg = (_('Your wallet is encrypted. Use this dialog to change your password.')+'\n'\
+                   +_('To disable wallet encryption, enter an empty new password.')) \
+                   if wallet.use_encryption else _('Your wallet keys are not encrypted')
         else:
-            msg = _("Please choose a password to encrypt your wallet keys.")+'\n'+_("Leave these fields empty if you want to disable encryption.")
+            msg = _("Please choose a password to encrypt your wallet keys.")+'\n'\
+                  +_("Leave these fields empty if you want to disable encryption.")
         vbox.addWidget(QLabel(msg))
 
         grid = QGridLayout()
