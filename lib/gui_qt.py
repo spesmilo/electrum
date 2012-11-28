@@ -227,8 +227,10 @@ class QR_Window(QWidget):
         msg = 'bitcoin:'+self.address
         if self.amount is not None:
             msg += '?amount=%s'%(str( Decimal(self.amount) /100000000))
-        if self.label is not None:
-            msg += '&label=%s'%(self.label)
+            if self.label is not None:
+                msg += '&label=%s'%(self.label)
+        elif self.label is not None:
+            msg += '?label=%s'%(self.label)
             
         self.qrw.set_addr( msg )
         self.qrw.repaint()
