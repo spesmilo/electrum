@@ -320,6 +320,11 @@ class ElectrumWindow(QMainWindow):
             tabs.setCurrentIndex (n)
             tabs.setCurrentIndex (0)
 
+    def close(self):
+        QMainWindow.close(self)
+        if self.qr_window: 
+            self.qr_window.close()
+            self.qr_window = None
 
     def connect_slots(self, sender):
         if self.wallet.seed:
