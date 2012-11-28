@@ -838,6 +838,7 @@ class ElectrumWindow(QMainWindow):
 
         d = QDialog()
         d.setWindowTitle('Request payment')
+        d.setModal(1)
 
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(address))
@@ -879,13 +880,9 @@ class ElectrumWindow(QMainWindow):
             self.wallet.labels[address] = label
 
         self.update_receive_item(self.receive_list.currentItem())
-
         if self.qr_window:
             self.qr_window.set_content( address, label, amount )
-            #print "raise"
-            #self.raise_()
-            #self.receive_list.currentItem().setFocus(True)
-
+        
         
     def details_button_text(self):
         return _('Hide details') if self.detailed_view else _('Show details')
@@ -926,8 +923,9 @@ class ElectrumWindow(QMainWindow):
         if not item: return
         addr = unicode(item.text(1))
         menu = QMenu()
-        menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
-        menu.addAction(_("Request payment"), lambda: self.request_amount_dialog(addr))
+        menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
+        if self.qr_window and self.qr_window.isVisible():
+            menu.addAction(_("Request amount"), lambda: self.request_amount_dialog(addr))
         menu.addAction(_("Edit label"), lambda: self.edit_label(True))
         menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
 
@@ -995,7 +993,8 @@ class ElectrumWindow(QMainWindow):
         label = self.wallet.labels.get(address,'')
         item.setData(2,0,label)
 
-        amount_str = format_satoshis( self.wallet.requested_amounts.get(address,0) )
+        amount = self.wallet.requested_amounts.get(address,None)
+        amount_str = format_satoshis( amount, False, self.wallet.num_zeros ) if amount is not None  else "--"
         item.setData(3,0,amount_str)
         
         c, u = self.wallet.get_addr_balance(address)
