@@ -175,7 +175,7 @@ class QR_Window(QWidget):
 
     def __init__(self):
         QWidget.__init__(self)
-        self.setWindowTitle('Bitcoin Electrum')
+        self.setWindowTitle('Electrum - Invoice')
         self.setMinimumSize(800, 250)
         self.address = ''
         self.labe = ''
@@ -888,7 +888,7 @@ class ElectrumWindow(QMainWindow):
         return _('Hide details') if self.detailed_view else _('Show details')
 
     def qr_button_text(self):
-        return _('Hide QR') if self.qr_window else _('Show QR')
+        return _('Hide QR') if self.qr_window and self.qr_window.isVisible() else _('Show QR')
 
 
     def toggle_detailed_view(self):
@@ -924,7 +924,7 @@ class ElectrumWindow(QMainWindow):
         addr = unicode(item.text(1))
         menu = QMenu()
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
-        if self.qr_window: menu.addAction(_("Request payment"), lambda: self.request_amount_dialog(addr))
+        menu.addAction(_("Request payment"), lambda: self.request_amount_dialog(addr))
         menu.addAction(_("Edit label"), lambda: self.edit_label(True))
         menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
 
@@ -1010,7 +1010,7 @@ class ElectrumWindow(QMainWindow):
         
         l.clear()
         l.setColumnHidden(0, not self.detailed_view)
-        l.setColumnHidden(3, self.qr_window is None)
+        l.setColumnHidden(3, self.qr_window is None or not self.qr_window.isVisible())
         l.setColumnHidden(4, not self.detailed_view)
         l.setColumnHidden(5, not self.detailed_view)
         l.setColumnWidth(0, 50)
@@ -1305,22 +1305,31 @@ class ElectrumWindow(QMainWindow):
 
         
     def toggle_QR_window(self):
-        if self.qr_window:
-            self.qr_window.close()
-            self.qr_window = None
-        else:
+        if not self.qr_window:
             self.qr_window = QR_Window()
+            self.qr_window.setVisible(True)
+            #print self.qr_window.isVisible()
+            self.qr_window_geometry = self.qr_window.geometry()
             item = self.receive_list.currentItem()
             if item:
                 address = str(item.text(1))
                 label = self.wallet.labels.get(address)
                 amount = self.wallet.requested_amounts.get(address)
                 self.qr_window.set_content( address, label, amount )
-            self.qr_window.show()
+                self.update_receive_tab()
+        else:
+            if self.qr_window.isVisible():
+                self.qr_window_geometry = self.qr_window.geometry()
+                self.qr_window.setVisible(False)
+            else:
+                self.qr_window.setVisible(True)
+                self.qr_window.setGeometry(self.qr_window_geometry)
 
         self.qr_button.setText(self.qr_button_text())
-        self.print_button.setHidden(self.qr_window is None)
-        self.update_receive_tab()
+        self.print_button.setHidden(self.qr_window is None or not self.qr_window.isVisible())
+        self.receive_list.setColumnHidden(3, self.qr_window is None or not self.qr_window.isVisible())
+        self.receive_list.setColumnWidth(2, 200)
+
 
     def question(self, msg):
         return QMessageBox.question(self, _('Message'), msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes
