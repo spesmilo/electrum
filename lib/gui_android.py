@@ -39,19 +39,27 @@ def modal_input(title, msg, value = None, etype=None):
     droid.dialogSetPositiveButtonText('OK')
     droid.dialogSetNegativeButtonText('Cancel')
     droid.dialogShow()
-    response = droid.dialogGetResponse().result
+    response = droid.dialogGetResponse()
+    result = response.result
+    if result is None:
+        print "modal input: result is none"
+        return False
     droid.dialogDismiss()
-    if response.get('which') == 'positive':
-        return response.get('value')
+    if result.get('which') == 'positive':
+        return result.get('value')
 
 def modal_question(q, msg, pos_text = 'OK', neg_text = 'Cancel'):
     droid.dialogCreateAlert(q, msg)
     droid.dialogSetPositiveButtonText(pos_text)
     droid.dialogSetNegativeButtonText(neg_text)
     droid.dialogShow()
-    response = droid.dialogGetResponse().result
+    response = droid.dialogGetResponse()
+    result = response.result
+    if result is None:
+        print "modal question: result is none"
+        return False
     droid.dialogDismiss()
-    return response.get('which') == 'positive'
+    return result.get('which') == 'positive'
 
 def edit_label(addr):
     v = modal_input('Edit label',None,wallet.labels.get(addr))
@@ -471,7 +479,7 @@ def make_new_contact():
         data = r['extras']['SCAN_RESULT']
         if data:
             if re.match('^bitcoin:', data):
-                address, _, _, _, _, _, _ = wallet.parse_url(data, None, None)
+                address, _, _, _, _, _, _ = wallet.parse_url(data, None, lambda x: modal_question('Question',x))
             elif wallet.is_valid(data):
                 address = data
             else:
@@ -563,7 +571,9 @@ def payto_loop():
     out = None
     while out is None:
         event = droid.eventWait().result
+        if not event: continue
         print "got event in payto loop", event
+        if event == 'OK': continue
         if not event.get("name"): continue
 
         if event["name"] == "click":
@@ -601,7 +611,7 @@ def payto_loop():
                     data = r['extras']['SCAN_RESULT']
                     if data:
                         if re.match('^bitcoin:', data):
-                            payto, amount, label, _, _, _, _ = wallet.parse_url(data, None, None)
+                            payto, amount, label, _, _, _, _ = wallet.parse_url(data, None, lambda x: modal_question('Question', x))
                             droid.fullSetProperty("recipient", "text",payto)
                             droid.fullSetProperty("amount", "text", amount)
                             droid.fullSetProperty("label", "text", label)
