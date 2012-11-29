@@ -281,7 +281,7 @@ class ElectrumWindow(QMainWindow):
         self.wallet.interface.register_callback('disconnected', self.update_callback)
         self.wallet.interface.register_callback('disconnecting', self.update_callback)
 
-        self.detailed_view = config.get('qt_detailed_view', False)
+        self.receive_tab_mode = config.get('qt_receive_tab_mode', 0)
 
         self.qr_window = None
         self.funds_error = False
@@ -298,6 +298,7 @@ class ElectrumWindow(QMainWindow):
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
         self.create_status_bar()
+        self.toggle_QR_window(self.receive_tab_mode == 2)
 
         g = self.config.get("winpos-qt",[100, 100, 840, 400])
         self.setGeometry(g[0], g[1], g[2], g[3])
@@ -849,16 +850,14 @@ class ElectrumWindow(QMainWindow):
         self.connect(l, SIGNAL('currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)'), lambda a,b: self.recv_changed(a))
         self.receive_list = l
         self.receive_buttons_hbox = hbox
-        self.qr_button = EnterButton(self.qr_button_text(), self.toggle_QR_window)
-        hbox.addWidget(self.qr_button)
-        self.print_button = EnterButton(_("Print QR"), self.print_qr)
-        self.print_button.setHidden(True)
-        hbox.addWidget(self.print_button)
-
-        self.details_button = EnterButton(self.details_button_text(), self.toggle_detailed_view)
-        hbox.addWidget(self.details_button)
+        view_combo = QComboBox()
+        view_combo.addItems(['Simple View', 'Detailed View', 'Point of Sale'])
+        view_combo.setCurrentIndex(self.receive_tab_mode)
+        hbox.addWidget(view_combo)
+        view_combo.currentIndexChanged.connect(self.receive_tab_set_mode)
         hbox.addStretch(1)
         return w
+
 
     def print_qr(self):
         if self.qr_window:
@@ -866,21 +865,12 @@ class ElectrumWindow(QMainWindow):
             self.show_message(_("QR code saved to file") + " " + self.qr_window.filename)
 
 
-    def details_button_text(self):
-        return _('Hide details') if self.detailed_view else _('Show details')
-
-    def qr_button_text(self):
-        return _('Hide QR') if self.qr_window and self.qr_window.isVisible() else _('Show QR')
-
-
-    def toggle_detailed_view(self):
-        self.detailed_view = not self.detailed_view
-        self.config.set_key('qt_detailed_view', self.detailed_view, True)
-
-        self.details_button.setText(self.details_button_text())
+    def receive_tab_set_mode(self, i):
+        self.receive_tab_mode = i
+        self.config.set_key('qt_receive_tab_mode', self.receive_tab_mode, True)
         self.wallet.save()
         self.update_receive_tab()
-        self.update_contacts_tab()
+        self.toggle_QR_window(self.receive_tab_mode == 2)
 
 
     def create_contacts_tab(self):
@@ -906,8 +896,9 @@ class ElectrumWindow(QMainWindow):
         addr = unicode(item.text(1))
         menu = QMenu()
         menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
-        if self.qr_window and self.qr_window.isVisible():
+        if self.receive_tab_mode == 2:
             menu.addAction(_("Request amount"), lambda: self.edit_amount())
+            menu.addAction(_("Print QR"), self.print_qr)
         menu.addAction(_("Edit label"), lambda: self.edit_label(True))
         menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
 
@@ -993,10 +984,10 @@ class ElectrumWindow(QMainWindow):
         l = self.receive_list
         
         l.clear()
-        l.setColumnHidden(0, not self.detailed_view)
-        l.setColumnHidden(3, self.qr_window is None or not self.qr_window.isVisible())
-        l.setColumnHidden(4, not self.detailed_view)
-        l.setColumnHidden(5, not self.detailed_view)
+        l.setColumnHidden(0, not self.receive_tab_mode == 1)
+        l.setColumnHidden(3, not self.receive_tab_mode == 2)
+        l.setColumnHidden(4, not self.receive_tab_mode == 1)
+        l.setColumnHidden(5, not self.receive_tab_mode == 1)
         l.setColumnWidth(0, 50)
         l.setColumnWidth(1, 310) 
         l.setColumnWidth(2, 200)
@@ -1008,7 +999,7 @@ class ElectrumWindow(QMainWindow):
         is_red = False
         for address in self.wallet.all_addresses():
 
-            if self.wallet.is_change(address) and not self.detailed_view:
+            if self.wallet.is_change(address) and self.receive_tab_mode != 1:
                 continue
 
             n = 0 
@@ -1058,7 +1049,6 @@ class ElectrumWindow(QMainWindow):
 
         l = self.contacts_list
         l.clear()
-        l.setColumnHidden(2, not self.detailed_view)
         l.setColumnWidth(0, 350) 
         l.setColumnWidth(1, 330)
         l.setColumnWidth(2, 100) 
@@ -1288,11 +1278,10 @@ class ElectrumWindow(QMainWindow):
         d.exec_()
 
         
-    def toggle_QR_window(self):
-        if not self.qr_window:
+    def toggle_QR_window(self, show):
+        if show and not self.qr_window:
             self.qr_window = QR_Window()
             self.qr_window.setVisible(True)
-            #print self.qr_window.isVisible()
             self.qr_window_geometry = self.qr_window.geometry()
             item = self.receive_list.currentItem()
             if item:
@@ -1300,17 +1289,16 @@ class ElectrumWindow(QMainWindow):
                 label = self.wallet.labels.get(address)
                 amount = self.wallet.requested_amounts.get(address)
                 self.qr_window.set_content( address, label, amount )
-                self.update_receive_tab()
-        else:
-            if self.qr_window.isVisible():
-                self.qr_window_geometry = self.qr_window.geometry()
-                self.qr_window.setVisible(False)
-            else:
-                self.qr_window.setVisible(True)
-                self.qr_window.setGeometry(self.qr_window_geometry)
 
-        self.qr_button.setText(self.qr_button_text())
-        self.print_button.setHidden(self.qr_window is None or not self.qr_window.isVisible())
+        elif show and self.qr_window and not self.qr_window.isVisible():
+            self.qr_window.setVisible(True)
+            self.qr_window.setGeometry(self.qr_window_geometry)
+
+        elif not show and self.qr_window and self.qr_window.isVisible():
+            self.qr_window_geometry = self.qr_window.geometry()
+            self.qr_window.setVisible(False)
+
+        #self.print_button.setHidden(self.qr_window is None or not self.qr_window.isVisible())
         self.receive_list.setColumnHidden(3, self.qr_window is None or not self.qr_window.isVisible())
         self.receive_list.setColumnWidth(2, 200)
 
