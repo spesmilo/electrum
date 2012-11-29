@@ -531,7 +531,7 @@ class ElectrumWindow(QMainWindow):
                 return
 
             try:
-                amount = int( Decimal( unicode(text)) * 100000000 )
+                amount = int( Decimal(text) * 100000000 )
                 item.setText(3,format_satoshis(amount,False, self.wallet.num_zeros))
             except:
                 amount = self.wallet.requested_amounts.get(address)
@@ -544,8 +544,9 @@ class ElectrumWindow(QMainWindow):
             self.wallet.requested_amounts[address] = amount
 
             label = self.wallet.labels.get(address)
-            if not label: 
+            if label is None:
                 label = 'invoice %04d'%(index+1)
+                self.wallet.labels[address] = label
 
             self.update_receive_item(self.receive_list.currentItem())
             if self.qr_window:
