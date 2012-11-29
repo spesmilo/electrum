@@ -986,7 +986,7 @@ class ElectrumWindow(QMainWindow):
         l.clear()
         l.setColumnHidden(0, not self.receive_tab_mode == 1)
         l.setColumnHidden(3, not self.receive_tab_mode == 2)
-        l.setColumnHidden(4, not self.receive_tab_mode == 1)
+        l.setColumnHidden(4, self.receive_tab_mode == 0)
         l.setColumnHidden(5, not self.receive_tab_mode == 1)
         l.setColumnWidth(0, 50)
         l.setColumnWidth(1, 310) 
