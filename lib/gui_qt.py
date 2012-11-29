@@ -212,7 +212,7 @@ class QR_Window(QWidget):
 
     def set_content(self, addr, label, amount):
         self.address = addr
-        address_text = "<span style='font-size: 21pt'>%s</span>" % addr if addr else ""
+        address_text = "<span style='font-size: 18pt'>%s</span>" % addr if addr else ""
         self.address_label.setText(address_text)
 
         self.amount = amount
