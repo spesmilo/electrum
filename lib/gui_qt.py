@@ -301,6 +301,7 @@ class ElectrumWindow(QMainWindow):
         self.wallet.interface.register_callback('disconnecting', self.update_callback)
 
         self.receive_tab_mode = config.get('qt_receive_tab_mode', 0)
+        self.merchant_name = config.get('merchant_name', 'Invoice')
 
         self.qr_window = None
         self.funds_error = False
@@ -545,7 +546,7 @@ class ElectrumWindow(QMainWindow):
 
             label = self.wallet.labels.get(address)
             if label is None:
-                label = 'invoice %04d'%(index+1)
+                label = self.merchant_name + ' - %04d'%(index+1)
                 self.wallet.labels[address] = label
 
             self.update_receive_item(self.receive_list.currentItem())
@@ -874,7 +875,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_list = l
         self.receive_buttons_hbox = hbox
         view_combo = QComboBox()
-        view_combo.addItems(['Simple View', 'Detailed View', 'Point of Sale'])
+        view_combo.addItems([_('Simple View'), _('Detailed View'), _('Point of Sale')])
         view_combo.setCurrentIndex(self.receive_tab_mode)
         hbox.addWidget(view_combo)
         view_combo.currentIndexChanged.connect(self.receive_tab_set_mode)
