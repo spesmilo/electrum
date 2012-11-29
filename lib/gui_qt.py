@@ -147,21 +147,37 @@ class QRCodeWidget(QWidget):
         if self.addr != addr:
             self.addr = addr
             self.qr = None
+            self.update()
 
-    def paintEvent(self, e):
-        if not self.addr: return
+    def update_qr(self):
         if not self.qr:
             self.qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.L)
             self.qr.addData(self.addr)
             self.qr.make()
-        
-        qp = QtGui.QPainter()
-        qp.begin(self)
-        boxsize = 6
-        size = self.qr.getModuleCount()*boxsize
-        k = self.qr.getModuleCount()
+            self.update()
+
+    def paintEvent(self, e):
+
+        if not self.addr:
+            return
+
         black = QColor(0, 0, 0, 255)
         white = QColor(255, 255, 255, 255)
+        boxsize = 6
+
+        if not self.qr:
+            qp = QtGui.QPainter()
+            qp.begin(self)
+            qp.setBrush(white)
+            qp.setPen(white)
+            qp.drawRect(0, 0, 198, 198)
+            qp.end()
+            return
+        
+        size = self.qr.getModuleCount()*boxsize
+        k = self.qr.getModuleCount()
+        qp = QtGui.QPainter()
+        qp.begin(self)
         for r in range(k):
             for c in range(k):
                 if self.qr.isDark(r, c):
@@ -337,7 +353,7 @@ class ElectrumWindow(QMainWindow):
 
     def timer_actions(self):
         if self.qr_window:
-            self.qr_window.qrw.update()
+            self.qr_window.qrw.update_qr()
             
         if self.payto_e.hasFocus():
             return
