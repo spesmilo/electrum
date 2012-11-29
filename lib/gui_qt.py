@@ -137,19 +137,23 @@ class StatusBarButton(QPushButton):
 
 class QRCodeWidget(QWidget):
 
-    def __init__(self, addr):
-        super(QRCodeWidget, self).__init__()
+    def __init__(self):
+        QWidget.__init__(self)
         self.setMinimumSize(210, 210)
-        self.set_addr(addr)
+        self.addr = None
+        self.qr = None
 
     def set_addr(self, addr):
-        self.addr = addr
-        self.qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.L)
-        self.qr.addData(self.addr)
-        self.qr.make()
-        
+        if self.addr != addr:
+            self.addr = addr
+            self.qr = None
+
     def paintEvent(self, e):
         if not self.addr: return
+        if not self.qr:
+            self.qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.L)
+            self.qr.addData(self.addr)
+            self.qr.make()
         
         qp = QtGui.QPainter()
         qp.begin(self)
@@ -184,7 +188,7 @@ class QR_Window(QWidget):
 
         main_box = QHBoxLayout()
         
-        self.qrw = QRCodeWidget('')
+        self.qrw = QRCodeWidget()
         main_box.addWidget(self.qrw)
 
         vbox = QVBoxLayout()
@@ -232,7 +236,6 @@ class QR_Window(QWidget):
             msg += '?label=%s'%(self.label)
             
         self.qrw.set_addr( msg )
-        self.qrw.update()
 
             
 
@@ -329,10 +332,13 @@ class ElectrumWindow(QMainWindow):
 
     def connect_slots(self, sender):
         if self.wallet.seed:
-            self.connect(sender, QtCore.SIGNAL('timersignal'), self.check_recipient)
+            self.connect(sender, QtCore.SIGNAL('timersignal'), self.timer_actions)
             self.previous_payto_e=''
 
-    def check_recipient(self):
+    def timer_actions(self):
+        if self.qr_window:
+            self.qr_window.qrw.update()
+            
         if self.payto_e.hasFocus():
             return
         r = unicode( self.payto_e.text() )
