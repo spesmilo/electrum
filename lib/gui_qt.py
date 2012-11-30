@@ -150,7 +150,7 @@ class QRCodeWidget(QWidget):
             self.update()
 
     def update_qr(self):
-        if not self.qr:
+        if self.addr and not self.qr:
             self.qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.L)
             self.qr.addData(self.addr)
             self.qr.make()
