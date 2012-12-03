@@ -137,11 +137,14 @@ class StatusBarButton(QPushButton):
 
 class QRCodeWidget(QWidget):
 
-    def __init__(self):
+    def __init__(self, data = None):
         QWidget.__init__(self)
         self.setMinimumSize(210, 210)
         self.addr = None
         self.qr = None
+        if data:
+            self.set_addr(data)
+            self.update_qr()
 
     def set_addr(self, addr):
         if self.addr != addr:
