@@ -226,12 +226,8 @@ class QR_Window(QWidget):
         vbox.addWidget(self.amount_label)
 
         vbox.addStretch(1)
-
         self.setLayout(main_box)
 
-    def do_save(self):
-        self.filename = "qrcode.bmp"
-        bmp.save_qrcode(self.qrw.qr, self.filename)
 
     def set_content(self, addr, label, amount):
         self.address = addr
@@ -886,11 +882,6 @@ class ElectrumWindow(QMainWindow):
         return w
 
 
-    def print_qr(self):
-        if self.qr_window:
-            self.qr_window.do_save()
-            self.show_message(_("QR code saved to file") + " " + self.qr_window.filename)
-
 
     def receive_tab_set_mode(self, i):
         self.receive_tab_mode = i
@@ -925,7 +916,7 @@ class ElectrumWindow(QMainWindow):
         menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
         if self.receive_tab_mode == 2:
             menu.addAction(_("Request amount"), lambda: self.edit_amount())
-            menu.addAction(_("Print QR"), self.print_qr)
+        menu.addAction(_("View QR"), lambda: ElectrumWindow.show_qrcode("Address","bitcoin:"+addr) )
         menu.addAction(_("Edit label"), lambda: self.edit_label(True))
         menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
 
@@ -975,7 +966,7 @@ class ElectrumWindow(QMainWindow):
         menu = QMenu()
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("Pay to"), lambda: self.payto(x, is_alias))
-        menu.addAction(_("View QR code"),lambda: self.show_address_qrcode(addr))
+        menu.addAction(_("View QR code"),lambda: self.show_qrcode("Address","bitcoin:"+addr))
         if not is_alias:
             menu.addAction(_("Edit label"), lambda: self.edit_label(False))
         else:
@@ -1179,7 +1170,7 @@ class ElectrumWindow(QMainWindow):
         copy_button = QPushButton(_("Copy to Clipboard"))
         copy_button.clicked.connect(copy_function)
 
-        show_qr_function = lambda: ElectrumWindow.show_seed_qrcode(seed)
+        show_qr_function = lambda: ElectrumWindow.show_qrcode(_("Seed"), seed)
         qr_button = QPushButton(_("View as QR Code"))
         qr_button.clicked.connect(show_qr_function)
 
@@ -1198,17 +1189,29 @@ class ElectrumWindow(QMainWindow):
         dialog.exec_()
 
     @staticmethod
-    def show_seed_qrcode(seed):
-        if not seed: return
+    def show_qrcode(title, data):
+        if not data: return
         d = QDialog(None)
         d.setModal(1)
-        d.setWindowTitle(_("Seed"))
+        d.setWindowTitle(title)
         d.setMinimumSize(270, 300)
         vbox = QVBoxLayout()
-        vbox.addWidget(QRCodeWidget(seed))
+        qrw = QRCodeWidget(data)
+        vbox.addWidget(qrw)
+        vbox.addWidget(QLabel(data))
         hbox = QHBoxLayout()
         hbox.addStretch(1)
-        b = QPushButton(_("OK"))
+
+        def print_qr(self):
+            filename = "qrcode.bmp"
+            bmp.save_qrcode(qrw.qr, filename)
+            QMessageBox.information(None, _('Message'), _("QR code saved to file") + " " + filename, _('OK'))
+
+        b = QPushButton(_("Print"))
+        hbox.addWidget(b)
+        b.clicked.connect(print_qr)
+
+        b = QPushButton(_("Close"))
         hbox.addWidget(b)
         b.clicked.connect(d.accept)
 
