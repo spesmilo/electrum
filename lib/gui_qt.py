@@ -1424,8 +1424,12 @@ class ElectrumWindow(QMainWindow):
 
         if new_password != new_password2:
             QMessageBox.warning(parent, _('Error'), _('Passwords do not match'), _('OK'))
-            return
+            return ElectrumWindow.change_password_dialog(wallet, parent) # Retry
 
+        if new_password == '':
+            QMessageBox.warning(parent, _('Error'), _('Password cannot be empty'), _('OK'))
+            return ElectrumWindow.change_password_dialog(wallet, parent) # Retry
+   
         wallet.update_password(seed, password, new_password)
 
     @staticmethod
