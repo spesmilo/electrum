@@ -1156,7 +1156,7 @@ class WalletSynchronizer(threading.Thread):
 
     def __init__(self, wallet, config):
         threading.Thread.__init__(self)
-        # self.daemon = True
+        self.daemon = True
         self.wallet = wallet
         self.interface = self.wallet.interface
         self.interface.register_channel('synchronizer')

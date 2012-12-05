@@ -29,7 +29,7 @@ class WalletVerifier(threading.Thread):
 
     def __init__(self, interface, config):
         threading.Thread.__init__(self)
-        #self.daemon = True
+        self.daemon = True
         self.config = config
         self.interface = interface
         self.transactions    = {}                                 # requested verifications (with height sent by the requestor)

@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import re
-import sys, os
+import sys, os, time
 import optparse
 
 try:
@@ -256,6 +256,9 @@ if __name__ == '__main__':
         synchronizer.stop()
         interface.stop()
 
+        # we use daemon threads, their termination is enforced.
+        # this sleep command gives them time to terminate cleanly. 
+        time.sleep(0.1)
         sys.exit(0)
 
     if cmd not in known_commands:
