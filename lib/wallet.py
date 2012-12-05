@@ -430,9 +430,9 @@ class Wallet:
         if not tx_hash: return ''
         tx = self.transactions.get(tx_hash)
         is_mine, v, fee = self.get_tx_value(tx_hash)
-        conf = self.verifier.get_confirmations(tx_hash)
-        timestamp = tx.get('timestamp')
-        if conf and timestamp:
+        conf, timestamp = self.verifier.get_confirmations(tx_hash)
+
+        if conf:
             time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
         else:
             time_str = 'pending'
@@ -683,7 +683,7 @@ class Wallet:
     def get_tx_history(self):
         with self.lock:
             history = self.transactions.values()
-        history.sort(key = lambda x: x.get('timestamp') if x.get('timestamp') else 1e12)
+        history.sort(key = lambda x: x.get('height') if x.get('height') else 1e12)
         result = []
     
         balance = 0
@@ -699,8 +699,7 @@ class Wallet:
         balance = c + u - balance
         for tx in history:
             tx_hash = tx['tx_hash']
-            timestamp = tx.get('timestamp')
-            conf = self.verifier.get_confirmations(tx_hash) if self.verifier else None
+            conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else None
             is_mine, value, fee = self.get_tx_value(tx_hash)
             if value is not None:
                 balance += value
@@ -1042,11 +1041,6 @@ class Wallet:
             if tx_height>0:
                 self.verifier.add(tx_hash, tx_height)
 
-            # set the timestamp for transactions that need it
-            if tx and not tx.get('timestamp'):
-                timestamp = self.verifier.get_timestamp(tx_height)
-                self.set_tx_timestamp(tx_hash, timestamp)
-
         # review transactions that are in the history
         for addr, hist in self.history.items():
             if hist == ['*']: continue
@@ -1060,13 +1054,6 @@ class Wallet:
                         if tx.get('height') != tx_height:
                             print_error( "changing height for tx", tx_hash )
                             tx['height'] = tx_height
-
-
-
-    def set_tx_timestamp(self, tx_hash, timestamp):
-        with self.lock:
-            self.transactions[tx_hash]['timestamp'] = timestamp
-
 
 
     def is_addr_in_tx(self, addr, tx):
@@ -1300,10 +1287,6 @@ class WalletSynchronizer(threading.Thread):
                         if self.wallet.transactions.get(tx_hash) is None:
                             if (tx_hash, tx_height) not in requested_tx and (tx_hash, tx_height) not in missing_tx:
                                 missing_tx.append( (tx_hash, tx_height) )
-                        else:
-                            if self.wallet.verifier:
-                                timestamp = self.wallet.verifier.get_timestamp(tx_height)
-                                self.wallet.set_tx_timestamp(tx_hash, timestamp)
 
             elif method == 'blockchain.transaction.get':
                 tx_hash = params[0]
@@ -1339,6 +1322,5 @@ class WalletSynchronizer(threading.Thread):
         d = deserialize.parse_Transaction(vds)
         d['height'] = tx_height
         d['tx_hash'] = tx_hash
-        if self.wallet.verifier: d['timestamp'] = self.wallet.verifier.get_timestamp(tx_height)
         return d
 

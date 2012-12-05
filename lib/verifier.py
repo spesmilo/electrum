@@ -35,7 +35,7 @@ class WalletVerifier(threading.Thread):
         self.transactions    = {}                                 # requested verifications (with height sent by the requestor)
         self.interface.register_channel('verifier')
 
-        self.verified_tx     = config.get('verified_tx',{})       # height of verified tx
+        self.verified_tx     = config.get('verified_tx2',{})      # height, timestamp of verified transactions
         self.merkle_roots    = config.get('merkle_roots',{})      # hashed by me
         
         self.targets         = config.get('targets',{})           # compute targets
@@ -51,10 +51,20 @@ class WalletVerifier(threading.Thread):
         """ return the number of confirmations of a monitored transaction. """
         with self.lock:
             if tx in self.transactions.keys():
-                return (self.local_height - self.verified_tx[tx] + 1) if tx in self.verified_tx else -1
+                if tx in self.verified_tx:
+                    height, timestamp = self.verified_tx[tx]
+                    conf = (self.local_height - height + 1)
+                else:
+                    conf = -1
             else:
                 #print "verifier: tx not in list", tx
-                return 0
+                conf = 0
+
+            if conf <= 0:
+                timestamp = None
+
+        return conf, timestamp
+
 
     def add(self, tx_hash, tx_height):
         """ add a transaction to the list of monitored transactions. """
@@ -167,9 +177,11 @@ class WalletVerifier(threading.Thread):
         if not header: return
         assert header.get('merkle_root') == self.merkle_roots[tx_hash]
         # we passed all the tests
-        self.verified_tx[tx_hash] = tx_height
+        header = self.read_header(tx_height)
+        timestamp = header.get('timestamp')
+        self.verified_tx[tx_hash] = (tx_height, timestamp)
         print_error("verified %s"%tx_hash)
-        self.config.set_key('verified_tx', self.verified_tx, True)
+        self.config.set_key('verified_tx2', self.verified_tx, True)
         self.interface.trigger_callback('updated')
 
 
@@ -225,7 +237,8 @@ class WalletVerifier(threading.Thread):
             # this can be caused by a reorg.
             print_error("verify header failed"+ repr(header))
             # undo verifications
-            for tx_hash, tx_height in self.verified_tx.items():
+            for tx_hash, item in self.verified_tx.items():
+                tx_height, timestamp = item
                 if tx_height >= height:
                     print_error("redoing", tx_hash)
                     self.verified_tx.pop(tx_hash)
@@ -367,11 +380,4 @@ class WalletVerifier(threading.Thread):
 
         new_bits = c + MM * i
         return new_bits, new_target
-
-    def get_timestamp(self, tx_height):
-        if tx_height>0:
-            header = self.read_header(tx_height)
-            if header:
-                return header.get('timestamp') 
-
 
