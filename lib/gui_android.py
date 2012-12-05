@@ -451,7 +451,7 @@ def pay_to(recipient, amount, fee, label):
     droid.dialogShow()
 
     try:
-        tx = wallet.mktx( recipient, amount, label, password, fee)
+        tx = wallet.mktx( [(recipient, amount)], label, password, fee)
     except BaseException, e:
         modal_dialog('error', e.message)
         droid.dialogDismiss()

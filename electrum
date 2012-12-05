@@ -576,7 +576,7 @@ if __name__ == '__main__':
             if change_addr and v == change_addr:
                 change_addr = k
         try:
-            tx = wallet.mktx( to_address, amount, label, password,
+            tx = wallet.mktx( [(to_address, amount)], label, password,
                 fee = options.tx_fee, change_addr = change_addr, from_addr = from_addr )
         except:
             import traceback

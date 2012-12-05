@@ -584,8 +584,7 @@ class Wallet:
             inputs = []
         return inputs, total, fee
 
-    def choose_tx_outputs( self, to_addr, amount, fee, total, change_addr=None ):
-        outputs = [ (to_addr, amount) ]
+    def add_tx_change( self, outputs, amount, fee, total, change_addr=None ):
         change_amount = total - ( amount + fee )
         if change_amount != 0:
             # normally, the update thread should ensure that the last change address is unused
@@ -763,9 +762,12 @@ class Wallet:
         return default_label
 
 
-    def mktx(self, to_address, amount, label, password, fee=None, change_addr=None, from_addr= None):
-        if not self.is_valid(to_address):
-            raise ValueError("Invalid address")
+    def mktx(self, outputs, label, password, fee=None, change_addr=None, from_addr= None):
+
+        for address, x in outputs:
+            assert self.is_valid(address)
+
+        amount = sum( map(lambda x:x[1], outputs) )
         inputs, total, fee = self.choose_tx_inputs( amount, fee, from_addr )
         if not inputs:
             raise ValueError("Not enough funds")
@@ -773,13 +775,16 @@ class Wallet:
         if not self.use_change and not change_addr:
             change_addr = inputs[-1][0]
             print_error( "Sending change to", change_addr )
-
-        outputs = self.choose_tx_outputs( to_address, amount, fee, total, change_addr )
+        outputs = self.add_tx_change(outputs, amount, fee, total, change_addr)
+        
         s_inputs = self.sign_inputs( inputs, outputs, password )
 
         tx = filter( raw_tx( s_inputs, outputs ) )
-        if to_address not in self.addressbook:
-            self.addressbook.append(to_address)
+
+        for address, x in outputs:
+            if address not in self.addressbook and not self.is_mine(address):
+                self.addressbook.append(to_address)
+
         if label: 
             tx_hash = Hash(tx.decode('hex') )[::-1].encode('hex')
             self.labels[tx_hash] = label
