@@ -769,6 +769,9 @@ class MiniActuator:
 
                     if tx_hash:
                         label, is_default_label = self.wallet.get_label(tx_hash)
+                    else:
+                      label = ""
+
                     balance_string = format_satoshis(balance, False, self.wallet.num_zeros)
                     transaction.writerow([tx_hash, label, confirmations, value_string, fee_string, balance_string, time_string])
                 QMessageBox.information(None,"CSV Export created", "Your CSV export has been succesfully created.")
