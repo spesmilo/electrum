@@ -308,8 +308,7 @@ class ElectrumWindow(QMainWindow):
 
         self.tabs = tabs = QTabWidget(self)
         tabs.addTab(self.create_history_tab(), _('History') )
-        if self.wallet.seed:
-            tabs.addTab(self.create_send_tab(), _('Send') )
+        tabs.addTab(self.create_send_tab(), _('Send') )
         tabs.addTab(self.create_receive_tab(), _('Receive') )
         tabs.addTab(self.create_contacts_tab(), _('Contacts') )
         tabs.addTab(self.create_wall_tab(), _('Wall') )
@@ -772,17 +771,23 @@ class ElectrumWindow(QMainWindow):
         except BaseException, e:
             self.show_message(str(e))
             return
-            
-        h = self.wallet.send_tx(tx)
-        waiting_dialog(lambda: False if self.wallet.tx_event.isSet() else _("Please wait..."))
-        status, msg = self.wallet.receive_tx( h )
 
-        if status:
-            QMessageBox.information(self, '', _('Payment sent.')+'\n'+msg, _('OK'))
-            self.do_clear()
-            self.update_contacts_tab()
+        if self.wallet.seed:
+            h = self.wallet.send_tx(tx)
+            waiting_dialog(lambda: False if self.wallet.tx_event.isSet() else _("Please wait..."))
+            status, msg = self.wallet.receive_tx( h )
+            if status:
+                QMessageBox.information(self, '', _('Payment sent.')+'\n'+msg, _('OK'))
+                self.do_clear()
+                self.update_contacts_tab()
+            else:
+                QMessageBox.warning(self, _('Error'), msg, _('OK'))
         else:
-            QMessageBox.warning(self, _('Error'), msg, _('OK'))
+            filename = 'unsigned_tx'
+            f = open(filename,'w')
+            f.write(tx)
+            f.close()
+            QMessageBox.information(self, _('Unsigned transaction'), _("Unsigned transaction was saved to file:") + " " +filename, _('OK'))
 
 
     def set_url(self, url):

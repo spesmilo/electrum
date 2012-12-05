@@ -67,6 +67,7 @@ options:
 Syntax: mktx <recipient> <amount> [label]
 options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address -\n  --changeaddr, -c: send change to address
         """,
+    'signtx':"Sign an unsigned transaction created by a deseeded wallet\nSyntax: signtx <filename>",
     'seed':
             "Print the generation seed of your wallet.",
     'import': 
@@ -93,7 +94,7 @@ options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address 
 
 
 
-offline_commands = [ 'password', 'mktx',
+offline_commands = [ 'password', 'mktx', 'signtx',
                      'label', 'contacts',
                      'help', 'validateaddress',
                      'signmessage', 'verifymessage',
@@ -104,7 +105,7 @@ offline_commands = [ 'password', 'mktx',
                      'prioritize','unprioritize']
 
 
-protected_commands = ['payto', 'password', 'mktx', 'seed', 'import','signmessage' ]
+protected_commands = ['payto', 'password', 'mktx', 'signtx', 'seed', 'import','signmessage' ]
 
 # get password routine
 def prompt_password(prompt, confirm=True):
@@ -593,6 +594,17 @@ if __name__ == '__main__':
             wallet.imported_keys.pop(from_addr)
             del(wallet.history[from_addr])
         wallet.save()
+
+    elif cmd == 'signtx':
+        import ast
+        filename = args[1]
+        f = open(filename, 'r')
+        d = ast.literal_eval(f.read())
+        f.close()
+        inputs = d['inputs']
+        outputs = d['outputs']
+        tx = wallet.signed_tx( inputs, outputs, password )
+        print_msg(tx)
 
     elif cmd == 'sendtx':
         tx = args[1]

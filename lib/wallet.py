@@ -776,10 +776,11 @@ class Wallet:
             change_addr = inputs[-1][0]
             print_error( "Sending change to", change_addr )
         outputs = self.add_tx_change(outputs, amount, fee, total, change_addr)
-        
-        s_inputs = self.sign_inputs( inputs, outputs, password )
 
-        tx = filter( raw_tx( s_inputs, outputs ) )
+        if not self.seed:
+            return {'inputs':inputs, 'outputs':outputs}
+        
+        tx = repr(self.signed_tx(inputs, outputs, password))
 
         for address, x in outputs:
             if address not in self.addressbook and not self.is_mine(address):
@@ -789,6 +790,11 @@ class Wallet:
             tx_hash = Hash(tx.decode('hex') )[::-1].encode('hex')
             self.labels[tx_hash] = label
 
+        return tx
+
+    def signed_tx(self, inputs, outputs, password):
+        s_inputs = self.sign_inputs( inputs, outputs, password )
+        tx = filter( raw_tx( s_inputs, outputs ) )
         return tx
 
     def sendtx(self, tx):
