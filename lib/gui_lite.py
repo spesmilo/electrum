@@ -750,10 +750,12 @@ class MiniActuator:
                     if confirmations:
                         if timestamp is not None:
                             try:
-                                time_string = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
+                                time_string = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                             except [RuntimeError, TypeError, NameError] as reason:
                                 time_string = "unknown"
                                 pass
+                        else:
+                          time_string = "unknown"
                     else:
                         time_string = "pending"
 
