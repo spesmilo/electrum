@@ -748,11 +748,12 @@ class MiniActuator:
                 for item in self.wallet.get_tx_history():
                     tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
                     if confirmations:
-                        try:
-                            time_string = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
-                        except [RuntimeError, TypeError, NameError] as reason:
-                            print reason
-                            time_string = "unknown"
+                        if timestamp is not None:
+                            try:
+                                time_string = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
+                            except [RuntimeError, TypeError, NameError] as reason:
+                                time_string = "unknown"
+                                pass
                     else:
                         time_string = "pending"
 
