@@ -783,7 +783,7 @@ class Wallet:
 
         for address, x in outputs:
             if address not in self.addressbook and not self.is_mine(address):
-                self.addressbook.append(to_address)
+                self.addressbook.append(address)
 
         if label: 
             tx_hash = Hash(tx.decode('hex') )[::-1].encode('hex')
