@@ -777,9 +777,9 @@ class Wallet:
         outputs = self.add_tx_change(outputs, amount, fee, total, change_addr)
 
         if not self.seed:
-            return {'inputs':inputs, 'outputs':outputs}
+            return repr({'inputs':inputs, 'outputs':outputs})
         
-        tx = repr(self.signed_tx(inputs, outputs, password))
+        tx = self.signed_tx(inputs, outputs, password)
 
         for address, x in outputs:
             if address not in self.addressbook and not self.is_mine(address):
