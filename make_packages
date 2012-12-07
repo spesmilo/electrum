@@ -1,0 +1,50 @@
+#!/usr/bin/python
+
+from lib.version import ELECTRUM_VERSION as version
+
+if __name__ == '__main__':
+    import sys, re, shutil, os, hashlib
+
+    if not ( os.path.exists('aes') and os.path.exists('ecdsa') ):
+        print "aes and ecdsa are missing. copy them locally before."
+        sys.exit()
+
+    if not os.path.exists('data/blockchain_headers'):
+        print "header file is missing"
+        sys.exit()
+
+    os.system("python mki18n.py")
+    os.system("pyrcc4 icons.qrc -o lib/icons_rc.py")
+    os.system("python setup.py sdist --format=zip,gztar")
+    
+    _tgz="Electrum-%s.tar.gz"%version
+    _zip="Electrum-%s.zip"%version
+
+
+    # android
+    os.system('rm -rf dist/e4a-%s'%version)
+    os.mkdir('dist/e4a-%s'%version)
+    shutil.copyfile("electrum",'dist/e4a-%s/electrum.py'%version)
+    shutil.copytree("ecdsa",'dist/e4a-%s/ecdsa'%version)
+    shutil.copytree("aes",'dist/e4a-%s/aes'%version)
+    shutil.copytree("lib",'dist/e4a-%s/electrum'%version)
+    shutil.copyfile("data/blockchain_headers",'dist/e4a-%s/blockchain_headers'%version)
+
+    os.chdir("dist" )    
+    # create the zip file
+    os.system( "zip -r e4a-%s.zip e4a-%s"%(version, version) )
+    # copy to a filename without extension
+    os.system( "cp e4a-%s.zip e4a"%version )
+    os.chdir(".." )
+
+    md5_tgz = hashlib.md5(file('dist/'+_tgz, 'r').read()).digest().encode('hex')
+    md5_zip = hashlib.md5(file('dist/'+_zip, 'r').read()).digest().encode('hex')
+    md5_android = hashlib.md5(file('dist/e4a', 'r').read()).digest().encode('hex')
+
+    print ""
+    print "Packages are ready:"
+    print "dist/%s     "%_tgz, md5_tgz
+    print "dist/%s        "%_zip, md5_zip
+    print "dist/e4a                       ", md5_android
+    print "To make a release, upload the files to https://github.com/spesmilo/electrum/downloads and update the webpages in branch gh-pages"
+
