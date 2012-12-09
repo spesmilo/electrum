@@ -15,7 +15,6 @@ except ImportError:
 
 
 from decimal import Decimal as D
-from interface import DEFAULT_SERVERS
 from util import get_resource_path as rsrc
 from i18n import _
 import decimal
@@ -91,7 +90,6 @@ class ElectrumGui(QObject):
         self.config = config
         self.check_qt_version()
         self.app = QApplication(sys.argv)
-        self.wallet.interface.register_callback('peers', self.server_list_changed)
 
 
     def check_qt_version(self):
@@ -105,8 +103,6 @@ class ElectrumGui(QObject):
 
     def main(self, url):
         actuator = MiniActuator(self.wallet)
-        self.connect(self, SIGNAL("updateservers()"),
-                     actuator.update_servers_list)
         # Should probably not modify the current path but instead
         # change the behaviour of rsrc(...)
         old_path = QDir.currentPath()
@@ -129,9 +125,6 @@ class ElectrumGui(QObject):
         self.expert.connect_slots(timer)
         self.expert.update_wallet()
         self.app.exec_()
-
-    def server_list_changed(self):
-        self.emit(SIGNAL("updateservers()"))
 
     def expand(self):
         """Hide the lite mode window and show pro-mode."""
@@ -237,10 +230,6 @@ class MiniWindow(QDialog):
         menubar = QMenuBar()
         electrum_menu = menubar.addMenu(_("&Bitcoin"))
 
-        servers_menu = electrum_menu.addMenu(_("&Servers"))
-        servers_group = QActionGroup(self)
-        self.actuator.set_servers_gui_stuff(servers_menu, servers_group)
-        self.actuator.populate_servers_menu()
         electrum_menu.addSeparator()
 
         brain_seed = electrum_menu.addAction(_("&BrainWallet Info"))
@@ -641,66 +630,6 @@ class MiniActuator:
     def set_config_currency(self, conversion_currency):
         """Change the wallet fiat currency country."""
         self.wallet.config.set_key('conversion_currency',conversion_currency,True)
-
-    def set_servers_gui_stuff(self, servers_menu, servers_group):
-        self.servers_menu = servers_menu
-        self.servers_group = servers_group
-
-    def populate_servers_menu(self):
-        interface = self.wallet.interface
-        if not interface.servers:
-            print "No servers loaded yet."
-            self.servers_list = []
-            for server_string in DEFAULT_SERVERS:
-                host, port, protocol = server_string.split(':')
-                transports = [(protocol,port)]
-                self.servers_list.append((host, transports))
-        else:
-            print "Servers loaded."
-            self.servers_list = interface.servers
-        server_names = [details[0] for details in self.servers_list]
-        current_server = interface.server.split(":")[0]
-        for server_name in server_names:
-            server_action = self.servers_menu.addAction(server_name)
-            server_action.setCheckable(True)
-            if server_name == current_server:
-                server_action.setChecked(True)
-            class SelectServerFunctor:
-                def __init__(self, server_name, server_selected):
-                    self.server_name = server_name
-                    self.server_selected = server_selected
-                def __call__(self, checked):
-                    if checked:
-                        # call server_selected
-                        self.server_selected(self.server_name)
-            delegate = SelectServerFunctor(server_name, self.server_selected)
-            server_action.toggled.connect(delegate)
-            self.servers_group.addAction(server_action)
-
-    def update_servers_list(self):
-        # Clear servers_group
-        for action in self.servers_group.actions():
-            self.servers_group.removeAction(action)
-        self.populate_servers_menu()
-
-    def server_selected(self, server_name):
-        match = [transports for (host, transports) in self.servers_list
-                 if host == server_name]
-        assert len(match) == 1
-        match = match[0]
-        # Default to TCP if available else use anything
-        # TODO: protocol should be selectable.
-        tcp_port = [port for (protocol, port) in match if protocol == "t"]
-        if len(tcp_port) == 0:
-            protocol = match[0][0]
-            port = match[0][1]
-        else:
-            protocol = "t"
-            port = tcp_port[0]
-        server_line = "%s:%s:%s" % (server_name, port, protocol)
-
-        # Should this have exception handling?
-        self.wallet.interface.set_server(server_line, self.wallet.config.get("proxy"))
 
     def copy_address(self, receive_popup):
         """Copy the wallet addresses into the client."""
