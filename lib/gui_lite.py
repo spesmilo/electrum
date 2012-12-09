@@ -15,7 +15,6 @@ except ImportError:
 
 
 from decimal import Decimal as D
-from interface import DEFAULT_SERVERS
 from util import get_resource_path as rsrc
 from i18n import _
 import decimal
@@ -27,8 +26,12 @@ import time
 import wallet
 import webbrowser
 import history_widget
+import receiving_widget
 import util
+import csv 
+import datetime
 
+from wallet import format_satoshis
 import gui_qt
 import shutil
 
@@ -91,7 +94,6 @@ class ElectrumGui(QObject):
         self.config = config
         self.check_qt_version()
         self.app = QApplication(sys.argv)
-        self.wallet.interface.register_callback('peers', self.server_list_changed)
 
 
     def check_qt_version(self):
@@ -105,8 +107,6 @@ class ElectrumGui(QObject):
 
     def main(self, url):
         actuator = MiniActuator(self.wallet)
-        self.connect(self, SIGNAL("updateservers()"),
-                     actuator.update_servers_list)
         # Should probably not modify the current path but instead
         # change the behaviour of rsrc(...)
         old_path = QDir.currentPath()
@@ -129,9 +129,6 @@ class ElectrumGui(QObject):
         self.expert.connect_slots(timer)
         self.expert.update_wallet()
         self.app.exec_()
-
-    def server_list_changed(self):
-        self.emit(SIGNAL("updateservers()"))
 
     def expand(self):
         """Hide the lite mode window and show pro-mode."""
@@ -175,10 +172,6 @@ class MiniWindow(QDialog):
         self.balance_label = BalanceLabel(self.change_quote_currency)
         self.balance_label.setObjectName("balance_label")
 
-        self.receive_button = QPushButton(_("&Receive"))
-        self.receive_button.setObjectName("receive_button")
-        self.receive_button.setDefault(True)
-        self.receive_button.clicked.connect(self.copy_address)
 
         # Bitcoin address code
         self.address_input = QLineEdit()
@@ -218,12 +211,17 @@ class MiniWindow(QDialog):
         self.send_button.setDisabled(True);
         self.send_button.clicked.connect(self.send)
 
+        # Creating the receive button
+        self.receive_button = QPushButton(_("&Receive"))
+        self.receive_button.setObjectName("receive_button")
+        self.receive_button.setDefault(True)
+
         main_layout = QGridLayout(self)
 
         main_layout.addWidget(self.balance_label, 0, 0)
         main_layout.addWidget(self.receive_button, 0, 1)
 
-        main_layout.addWidget(self.address_input, 1, 0, 1, -1)
+        main_layout.addWidget(self.address_input, 1, 0)
 
         main_layout.addWidget(self.amount_input, 2, 0)
         main_layout.addWidget(self.send_button, 2, 1)
@@ -232,15 +230,44 @@ class MiniWindow(QDialog):
         self.history_list.setObjectName("history")
         self.history_list.hide()
         self.history_list.setAlternatingRowColors(True)
-        main_layout.addWidget(self.history_list, 3, 0, 1, -1)
 
+        main_layout.addWidget(self.history_list, 3, 0, 1, 2)
+        
+
+        self.receiving = receiving_widget.ReceivingWidget(self)
+        self.receiving.setObjectName("receiving")
+
+        # Add to the right side 
+        self.receiving_box = QGroupBox(_("Select a receiving address"))
+        extra_layout = QGridLayout()
+
+        # Checkbox to filter used addresses
+        hide_used = QCheckBox(_('Hide used addresses'))
+        hide_used.setChecked(True)
+        hide_used.stateChanged.connect(self.receiving.toggle_used)
+
+        # Events for receiving addresses
+        self.receiving.clicked.connect(self.receiving.copy_address)
+        self.receiving.itemDoubleClicked.connect(self.receiving.edit_label)
+        self.receiving.itemChanged.connect(self.receiving.update_label)
+
+        # Label
+        extra_layout.addWidget( QLabel(_('Selecting an address will copy it to the clipboard.\nDouble clicking the label will allow you to edit it.') ),0,0)
+
+        extra_layout.addWidget(self.receiving, 1,0)
+        extra_layout.addWidget(hide_used, 2,0)
+        extra_layout.setColumnMinimumWidth(0,200)
+
+        self.receiving_box.setLayout(extra_layout)
+        main_layout.addWidget(self.receiving_box,0,3,-1,3)
+        self.receiving_box.hide()
+
+        self.receive_button.clicked.connect(self.toggle_receiving_layout)
+
+        # Creating the menu bar
         menubar = QMenuBar()
         electrum_menu = menubar.addMenu(_("&Bitcoin"))
 
-        servers_menu = electrum_menu.addMenu(_("&Servers"))
-        servers_group = QActionGroup(self)
-        self.actuator.set_servers_gui_stuff(servers_menu, servers_group)
-        self.actuator.populate_servers_menu()
         electrum_menu.addSeparator()
 
         brain_seed = electrum_menu.addAction(_("&BrainWallet Info"))
@@ -253,6 +280,9 @@ class MiniWindow(QDialog):
 
         backup_wallet = extra_menu.addAction( _("&Create wallet backup"))
         backup_wallet.triggered.connect(self.backup_wallet)
+
+        export_csv = extra_menu.addAction( _("&Export transactions to CSV") )
+        export_csv.triggered.connect(self.actuator.csv_transaction)
 
         expert_gui = view_menu.addAction(_("&Classic GUI"))
         expert_gui.triggered.connect(expand_callback)
@@ -288,6 +318,7 @@ class MiniWindow(QDialog):
         show_about = help_menu.addAction(_("&About"))
         show_about.triggered.connect(self.show_about)
         main_layout.setMenuBar(menubar)
+        self.main_layout = main_layout
 
         quit_shortcut = QShortcut(QKeySequence("Ctrl+Q"), self)
         quit_shortcut.activated.connect(self.close)
@@ -307,6 +338,20 @@ class MiniWindow(QDialog):
         self.layout().setSizeConstraint(QLayout.SetFixedSize)
         self.setObjectName("main_window")
         self.show()
+
+    def toggle_receiving_layout(self):
+        if self.receiving_box.isVisible():
+            self.receiving_box.hide()
+            self.receive_button.setProperty("isActive", False)
+
+            qApp.style().unpolish(self.receive_button)
+            qApp.style().polish(self.receive_button)
+        else:
+            self.receiving_box.show()
+            self.receive_button.setProperty("isActive", 'true')
+
+            qApp.style().unpolish(self.receive_button)
+            qApp.style().polish(self.receive_button)
 
     def toggle_theme(self, theme_name):
         old_path = QDir.currentPath()
@@ -439,15 +484,19 @@ class MiniWindow(QDialog):
 
     def update_completions(self, completions):
         self.address_completions.setStringList(completions)
+ 
 
     def update_history(self, tx_history):
-        from util import format_satoshis
+        from util import format_satoshis, age
+
+        self.history_list.empty()
+
         for item in tx_history[-10:]:
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
             label = self.actuator.wallet.get_label(tx_hash)[0]
             #amount = D(value) / 10**8
             v_str = format_satoshis(value, True)
-            self.history_list.append(label, v_str)
+            self.history_list.append(label, v_str, age(timestamp))
 
     def acceptbit(self):
         self.actuator.acceptbit(self.quote_currencies[0])
@@ -465,8 +514,10 @@ class MiniWindow(QDialog):
 
     def show_history(self, toggle_state):
         if toggle_state:
+            self.main_layout.setRowMinimumHeight(3,200)
             self.history_list.show()
         else:
+            self.main_layout.setRowMinimumHeight(3,0)
             self.history_list.hide()
 
     def backup_wallet(self):
@@ -642,66 +693,6 @@ class MiniActuator:
         """Change the wallet fiat currency country."""
         self.wallet.config.set_key('conversion_currency',conversion_currency,True)
 
-    def set_servers_gui_stuff(self, servers_menu, servers_group):
-        self.servers_menu = servers_menu
-        self.servers_group = servers_group
-
-    def populate_servers_menu(self):
-        interface = self.wallet.interface
-        if not interface.servers:
-            print "No servers loaded yet."
-            self.servers_list = []
-            for server_string in DEFAULT_SERVERS:
-                host, port, protocol = server_string.split(':')
-                transports = [(protocol,port)]
-                self.servers_list.append((host, transports))
-        else:
-            print "Servers loaded."
-            self.servers_list = interface.servers
-        server_names = [details[0] for details in self.servers_list]
-        current_server = interface.server.split(":")[0]
-        for server_name in server_names:
-            server_action = self.servers_menu.addAction(server_name)
-            server_action.setCheckable(True)
-            if server_name == current_server:
-                server_action.setChecked(True)
-            class SelectServerFunctor:
-                def __init__(self, server_name, server_selected):
-                    self.server_name = server_name
-                    self.server_selected = server_selected
-                def __call__(self, checked):
-                    if checked:
-                        # call server_selected
-                        self.server_selected(self.server_name)
-            delegate = SelectServerFunctor(server_name, self.server_selected)
-            server_action.toggled.connect(delegate)
-            self.servers_group.addAction(server_action)
-
-    def update_servers_list(self):
-        # Clear servers_group
-        for action in self.servers_group.actions():
-            self.servers_group.removeAction(action)
-        self.populate_servers_menu()
-
-    def server_selected(self, server_name):
-        match = [transports for (host, transports) in self.servers_list
-                 if host == server_name]
-        assert len(match) == 1
-        match = match[0]
-        # Default to TCP if available else use anything
-        # TODO: protocol should be selectable.
-        tcp_port = [port for (protocol, port) in match if protocol == "t"]
-        if len(tcp_port) == 0:
-            protocol = match[0][0]
-            port = match[0][1]
-        else:
-            protocol = "t"
-            port = tcp_port[0]
-        server_line = "%s:%s:%s" % (server_name, port, protocol)
-
-        # Should this have exception handling?
-        self.wallet.interface.set_server(server_line, self.wallet.config.get("proxy"))
-
     def copy_address(self, receive_popup):
         """Copy the wallet addresses into the client."""
         addrs = [addr for addr in self.wallet.all_addresses()
@@ -731,6 +722,48 @@ class MiniActuator:
         w.connect(s, QtCore.SIGNAL('timersignal'), ff)
         w.exec_()
         w.destroy()
+
+    def csv_transaction(self):
+        try:
+          fileName = QFileDialog.getSaveFileName(QWidget(), 'Select file to export your wallet transactions to', os.path.expanduser('~/'), "*.csv")
+          if fileName:
+            with open(fileName, "w+") as csvfile:
+                transaction = csv.writer(csvfile)
+                transaction.writerow(["transaction_hash","label", "confirmations", "value", "fee", "balance", "timestamp"])
+                for item in self.wallet.get_tx_history():
+                    tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
+                    if confirmations:
+                        if timestamp is not None:
+                            try:
+                                time_string = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+                            except [RuntimeError, TypeError, NameError] as reason:
+                                time_string = "unknown"
+                                pass
+                        else:
+                          time_string = "unknown"
+                    else:
+                        time_string = "pending"
+
+                    if value is not None:
+                        value_string = format_satoshis(value, True, self.wallet.num_zeros)
+                    else:
+                        value_string = '--'
+
+                    if fee is not None:
+                        fee_string = format_satoshis(fee, True, self.wallet.num_zeros)
+                    else:
+                        fee_string = '0'
+
+                    if tx_hash:
+                        label, is_default_label = self.wallet.get_label(tx_hash)
+                    else:
+                      label = ""
+
+                    balance_string = format_satoshis(balance, False, self.wallet.num_zeros)
+                    transaction.writerow([tx_hash, label, confirmations, value_string, fee_string, balance_string, time_string])
+                QMessageBox.information(None,"CSV Export created", "Your CSV export has been succesfully created.")
+        except (IOError, os.error), reason:
+          QMessageBox.critical(None,"Unable to create csv", "Electrum was unable to produce a transaction export.\n" + str(reason))
 
     def send(self, address, amount, parent_window):
         """Send bitcoins to the target address."""
@@ -901,6 +934,7 @@ class MiniDriver(QObject):
     def update_history(self):
         tx_history = self.wallet.get_tx_history()
         self.window.update_history(tx_history)
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

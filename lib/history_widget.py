@@ -6,10 +6,13 @@ class HistoryWidget(QTreeWidget):
     def __init__(self, parent=None):
         QTreeWidget.__init__(self, parent)
         self.setColumnCount(2)
-        self.setHeaderLabels([_("Amount"), _("To / From")])
+        self.setHeaderLabels([_("Amount"), _("To / From"), _("When")])
         self.setIndentation(0)
 
-    def append(self, address, amount):
-        item = QTreeWidgetItem([amount, address])
+    def empty(self):
+        self.clear()
+
+    def append(self, address, amount, date):
+        item = QTreeWidgetItem([amount, address, date])
         self.insertTopLevelItem(0, item)
 

@@ -29,7 +29,7 @@ if sys.platform == 'darwin':
         app=[mainscript],
         options=dict(py2app=dict(argv_emulation=True,
                                  iconfile='electrum.icns',
-                                 resources=["data/background.png", "data/style.css", "data/icons"])),
+                                 resources=["data", "icons"])),
     )
 elif sys.platform == 'win32':
     extra_options = dict(
