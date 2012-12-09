@@ -33,10 +33,11 @@ On Mac OS X:
 
   # On port based installs
   sudo python setup-release.py py2app
-  # On brew installs
-  ARCHFLAGS="-arch i386 -arch x86_64" sudo /usr/bin/python setup-release.py py2app --includes sip
 
-  sudo hdiutil create -fs HFS+ -volname "Electrum" -srcfolder dist/Electrum.app dist/electrum-v0.61-macosx.dmg
+  # On brew installs
+  ARCHFLAGS="-arch i386 -arch x86_64" sudo python setup-release.py py2app --includes sip
+
+  sudo hdiutil create -fs HFS+ -volname "Electrum" -srcfolder dist/Electrum.app dist/electrum-VERSION-macosx.dmg
 
 
 == BROWSER CONFIGURATION ==
