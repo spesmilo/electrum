@@ -1,7 +1,53 @@
 import os, sys
 import platform
-
+from datetime import datetime
 is_verbose = True
+
+# Takes a timestamp and puts out a string with the approxomation of the age
+def age(from_date, since_date = None, target_tz=None, include_seconds=False):
+  from_date = datetime.fromtimestamp(from_date)
+  if since_date is None:
+    since_date = datetime.now(target_tz)
+
+  distance_in_time = since_date - from_date
+  distance_in_seconds = int(round(abs(distance_in_time.days * 86400 + distance_in_time.seconds)))
+  distance_in_minutes = int(round(distance_in_seconds/60))
+
+
+  if distance_in_minutes <= 1:
+    if include_seconds:
+      for remainder in [5, 10, 20]:
+        if distance_in_seconds < remainder:
+          return "less than %s seconds ago" % remainder
+        if distance_in_seconds < 40:
+          return "half a minute"
+        elif distance_in_seconds < 60:
+          return "less than a minute ago"
+        else:
+          return "1 minute ago"
+      else:
+        if distance_in_minutes == 0:
+          return "less than a minute ago"
+        else:
+          return "1 minute ago"
+  elif distance_in_minutes < 45:
+    return "%s minutes ago" % distance_in_minutes
+  elif distance_in_minutes < 90:
+    return "about 1 hour ago"
+  elif distance_in_minutes < 1440:
+    return "about %d hours ago" % (round(distance_in_minutes / 60.0))
+  elif distance_in_minutes < 2880:
+    return "1 day ago"
+  elif distance_in_minutes < 43220:
+    return "%d days ago" % (round(distance_in_minutes / 1440))
+  elif distance_in_minutes < 86400:
+    return "about 1 month ago"
+  elif distance_in_minutes < 525600:
+    return "%d months ago" % (round(distance_in_minutes / 43200))
+  elif distance_in_minutes < 1051200:
+    return "about 1 year ago"
+  else:
+    return "over %d years ago" % (round(distance_in_minutes / 525600))
 
 def set_verbosity(b):
     global is_verbose
