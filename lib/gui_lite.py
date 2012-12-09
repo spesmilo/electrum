@@ -26,6 +26,7 @@ import time
 import wallet
 import webbrowser
 import history_widget
+import receiving_widget
 import util
 import csv 
 import datetime
@@ -171,10 +172,6 @@ class MiniWindow(QDialog):
         self.balance_label = BalanceLabel(self.change_quote_currency)
         self.balance_label.setObjectName("balance_label")
 
-        self.receive_button = QPushButton(_("&Receive"))
-        self.receive_button.setObjectName("receive_button")
-        self.receive_button.setDefault(True)
-        self.receive_button.clicked.connect(self.copy_address)
 
         # Bitcoin address code
         self.address_input = QLineEdit()
@@ -214,12 +211,17 @@ class MiniWindow(QDialog):
         self.send_button.setDisabled(True);
         self.send_button.clicked.connect(self.send)
 
+        # Creating the receive button
+        self.receive_button = QPushButton(_("&Receive"))
+        self.receive_button.setObjectName("receive_button")
+        self.receive_button.setDefault(True)
+
         main_layout = QGridLayout(self)
 
         main_layout.addWidget(self.balance_label, 0, 0)
         main_layout.addWidget(self.receive_button, 0, 1)
 
-        main_layout.addWidget(self.address_input, 1, 0, 1, -1)
+        main_layout.addWidget(self.address_input, 1, 0)
 
         main_layout.addWidget(self.amount_input, 2, 0)
         main_layout.addWidget(self.send_button, 2, 1)
@@ -228,8 +230,41 @@ class MiniWindow(QDialog):
         self.history_list.setObjectName("history")
         self.history_list.hide()
         self.history_list.setAlternatingRowColors(True)
-        main_layout.addWidget(self.history_list, 3, 0, 1, -1)
 
+        main_layout.addWidget(self.history_list, 3, 0, 1, 2)
+        
+
+        self.receiving = receiving_widget.ReceivingWidget(self)
+        self.receiving.setObjectName("receiving")
+
+        # Add to the right side 
+        self.receiving_box = QGroupBox(_("Select a receiving address"))
+        extra_layout = QGridLayout()
+
+        # Checkbox to filter used addresses
+        hide_used = QCheckBox(_('Hide used addresses'))
+        hide_used.setChecked(True)
+        hide_used.stateChanged.connect(self.receiving.toggle_used)
+
+        # Events for receiving addresses
+        self.receiving.clicked.connect(self.receiving.copy_address)
+        self.receiving.itemDoubleClicked.connect(self.receiving.edit_label)
+        self.receiving.itemChanged.connect(self.receiving.update_label)
+
+        # Label
+        extra_layout.addWidget( QLabel(_('Selecting an address will copy it to the clipboard.\nDouble clicking the label will allow you to edit it.') ),0,0)
+
+        extra_layout.addWidget(self.receiving, 1,0)
+        extra_layout.addWidget(hide_used, 2,0)
+        extra_layout.setColumnMinimumWidth(0,200)
+
+        self.receiving_box.setLayout(extra_layout)
+        main_layout.addWidget(self.receiving_box,0,3,-1,3)
+        self.receiving_box.hide()
+
+        self.receive_button.clicked.connect(self.toggle_receiving_layout)
+
+        # Creating the menu bar
         menubar = QMenuBar()
         electrum_menu = menubar.addMenu(_("&Bitcoin"))
 
@@ -283,6 +318,7 @@ class MiniWindow(QDialog):
         show_about = help_menu.addAction(_("&About"))
         show_about.triggered.connect(self.show_about)
         main_layout.setMenuBar(menubar)
+        self.main_layout = main_layout
 
         quit_shortcut = QShortcut(QKeySequence("Ctrl+Q"), self)
         quit_shortcut.activated.connect(self.close)
@@ -302,6 +338,20 @@ class MiniWindow(QDialog):
         self.layout().setSizeConstraint(QLayout.SetFixedSize)
         self.setObjectName("main_window")
         self.show()
+
+    def toggle_receiving_layout(self):
+        if self.receiving_box.isVisible():
+            self.receiving_box.hide()
+            self.receive_button.setProperty("isActive", False)
+
+            qApp.style().unpolish(self.receive_button)
+            qApp.style().polish(self.receive_button)
+        else:
+            self.receiving_box.show()
+            self.receive_button.setProperty("isActive", 'true')
+
+            qApp.style().unpolish(self.receive_button)
+            qApp.style().polish(self.receive_button)
 
     def toggle_theme(self, theme_name):
         old_path = QDir.currentPath()
@@ -464,8 +514,10 @@ class MiniWindow(QDialog):
 
     def show_history(self, toggle_state):
         if toggle_state:
+            self.main_layout.setRowMinimumHeight(3,200)
             self.history_list.show()
         else:
+            self.main_layout.setRowMinimumHeight(3,0)
             self.history_list.hide()
 
     def backup_wallet(self):
@@ -882,6 +934,7 @@ class MiniDriver(QObject):
     def update_history(self):
         tx_history = self.wallet.get_tx_history()
         self.window.update_history(tx_history)
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
