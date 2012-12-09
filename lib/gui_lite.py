@@ -434,15 +434,19 @@ class MiniWindow(QDialog):
 
     def update_completions(self, completions):
         self.address_completions.setStringList(completions)
+ 
 
     def update_history(self, tx_history):
-        from util import format_satoshis
+        from util import format_satoshis, age
+
+        self.history_list.empty()
+
         for item in tx_history[-10:]:
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
             label = self.actuator.wallet.get_label(tx_hash)[0]
             #amount = D(value) / 10**8
             v_str = format_satoshis(value, True)
-            self.history_list.append(label, v_str)
+            self.history_list.append(label, v_str, age(timestamp))
 
     def acceptbit(self):
         self.actuator.acceptbit(self.quote_currencies[0])
