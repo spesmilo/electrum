@@ -5,6 +5,9 @@ is_verbose = True
 
 # Takes a timestamp and puts out a string with the approxomation of the age
 def age(from_date, since_date = None, target_tz=None, include_seconds=False):
+  if from_date is None:
+    return "Unknown"
+
   from_date = datetime.fromtimestamp(from_date)
   if since_date is None:
     since_date = datetime.now(target_tz)
