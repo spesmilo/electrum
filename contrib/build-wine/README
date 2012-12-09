@@ -1,7 +1,7 @@
 These scripts can be used for cross-compilation of Windows Electrum executables from Linux/Wine.
 
 Usage:
-1. Copy content of this directory to / (root)
+1. Copy content of this directory to /electrum-wine.
 2. Install Wine (version 1.4 or 1.5+ works fine, 1.4.1 has bug).
 3. Run "./build-wine.sh", it will download all dependencies. When you'll be asked, always leave default settings and press "Next >".
 6. Build will create three separate versions in dist/ directory. One is "dist/electrum.exe", standalone compressed executable. Second one is directory "dist/electrum" containing uncompressed binaries, useful for comparsion with other builds. Third version is "electrum-setup.exe", NSIS-based installer of Electrum.
