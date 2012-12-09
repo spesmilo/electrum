@@ -3,8 +3,11 @@ These scripts can be used for cross-compilation of Windows Electrum executables 
 Usage:
 1. Copy content of this directory to /electrum-wine.
 2. Install Wine (version 1.4 or 1.5+ works fine, 1.4.1 has bug).
-3. Run "./build-wine.sh", it will download all dependencies. When you'll be asked, always leave default settings and press "Next >".
-6. Build will create three separate versions in dist/ directory. One is "dist/electrum.exe", standalone compressed executable. Second one is directory "dist/electrum" containing uncompressed binaries, useful for comparsion with other builds. Third version is "electrum-setup.exe", NSIS-based installer of Electrum.
-7. If you want to rebuild new version of Electrum, just change path to ZIP file in "build-wine.sh" and re-run script with "./build-wine.sh update". It will skip downloading all dependencie
+3. Run "./prepare-wine.sh", it will download all dependencies. When you'll be asked, always leave default settings and press "Next >".
+4. By running "./build-electrum.sh", sources will be packed into three separate versions to dist/ directory:
+  * Standalone compressed executable is "dist/electrum.exe"
+  * Uncompressed binaries are in "dist/electrum". They're useful for comparsion with other builds.
+  * NSIS-based installer of Electrum is "electrum-setup.exe"
+7. Everytime you want to rebuild new version of Electrum just change the path to ZIP file in "build-electrum.sh" and re-run the script.
 
 For more information contact: slush <info@bitcoin.cz>
