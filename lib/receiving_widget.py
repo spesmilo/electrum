@@ -64,9 +64,3 @@ class ReceivingWidget(QTreeWidget):
         self.hide_used = True
         self.setColumnHidden(2, True)
         self.update_list()
-
-
-            
-
-
-

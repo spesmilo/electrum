@@ -153,14 +153,48 @@ class ElectrumGui(QObject):
         qt_gui_object = gui_qt.ElectrumGui(self.wallet, self.app)
         return qt_gui_object.restore_or_create()
 
+class TransactionWindow(QDialog):
+
+    def set_label(self):
+        label = unicode(self.label_edit.text())
+        self.parent.wallet.labels[self.tx_id] = label
+
+        super(TransactionWindow, self).accept() 
+
+    def __init__(self, transaction_id, parent):
+        super(TransactionWindow, self).__init__()
+
+        self.tx_id = str(transaction_id)
+        self.parent = parent
+
+        self.setModal(True)
+        self.resize(200,100)
+        self.setWindowTitle("Transaction successfully sent")
+
+        self.layout = QGridLayout(self)
+        self.layout.addWidget(QLabel("Your transaction has been sent.\nPlease enter a label for this transaction for future reference."))
+
+        self.label_edit = QLineEdit()
+        self.label_edit.setPlaceholderText(_("Transaction label"))
+        self.label_edit.setObjectName("label_input")
+        self.label_edit.setAttribute(Qt.WA_MacShowFocusRect, 0)
+        self.label_edit.setFocusPolicy(Qt.ClickFocus)
+        self.layout.addWidget(self.label_edit)
+
+        self.save_button = QPushButton(_("Save"))
+        self.layout.addWidget(self.save_button)
+        self.save_button.clicked.connect(self.set_label)
+
+        self.exec_()
+
 class MiniWindow(QDialog):
 
     def __init__(self, actuator, expand_callback, config):
         super(MiniWindow, self).__init__()
+        tx = "e08115d0f7819aee65b9d24f81ef9d46eb62bb67ddef5318156cbc3ceb7b703e"
 
         self.actuator = actuator
         self.config = config
-
         self.btc_balance = None
         self.quote_currencies = ["EUR", "USD", "GBP"]
         self.actuator.set_configured_currency(self.set_quote_currency)
@@ -178,6 +212,7 @@ class MiniWindow(QDialog):
         self.address_input.setPlaceholderText(_("Enter a Bitcoin address..."))
         self.address_input.setObjectName("address_input")
 
+        self.address_input.setFocusPolicy(Qt.ClickFocus)
 
         self.address_input.textEdited.connect(self.address_field_changed)
         resize_line_edit_width(self.address_input,
@@ -195,6 +230,8 @@ class MiniWindow(QDialog):
         self.amount_input = QLineEdit()
         self.amount_input.setPlaceholderText(_("... and amount"))
         self.amount_input.setObjectName("amount_input")
+
+        self.amount_input.setFocusPolicy(Qt.ClickFocus)
         # This is changed according to the user's displayed balance
         self.amount_validator = QDoubleValidator(self.amount_input)
         self.amount_validator.setNotation(QDoubleValidator.StandardNotation)
@@ -813,9 +850,10 @@ class MiniActuator:
             print "Dumped error tx to", dumpf.name
             QMessageBox.warning(parent_window, _('Error'), message, _('OK'))
             return False
-
-        QMessageBox.information(parent_window, '',
-            _('Your transaction has been sent.') + '\n' + message, _('OK'))
+      
+        TransactionWindow(message, self)
+#        QMessageBox.information(parent_window, '',
+#            _('Your transaction has been sent.') + '\n' + message, _('OK'))
         return True
 
     def fetch_destination(self, address):
