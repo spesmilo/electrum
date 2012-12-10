@@ -270,8 +270,6 @@ class MiniWindow(QDialog):
 
         electrum_menu.addSeparator()
 
-        brain_seed = electrum_menu.addAction(_("&BrainWallet Info"))
-        brain_seed.triggered.connect(self.actuator.show_seed_dialog)
         quit_option = electrum_menu.addAction(_("&Quit"))
         quit_option.triggered.connect(self.close)
 
@@ -283,6 +281,9 @@ class MiniWindow(QDialog):
 
         export_csv = extra_menu.addAction( _("&Export transactions to CSV") )
         export_csv.triggered.connect(self.actuator.csv_transaction)
+        
+        master_key = extra_menu.addAction( _("Copy master public key to clipboard") ) 
+        master_key.triggered.connect(self.actuator.copy_master_public_key)
 
         expert_gui = view_menu.addAction(_("&Classic GUI"))
         expert_gui.triggered.connect(expand_callback)
@@ -841,6 +842,12 @@ class MiniActuator:
     def is_valid(self, address):
         """Check if bitcoin address is valid."""
         return self.wallet.is_valid(address)
+
+    def copy_master_public_key(self):
+        master_pubkey = self.wallet.master_public_key
+        qApp.clipboard().setText(master_pubkey)
+        QMessageBox.information(None,"Copy succesful", "Your public master key has been copied to your clipboard.")
+        
 
     def acceptbit(self, currency):
         master_pubkey = self.wallet.master_public_key
