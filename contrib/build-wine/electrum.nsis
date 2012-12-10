@@ -1,129 +1,104 @@
-; -------------------------------
-; Start
- 
- 
-  !define MUI_PRODUCT "Electrum"
-  !define MUI_FILE "electrum"
-  !define MUI_VERSION ""
-  !define MUI_BRANDINGTEXT "Electrum"
-  CRCCheck On
- 
-  !include "${NSISDIR}\Contrib\Modern UI\System.nsh"
- 
- 
+;--------------------------------
+;Include Modern UI
+
+  !include "MUI2.nsh"
+
 ;--------------------------------
 ;General
- 
-  OutFile "dist\electrum-setup.exe"
-  ShowInstDetails "nevershow"
-  ShowUninstDetails "nevershow"
-  ;SetCompressor "lzma"
- 
-  ;!define MUI_ICON "icon.ico"
-  ;!define MUI_UNICON "icon.ico"
-  ;!define MUI_SPECIALBITMAP "Bitmap.bmp"
- 
- 
+
+  ;Name and file
+  Name "Electrum"
+  OutFile "dist/electrum-setup.exe"
+
+  ;Default installation folder
+  InstallDir "$PROGRAMFILES\Electrum"
+  
+  ;Get installation folder from registry if available
+  InstallDirRegKey HKCU "Software\Electrum" ""
+
+  ;Request application privileges for Windows Vista
+  RequestExecutionLevel user
+
 ;--------------------------------
-;Folder selection page
- 
-  InstallDir "$PROGRAMFILES\${MUI_PRODUCT}"
- 
- 
+;Variables
+
 ;--------------------------------
-;Modern UI Configuration
- 
-  !define MUI_WELCOMEPAGE  
-  !define MUI_LICENSEPAGE
-  !define MUI_DIRECTORYPAGE
+;Interface Settings
+
   !define MUI_ABORTWARNING
-  !define MUI_UNINSTALLER
-  !define MUI_UNCONFIRMPAGE
-  !define MUI_FINISHPAGE  
- 
- 
+
 ;--------------------------------
-;Language
+;Pages
+
+  !insertmacro MUI_PAGE_LICENSE "tmp/electrum/LICENCE"
+  ;!insertmacro MUI_PAGE_COMPONENTS
+  !insertmacro MUI_PAGE_DIRECTORY
+  
+  ;Start Menu Folder Page Configuration
+  !define MUI_STARTMENUPAGE_REGISTRY_ROOT "HKCU" 
+  !define MUI_STARTMENUPAGE_REGISTRY_KEY "Software\Electrum" 
+  !define MUI_STARTMENUPAGE_REGISTRY_VALUENAME "Start Menu Folder"
+  
+  ;!insertmacro MUI_PAGE_STARTMENU Application $StartMenuFolder
+  
+  !insertmacro MUI_PAGE_INSTFILES
+  
+  !insertmacro MUI_UNPAGE_CONFIRM
+  !insertmacro MUI_UNPAGE_INSTFILES
+
+;--------------------------------
+;Languages
  
   !insertmacro MUI_LANGUAGE "English"
- 
- 
-;-------------------------------- 
-;Modern UI System
- 
-  ;!insertmacro MUI_SYSTEM 
- 
+
+;--------------------------------
+;Installer Sections
+
+Section
+
+  SetOutPath "$INSTDIR"
+  
+  ;ADD YOUR OWN FILES HERE...
+  file /r dist\electrum\*.*
+  
+  ;Store installation folder
+  WriteRegStr HKCU "Software\Electrum" "" $INSTDIR
+  
+  ;Create uninstaller
+  WriteUninstaller "$INSTDIR\Uninstall.exe"
+
+
+  CreateShortCut "$DESKTOP\Electrum.lnk" "$INSTDIR\electrum.exe" ""
+
+  ;create start-menu items
+  CreateDirectory "$SMPROGRAMS\Electrum"
+  CreateShortCut "$SMPROGRAMS\Electrum\Uninstall.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Uninstall.exe" 0
+  CreateShortCut "$SMPROGRAMS\Electrum\Electrum.lnk" "$INSTDIR\electrum.exe" "" "$INSTDIR\electrum.exe" 0
+
+SectionEnd
+
+;--------------------------------
+;Descriptions
+
+  ;Assign language strings to sections
+  ;!insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
+  ;  !insertmacro MUI_DESCRIPTION_TEXT ${SecDummy} $(DESC_SecDummy)
+  ;!insertmacro MUI_FUNCTION_DESCRIPTION_END
  
 ;--------------------------------
-;Data
- 
-  ;LicenseData "license.txt"
- 
- 
-;-------------------------------- 
-;Installer Sections     
-Section "install" ;Installation info
- 
-;Add files
-  SetOutPath "$INSTDIR"
- 
-  ;File "${MUI_FILE}.exe"
-  ;File "${MUI_FILE}.ini"
-  ;File "license.txt"
-  SetOutPath "$INSTDIR"  
-  file /r dist\electrum\*.*
- 
-;create desktop shortcut
-  CreateShortCut "$DESKTOP\${MUI_PRODUCT}.lnk" "$INSTDIR\${MUI_FILE}.exe" ""
- 
-;create start-menu items
-  CreateDirectory "$SMPROGRAMS\${MUI_PRODUCT}"
-  CreateShortCut "$SMPROGRAMS\${MUI_PRODUCT}\Uninstall.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Uninstall.exe" 0
-  CreateShortCut "$SMPROGRAMS\${MUI_PRODUCT}\${MUI_PRODUCT}.lnk" "$INSTDIR\${MUI_FILE}.exe" "" "$INSTDIR\${MUI_FILE}.exe" 0
- 
-;write uninstall information to the registry
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MUI_PRODUCT}" "DisplayName" "${MUI_PRODUCT} (remove only)"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MUI_PRODUCT}" "UninstallString" "$INSTDIR\Uninstall.exe"
- 
-  WriteUninstaller "$INSTDIR\Uninstall.exe"
- 
-SectionEnd
- 
- 
-;--------------------------------    
-;Uninstaller Section  
+;Uninstaller Section
+
 Section "Uninstall"
- 
-;Delete Files 
-  RMDir /r "$INSTDIR\*.*"    
- 
-;Remove the installation directory
+
+  ;ADD YOUR OWN FILES HERE...
+  RMDir /r "$INSTDIR\*.*"
+
   RMDir "$INSTDIR"
- 
-;Delete Start Menu Shortcuts
-  Delete "$DESKTOP\${MUI_PRODUCT}.lnk"
-  Delete "$SMPROGRAMS\${MUI_PRODUCT}\*.*"
-  RmDir  "$SMPROGRAMS\${MUI_PRODUCT}"
- 
-;Delete Uninstaller And Unistall Registry Entries
-  DeleteRegKey HKEY_LOCAL_MACHINE "SOFTWARE\${MUI_PRODUCT}"
-  DeleteRegKey HKEY_LOCAL_MACHINE "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${MUI_PRODUCT}"  
- 
+  
+  Delete "$DESKTOP\Electrum.lnk"
+  Delete "$SMPROGRAMS\Electrum\*.*"
+  RmDir  "$SMPROGRAMS\Electrum"
+    
+  DeleteRegKey /ifempty HKCU "Software\Electrum"
+
 SectionEnd
- 
- 
-;--------------------------------    
-;MessageBox Section
- 
- 
-;Function that calls a messagebox when installation finished correctly
-Function .onInstSuccess
-  MessageBox MB_OK "You have successfully installed ${MUI_PRODUCT}. Use the desktop icon to start the program."
-FunctionEnd
- 
- 
-Function un.onUninstSuccess
-  MessageBox MB_OK "You have successfully uninstalled ${MUI_PRODUCT}."
-FunctionEnd
- 
-;eof
