@@ -33,6 +33,7 @@ fi
 
 rm -rf $WINEPREFIX/drive_c/electrum
 cp -r electrum-git $WINEPREFIX/drive_c/electrum
+cp electrum-git/LICENCE .
 
 # Build Qt resources
 wine $WINEPREFIX/drive_c/Python26/Lib/site-packages/PyQt4/pyrcc4.exe C:/electrum/icons.qrc -o C:/electrum/lib/icons_rc.py

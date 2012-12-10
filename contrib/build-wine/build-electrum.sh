@@ -20,6 +20,7 @@ wget -O electrum.tgz "$ELECTRUM_URL"
 tar xf electrum.tgz
 mv Electrum-* electrum
 rm -rf $WINEPREFIX/drive_c/electrum
+cp electrum/LICENCE .
 mv electrum $WINEPREFIX/drive_c
 
 # Copy ZBar libraries to electrum    
