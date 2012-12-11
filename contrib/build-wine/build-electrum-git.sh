@@ -3,7 +3,7 @@
 # You probably need to update only this link
 ELECTRUM_GIT_URL=git://github.com/spesmilo/electrum.git
 BRANCH=master
-NAME_ROOT=electrum-git
+NAME_ROOT=electrum
 
 # These settings probably don't need any change
 export WINEPREFIX=~/.wine-electrum
@@ -31,6 +31,12 @@ else
     git clone -b $BRANCH $ELECTRUM_GIT_URL electrum-git
 fi
 
+cd electrum-git
+COMMIT_HASH=`git rev-parse HEAD | awk '{ print substr($1, 0, 11) }'`
+echo "Last commit: $COMMIT_HASH"
+cd ..
+
+
 rm -rf $WINEPREFIX/drive_c/electrum
 cp -r electrum-git $WINEPREFIX/drive_c/electrum
 cp electrum-git/LICENCE .
@@ -43,10 +49,7 @@ wine $WINEPREFIX/drive_c/Python26/Lib/site-packages/PyQt4/pyrcc4.exe C:/electrum
 
 cd ..
 
-rm -rf dist/$NAME_ROOT
-rm -f dist/$NAME_ROOT.zip
-rm -f dist/$NAME_ROOT.exe
-rm -f dist/$NAME_ROOT-setup.exe
+rm -rf dist/
 
 # For building standalone compressed EXE, run:
 $PYTHON "C:/pyinstaller/pyinstaller.py" --noconfirm --ascii -w --onefile "C:/electrum/electrum"
@@ -58,8 +61,9 @@ $PYTHON "C:/pyinstaller/pyinstaller.py" --noconfirm --ascii -w deterministic.spe
 wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" electrum.nsis
 #wine $WINEPREFIX/drive_c/Program\ Files\ \(x86\)/NSIS/makensis.exe electrum.nsis
 
+DATE=`date +"%Y%m%d"`
 cd dist
-mv electrum.exe $NAME_ROOT.exe
-mv electrum $NAME_ROOT
-mv electrum-setup.exe $NAME_ROOT-setup.exe
-zip -r $NAME_ROOT.zip $NAME_ROOT
+mv electrum.exe $NAME_ROOT-$DATE-$COMMIT_HASH.exe
+mv electrum $NAME_ROOT-$DATE-$COMMIT_HASH
+mv electrum-setup.exe $NAME_ROOT-$DATE-$COMMIT_HASH-setup.exe
+zip -r $NAME_ROOT-$DATE-$COMMIT_HASH.zip $NAME_ROOT-$DATE-$COMMIT_HASH
