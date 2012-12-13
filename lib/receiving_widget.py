@@ -42,7 +42,7 @@ class ReceivingWidget(QTreeWidget):
             history = self.owner.actuator.wallet.history.get(address,[])
 
             used = "No"
-            for tx_hash, tx_height in history:
+            for tx_hash in history:
                 tx = self.owner.actuator.wallet.transactions.get(tx_hash)
                 if tx:
                     used = "Yes"
