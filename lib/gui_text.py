@@ -162,6 +162,7 @@ class ElectrumGui:
 
     def main_command(self):
         c = self.stdscr.getch()
+        print c
         if   c == curses.KEY_RIGHT: self.tab = (self.tab + 1)%self.num_tabs
         elif c == curses.KEY_LEFT: self.tab = (self.tab - 1)%self.num_tabs
         elif c == curses.KEY_DOWN: self.pos +=1
@@ -189,7 +190,7 @@ class ElectrumGui:
             
 
     def edit_str(self, target, c, is_num=False):
-        chars = '0123456789.' if is_num else '0123456789.:;,!?abcdefghigklmnoprstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        chars = '0123456789.' if is_num else '0123456789.:;,!?abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
         if curses.unctrl(c) in chars:
             target += curses.unctrl(c)
         elif c==263 and target:
