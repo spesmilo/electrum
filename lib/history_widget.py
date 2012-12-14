@@ -13,6 +13,12 @@ class HistoryWidget(QTreeWidget):
         self.clear()
 
     def append(self, address, amount, date):
+        if address is None:
+          address = "Unknown"
+        if amount is None: 
+          amount = "Unknown"
+        if date is None:
+          date = "Unknown"
         item = QTreeWidgetItem([amount, address, date])
         self.insertTopLevelItem(0, item)
 
