@@ -1252,8 +1252,9 @@ class WalletSynchronizer(threading.Thread):
             if method == 'blockchain.address.subscribe':
                 addr = params[0]
                 if self.wallet.get_status(self.wallet.get_history(addr)) != result:
-                    self.interface.send([('blockchain.address.get_history', [addr])], 'synchronizer')
-                    requested_histories[addr] = result
+                    if requested_histories.get(addr) is None:
+                        self.interface.send([('blockchain.address.get_history', [addr])], 'synchronizer')
+                        requested_histories[addr] = result
 
             elif method == 'blockchain.address.get_history':
                 addr = params[0]
