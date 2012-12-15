@@ -122,32 +122,12 @@ class ElectrumGui:
         self.stdscr.addstr( 12, 15, _("[Send]"), curses.A_REVERSE if self.pos%6==4 else curses.color_pair(2))
         self.stdscr.addstr( 12, 25, _("[Clear]"), curses.A_REVERSE if self.pos%6==5 else curses.color_pair(2))
 
-    def getstr_send(self):
-        curses.curs_set(1)
-        curses.echo()
-        if self.pos%5==0:
-            s = self.stdscr.getstr(3, 15)
-            if s: self.str_recipient = s
-        elif self.pos%5==1:
-            s = self.stdscr.getstr(5, 15)
-            if s: self.str_description = s
-        elif self.pos%5==2:
-            s = self.stdscr.getstr(7, 15)
-            if s: self.str_amount = s
-        elif self.pos%5==3:
-            s = self.stdscr.getstr(9, 15)
-            if s: self.str_fee = s
-        else:
-            pass
-        curses.noecho()
-        curses.curs_set(0)
-        self.print_send_tab()
-
     def print_banner(self):
         self.stdscr.addstr( 1, 1, self.wallet.banner )
 
     def print_list(self, list, firstline):
         self.maxpos = len(list)
+        if not self.maxpos: return
         firstline += " "*(self.maxx -2 - len(firstline))
         self.stdscr.addstr( 1, 1, firstline )
         for i in range(self.maxy-4):
