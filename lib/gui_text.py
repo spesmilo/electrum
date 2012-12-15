@@ -136,6 +136,7 @@ class ElectrumGui:
             self.stdscr.addstr( i+2, 1, msg[0:self.maxx - 2], curses.A_REVERSE if i == (self.pos % self.maxpos) else 0)
 
     def refresh(self):
+        if self.tab == -1: return
         self.stdscr.border(0)
         self.print_balance()
         self.stdscr.refresh()
@@ -224,9 +225,9 @@ class ElectrumGui:
             self.run_tab(4, self.print_banner, self.run_banner_tab)
 
         tty.setcbreak(sys.stdin)
-        curses.nocbreak();
-        self.stdscr.keypad(0);
-        curses.echo()            
+        curses.nocbreak()
+        self.stdscr.keypad(0)
+        curses.echo()
         curses.endwin()
 
 
