@@ -190,11 +190,10 @@ class ElectrumGui:
             
 
     def edit_str(self, target, c, is_num=False):
-        chars = '0123456789.' if is_num else '0123456789.:;,!?abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
-        if curses.unctrl(c) in chars:
-            target += curses.unctrl(c)
-        elif c==263 and target:
+        if c==263 and target:
             target = target[:-1]
+        elif not is_num or curses.unctrl(c) in '0123456789.':
+            target += curses.unctrl(c)
         return target
 
 
