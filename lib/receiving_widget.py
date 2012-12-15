@@ -35,17 +35,24 @@ class ReceivingWidget(QTreeWidget):
         
 
     def update_list(self):
-
         self.clear()
         addresses = [addr for addr in self.owner.actuator.wallet.all_addresses() if not self.owner.actuator.wallet.is_change(addr)]
         for address in addresses:
             history = self.owner.actuator.wallet.history.get(address,[])
 
             used = "No"
-            for tx_hash in history:
-                tx = self.owner.actuator.wallet.transactions.get(tx_hash)
-                if tx:
-                    used = "Yes"
+            # It appears that at this moment history can either be an array with tx and block height
+            # Or just a tx that's why this ugly code duplication is in, will fix
+            if len(history) == 1:
+                for tx_hash in history:
+                    tx = self.owner.actuator.wallet.transactions.get(tx_hash)
+                    if tx:
+                        used = "Yes"
+            else:
+                for tx_hash, height in history:
+                    tx = self.owner.actuator.wallet.transactions.get(tx_hash)
+                    if tx:
+                        used = "Yes"
 
             if(self.hide_used == True and used == "No") or self.hide_used == False:
                 label = self.owner.actuator.wallet.labels.get(address,'')
