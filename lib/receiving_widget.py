@@ -44,10 +44,14 @@ class ReceivingWidget(QTreeWidget):
             # It appears that at this moment history can either be an array with tx and block height
             # Or just a tx that's why this ugly code duplication is in, will fix
             if len(history) == 1:
-                for tx_hash in history:
-                    tx = self.owner.actuator.wallet.transactions.get(tx_hash)
-                    if tx:
-                        used = "Yes"
+                # This means pruned data. If that's the case the address has to been used at one point
+                if history[0] == "*":
+                    used = "Yes"
+                else:
+                    for tx_hash in history:
+                        tx = self.owner.actuator.wallet.transactions.get(tx_hash)
+                        if tx:
+                            used = "Yes"
             else:
                 for tx_hash, height in history:
                     tx = self.owner.actuator.wallet.transactions.get(tx_hash)
