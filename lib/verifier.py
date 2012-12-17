@@ -296,15 +296,11 @@ class WalletVerifier(threading.Thread):
         filename = self.path()
         if os.path.exists(filename):
             return
-        import urllib2
+        
         try:
+            import urllib
             print_error("downloading ", self.headers_url )
-            f = urllib2.urlopen(self.headers_url)
-            s = f.read()
-            f.close()
-            f = open(filename,'wb+')
-            f.write(s)
-            f.close()
+            urllib.urlretrieve(self.headers_url, filename)
         except:
             print_error( "download failed. creating file", filename )
             open(filename,'wb+').close()
