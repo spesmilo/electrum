@@ -149,7 +149,7 @@ if __name__ == '__main__':
 
     # config is an object passed to the various constructors (wallet, interface, gui)
     if 'ANDROID_DATA' in os.environ:
-        config_options = {'wallet_path':"/sdcard/electrum.dat", 'blockchain_headers_path':'/sdcard/sl4a/scripts/e4a-%s'%ELECTRUM_VERSION, 'gui':'android'}
+        config_options = {'wallet_path':"/sdcard/electrum.dat", 'blockchain_headers_path':'/sdcard/sl4a/', 'gui':'android'}
     else:
         config_options = eval(str(options))
         for k, v in config_options.items():
