@@ -43,9 +43,8 @@ class WalletVerifier(threading.Thread):
         self.pending_headers = [] # headers that have not been verified
         self.height = 0
         self.local_height = 0
-        self.init_headers_file()
-        self.set_local_height()
         self.running = False
+        self.headers_url = 'http://images.ecdsa.org/blockchain_headers'
 
     def get_confirmations(self, tx):
         """ return the number of confirmations of a monitored transaction. """
@@ -81,6 +80,10 @@ class WalletVerifier(threading.Thread):
         with self.lock: return self.running
 
     def run(self):
+
+        self.init_headers_file()
+        self.set_local_height()
+
         with self.lock:
             self.running = True
         requested_merkle = []
@@ -293,13 +296,17 @@ class WalletVerifier(threading.Thread):
         filename = self.path()
         if os.path.exists(filename):
             return
-        src = os.path.join(appdata_dir(), 'blockchain_headers')
-        if os.path.exists(src):
-            # copy it from appdata dir
-            print_error( "copying headers to", filename )
-            shutil.copy(src, filename)
-        else:
-            print_error( "creating headers file", filename )
+        import urllib2
+        try:
+            print_error("downloading ", self.headers_url )
+            f = urllib2.urlopen(self.headers_url)
+            s = f.read()
+            f.close()
+            f = open(filename,'wb+')
+            f.write(s)
+            f.close()
+        except:
+            print_error( "download failed. creating file", filename )
             open(filename,'wb+').close()
 
     def save_chunk(self, index, chunk):

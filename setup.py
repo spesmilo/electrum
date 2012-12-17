@@ -37,8 +37,6 @@ data_files += [
     ])
 ]
 
-if os.path.exists("data/blockchain_headers"):
-    data_files.append( (util.appdata_dir(), ["data/blockchain_headers"]) )
 
 setup(name = "Electrum",
     version = version.ELECTRUM_VERSION,

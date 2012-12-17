@@ -9,10 +9,6 @@ if __name__ == '__main__':
         print "aes and ecdsa are missing. copy them locally before."
         sys.exit()
 
-    if not os.path.exists('data/blockchain_headers'):
-        print "header file is missing"
-        sys.exit()
-
     os.system("python mki18n.py")
     os.system("pyrcc4 icons.qrc -o lib/icons_rc.py")
     os.system("python setup.py sdist --format=zip,gztar")
@@ -28,14 +24,13 @@ if __name__ == '__main__':
     shutil.copytree("ecdsa",'dist/e4a-%s/ecdsa'%version)
     shutil.copytree("aes",'dist/e4a-%s/aes'%version)
     shutil.copytree("lib",'dist/e4a-%s/electrum'%version)
-    shutil.copyfile("data/blockchain_headers",'dist/e4a-%s/blockchain_headers'%version)
 
-    os.chdir("dist" )    
+    os.chdir("dist")
     # create the zip file
     os.system( "zip -r e4a-%s.zip e4a-%s"%(version, version) )
     # copy to a filename without extension
     os.system( "cp e4a-%s.zip e4a"%version )
-    os.chdir(".." )
+    os.chdir("..")
 
     md5_tgz = hashlib.md5(file('dist/'+_tgz, 'r').read()).digest().encode('hex')
     md5_zip = hashlib.md5(file('dist/'+_zip, 'r').read()).digest().encode('hex')
