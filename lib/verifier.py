@@ -289,7 +289,7 @@ class WalletVerifier(threading.Thread):
 
     def path(self):
         wdir = self.config.get('blockchain_headers_path', user_dir())
-        if not os.path.exists( wdir ): os.mkdir(wdir)
+        if wdir and not os.path.exists( wdir ): os.mkdir(wdir)
         return os.path.join( wdir, 'blockchain_headers')
 
     def init_headers_file(self):
