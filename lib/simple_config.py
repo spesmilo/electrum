@@ -17,12 +17,14 @@ a SimpleConfig instance then reads the wallet file.
 
         # system conf, readonly
         self.system_config = {}
-        self.read_system_config()
+        if options.get('portable') == False:
+            self.read_system_config()
 
         # user conf, writeable
         self.user_dir = user_dir()
         self.user_config = {}
-        self.read_user_config()
+        if options.get('portable') == False:
+            self.read_user_config()
 
         # command-line options
         self.options_config = options
@@ -33,7 +35,10 @@ a SimpleConfig instance then reads the wallet file.
         print_error( "path", self.path )
         if self.path:
             self.read_wallet_config(self.path)
-            
+
+        # portable wallet: use the same directory for wallet and headers file
+        if options.get('portable'):
+            self.wallet_config['blockchain_headers_path'] = os.path.dirname(self.path)
             
             
         

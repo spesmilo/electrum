@@ -137,6 +137,7 @@ def arg_parser():
     parser.add_option("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is t or h")
     parser.add_option("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
     parser.add_option("-v", "--verbose", action="store_true", dest="verbose", default=False, help="show debugging information")
+    parser.add_option("-P", "--portable", action="store_true", dest="portable", default=False, help="portable wallet")
     return parser
 
 
