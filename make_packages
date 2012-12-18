@@ -43,6 +43,6 @@ if __name__ == '__main__':
     print "Packages are ready:"
     print "dist/%s     "%_tgz, md5_tgz
     print "dist/%s        "%_zip, md5_zip
-    print "dist/e4a                       ", md5_android
+    print "dist/%s                "%e4a_name2, md5_android
     print "To make a release, upload the files to the server, and update the webpages in branch gh-pages"
 
