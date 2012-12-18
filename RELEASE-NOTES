@@ -1,38 +1,8 @@
+# Release 1.5.7 (18-12-2012)
 
-This page lists versions of Electrum that are incompatible with the
-previous version. These incompatibilities are caused by a change in
-the key derivation algorithm.
-
-Wallets created before the change are incompatible with the new
-version, and that users need to move their bitcoins. We apologize for
-the inconvenience. We try to keep this kind of upgrades as rare as
-possible.
-
-
-LIST OF UPGRADES:
------------------
-
-Version 0.34: The key derivation was changed again in version 0.34, in order to offer "type 2 wallet" capabilities. 
-Version 0.31: This version fixes a vulnerability in the key generation function.
-
-
-HOW TO UPGRADE:
----------------
-
-If your wallet is deprecated, you will see a message asking you to
-create a new wallet and to move your balance to the new wallet.
-
-Here are the steps that you need to follow:
-* create a new wallet with the new version of Electrum:    /path/to/new/electrum.py -w my_new_wallet.dat
-* copy a receiving address from the new wallet
-* open your old wallet with the old version of Electrum:   /path/to/old/electrum.py -w my_old_wallet
-* move your entire balance to the new address.
-
-Note that you may keep your current seed. For this, all you need to do
-is to create the new wallet using the wallet recovery procedure. You
-will not recover your old wallet with the new software, but you will
-get a new wallet instead.
-
-
-
+== Lite GUI
+* (Feature) Added the ablitiy to export your transactions to a CSV file.
+* (Feature) Added a label dialog after sending a transaction.
+* (Feature) Reworked receiving addreses; instead of a random selection from one of your receiving addresses a new widget will show listing unused addresses.
+* (Chore)   Removed server selection. With all the new server options a simple menu item does not suffice anymore.
 
