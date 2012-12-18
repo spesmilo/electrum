@@ -1257,7 +1257,7 @@ class ElectrumWindow(QMainWindow):
                 password = None
 
             try:
-                signature = self.wallet.sign_message(sign_address.text(), sign_message.toPlainText(), password)
+                signature = self.wallet.sign_message(sign_address.text(), str(sign_message.toPlainText()), password)
                 sign_signature.setText(signature)
             except BaseException, e:
                 self.show_message(str(e))
@@ -1291,7 +1291,7 @@ class ElectrumWindow(QMainWindow):
 
         def do_verify():
             try:
-                self.wallet.verify_message(verify_address.text(), verify_signature.text(), verify_message.toPlainText())
+                self.wallet.verify_message(verify_address.text(), verify_signature.text(), str(verify_message.toPlainText()))
                 self.show_message("Signature verified")
             except BaseException, e:
                 self.show_message(str(e))
