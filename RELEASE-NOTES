@@ -1,8 +1,12 @@
 # Release 1.5.7 (18-12-2012)
 
+== Core
+* The blockchain headers file is no longer included in the packages, it is downloaded on startup.
+* New command line option: -P or --portable, for portable wallets. With this flag, all preferences are saved to the wallet file, and the blockchain headers file is in the same directory as the wallet
+
 == Lite GUI
-* (Feature) Added the ablitiy to export your transactions to a CSV file.
+* (Feature) Added the ability to export your transactions to a CSV file.
 * (Feature) Added a label dialog after sending a transaction.
-* (Feature) Reworked receiving addreses; instead of a random selection from one of your receiving addresses a new widget will show listing unused addresses.
+* (Feature) Reworked receiving addresses; instead of a random selection from one of your receiving addresses a new widget will show listing unused addresses.
 * (Chore)   Removed server selection. With all the new server options a simple menu item does not suffice anymore.
 
