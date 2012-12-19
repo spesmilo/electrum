@@ -298,7 +298,8 @@ class WalletVerifier(threading.Thread):
             return
         
         try:
-            import urllib
+            import urllib, socket
+            socket.setdefaulttimeout(30)
             print_error("downloading ", self.headers_url )
             urllib.urlretrieve(self.headers_url, filename)
         except:
