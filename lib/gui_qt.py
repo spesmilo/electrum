@@ -346,9 +346,8 @@ class ElectrumWindow(QMainWindow):
             self.qr_window = None
 
     def connect_slots(self, sender):
-        if self.wallet.seed:
-            self.connect(sender, QtCore.SIGNAL('timersignal'), self.timer_actions)
-            self.previous_payto_e=''
+        self.connect(sender, QtCore.SIGNAL('timersignal'), self.timer_actions)
+        self.previous_payto_e=''
 
     def timer_actions(self):
         if self.qr_window:
