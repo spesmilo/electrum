@@ -209,12 +209,12 @@ class MiniWindow(QDialog):
 
         # Bitcoin address code
         self.address_input = QLineEdit()
-        self.address_input.setPlaceholderText(_("Enter a Bitcoin address..."))
+        self.address_input.setPlaceholderText(_("Enter a Bitcoin address or contact"))
         self.address_input.setObjectName("address_input")
 
         self.address_input.setFocusPolicy(Qt.ClickFocus)
 
-        self.address_input.textEdited.connect(self.address_field_changed)
+        self.address_input.textChanged.connect(self.address_field_changed)
         resize_line_edit_width(self.address_input,
                                "1BtaFUr3qVvAmwrsuDuu5zk6e4s2rxd2Gy")
 
@@ -499,6 +499,13 @@ class MiniWindow(QDialog):
             self.send_button.setDisabled(True)
 
     def address_field_changed(self, address):
+        # label or alias, with address in brackets
+        match2 = re.match("(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>",
+                          address)
+        if match2:
+          address = match2.group(2)
+          self.address_input.setText(address)
+
         if self.actuator.is_valid(address):
             self.check_button_status()
             self.address_input.setProperty("isValid", True)
@@ -879,6 +886,7 @@ class MiniActuator:
 
     def is_valid(self, address):
         """Check if bitcoin address is valid."""
+
         return self.wallet.is_valid(address)
 
     def copy_master_public_key(self):
