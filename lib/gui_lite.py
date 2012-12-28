@@ -31,6 +31,7 @@ import util
 import csv 
 import datetime
 
+from version import ELECTRUM_VERSION as electrum_version
 from wallet import format_satoshis
 import gui_qt
 import shutil
@@ -447,7 +448,7 @@ class MiniWindow(QDialog):
             quote_text = "(%s)" % quote_text
         btc_balance = "%.2f" % (btc_balance / bitcoin(1))
         self.balance_label.set_balance_text(btc_balance, quote_text)
-        self.setWindowTitle("Electrum - %s BTC" % btc_balance)
+        self.setWindowTitle("Electrum %s - %s BTC" % (electrum_version, btc_balance))
 
     def amount_input_changed(self, amount_text):
         """Update the number of bitcoins displayed."""

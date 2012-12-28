@@ -1,6 +1,7 @@
 # Release 1.5.8 (Not released)
 == Lite GUI
 * (Bug) Sending to auto-completed contacts works again
+* (Chore) Added version number to title bar
 
 # Release 1.5.7 (18-12-2012)
 
