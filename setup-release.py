@@ -60,7 +60,7 @@ if sys.platform == 'darwin':
       qt_menu_location = "/opt/local/lib/Resources/qt_menu.nib"
     else:
       # No dice? Then let's try the brew version
-      qt_menu_location = os.popen("mdfind -name qt_menu.nib | grep Cellar | head").read()
+      qt_menu_location = os.popen("find /usr/local/Cellar -name qt_menu.nib | head").read()
       qt_menu_location = re.sub('\n','', qt_menu_location)
 
     if(len(qt_menu_location) == 0):
