@@ -1562,6 +1562,21 @@ class ElectrumWindow(QMainWindow):
         if not self.config.is_modifiable('gui'):
             for w in [gui_combo, gui_label]: w.setEnabled(False)
 
+        lang_label=QLabel(_('Language') + ':')
+        grid.addWidget(lang_label , 8, 0)
+        lang_combo = QComboBox()
+        languages = ['', 'br', 'cs', 'de', 'eo', 'en', 'es', 'fr', 'it', 'lv', 'nl', 'ru', 'sl', 'vi', 'zh']
+        lang_combo.addItems(languages)
+        try:
+            index = languages.index(self.config.get("language",''))
+        except:
+            index = 0
+        lang_combo.setCurrentIndex(index)
+        grid.addWidget(lang_combo, 8, 1)
+        grid.addWidget(HelpButton(_('Select which language is used in the GUI (after restart). ')), 8, 2)
+        if not self.config.is_modifiable('language'):
+            for w in [lang_combo, lang_label]: w.setEnabled(False)
+
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
 
@@ -1612,6 +1627,7 @@ class ElectrumWindow(QMainWindow):
                 QMessageBox.warning(self, _('Error'), _('Invalid value'), _('OK'))
                     
         self.config.set_key("gui", str(gui_combo.currentText()).lower(), True)
+        self.config.set_key("language", languages[lang_combo.currentIndex()], True)
 
 
 
