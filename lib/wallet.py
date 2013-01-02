@@ -700,7 +700,7 @@ class Wallet:
         balance = c + u - balance
         for tx in history:
             tx_hash = tx['tx_hash']
-            conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else None, None
+            conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
             is_mine, value, fee = self.get_tx_value(tx_hash)
             if value is not None:
                 balance += value
