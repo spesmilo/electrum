@@ -26,13 +26,17 @@ from util import print_error
 
 DEFAULT_TIMEOUT = 5
 DEFAULT_SERVERS = [ 
-    'electrum.bitcoin.cz:p:50001:t',
-    'electrum.novit.ro:p:50001:t', 
-    'electrum.be::50001:t',
-    'electrum.bysh.me::50001:t',
-    'electrum.pdmc.net:p:50001:t',
-    'electrum.no-ip.org::50001:t',
-    'ecdsa.org:p:50001:t'
+    #'electrum.bitcoins.sk:50001:t',
+    #'uncle-enzo.info:50001:t',
+    #'electrum.bitfoo.org:50001:t',
+    #'webbtc.net:50001:t',
+    'electrum.bitcoin.cz:50001:t',
+    'electrum.novit.ro:50001:t', 
+    'electrum.be:50001:t',
+    'electrum.bysh.me:50001:t',
+    'electrum.pdmc.net:50001:t',
+    'electrum.no-ip.org:50001:t',
+    'ecdsa.org:50001:t'
     ]
 
 proxy_modes = ['socks4', 'socks5', 'http']
@@ -503,8 +507,8 @@ class Interface(threading.Thread):
         if not self.servers:
             servers_list = {}
             for x in DEFAULT_SERVERS:
-                h,pruning,port,protocol = x.split(':')
-                servers_list[h] = {'ports':[(protocol,port)], 'pruning':pruning}
+                h,port,protocol = x.split(':')
+                servers_list[h] = {'ports':[(protocol,port)]}
         else:
             servers_list = self.servers
         
