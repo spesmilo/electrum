@@ -1,4 +1,11 @@
-# Release 1.5.8 (Not released)
+# Release 1.5.8 (02-01-2013)
+
+== Core
+* (Bug) Fix pending address balance on received coins for pruning servers 
+* (Chore) Restore timer for deseeded wallets 
+* (Chore) Update built-in default server with pruning flag
+* (Chore) Add timeout to blockchain headers file download by HTTP
+
 == Lite GUI
 * (Bug) Sending to auto-completed contacts works again
 * (Chore) Added version number to title bar
