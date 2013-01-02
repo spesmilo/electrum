@@ -23,8 +23,6 @@ if os.path.exists('./locale'):
 else:
     LOCALE_DIR = '/usr/share/locale'
 
-print LOCALE_DIR
-
 language = gettext.translation('electrum', LOCALE_DIR, fallback = True)
 
 def _(x):

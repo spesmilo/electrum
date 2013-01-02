@@ -147,7 +147,6 @@ if __name__ == '__main__':
     parser = arg_parser()
     options, args = parser.parse_args()
     set_verbosity(options.verbose)
-    set_language(options.language)
 
     # config is an object passed to the various constructors (wallet, interface, gui)
     if 'ANDROID_DATA' in os.environ:
@@ -208,6 +207,7 @@ if __name__ == '__main__':
         interface.start()
         interface.send([('server.peers.subscribe',[])])
 
+        set_language(config.get('language'))
         gui = gui.ElectrumGui(wallet, config)
 
         found = config.wallet_file_exists
