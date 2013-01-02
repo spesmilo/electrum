@@ -3,12 +3,15 @@
 == Core
 * (Bug) Fix pending address balance on received coins for pruning servers 
 * (Bug) Fix history command line option to show output again (regression by SPV)
-* (Chore) Restore timer for deseeded wallets 
 * (Chore) Add timeout to blockchain headers file download by HTTP
+* (Feature) new option: -L, --language: default language used in GUI. 
 
 == Lite GUI
 * (Bug) Sending to auto-completed contacts works again
 * (Chore) Added version number to title bar
+
+== Classic GUI
+* (Feature) Language selector in options.
 
 # Release 1.5.7 (18-12-2012)
 
