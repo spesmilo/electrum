@@ -378,13 +378,19 @@ if __name__ == '__main__':
 
     # commands needing password
     if cmd in protected_commands or ( cmd=='addresses' and options.show_keys):
-        password = prompt_password('Password:', False) if wallet.use_encryption and not is_temporary else None
-        # check password
-        try:
-            wallet.pw_decode( wallet.seed, password)
-        except:
-            print_msg("Error: This password does not decode this wallet.")
-            exit(1)
+        if wallet.use_encryption and not is_temporary:
+            password = prompt_password('Password:', False)
+            if not password:
+                print_msg("Error: Password required")
+                exit(1)
+            # check password
+            try:
+                wallet.pw_decode( wallet.seed, password)
+            except:
+                print_msg("Error: This password does not decode this wallet.")
+                exit(1)
+        else:
+            password = None
 
     if cmd == 'import':
         # See if they specificed a key on the cmd line, if not prompt
