@@ -16,10 +16,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import gettext
+import gettext, os
 
-LOCALE_DIR = '/usr/share/locale'
-#LOCALE_DIR = './locale'
+if os.path.exists('./locale'):
+    LOCALE_DIR = './locale'
+else:
+    LOCALE_DIR = '/usr/share/locale'
+
+print LOCALE_DIR
 
 language = gettext.translation('electrum', LOCALE_DIR, fallback = True)
-_ = language.ugettext
+
+def _(x):
+    global language
+    return language.ugettext(x)
+
+def set_language(x):
+    global language
+    if x: language = gettext.translation('electrum', LOCALE_DIR, fallback = True, languages=[x])
+    
+    

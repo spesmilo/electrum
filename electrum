@@ -138,6 +138,7 @@ def arg_parser():
     parser.add_option("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
     parser.add_option("-v", "--verbose", action="store_true", dest="verbose", default=False, help="show debugging information")
     parser.add_option("-P", "--portable", action="store_true", dest="portable", default=False, help="portable wallet")
+    parser.add_option("-L", "--lang", dest="language", default=None, help="defaut language used in GUI")
     return parser
 
 
@@ -146,6 +147,7 @@ if __name__ == '__main__':
     parser = arg_parser()
     options, args = parser.parse_args()
     set_verbosity(options.verbose)
+    set_language(options.language)
 
     # config is an object passed to the various constructors (wallet, interface, gui)
     if 'ANDROID_DATA' in os.environ:
