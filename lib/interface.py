@@ -21,7 +21,7 @@ import random, socket, ast, re, ssl
 import threading, traceback, sys, time, json, Queue
 
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
-from util import print_error
+from util import print_error, print_msg
 
 
 DEFAULT_TIMEOUT = 5
@@ -376,6 +376,7 @@ class Interface(threading.Thread):
         self.servers = {} # actual list from IRC
         self.rtime = 0
         self.bytes_received = 0
+        self.is_connected = False
 
 
 
