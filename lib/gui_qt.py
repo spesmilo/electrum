@@ -1791,6 +1791,12 @@ class ElectrumWindow(QMainWindow):
         if not wallet.config.is_modifiable('server'):
             for w in [server_host, server_port, server_protocol, servers_list_widget]: w.setEnabled(False)
 
+        # auto cycle
+        autocycle_cb = QCheckBox('Try random servers if disconnected')
+        autocycle_cb.setChecked(wallet.config.get('auto_cycle', False))
+        grid.addWidget(autocycle_cb, 3, 1, 3, 2)
+        if not wallet.config.is_modifiable('auto_cycle'): autocycle_cb.setEnabled(False)
+
         # proxy setting
         proxy_mode = QComboBox()
         proxy_host = QLineEdit()
@@ -1838,7 +1844,7 @@ class ElectrumWindow(QMainWindow):
         wallet.config.set_key("proxy", proxy, True)
         wallet.config.set_key("server", server, True)
         interface.set_server(server, proxy)
-                
+        wallet.config.set_key('auto_cycle', autocycle_cb.isChecked(), True)
         return True
 
     def closeEvent(self, event):

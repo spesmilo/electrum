@@ -382,9 +382,12 @@ class Interface(threading.Thread):
     def init_interface(self):
         if self.config.get('server'):
             self.init_with_server(self.config)
+        else:
+            if self.config.get('auto_cycle') is None:
+                self.config.set_key('auto_cycle', True, False)
 
-        if not self.is_connected:
-            print "Using random server..."
+        if not self.is_connected and self.config.get('auto_cycle'):
+            print_msg("Using random server...")
             servers = DEFAULT_SERVERS[:]
             while servers:
                 server = random.choice( servers )
