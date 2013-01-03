@@ -1742,7 +1742,7 @@ class ElectrumWindow(QMainWindow):
         servers_list_widget.setMaximumHeight(150)
         servers_list_widget.setColumnWidth(0, 240)
         for _host in servers_list.keys():
-            _type = 'pruning' if servers_list[_host].get('pruning') else 'full'
+            _type = 'P' if servers_list[_host].get('pruning') else 'F'
             servers_list_widget.addTopLevelItem(QTreeWidgetItem( [ _host, _type ] ))
 
         def change_server(host, protocol=None):
