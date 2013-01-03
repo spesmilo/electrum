@@ -877,11 +877,6 @@ class ElectrumWindow(QMainWindow):
         self.connect(l, SIGNAL('currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)'), lambda a,b: self.recv_changed(a))
         self.receive_list = l
         self.receive_buttons_hbox = hbox
-        view_combo = QComboBox()
-        view_combo.addItems([_('Simple View'), _('Detailed View'), _('Point of Sale')])
-        view_combo.setCurrentIndex(self.receive_tab_mode)
-        hbox.addWidget(view_combo)
-        view_combo.currentIndexChanged.connect(self.receive_tab_set_mode)
         hbox.addStretch(1)
         return w
 
@@ -1592,6 +1587,15 @@ class ElectrumWindow(QMainWindow):
         if not self.config.is_modifiable('language'):
             for w in [lang_combo, lang_label]: w.setEnabled(False)
 
+
+        view_label=QLabel(_('Receive mode') + ':')
+        grid_ui.addWidget(view_label , 9, 0)
+        view_combo = QComboBox()
+        view_combo.addItems([_('Simple View'), _('Detailed View'), _('Point of Sale')])
+        view_combo.setCurrentIndex(self.receive_tab_mode)
+        grid_ui.addWidget(view_combo, 9, 1)
+        grid_ui.addWidget(HelpButton(_('View mode for your "Receive" tab. ')), 9, 2)
+        
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
 
@@ -1645,6 +1649,7 @@ class ElectrumWindow(QMainWindow):
         self.config.set_key("gui", str(gui_combo.currentText()).lower(), True)
         self.config.set_key("language", languages[lang_combo.currentIndex()], True)
 
+        self.receive_tab_set_mode(view_combo.currentIndex())
 
 
     @staticmethod 
