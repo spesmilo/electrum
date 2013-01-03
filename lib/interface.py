@@ -39,6 +39,11 @@ DEFAULT_SERVERS = [
     'ecdsa.org:50001:t'
     ]
 
+# add only port 80 servers here
+DEFAULT_HTTP_SERVERS = [
+    'electrum.no-ip.org:80:h'
+]
+
 proxy_modes = ['socks4', 'socks5', 'http']
 
 
@@ -174,7 +179,14 @@ class Interface(threading.Thread):
         self.init_server(host, port, proxy, use_ssl)
         self.session_id = None
         self.connection_msg = ('https' if self.use_ssl else 'http') + '://%s:%d'%( self.host, self.port )
-        self.is_connected = True
+        try:
+            self.poll()
+        except:
+            return
+
+        if self.session_id:
+            print_error('http session:',self.session_id)
+            self.is_connected = True
 
     def run_http(self):
         self.is_connected = True
@@ -232,7 +244,7 @@ class Interface(threading.Thread):
             headers['cookie'] = 'SESSION=%s'%self.session_id
 
         req = urllib2.Request(self.connection_msg, data_json, headers)
-        response_stream = urllib2.urlopen(req)
+        response_stream = urllib2.urlopen(req, timeout=DEFAULT_TIMEOUT)
 
         for index, cookie in enumerate(cj):
             if cookie.name=='SESSION':
@@ -389,17 +401,23 @@ class Interface(threading.Thread):
 
         if not self.is_connected and self.config.get('auto_cycle'):
             print_msg("Using random server...")
-            servers = DEFAULT_SERVERS[:]
-            while servers:
-                server = random.choice( servers )
-                servers.remove(server)
+            servers_tcp = DEFAULT_SERVERS[:]
+            servers_http = DEFAULT_HTTP_SERVERS[:] 
+            while servers_tcp or servers_http:
+                if servers_tcp:
+                    server = random.choice( servers_tcp )
+                    servers_tcp.remove(server)
+                else:
+                    # try HTTP if we can't get a TCP connection
+                    server = random.choice( servers_http )
+                    servers_http.remove(server)
+                print server
                 self.config.set_key('server', server, False)
                 self.init_with_server(self.config)
                 if self.is_connected: break
 
-            if not servers:
+            if not self.is_connected:
                 print 'no server available'
-                self.is_connected = False
                 self.connect_event.set() # to finish start
                 self.server = 'ecdsa.org:50001:t'
                 self.proxy = None

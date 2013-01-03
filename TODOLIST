@@ -1,0 +1,28 @@
+
+security:
+ - check that we are on the longest chain after a reorg
+ - check SSL cerfificates of servers
+
+
+wallet, transactions : 
+ - support compressed keys
+ - dust sweeping
+ - transactions with multiple outputs
+ - BIP 32 
+
+
+code improvements:
+ - qrcode and bmp patches are on github (they are incompatible with android)
+
+
+classic gui : 
+ - in POS mode, request amount in USD, convert to BTC
+
+
+android: 
+ - kivy-based gui
+
+
+protocol:
+ - add client authentication, to make paying servers possible
+

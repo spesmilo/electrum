@@ -1490,18 +1490,9 @@ class ElectrumWindow(QMainWindow):
         d.setWindowTitle(_('Electrum Settings'))
         d.setModal(1)
         vbox = QVBoxLayout()
-        msg = _('Here are the settings of your wallet.') + '\n'\
-              + _('For more explanations, click on the help buttons next to each field.')
-
-        label = QLabel(msg)
-        label.setFixedWidth(250)
-        label.setWordWrap(True)
-        label.setAlignment(Qt.AlignJustify)
 
         tabs = QTabWidget(self)
         vbox.addWidget(tabs)
-
-        vbox.addWidget(label)
 
         tab = QWidget()
         grid_wallet = QGridLayout(tab)

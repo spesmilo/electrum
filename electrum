@@ -205,7 +205,8 @@ if __name__ == '__main__':
         interface = Interface(config, True)
         wallet.interface = interface
         interface.start()
-        interface.send([('server.peers.subscribe',[])])
+        if interface.is_connected:
+            interface.send([('server.peers.subscribe',[])])
 
         set_language(config.get('language'))
         gui = gui.ElectrumGui(wallet, config)
