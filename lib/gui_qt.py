@@ -919,10 +919,12 @@ class ElectrumWindow(QMainWindow):
         menu.addAction(_("Edit label"), lambda: self.edit_label(True))
         menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
 
-        t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
-        menu.addAction(t, lambda: self.toggle_freeze(addr))
-        t = _("Unprioritize") if addr in self.wallet.prioritized_addresses else _("Prioritize")
-        menu.addAction(t, lambda: self.toggle_priority(addr))
+        if self.receive_tab_mode == 1:
+            t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
+            menu.addAction(t, lambda: self.toggle_freeze(addr))
+            t = _("Unprioritize") if addr in self.wallet.prioritized_addresses else _("Prioritize")
+            menu.addAction(t, lambda: self.toggle_priority(addr))
+            
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
 
@@ -991,10 +993,11 @@ class ElectrumWindow(QMainWindow):
         balance = format_satoshis( c + u, False, self.wallet.num_zeros )
         item.setData(4,0,balance)
 
-        if address in self.wallet.frozen_addresses: 
-            item.setBackgroundColor(1, QColor('lightblue'))
-        elif address in self.wallet.prioritized_addresses: 
-            item.setBackgroundColor(1, QColor('lightgreen'))
+        if self.receive_tab_mode == 1:
+            if address in self.wallet.frozen_addresses: 
+                item.setBackgroundColor(1, QColor('lightblue'))
+            elif address in self.wallet.prioritized_addresses: 
+                item.setBackgroundColor(1, QColor('lightgreen'))
         
 
     def update_receive_tab(self):
