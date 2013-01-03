@@ -1489,6 +1489,7 @@ class ElectrumWindow(QMainWindow):
 
     def settings_dialog(self):
         d = QDialog(self)
+        d.setWindowTitle(_('Electrum Settings'))
         d.setModal(1)
         vbox = QVBoxLayout()
         msg = _('Here are the settings of your wallet.') + '\n'\
@@ -1498,46 +1499,60 @@ class ElectrumWindow(QMainWindow):
         label.setFixedWidth(250)
         label.setWordWrap(True)
         label.setAlignment(Qt.AlignJustify)
+
+        tabs = QTabWidget(self)
+        vbox.addWidget(tabs)
+
         vbox.addWidget(label)
 
-        grid = QGridLayout()
-        grid.setSpacing(8)
-        vbox.addLayout(grid)
+        tab = QWidget()
+        grid_wallet = QGridLayout(tab)
+        grid_wallet.setColumnStretch(0,1)
+        tabs.addTab(tab, _('Wallet') )
+        
+        tab2 = QWidget()
+        grid_ui = QGridLayout(tab2)
+        grid_ui.setColumnStretch(0,1)
+        tabs.addTab(tab2, _('Display') )
 
         fee_label = QLabel(_('Transaction fee'))
-        grid.addWidget(fee_label, 2, 0)
+        grid_wallet.addWidget(fee_label, 2, 0)
         fee_e = QLineEdit()
         fee_e.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
-        grid.addWidget(fee_e, 2, 1)
+        grid_wallet.addWidget(fee_e, 2, 1)
         msg = _('Fee per transaction input. Transactions involving multiple inputs tend to require a higher fee.') + ' ' \
             + _('Recommended value') + ': 0.001'
-        grid.addWidget(HelpButton(msg), 2, 2)
+        grid_wallet.addWidget(HelpButton(msg), 2, 2)
         fee_e.textChanged.connect(lambda: numbify(fee_e,False))
         if not self.config.is_modifiable('fee'):
             for w in [fee_e, fee_label]: w.setEnabled(False)
 
         nz_label = QLabel(_('Display zeros'))
-        grid.addWidget(nz_label, 3, 0)
+        grid_ui.addWidget(nz_label, 3, 0)
         nz_e = QLineEdit()
         nz_e.setText("%d"% self.wallet.num_zeros)
-        grid.addWidget(nz_e, 3, 1)
+        grid_ui.addWidget(nz_e, 3, 1)
         msg = _('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"')
-        grid.addWidget(HelpButton(msg), 3, 2)
+        grid_ui.addWidget(HelpButton(msg), 3, 2)
         nz_e.textChanged.connect(lambda: numbify(nz_e,True))
         if not self.config.is_modifiable('num_zeros'):
             for w in [nz_e, nz_label]: w.setEnabled(False)
 
-        usechange_cb = QCheckBox(_('Use change addresses'))
-        grid.addWidget(usechange_cb, 5, 0)
-        usechange_cb.setChecked(self.wallet.use_change)
-        grid.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions. ')), 5, 2)
-        if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
+
+        usechange_label = QLabel(_('Use change addresses'))
+        grid_wallet.addWidget(usechange_label, 5, 0)
+        usechange_combo = QComboBox()
+        usechange_combo.addItems(['Yes', 'No'])
+        usechange_combo.setCurrentIndex(not self.wallet.use_change)
+        grid_wallet.addWidget(usechange_combo, 5, 1)
+        grid_wallet.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions. ')), 5, 2)
+        if not self.config.is_modifiable('use_change'): usechange_combo.setEnabled(False)
 
         gap_label = QLabel(_('Gap limit'))
-        grid.addWidget(gap_label, 6, 0)
+        grid_wallet.addWidget(gap_label, 6, 0)
         gap_e = QLineEdit()
         gap_e.setText("%d"% self.wallet.gap_limit)
-        grid.addWidget(gap_e, 6, 1)
+        grid_wallet.addWidget(gap_e, 6, 1)
         msg =  _('The gap limit is the maximal number of contiguous unused addresses in your sequence of receiving addresses.') + '\n' \
               + _('You may increase it if you need more receiving addresses.') + '\n\n' \
               + _('Your current gap limit is') + ': %d'%self.wallet.gap_limit + '\n' \
@@ -1545,25 +1560,25 @@ class ElectrumWindow(QMainWindow):
               + _('Warning') + ': ' \
               + _('The gap limit parameter must be provided in order to recover your wallet from seed.') + ' ' \
               + _('Do not modify it if you do not understand what you are doing, or if you expect to recover your wallet without knowing it!') + '\n\n' 
-        grid.addWidget(HelpButton(msg), 6, 2)
+        grid_wallet.addWidget(HelpButton(msg), 6, 2)
         gap_e.textChanged.connect(lambda: numbify(nz_e,True))
         if not self.config.is_modifiable('gap_limit'):
             for w in [gap_e, gap_label]: w.setEnabled(False)
         
         gui_label=QLabel(_('Default GUI') + ':')
-        grid.addWidget(gui_label , 7, 0)
+        grid_ui.addWidget(gui_label , 7, 0)
         gui_combo = QComboBox()
         gui_combo.addItems(['Lite', 'Classic', 'Gtk', 'Text'])
         index = gui_combo.findText(self.config.get("gui","classic").capitalize())
         if index==-1: index = 1
         gui_combo.setCurrentIndex(index)
-        grid.addWidget(gui_combo, 7, 1)
-        grid.addWidget(HelpButton(_('Select which GUI mode to use at start up. ')), 7, 2)
+        grid_ui.addWidget(gui_combo, 7, 1)
+        grid_ui.addWidget(HelpButton(_('Select which GUI mode to use at start up. ')), 7, 2)
         if not self.config.is_modifiable('gui'):
             for w in [gui_combo, gui_label]: w.setEnabled(False)
 
         lang_label=QLabel(_('Language') + ':')
-        grid.addWidget(lang_label , 8, 0)
+        grid_ui.addWidget(lang_label , 8, 0)
         lang_combo = QComboBox()
         languages = ['', 'br', 'cs', 'de', 'eo', 'en', 'es', 'fr', 'it', 'lv', 'nl', 'ru', 'sl', 'vi', 'zh']
         lang_combo.addItems(languages)
@@ -1572,8 +1587,8 @@ class ElectrumWindow(QMainWindow):
         except:
             index = 0
         lang_combo.setCurrentIndex(index)
-        grid.addWidget(lang_combo, 8, 1)
-        grid.addWidget(HelpButton(_('Select which language is used in the GUI (after restart). ')), 8, 2)
+        grid_ui.addWidget(lang_combo, 8, 1)
+        grid_ui.addWidget(HelpButton(_('Select which language is used in the GUI (after restart). ')), 8, 2)
         if not self.config.is_modifiable('language'):
             for w in [lang_combo, lang_label]: w.setEnabled(False)
 
@@ -1608,8 +1623,9 @@ class ElectrumWindow(QMainWindow):
             self.update_history_tab()
             self.update_receive_tab()
 
-        if self.wallet.use_change != usechange_cb.isChecked():
-            self.wallet.use_change = usechange_cb.isChecked()
+        usechange_result = usechange_combo.currentIndex() == 0
+        if self.wallet.use_change != usechange_result:
+            self.wallet.use_change = usechange_result
             self.config.set_key('use_change', self.wallet.use_change, True)
         
         try:
