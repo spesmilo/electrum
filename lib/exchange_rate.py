@@ -28,21 +28,17 @@ class Exchanger(threading.Thread):
         self.discovery()
 
     def discovery(self):
-        connection = httplib.HTTPSConnection('intersango.com')
-        connection.request("GET", "/api/ticker.php")
+        connection = httplib.HTTPSConnection('blockchain.info')
+        connection.request("GET", "/ticker")
         response = connection.getresponse()
         if response.reason == httplib.responses[httplib.NOT_FOUND]:
             return
         response = json.loads(response.read())
-        # 1 = BTC:GBP
-        # 2 = BTC:EUR
-        # 3 = BTC:USD
-        # 4 = BTC:PLN
         quote_currencies = {}
         try:
-            quote_currencies["GBP"] = self._lookup_rate(response, 1)
-            quote_currencies["EUR"] = self._lookup_rate(response, 2)
-            quote_currencies["USD"] = self._lookup_rate(response, 3)
+            quote_currencies["GBP"] = self._lookup_rate(response, "GBP")
+            quote_currencies["EUR"] = self._lookup_rate(response, "EUR")
+            quote_currencies["USD"] = self._lookup_rate(response, "USD")
             with self.lock:
                 self.quote_currencies = quote_currencies
             self.parent.emit(SIGNAL("refresh_balance()"))
@@ -50,7 +46,7 @@ class Exchanger(threading.Thread):
             pass
 
     def _lookup_rate(self, response, quote_id):
-        return decimal.Decimal(response[str(quote_id)]["last"])
+        return decimal.Decimal(response[str(quote_id)]["24h"])
 
 if __name__ == "__main__":
     exch = Exchanger(("EUR", "USD", "GBP"))
