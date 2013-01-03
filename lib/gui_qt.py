@@ -1595,13 +1595,18 @@ class ElectrumWindow(QMainWindow):
             for w in [lang_combo, lang_label]: w.setEnabled(False)
 
 
-        view_label=QLabel(_('Receive mode') + ':')
+        view_label=QLabel(_('Receive Tab') + ':')
         grid_ui.addWidget(view_label , 9, 0)
         view_combo = QComboBox()
-        view_combo.addItems([_('Simple View'), _('Detailed View'), _('Point of Sale')])
+        view_combo.addItems([_('Simple'), _('Advanced'), _('Point of Sale')])
         view_combo.setCurrentIndex(self.receive_tab_mode)
         grid_ui.addWidget(view_combo, 9, 1)
-        grid_ui.addWidget(HelpButton(_('View mode for your "Receive" tab. ')), 9, 2)
+        hh = _('This selects the interaction mode of the "Receive" tab. ') + '\n\n' \
+             + _('Simple') +   ': ' + _('Show only addresses and labels.') + '\n\n' \
+             + _('Advanced') + ': ' + _('Show address balances and add extra menu items to freeze/prioritize addresses.') + '\n\n' \
+             + _('Point of Sale') + ': ' + _('Show QR code window and amounts requested for each address. Add menu item to request amount.') + '\n\n' 
+        
+        grid_ui.addWidget(HelpButton(hh), 9, 2)
         
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
