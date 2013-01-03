@@ -705,6 +705,7 @@ class ElectrumWindow(QMainWindow):
                 self.funds_error = True
             self.amount_e.setPalette(palette)
             self.fee_e.setPalette(palette)
+            self.update_wallet()
 
         self.amount_e.textChanged.connect(lambda: entry_changed(False) )
         self.fee_e.textChanged.connect(lambda: entry_changed(True) )
