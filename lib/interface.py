@@ -382,7 +382,8 @@ class Interface(threading.Thread):
     def init_interface(self):
         if self.config.get('server'):
             self.init_with_server(self.config)
-        else:
+
+        if not self.is_connected:
             print "Using random server..."
             servers = DEFAULT_SERVERS[:]
             while servers:
