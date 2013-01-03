@@ -1575,10 +1575,14 @@ class ElectrumWindow(QMainWindow):
         lang_label=QLabel(_('Language') + ':')
         grid_ui.addWidget(lang_label , 8, 0)
         lang_combo = QComboBox()
-        languages = ['', 'br', 'cs', 'de', 'eo', 'en', 'es', 'fr', 'it', 'lv', 'nl', 'ru', 'sl', 'vi', 'zh']
-        lang_combo.addItems(languages)
+        languages = {'':_('Default'), 'br':_('Brasilian'), 'cs':_('Czech'), 'de':_('German'),
+                     'eo':_('Esperanto'), 'en':_('English'), 'es':_('Spanish'), 'fr':_('French'),
+                     'it':_('Italian'), 'lv':_('Latvian'), 'nl':_('Dutch'), 'ru':_('Russian'),
+                     'sl':_('Slovenian'), 'vi':_('Vietnamese'), 'zh':_('Chinese')
+                     }
+        lang_combo.addItems(languages.values())
         try:
-            index = languages.index(self.config.get("language",''))
+            index = languages.keys().index(self.config.get("language",''))
         except:
             index = 0
         lang_combo.setCurrentIndex(index)
@@ -1645,9 +1649,21 @@ class ElectrumWindow(QMainWindow):
                 self.config.set_key('gap_limit', self.wallet.gap_limit, True)
             else:
                 QMessageBox.warning(self, _('Error'), _('Invalid value'), _('OK'))
-                    
-        self.config.set_key("gui", str(gui_combo.currentText()).lower(), True)
-        self.config.set_key("language", languages[lang_combo.currentIndex()], True)
+
+        need_restart = False
+
+        gui_request = str(gui_combo.currentText()).lower()
+        if gui_request != self.config.get('gui'):
+            self.config.set_key('gui', gui_request, True)
+            need_restart = True
+            
+        lang_request = languages.keys()[lang_combo.currentIndex()]
+        if lang_request != self.config.get('language'):
+            self.config.set_key("language", lang_request, True)
+            need_restart = True
+
+        if need_restart:
+            QMessageBox.warning(self, _('Success'), _('Please restart Electrum to activate the new GUI settings'), _('OK'))
 
         self.receive_tab_set_mode(view_combo.currentIndex())
 
