@@ -38,6 +38,7 @@ except:
 
 from wallet import format_satoshis
 import bmp, mnemonic, pyqrnative, qrscanner
+import exchange_rate
 
 from decimal import Decimal
 
@@ -51,6 +52,7 @@ else:
     MONOSPACE_FONT = 'monospace'
 
 ALIAS_REGEXP = '^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$'    
+bitcoin = lambda v: v * 100000000
 
 def numbify(entry, is_int = False):
     text = unicode(entry.text()).strip()
@@ -332,6 +334,9 @@ class ElectrumWindow(QMainWindow):
         self.connect(self, QtCore.SIGNAL('updatesignal'), self.update_wallet)
         #self.connect(self, SIGNAL('editamount'), self.edit_amount)
         self.history_list.setFocus(True)
+        
+        self.exchanger = exchange_rate.Exchanger(self)
+        self.connect(self, SIGNAL("refresh_balance()"), self.update_wallet)
 
         # dark magic fix by flatfly; https://bitcointalk.org/index.php?topic=73651.msg959913#msg959913
         if platform.system() == 'Windows':
@@ -381,6 +386,7 @@ class ElectrumWindow(QMainWindow):
                 c, u = self.wallet.get_balance()
                 text =  _( "Balance" ) + ": %s "%( format_satoshis(c,False,self.wallet.num_zeros) )
                 if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True,self.wallet.num_zeros).strip() )
+                text += self.create_quote_text(c+u)
                 icon = QIcon(":icons/status_connected.png")
         else:
             text = _( "Not connected" )
@@ -399,7 +405,18 @@ class ElectrumWindow(QMainWindow):
             self.update_contacts_tab()
             self.update_completions()
 
-
+    def create_quote_text(self, btc_balance):
+        """Return a string copy of the amount fiat currency the 
+        user has in bitcoins."""
+        quote_currency = self.config.get("currencies", "USD")
+        quote_balance = self.exchanger.exchange(btc_balance, quote_currency)
+        if quote_balance is None:
+            quote_text = ""
+        else:
+            quote_text = "(%.2f %s)" % ((quote_balance / bitcoin(1)),
+                                      quote_currency)
+        return quote_text
+        
     def create_history_tab(self):
         self.history_list = l = MyTreeWidget(self)
         l.setColumnCount(5)
