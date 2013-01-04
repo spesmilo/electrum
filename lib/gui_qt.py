@@ -217,8 +217,6 @@ class QR_Window(QWidget):
         vbox = QVBoxLayout()
         main_box.addLayout(vbox)
 
-        #main_box.addStretch(1)
-
         self.address_label = QLabel("")
         self.address_label.setFont(QFont(MONOSPACE_FONT))
         vbox.addWidget(self.address_label)
