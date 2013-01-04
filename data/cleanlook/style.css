@@ -94,7 +94,7 @@ MiniWindow QPushButton {
     color: #333;
 }
 
-#history::item
+#history
 {
     color: #888;
 }
