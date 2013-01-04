@@ -212,12 +212,12 @@ class QR_Window(QWidget):
         main_box = QHBoxLayout()
         
         self.qrw = QRCodeWidget()
-        main_box.addWidget(self.qrw)
+        main_box.addWidget(self.qrw, 1)
 
         vbox = QVBoxLayout()
         main_box.addLayout(vbox)
 
-        main_box.addStretch(1)
+        #main_box.addStretch(1)
 
         self.address_label = QLabel("")
         self.address_label.setFont(QFont(MONOSPACE_FONT))
