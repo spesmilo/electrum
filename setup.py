@@ -30,6 +30,10 @@ data_files += [
         "data/cleanlook/name.cfg",
         "data/cleanlook/style.css"
     ]),
+    (os.path.join(util.appdata_dir(), "sahara"), [
+        "data/sahara/name.cfg",
+        "data/sahara/style.css"
+    ]),    
     (os.path.join(util.appdata_dir(), "dark"), [
         "data/dark/background.png",
         "data/dark/name.cfg",

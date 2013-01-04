@@ -166,7 +166,6 @@ class QRCodeWidget(QWidget):
 
         black = QColor(0, 0, 0, 255)
         white = QColor(255, 255, 255, 255)
-        boxsize = 6
 
         if not self.qr:
             qp = QtGui.QPainter()
@@ -176,11 +175,16 @@ class QRCodeWidget(QWidget):
             qp.drawRect(0, 0, 198, 198)
             qp.end()
             return
-        
-        size = self.qr.getModuleCount()*boxsize
+ 
         k = self.qr.getModuleCount()
         qp = QtGui.QPainter()
         qp.begin(self)
+        r = qp.viewport()
+        boxsize = min(r.width(), r.height())*0.8/k
+        size = k*boxsize
+        left = (r.width() - size)/2
+        top = (r.height() - size)/2         
+
         for r in range(k):
             for c in range(k):
                 if self.qr.isDark(r, c):
@@ -189,7 +193,7 @@ class QRCodeWidget(QWidget):
                 else:
                     qp.setBrush(white)
                     qp.setPen(white)
-                qp.drawRect(c*boxsize, r*boxsize, boxsize, boxsize)
+                qp.drawRect(left+c*boxsize, top+r*boxsize, boxsize, boxsize)
         qp.end()
         
 
@@ -208,12 +212,10 @@ class QR_Window(QWidget):
         main_box = QHBoxLayout()
         
         self.qrw = QRCodeWidget()
-        main_box.addWidget(self.qrw)
+        main_box.addWidget(self.qrw, 1)
 
         vbox = QVBoxLayout()
         main_box.addLayout(vbox)
-
-        main_box.addStretch(1)
 
         self.address_label = QLabel("")
         self.address_label.setFont(QFont(MONOSPACE_FONT))
@@ -599,6 +601,8 @@ class ElectrumWindow(QMainWindow):
             item.setFont(2, QFont(MONOSPACE_FONT))
             item.setFont(3, QFont(MONOSPACE_FONT))
             item.setFont(4, QFont(MONOSPACE_FONT))
+            if value < 0:
+                item.setForeground(3, QBrush(QColor("#BC1E1E")))
             if tx_hash:
                 item.setToolTip(0, tx_hash)
             if is_default_label:
@@ -705,6 +709,7 @@ class ElectrumWindow(QMainWindow):
                 self.funds_error = True
             self.amount_e.setPalette(palette)
             self.fee_e.setPalette(palette)
+            self.update_wallet()
 
         self.amount_e.textChanged.connect(lambda: entry_changed(False) )
         self.fee_e.textChanged.connect(lambda: entry_changed(True) )
@@ -1199,8 +1204,8 @@ class ElectrumWindow(QMainWindow):
         d.setMinimumSize(270, 300)
         vbox = QVBoxLayout()
         qrw = QRCodeWidget(data)
-        vbox.addWidget(qrw)
-        vbox.addWidget(QLabel(data))
+        vbox.addWidget(qrw, 1)
+        vbox.addWidget(QLabel(data), 0, Qt.AlignHCenter)
         hbox = QHBoxLayout()
         hbox.addStretch(1)
 
@@ -1494,16 +1499,16 @@ class ElectrumWindow(QMainWindow):
         tabs = QTabWidget(self)
         vbox.addWidget(tabs)
 
-        tab = QWidget()
-        grid_wallet = QGridLayout(tab)
-        grid_wallet.setColumnStretch(0,1)
-        tabs.addTab(tab, _('Wallet') )
-        
         tab2 = QWidget()
         grid_ui = QGridLayout(tab2)
         grid_ui.setColumnStretch(0,1)
         tabs.addTab(tab2, _('Display') )
 
+        tab = QWidget()
+        grid_wallet = QGridLayout(tab)
+        grid_wallet.setColumnStretch(0,1)
+        tabs.addTab(tab, _('Wallet') )
+        
         fee_label = QLabel(_('Transaction fee'))
         grid_wallet.addWidget(fee_label, 2, 0)
         fee_e = QLineEdit()
@@ -1557,23 +1562,19 @@ class ElectrumWindow(QMainWindow):
         gui_label=QLabel(_('Default GUI') + ':')
         grid_ui.addWidget(gui_label , 7, 0)
         gui_combo = QComboBox()
-        gui_combo.addItems(['Lite', 'Classic', 'Gtk', 'Text'])
+        gui_combo.addItems(['Lite', 'Classic'])
         index = gui_combo.findText(self.config.get("gui","classic").capitalize())
         if index==-1: index = 1
         gui_combo.setCurrentIndex(index)
         grid_ui.addWidget(gui_combo, 7, 1)
-        grid_ui.addWidget(HelpButton(_('Select which GUI mode to use at start up. ')), 7, 2)
+        grid_ui.addWidget(HelpButton(_('Select which GUI mode to use at start up.'+'\n'+'Note: use the command line to access the "text" and "gtk" GUIs')), 7, 2)
         if not self.config.is_modifiable('gui'):
             for w in [gui_combo, gui_label]: w.setEnabled(False)
 
         lang_label=QLabel(_('Language') + ':')
         grid_ui.addWidget(lang_label , 8, 0)
         lang_combo = QComboBox()
-        languages = {'':_('Default'), 'br':_('Brasilian'), 'cs':_('Czech'), 'de':_('German'),
-                     'eo':_('Esperanto'), 'en':_('English'), 'es':_('Spanish'), 'fr':_('French'),
-                     'it':_('Italian'), 'lv':_('Latvian'), 'nl':_('Dutch'), 'ru':_('Russian'),
-                     'sl':_('Slovenian'), 'vi':_('Vietnamese'), 'zh':_('Chinese')
-                     }
+        from i18n import languages
         lang_combo.addItems(languages.values())
         try:
             index = languages.keys().index(self.config.get("language",''))
