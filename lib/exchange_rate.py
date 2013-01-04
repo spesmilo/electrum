@@ -36,9 +36,8 @@ class Exchanger(threading.Thread):
         response = json.loads(response.read())
         quote_currencies = {}
         try:
-            quote_currencies["GBP"] = self._lookup_rate(response, "GBP")
-            quote_currencies["EUR"] = self._lookup_rate(response, "EUR")
-            quote_currencies["USD"] = self._lookup_rate(response, "USD")
+            for r in response:
+                quote_currencies[r] = self._lookup_rate(response, r)
             with self.lock:
                 self.quote_currencies = quote_currencies
             self.parent.emit(SIGNAL("refresh_balance()"))
@@ -46,9 +45,9 @@ class Exchanger(threading.Thread):
             pass
 
     def _lookup_rate(self, response, quote_id):
-        return decimal.Decimal(response[str(quote_id)]["24h"])
+        return decimal.Decimal(response[str(quote_id)]["15m"])
 
 if __name__ == "__main__":
-    exch = Exchanger(("EUR", "USD", "GBP"))
+    exch = Exchanger(("BRL", "CNY", "EUR", "GBP", "RUB", "USD"))
     print exch.exchange(1, "EUR")
 

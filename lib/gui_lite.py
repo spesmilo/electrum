@@ -197,7 +197,7 @@ class MiniWindow(QDialog):
         self.actuator = actuator
         self.config = config
         self.btc_balance = None
-        self.quote_currencies = ["EUR", "USD", "GBP"]
+        self.quote_currencies = ["BRL", "CNY", "EUR", "GBP", "RUB", "USD"]
         self.actuator.set_configured_currency(self.set_quote_currency)
         self.exchanger = exchange_rate.Exchanger(self)
         # Needed because price discovery is done in a different thread
