@@ -599,6 +599,8 @@ class ElectrumWindow(QMainWindow):
             item.setFont(2, QFont(MONOSPACE_FONT))
             item.setFont(3, QFont(MONOSPACE_FONT))
             item.setFont(4, QFont(MONOSPACE_FONT))
+            if value < 0:
+				item.setForeground(3, QBrush(QColor("#BC1E1E")))
             if tx_hash:
                 item.setToolTip(0, tx_hash)
             if is_default_label:

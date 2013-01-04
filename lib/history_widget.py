@@ -20,5 +20,7 @@ class HistoryWidget(QTreeWidget):
         if date is None:
           date = "Unknown"
         item = QTreeWidgetItem([amount, address, date])
+        if float(amount) < 0:
+		  item.setForeground(0, QBrush(QColor("#BC1E1E")))
         self.insertTopLevelItem(0, item)
 
