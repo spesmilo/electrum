@@ -705,6 +705,7 @@ class ElectrumWindow(QMainWindow):
                 self.funds_error = True
             self.amount_e.setPalette(palette)
             self.fee_e.setPalette(palette)
+            self.update_wallet()
 
         self.amount_e.textChanged.connect(lambda: entry_changed(False) )
         self.fee_e.textChanged.connect(lambda: entry_changed(True) )
@@ -1490,18 +1491,9 @@ class ElectrumWindow(QMainWindow):
         d.setWindowTitle(_('Electrum Settings'))
         d.setModal(1)
         vbox = QVBoxLayout()
-        msg = _('Here are the settings of your wallet.') + '\n'\
-              + _('For more explanations, click on the help buttons next to each field.')
-
-        label = QLabel(msg)
-        label.setFixedWidth(250)
-        label.setWordWrap(True)
-        label.setAlignment(Qt.AlignJustify)
 
         tabs = QTabWidget(self)
         vbox.addWidget(tabs)
-
-        vbox.addWidget(label)
 
         tab = QWidget()
         grid_wallet = QGridLayout(tab)
