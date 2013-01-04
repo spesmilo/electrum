@@ -1562,12 +1562,12 @@ class ElectrumWindow(QMainWindow):
         gui_label=QLabel(_('Default GUI') + ':')
         grid_ui.addWidget(gui_label , 7, 0)
         gui_combo = QComboBox()
-        gui_combo.addItems(['Lite', 'Classic', 'Gtk', 'Text'])
+        gui_combo.addItems(['Lite', 'Classic'])
         index = gui_combo.findText(self.config.get("gui","classic").capitalize())
         if index==-1: index = 1
         gui_combo.setCurrentIndex(index)
         grid_ui.addWidget(gui_combo, 7, 1)
-        grid_ui.addWidget(HelpButton(_('Select which GUI mode to use at start up. ')), 7, 2)
+        grid_ui.addWidget(HelpButton(_('Select which GUI mode to use at start up.'+'\n'+'Note: use the command line to access the "text" and "gtk" GUIs')), 7, 2)
         if not self.config.is_modifiable('gui'):
             for w in [gui_combo, gui_label]: w.setEnabled(False)
 
