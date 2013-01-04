@@ -1574,11 +1574,7 @@ class ElectrumWindow(QMainWindow):
         lang_label=QLabel(_('Language') + ':')
         grid_ui.addWidget(lang_label , 8, 0)
         lang_combo = QComboBox()
-        languages = {'':_('Default'), 'br':_('Brasilian'), 'cs':_('Czech'), 'de':_('German'),
-                     'eo':_('Esperanto'), 'en':_('English'), 'es':_('Spanish'), 'fr':_('French'),
-                     'it':_('Italian'), 'lv':_('Latvian'), 'nl':_('Dutch'), 'ru':_('Russian'),
-                     'sl':_('Slovenian'), 'vi':_('Vietnamese'), 'zh':_('Chinese')
-                     }
+        from i18n import languages
         lang_combo.addItems(languages.values())
         try:
             index = languages.keys().index(self.config.get("language",''))
