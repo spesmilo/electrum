@@ -1499,16 +1499,16 @@ class ElectrumWindow(QMainWindow):
         tabs = QTabWidget(self)
         vbox.addWidget(tabs)
 
-        tab = QWidget()
-        grid_wallet = QGridLayout(tab)
-        grid_wallet.setColumnStretch(0,1)
-        tabs.addTab(tab, _('Wallet') )
-        
         tab2 = QWidget()
         grid_ui = QGridLayout(tab2)
         grid_ui.setColumnStretch(0,1)
         tabs.addTab(tab2, _('Display') )
 
+        tab = QWidget()
+        grid_wallet = QGridLayout(tab)
+        grid_wallet.setColumnStretch(0,1)
+        tabs.addTab(tab, _('Wallet') )
+        
         fee_label = QLabel(_('Transaction fee'))
         grid_wallet.addWidget(fee_label, 2, 0)
         fee_e = QLineEdit()
