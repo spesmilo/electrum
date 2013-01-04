@@ -41,7 +41,10 @@ import bmp, mnemonic, pyqrnative, qrscanner
 
 from decimal import Decimal
 
+import json
+import os.path
 import platform
+import util
 
 if platform.system() == 'Windows':
     MONOSPACE_FONT = 'Lucida Console'
@@ -904,6 +907,8 @@ class ElectrumWindow(QMainWindow):
         self.contacts_list = l
         self.contacts_buttons_hbox = hbox
         hbox.addWidget(EnterButton(_("New"), self.new_contact_dialog))
+        hbox.addWidget(EnterButton(_("Import"), self.do_import))
+        hbox.addWidget(EnterButton(_("Export"), self.do_export))
         hbox.addStretch(1)
         return w
 
@@ -1129,6 +1134,29 @@ class ElectrumWindow(QMainWindow):
                 self.update_completions()
             else:
                 QMessageBox.warning(self, _('Error'), _('Invalid Address'), _('OK'))
+
+    def do_import(self):
+        try:
+            labelsFile = QFileDialog.getOpenFileName(QWidget(), "Open text file", util.user_dir(), self.tr("Text Files (labels.dat)"))
+            f = open(labelsFile, 'r')
+            data = f.read()
+            f.close()
+            self.wallet.labels = json.loads(data)
+            self.wallet.save()
+            QMessageBox.information(None, "Labels imported", "Your labels where imported from '%s'" % str(labelsFile))
+        except (IOError, os.error), reason:
+            QMessageBox.critical(None, "Unable to export labels", "Electrum was unable to export your labels.\n" + str(reason))
+
+    def do_export(self):
+        labels = self.wallet.labels
+        try:
+            labelsFile = util.user_dir() + '/labels.dat'
+            f = open(labelsFile, 'w+')
+            json.dump(labels, f)
+            f.close()
+            QMessageBox.information(None, "Labels exported", "Your labels where exported to '%s'" % str(labelsFile))
+        except (IOError, os.error), reason:
+            QMessageBox.critical(None, "Unable to export labels", "Electrum was unable to export your labels.\n" + str(reason))
 
     @staticmethod
     def show_seed_dialog(wallet, parent=None):
