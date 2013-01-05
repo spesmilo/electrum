@@ -112,14 +112,8 @@ class Wallet:
         self.interface.poke('synchronizer')
         while not self.is_up_to_date(): time.sleep(0.1)
 
-    def import_key(self, keypair, password):
+    def import_key(self, sec, password):
 
-        address, sec = keypair.split(':')
-        if not self.is_valid(address):
-            raise BaseException('Invalid Bitcoin address')
-        if address in self.all_addresses():
-            raise BaseException('Address already in wallet')
-        
         # rebuild public key from private key, compressed or uncompressed
         pkey = regenerate_key(sec)
         if not pkey:
@@ -131,14 +125,14 @@ class Wallet:
         # rebuild private and public key from regenerated secret
         private_key = GetPrivKey(pkey, compressed)
         public_key = GetPubKey(pkey, compressed)
-        addr = public_key_to_bc_address(public_key)
+        address = public_key_to_bc_address(public_key)
         
-        # sanity check
-        if not address == addr :
-            raise BaseException('Address does not match private key')
+        if address in self.all_addresses():
+            raise BaseException('Address already in wallet')
         
         # store the originally requested keypair into the imported keys table
         self.imported_keys[address] = self.pw_encode(sec, password )
+        return address
         
 
     def new_seed(self, password):

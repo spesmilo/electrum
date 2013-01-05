@@ -70,7 +70,7 @@ options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address 
     'signtx':"Sign an unsigned transaction created by a deseeded wallet\nSyntax: signtx <filename>",
     'seed':
             "Print the generation seed of your wallet.",
-    'import': 
+    'importprivkey': 
             'Imports a key pair\nSyntax: import <address>:<privatekey>',
     'signmessage':
             'Signs a message with a key\nSyntax: signmessage <address> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "',
@@ -99,13 +99,13 @@ offline_commands = [ 'password', 'mktx', 'signtx',
                      'help', 'validateaddress',
                      'signmessage', 'verifymessage',
                      'eval', 'set', 'get', 'create', 'addresses',
-                     'import', 'seed',
+                     'importprivkey', 'seed',
                      'deseed','reseed',
                      'freeze','unfreeze',
                      'prioritize','unprioritize']
 
 
-protected_commands = ['payto', 'password', 'mktx', 'signtx', 'seed', 'import','signmessage' ]
+protected_commands = ['payto', 'password', 'mktx', 'signtx', 'seed', 'importprivkey','signmessage' ]
 
 # get password routine
 def prompt_password(prompt, confirm=True):
@@ -395,16 +395,16 @@ if __name__ == '__main__':
         else:
             password = None
 
-    if cmd == 'import':
+    if cmd == 'importprivkey':
         # See if they specificed a key on the cmd line, if not prompt
         if len(args) > 1:
-            keypair = args[1]
+            sec = args[1]
         else:
-            keypair = prompt_password('Enter Address:PrivateKey (will not echo):', False)
+            sec = prompt_password('Enter PrivateKey (will not echo):', False)
         try:
-            wallet.import_key(keypair,password)
+            addr = wallet.import_key(sec,password)
             wallet.save()
-            print_msg("Keypair imported")
+            print_msg("Keypair imported: ", addr)
         except BaseException as e:
             print_msg("Error: Keypair import failed: " + str(e))
 
