@@ -294,6 +294,7 @@ class ElectrumWindow(QMainWindow):
 
     def __init__(self, wallet, config):
         QMainWindow.__init__(self)
+        self.lite = None
         self.wallet = wallet
         self.config = config
         self.wallet.interface.register_callback('updated', self.update_callback)
@@ -1108,6 +1109,9 @@ class ElectrumWindow(QMainWindow):
     def create_status_bar(self):
         sb = QStatusBar()
         sb.setFixedHeight(35)
+        qtVersion = qVersion()
+        if (int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
+            sb.addPermanentWidget( StatusBarButton( QIcon(":icons/switchgui.png"), "Switch to Lite Mode", self.go_lite ) )
         if self.wallet.seed:
             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/lock.png"), "Password", lambda: self.change_password_dialog(self.wallet, self) ) )
         sb.addPermanentWidget( StatusBarButton( QIcon(":icons/preferences.png"), "Preferences", self.settings_dialog ) )
@@ -1116,6 +1120,15 @@ class ElectrumWindow(QMainWindow):
         self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), "Network", lambda: self.network_dialog(self.wallet, self) ) 
         sb.addPermanentWidget( self.status_button )
         self.setStatusBar(sb)
+        
+    def go_lite(self):
+        import gui_lite
+        self.hide()
+        if self.lite:
+            self.lite.mini.show()
+        else:
+            self.lite = gui_lite.ElectrumGui(self.wallet, self.config, self)
+            self.lite.main(None)
 
     def new_contact_dialog(self):
         text, ok = QInputDialog.getText(self, _('New Contact'), _('Address') + ':')

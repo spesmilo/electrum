@@ -88,14 +88,17 @@ def load_theme_paths():
 
 class ElectrumGui(QObject):
 
-    def __init__(self, wallet, config):
+    def __init__(self, wallet, config, expert=None):
         super(QObject, self).__init__()
 
         self.wallet = wallet
         self.config = config
         self.check_qt_version()
-        self.app = QApplication(sys.argv)
-
+        self.expert = expert
+        if self.expert != None:
+            self.app = self.expert.app
+        else:
+            self.app = QApplication(sys.argv)
 
     def check_qt_version(self):
         qtVersion = qVersion()
@@ -122,14 +125,15 @@ class ElectrumGui(QObject):
 
         if url:
             self.set_url(url)
-
-        timer = Timer()
-        timer.start()
-        self.expert = gui_qt.ElectrumWindow(self.wallet, self.config)
-        self.expert.app = self.app
-        self.expert.connect_slots(timer)
-        self.expert.update_wallet()
-        self.app.exec_()
+            
+        if self.expert == None:
+            timer = Timer()
+            timer.start()
+            self.expert = gui_qt.ElectrumWindow(self.wallet, self.config)
+            self.expert.app = self.app
+            self.expert.connect_slots(timer)
+            self.expert.update_wallet()
+            self.app.exec_()
 
     def expand(self):
         """Hide the lite mode window and show pro-mode."""
