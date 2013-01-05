@@ -410,13 +410,12 @@ class ElectrumWindow(QMainWindow):
     def create_quote_text(self, btc_balance):
         """Return a string copy of the amount fiat currency the 
         user has in bitcoins."""
-        quote_currency = self.config.get("currencies", "USD")
+        quote_currency = self.config.get("currencies", ["USD"])[0]
         quote_balance = self.exchanger.exchange(btc_balance, quote_currency)
         if quote_balance is None:
             quote_text = ""
         else:
-            quote_text = "(%.2f %s)" % ((quote_balance / bitcoin(1)),
-                                      quote_currency)
+            quote_text = "(%.2f %s)" % ((quote_balance / bitcoin(1)), quote_currency)
         return quote_text
         
     def create_history_tab(self):
@@ -1607,19 +1606,29 @@ class ElectrumWindow(QMainWindow):
         if not self.config.is_modifiable('language'):
             for w in [lang_combo, lang_label]: w.setEnabled(False)
 
-
+        currencies = self.exchanger.get_currencies()
+        if currencies == None:
+            currencies = self.config.get('currencies', ["USD"])
+        cur_label=QLabel(_('Currency') + ':')
+        grid_ui.addWidget(cur_label , 9, 0)
+        cur_combo = QComboBox()
+        cur_combo.addItems(currencies)   
+        cur_combo.setCurrentIndex(currencies.index(self.config.get('currencies', ["USD"])[0]))
+        grid_ui.addWidget(cur_combo, 9, 1)
+        grid_ui.addWidget(HelpButton(_('Select which currency is used for quotes. ')), 9, 2)
+        
         view_label=QLabel(_('Receive Tab') + ':')
-        grid_ui.addWidget(view_label , 9, 0)
+        grid_ui.addWidget(view_label , 10, 0)
         view_combo = QComboBox()
         view_combo.addItems([_('Simple'), _('Advanced'), _('Point of Sale')])
         view_combo.setCurrentIndex(self.receive_tab_mode)
-        grid_ui.addWidget(view_combo, 9, 1)
+        grid_ui.addWidget(view_combo, 10, 1)
         hh = _('This selects the interaction mode of the "Receive" tab. ') + '\n\n' \
              + _('Simple') +   ': ' + _('Show only addresses and labels.') + '\n\n' \
              + _('Advanced') + ': ' + _('Show address balances and add extra menu items to freeze/prioritize addresses.') + '\n\n' \
              + _('Point of Sale') + ': ' + _('Show QR code window and amounts requested for each address. Add menu item to request amount.') + '\n\n' 
         
-        grid_ui.addWidget(HelpButton(hh), 9, 2)
+        grid_ui.addWidget(HelpButton(hh), 10, 2)
         
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
@@ -1682,6 +1691,11 @@ class ElectrumWindow(QMainWindow):
         if lang_request != self.config.get('language'):
             self.config.set_key("language", lang_request, True)
             need_restart = True
+            
+        cur_request = currencies[cur_combo.currentIndex()]
+        if cur_request != self.config.get('currencies', ["USD"])[0]:
+            self.config.set_key('currencies', [cur_request], True)
+            self.update_wallet()
 
         if need_restart:
             QMessageBox.warning(self, _('Success'), _('Please restart Electrum to activate the new GUI settings'), _('OK'))

@@ -43,6 +43,9 @@ class Exchanger(threading.Thread):
             self.parent.emit(SIGNAL("refresh_balance()"))
         except KeyError:
             pass
+            
+    def get_currencies(self):
+		return None if self.quote_currencies == None else self.quote_currencies.keys()
 
     def _lookup_rate(self, response, quote_id):
         return decimal.Decimal(response[str(quote_id)]["15m"])
