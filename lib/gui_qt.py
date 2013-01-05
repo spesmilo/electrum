@@ -1537,7 +1537,12 @@ class ElectrumWindow(QMainWindow):
         text, ok = QInputDialog.getText(self, _('Import private key'), _('Key') + ':')
         if not ok: return
         sec = str(text)
-        password = self.password_dialog()
+        if self.wallet.use_encryption:
+            password = self.password_dialog()
+            if not password:
+                return
+        else:
+            password = None
         try:
             addr = self.wallet.import_key(sec, password)
             if not addr:
