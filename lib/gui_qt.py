@@ -19,6 +19,7 @@
 import sys, time, datetime, re
 from i18n import _
 from util import print_error
+import os.path, json, util
 
 try:
     import PyQt4
@@ -1503,6 +1504,34 @@ class ElectrumWindow(QMainWindow):
         return True
 
 
+    def do_import_labels(self):
+        labelsFile = QFileDialog.getOpenFileName(QWidget(), "Open text file", util.user_dir(), self.tr("Text Files (labels.dat)"))
+        if not labelsFile: return
+        try:
+            f = open(labelsFile, 'r')
+            data = f.read()
+            f.close()
+            self.wallet.labels = json.loads(data)
+            self.wallet.save()
+            QMessageBox.information(None, "Labels imported", "Your labels where imported from '%s'" % str(labelsFile))
+        except (IOError, os.error), reason:
+            QMessageBox.critical(None, "Unable to export labels", "Electrum was unable to export your labels.\n" + str(reason))
+
+
+    def do_export_labels(self):
+        labels = self.wallet.labels
+        try:
+            labelsFile = util.user_dir() + '/labels.dat'
+            f = open(labelsFile, 'w+')
+            json.dump(labels, f)
+            f.close()
+            QMessageBox.information(None, "Labels exported", "Your labels where exported to '%s'" % str(labelsFile))
+        except (IOError, os.error), reason:
+            QMessageBox.critical(None, "Unable to export labels", "Electrum was unable to export your labels.\n" + str(reason))
+
+    def do_export_history(self):
+        from gui_lite import csv_transaction
+        csv_transaction(self.wallet)
 
     def settings_dialog(self):
         d = QDialog(self)
@@ -1513,27 +1542,10 @@ class ElectrumWindow(QMainWindow):
         tabs = QTabWidget(self)
         vbox.addWidget(tabs)
 
-        tab2 = QWidget()
-        grid_ui = QGridLayout(tab2)
+        tab1 = QWidget()
+        grid_ui = QGridLayout(tab1)
         grid_ui.setColumnStretch(0,1)
-        tabs.addTab(tab2, _('Display') )
-
-        tab = QWidget()
-        grid_wallet = QGridLayout(tab)
-        grid_wallet.setColumnStretch(0,1)
-        tabs.addTab(tab, _('Wallet') )
-        
-        fee_label = QLabel(_('Transaction fee'))
-        grid_wallet.addWidget(fee_label, 2, 0)
-        fee_e = QLineEdit()
-        fee_e.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
-        grid_wallet.addWidget(fee_e, 2, 1)
-        msg = _('Fee per transaction input. Transactions involving multiple inputs tend to require a higher fee.') + ' ' \
-            + _('Recommended value') + ': 0.001'
-        grid_wallet.addWidget(HelpButton(msg), 2, 2)
-        fee_e.textChanged.connect(lambda: numbify(fee_e,False))
-        if not self.config.is_modifiable('fee'):
-            for w in [fee_e, fee_label]: w.setEnabled(False)
+        tabs.addTab(tab1, _('Display') )
 
         nz_label = QLabel(_('Display zeros'))
         grid_ui.addWidget(nz_label, 3, 0)
@@ -1545,33 +1557,6 @@ class ElectrumWindow(QMainWindow):
         nz_e.textChanged.connect(lambda: numbify(nz_e,True))
         if not self.config.is_modifiable('num_zeros'):
             for w in [nz_e, nz_label]: w.setEnabled(False)
-
-
-        usechange_label = QLabel(_('Use change addresses'))
-        grid_wallet.addWidget(usechange_label, 5, 0)
-        usechange_combo = QComboBox()
-        usechange_combo.addItems(['Yes', 'No'])
-        usechange_combo.setCurrentIndex(not self.wallet.use_change)
-        grid_wallet.addWidget(usechange_combo, 5, 1)
-        grid_wallet.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions. ')), 5, 2)
-        if not self.config.is_modifiable('use_change'): usechange_combo.setEnabled(False)
-
-        gap_label = QLabel(_('Gap limit'))
-        grid_wallet.addWidget(gap_label, 6, 0)
-        gap_e = QLineEdit()
-        gap_e.setText("%d"% self.wallet.gap_limit)
-        grid_wallet.addWidget(gap_e, 6, 1)
-        msg =  _('The gap limit is the maximal number of contiguous unused addresses in your sequence of receiving addresses.') + '\n' \
-              + _('You may increase it if you need more receiving addresses.') + '\n\n' \
-              + _('Your current gap limit is') + ': %d'%self.wallet.gap_limit + '\n' \
-              + _('Given the current status of your address sequence, the minimum gap limit you can use is: ') + '%d'%self.wallet.min_acceptable_gap() + '\n\n' \
-              + _('Warning') + ': ' \
-              + _('The gap limit parameter must be provided in order to recover your wallet from seed.') + ' ' \
-              + _('Do not modify it if you do not understand what you are doing, or if you expect to recover your wallet without knowing it!') + '\n\n' 
-        grid_wallet.addWidget(HelpButton(msg), 6, 2)
-        gap_e.textChanged.connect(lambda: numbify(nz_e,True))
-        if not self.config.is_modifiable('gap_limit'):
-            for w in [gap_e, gap_label]: w.setEnabled(False)
         
         gui_label=QLabel(_('Default GUI') + ':')
         grid_ui.addWidget(gui_label , 7, 0)
@@ -1627,7 +1612,70 @@ class ElectrumWindow(QMainWindow):
              + _('Point of Sale') + ': ' + _('Show QR code window and amounts requested for each address. Add menu item to request amount.') + '\n\n' 
         
         grid_ui.addWidget(HelpButton(hh), 10, 2)
+
+        # wallet tab
+        tab2 = QWidget()
+        grid_wallet = QGridLayout(tab2)
+        grid_wallet.setColumnStretch(0,1)
+        tabs.addTab(tab2, _('Wallet') )
         
+        fee_label = QLabel(_('Transaction fee'))
+        grid_wallet.addWidget(fee_label, 0, 0)
+        fee_e = QLineEdit()
+        fee_e.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
+        grid_wallet.addWidget(fee_e, 0, 1)
+        msg = _('Fee per transaction input. Transactions involving multiple inputs tend to require a higher fee.') + ' ' \
+            + _('Recommended value') + ': 0.001'
+        grid_wallet.addWidget(HelpButton(msg), 0, 2)
+        fee_e.textChanged.connect(lambda: numbify(fee_e,False))
+        if not self.config.is_modifiable('fee'):
+            for w in [fee_e, fee_label]: w.setEnabled(False)
+
+        usechange_label = QLabel(_('Use change addresses'))
+        grid_wallet.addWidget(usechange_label, 1, 0)
+        usechange_combo = QComboBox()
+        usechange_combo.addItems(['Yes', 'No'])
+        usechange_combo.setCurrentIndex(not self.wallet.use_change)
+        grid_wallet.addWidget(usechange_combo, 1, 1)
+        grid_wallet.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions. ')), 1, 2)
+        if not self.config.is_modifiable('use_change'): usechange_combo.setEnabled(False)
+
+        gap_label = QLabel(_('Gap limit'))
+        grid_wallet.addWidget(gap_label, 2, 0)
+        gap_e = QLineEdit()
+        gap_e.setText("%d"% self.wallet.gap_limit)
+        grid_wallet.addWidget(gap_e, 2, 1)
+        msg =  _('The gap limit is the maximal number of contiguous unused addresses in your sequence of receiving addresses.') + '\n' \
+              + _('You may increase it if you need more receiving addresses.') + '\n\n' \
+              + _('Your current gap limit is') + ': %d'%self.wallet.gap_limit + '\n' \
+              + _('Given the current status of your address sequence, the minimum gap limit you can use is: ') + '%d'%self.wallet.min_acceptable_gap() + '\n\n' \
+              + _('Warning') + ': ' \
+              + _('The gap limit parameter must be provided in order to recover your wallet from seed.') + ' ' \
+              + _('Do not modify it if you do not understand what you are doing, or if you expect to recover your wallet without knowing it!') + '\n\n' 
+        grid_wallet.addWidget(HelpButton(msg), 2, 2)
+        gap_e.textChanged.connect(lambda: numbify(nz_e,True))
+        if not self.config.is_modifiable('gap_limit'):
+            for w in [gap_e, gap_label]: w.setEnabled(False)
+
+        grid_wallet.setRowStretch(3,1)
+
+
+        # wallet tab
+        tab3 = QWidget()
+        grid_io = QGridLayout(tab3)
+        grid_io.setColumnStretch(0,1)
+        tabs.addTab(tab3, _('Import/Export') )
+        
+        grid_io.addWidget(QLabel(_('Labels')), 1, 0)
+        grid_io.addWidget(EnterButton(_("Export"), self.do_export_labels), 1, 1)
+        grid_io.addWidget(EnterButton(_("Import"), self.do_import_labels), 1, 2)
+        grid_io.addWidget(HelpButton('Export your labels as json'), 1, 3)
+
+        grid_io.addWidget(QLabel(_('History')), 2, 0)
+        grid_io.addWidget(EnterButton(_("Export"), self.do_export_history), 2, 1)
+        grid_io.setRowStretch(3,1)
+        grid_io.addWidget(HelpButton('Export your transaction history as csv'), 2, 3)
+
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
 

@@ -86,6 +86,49 @@ def load_theme_paths():
     return theme_paths
 
 
+def csv_transaction(wallet):
+    try:
+        fileName = QFileDialog.getSaveFileName(QWidget(), 'Select file to export your wallet transactions to', os.path.expanduser('~/'), "*.csv")
+        if fileName:
+            with open(fileName, "w+") as csvfile:
+                transaction = csv.writer(csvfile)
+                transaction.writerow(["transaction_hash","label", "confirmations", "value", "fee", "balance", "timestamp"])
+                for item in wallet.get_tx_history():
+                    tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
+                    if confirmations:
+                        if timestamp is not None:
+                            try:
+                                time_string = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+                            except [RuntimeError, TypeError, NameError] as reason:
+                                time_string = "unknown"
+                                pass
+                        else:
+                          time_string = "unknown"
+                    else:
+                        time_string = "pending"
+
+                    if value is not None:
+                        value_string = format_satoshis(value, True, wallet.num_zeros)
+                    else:
+                        value_string = '--'
+
+                    if fee is not None:
+                        fee_string = format_satoshis(fee, True, wallet.num_zeros)
+                    else:
+                        fee_string = '0'
+
+                    if tx_hash:
+                        label, is_default_label = wallet.get_label(tx_hash)
+                    else:
+                      label = ""
+
+                    balance_string = format_satoshis(balance, False, wallet.num_zeros)
+                    transaction.writerow([tx_hash, label, confirmations, value_string, fee_string, balance_string, time_string])
+                QMessageBox.information(None,"CSV Export created", "Your CSV export has been succesfully created.")
+    except (IOError, os.error), reason:
+        QMessageBox.critical(None,"Unable to create csv", "Electrum was unable to produce a transaction export.\n" + str(reason))
+
+
 class ElectrumGui(QObject):
 
     def __init__(self, wallet, config):
@@ -318,7 +361,7 @@ class MiniWindow(QDialog):
         backup_wallet.triggered.connect(self.backup_wallet)
 
         export_csv = extra_menu.addAction( _("&Export transactions to CSV") )
-        export_csv.triggered.connect(self.actuator.csv_transaction)
+        export_csv.triggered.connect(lambda: csv_transaction(self.wallet))
         
         master_key = extra_menu.addAction( _("Copy master public key to clipboard") ) 
         master_key.triggered.connect(self.actuator.copy_master_public_key)
@@ -769,47 +812,6 @@ class MiniActuator:
         w.exec_()
         w.destroy()
 
-    def csv_transaction(self):
-        try:
-          fileName = QFileDialog.getSaveFileName(QWidget(), 'Select file to export your wallet transactions to', os.path.expanduser('~/'), "*.csv")
-          if fileName:
-            with open(fileName, "w+") as csvfile:
-                transaction = csv.writer(csvfile)
-                transaction.writerow(["transaction_hash","label", "confirmations", "value", "fee", "balance", "timestamp"])
-                for item in self.wallet.get_tx_history():
-                    tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
-                    if confirmations:
-                        if timestamp is not None:
-                            try:
-                                time_string = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
-                            except [RuntimeError, TypeError, NameError] as reason:
-                                time_string = "unknown"
-                                pass
-                        else:
-                          time_string = "unknown"
-                    else:
-                        time_string = "pending"
-
-                    if value is not None:
-                        value_string = format_satoshis(value, True, self.wallet.num_zeros)
-                    else:
-                        value_string = '--'
-
-                    if fee is not None:
-                        fee_string = format_satoshis(fee, True, self.wallet.num_zeros)
-                    else:
-                        fee_string = '0'
-
-                    if tx_hash:
-                        label, is_default_label = self.wallet.get_label(tx_hash)
-                    else:
-                      label = ""
-
-                    balance_string = format_satoshis(balance, False, self.wallet.num_zeros)
-                    transaction.writerow([tx_hash, label, confirmations, value_string, fee_string, balance_string, time_string])
-                QMessageBox.information(None,"CSV Export created", "Your CSV export has been succesfully created.")
-        except (IOError, os.error), reason:
-          QMessageBox.critical(None,"Unable to create csv", "Electrum was unable to produce a transaction export.\n" + str(reason))
 
     def send(self, address, amount, parent_window):
         """Send bitcoins to the target address."""
