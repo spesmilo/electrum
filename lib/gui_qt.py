@@ -387,7 +387,7 @@ class ElectrumWindow(QMainWindow):
                 c, u = self.wallet.get_balance()
                 text =  _( "Balance" ) + ": %s "%( format_satoshis(c,False,self.wallet.num_zeros) )
                 if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True,self.wallet.num_zeros).strip() )
-                text += self.create_quote_text((c+u)/100000000)
+                text += self.create_quote_text(Decimal(c+u)/100000000)
                 icon = QIcon(":icons/status_connected.png")
         else:
             text = _( "Not connected" )
