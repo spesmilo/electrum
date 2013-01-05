@@ -1323,7 +1323,7 @@ class ElectrumWindow(QMainWindow):
 
         def do_verify():
             try:
-                self.wallet.verify_message(verify_address.text(), verify_signature.text(), str(verify_message.toPlainText()))
+                self.wallet.verify_message(verify_address.text(), str(verify_signature.toPlainText()), str(verify_message.toPlainText()))
                 self.show_message("Signature verified")
             except BaseException, e:
                 self.show_message(str(e))
