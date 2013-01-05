@@ -1256,24 +1256,27 @@ class ElectrumWindow(QMainWindow):
         d = QDialog(self)
         d.setModal(1)
         d.setWindowTitle('Sign Message')
-        d.setMinimumSize(270, 350)
+        d.setMinimumSize(410, 290)
 
         tab_widget = QTabWidget()
         tab = QWidget()
         layout = QGridLayout(tab)
 
         sign_address = QLineEdit()
+
         sign_address.setText(address)
         layout.addWidget(QLabel(_('Address')), 1, 0)
         layout.addWidget(sign_address, 1, 1)
 
         sign_message = QTextEdit()
         layout.addWidget(QLabel(_('Message')), 2, 0)
-        layout.addWidget(sign_message, 2, 1, 2, 1)
+        layout.addWidget(sign_message, 2, 1)
+        layout.setRowStretch(2,3)
 
-        sign_signature = QLineEdit()
+        sign_signature = QTextEdit()
         layout.addWidget(QLabel(_('Signature')), 3, 0)
         layout.addWidget(sign_signature, 3, 1)
+        layout.setRowStretch(3,1)
 
         def do_sign():
             if self.wallet.use_encryption:
@@ -1310,11 +1313,13 @@ class ElectrumWindow(QMainWindow):
 
         verify_message = QTextEdit()
         layout.addWidget(QLabel(_('Message')), 2, 0)
-        layout.addWidget(verify_message, 2, 1, 2, 1)
+        layout.addWidget(verify_message, 2, 1)
+        layout.setRowStretch(2,3)
 
-        verify_signature = QLineEdit()
+        verify_signature = QTextEdit()
         layout.addWidget(QLabel(_('Signature')), 3, 0)
         layout.addWidget(verify_signature, 3, 1)
+        layout.setRowStretch(3,1)
 
         def do_verify():
             try:
