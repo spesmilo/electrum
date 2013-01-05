@@ -1284,7 +1284,7 @@ class ElectrumWindow(QMainWindow):
                 password = None
 
             try:
-                signature = self.wallet.sign_message(sign_address.text(), str(sign_message.toPlainText()), password)
+                signature = self.wallet.sign_message(str(sign_address.text()), str(sign_message.toPlainText()), password)
                 sign_signature.setText(signature)
             except BaseException, e:
                 self.show_message(str(e))
@@ -1559,6 +1559,8 @@ class ElectrumWindow(QMainWindow):
                 QMessageBox.critical(None, "Unable to import key", "error")
             else:
                 QMessageBox.information(None, "Key imported", addr)
+                self.update_receive_tab()
+                self.update_history_tab()
         except BaseException as e:
             QMessageBox.critical(None, "Unable to import key", str(e))
 
