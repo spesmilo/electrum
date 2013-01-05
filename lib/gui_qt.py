@@ -52,7 +52,6 @@ else:
     MONOSPACE_FONT = 'monospace'
 
 ALIAS_REGEXP = '^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$'    
-bitcoin = lambda v: v * 100000000
 
 def numbify(entry, is_int = False):
     text = unicode(entry.text()).strip()
@@ -388,7 +387,7 @@ class ElectrumWindow(QMainWindow):
                 c, u = self.wallet.get_balance()
                 text =  _( "Balance" ) + ": %s "%( format_satoshis(c,False,self.wallet.num_zeros) )
                 if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True,self.wallet.num_zeros).strip() )
-                text += self.create_quote_text(c+u)
+                text += self.create_quote_text((c+u)/100000000)
                 icon = QIcon(":icons/status_connected.png")
         else:
             text = _( "Not connected" )
@@ -408,14 +407,12 @@ class ElectrumWindow(QMainWindow):
             self.update_completions()
 
     def create_quote_text(self, btc_balance):
-        """Return a string copy of the amount fiat currency the 
-        user has in bitcoins."""
-        quote_currency = self.config.get("currencies", ["USD"])[0]
+        quote_currency = self.config.get("currencies", ["None"])[0]
         quote_balance = self.exchanger.exchange(btc_balance, quote_currency)
         if quote_balance is None:
             quote_text = ""
         else:
-            quote_text = "(%.2f %s)" % ((quote_balance / bitcoin(1)), quote_currency)
+            quote_text = "(%.2f %s)" % (quote_balance, quote_currency)
         return quote_text
         
     def create_history_tab(self):
@@ -1608,12 +1605,14 @@ class ElectrumWindow(QMainWindow):
 
         currencies = self.exchanger.get_currencies()
         if currencies == None:
-            currencies = self.config.get('currencies', ["USD"])
+            currencies = self.config.get('currencies', [])
+        currencies.insert(0, "None")
+
         cur_label=QLabel(_('Currency') + ':')
         grid_ui.addWidget(cur_label , 9, 0)
         cur_combo = QComboBox()
         cur_combo.addItems(currencies)   
-        cur_combo.setCurrentIndex(currencies.index(self.config.get('currencies', ["USD"])[0]))
+        cur_combo.setCurrentIndex(currencies.index(self.config.get('currencies', ["None"])[0]))
         grid_ui.addWidget(cur_combo, 9, 1)
         grid_ui.addWidget(HelpButton(_('Select which currency is used for quotes. ')), 9, 2)
         
@@ -1693,7 +1692,7 @@ class ElectrumWindow(QMainWindow):
             need_restart = True
             
         cur_request = currencies[cur_combo.currentIndex()]
-        if cur_request != self.config.get('currencies', ["USD"])[0]:
+        if cur_request != self.config.get('currencies', ["None"])[0]:
             self.config.set_key('currencies', [cur_request], True)
             self.update_wallet()
 
