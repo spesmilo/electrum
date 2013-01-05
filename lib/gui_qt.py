@@ -1533,6 +1533,21 @@ class ElectrumWindow(QMainWindow):
         from gui_lite import csv_transaction
         csv_transaction(self.wallet)
 
+    def do_import_privkey(self):
+        text, ok = QInputDialog.getText(self, _('Import private key'), _('Key') + ':')
+        if ok:
+            sec = str(text)
+            password = self.password_dialog()
+
+        try:
+            addr = self.wallet.import_key(sec, password)
+            if not addr:
+                QMessageBox.critical(None, "Unable to import key", "error")
+            else:
+                QMessageBox.information(None, "Key imported", addr)
+        except BaseException as e:
+            QMessageBox.critical(None, "Unable to import key", str(e))
+
     def settings_dialog(self):
         d = QDialog(self)
         d.setWindowTitle(_('Electrum Settings'))
@@ -1673,9 +1688,13 @@ class ElectrumWindow(QMainWindow):
 
         grid_io.addWidget(QLabel(_('History')), 2, 0)
         grid_io.addWidget(EnterButton(_("Export"), self.do_export_history), 2, 1)
-        grid_io.setRowStretch(3,1)
         grid_io.addWidget(HelpButton('Export your transaction history as csv'), 2, 3)
 
+        grid_io.addWidget(QLabel(_('Private key')), 3, 0)
+        grid_io.addWidget(EnterButton(_("Import"), self.do_import_privkey), 3, 2)
+        grid_io.addWidget(HelpButton('Import private key'), 3, 3)
+
+        grid_io.setRowStretch(4,1)
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
 

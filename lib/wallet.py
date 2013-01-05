@@ -113,6 +113,11 @@ class Wallet:
         while not self.is_up_to_date(): time.sleep(0.1)
 
     def import_key(self, sec, password):
+        # try password
+        try:
+            seed = self.pw_decode( self.seed, password)
+        except:
+            raise BaseException("Invalid password")
 
         # rebuild public key from private key, compressed or uncompressed
         pkey = regenerate_key(sec)
