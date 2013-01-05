@@ -1691,7 +1691,9 @@ class ElectrumWindow(QMainWindow):
 
         grid_io.addWidget(QLabel(_('Private key')), 3, 0)
         grid_io.addWidget(EnterButton(_("Import"), self.do_import_privkey), 3, 2)
-        grid_io.addWidget(HelpButton('Import private key'), 3, 3)
+        grid_io.addWidget(HelpButton('Import private key' + '\n' \
+                                         + _('Warning: Imported keys are not recoverable with your seed.') + '\n' \
+                                         + _('If you import keys, you will need to do backups of your wallet.')), 3, 3)
 
         grid_io.setRowStretch(4,1)
         vbox.addLayout(ok_cancel_buttons(d))
