@@ -923,6 +923,14 @@ class ElectrumWindow(QMainWindow):
         return w
 
 
+    def delete_imported_key(self, addr):
+        if self.question("Do you want to remove %s from your wallet?"%addr):
+            self.wallet.imported_keys.pop(addr)
+            self.update_receive_tab()
+            self.update_history_tab()
+            self.wallet.save()
+
+
     def create_receive_menu(self, position):
         # fixme: this function apparently has a side effect.
         # if it is not called the menu pops up several times
@@ -938,6 +946,8 @@ class ElectrumWindow(QMainWindow):
         menu.addAction(_("View QR"), lambda: ElectrumWindow.show_qrcode("Address","bitcoin:"+addr) )
         menu.addAction(_("Edit label"), lambda: self.edit_label(True))
         menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
+        if addr in self.wallet.imported_keys:
+            menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
 
         if self.receive_tab_mode == 1:
             t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
