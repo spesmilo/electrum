@@ -5,7 +5,6 @@ security:
 
 
 wallet, transactions : 
- - support compressed keys
  - dust sweeping
  - transactions with multiple outputs
  - BIP 32 

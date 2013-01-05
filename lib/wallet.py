@@ -113,22 +113,33 @@ class Wallet:
         while not self.is_up_to_date(): time.sleep(0.1)
 
     def import_key(self, keypair, password):
-        address, key = keypair.split(':')
+
+        address, sec = keypair.split(':')
         if not self.is_valid(address):
             raise BaseException('Invalid Bitcoin address')
         if address in self.all_addresses():
             raise BaseException('Address already in wallet')
-        b = ASecretToSecret( key )
-        if not b: 
-            raise BaseException('Unsupported key format')
-        secexp = int( b.encode('hex'), 16)
-        private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve=SECP256k1 )
+        
+        # rebuild public key from private key, compressed or uncompressed
+        pkey = regenerate_key(sec)
+        if not pkey:
+            return False
+        
+        # figure out if private key is compressed
+        compressed = is_compressed(sec)
+        
+        # rebuild private and public key from regenerated secret
+        private_key = GetPrivKey(pkey, compressed)
+        public_key = GetPubKey(pkey, compressed)
+        addr = public_key_to_bc_address(public_key)
+        
         # sanity check
-        public_key = private_key.get_verifying_key()
-        if not address == public_key_to_bc_address( '04'.decode('hex') + public_key.to_string() ):
+        if not address == addr :
             raise BaseException('Address does not match private key')
-        self.imported_keys[address] = self.pw_encode( key, password )
-
+        
+        # store the originally requested keypair into the imported keys table
+        self.imported_keys[address] = self.pw_encode(sec, password )
+        
 
     def new_seed(self, password):
         seed = "%032x"%ecdsa.util.randrange( pow(2,128) )
@@ -172,19 +183,23 @@ class Wallet:
         return string_to_number( Hash( "%d:%d:"%(n,for_change) + self.master_public_key.decode('hex') ) )
 
     def get_private_key_base58(self, address, password):
-        pk = self.get_private_key(address, password)
-        if pk is None: return None
-        return SecretToASecret( pk )
+        secexp, compressed = self.get_private_key(address, password)
+        if secexp is None: return None
+        pk = number_to_string( secexp, generator_secp256k1.order() )
+        return SecretToASecret( pk, compressed )
 
     def get_private_key(self, address, password):
         """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
         order = generator_secp256k1.order()
         
         if address in self.imported_keys.keys():
-            b = self.pw_decode( self.imported_keys[address], password )
-            if not b: return None
-            b = ASecretToSecret( b )
-            secexp = int( b.encode('hex'), 16)
+            sec = self.pw_decode( self.imported_keys[address], password )
+            if not sec: return None, None
+
+            pkey = regenerate_key(sec)
+            compressed = is_compressed(sec)
+            secexp = pkey.secret
+        
         else:
             if address in self.addresses:
                 n = self.addresses.index(address)
@@ -201,20 +216,21 @@ class Wallet:
             if not seed: return None
             secexp = self.stretch_key(seed)
             secexp = ( secexp + self.get_sequence(n,for_change) ) % order
+            compressed = False
 
-        pk = number_to_string(secexp,order)
-        return pk
+        return secexp, compressed
 
     def msg_magic(self, message):
         return "\x18Bitcoin Signed Message:\n" + chr( len(message) ) + message
 
     def sign_message(self, address, message, password):
-        private_key = ecdsa.SigningKey.from_string( self.get_private_key(address, password), curve = SECP256k1 )
+        secexp, compressed = self.get_private_key(address, password)
+        private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
         public_key = private_key.get_verifying_key()
         signature = private_key.sign_digest( Hash( self.msg_magic( message ) ), sigencode = ecdsa.util.sigencode_string )
         assert public_key.verify_digest( signature, Hash( self.msg_magic( message ) ), sigdecode = ecdsa.util.sigdecode_string)
         for i in range(4):
-            sig = base64.b64encode( chr(27+i) + signature )
+            sig = base64.b64encode( chr(27 + i + (4 if compressed else 0)) + signature )
             try:
                 self.verify_message( address, sig, message)
                 return sig
@@ -598,9 +614,13 @@ class Wallet:
         s_inputs = []
         for i in range(len(inputs)):
             addr, v, p_hash, p_pos, p_scriptPubKey, _, _ = inputs[i]
-            private_key = ecdsa.SigningKey.from_string( self.get_private_key(addr, password), curve = SECP256k1 )
+            secexp, compressed = self.get_private_key(addr, password)
+            private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
             public_key = private_key.get_verifying_key()
-            pubkey = public_key.to_string()
+
+            pkey = EC_KEY(secexp)
+            pubkey = GetPubKey(pkey, compressed)
+
             tx = filter( raw_tx( inputs, outputs, for_sig = i ) )
             sig = private_key.sign_digest( Hash( tx.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
             assert public_key.verify_digest( sig, Hash( tx.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)

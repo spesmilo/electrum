@@ -43,8 +43,57 @@ Hash = lambda x: hashlib.sha256(hashlib.sha256(x).digest()).digest()
 hash_encode = lambda x: x[::-1].encode('hex')
 hash_decode = lambda x: x.decode('hex')[::-1]
 
-############ functions from pywallet ##################### 
 
+# pywallet openssl private key implementation
+
+def i2d_ECPrivateKey(pkey, compressed=False):
+    if compressed:
+        key = '3081d30201010420' + \
+              '%064x' % pkey.secret + \
+              'a081a53081a2020101302c06072a8648ce3d0101022100' + \
+              '%064x' % _p + \
+              '3006040100040107042102' + \
+              '%064x' % _Gx + \
+              '022100' + \
+              '%064x' % _r + \
+              '020101a124032200'
+    else:
+        key = '308201130201010420' + \
+              '%064x' % pkey.secret + \
+              'a081a53081a2020101302c06072a8648ce3d0101022100' + \
+              '%064x' % _p + \
+              '3006040100040107044104' + \
+              '%064x' % _Gx + \
+              '%064x' % _Gy + \
+              '022100' + \
+              '%064x' % _r + \
+              '020101a144034200'
+        
+    return key.decode('hex') + i2o_ECPublicKey(pkey, compressed)
+    
+def i2o_ECPublicKey(pkey, compressed=False):
+    # public keys are 65 bytes long (520 bits)
+    # 0x04 + 32-byte X-coordinate + 32-byte Y-coordinate
+    # 0x00 = point at infinity, 0x02 and 0x03 = compressed, 0x04 = uncompressed
+    # compressed keys: <sign> <x> where <sign> is 0x02 if y is even and 0x03 if y is odd
+    if compressed:
+        if pkey.pubkey.point.y() & 1:
+            key = '03' + '%064x' % pkey.pubkey.point.x()
+        else:
+            key = '02' + '%064x' % pkey.pubkey.point.x()
+    else:
+        key = '04' + \
+              '%064x' % pkey.pubkey.point.x() + \
+              '%064x' % pkey.pubkey.point.y()
+            
+    return key.decode('hex')
+            
+# end pywallet openssl private key implementation
+
+                                                
+            
+############ functions from pywallet ##################### 
+            
 addrtype = 0
 
 def hash_160(public_key):
@@ -151,16 +200,38 @@ def DecodeBase58Check(psz):
 def PrivKeyToSecret(privkey):
     return privkey[9:9+32]
 
-def SecretToASecret(secret):
-    vchIn = chr(addrtype+128) + secret
+def SecretToASecret(secret, compressed=False):
+    vchIn = chr((addrtype+128)&255) + secret
+    if compressed: vchIn += '\01'
     return EncodeBase58Check(vchIn)
 
 def ASecretToSecret(key):
     vch = DecodeBase58Check(key)
-    if vch and vch[0] == chr(addrtype+128):
+    if vch and vch[0] == chr((addrtype+128)&255):
         return vch[1:]
     else:
         return False
+
+def regenerate_key(sec):
+    b = ASecretToSecret(sec)
+    if not b:
+        return False
+    b = b[0:32]
+    secret = int('0x' + b.encode('hex'), 16)
+    return EC_KEY(secret)
+
+def GetPubKey(pkey, compressed=False):
+    return i2o_ECPublicKey(pkey, compressed)
+
+def GetPrivKey(pkey, compressed=False):
+    return i2d_ECPrivateKey(pkey, compressed)
+
+def GetSecret(pkey):
+    return ('%064x' % pkey.secret).decode('hex')
+
+def is_compressed(sec):
+    b = ASecretToSecret(sec)
+    return len(b) == 33
 
 ########### end pywallet functions #######################
 
@@ -175,6 +246,13 @@ curve_secp256k1 = ecdsa.ellipticcurve.CurveFp( _p, _a, _b )
 generator_secp256k1 = ecdsa.ellipticcurve.Point( curve_secp256k1, _Gx, _Gy, _r )
 oid_secp256k1 = (1,3,132,0,10)
 SECP256k1 = ecdsa.curves.Curve("SECP256k1", curve_secp256k1, generator_secp256k1, oid_secp256k1 ) 
+
+class EC_KEY(object):
+    def __init__( self, secret ):
+        self.pubkey = ecdsa.ecdsa.Public_key( generator_secp256k1, generator_secp256k1 * secret )
+        self.privkey = ecdsa.ecdsa.Private_key( self.pubkey, secret )
+        self.secret = secret
+        
 
 
 def filter(s): 
@@ -195,7 +273,6 @@ def raw_tx( inputs, outputs, for_sig = None ):
             sig = sig + chr(1)                               # hashtype
             script  = int_to_hex( len(sig))                  +  '     push %d bytes\n'%len(sig)
             script += sig.encode('hex')                      +  '     sig\n'
-            pubkey = chr(4) + pubkey
             script += int_to_hex( len(pubkey))               +  '     push %d bytes\n'%len(pubkey)
             script += pubkey.encode('hex')                   +  '     pubkey\n'
         elif for_sig==i:

@@ -34,3 +34,20 @@ def set_language(x):
     if x: language = gettext.translation('electrum', LOCALE_DIR, fallback = True, languages=[x])
     
     
+languages = {
+    '':_('Default'),
+    'br':_('Brasilian'),
+    'cs':_('Czech'),
+    'de':_('German'),
+    'eo':_('Esperanto'),
+    'en':_('English'),
+    'es':_('Spanish'),
+    'fr':_('French'),
+    'it':_('Italian'),
+    'lv':_('Latvian'),
+    'nl':_('Dutch'),
+    'ru':_('Russian'),
+    'sl':_('Slovenian'),
+    'vi':_('Vietnamese'),
+    'zh':_('Chinese')
+    }
