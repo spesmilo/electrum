@@ -168,7 +168,6 @@ class QRCodeWidget(QWidget):
 
         black = QColor(0, 0, 0, 255)
         white = QColor(255, 255, 255, 255)
-        boxsize = 6
 
         if not self.qr:
             qp = QtGui.QPainter()
@@ -178,11 +177,16 @@ class QRCodeWidget(QWidget):
             qp.drawRect(0, 0, 198, 198)
             qp.end()
             return
-        
-        size = self.qr.getModuleCount()*boxsize
+ 
         k = self.qr.getModuleCount()
         qp = QtGui.QPainter()
         qp.begin(self)
+        r = qp.viewport()
+        boxsize = min(r.width(), r.height())*0.8/k
+        size = k*boxsize
+        left = (r.width() - size)/2
+        top = (r.height() - size)/2         
+
         for r in range(k):
             for c in range(k):
                 if self.qr.isDark(r, c):
@@ -191,7 +195,7 @@ class QRCodeWidget(QWidget):
                 else:
                     qp.setBrush(white)
                     qp.setPen(white)
-                qp.drawRect(c*boxsize, r*boxsize, boxsize, boxsize)
+                qp.drawRect(left+c*boxsize, top+r*boxsize, boxsize, boxsize)
         qp.end()
         
 
@@ -210,12 +214,10 @@ class QR_Window(QWidget):
         main_box = QHBoxLayout()
         
         self.qrw = QRCodeWidget()
-        main_box.addWidget(self.qrw)
+        main_box.addWidget(self.qrw, 1)
 
         vbox = QVBoxLayout()
         main_box.addLayout(vbox)
-
-        main_box.addStretch(1)
 
         self.address_label = QLabel("")
         self.address_label.setFont(QFont(MONOSPACE_FONT))
@@ -616,6 +618,8 @@ class ElectrumWindow(QMainWindow):
             item.setFont(2, QFont(MONOSPACE_FONT))
             item.setFont(3, QFont(MONOSPACE_FONT))
             item.setFont(4, QFont(MONOSPACE_FONT))
+            if value < 0:
+                item.setForeground(3, QBrush(QColor("#BC1E1E")))
             if tx_hash:
                 item.setToolTip(0, tx_hash)
             if is_default_label:
@@ -1217,8 +1221,8 @@ class ElectrumWindow(QMainWindow):
         d.setMinimumSize(270, 300)
         vbox = QVBoxLayout()
         qrw = QRCodeWidget(data)
-        vbox.addWidget(qrw)
-        vbox.addWidget(QLabel(data))
+        vbox.addWidget(qrw, 1)
+        vbox.addWidget(QLabel(data), 0, Qt.AlignHCenter)
         hbox = QHBoxLayout()
         hbox.addStretch(1)
 
