@@ -1535,10 +1535,9 @@ class ElectrumWindow(QMainWindow):
 
     def do_import_privkey(self):
         text, ok = QInputDialog.getText(self, _('Import private key'), _('Key') + ':')
-        if ok:
-            sec = str(text)
-            password = self.password_dialog()
-
+        if not ok: return
+        sec = str(text)
+        password = self.password_dialog()
         try:
             addr = self.wallet.import_key(sec, password)
             if not addr:
