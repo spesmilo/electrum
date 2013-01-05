@@ -436,7 +436,7 @@ class ElectrumWindow(QMainWindow):
         self.history_list.selectedIndexes() 
         item = self.history_list.currentItem()
         if not item: return
-        tx_hash = str(item.toolTip(0))
+        tx_hash = str(item.data(0, Qt.UserRole).toString())
         if not tx_hash: return
         menu = QMenu()
         menu.addAction(_("Copy ID to Clipboard"), lambda: self.app.clipboard().setText(tx_hash))
@@ -617,7 +617,8 @@ class ElectrumWindow(QMainWindow):
             if value < 0:
                 item.setForeground(3, QBrush(QColor("#BC1E1E")))
             if tx_hash:
-                item.setToolTip(0, tx_hash)
+                item.setData(0, Qt.UserRole, tx_hash)
+                item.setToolTip(0, "%d %s\nTxId:%s" % (conf, _('Confirmations'), tx_hash) )
             if is_default_label:
                 item.setForeground(2, QBrush(QColor('grey')))
 
