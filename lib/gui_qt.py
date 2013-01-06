@@ -1170,10 +1170,9 @@ class ElectrumWindow(QMainWindow):
             password = None
             
         try:
-            seed = wallet.pw_decode(wallet.seed, password)
+            seed = wallet.decode_seed(password)
         except:
-            QMessageBox.warning(parent, _('Error'),
-                                _('Incorrect Password'), _('OK'))
+            QMessageBox.warning(parent, _('Error'), _('Incorrect Password'), _('OK'))
             return
 
         dialog = QDialog(None)
@@ -1454,7 +1453,7 @@ class ElectrumWindow(QMainWindow):
         new_password2 = unicode(conf_pw.text())
 
         try:
-            seed = wallet.pw_decode( wallet.seed, password)
+            seed = wallet.decode_seed(password)
         except:
             QMessageBox.warning(parent, _('Error'), _('Incorrect Password'), _('OK'))
             return
@@ -1549,7 +1548,13 @@ class ElectrumWindow(QMainWindow):
         csv_transaction(self.wallet)
 
     def do_import_privkey(self):
-        text, ok = QInputDialog.getText(self, _('Import private key'), _('Key') + ':')
+        if not self.wallet.imported_keys:
+            r = QMessageBox.question(None, _('Warning'), _('Warning: Imported keys are not recoverable from seed.') + ' ' \
+                                         + _('If you ever need to restore your wallet from its seed, these keys will be lost.') + '\n\n' \
+                                         + _('Are you sure you understand what you are doing?'), 3, 4)
+            if r == 4: return
+
+        text, ok = QInputDialog.getText(self, _('Import private key'), _('Private Key') + ':')
         if not ok: return
         sec = str(text)
         if self.wallet.use_encryption:
@@ -1713,9 +1718,7 @@ class ElectrumWindow(QMainWindow):
 
         grid_io.addWidget(QLabel(_('Private key')), 3, 0)
         grid_io.addWidget(EnterButton(_("Import"), self.do_import_privkey), 3, 2)
-        grid_io.addWidget(HelpButton('Import private key' + '\n' \
-                                         + _('Warning: Imported keys are not recoverable with your seed.') + '\n' \
-                                         + _('If you import keys, you will need to do backups of your wallet.')), 3, 3)
+        grid_io.addWidget(HelpButton('Import private key'), 3, 3)
 
         grid_io.setRowStretch(4,1)
         vbox.addLayout(ok_cancel_buttons(d))

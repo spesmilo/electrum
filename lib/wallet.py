@@ -115,7 +115,7 @@ class Wallet:
     def import_key(self, sec, password):
         # try password
         try:
-            seed = self.pw_decode( self.seed, password)
+            seed = self.decode_seed(password)
         except:
             raise BaseException("Invalid password")
 
@@ -194,7 +194,6 @@ class Wallet:
         if address in self.imported_keys.keys():
             sec = self.pw_decode( self.imported_keys[address], password )
             if not sec: return None, None
-
             pkey = regenerate_key(sec)
             compressed = is_compressed(sec)
             secexp = pkey.secret
@@ -208,14 +207,19 @@ class Wallet:
                 for_change = True
             else:
                 raise BaseException("unknown address")
-            try:
-                seed = self.pw_decode( self.seed, password)
-            except:
-                raise BaseException("Invalid password")
+
+            seed = self.pw_decode( self.seed, password)
             if not seed: return None
             secexp = self.stretch_key(seed)
             secexp = ( secexp + self.get_sequence(n,for_change) ) % order
             compressed = False
+            pkey = EC_KEY(secexp)
+
+        public_key = GetPubKey(pkey, compressed)
+        addr = public_key_to_bc_address(public_key)
+        if addr != address:
+            print_error('Invalid password with correct decoding')
+            raise BaseException('Invalid password')
 
         return secexp, compressed
 
@@ -636,15 +640,20 @@ class Wallet:
     def pw_decode(self, s, password):
         if password is not None:
             secret = Hash(password)
-            d = DecodeAES(secret, s)
-            if s == self.seed:
-                try:
-                    d.decode('hex')
-                except:
-                    raise ValueError("Invalid password")
+            try:
+                d = DecodeAES(secret, s)
+            except:
+                raise BaseException('Invalid password')
             return d
         else:
             return s
+
+    def decode_seed(self, password):
+        # test password on an address
+        addr = self.all_addresses()[0]
+        self.get_private_key(addr, password)
+        # return seed
+        return self.pw_decode(self.seed, password)
 
 
     def get_history(self, address):
