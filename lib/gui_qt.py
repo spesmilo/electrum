@@ -394,9 +394,7 @@ class ElectrumWindow(QMainWindow):
             text = _( "Not connected" )
             icon = QIcon(":icons/status_disconnected.png")
 
-        if self.funds_error:
-            text = _( "Not enough funds" )
-
+        self.status_text = text
         self.statusBar().showMessage(text)
         self.status_button.setIcon( icon )
 
@@ -718,13 +716,16 @@ class ElectrumWindow(QMainWindow):
             if inputs:
                 palette = QPalette()
                 palette.setColor(self.amount_e.foregroundRole(), QColor('black'))
+                text = self.status_text
             else:
                 palette = QPalette()
                 palette.setColor(self.amount_e.foregroundRole(), QColor('red'))
                 self.funds_error = True
+                text = _( "Not enough funds" )
+
+            self.statusBar().showMessage(text)
             self.amount_e.setPalette(palette)
             self.fee_e.setPalette(palette)
-            self.update_wallet()
 
         self.amount_e.textChanged.connect(lambda: entry_changed(False) )
         self.fee_e.textChanged.connect(lambda: entry_changed(True) )
@@ -1131,6 +1132,7 @@ class ElectrumWindow(QMainWindow):
         return textbox
 
     def create_status_bar(self):
+        self.status_text = ""
         sb = QStatusBar()
         sb.setFixedHeight(35)
         if self.wallet.seed:
