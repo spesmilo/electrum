@@ -1,3 +1,21 @@
+# Release 1.6.0 (07-01-2013)
+
+== Core
+* (Feature) Add support for importing, signing and verifiying compressed keys
+* (Feature) Auto reconnect to random server on disconnect
+* (Feautre) Ultimate fallback to HTTP port 80 if TCP doesn't work on any server
+
+== Lite GUI
+* (Chore) Use blockchain.info for exchange rate data 
+* (Feature) added currency conversion for BRL, CNY, RUB
+* (Feature) Saraha theme
+* (Feature) csv import/export for transactions including labels 
+
+== Classic GUI
+* (Chore) pruning servers now called "p", full servers "f" to avoid confusion with terms
+* (Feature) Debits in history shown in red
+* (Feature) csv import/export for transactions including labels 
+
 # Release 1.5.8 (02-01-2013)
 
 == Core
