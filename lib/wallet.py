@@ -649,11 +649,18 @@ class Wallet:
             return s
 
     def decode_seed(self, password):
-        # test password on an address
-        addr = self.all_addresses()[0]
-        self.get_private_key(addr, password)
-        # return seed
-        return self.pw_decode(self.seed, password)
+        seed = self.pw_decode(self.seed, password)
+
+        # check decoded seed with master public key
+        curve = SECP256k1
+        secexp = self.stretch_key(seed)
+        master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
+        master_public_key = master_private_key.get_verifying_key().to_string().encode('hex')
+        if master_public_key != self.master_public_key:
+            print_error('invalid password (mpk)')
+            raise BaseException('Invalid password')
+
+        return seed
 
 
     def get_history(self, address):
