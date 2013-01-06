@@ -1170,10 +1170,9 @@ class ElectrumWindow(QMainWindow):
             password = None
             
         try:
-            seed = wallet.pw_decode(wallet.seed, password)
+            seed = wallet.decode_seed(password)
         except:
-            QMessageBox.warning(parent, _('Error'),
-                                _('Incorrect Password'), _('OK'))
+            QMessageBox.warning(parent, _('Error'), _('Incorrect Password'), _('OK'))
             return
 
         dialog = QDialog(None)
@@ -1454,7 +1453,7 @@ class ElectrumWindow(QMainWindow):
         new_password2 = unicode(conf_pw.text())
 
         try:
-            seed = wallet.pw_decode( wallet.seed, password)
+            seed = wallet.decode_seed(password)
         except:
             QMessageBox.warning(parent, _('Error'), _('Incorrect Password'), _('OK'))
             return
