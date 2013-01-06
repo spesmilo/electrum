@@ -394,6 +394,7 @@ if __name__ == '__main__':
                 exit(1)
         else:
             password = None
+            seed = wallet.seed
 
     if cmd == 'importprivkey':
         # See if they specificed a key on the cmd line, if not prompt
