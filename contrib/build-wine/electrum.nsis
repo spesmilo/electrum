@@ -17,7 +17,7 @@
   InstallDirRegKey HKCU "Software\Electrum" ""
 
   ;Request application privileges for Windows Vista
-  RequestExecutionLevel user
+  RequestExecutionLevel admin
 
 ;--------------------------------
 ;Variables
