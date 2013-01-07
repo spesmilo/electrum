@@ -180,6 +180,7 @@ class ElectrumGui(QObject):
 
     def expand(self):
         """Hide the lite mode window and show pro-mode."""
+        self.config.set_key('gui', 'classic', True)
         self.mini.hide()
         self.expert.show()
 

@@ -1150,6 +1150,7 @@ class ElectrumWindow(QMainWindow):
         
     def go_lite(self):
         import gui_lite
+        self.config.set_key('gui', 'lite', True)
         self.hide()
         if self.lite:
             self.lite.mini.show()
@@ -1614,18 +1615,6 @@ class ElectrumWindow(QMainWindow):
         if not self.config.is_modifiable('num_zeros'):
             for w in [nz_e, nz_label]: w.setEnabled(False)
         
-        gui_label=QLabel(_('Default GUI') + ':')
-        grid_ui.addWidget(gui_label , 7, 0)
-        gui_combo = QComboBox()
-        gui_combo.addItems(['Lite', 'Classic'])
-        index = gui_combo.findText(self.config.get("gui","classic").capitalize())
-        if index==-1: index = 1
-        gui_combo.setCurrentIndex(index)
-        grid_ui.addWidget(gui_combo, 7, 1)
-        grid_ui.addWidget(HelpButton(_('Select which GUI mode to use at start up.'+'\n'+'Note: use the command line to access the "text" and "gtk" GUIs')), 7, 2)
-        if not self.config.is_modifiable('gui'):
-            for w in [gui_combo, gui_label]: w.setEnabled(False)
-
         lang_label=QLabel(_('Language') + ':')
         grid_ui.addWidget(lang_label , 8, 0)
         lang_combo = QComboBox()
@@ -1788,11 +1777,6 @@ class ElectrumWindow(QMainWindow):
 
         need_restart = False
 
-        gui_request = str(gui_combo.currentText()).lower()
-        if gui_request != self.config.get('gui'):
-            self.config.set_key('gui', gui_request, True)
-            need_restart = True
-            
         lang_request = languages.keys()[lang_combo.currentIndex()]
         if lang_request != self.config.get('language'):
             self.config.set_key("language", lang_request, True)
