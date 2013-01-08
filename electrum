@@ -224,8 +224,18 @@ if __name__ == '__main__':
                 wallet.init_mpk( wallet.seed )
             else:
                 # ask for seed and gap.
-                if not gui.seed_dialog(): exit()
-                wallet.init_mpk( wallet.seed )
+                sg = gui.seed_dialog()
+                if not sg: exit()
+                seed, gap = sg
+                if not seed: exit()
+                wallet.gap_limit = gap
+                if len(seed) == 128:
+                    wallet.seed = None
+                    wallet.master_public_key = seed
+                else:
+                    wallet.seed = str(seed)
+                    wallet.init_mpk( wallet.seed )
+            
 
             # generate the first addresses, in case we are offline
             if s is None or a == 'create':

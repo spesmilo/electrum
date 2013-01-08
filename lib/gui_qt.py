@@ -139,11 +139,12 @@ class StatusBarButton(QPushButton):
 
 class QRCodeWidget(QWidget):
 
-    def __init__(self, data = None):
+    def __init__(self, data = None, size=4):
         QWidget.__init__(self)
         self.setMinimumSize(210, 210)
         self.addr = None
         self.qr = None
+        self.size = size
         if data:
             self.set_addr(data)
             self.update_qr()
@@ -156,7 +157,7 @@ class QRCodeWidget(QWidget):
 
     def update_qr(self):
         if self.addr and not self.qr:
-            self.qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.L)
+            self.qr = pyqrnative.QRCode(self.size, pyqrnative.QRErrorCorrectLevel.L)
             self.qr.addData(self.addr)
             self.qr.make()
             self.update()
@@ -1193,11 +1194,43 @@ class ElectrumWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, _('Error'), _('Invalid Address'), _('OK'))
 
+    def show_master_public_key(self):
+        dialog = QDialog(None)
+        dialog.setModal(1)
+        dialog.setWindowTitle("Master Public Key")
+
+        main_text = QTextEdit()
+        main_text.setText(self.wallet.master_public_key)
+        main_text.setReadOnly(True)
+        
+        copy_function = lambda: self.app.clipboard().setText(self.wallet.master_public_key)
+        copy_button = QPushButton(_("Copy to Clipboard"))
+        copy_button.clicked.connect(copy_function)
+
+        qrw = QRCodeWidget(self.wallet.master_public_key, 6)
+
+
+        ok_button = QPushButton(_("OK"))
+        ok_button.setDefault(True)
+        ok_button.clicked.connect(dialog.accept)
+
+        main_layout = QGridLayout()
+        main_layout.addWidget(qrw, 0, 0 )
+
+        main_layout.addWidget(main_text, 0, 1, 1, -1)
+
+        main_layout.setColumnStretch( 0, 1)
+        main_layout.addWidget(copy_button, 1, 1)
+        main_layout.addWidget(ok_button, 1, 3)
+        dialog.setLayout(main_layout)
+
+        dialog.exec_()
+        
+
     @staticmethod
     def show_seed_dialog(wallet, parent=None):
         if not wallet.seed:
-            QMessageBox.information(parent, _('Message'),
-                                    _('No seed'), _('OK'))
+            QMessageBox.information(parent, _('Message'), _('No seed'), _('OK'))
             return
 
         if wallet.use_encryption:
@@ -1534,10 +1567,10 @@ class ElectrumWindow(QMainWindow):
             gap = int(unicode(gap_e.text()))
         except:
             QMessageBox.warning(None, _('Error'), 'error', 'OK')
-            sys.exit(0)
+            return
 
         try:
-            seed = unicode(seed_e.text())
+            seed = str(seed_e.text())
             seed.decode('hex')
         except:
             print_error("Warning: Not hex, trying decode")
@@ -1545,15 +1578,13 @@ class ElectrumWindow(QMainWindow):
                 seed = mnemonic.mn_decode( seed.split(' ') )
             except:
                 QMessageBox.warning(None, _('Error'), _('I cannot decode this'), _('OK'))
-                sys.exit(0)
+                return
+
         if not seed:
             QMessageBox.warning(None, _('Error'), _('No seed'), 'OK')
-            sys.exit(0)
-        
-        wallet.seed = str(seed)
-        #print repr(wallet.seed)
-        wallet.gap_limit = gap
-        return True
+            return
+
+        return seed, gap
 
 
     def do_import_labels(self):
@@ -1747,6 +1778,10 @@ class ElectrumWindow(QMainWindow):
         grid_io.addWidget(QLabel(_('Private key')), 3, 0)
         grid_io.addWidget(EnterButton(_("Import"), self.do_import_privkey), 3, 2)
         grid_io.addWidget(HelpButton('Import private key'), 3, 3)
+
+        grid_io.addWidget(QLabel(_('Master Public key')), 4, 0)
+        grid_io.addWidget(EnterButton(_("Show"), self.show_master_public_key), 4, 1)
+        grid_io.addWidget(HelpButton('Your master public key can be used to created a watching-only (deseeded) wallet'), 4, 3)
 
         grid_io.setRowStretch(4,1)
         vbox.addLayout(ok_cancel_buttons(d))

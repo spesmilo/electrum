@@ -164,10 +164,7 @@ def run_recovery_dialog(wallet):
         show_message("no seed")
         return False
         
-    wallet.seed = seed
-    wallet.gap_limit = gap
-    wallet.save()
-    return True
+    return seed, gap
 
 
 
