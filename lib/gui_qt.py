@@ -1248,46 +1248,45 @@ class ElectrumWindow(QMainWindow):
 
         dialog = QDialog(None)
         dialog.setModal(1)
-        dialog.setWindowTitle("Electrum")
+        dialog.setWindowTitle(_("Electrum") + ' - ' + _('Seed'))
 
         brainwallet = ' '.join(mnemonic.mn_encode(seed))
 
-        msg =   _("Your wallet generation seed is") +":<p>\"" + brainwallet + "\"<p>" \
-              + _("Please write down or memorize these 12 words (order is important).") + " " \
-              + _("This seed will allow you to recover your wallet in case of computer failure.") + "<p>" \
-              + _("WARNING: Never disclose your seed. Never type it on a website.") + "<p>"
+        label1 = QLabel(_("Your wallet generation seed is")+ ":")
 
-        main_text = QLabel(msg)
-        main_text.setWordWrap(True)
+        seed_text = QTextEdit(brainwallet)
+        seed_text.setReadOnly(True)
+        seed_text.setMaximumHeight(55)
+        
+        msg2 =  _("Please write down or memorize these 12 words (order is important).") + " " \
+              + _("This seed will allow you to recover your wallet in case of computer failure.") + "<p>" \
+              + _("Your seed is included in the following QR code.") + " " \
+              + _("Use it if you need to access your wallet from a mobile phone.") + "<p>" \
+              + "<b>"+_("WARNING")+":</b><br/>"+_("Never disclose your seed. Never type it on a website.") + "</b><p>"
+        label2 = QLabel(msg2)
+        label2.setWordWrap(True)
 
         logo = QLabel()
         logo.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(56))
+        logo.setMaximumWidth(60)
 
-        if parent:
-            app = parent.app
-        else:
-            app = QApplication
-
-        copy_function = lambda: app.clipboard().setText(brainwallet)
-        copy_button = QPushButton(_("Copy to Clipboard"))
-        copy_button.clicked.connect(copy_function)
-
-        show_qr_function = lambda: ElectrumWindow.show_qrcode(_("Seed"), seed)
-        qr_button = QPushButton(_("View as QR Code"))
-        qr_button.clicked.connect(show_qr_function)
+        qrw = QRCodeWidget(seed, 4)
 
         ok_button = QPushButton(_("OK"))
         ok_button.setDefault(True)
         ok_button.clicked.connect(dialog.accept)
 
         main_layout = QGridLayout()
-        main_layout.addWidget(logo, 0, 0)
-        main_layout.addWidget(main_text, 0, 1, 1, -1)
-        main_layout.addWidget(copy_button, 1, 1)
-        main_layout.addWidget(qr_button, 1, 2)
-        main_layout.addWidget(ok_button, 1, 3)
-        dialog.setLayout(main_layout)
+        main_layout.addWidget(logo, 0, 0, 2, 1)
+        main_layout.addWidget(label1, 0, 1)
+        main_layout.addWidget(seed_text, 1, 1, 1, 3)
 
+        main_layout.addWidget( label2, 2, 0, 1, 3)
+        main_layout.addWidget(qrw, 2, 3)
+
+        #main_layout.addWidget(qr_button, 3, 2)
+        main_layout.addWidget(ok_button, 3, 3)
+        dialog.setLayout(main_layout)
         dialog.exec_()
 
     @staticmethod
