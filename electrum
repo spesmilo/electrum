@@ -315,10 +315,14 @@ if __name__ == '__main__':
             if not seed:
                 sys.exit("Error: No seed")
 
-            wallet.seed = str(seed)
-            wallet.init_mpk( wallet.seed )
-            if not options.offline:
+            if len(seed) == 128:
+                wallet.seed = None
+                wallet.master_public_key = seed
+            else:
+                wallet.seed = str(seed)
+                wallet.init_mpk( wallet.seed )
 
+            if not options.offline:
                 interface = Interface(config)
                 interface.start()
                 wallet.interface = interface
