@@ -14,10 +14,6 @@ code improvements:
  - qrcode and bmp patches are on github (they are incompatible with android)
 
 
-classic gui : 
- - in POS mode, request amount in USD, convert to BTC
-
-
 android: 
  - kivy-based gui
 

@@ -202,8 +202,9 @@ class QRCodeWidget(QWidget):
 
 class QR_Window(QWidget):
 
-    def __init__(self):
+    def __init__(self, exchanger):
         QWidget.__init__(self)
+        self.exchanger = exchanger
         self.setWindowTitle('Electrum - Invoice')
         self.setMinimumSize(800, 250)
         self.address = ''
@@ -233,13 +234,23 @@ class QR_Window(QWidget):
         self.setLayout(main_box)
 
 
-    def set_content(self, addr, label, amount):
+    def set_content(self, addr, label, amount, currency):
         self.address = addr
         address_text = "<span style='font-size: 18pt'>%s</span>" % addr if addr else ""
         self.address_label.setText(address_text)
 
-        self.amount = amount
-        amount_text = "<span style='font-size: 21pt'>%s</span> <span style='font-size: 16pt'>BTC</span> " % format_satoshis(amount) if amount else ""
+        if currency == 'BTC': currency = None
+        amount_text = ''
+        if amount:
+            if currency:
+                self.amount = Decimal(amount) / self.exchanger.exchange(1, currency) if currency else amount
+            else:
+                self.amount = Decimal(amount)
+            self.amount = self.amount.quantize(Decimal('1.0000'))
+
+            if currency:
+                amount_text += "<span style='font-size: 18pt'>%s %s</span><br/>" % (amount, currency)
+            amount_text += "<span style='font-size: 21pt'>%s</span> <span style='font-size: 16pt'>BTC</span> " % str(self.amount) 
         self.amount_label.setText(amount_text)
 
         self.label = label
@@ -248,7 +259,7 @@ class QR_Window(QWidget):
 
         msg = 'bitcoin:'+self.address
         if self.amount is not None:
-            msg += '?amount=%s'%(str( Decimal(self.amount) /100000000))
+            msg += '?amount=%s'%(str( self.amount))
             if self.label is not None:
                 msg += '&label=%s'%(self.label)
         elif self.label is not None:
@@ -321,7 +332,6 @@ class ElectrumWindow(QMainWindow):
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
         self.create_status_bar()
-        self.toggle_QR_window(self.receive_tab_mode == 2)
 
         g = self.config.get("winpos-qt",[100, 100, 840, 400])
         self.setGeometry(g[0], g[1], g[2], g[3])
@@ -339,6 +349,7 @@ class ElectrumWindow(QMainWindow):
         self.history_list.setFocus(True)
         
         self.exchanger = exchange_rate.Exchanger(self)
+        self.toggle_QR_window(self.receive_tab_mode == 2)
         self.connect(self, SIGNAL("refresh_balance()"), self.update_wallet)
 
         # dark magic fix by flatfly; https://bitcointalk.org/index.php?topic=73651.msg959913#msg959913
@@ -536,34 +547,38 @@ class ElectrumWindow(QMainWindow):
             self.recv_changed(item)
 
         if column == 3:
-            address = unicode( item.text(column_addr) )
-            text = unicode( item.text(3) )
+            address = str( item.text(column_addr) )
+            text = str( item.text(3) )
             try:
                 index = self.wallet.addresses.index(address)
             except:
                 return
 
-            try:
-                amount = int( Decimal(text) * 100000000 )
-                item.setText(3,format_satoshis(amount,False, self.wallet.num_zeros))
-            except:
-                amount = self.wallet.requested_amounts.get(address)
-                if amount: 
-                    item.setText(3,format_satoshis(amount,False, self.wallet.num_zeros))
+            text = text.strip().upper()
+            m = re.match('^(\d+(|\.\d*))\s*(|BTC|EUR|USD|GBP|CNY|JPY|RUB|BRL)$', text)
+            if m:
+                amount = m.group(1)
+                currency = m.group(3)
+                if not currency:
+                    currency = 'BTC'
                 else:
-                    item.setText(3,"")
-                return
+                    currency = currency.upper()
+                self.wallet.requested_amounts[address] = (amount, currency)
 
-            self.wallet.requested_amounts[address] = amount
+                label = self.wallet.labels.get(address)
+                if label is None:
+                    label = self.merchant_name + ' - %04d'%(index+1)
+                    self.wallet.labels[address] = label
 
-            label = self.wallet.labels.get(address)
-            if label is None:
-                label = self.merchant_name + ' - %04d'%(index+1)
-                self.wallet.labels[address] = label
+                if self.qr_window:
+                    self.qr_window.set_content( address, label, amount, currency )
 
+            else:
+                item.setText(3,'')
+                if address in self.wallet.requested_amounts:
+                    self.wallet.requested_amounts.pop(address)
+            
             self.update_receive_item(self.receive_list.currentItem())
-            if self.qr_window:
-                self.qr_window.set_content( address, label, amount )
 
 
     def recv_changed(self, a):
@@ -571,8 +586,11 @@ class ElectrumWindow(QMainWindow):
         if a is not None and self.qr_window and self.qr_window.isVisible():
             address = str(a.text(1))
             label = self.wallet.labels.get(address)
-            amount = self.wallet.requested_amounts.get(address)
-            self.qr_window.set_content( address, label, amount )
+            try:
+                amount, currency = self.wallet.requested_amounts.get(address, (None, None))
+            except:
+                amount, currency = None, None
+            self.qr_window.set_content( address, label, amount, currency )
 
 
     def update_history_tab(self):
@@ -1017,10 +1035,14 @@ class ElectrumWindow(QMainWindow):
         label = self.wallet.labels.get(address,'')
         item.setData(2,0,label)
 
-        amount = self.wallet.requested_amounts.get(address,None)
-        amount_str = format_satoshis( amount, False, self.wallet.num_zeros ) if amount is not None  else ""
+        try:
+            amount, currency = self.wallet.requested_amounts.get(address, (None, None))
+        except:
+            amount, currency = None, None
+            
+        amount_str = amount + (' ' + currency if currency else '') if amount is not None  else ''
         item.setData(3,0,amount_str)
-        
+                
         c, u = self.wallet.get_addr_balance(address)
         balance = format_satoshis( c + u, False, self.wallet.num_zeros )
         item.setData(4,0,balance)
@@ -1362,15 +1384,15 @@ class ElectrumWindow(QMainWindow):
         
     def toggle_QR_window(self, show):
         if show and not self.qr_window:
-            self.qr_window = QR_Window()
+            self.qr_window = QR_Window(self.exchanger)
             self.qr_window.setVisible(True)
             self.qr_window_geometry = self.qr_window.geometry()
             item = self.receive_list.currentItem()
             if item:
                 address = str(item.text(1))
                 label = self.wallet.labels.get(address)
-                amount = self.wallet.requested_amounts.get(address)
-                self.qr_window.set_content( address, label, amount )
+                amount, currency = self.wallet.requested_amounts.get(address, (None, None))
+                self.qr_window.set_content( address, label, amount, currency )
 
         elif show and self.qr_window and not self.qr_window.isVisible():
             self.qr_window.setVisible(True)
