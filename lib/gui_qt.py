@@ -464,9 +464,7 @@ class ElectrumWindow(QMainWindow):
 
     def tx_label_clicked(self, item, column):
         if column==2 and item.isSelected():
-            tx_hash = str(item.toolTip(0))
             self.is_edit=True
-            #if not self.wallet.labels.get(tx_hash): item.setText(2,'')
             item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
             self.history_list.editItem( item, column )
             item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
@@ -476,7 +474,7 @@ class ElectrumWindow(QMainWindow):
         if self.is_edit: 
             return
         self.is_edit=True
-        tx_hash = str(item.toolTip(0))
+        tx_hash = str(item.data(0, Qt.UserRole).toString())
         tx = self.wallet.transactions.get(tx_hash)
         s = self.wallet.labels.get(tx_hash)
         text = unicode( item.text(2) )
