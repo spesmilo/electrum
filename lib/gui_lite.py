@@ -302,15 +302,18 @@ class MiniWindow(QDialog):
         self.receive_button.setObjectName("receive_button")
         self.receive_button.setDefault(True)
 
+        self.switch_button = QPushButton( QIcon(":icons/switchgui.png"),'' )
+        self.switch_button.clicked.connect(expand_callback)
+
         main_layout = QGridLayout(self)
 
-        main_layout.addWidget(self.balance_label, 0, 0)
-        main_layout.addWidget(self.receive_button, 0, 1)
+        main_layout.addWidget(self.switch_button, 0, 0)
+        main_layout.addWidget(self.balance_label, 0, 1)
+        main_layout.addWidget(self.receive_button, 0, 2)
 
-        main_layout.addWidget(self.address_input, 1, 0)
-
-        main_layout.addWidget(self.amount_input, 2, 0)
-        main_layout.addWidget(self.send_button, 2, 1)
+        main_layout.addWidget(self.address_input, 1, 0, 1, 3)
+        main_layout.addWidget(self.amount_input, 2, 0, 1, 2)
+        main_layout.addWidget(self.send_button, 2, 2)
 
         self.history_list = history_widget.HistoryWidget()
         self.history_list.setObjectName("history")
