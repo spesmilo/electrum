@@ -320,7 +320,7 @@ class MiniWindow(QDialog):
         self.history_list.hide()
         self.history_list.setAlternatingRowColors(True)
 
-        main_layout.addWidget(self.history_list, 3, 0, 1, 2)
+        main_layout.addWidget(self.history_list, 3, 0, 1, 3)
         
 
         self.receiving = receiving_widget.ReceivingWidget(self)
