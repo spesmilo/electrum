@@ -1160,8 +1160,8 @@ class ElectrumWindow(QMainWindow):
         sb = QStatusBar()
         sb.setFixedHeight(35)
         qtVersion = qVersion()
-        if (int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
-            sb.addPermanentWidget( StatusBarButton( QIcon(":icons/switchgui.png"), "Switch to Lite Mode", self.go_lite ) )
+        # if (int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
+        #     sb.addPermanentWidget( StatusBarButton( QIcon(":icons/switchgui.png"), "Switch to Lite Mode", self.go_lite ) )
         if self.wallet.seed:
             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/lock.png"), "Password", lambda: self.change_password_dialog(self.wallet, self) ) )
         sb.addPermanentWidget( StatusBarButton( QIcon(":icons/preferences.png"), "Preferences", self.settings_dialog ) )
