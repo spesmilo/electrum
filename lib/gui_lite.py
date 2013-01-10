@@ -303,6 +303,7 @@ class MiniWindow(QDialog):
         self.receive_button.setDefault(True)
 
         self.switch_button = QPushButton( QIcon(":icons/switchgui.png"),'' )
+        self.switch_button.setMaximumWidth(25)
         self.switch_button.clicked.connect(expand_callback)
 
         main_layout = QGridLayout(self)
