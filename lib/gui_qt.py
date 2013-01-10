@@ -1200,28 +1200,27 @@ class ElectrumWindow(QMainWindow):
         main_text = QTextEdit()
         main_text.setText(self.wallet.master_public_key)
         main_text.setReadOnly(True)
-        
-        copy_function = lambda: self.app.clipboard().setText(self.wallet.master_public_key)
-        copy_button = QPushButton(_("Copy to Clipboard"))
-        copy_button.clicked.connect(copy_function)
-
+        main_text.setMaximumHeight(170)
         qrw = QRCodeWidget(self.wallet.master_public_key, 6)
-
 
         ok_button = QPushButton(_("OK"))
         ok_button.setDefault(True)
         ok_button.clicked.connect(dialog.accept)
 
         main_layout = QGridLayout()
-        main_layout.addWidget(qrw, 0, 0 )
+        main_layout.addWidget(QLabel(_('Your Master Public Key is:')), 0, 0, 1, 2)
 
-        main_layout.addWidget(main_text, 0, 1, 1, -1)
+        main_layout.addWidget(main_text, 1, 0)
+        main_layout.addWidget(qrw, 1, 1 )
 
-        main_layout.setColumnStretch( 0, 1)
-        main_layout.addWidget(copy_button, 1, 1)
-        main_layout.addWidget(ok_button, 1, 3)
-        dialog.setLayout(main_layout)
+        vbox = QVBoxLayout()
+        vbox.addLayout(main_layout)
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+        hbox.addWidget(ok_button)
+        vbox.addLayout(hbox)
 
+        dialog.setLayout(vbox)
         dialog.exec_()
         
 
@@ -1778,7 +1777,9 @@ class ElectrumWindow(QMainWindow):
 
         grid_io.addWidget(QLabel(_('Master Public key')), 4, 0)
         grid_io.addWidget(EnterButton(_("Show"), self.show_master_public_key), 4, 1)
-        grid_io.addWidget(HelpButton('Your master public key can be used to created a watching-only (deseeded) wallet'), 4, 3)
+        grid_io.addWidget(HelpButton(_('Your master public key can be used to create receiving adresses, but not to sign transactions.') + ' ' \
+                              + _('If you give it to someone, they will be able to see your transactions, but not to spend your money.') + ' ' \
+                              + _('If you restore your wallet from it, a watching-only (deseeded) wallet will be created.')), 4, 3)
 
         grid_io.setRowStretch(4,1)
         vbox.addLayout(ok_cancel_buttons(d))
