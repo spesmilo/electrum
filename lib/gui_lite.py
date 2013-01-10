@@ -312,13 +312,14 @@ class MiniWindow(QDialog):
         main_layout.addWidget(self.amount_input, 2, 0, 1, 2)
         main_layout.addWidget(self.send_button, 2, 2, 1, 2)
 
+        self.send_button.setMaximumWidth(125)
+
         self.history_list = history_widget.HistoryWidget()
         self.history_list.setObjectName("history")
         self.history_list.hide()
         self.history_list.setAlternatingRowColors(True)
 
         main_layout.addWidget(self.history_list, 3, 0, 1, 4)
-        
 
         self.receiving = receiving_widget.ReceivingWidget(self)
         self.receiving.setObjectName("receiving")
@@ -336,6 +337,7 @@ class MiniWindow(QDialog):
         self.receiving.clicked.connect(self.receiving.copy_address)
         self.receiving.itemDoubleClicked.connect(self.receiving.edit_label)
         self.receiving.itemChanged.connect(self.receiving.update_label)
+
 
         # Label
         extra_layout.addWidget( QLabel(_('Selecting an address will copy it to the clipboard.\nDouble clicking the label will allow you to edit it.') ),0,0)
@@ -391,9 +393,16 @@ class MiniWindow(QDialog):
             theme_group.addAction(theme_action)
         view_menu.addSeparator()
 
-        show_history = view_menu.addAction(_("Receive"))
-        show_history.setCheckable(True)
-        show_history.toggled.connect(self.toggle_receiving_layout)
+        show_receiving = view_menu.addAction(_("Show Receiving addresses"))
+        show_receiving.setCheckable(True)
+        show_receiving.toggled.connect(self.toggle_receiving_layout)
+
+        show_receiving_toggle = self.config.get("gui_show_receiving",False)
+        show_receiving.setChecked(show_receiving_toggle)
+        self.show_receiving = show_receiving
+
+        self.toggle_receiving_layout(show_receiving_toggle )
+
 
         show_history = view_menu.addAction(_("Show History"))
         show_history.setCheckable(True)
@@ -429,11 +438,6 @@ class MiniWindow(QDialog):
         self.setObjectName("main_window")
         self.show()
 
-    def toggle_receiving_layout(self):
-        if self.receiving_box.isVisible():
-            self.receiving_box.hide()
-        else:
-            self.receiving_box.show()
 
     def toggle_theme(self, theme_name):
         old_path = QDir.currentPath()
@@ -447,6 +451,7 @@ class MiniWindow(QDialog):
         g = self.geometry()
         self.config.set_key("winpos-lite", [g.left(),g.top(),g.width(),g.height()],True)
         self.config.set_key("gui_show_history", self.history_list.isVisible(),True)
+        self.config.set_key("gui_show_receiving", self.show_receiving.isVisible(),True)
         
         super(MiniWindow, self).closeEvent(event)
         qApp.quit()
@@ -600,6 +605,12 @@ class MiniWindow(QDialog):
     def show_report_bug(self):
         QMessageBox.information(self, "Electrum - " + _("Reporting Bugs"),
             _("Please report any bugs as issues on github: <a href=\"https://github.com/spesmilo/electrum/issues\">https://github.com/spesmilo/electrum/issues</a>"))
+
+    def toggle_receiving_layout(self, toggle_state):
+        if toggle_state:
+          self.receiving_box.show()
+        else:
+          self.receiving_box.hide()
 
     def show_history(self, toggle_state):
         if toggle_state:
