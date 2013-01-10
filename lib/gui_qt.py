@@ -1253,13 +1253,12 @@ class ElectrumWindow(QMainWindow):
 
         seed_text = QTextEdit(brainwallet)
         seed_text.setReadOnly(True)
-        seed_text.setMaximumHeight(55)
+        seed_text.setMaximumHeight(130)
         
         msg2 =  _("Please write down or memorize these 12 words (order is important).") + " " \
-              + _("This seed will allow you to recover your wallet in case of computer failure.") + "<p>" \
-              + _("Your seed is also included in the following QR code.") + " " \
-              + _("Use it if you need to install your wallet on a mobile phone.") + "<p>" \
-              + "<b>"+_("WARNING")+":</b><br/>"+_("Never disclose your seed. Never type it on a website.") + "</b><p>"
+              + _("This seed will allow you to recover your wallet in case of computer failure.") + " " \
+              + _("Your seed is also displayed as QR code, in case you want to use the same wallet on a mobile phone.") + "<p>" \
+              + "<b>"+_("WARNING")+":</b> " + _("Never disclose your seed. Never type it on a website.") + "</b><p>"
         label2 = QLabel(msg2)
         label2.setWordWrap(True)
 
@@ -1273,17 +1272,26 @@ class ElectrumWindow(QMainWindow):
         ok_button.setDefault(True)
         ok_button.clicked.connect(dialog.accept)
 
-        main_layout = QGridLayout()
-        main_layout.addWidget(logo, 0, 0, 2, 1)
-        main_layout.addWidget(label1, 0, 1)
-        main_layout.addWidget(seed_text, 1, 1, 1, 3)
+        grid = QGridLayout()
+        #main_layout.addWidget(logo, 0, 0)
 
-        main_layout.addWidget( label2, 2, 0, 1, 3)
-        main_layout.addWidget(qrw, 2, 3)
+        grid.addWidget(logo, 0, 0)
+        grid.addWidget(label1, 0, 1)
 
-        #main_layout.addWidget(qr_button, 3, 2)
-        main_layout.addWidget(ok_button, 3, 3)
-        dialog.setLayout(main_layout)
+        grid.addWidget(seed_text, 1, 0, 1, 2)
+
+        grid.addWidget(qrw, 0, 2, 2, 1)
+
+        vbox = QVBoxLayout()
+        vbox.addLayout(grid)
+        vbox.addWidget(label2)
+
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+        hbox.addWidget(ok_button)
+        vbox.addLayout(hbox)
+
+        dialog.setLayout(vbox)
         dialog.exec_()
 
     @staticmethod
