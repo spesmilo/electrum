@@ -298,23 +298,19 @@ class MiniWindow(QDialog):
         self.send_button.clicked.connect(self.send)
 
         # Creating the receive button
-        self.receive_button = QPushButton(_("&Receive"))
-        self.receive_button.setObjectName("receive_button")
-        self.receive_button.setDefault(True)
-
         self.switch_button = QPushButton( QIcon(":icons/switchgui.png"),'' )
         self.switch_button.setMaximumWidth(25)
+        self.switch_button.setFlat(True)
         self.switch_button.clicked.connect(expand_callback)
 
         main_layout = QGridLayout(self)
 
-        main_layout.addWidget(self.switch_button, 0, 0)
-        main_layout.addWidget(self.balance_label, 0, 1)
-        main_layout.addWidget(self.receive_button, 0, 2)
+        main_layout.addWidget(self.balance_label, 0, 0, 1, 3)
+        main_layout.addWidget(self.switch_button, 0, 3)
 
-        main_layout.addWidget(self.address_input, 1, 0, 1, 3)
+        main_layout.addWidget(self.address_input, 1, 0, 1, 4)
         main_layout.addWidget(self.amount_input, 2, 0, 1, 2)
-        main_layout.addWidget(self.send_button, 2, 2)
+        main_layout.addWidget(self.send_button, 2, 2, 1, 2)
 
         self.history_list = history_widget.HistoryWidget()
         self.history_list.setObjectName("history")
@@ -349,10 +345,8 @@ class MiniWindow(QDialog):
         extra_layout.setColumnMinimumWidth(0,200)
 
         self.receiving_box.setLayout(extra_layout)
-        main_layout.addWidget(self.receiving_box,0,3,-1,3)
+        main_layout.addWidget(self.receiving_box,0,4,-1,3)
         self.receiving_box.hide()
-
-        self.receive_button.clicked.connect(self.toggle_receiving_layout)
 
         # Creating the menu bar
         menubar = QMenuBar()
@@ -396,6 +390,11 @@ class MiniWindow(QDialog):
             theme_action.toggled.connect(delegate)
             theme_group.addAction(theme_action)
         view_menu.addSeparator()
+
+        show_history = view_menu.addAction(_("Receive"))
+        show_history.setCheckable(True)
+        show_history.toggled.connect(self.toggle_receiving_layout)
+
         show_history = view_menu.addAction(_("Show History"))
         show_history.setCheckable(True)
         show_history.toggled.connect(self.show_history)
@@ -433,16 +432,8 @@ class MiniWindow(QDialog):
     def toggle_receiving_layout(self):
         if self.receiving_box.isVisible():
             self.receiving_box.hide()
-            self.receive_button.setProperty("isActive", False)
-
-            qApp.style().unpolish(self.receive_button)
-            qApp.style().polish(self.receive_button)
         else:
             self.receiving_box.show()
-            self.receive_button.setProperty("isActive", 'true')
-
-            qApp.style().unpolish(self.receive_button)
-            qApp.style().polish(self.receive_button)
 
     def toggle_theme(self, theme_name):
         old_path = QDir.currentPath()
