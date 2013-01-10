@@ -1257,7 +1257,7 @@ class ElectrumWindow(QMainWindow):
         
         msg2 =  _("Please write down or memorize these 12 words (order is important).") + " " \
               + _("This seed will allow you to recover your wallet in case of computer failure.") + " " \
-              + _("Your seed is also displayed as QR code, in case you want to use the same wallet on a mobile phone.") + "<p>" \
+              + _("Your seed is also displayed as QR code, in case you want to transfer it to a mobile phone.") + "<p>" \
               + "<b>"+_("WARNING")+":</b> " + _("Never disclose your seed. Never type it on a website.") + "</b><p>"
         label2 = QLabel(msg2)
         label2.setWordWrap(True)
