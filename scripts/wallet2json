@@ -8,30 +8,7 @@
 #
 
 import json
-from electrum import Wallet, SimpleConfig, format_satoshis
+from electrum import SimpleConfig
 
-wallet = Wallet(SimpleConfig())
-s = {
-	'seed_version': wallet.seed_version,
-	'use_encryption': wallet.use_encryption,
-	'use_change': wallet.use_change,
-	'master_public_key': wallet.master_public_key,
-	'fee': wallet.fee,
-	'seed': wallet.seed,
-	'addresses': wallet.addresses,
-	'change_addresses': wallet.change_addresses,
-	'addr_history': wallet.history, 
-	'labels': wallet.labels,
-	'contacts': wallet.addressbook,
-	'imported_keys': wallet.imported_keys,
-	'aliases': wallet.aliases,
-	'authorities': wallet.authorities,
-	'receipts': wallet.receipts,
-	'num_zeros': wallet.num_zeros,
-	'frozen_addresses': wallet.frozen_addresses,
-	'prioritized_addresses': wallet.prioritized_addresses,
-	'gap_limit': wallet.gap_limit,
-	'transactions': wallet.transactions,
-	'requested_amounts': wallet.requested_amounts,
-}
-print json.dumps(s)
+cfg = SimpleConfig()
+print json.dumps(cfg.wallet_config)
