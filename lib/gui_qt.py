@@ -304,6 +304,8 @@ def ok_cancel_buttons(dialog):
     return hbox
 
 
+default_column_widths = { "history":[40,140,350,140,140], "receive":[50,310,200,130,130,10], "contacts":[350,330,100] }
+
 class ElectrumWindow(QMainWindow):
 
     def __init__(self, wallet, config):
@@ -324,6 +326,7 @@ class ElectrumWindow(QMainWindow):
         self.completions = QStringListModel()
 
         self.tabs = tabs = QTabWidget(self)
+        self.column_widths = self.config.get("column-widths", default_column_widths )
         tabs.addTab(self.create_history_tab(), _('History') )
         tabs.addTab(self.create_send_tab(), _('Send') )
         tabs.addTab(self.create_receive_tab(), _('Receive') )
@@ -430,11 +433,8 @@ class ElectrumWindow(QMainWindow):
     def create_history_tab(self):
         self.history_list = l = MyTreeWidget(self)
         l.setColumnCount(5)
-        l.setColumnWidth(0, 40) 
-        l.setColumnWidth(1, 140) 
-        l.setColumnWidth(2, 350) 
-        l.setColumnWidth(3, 140) 
-        l.setColumnWidth(4, 140) 
+        for i,width in enumerate(self.column_widths['history']):
+            l.setColumnWidth(i, width)
         l.setHeaderLabels( [ '', _( 'Date' ), _( 'Description' ) , _('Amount'), _('Balance')] )
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), self.tx_label_clicked)
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), self.tx_label_changed)
@@ -1061,12 +1061,8 @@ class ElectrumWindow(QMainWindow):
         l.setColumnHidden(3, not self.receive_tab_mode == 2)
         l.setColumnHidden(4, self.receive_tab_mode == 0)
         l.setColumnHidden(5, not self.receive_tab_mode == 1)
-        l.setColumnWidth(0, 50)
-        l.setColumnWidth(1, 310) 
-        l.setColumnWidth(2, 200)
-        l.setColumnWidth(3, 130)
-        l.setColumnWidth(4, 130)
-        l.setColumnWidth(5, 10)
+        for i,width in enumerate(self.column_widths['receive']):
+            l.setColumnWidth(i, width)        
 
         gap = 0
         is_red = False
@@ -1122,9 +1118,8 @@ class ElectrumWindow(QMainWindow):
 
         l = self.contacts_list
         l.clear()
-        l.setColumnWidth(0, 350) 
-        l.setColumnWidth(1, 330)
-        l.setColumnWidth(2, 100) 
+        for i,width in enumerate(self.column_widths['contacts']):
+            l.setColumnWidth(i, width)        
 
         alias_targets = []
         for alias, v in self.wallet.aliases.items():
@@ -2032,6 +2027,14 @@ class ElectrumWindow(QMainWindow):
     def closeEvent(self, event):
         g = self.geometry()
         self.config.set_key("winpos-qt", [g.left(),g.top(),g.width(),g.height()], True)
+        widths = { "history":[], "receive":[], "contacts":[] }
+        for i in range(self.history_list.columnCount()):
+            widths["history"].append(self.history_list.columnWidth(i))
+        for i in range(self.receive_list.columnCount()):
+            widths["receive"].append(self.receive_list.columnWidth(i))
+        for i in range(self.contacts_list.columnCount()):
+            widths["contacts"].append(self.contacts_list.columnWidth(i))
+        self.config.set_key("column-widths", widths, True)
         event.accept()
 
 
