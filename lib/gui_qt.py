@@ -1631,7 +1631,7 @@ class ElectrumWindow(QMainWindow):
 
         text, ok = QInputDialog.getText(self, _('Import private key'), _('Private Key') + ':')
         if not ok: return
-        sec = str(text)
+        sec = str(text).strip()
         if self.wallet.use_encryption:
             password = self.password_dialog()
             if not password:
