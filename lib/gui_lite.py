@@ -398,7 +398,6 @@ class MiniWindow(QDialog):
         show_receiving.toggled.connect(self.toggle_receiving_layout)
 
         show_receiving_toggle = self.config.get("gui_show_receiving",False)
-        print self.config.get("gui_show_receiving")
         show_receiving.setChecked(show_receiving_toggle)
         self.show_receiving = show_receiving
 
