@@ -398,10 +398,11 @@ class MiniWindow(QDialog):
         show_receiving.toggled.connect(self.toggle_receiving_layout)
 
         show_receiving_toggle = self.config.get("gui_show_receiving",False)
+        print self.config.get("gui_show_receiving")
         show_receiving.setChecked(show_receiving_toggle)
         self.show_receiving = show_receiving
 
-        self.toggle_receiving_layout(show_receiving_toggle )
+        self.toggle_receiving_layout(show_receiving_toggle)
 
 
         show_history = view_menu.addAction(_("Show History"))
@@ -451,7 +452,7 @@ class MiniWindow(QDialog):
         g = self.geometry()
         self.config.set_key("winpos-lite", [g.left(),g.top(),g.width(),g.height()],True)
         self.config.set_key("gui_show_history", self.history_list.isVisible(),True)
-        self.config.set_key("gui_show_receiving", self.show_receiving.isVisible(),True)
+        self.config.set_key("gui_show_receiving", self.receiving_box.isVisible(),True)
         
         super(MiniWindow, self).closeEvent(event)
         qApp.quit()
