@@ -1,14 +1,15 @@
-# Release 1.6.1 (10-01-2013)
+# Release 1.6.1 (11-01-2013)
+
 == Core
-* (Feature) Restore from MPK (actually added in 1.6.0)
-* (Chore) Rewrote seed dialog to be more clear
-* (Chore) Added button to the classic GUI to switch to lite GUI, also added the same button to the Lite GUI to keep it consistent.
+* It is now possible to restore a wallet from MPK (this will create a watching-only wallet)
+* A switch button allows to easily switch between Lite and Classic GUI.
 
 == Classic GUI
-* (Feature) Added request amount in other currencies to POS.
+* Seed and MPK help dialogs were rewritten
+* Point of Sale: requested amounts can be expressed in other currencies and are converted to bitcoin.
 
 == Lite GUI
-* (Chore) Removed receiving button in favor of menu item to keep it consistant with the history toggle.
+* The receiving button was removed in favor of a menu item to keep it consistent with the history toggle.
 
 # Release 1.6.0 (07-01-2013)
 
