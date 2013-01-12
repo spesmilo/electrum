@@ -1773,15 +1773,15 @@ class ElectrumWindow(QMainWindow):
         grid_io.addWidget(QLabel(_('Labels')), 1, 0)
         grid_io.addWidget(EnterButton(_("Export"), self.do_export_labels), 1, 1)
         grid_io.addWidget(EnterButton(_("Import"), self.do_import_labels), 1, 2)
-        grid_io.addWidget(HelpButton('Export your labels as json'), 1, 3)
+        grid_io.addWidget(HelpButton(_('Export your labels as json')), 1, 3)
 
         grid_io.addWidget(QLabel(_('History')), 2, 0)
         grid_io.addWidget(EnterButton(_("Export"), self.do_export_history), 2, 1)
-        grid_io.addWidget(HelpButton('Export your transaction history as csv'), 2, 3)
+        grid_io.addWidget(HelpButton(_('Export your transaction history as csv')), 2, 3)
 
         grid_io.addWidget(QLabel(_('Private key')), 3, 0)
         grid_io.addWidget(EnterButton(_("Import"), self.do_import_privkey), 3, 2)
-        grid_io.addWidget(HelpButton('Import private key'), 3, 3)
+        grid_io.addWidget(HelpButton(_('Import private key')), 3, 3)
 
         grid_io.addWidget(QLabel(_('Master Public key')), 4, 0)
         grid_io.addWidget(EnterButton(_("Show"), self.show_master_public_key), 4, 1)
@@ -1863,7 +1863,7 @@ class ElectrumWindow(QMainWindow):
         interface = wallet.interface
         if parent:
             if interface.is_connected:
-                status = _("Connected to")+" %s\n%d blocks"%(interface.host, wallet.verifier.height)
+                status = _("Connected to")+" %s\n%d "+_("blocks")%(interface.host, wallet.verifier.height)
             else:
                 status = _("Not connected")
             server = interface.server
@@ -1974,7 +1974,7 @@ class ElectrumWindow(QMainWindow):
             for w in [server_host, server_port, server_protocol, servers_list_widget]: w.setEnabled(False)
 
         # auto cycle
-        autocycle_cb = QCheckBox('Try random servers if disconnected')
+        autocycle_cb = QCheckBox(_('Try random servers if disconnected'))
         autocycle_cb.setChecked(wallet.config.get('auto_cycle', False))
         grid.addWidget(autocycle_cb, 3, 1, 3, 2)
         if not wallet.config.is_modifiable('auto_cycle'): autocycle_cb.setEnabled(False)
