@@ -1785,7 +1785,7 @@ class ElectrumWindow(QMainWindow):
 
         grid_io.addWidget(QLabel(_('Master Public key')), 4, 0)
         grid_io.addWidget(EnterButton(_("Show"), self.show_master_public_key), 4, 1)
-        grid_io.addWidget(HelpButton(_('Your master public key can be used to create receiving adresses, but not to sign transactions.') + ' ' \
+        grid_io.addWidget(HelpButton(_('Your master public key can be used to create receiving addresses, but not to sign transactions.') + ' ' \
                               + _('If you give it to someone, they will be able to see your transactions, but not to spend your money.') + ' ' \
                               + _('If you restore your wallet from it, a watching-only (deseeded) wallet will be created.')), 4, 3)
 
