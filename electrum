@@ -71,7 +71,7 @@ options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address 
     'seed':
             "Print the generation seed of your wallet.",
     'importprivkey': 
-            'Imports a key pair\nSyntax: import <address>:<privatekey>',
+            'Import a private key\nSyntax: importprivkey <privatekey>',
     'signmessage':
             'Signs a message with a key\nSyntax: signmessage <address> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "',
     'verifymessage':
