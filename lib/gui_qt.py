@@ -1693,7 +1693,7 @@ class ElectrumWindow(QMainWindow):
             index = 0
         lang_combo.setCurrentIndex(index)
         grid_ui.addWidget(lang_combo, 8, 1)
-        grid_ui.addWidget(HelpButton(_('Select which language is used in the GUI (after restart). ')), 8, 2)
+        grid_ui.addWidget(HelpButton(_('Select which language is used in the GUI (after restart).')+' '), 8, 2)
         if not self.config.is_modifiable('language'):
             for w in [lang_combo, lang_label]: w.setEnabled(False)
 
@@ -1710,7 +1710,7 @@ class ElectrumWindow(QMainWindow):
             index = 0
         cur_combo.setCurrentIndex(index)
         grid_ui.addWidget(cur_combo, 9, 1)
-        grid_ui.addWidget(HelpButton(_('Select which currency is used for quotes. ')), 9, 2)
+        grid_ui.addWidget(HelpButton(_('Select which currency is used for quotes.')+' '), 9, 2)
         
         view_label=QLabel(_('Receive Tab') + ':')
         grid_ui.addWidget(view_label , 10, 0)
@@ -1718,7 +1718,7 @@ class ElectrumWindow(QMainWindow):
         view_combo.addItems([_('Simple'), _('Advanced'), _('Point of Sale')])
         view_combo.setCurrentIndex(self.receive_tab_mode)
         grid_ui.addWidget(view_combo, 10, 1)
-        hh = _('This selects the interaction mode of the "Receive" tab. ') + '\n\n' \
+        hh = _('This selects the interaction mode of the "Receive" tab.')+' ' + '\n\n' \
              + _('Simple') +   ': ' + _('Show only addresses and labels.') + '\n\n' \
              + _('Advanced') + ': ' + _('Show address balances and add extra menu items to freeze/prioritize addresses.') + '\n\n' \
              + _('Point of Sale') + ': ' + _('Show QR code window and amounts requested for each address. Add menu item to request amount.') + '\n\n' 
@@ -1749,7 +1749,7 @@ class ElectrumWindow(QMainWindow):
         usechange_combo.addItems(['Yes', 'No'])
         usechange_combo.setCurrentIndex(not self.wallet.use_change)
         grid_wallet.addWidget(usechange_combo, 1, 1)
-        grid_wallet.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions. ')), 1, 2)
+        grid_wallet.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions.')+' '), 1, 2)
         if not self.config.is_modifiable('use_change'): usechange_combo.setEnabled(False)
 
         gap_label = QLabel(_('Gap limit'))
@@ -1760,7 +1760,7 @@ class ElectrumWindow(QMainWindow):
         msg =  _('The gap limit is the maximal number of contiguous unused addresses in your sequence of receiving addresses.') + '\n' \
               + _('You may increase it if you need more receiving addresses.') + '\n\n' \
               + _('Your current gap limit is') + ': %d'%self.wallet.gap_limit + '\n' \
-              + _('Given the current status of your address sequence, the minimum gap limit you can use is: ') + '%d'%self.wallet.min_acceptable_gap() + '\n\n' \
+              + _('Given the current status of your address sequence, the minimum gap limit you can use is:')+' ' + '%d'%self.wallet.min_acceptable_gap() + '\n\n' \
               + _('Warning') + ': ' \
               + _('The gap limit parameter must be provided in order to recover your wallet from seed.') + ' ' \
               + _('Do not modify it if you do not understand what you are doing, or if you expect to recover your wallet without knowing it!') + '\n\n' 
