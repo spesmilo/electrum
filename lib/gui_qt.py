@@ -1890,7 +1890,7 @@ class ElectrumWindow(QMainWindow):
         interface = wallet.interface
         if parent:
             if interface.is_connected:
-                status = _("Connected to")+" %s\n%d "+_("blocks")%(interface.host, wallet.verifier.height)
+                status = _("Connected to")+" %s\n%d "%(interface.host, wallet.verifier.height)+_("blocks")
             else:
                 status = _("Not connected")
             server = interface.server
