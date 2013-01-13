@@ -416,7 +416,10 @@ class ElectrumWindow(QMainWindow):
         self.status_button.setIcon( icon )
 
         if self.wallet.up_to_date or not self.wallet.interface.is_connected:
-            self.textbox.setText( self.wallet.banner )
+            if '<html>' in self.wallet.banner:
+                self.textbox.setHtml( self.wallet.banner )
+            else:
+                self.textbox.setText( self.wallet.banner )
             self.update_history_tab()
             self.update_receive_tab()
             self.update_contacts_tab()
