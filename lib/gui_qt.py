@@ -459,9 +459,28 @@ class ElectrumWindow(QMainWindow):
 
 
     def tx_details(self, tx_hash):
-        tx_details = self.wallet.get_tx_details(tx_hash)
-        QMessageBox.information(self, 'Details', tx_details, 'OK')
+        dialog = QDialog(None)
+        dialog.setModal(1)
+        dialog.setWindowTitle(_("Transaction Details"))
 
+        main_text = QTextEdit()
+        main_text.setText(self.wallet.get_tx_details(tx_hash))
+        main_text.setReadOnly(True)
+        main_text.setMinimumSize(550,275)
+        
+        ok_button = QPushButton(_("OK"))
+        ok_button.setDefault(True)
+        ok_button.clicked.connect(dialog.accept)
+        
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+        hbox.addWidget(ok_button)
+        
+        vbox = QVBoxLayout()
+        vbox.addWidget(main_text)
+        vbox.addLayout(hbox)
+        dialog.setLayout(vbox)
+        dialog.exec_()
 
     def tx_label_clicked(self, item, column):
         if column==2 and item.isSelected():
