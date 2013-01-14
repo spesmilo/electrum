@@ -1186,13 +1186,13 @@ class ElectrumWindow(QMainWindow):
         sb.setFixedHeight(35)
         qtVersion = qVersion()
         if (int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
-             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/switchgui.png"), "Switch to Lite Mode", self.go_lite ) )
+             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/switchgui.png"), _("Switch to Lite Mode"), self.go_lite ) )
         if self.wallet.seed:
-            sb.addPermanentWidget( StatusBarButton( QIcon(":icons/lock.png"), "Password", lambda: self.change_password_dialog(self.wallet, self) ) )
-        sb.addPermanentWidget( StatusBarButton( QIcon(":icons/preferences.png"), "Preferences", self.settings_dialog ) )
+            sb.addPermanentWidget( StatusBarButton( QIcon(":icons/lock.png"), _("Password"), lambda: self.change_password_dialog(self.wallet, self) ) )
+        sb.addPermanentWidget( StatusBarButton( QIcon(":icons/preferences.png"), _("Preferences"), self.settings_dialog ) )
         if self.wallet.seed:
-            sb.addPermanentWidget( StatusBarButton( QIcon(":icons/seed.png"), "Seed", lambda: self.show_seed_dialog(self.wallet, self) ) )
-        self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), "Network", lambda: self.network_dialog(self.wallet, self) ) 
+            sb.addPermanentWidget( StatusBarButton( QIcon(":icons/seed.png"), _("Seed"), lambda: self.show_seed_dialog(self.wallet, self) ) )
+        self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), _("Network"), lambda: self.network_dialog(self.wallet, self) ) 
         sb.addPermanentWidget( self.status_button )
         self.setStatusBar(sb)
         
