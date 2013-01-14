@@ -124,7 +124,7 @@ def csv_transaction(wallet):
 
                     balance_string = format_satoshis(balance, False, wallet.num_zeros)
                     transaction.writerow([tx_hash, label, confirmations, value_string, fee_string, balance_string, time_string])
-                QMessageBox.information(None,"CSV Export created", "Your CSV export has been succesfully created.")
+                QMessageBox.information(None,"CSV Export created", "Your CSV export has been successfully created.")
     except (IOError, os.error), reason:
         QMessageBox.critical(None,"Unable to create csv", "Electrum was unable to produce a transaction export.\n" + str(reason))
 
@@ -600,7 +600,7 @@ class MiniWindow(QDialog):
 
     def show_about(self):
         QMessageBox.about(self, "Electrum",
-            _("Electrum's focus is speed, with low resource usage and simplifying Bitcoin. You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper. Startup times are instant because it operates in conjuction with high-performance servers that handle the most complicated parts of the Bitcoin system."))
+            _("Electrum's focus is speed, with low resource usage and simplifying Bitcoin. You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper. Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the Bitcoin system."))
 
     def show_report_bug(self):
         QMessageBox.information(self, "Electrum - " + _("Reporting Bugs"),
@@ -746,7 +746,7 @@ class ReceivePopup(QDialog):
 
 class MiniActuator:
     """Initialize the definitions relating to themes and 
-    sending/recieving bitcoins."""
+    sending/receiving bitcoins."""
     
     
     def __init__(self, wallet):
@@ -906,7 +906,7 @@ class MiniActuator:
     def copy_master_public_key(self):
         master_pubkey = self.wallet.master_public_key
         qApp.clipboard().setText(master_pubkey)
-        QMessageBox.information(None,"Copy succesful", "Your public master key has been copied to your clipboard.")
+        QMessageBox.information(None,"Copy successful", "Your public master key has been copied to your clipboard.")
         
 
     def acceptbit(self, currency):
