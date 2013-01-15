@@ -44,6 +44,9 @@ import exchange_rate
 from decimal import Decimal
 
 import platform
+import httplib
+import socket
+import webbrowser
 
 if platform.system() == 'Windows':
     MONOSPACE_FONT = 'Lucida Console'
@@ -53,6 +56,79 @@ else:
     MONOSPACE_FONT = 'monospace'
 
 ALIAS_REGEXP = '^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$'    
+
+from version import ELECTRUM_VERSION
+import re
+
+class UpdateLabel(QtGui.QLabel):
+    def __init__(self, config, parent=None):
+        QtGui.QLabel.__init__(self, parent)
+
+        self.setText("New version available:")
+        try:
+            con = httplib.HTTPConnection('electrum.bysh.me', 80, timeout=5)
+            con.request("GET", "/version")
+            res = con.getresponse()
+            if res.status == 200:
+                latest_version = res.read()
+                latest_version = latest_version.replace("\n","")
+                if(re.match('^\d\.\d.\d$', latest_version)):
+                    self.config = config
+
+                    self.latest_version = tuple(latest_version.split("."))
+                    self.latest_version_text = latest_version
+                    self.current_version = tuple(ELECTRUM_VERSION.split("."))
+
+                    if(self.latest_version > self.current_version):
+                        latest_seen = self.config.get("last_seen_version")
+                        if(self.latest_version > latest_seen):
+                            self.setText("New version available: " + '.'.join(list(self.latest_version)))
+
+        except socket.error as msg:
+            print "Could not retrieve version information"
+
+    def ignore_this_version(self):
+        self.setText("")
+        self.config.set_key("last_seen_version", self.latest_version)
+        QMessageBox.information(self, _("Preference saved"), _("Notifications about this update will not be shown again."))
+        self.dialog.done(0)
+
+    def ignore_all_version(self):
+        self.setText("")
+        self.config.set_key("last_seen_version", tuple(['9','9','9']))
+        QMessageBox.information(self, _("Preference saved"), _("No more notifications about version updates will be shown."))
+        self.dialog.done(0)
+  
+    def open_website(self):
+        webbrowser.open("http://electrum.org/download.html")
+        self.dialog.done(0)
+
+    def mouseReleaseEvent(self, event):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(_('Electrum update'))
+        dialog.setModal(1)
+
+        main_layout = QGridLayout()
+        main_layout.addWidget(QLabel("A new version of Electrum is available: " + self.latest_version_text), 0,0,1,3)
+        
+        ignore_version = QPushButton(_("Ignore this version"))
+        ignore_version.clicked.connect(self.ignore_this_version)
+
+        ignore_all_versions = QPushButton(_("Ignore all versions"))
+        ignore_all_versions.clicked.connect(self.ignore_all_version)
+
+        open_website = QPushButton(_("Goto download page"))
+        open_website.clicked.connect(self.open_website)
+
+        main_layout.addWidget(ignore_version, 1, 0)
+        main_layout.addWidget(ignore_all_versions, 1, 1)
+        main_layout.addWidget(open_website, 1, 2)
+
+        dialog.setLayout(main_layout)
+
+        self.dialog = dialog
+        
+        if not dialog.exec_(): return
 
 def numbify(entry, is_int = False):
     text = unicode(entry.text()).strip()
@@ -1180,11 +1256,16 @@ class ElectrumWindow(QMainWindow):
         textbox.setReadOnly(True)
         return textbox
 
+
     def create_status_bar(self):
         self.status_text = ""
         sb = QStatusBar()
         sb.setFixedHeight(35)
         qtVersion = qVersion()
+
+        update_notification = UpdateLabel(self.config)
+        sb.addPermanentWidget(update_notification)
+
         if (int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
              sb.addPermanentWidget( StatusBarButton( QIcon(":icons/switchgui.png"), _("Switch to Lite Mode"), self.go_lite ) )
         if self.wallet.seed:
@@ -1194,6 +1275,7 @@ class ElectrumWindow(QMainWindow):
             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/seed.png"), _("Seed"), lambda: self.show_seed_dialog(self.wallet, self) ) )
         self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), _("Network"), lambda: self.network_dialog(self.wallet, self) ) 
         sb.addPermanentWidget( self.status_button )
+
         self.setStatusBar(sb)
         
     def go_lite(self):
