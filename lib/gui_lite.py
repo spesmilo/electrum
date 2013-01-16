@@ -596,7 +596,7 @@ class MiniWindow(QDialog):
         self.actuator.acceptbit(self.quote_currencies[0])
 
     def the_website(self):
-        webbrowser.open("http://electrum-desktop.com")
+        webbrowser.open("http://electrum.org")
 
     def show_about(self):
         QMessageBox.about(self, "Electrum",
