@@ -69,7 +69,7 @@ class UpdateLabel(QtGui.QLabel):
             con.request("GET", "/version")
             res = con.getresponse()
         except socket.error as msg:
-            print "Could not retrieve version information"
+            print_error("Could not retrieve version information")
             return
             
         if res.status == 200:
@@ -83,7 +83,7 @@ class UpdateLabel(QtGui.QLabel):
                 if(self.compare_versions(self.latest_version, self.current_version) == 1):
                     latest_seen = self.config.get("last_seen_version")
                     if(self.compare_versions(self.latest_version, latest_seen) == 1):
-                        self.setText("New version available: " + self.latest_version)
+                        self.setText(_("New version available") + ": " + self.latest_version)
 
 
     def compare_versions(self, version1, version2):
