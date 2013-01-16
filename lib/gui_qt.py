@@ -64,9 +64,8 @@ class UpdateLabel(QtGui.QLabel):
     def __init__(self, config, parent=None):
         QtGui.QLabel.__init__(self, parent)
 
-        self.setText("New version available:")
         try:
-            con = httplib.HTTPConnection('electrum.bysh.me', 80, timeout=5)
+            con = httplib.HTTPConnection('electrum.org', 80, timeout=5)
             con.request("GET", "/version")
             res = con.getresponse()
             if res.status == 200:
