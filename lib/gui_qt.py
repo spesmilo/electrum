@@ -75,21 +75,30 @@ class UpdateLabel(QtGui.QLabel):
         if res.status == 200:
             self.latest_version = res.read()
             self.latest_version = self.latest_version.replace("\n","")
-            if(re.match('^\d\.\d.\d$', self.latest_version)):
+            if(re.match('^\d+(\.\d+)*$', self.latest_version)):
                 self.config = config
-
                 self.current_version = ELECTRUM_VERSION
-
                 if(self.compare_versions(self.latest_version, self.current_version) == 1):
-                    latest_seen = self.config.get("last_seen_version")
+                    latest_seen = self.config.get("last_seen_version",ELECTRUM_VERSION)
                     if(self.compare_versions(self.latest_version, latest_seen) == 1):
                         self.setText(_("New version available") + ": " + self.latest_version)
 
 
     def compare_versions(self, version1, version2):
-        def normalize(v):
-            return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
-        return cmp(normalize(version1), normalize(version2))
+        parts1 = [int(x) for x in version1.split('.')]
+        parts2 = [int(x) for x in version2.split('.')]
+
+        # fill up the shorter version with zeros ...
+        lendiff = len(parts1) - len(parts2)
+        if lendiff > 0:
+            parts2.extend([0] * lendiff)
+        elif lendiff < 0:
+            parts1.extend([0] * (-lendiff))
+            
+        for i, p in enumerate(parts1):
+            ret = cmp(p, parts2[i])
+            if ret: return ret
+        return 0
 
     def ignore_this_version(self):
         self.setText("")
