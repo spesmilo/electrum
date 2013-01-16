@@ -68,33 +68,38 @@ class UpdateLabel(QtGui.QLabel):
             con = httplib.HTTPConnection('electrum.org', 80, timeout=5)
             con.request("GET", "/version")
             res = con.getresponse()
-            if res.status == 200:
-                latest_version = res.read()
-                latest_version = latest_version.replace("\n","")
-                if(re.match('^\d\.\d.\d$', latest_version)):
-                    self.config = config
-
-                    self.latest_version = tuple(latest_version.split("."))
-                    self.latest_version_text = latest_version
-                    self.current_version = tuple(ELECTRUM_VERSION.split("."))
-
-                    if(self.latest_version > self.current_version):
-                        latest_seen = self.config.get("last_seen_version")
-                        if(self.latest_version > latest_seen):
-                            self.setText("New version available: " + '.'.join(list(self.latest_version)))
-
         except socket.error as msg:
             print "Could not retrieve version information"
+            return
+            
+        if res.status == 200:
+            self.latest_version = res.read()
+            self.latest_version = self.latest_version.replace("\n","")
+            if(re.match('^\d\.\d.\d$', self.latest_version)):
+                self.config = config
+
+                self.current_version = ELECTRUM_VERSION
+
+                if(self.compare_versions(self.latest_version, self.current_version) == 1):
+                    latest_seen = self.config.get("last_seen_version")
+                    if(self.compare_versions(self.latest_version, latest_seen) == 1):
+                        self.setText("New version available: " + self.latest_version)
+
+
+    def compare_versions(self, version1, version2):
+        def normalize(v):
+            return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
+        return cmp(normalize(version1), normalize(version2))
 
     def ignore_this_version(self):
         self.setText("")
-        self.config.set_key("last_seen_version", self.latest_version)
+        self.config.set_key("last_seen_version", self.latest_version, True)
         QMessageBox.information(self, _("Preference saved"), _("Notifications about this update will not be shown again."))
         self.dialog.done(0)
 
     def ignore_all_version(self):
         self.setText("")
-        self.config.set_key("last_seen_version", tuple(['9','9','9']))
+        self.config.set_key("last_seen_version", "9.9.9", True)
         QMessageBox.information(self, _("Preference saved"), _("No more notifications about version updates will be shown."))
         self.dialog.done(0)
   
@@ -108,7 +113,7 @@ class UpdateLabel(QtGui.QLabel):
         dialog.setModal(1)
 
         main_layout = QGridLayout()
-        main_layout.addWidget(QLabel("A new version of Electrum is available: " + self.latest_version_text), 0,0,1,3)
+        main_layout.addWidget(QLabel("A new version of Electrum is available: " + self.latest_version), 0,0,1,3)
         
         ignore_version = QPushButton(_("Ignore this version"))
         ignore_version.clicked.connect(self.ignore_this_version)
