@@ -366,7 +366,7 @@ class MiniWindow(QDialog):
         backup_wallet.triggered.connect(self.backup_wallet)
 
         export_csv = extra_menu.addAction( _("&Export transactions to CSV") )
-        export_csv.triggered.connect(lambda: csv_transaction(self.wallet))
+        export_csv.triggered.connect(lambda: csv_transaction(self.actuator.wallet))
         
         master_key = extra_menu.addAction( _("Copy master public key to clipboard") ) 
         master_key.triggered.connect(self.actuator.copy_master_public_key)
