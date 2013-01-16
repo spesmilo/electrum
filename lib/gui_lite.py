@@ -352,11 +352,10 @@ class MiniWindow(QDialog):
 
         # Creating the menu bar
         menubar = QMenuBar()
-        electrum_menu = menubar.addMenu(_("&Bitcoin"))
+        electrum_menu = menubar.addMenu(_("&Electrum"))
 
-        electrum_menu.addSeparator()
+        quit_option = electrum_menu.addAction(_("&Close"))
 
-        quit_option = electrum_menu.addAction(_("&Quit"))
         quit_option.triggered.connect(self.close)
 
         view_menu = menubar.addMenu(_("&View"))
