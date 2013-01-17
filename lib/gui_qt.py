@@ -1849,7 +1849,7 @@ class ElectrumWindow(QMainWindow):
         usechange_label = QLabel(_('Use change addresses'))
         grid_wallet.addWidget(usechange_label, 1, 0)
         usechange_combo = QComboBox()
-        usechange_combo.addItems(['Yes', 'No'])
+        usechange_combo.addItems([_('Yes'), _('No')])
         usechange_combo.setCurrentIndex(not self.wallet.use_change)
         grid_wallet.addWidget(usechange_combo, 1, 1)
         grid_wallet.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions.')+' '), 1, 2)
