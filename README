@@ -1,9 +1,9 @@
 Electrum - lightweight Bitcoin client
 
 Licence: GNU GPL v3
-Author: thomasv@gitorious
+Author: thomasv@bitcointalk.org
 Language: Python
-Homepage: http://electrum.ecdsa.org/
+Homepage: http://electrum.org/
 
 
 == INSTALL ==
@@ -42,4 +42,4 @@ On Mac OS X:
 
 == BROWSER CONFIGURATION ==
 
-see http://ecdsa.org/bitcoin_URIs.html
+See http://electrum.org/bitcoin_URIs.html

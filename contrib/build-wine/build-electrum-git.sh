@@ -6,7 +6,7 @@ BRANCH=master
 NAME_ROOT=electrum
 
 # These settings probably don't need any change
-export WINEPREFIX=~/.wine-electrum
+export WINEPREFIX=/opt/wine-electrum
 PYHOME=c:/python26
 PYTHON="wine $PYHOME/python.exe -OO -B"
 

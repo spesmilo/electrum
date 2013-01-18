@@ -65,7 +65,7 @@ def show_seed_dialog(wallet, password, parent):
         show_message("No seed")
         return
     try:
-        seed = wallet.pw_decode( wallet.seed, password)
+        seed = wallet.decode_seed(password)
     except:
         show_message("Incorrect password")
         return
@@ -164,10 +164,7 @@ def run_recovery_dialog(wallet):
         show_message("no seed")
         return False
         
-    wallet.seed = seed
-    wallet.gap_limit = gap
-    wallet.save()
-    return True
+    return seed, gap
 
 
 
@@ -477,7 +474,7 @@ def change_password_dialog(wallet, parent, icon):
         return
 
     try:
-        seed = wallet.pw_decode( wallet.seed, password)
+        seed = wallet.decode_seed(password)
     except:
         show_message("Incorrect password")
         return

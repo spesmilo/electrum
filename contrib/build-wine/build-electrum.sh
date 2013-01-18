@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # You probably need to update only this link
-ELECTRUM_URL=https://github.com/downloads/spesmilo/electrum/Electrum-1.5.6.tar.gz
-NAME_ROOT=electrum-1.5.6
+ELECTRUM_URL=https://github.com/downloads/spesmilo/electrum/Electrum-1.6.1.tar.gz
+NAME_ROOT=electrum-1.6.1
 
 # These settings probably don't need any change
-export WINEPREFIX=~/.wine-electrum
+export WINEPREFIX=/opt/wine-electrum
 PYHOME=c:/python26
 PYTHON="wine $PYHOME/python.exe -OO -B"
 

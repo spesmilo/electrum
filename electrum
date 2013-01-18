@@ -70,8 +70,8 @@ options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address 
     'signtx':"Sign an unsigned transaction created by a deseeded wallet\nSyntax: signtx <filename>",
     'seed':
             "Print the generation seed of your wallet.",
-    'import': 
-            'Imports a key pair\nSyntax: import <address>:<privatekey>',
+    'importprivkey': 
+            'Import a private key\nSyntax: importprivkey <privatekey>',
     'signmessage':
             'Signs a message with a key\nSyntax: signmessage <address> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "',
     'verifymessage':
@@ -99,13 +99,13 @@ offline_commands = [ 'password', 'mktx', 'signtx',
                      'help', 'validateaddress',
                      'signmessage', 'verifymessage',
                      'eval', 'set', 'get', 'create', 'addresses',
-                     'import', 'seed',
+                     'importprivkey', 'seed',
                      'deseed','reseed',
                      'freeze','unfreeze',
                      'prioritize','unprioritize']
 
 
-protected_commands = ['payto', 'password', 'mktx', 'signtx', 'seed', 'import','signmessage' ]
+protected_commands = ['payto', 'password', 'mktx', 'signtx', 'seed', 'importprivkey','signmessage' ]
 
 # get password routine
 def prompt_password(prompt, confirm=True):
@@ -138,6 +138,8 @@ def arg_parser():
     parser.add_option("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
     parser.add_option("-v", "--verbose", action="store_true", dest="verbose", default=False, help="show debugging information")
     parser.add_option("-P", "--portable", action="store_true", dest="portable", default=False, help="portable wallet")
+    parser.add_option("-L", "--lang", dest="language", default=None, help="defaut language used in GUI")
+    parser.add_option("-u", "--usb", dest="bitkey", action="store_true", help="Turn on support for hardware wallets (EXPERIMENTAL)")
     return parser
 
 
@@ -204,8 +206,10 @@ if __name__ == '__main__':
         interface = Interface(config, True)
         wallet.interface = interface
         interface.start()
-        interface.send([('server.peers.subscribe',[])])
+        if interface.is_connected:
+            interface.send([('server.peers.subscribe',[])])
 
+        set_language(config.get('language'))
         gui = gui.ElectrumGui(wallet, config)
 
         found = config.wallet_file_exists
@@ -220,8 +224,18 @@ if __name__ == '__main__':
                 wallet.init_mpk( wallet.seed )
             else:
                 # ask for seed and gap.
-                if not gui.seed_dialog(): exit()
-                wallet.init_mpk( wallet.seed )
+                sg = gui.seed_dialog()
+                if not sg: exit()
+                seed, gap = sg
+                if not seed: exit()
+                wallet.gap_limit = gap
+                if len(seed) == 128:
+                    wallet.seed = None
+                    wallet.master_public_key = seed
+                else:
+                    wallet.seed = str(seed)
+                    wallet.init_mpk( wallet.seed )
+            
 
             # generate the first addresses, in case we are offline
             if s is None or a == 'create':
@@ -301,10 +315,14 @@ if __name__ == '__main__':
             if not seed:
                 sys.exit("Error: No seed")
 
-            wallet.seed = str(seed)
-            wallet.init_mpk( wallet.seed )
-            if not options.offline:
+            if len(seed) == 128:
+                wallet.seed = None
+                wallet.master_public_key = seed
+            else:
+                wallet.seed = str(seed)
+                wallet.init_mpk( wallet.seed )
 
+            if not options.offline:
                 interface = Interface(config)
                 interface.start()
                 wallet.interface = interface
@@ -378,24 +396,31 @@ if __name__ == '__main__':
 
     # commands needing password
     if cmd in protected_commands or ( cmd=='addresses' and options.show_keys):
-        password = prompt_password('Password:', False) if wallet.use_encryption and not is_temporary else None
-        # check password
-        try:
-            wallet.pw_decode( wallet.seed, password)
-        except:
-            print_msg("Error: This password does not decode this wallet.")
-            exit(1)
+        if wallet.use_encryption and not is_temporary:
+            password = prompt_password('Password:', False)
+            if not password:
+                print_msg("Error: Password required")
+                exit(1)
+            # check password
+            try:
+                seed = wallet.decode_seed(password)
+            except:
+                print_msg("Error: This password does not decode this wallet.")
+                exit(1)
+        else:
+            password = None
+            seed = wallet.seed
 
-    if cmd == 'import':
+    if cmd == 'importprivkey':
         # See if they specificed a key on the cmd line, if not prompt
         if len(args) > 1:
-            keypair = args[1]
+            sec = args[1]
         else:
-            keypair = prompt_password('Enter Address:PrivateKey (will not echo):', False)
+            sec = prompt_password('Enter PrivateKey (will not echo):', False)
         try:
-            wallet.import_key(keypair,password)
+            addr = wallet.import_key(sec,password)
             wallet.save()
-            print_msg("Keypair imported")
+            print_msg("Keypair imported: ", addr)
         except BaseException as e:
             print_msg("Error: Keypair import failed: " + str(e))
 
@@ -410,7 +435,6 @@ if __name__ == '__main__':
             print_msg(known_commands[cmd2])
 
     elif cmd == 'seed':
-        seed = wallet.pw_decode( wallet.seed, password)
         print_msg(seed + ' "' + ' '.join(mnemonic_encode(seed)) + '"')
 
     elif cmd == 'deseed':
@@ -613,11 +637,6 @@ if __name__ == '__main__':
         print_msg(h)
 
     elif cmd == 'password':
-        try:
-            seed = wallet.pw_decode( wallet.seed, password)
-        except ValueError:
-            sys.exit("Error: Password does not decrypt this wallet.")
-
         new_password = prompt_password('New password:')
         wallet.update_password(seed, password, new_password)
 

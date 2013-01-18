@@ -9,7 +9,7 @@ NSIS_URL=http://prdownloads.sourceforge.net/nsis/nsis-2.46-setup.exe?download
 #ZBAR_URL=http://sourceforge.net/projects/zbar/files/zbar/0.10/zbar-0.10-setup.exe/download
 
 # These settings probably don't need change
-export WINEPREFIX=~/.wine-electrum
+export WINEPREFIX=/opt/wine-electrum
 PYHOME=c:/python26
 PYTHON="wine $PYHOME/python.exe -OO -B"
 

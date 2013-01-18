@@ -1,3 +1,55 @@
+# Release 1.6.2 (Not released)
+
+== Classic GUI
+* Added new version notification
+
+# Release 1.6.1 (11-01-2013)
+
+== Core
+* It is now possible to restore a wallet from MPK (this will create a watching-only wallet)
+* A switch button allows to easily switch between Lite and Classic GUI.
+
+== Classic GUI
+* Seed and MPK help dialogs were rewritten
+* Point of Sale: requested amounts can be expressed in other currencies and are converted to bitcoin.
+
+== Lite GUI
+* The receiving button was removed in favor of a menu item to keep it consistent with the history toggle.
+
+# Release 1.6.0 (07-01-2013)
+
+== Core
+* (Feature) Add support for importing, signing and verifiying compressed keys
+* (Feature) Auto reconnect to random server on disconnect
+* (Feature) Ultimate fallback to HTTP port 80 if TCP doesn't work on any server
+* (Bug) Under rare circumstances changing password with incorrect password could damage wallet
+
+== Lite GUI
+* (Chore) Use blockchain.info for exchange rate data 
+* (Feature) added currency conversion for BRL, CNY, RUB
+* (Feature) Saraha theme
+* (Feature) csv import/export for transactions including labels 
+
+== Classic GUI
+* (Chore) pruning servers now called "p", full servers "f" to avoid confusion with terms
+* (Feature) Debits in history shown in red
+* (Feature) csv import/export for transactions including labels 
+
+# Release 1.5.8 (02-01-2013)
+
+== Core
+* (Bug) Fix pending address balance on received coins for pruning servers 
+* (Bug) Fix history command line option to show output again (regression by SPV)
+* (Chore) Add timeout to blockchain headers file download by HTTP
+* (Feature) new option: -L, --language: default language used in GUI. 
+
+== Lite GUI
+* (Bug) Sending to auto-completed contacts works again
+* (Chore) Added version number to title bar
+
+== Classic GUI
+* (Feature) Language selector in options.
+
 # Release 1.5.7 (18-12-2012)
 
 == Core

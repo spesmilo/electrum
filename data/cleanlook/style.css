@@ -9,19 +9,18 @@ MiniWindow QPushButton {
   border-radius: 0px;
   background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
   stop: 0 white, stop: 1 #E6E6E6);
-  min-height: 25px;
+  min-height: 30px;
   min-width: 30px;
 }
 
 #send_button{
-  color: #E5F2FF;
+  color: #FFF;
   border: 1px solid #3786E6;
   border-radius: 4px;
   background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
   stop: 0 #72B2F8, stop: 1 #3484E6);
-  min-width: 80px;
-  min-height: 23px;
   padding: 2px;
+  width: 20px;
 }
 
 #send_button:disabled{
@@ -30,71 +29,33 @@ MiniWindow QPushButton {
   border-radius: 4px;
   background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
   stop: 0 #A5CFFA, stop: 1 #72B2F8);
-  min-width: 80px;
-  min-height: 23px;
-  padding: 2px;
 }
-#receive_button
-{
-  color: #777;
-  border: 1px solid #CCC;
-  border-radius: 0px;
-  background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-  stop: 0 white, stop: 1 #E6E6E6);
-  min-height: 25px;
-  min-width: 30px;
-}          
-#receive_button[isActive=true]
-{
-  color: #575757;
-  background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-  stop: 0 white, stop: 1 #D1D1D1);
-}          
-
 #address_input, #amount_input, #label_input
 {
     color: #000;
     padding: 5px;
-    border-radius: 4px;
+    border-radius: 5px;
+    min-height: 23px;
     border: 1px solid #AAA9A9;
-    width: 225px;
+    width: 200px;
 }
 
 #address_input[isValid=true]
 {
   color: #4D9948;
-  padding: 5px;
-  border-radius: 4px;
-  border: 1px solid #AAA9A9;
-  width: 225px;
-  margin-top: 4px;
 }
 
 #address_input[isValid=false]
 {
   color: #CE4141;
-  padding: 5px;
-  border-radius: 4px;
-  border: 1px solid #AAA9A9;
-  width: 225px;
-  margin-top: 4px;
 }
 
-#address_input[isValid=placeholder]
-{
-  color: blue;
-  padding: 5px;
-  border-radius: 4px;
-  border: 1px solid #AAA9A9;
-  width: 225px;
-  margin-top: 4px;
-}
 #balance_label
 {
     color: #333;
 }
 
-#history::item
+#history
 {
     color: #888;
 }

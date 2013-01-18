@@ -709,7 +709,7 @@ def seed_dialog():
         password = None
     
     try:
-        seed = wallet.pw_decode( wallet.seed, password)
+        seed = wallet.decode_seed(password)
     except:
         modal_dialog('error','incorrect password')
         return
@@ -725,7 +725,7 @@ def change_password_dialog():
         password = None
 
     try:
-        seed = wallet.pw_decode( wallet.seed, password)
+        seed = wallet.decode_seed(password)
     except:
         modal_dialog('error','incorrect password')
         return
@@ -956,8 +956,10 @@ class ElectrumGui:
             except:
                 modal_dialog('error: could not decode this seed')
                 return
-        wallet.seed = str(seed)
-        return True
+
+        gap = 5   # default
+
+        return str(seed), gap
 
 
     def network_dialog(self):

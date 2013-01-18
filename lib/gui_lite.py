@@ -31,6 +31,7 @@ import util
 import csv 
 import datetime
 
+from version import ELECTRUM_VERSION as electrum_version
 from wallet import format_satoshis
 import gui_qt
 import shutil
@@ -85,16 +86,62 @@ def load_theme_paths():
     return theme_paths
 
 
+def csv_transaction(wallet):
+    try:
+        fileName = QFileDialog.getSaveFileName(QWidget(), 'Select file to export your wallet transactions to', os.path.expanduser('~/electrum-history.csv'), "*.csv")
+        if fileName:
+            with open(fileName, "w+") as csvfile:
+                transaction = csv.writer(csvfile)
+                transaction.writerow(["transaction_hash","label", "confirmations", "value", "fee", "balance", "timestamp"])
+                for item in wallet.get_tx_history():
+                    tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
+                    if confirmations:
+                        if timestamp is not None:
+                            try:
+                                time_string = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+                            except [RuntimeError, TypeError, NameError] as reason:
+                                time_string = "unknown"
+                                pass
+                        else:
+                          time_string = "unknown"
+                    else:
+                        time_string = "pending"
+
+                    if value is not None:
+                        value_string = format_satoshis(value, True, wallet.num_zeros)
+                    else:
+                        value_string = '--'
+
+                    if fee is not None:
+                        fee_string = format_satoshis(fee, True, wallet.num_zeros)
+                    else:
+                        fee_string = '0'
+
+                    if tx_hash:
+                        label, is_default_label = wallet.get_label(tx_hash)
+                    else:
+                      label = ""
+
+                    balance_string = format_satoshis(balance, False, wallet.num_zeros)
+                    transaction.writerow([tx_hash, label, confirmations, value_string, fee_string, balance_string, time_string])
+                QMessageBox.information(None,"CSV Export created", "Your CSV export has been successfully created.")
+    except (IOError, os.error), reason:
+        QMessageBox.critical(None,"Unable to create csv", "Electrum was unable to produce a transaction export.\n" + str(reason))
+
+
 class ElectrumGui(QObject):
 
-    def __init__(self, wallet, config):
+    def __init__(self, wallet, config, expert=None):
         super(QObject, self).__init__()
 
         self.wallet = wallet
         self.config = config
         self.check_qt_version()
-        self.app = QApplication(sys.argv)
-
+        self.expert = expert
+        if self.expert != None:
+            self.app = self.expert.app
+        else:
+            self.app = QApplication(sys.argv)
 
     def check_qt_version(self):
         qtVersion = qVersion()
@@ -121,17 +168,19 @@ class ElectrumGui(QObject):
 
         if url:
             self.set_url(url)
-
-        timer = Timer()
-        timer.start()
-        self.expert = gui_qt.ElectrumWindow(self.wallet, self.config)
-        self.expert.app = self.app
-        self.expert.connect_slots(timer)
-        self.expert.update_wallet()
-        self.app.exec_()
+            
+        if self.expert == None:
+            timer = Timer()
+            timer.start()
+            self.expert = gui_qt.ElectrumWindow(self.wallet, self.config)
+            self.expert.app = self.app
+            self.expert.connect_slots(timer)
+            self.expert.update_wallet()
+            self.app.exec_()
 
     def expand(self):
         """Hide the lite mode window and show pro-mode."""
+        self.config.set_key('gui', 'classic', True)
         self.mini.hide()
         self.expert.show()
 
@@ -196,7 +245,7 @@ class MiniWindow(QDialog):
         self.actuator = actuator
         self.config = config
         self.btc_balance = None
-        self.quote_currencies = ["EUR", "USD", "GBP"]
+        self.quote_currencies = ["BRL", "CNY", "EUR", "GBP", "RUB", "USD"]
         self.actuator.set_configured_currency(self.set_quote_currency)
         self.exchanger = exchange_rate.Exchanger(self)
         # Needed because price discovery is done in a different thread
@@ -209,12 +258,12 @@ class MiniWindow(QDialog):
 
         # Bitcoin address code
         self.address_input = QLineEdit()
-        self.address_input.setPlaceholderText(_("Enter a Bitcoin address..."))
+        self.address_input.setPlaceholderText(_("Enter a Bitcoin address or contact"))
         self.address_input.setObjectName("address_input")
 
         self.address_input.setFocusPolicy(Qt.ClickFocus)
 
-        self.address_input.textEdited.connect(self.address_field_changed)
+        self.address_input.textChanged.connect(self.address_field_changed)
         resize_line_edit_width(self.address_input,
                                "1BtaFUr3qVvAmwrsuDuu5zk6e4s2rxd2Gy")
 
@@ -249,27 +298,28 @@ class MiniWindow(QDialog):
         self.send_button.clicked.connect(self.send)
 
         # Creating the receive button
-        self.receive_button = QPushButton(_("&Receive"))
-        self.receive_button.setObjectName("receive_button")
-        self.receive_button.setDefault(True)
+        self.switch_button = QPushButton( QIcon(":icons/switchgui.png"),'' )
+        self.switch_button.setMaximumWidth(25)
+        self.switch_button.setFlat(True)
+        self.switch_button.clicked.connect(expand_callback)
 
         main_layout = QGridLayout(self)
 
-        main_layout.addWidget(self.balance_label, 0, 0)
-        main_layout.addWidget(self.receive_button, 0, 1)
+        main_layout.addWidget(self.balance_label, 0, 0, 1, 3)
+        main_layout.addWidget(self.switch_button, 0, 3)
 
-        main_layout.addWidget(self.address_input, 1, 0)
+        main_layout.addWidget(self.address_input, 1, 0, 1, 4)
+        main_layout.addWidget(self.amount_input, 2, 0, 1, 2)
+        main_layout.addWidget(self.send_button, 2, 2, 1, 2)
 
-        main_layout.addWidget(self.amount_input, 2, 0)
-        main_layout.addWidget(self.send_button, 2, 1)
+        self.send_button.setMaximumWidth(125)
 
         self.history_list = history_widget.HistoryWidget()
         self.history_list.setObjectName("history")
         self.history_list.hide()
         self.history_list.setAlternatingRowColors(True)
 
-        main_layout.addWidget(self.history_list, 3, 0, 1, 2)
-        
+        main_layout.addWidget(self.history_list, 3, 0, 1, 4)
 
         self.receiving = receiving_widget.ReceivingWidget(self)
         self.receiving.setObjectName("receiving")
@@ -288,6 +338,7 @@ class MiniWindow(QDialog):
         self.receiving.itemDoubleClicked.connect(self.receiving.edit_label)
         self.receiving.itemChanged.connect(self.receiving.update_label)
 
+
         # Label
         extra_layout.addWidget( QLabel(_('Selecting an address will copy it to the clipboard.\nDouble clicking the label will allow you to edit it.') ),0,0)
 
@@ -296,18 +347,15 @@ class MiniWindow(QDialog):
         extra_layout.setColumnMinimumWidth(0,200)
 
         self.receiving_box.setLayout(extra_layout)
-        main_layout.addWidget(self.receiving_box,0,3,-1,3)
+        main_layout.addWidget(self.receiving_box,0,4,-1,3)
         self.receiving_box.hide()
-
-        self.receive_button.clicked.connect(self.toggle_receiving_layout)
 
         # Creating the menu bar
         menubar = QMenuBar()
-        electrum_menu = menubar.addMenu(_("&Bitcoin"))
+        electrum_menu = menubar.addMenu(_("&Electrum"))
 
-        electrum_menu.addSeparator()
+        quit_option = electrum_menu.addAction(_("&Close"))
 
-        quit_option = electrum_menu.addAction(_("&Quit"))
         quit_option.triggered.connect(self.close)
 
         view_menu = menubar.addMenu(_("&View"))
@@ -317,7 +365,7 @@ class MiniWindow(QDialog):
         backup_wallet.triggered.connect(self.backup_wallet)
 
         export_csv = extra_menu.addAction( _("&Export transactions to CSV") )
-        export_csv.triggered.connect(self.actuator.csv_transaction)
+        export_csv.triggered.connect(lambda: csv_transaction(self.actuator.wallet))
         
         master_key = extra_menu.addAction( _("Copy master public key to clipboard") ) 
         master_key.triggered.connect(self.actuator.copy_master_public_key)
@@ -343,6 +391,18 @@ class MiniWindow(QDialog):
             theme_action.toggled.connect(delegate)
             theme_group.addAction(theme_action)
         view_menu.addSeparator()
+
+        show_receiving = view_menu.addAction(_("Show Receiving addresses"))
+        show_receiving.setCheckable(True)
+        show_receiving.toggled.connect(self.toggle_receiving_layout)
+
+        show_receiving_toggle = self.config.get("gui_show_receiving",False)
+        show_receiving.setChecked(show_receiving_toggle)
+        self.show_receiving = show_receiving
+
+        self.toggle_receiving_layout(show_receiving_toggle)
+
+
         show_history = view_menu.addAction(_("Show History"))
         show_history.setCheckable(True)
         show_history.toggled.connect(self.show_history)
@@ -377,19 +437,6 @@ class MiniWindow(QDialog):
         self.setObjectName("main_window")
         self.show()
 
-    def toggle_receiving_layout(self):
-        if self.receiving_box.isVisible():
-            self.receiving_box.hide()
-            self.receive_button.setProperty("isActive", False)
-
-            qApp.style().unpolish(self.receive_button)
-            qApp.style().polish(self.receive_button)
-        else:
-            self.receiving_box.show()
-            self.receive_button.setProperty("isActive", 'true')
-
-            qApp.style().unpolish(self.receive_button)
-            qApp.style().polish(self.receive_button)
 
     def toggle_theme(self, theme_name):
         old_path = QDir.currentPath()
@@ -403,6 +450,7 @@ class MiniWindow(QDialog):
         g = self.geometry()
         self.config.set_key("winpos-lite", [g.left(),g.top(),g.width(),g.height()],True)
         self.config.set_key("gui_show_history", self.history_list.isVisible(),True)
+        self.config.set_key("gui_show_receiving", self.receiving_box.isVisible(),True)
         
         super(MiniWindow, self).closeEvent(event)
         qApp.quit()
@@ -447,7 +495,7 @@ class MiniWindow(QDialog):
             quote_text = "(%s)" % quote_text
         btc_balance = "%.2f" % (btc_balance / bitcoin(1))
         self.balance_label.set_balance_text(btc_balance, quote_text)
-        self.setWindowTitle("Electrum - %s BTC" % btc_balance)
+        self.setWindowTitle("Electrum %s - %s BTC" % (electrum_version, btc_balance))
 
     def amount_input_changed(self, amount_text):
         """Update the number of bitcoins displayed."""
@@ -499,6 +547,13 @@ class MiniWindow(QDialog):
             self.send_button.setDisabled(True)
 
     def address_field_changed(self, address):
+        # label or alias, with address in brackets
+        match2 = re.match("(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>",
+                          address)
+        if match2:
+          address = match2.group(2)
+          self.address_input.setText(address)
+
         if self.actuator.is_valid(address):
             self.check_button_status()
             self.address_input.setProperty("isValid", True)
@@ -540,15 +595,21 @@ class MiniWindow(QDialog):
         self.actuator.acceptbit(self.quote_currencies[0])
 
     def the_website(self):
-        webbrowser.open("http://electrum-desktop.com")
+        webbrowser.open("http://electrum.org")
 
     def show_about(self):
         QMessageBox.about(self, "Electrum",
-            _("Electrum's focus is speed, with low resource usage and simplifying Bitcoin. You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper. Startup times are instant because it operates in conjuction with high-performance servers that handle the most complicated parts of the Bitcoin system.\n\nSend donations to 1JwTMv4GWaPdf931N6LNPJeZBfZgZJ3zX1"))
+            _("Electrum's focus is speed, with low resource usage and simplifying Bitcoin. You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper. Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the Bitcoin system."))
 
     def show_report_bug(self):
         QMessageBox.information(self, "Electrum - " + _("Reporting Bugs"),
-            _("Please report any bugs as issues on github: https://github.com/spesmilo/electrum/issues"))
+            _("Please report any bugs as issues on github: <a href=\"https://github.com/spesmilo/electrum/issues\">https://github.com/spesmilo/electrum/issues</a>"))
+
+    def toggle_receiving_layout(self, toggle_state):
+        if toggle_state:
+          self.receiving_box.show()
+        else:
+          self.receiving_box.hide()
 
     def show_history(self, toggle_state):
         if toggle_state:
@@ -684,7 +745,7 @@ class ReceivePopup(QDialog):
 
 class MiniActuator:
     """Initialize the definitions relating to themes and 
-    sending/recieving bitcoins."""
+    sending/receiving bitcoins."""
     
     
     def __init__(self, wallet):
@@ -761,47 +822,6 @@ class MiniActuator:
         w.exec_()
         w.destroy()
 
-    def csv_transaction(self):
-        try:
-          fileName = QFileDialog.getSaveFileName(QWidget(), 'Select file to export your wallet transactions to', os.path.expanduser('~/'), "*.csv")
-          if fileName:
-            with open(fileName, "w+") as csvfile:
-                transaction = csv.writer(csvfile)
-                transaction.writerow(["transaction_hash","label", "confirmations", "value", "fee", "balance", "timestamp"])
-                for item in self.wallet.get_tx_history():
-                    tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
-                    if confirmations:
-                        if timestamp is not None:
-                            try:
-                                time_string = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
-                            except [RuntimeError, TypeError, NameError] as reason:
-                                time_string = "unknown"
-                                pass
-                        else:
-                          time_string = "unknown"
-                    else:
-                        time_string = "pending"
-
-                    if value is not None:
-                        value_string = format_satoshis(value, True, self.wallet.num_zeros)
-                    else:
-                        value_string = '--'
-
-                    if fee is not None:
-                        fee_string = format_satoshis(fee, True, self.wallet.num_zeros)
-                    else:
-                        fee_string = '0'
-
-                    if tx_hash:
-                        label, is_default_label = self.wallet.get_label(tx_hash)
-                    else:
-                      label = ""
-
-                    balance_string = format_satoshis(balance, False, self.wallet.num_zeros)
-                    transaction.writerow([tx_hash, label, confirmations, value_string, fee_string, balance_string, time_string])
-                QMessageBox.information(None,"CSV Export created", "Your CSV export has been succesfully created.")
-        except (IOError, os.error), reason:
-          QMessageBox.critical(None,"Unable to create csv", "Electrum was unable to produce a transaction export.\n" + str(reason))
 
     def send(self, address, amount, parent_window):
         """Send bitcoins to the target address."""
@@ -879,12 +899,13 @@ class MiniActuator:
 
     def is_valid(self, address):
         """Check if bitcoin address is valid."""
+
         return self.wallet.is_valid(address)
 
     def copy_master_public_key(self):
         master_pubkey = self.wallet.master_public_key
         qApp.clipboard().setText(master_pubkey)
-        QMessageBox.information(None,"Copy succesful", "Your public master key has been copied to your clipboard.")
+        QMessageBox.information(None,"Copy successful", "Your master public key has been copied to your clipboard.")
         
 
     def acceptbit(self, currency):

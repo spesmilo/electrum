@@ -30,6 +30,10 @@ data_files += [
         "data/cleanlook/name.cfg",
         "data/cleanlook/style.css"
     ]),
+    (os.path.join(util.appdata_dir(), "sahara"), [
+        "data/sahara/name.cfg",
+        "data/sahara/style.css"
+    ]),    
     (os.path.join(util.appdata_dir(), "dark"), [
         "data/dark/background.png",
         "data/dark/name.cfg",
@@ -46,6 +50,8 @@ setup(name = "Electrum",
     data_files = data_files,
     py_modules = ['electrum.version',
                   'electrum.wallet',
+                  'electrum.wallet_bitkey',
+                  'electrum.wallet_factory',
                   'electrum.interface',
                   'electrum.gui',
                   'electrum.gui_qt',
