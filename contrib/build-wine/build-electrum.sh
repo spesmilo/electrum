@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # You probably need to update only this link
-ELECTRUM_URL=https://github.com/downloads/spesmilo/electrum/Electrum-1.6.1.tar.gz
+ELECTRUM_URL=http://electrum.bitcoin.cz/download/Electrum-1.6.1.tar.gz
 NAME_ROOT=electrum-1.6.1
 
 # These settings probably don't need any change
