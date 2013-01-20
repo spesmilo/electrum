@@ -3,7 +3,8 @@
 import urllib2, os
 from lib.version import TRANSLATION_ID
 
-url = "https://en.bitcoin.it/w/index.php?title=Electrum/Translation&oldid=%d&action=raw"%TRANSLATION_ID
+#url = "https://en.bitcoin.it/w/index.php?title=Electrum/Translation&oldid=%d&action=raw"%TRANSLATION_ID
+url = "http://bitcoin.wikia.com/wiki/Electrum?oldid=%d&action=raw"%TRANSLATION_ID
 f = urllib2.urlopen(url)
 lines = f.readlines()
 dicts = {}
