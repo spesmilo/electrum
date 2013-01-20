@@ -36,7 +36,7 @@ DEFAULT_SERVERS = [
     'electrum.bysh.me:50001:t',
     'electrum.pdmc.net:50001:t',
     'electrum.no-ip.org:50001:t',
-    'ecdsa.org:50001:t'
+    #'ecdsa.org:50001:t'
     ]
 
 # add only port 80 servers here
@@ -419,7 +419,7 @@ class Interface(threading.Thread):
             if not self.is_connected:
                 print 'no server available'
                 self.connect_event.set() # to finish start
-                self.server = 'ecdsa.org:50001:t'
+                self.server = 'electrum.be:50001:t'
                 self.proxy = None
                 return
 
