@@ -9,7 +9,7 @@ except:
     print "usage: watch_address <bitcoin_address>"
     sys.exit(1)
 
-i = Interface({'server':'ecdsa.org:50001:t'})
+i = Interface({'server':'electrum.be:50001:t'})
 i.start()
 i.send([('blockchain.address.subscribe',[addr])] )
 time.sleep(1)
