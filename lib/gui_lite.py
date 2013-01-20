@@ -340,7 +340,7 @@ class MiniWindow(QDialog):
 
 
         # Label
-        extra_layout.addWidget( QLabel(_('Selecting an address will copy it to the clipboard.\nDouble clicking the label will allow you to edit it.') ),0,0)
+        extra_layout.addWidget( QLabel(_('Selecting an address will copy it to the clipboard.') + '\n' + _('Double clicking the label will allow you to edit it.') ),0,0)
 
         extra_layout.addWidget(self.receiving, 1,0)
         extra_layout.addWidget(hide_used, 2,0)
