@@ -218,10 +218,11 @@ class TransactionWindow(QDialog):
 
         self.setModal(True)
         self.resize(200,100)
-        self.setWindowTitle("Transaction successfully sent")
+        self.setWindowTitle(_("Transaction successfully sent"))
 
         self.layout = QGridLayout(self)
-        self.layout.addWidget(QLabel("Your transaction has been sent.\nPlease enter a label for this transaction for future reference."))
+        history_label = "%s\n%s" % (_("Your transaction has been sent."), _("Please enter a label for this transaction for future reference."))
+        self.layout.addWidget(QLabel(history_label))
 
         self.label_edit = QLineEdit()
         self.label_edit.setPlaceholderText(_("Transaction label"))
@@ -621,13 +622,13 @@ class MiniWindow(QDialog):
 
     def backup_wallet(self):
         try:
-          folderName = QFileDialog.getExistingDirectory(QWidget(), 'Select folder to save a copy of your wallet to', os.path.expanduser('~/'))
+          folderName = QFileDialog.getExistingDirectory(QWidget(), _('Select folder to save a copy of your wallet to'), os.path.expanduser('~/'))
           if folderName:
             sourceFile = util.user_dir() + '/electrum.dat'
             shutil.copy2(sourceFile, str(folderName))
-            QMessageBox.information(None,"Wallet backup created", "A copy of your wallet file was created in '%s'" % str(folderName))
+            QMessageBox.information(None,"Wallet backup created", _("A copy of your wallet file was created in")+" '%s'" % str(folderName))
         except (IOError, os.error), reason:
-          QMessageBox.critical(None,"Unable to create backup", "Electrum was unable copy your wallet file to the specified location.\n" + str(reason))
+          QMessageBox.critical(None,"Unable to create backup", _("Electrum was unable to copy your wallet file to the specified location.")+"\n" + str(reason))
 
 
 
