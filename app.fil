@@ -1,3 +1,4 @@
 lib/gui_qt.py
 lib/gui.py
 lib/gui_lite.py
+lib/history_widget.py
