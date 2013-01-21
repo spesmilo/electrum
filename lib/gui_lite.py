@@ -88,7 +88,8 @@ def load_theme_paths():
 
 def csv_transaction(wallet):
     try:
-        fileName = QFileDialog.getSaveFileName(QWidget(), 'Select file to export your wallet transactions to', os.path.expanduser('~/electrum-history.csv'), "*.csv")
+        select_export = _('Select file to export your wallet transactions to')
+        fileName = QFileDialog.getSaveFileName(QWidget(), select_export, os.path.expanduser('~/electrum-history.csv'), "*.csv")
         if fileName:
             with open(fileName, "w+") as csvfile:
                 transaction = csv.writer(csvfile)
@@ -126,7 +127,8 @@ def csv_transaction(wallet):
                     transaction.writerow([tx_hash, label, confirmations, value_string, fee_string, balance_string, time_string])
                 QMessageBox.information(None,"CSV Export created", "Your CSV export has been successfully created.")
     except (IOError, os.error), reason:
-        QMessageBox.critical(None,"Unable to create csv", "Electrum was unable to produce a transaction export.\n" + str(reason))
+        export_error_label = _("Electrum was unable to produce a transaction export.")
+        QMessageBox.critical(None,"Unable to create csv", export_error_label + "\n" + str(reason))
 
 
 class ElectrumGui(QObject):
