@@ -49,6 +49,8 @@ Syntax: payto <recipient> <amount> [label]
 <recipient> can be a bitcoin address or a label
 options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address -\n  --changeaddr, -c: send change to address
             """,
+    'dumptx':
+            'Display a transaction in human-readable form\nSyntax: dumptx <tx>\n<tx> must be in hexadecimal, as output by the "mktx" command.',
     'sendtx':
             'Broadcasts a transaction to the network. \nSyntax: sendtx <tx>\n<tx> must be in hexadecimal.',
     'password': 
@@ -94,7 +96,7 @@ options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address 
 
 
 
-offline_commands = [ 'password', 'mktx', 'signtx',
+offline_commands = [ 'password', 'mktx', 'signtx', 'dumptx',
                      'label', 'contacts',
                      'help', 'validateaddress',
                      'signmessage', 'verifymessage',
@@ -635,6 +637,11 @@ if __name__ == '__main__':
         tx = args[1]
         r, h = wallet.sendtx( tx )
         print_msg(h)
+
+    elif cmd == 'dumptx':
+        tx = args[1]
+        txt = wallet.dumptx( tx )
+        print_msg(txt)
 
     elif cmd == 'password':
         new_password = prompt_password('New password:')
