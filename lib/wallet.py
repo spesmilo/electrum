@@ -610,7 +610,9 @@ class Wallet:
             # normally, the update thread should ensure that the last change address is unused
             if not change_addr:
                 change_addr = self.change_addresses[-1]
-            outputs.append( ( change_addr,  change_amount) )
+            # Insert the change output at a random position in the outputs
+            posn = random.randint(0, len(outputs))
+            outputs[posn:posn] = [( change_addr,  change_amount)]
         return outputs
 
     def sign_inputs( self, inputs, outputs, password ):
