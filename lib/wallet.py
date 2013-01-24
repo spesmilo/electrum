@@ -64,13 +64,13 @@ class Wallet:
         self.addresses             = config.get('addresses', [])          # receiving addresses visible for user
         self.change_addresses      = config.get('change_addresses', [])   # addresses used as change
         self.seed                  = config.get('seed', '')               # encrypted
-        self.labels                = config.get('labels',{'1NmduGNyC5XejoysbuioodCN3jR3yf64xM':'Electrum donation address'})
+        self.labels                = config.get('labels', {})
         self.aliases               = config.get('aliases', {})            # aliases for addresses
         self.authorities           = config.get('authorities', {})        # trusted addresses
         self.frozen_addresses      = config.get('frozen_addresses',[])
         self.prioritized_addresses = config.get('prioritized_addresses',[])
         self.receipts              = config.get('receipts',{})            # signed URIs
-        self.addressbook           = config.get('contacts', ['1NmduGNyC5XejoysbuioodCN3jR3yf64xM'])
+        self.addressbook           = config.get('contacts', [])
         self.imported_keys         = config.get('imported_keys',{})
         self.history               = config.get('addr_history',{})        # address -> list(txid, height)
         self.transactions          = config.get('transactions',{})        # txid -> deserialised
