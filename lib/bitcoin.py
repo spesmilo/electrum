@@ -296,4 +296,82 @@ def raw_tx( inputs, outputs, for_sig = None ):
     if for_sig is not None: s += int_to_hex(1, 4)            # hash type
     return s
 
+def hex_to_int(s):
+    return int(rev_hex(s), 16)
 
+def var_int_to_int(s):
+    if len(s) < 2:
+        return 0, 0
+    byte = hex_to_int(s[0:2])
+    if byte < 0xfd:
+        return byte, 2
+    elif byte == 0xfd:
+        return hex_to_int(s[2:6]), 4
+    elif byte == 0xfe:
+        return hex_to_int(s[2:10]), 8
+    else:
+        return hex_to_int(s[2:18]), 16
+
+def decode_input(s):
+    try:
+        i_hash = s[0:64]
+        i_hash = i_hash.decode('hex')[::-1].encode('hex')
+        i_index = hex_to_int(s[64:72])
+        p = 72
+        s_bytes, l = var_int_to_int(s[p:])
+        p += l + s_bytes * 2
+        # Ignore seq
+        p += 8
+        if len(s) < p: raise ValueError()
+        return i_hash, i_index, p
+    except:
+        raise ValueError( 'Cannot decode input' )
+    
+def decode_output(s):
+    try:
+        amount = hex_to_int(s[0:16])
+        s_bytes, l = var_int_to_int(s[16:]);
+        p = 16 + l
+        address = '<Script>'
+        if s[p:p+4] == '76a9':
+            a_bytes = hex_to_int(s[p+4:p+6])
+            q = p + 6 + a_bytes * 2
+            if s[q:q + 4] == '88ac':
+                address = hash_160_to_bc_address(s[p+6:q].decode('hex'))
+        return amount, address, p + s_bytes * 2
+    except:
+        raise ValueError( 'Cannot decode output' )
+
+# tx is a hexadecimal-encoded string
+def decode_raw_tx(tx):
+    match = re.match('[a-f0-9]+', tx)
+    if match is None or match.group(0) != tx:
+        raise ValueError( "Transaction must be in hexadecimal" )
+    version = hex_to_int(tx[0:8])
+    if version != 1:
+        raise ValueError( "Only version 1 transactions are understood" )
+    p = 8
+    
+    n_inputs, l = var_int_to_int(tx[p:])
+    if n_inputs == 0:
+        raise ValueError( "Cannot decode transaction inputs" )
+    p += l
+
+    inputs = []
+    for i in range(n_inputs):
+        i_hash, i_index, l = decode_input(tx[p:])
+        inputs.append((i_hash, i_index))
+        p += l
+
+    n_outputs, l = var_int_to_int(tx[p:])
+    if n_outputs == 0:
+        raise ValueError( "Cannot decode transaction outputs" )
+    p += l
+        
+    outputs = []
+    for i in range(n_outputs):
+        amount, address, l = decode_output(tx[p:])
+        outputs.append((address, amount))
+        p += l
+
+    return inputs, outputs

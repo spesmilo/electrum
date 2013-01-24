@@ -856,6 +856,40 @@ class Wallet:
             self.receipt = None
         return True, out
 
+    def dumptx(self, tx):
+        inputs, outputs = decode_raw_tx(tx)
+        total_input = total_output = 0
+        msg = ''
+        
+        for i in range(len(inputs)):
+            (i_hash, i_index) = inputs[i]
+            i_tx = self.transactions.get(i_hash)
+            amount = -1
+            if i_tx:
+                i_tx_outs = i_tx['outputs']
+                if i_index >= 0 and i_index < len(i_tx_outs):
+                    inpt = i_tx_outs[i_index]
+                    address, amount = inpt['address'], inpt['value'] / 1e8
+                    msg += 'Input  %d: %34s %14.8f BTC\n' % (i, address, amount)
+                    if total_input != None: total_input += amount
+            if amount == -1:
+                msg += 'Input  %d: (transaction not found in this wallet)\n' % i
+                total_input = None
+            msg += '          %s /%d\n' % (i_hash, i_index)
+
+        for i in range(len(outputs)):
+            (address, amount) = outputs[i]
+            amount /= 1e8
+            total_output += amount
+            msg += 'Output %d: %34s %14.8f BTC\n' % (i, address, amount)
+
+        msg += '\nTotal Inputs : %s BTC\n' % ("Unknown" if total_input is None else "%14.8f" % total_input)
+        msg += 'Total Outputs: %14.8f BTC\n' % total_output
+        if total_input == None:
+            msg += 'Total Fees   : not determined'
+        else:
+            msg += 'Total Fees   : %14.8f BTC' % (total_input - total_output)
+        return msg
 
     def read_alias(self, alias):
         # this might not be the right place for this function.
