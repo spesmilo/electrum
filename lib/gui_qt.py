@@ -1183,13 +1183,12 @@ class ElectrumWindow(QMainWindow):
 
             h = self.wallet.history.get(address,[])
             
-            if h == []:
-                if address in self.wallet.addresses:
+            if address in self.wallet.addresses:
+                if h == []:
                     gap += 1
                     if gap > self.wallet.gap_limit:
                         is_red = True
-            else:
-                if address in self.wallet.addresses:
+                else:
                     gap = 0
 
             num_tx = '*' if h == ['*'] else "%d"%len(h)
