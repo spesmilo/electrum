@@ -273,7 +273,7 @@ class ElectrumGui:
         if status:
             self.show_message(_('Payment sent.'))
             self.do_clear()
-            self.update_contacts_tab()
+            #self.update_contacts_tab()
         else:
             self.show_message(_('Error'))
 
