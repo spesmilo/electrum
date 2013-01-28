@@ -1181,19 +1181,9 @@ class ElectrumWindow(QMainWindow):
             if self.wallet.is_change(address) and self.receive_tab_mode != 1:
                 continue
 
-            n = 0 
             h = self.wallet.history.get(address,[])
-
-            if h != ['*']: 
-                for tx_hash, tx_height in h:
-                    tx = self.wallet.transactions.get(tx_hash)
-                    if tx: n += 1
-                num_tx = "%d "%n
-            else:
-                n = -1
-                num_tx = "*"
-
-            if n==0:
+            
+            if h == []:
                 if address in self.wallet.addresses:
                     gap += 1
                     if gap > self.wallet.gap_limit:
@@ -1202,6 +1192,7 @@ class ElectrumWindow(QMainWindow):
                 if address in self.wallet.addresses:
                     gap = 0
 
+            num_tx = '*' if h == ['*'] else "%d"%len(h)
             item = QTreeWidgetItem( [ '', address, '', '', '', num_tx] )
             item.setFont(0, QFont(MONOSPACE_FONT))
             item.setFont(1, QFont(MONOSPACE_FONT))
