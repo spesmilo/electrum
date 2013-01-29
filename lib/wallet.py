@@ -52,6 +52,7 @@ class Wallet:
 
         self.config = config
         self.electrum_version = ELECTRUM_VERSION
+        self.gap_limit_for_change = 3 # constant
 
         # saved fields
         self.seed_version          = config.get('seed_version', SEED_VERSION)
@@ -348,36 +349,45 @@ class Wallet:
         return nmax + 1
 
 
+    def address_is_old(self, address):
+        age = -1
+        h = self.history.get(address, [])
+        if h == ['*']:
+            return True
+        for tx_hash, tx_height in h:
+            if tx_height == 0:
+                tx_age = 0
+            else: 
+                tx_age = self.verifier.height - tx_height + 1
+            if tx_age > age:
+                age = tx_age
+        return age > 2
+
+
+    def synchronize_sequence(self, addresses, n, for_change):
+        new_addresses = []
+        while True:
+            if len(self.addresses) < n:
+                new_addresses.append( self.create_new_address(for_change) )
+                continue
+            if map( lambda a: self.address_is_old(a), addresses[-n:] ) == n*[False]:
+                break
+            else:
+                new_addresses.append( self.create_new_address(for_change) )
+        return new_addresses
+        
+
     def synchronize(self):
         if not self.master_public_key:
             return []
-
         new_addresses = []
-        while True:
-            if self.change_addresses == []:
-                new_addresses.append( self.create_new_address(True) )
-                continue
-            a = self.change_addresses[-1]
-            if self.history.get(a):
-                new_addresses.append( self.create_new_address(True) )
-            else:
-                break
-
-        n = self.gap_limit
-        while True:
-            if len(self.addresses) < n:
-                new_addresses.append( self.create_new_address(False) )
-                continue
-            if map( lambda a: self.history.get(a, []), self.addresses[-n:] ) == n*[[]]:
-                break
-            else:
-                new_addresses.append( self.create_new_address(False) )
-
+        new_addresses += self.synchronize_sequence(self.addresses, self.gap_limit, False)
+        new_addresses += self.synchronize_sequence(self.change_addresses, self.gap_limit_for_change, True)
         return new_addresses
 
 
     def is_found(self):
-        return (len(self.change_addresses) > 1 ) or ( len(self.addresses) > self.gap_limit )
+        return (len(self.change_addresses) > self.gap_limit_for_change ) or ( len(self.addresses) > self.gap_limit )
 
     def fill_addressbook(self):
         for tx_hash, tx in self.transactions.items():
@@ -609,7 +619,7 @@ class Wallet:
         if change_amount != 0:
             # normally, the update thread should ensure that the last change address is unused
             if not change_addr:
-                change_addr = self.change_addresses[-1]
+                change_addr = self.change_addresses[-self.gap_limit_for_change]
             # Insert the change output at a random position in the outputs
             posn = random.randint(0, len(outputs))
             outputs[posn:posn] = [( change_addr,  change_amount)]
