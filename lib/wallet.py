@@ -1134,6 +1134,9 @@ class Wallet:
 
             if not found:
                 tx = self.transactions.get(tx_hash)
+                # tx might not be there
+                if not tx: continue
+                
                 # already verified?
                 if tx.get('height'):
                     continue
