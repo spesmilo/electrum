@@ -419,7 +419,7 @@ class ElectrumWindow(QMainWindow):
         g = self.config.get("winpos-qt",[100, 100, 840, 400])
         self.setGeometry(g[0], g[1], g[2], g[3])
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.config.path
-        if not self.wallet.seed: title += ' [seedless]'
+        if not self.wallet.seed: title += ' [%s]' % (_('seedless'))
         self.setWindowTitle( title )
 
         QShortcut(QKeySequence("Ctrl+W"), self, self.close)
@@ -2172,11 +2172,11 @@ class ElectrumGui:
         wallet = self.wallet
         # wait until we are connected, because the user might have selected another server
         if not wallet.interface.is_connected:
-            waiting = lambda: False if wallet.interface.is_connected else "connecting...\n"
+            waiting = lambda: False if wallet.interface.is_connected else "%s \n" % (_("Connecting..."))
             waiting_dialog(waiting)
 
-        waiting = lambda: False if wallet.is_up_to_date() else "Please wait...\nAddresses generated: %d\nKilobytes received: %.1f"\
-            %(len(wallet.all_addresses()), wallet.interface.bytes_received/1024.)
+        waiting = lambda: False if wallet.is_up_to_date() else "%s\n%s %d\n%s %.1f"\
+            %(_("Please wait..."),_("Addresses generated:"),len(wallet.all_addresses()),_("Kilobytes received:"), wallet.interface.bytes_received/1024.)
 
         wallet.set_up_to_date(False)
         wallet.interface.poke('synchronizer')
