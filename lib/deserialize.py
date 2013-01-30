@@ -2,7 +2,7 @@
 #
 #
 
-from bitcoin import public_key_to_bc_address, hash_160_to_bc_address, hash_encode
+from bitcoin import public_key_to_bc_address, hash_160_to_bc_address, hash_encode, multisig_script, hash_160
 #import socket
 import time
 import struct
@@ -186,8 +186,7 @@ def parse_TxIn(vds):
   d['prevout_n'] = vds.read_uint32()
   scriptSig = vds.read_bytes(vds.read_compact_size())
   d['sequence'] = vds.read_uint32()
-  d['address'] = extract_public_key(scriptSig)
-  #d['script'] = decode_script(scriptSig)
+  d['address'] = get_address_from_input_script(scriptSig)
   return d
 
 
@@ -195,8 +194,7 @@ def parse_TxOut(vds, i):
   d = {}
   d['value'] = vds.read_int64()
   scriptPubKey = vds.read_bytes(vds.read_compact_size())
-  d['address'] = extract_public_key(scriptPubKey)
-  #d['script'] = decode_script(scriptPubKey)
+  d['address'] = get_address_from_output_script(scriptPubKey)
   d['raw_output_script'] = scriptPubKey.encode('hex')
   d['index'] = i
   return d
@@ -293,7 +291,7 @@ def match_decoded(decoded, to_match):
       return False
   return True
 
-def extract_public_key(bytes):
+def get_address_from_input_script(bytes):
   decoded = [ x for x in script_GetOp(bytes) ]
 
   # non-generated TxIn transactions push a signature
@@ -302,6 +300,35 @@ def extract_public_key(bytes):
   match = [ opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4 ]
   if match_decoded(decoded, match):
     return public_key_to_bc_address(decoded[1][1])
+
+  # p2sh transaction, 2 of n
+  match = [ opcodes.OP_0, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4 ] 
+  if match_decoded(decoded, match):
+    bytes = decoded[3][1]
+    dec2 = [ x for x in script_GetOp(bytes) ]
+
+    # 2 of 2
+    match2 = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_2, opcodes.OP_CHECKMULTISIG ]
+    if match_decoded(dec2, match2):
+      pubkeys = [ dec2[1][1].encode('hex'), dec2[2][1].encode('hex') ]
+      s = multisig_script(pubkeys)
+      return hash_160_to_bc_address(hash_160(s.decode('hex')), 5)
+ 
+    # 2 of 3
+    match2 = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_3, opcodes.OP_CHECKMULTISIG ]
+    if match_decoded(dec2, match2):
+      pubkeys = [ dec2[1][1].encode('hex'), dec2[2][1].encode('hex'), dec2[3][1].encode('hex') ]
+      s = multisig_script(pubkeys)
+      return hash_160_to_bc_address(hash_160(s.decode('hex')), 5)
+
+    return "p2sh, unknown"
+
+
+  return "(None)"
+
+
+def get_address_from_output_script(bytes):
+  decoded = [ x for x in script_GetOp(bytes) ]
 
   # The Genesis Block, self-payments, and pay-by-IP-address payments look like:
   # 65 BYTES:... CHECKSIG
@@ -314,5 +341,10 @@ def extract_public_key(bytes):
   match = [ opcodes.OP_DUP, opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG ]
   if match_decoded(decoded, match):
     return hash_160_to_bc_address(decoded[2][1])
+
+  # p2sh
+  match = [ opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUAL ]
+  if match_decoded(decoded, match):
+    return hash_160_to_bc_address(decoded[1][1],5)
 
   return "(None)"
