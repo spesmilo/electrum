@@ -130,7 +130,7 @@ class Wallet:
         
         # rebuild private and public key from regenerated secret
         private_key = GetPrivKey(pkey, compressed)
-        public_key = GetPubKey(pkey, compressed)
+        public_key = GetPubKey(pkey.pubkey, compressed)
         address = public_key_to_bc_address(public_key)
         
         if address in self.all_addresses():
@@ -168,10 +168,10 @@ class Wallet:
         ADDRESS_RE = re.compile('[1-9A-HJ-NP-Za-km-z]{26,}\\Z')
         if not ADDRESS_RE.match(addr): return False
         try:
-            h = bc_address_to_hash_160(addr)
+            addrtype, h = bc_address_to_hash_160(addr)
         except:
             return False
-        return addr == hash_160_to_bc_address(h)
+        return addr == hash_160_to_bc_address(h, addrtype)
 
     def stretch_key(self,seed):
         oldseed = seed
@@ -216,7 +216,7 @@ class Wallet:
             compressed = False
             pkey = EC_KEY(secexp)
 
-        public_key = GetPubKey(pkey, compressed)
+        public_key = GetPubKey(pkey.pubkey, compressed)
         addr = public_key_to_bc_address(public_key)
         if addr != address:
             print_error('Invalid password with correct decoding')
@@ -606,7 +606,7 @@ class Wallet:
             addr = item.get('address')
             v = item.get('value')
             total += v
-            inputs.append((addr, v, item['tx_hash'], item['index'], item['raw_output_script'], None, None) )
+            inputs.append((addr, v, item['tx_hash'], item['index'], item['raw_output_script'], [(None,None)] ))
             fee = self.fee*len(inputs) if fixed_fee is None else fixed_fee
             if total >= amount + fee: break
         else:
@@ -628,18 +628,18 @@ class Wallet:
     def sign_inputs( self, inputs, outputs, password ):
         s_inputs = []
         for i in range(len(inputs)):
-            addr, v, p_hash, p_pos, p_scriptPubKey, _, _ = inputs[i]
+            addr, v, p_hash, p_pos, p_scriptPubKey, _ = inputs[i]
             secexp, compressed = self.get_private_key(addr, password)
             private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
             public_key = private_key.get_verifying_key()
 
             pkey = EC_KEY(secexp)
-            pubkey = GetPubKey(pkey, compressed)
+            pubkey = GetPubKey(pkey.pubkey, compressed)
 
-            tx = filter( raw_tx( inputs, outputs, for_sig = i ) )
+            tx = raw_tx( inputs, outputs, for_sig = i )
             sig = private_key.sign_digest( Hash( tx.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
             assert public_key.verify_digest( sig, Hash( tx.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
-            s_inputs.append( (addr, v, p_hash, p_pos, p_scriptPubKey, pubkey, sig) )
+            s_inputs.append( (addr, v, p_hash, p_pos, p_scriptPubKey, [(pubkey, sig)] ) )
         return s_inputs
 
     def pw_encode(self, s, password):
@@ -841,7 +841,7 @@ class Wallet:
 
     def signed_tx(self, inputs, outputs, password):
         s_inputs = self.sign_inputs( inputs, outputs, password )
-        tx = filter( raw_tx( s_inputs, outputs ) )
+        tx = raw_tx( s_inputs, outputs )
         return tx
 
     def sendtx(self, tx):
