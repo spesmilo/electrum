@@ -167,6 +167,7 @@ class WalletVerifier(threading.Thread):
                     requested_headers.remove(result.get('block_height'))
                 else:
                     self.height = result.get('block_height')
+                    self.interface.poke('synchronizer')
                 
                 self.pending_headers.sort(key=lambda x: x.get('block_height'))
                 # print "pending headers", map(lambda x: x.get('block_height'), self.pending_headers)
