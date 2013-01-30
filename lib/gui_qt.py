@@ -1259,11 +1259,10 @@ class ElectrumWindow(QMainWindow):
 
         update_notification = UpdateLabel(self.config)
         if(update_notification.new_version):
-          sb.addPermanentWidget(update_notification)
-        else:
+            sb.addPermanentWidget(update_notification)
 
         if (int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
-             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/switchgui.png"), _("Switch to Lite Mode"), self.go_lite ) )
+            sb.addPermanentWidget( StatusBarButton( QIcon(":icons/switchgui.png"), _("Switch to Lite Mode"), self.go_lite ) )
         if self.wallet.seed:
             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/lock.png"), _("Password"), lambda: self.change_password_dialog(self.wallet, self) ) )
         sb.addPermanentWidget( StatusBarButton( QIcon(":icons/preferences.png"), _("Preferences"), self.settings_dialog ) )
