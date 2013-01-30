@@ -63,6 +63,7 @@ import re
 class UpdateLabel(QtGui.QLabel):
     def __init__(self, config, parent=None):
         QtGui.QLabel.__init__(self, parent)
+        self.new_version = False
 
         try:
             con = httplib.HTTPConnection('electrum.org', 80, timeout=5)
@@ -81,6 +82,7 @@ class UpdateLabel(QtGui.QLabel):
                 if(self.compare_versions(self.latest_version, self.current_version) == 1):
                     latest_seen = self.config.get("last_seen_version",ELECTRUM_VERSION)
                     if(self.compare_versions(self.latest_version, latest_seen) == 1):
+                        self.new_version = True
                         self.setText(_("New version available") + ": " + self.latest_version)
 
 
@@ -1256,7 +1258,9 @@ class ElectrumWindow(QMainWindow):
         qtVersion = qVersion()
 
         update_notification = UpdateLabel(self.config)
-        sb.addPermanentWidget(update_notification)
+        if(update_notification.new_version):
+          sb.addPermanentWidget(update_notification)
+        else:
 
         if (int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
              sb.addPermanentWidget( StatusBarButton( QIcon(":icons/switchgui.png"), _("Switch to Lite Mode"), self.go_lite ) )
