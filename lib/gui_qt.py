@@ -1868,7 +1868,7 @@ class ElectrumWindow(QMainWindow):
         grid_wallet.setRowStretch(3,1)
 
 
-        # wallet tab
+        # import/export tab
         tab3 = QWidget()
         grid_io = QGridLayout(tab3)
         grid_io.setColumnStretch(0,1)
