@@ -1355,8 +1355,7 @@ class WalletSynchronizer(threading.Thread):
 
             elif method == 'server.banner':
                 self.wallet.banner = result
-                self.was_updated = True
-
+                self.interface.trigger_callback('banner')
             else:
                 print_error("Error: Unknown message:" + method + ", " + repr(params) + ", " + repr(result) )
 

@@ -395,7 +395,7 @@ class ElectrumWindow(QMainWindow):
         self.wallet = wallet
         self.config = config
         self.wallet.interface.register_callback('updated', self.update_callback)
-        self.wallet.interface.register_callback('connected', self.update_callback)
+        self.wallet.interface.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')) )
         self.wallet.interface.register_callback('disconnected', self.update_callback)
         self.wallet.interface.register_callback('disconnecting', self.update_callback)
 
@@ -412,7 +412,7 @@ class ElectrumWindow(QMainWindow):
         tabs.addTab(self.create_send_tab(), _('Send') )
         tabs.addTab(self.create_receive_tab(), _('Receive') )
         tabs.addTab(self.create_contacts_tab(), _('Contacts') )
-        tabs.addTab(self.create_wall_tab(), _('Wall') )
+        tabs.addTab(self.create_wall_tab(), _('Console') )
         tabs.setMinimumSize(600, 400)
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
@@ -430,7 +430,7 @@ class ElectrumWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() + 1 )%tabs.count() ))
         
         self.connect(self, QtCore.SIGNAL('updatesignal'), self.update_wallet)
-        #self.connect(self, SIGNAL('editamount'), self.edit_amount)
+        self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.wallet.banner) )
         self.history_list.setFocus(True)
         
         self.exchanger = exchange_rate.Exchanger(self)
@@ -496,11 +496,11 @@ class ElectrumWindow(QMainWindow):
         self.status_button.setIcon( icon )
 
         if self.wallet.up_to_date or not self.wallet.interface.is_connected:
-            self.textbox.setText( self.wallet.banner )
             self.update_history_tab()
             self.update_receive_tab()
             self.update_contacts_tab()
             self.update_completions()
+
 
     def create_quote_text(self, btc_balance):
         quote_currency = self.config.get("currency", "None")
@@ -1244,11 +1244,12 @@ class ElectrumWindow(QMainWindow):
 
         l.setCurrentItem(l.topLevelItem(0))
 
+
     def create_wall_tab(self):
-        self.textbox = textbox = QTextEdit(self)
-        textbox.setFont(QFont(MONOSPACE_FONT))
-        textbox.setReadOnly(True)
-        return textbox
+        from qt_console import Console
+        self.console = console = Console(startup_message=self.wallet.banner)
+        console.updateNamespace({'wallet' : self.wallet, 'interface' : self.wallet.interface})
+        return console
 
 
     def create_status_bar(self):
