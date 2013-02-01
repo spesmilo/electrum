@@ -26,6 +26,10 @@ class Console(QtGui.QPlainTextEdit):
         self.appendPlainText(message)
         self.newPrompt()
 
+    def clear(self):
+        self.setPlainText('')
+        self.newPrompt()
+
     def newPrompt(self):
         if self.construct:
             prompt = '.' * len(self.prompt)
@@ -160,8 +164,8 @@ class Console(QtGui.QPlainTextEdit):
         elif event.key() == QtCore.Qt.Key_Down:
             self.setCommand(self.getNextHistoryEntry())
             return
-        #elif event.key() == QtCore.Qt.Key_D and event.modifiers() == QtCore.Qt.ControlModifier:
-        #    self.close()
+        elif event.key() == QtCore.Qt.Key_L and event.modifiers() == QtCore.Qt.ControlModifier:
+            self.clear()
         super(Console, self).keyPressEvent(event)
 
 
