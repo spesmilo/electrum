@@ -443,6 +443,9 @@ class ElectrumWindow(QMainWindow):
             tabs.setCurrentIndex (n)
             tabs.setCurrentIndex (0)
 
+        # set initial message
+        self.console.showMessage(self.wallet.banner)
+
     def close(self):
         QMainWindow.close(self)
         if self.qr_window: 
@@ -1247,7 +1250,7 @@ class ElectrumWindow(QMainWindow):
 
     def create_wall_tab(self):
         from qt_console import Console
-        self.console = console = Console(startup_message=self.wallet.banner)
+        self.console = console = Console()
         console.updateNamespace({'wallet' : self.wallet, 'interface' : self.wallet.interface})
         return console
 
