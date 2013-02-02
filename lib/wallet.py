@@ -147,7 +147,6 @@ class Wallet:
         # encrypt
         self.seed = self.pw_encode( seed, password )
 
-
     def init_mpk(self,seed):
         # public key
         curve = SECP256k1

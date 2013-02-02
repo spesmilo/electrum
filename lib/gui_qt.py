@@ -1088,6 +1088,7 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Request amount"), lambda: self.edit_amount())
         menu.addAction(_("View QR"), lambda: ElectrumWindow.show_qrcode(_("Address"),"bitcoin:"+addr) )
         menu.addAction(_("Edit label"), lambda: self.edit_label(True))
+        menu.addAction(_("Private key"), lambda: self.view_private_key(addr))
         menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
         if addr in self.wallet.imported_keys:
             menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
@@ -1262,7 +1263,7 @@ class ElectrumWindow(QMainWindow):
     def create_wall_tab(self):
         from qt_console import Console
         self.console = console = Console()
-        console.updateNamespace({'wallet' : self.wallet, 'interface' : self.wallet.interface})
+        console.updateNamespace({'wallet' : self.wallet, 'interface' : self.wallet.interface, 'gui':self})
         return console
 
 
@@ -1443,6 +1444,24 @@ class ElectrumWindow(QMainWindow):
         vbox.addLayout(hbox)
         d.setLayout(vbox)
         d.exec_()
+
+    def view_private_key(self,address):
+        if not address: return
+        if self.wallet.use_encryption:
+            password = self.password_dialog()
+            if not password:
+                return
+        else:
+            password = None
+
+        try:
+            pk = self.wallet.get_private_key_base58(address, password)
+        except BaseException, e:
+            self.show_message(str(e))
+            return
+
+        QMessageBox.information(self, _('Private key'), 'Address'+ ': ' + address + '\n\n' + _('Private key') + ': ' + pk, _('OK'))
+
 
     def sign_message(self,address):
         if not address: return
