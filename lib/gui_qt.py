@@ -384,8 +384,8 @@ def ok_cancel_buttons(dialog):
     return hbox
 
 
-default_column_widths = { "history":[40,140,350,140,140], "contacts":[350,330,100], 
-	"receive":[[50,310,200,130,130,10],[50,310,200,130,130,10],[50,310,200,130,130,10]] }
+default_column_widths = { "history":[40,140,350,140], "contacts":[350,330], 
+	"receive":[[310],[50,310,200,130,130],[50,310,200,130,130]] }
 
 class ElectrumWindow(QMainWindow):
 
@@ -1023,7 +1023,6 @@ class ElectrumWindow(QMainWindow):
         return w
 
 
-
     def receive_tab_set_mode(self, i):
         self.save_column_widths()
         self.receive_tab_mode = i
@@ -1032,22 +1031,32 @@ class ElectrumWindow(QMainWindow):
         self.update_receive_tab()
         self.toggle_QR_window(self.receive_tab_mode == 2)
 
+
     def save_column_widths(self):
-        widths = []
-        for i in range(self.receive_list.columnCount()):
-            widths.append(self.receive_list.columnWidth(i))
+        if self.receive_tab_mode == 0:
+            widths = [ self.receive_list.columnWidth(1) ]
+        else:
+            widths = []
+            for i in range(self.receive_list.columnCount() -1):
+                widths.append(self.receive_list.columnWidth(i))
         self.column_widths["receive"][self.receive_tab_mode] = widths
+        
         self.column_widths["history"] = []
-        for i in range(self.history_list.columnCount()):
+        for i in range(self.history_list.columnCount() - 1):
             self.column_widths["history"].append(self.history_list.columnWidth(i))
+
         self.column_widths["contacts"] = []
-        for i in range(self.contacts_list.columnCount()):
+        for i in range(self.contacts_list.columnCount() - 1):
             self.column_widths["contacts"].append(self.contacts_list.columnWidth(i))
+
 
     def create_contacts_tab(self):
         l,w,hbox = self.create_list_tab([_('Address'), _('Label'), _('Tx')])
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_contact_menu)
+        for i,width in enumerate(self.column_widths['contacts']):
+            l.setColumnWidth(i, width)
+
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,0,1))
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.contacts_list = l
@@ -1176,8 +1185,12 @@ class ElectrumWindow(QMainWindow):
         l.setColumnHidden(3, not self.receive_tab_mode == 2)
         l.setColumnHidden(4, self.receive_tab_mode == 0)
         l.setColumnHidden(5, not self.receive_tab_mode == 1)
-        for i,width in enumerate(self.column_widths['receive'][self.receive_tab_mode]):
-            l.setColumnWidth(i, width)        
+        if self.receive_tab_mode ==0:
+            width = self.column_widths['receive'][0][0]
+            l.setColumnWidth(1, width)
+        else:
+            for i,width in enumerate(self.column_widths['receive'][self.receive_tab_mode]):
+                l.setColumnWidth(i, width)        
 
         gap = 0
         is_red = False
@@ -1223,8 +1236,6 @@ class ElectrumWindow(QMainWindow):
 
         l = self.contacts_list
         l.clear()
-        for i,width in enumerate(self.column_widths['contacts']):
-            l.setColumnWidth(i, width)
 
         alias_targets = []
         for alias, v in self.wallet.aliases.items():
