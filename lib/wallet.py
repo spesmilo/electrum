@@ -142,6 +142,7 @@ class Wallet:
         
 
     def init_seed(self, seed):
+        if self.seed: raise BaseException("a seed exists")
         if not seed: 
             seed = "%032x"%ecdsa.util.randrange( pow(2,128) ) 
         self.seed = seed 
