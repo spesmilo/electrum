@@ -141,11 +141,13 @@ class Wallet:
         return address
         
 
-    def new_seed(self, password):
-        seed = "%032x"%ecdsa.util.randrange( pow(2,128) )
-        #self.init_mpk(seed)
-        # encrypt
-        self.seed = self.pw_encode( seed, password )
+    def init_seed(self, seed):
+        if not seed: 
+            seed = "%032x"%ecdsa.util.randrange( pow(2,128) ) 
+        self.seed = seed 
+        self.config.set_key('seed', self.seed, True)
+        self.config.set_key('seed_version', self.seed_version, True)
+        self.init_mpk(self.seed)
 
     def init_mpk(self,seed):
         # public key
@@ -153,6 +155,7 @@ class Wallet:
         secexp = self.stretch_key(seed)
         master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
         self.master_public_key = master_private_key.get_verifying_key().to_string().encode('hex')
+        self.config.set_key('master_public_key', self.master_public_key, True)
 
     def all_addresses(self):
         return self.addresses + self.change_addresses + self.imported_keys.keys()
@@ -913,6 +916,7 @@ class Wallet:
         if new_password == '': new_password = None
         self.use_encryption = (new_password != None)
         self.seed = self.pw_encode( seed, new_password)
+        self.config.set_key('seed', self.seed, True)
         for k in self.imported_keys.keys():
             a = self.imported_keys[k]
             b = self.pw_decode(a, old_password)
@@ -1048,12 +1052,9 @@ class Wallet:
 
     def save(self):
         s = {
-            'seed_version': self.seed_version,
             'use_encryption': self.use_encryption,
             'use_change': self.use_change,
-            'master_public_key': self.master_public_key,
             'fee': self.fee,
-            'seed': self.seed,
             'addresses': self.addresses,
             'change_addresses': self.change_addresses,
             'addr_history': self.history, 

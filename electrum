@@ -220,8 +220,7 @@ if __name__ == '__main__':
             s = gui.network_dialog()
 
             if a =='create':
-                wallet.new_seed(None)
-                wallet.init_mpk( wallet.seed )
+                wallet.init_seed(None)
             else:
                 # ask for seed and gap.
                 sg = gui.seed_dialog()
@@ -230,11 +229,10 @@ if __name__ == '__main__':
                 if not seed: exit()
                 wallet.gap_limit = gap
                 if len(seed) == 128:
-                    wallet.seed = None
+                    wallet.seed = ''
                     wallet.master_public_key = seed
                 else:
-                    wallet.seed = str(seed)
-                    wallet.init_mpk( wallet.seed )
+                    wallet.init_seed(str(seed))
             
 
             # generate the first addresses, in case we are offline
@@ -343,8 +341,7 @@ if __name__ == '__main__':
             wallet.save()
             print_msg("Wallet saved in '%s'"%wallet.config.path)
         else:
-            wallet.new_seed(None)
-            wallet.init_mpk( wallet.seed )
+            wallet.init_seed(None)
             wallet.synchronize() # there is no wallet thread 
             wallet.save()
             print_msg("Your wallet generation seed is: " + wallet.seed)
