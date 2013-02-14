@@ -47,6 +47,7 @@ import platform
 import httplib
 import socket
 import webbrowser
+import csv
 
 if platform.system() == 'Windows':
     MONOSPACE_FONT = 'Lucida Console'
@@ -1728,6 +1729,37 @@ class ElectrumWindow(QMainWindow):
 
         return seed, gap
 
+    def do_export_privkeys(self):
+        self.show_message("%s\n%s\n%s" % (_("WARNING: ALL your private keys are secret."),  _("Exposing a single private key can compromise your entire wallet!"), _("In particular, DO NOT use 'redeem private key' services proposed by third parties.")))
+
+        if self.wallet.use_encryption:
+            password = self.password_dialog()
+            if not password:
+                return
+        else:
+            password = None
+        try:
+            select_export = _('Select file to export your private keys to')
+            fileName = QFileDialog.getSaveFileName(QWidget(), select_export, os.path.expanduser('~/electrum-private-keys.csv'), "*.csv")
+            if fileName:
+                with open(fileName, "w+") as csvfile:
+                    transaction = csv.writer(csvfile)
+                    transaction.writerow(["address", "private_key"])
+
+                    for addr in self.wallet.all_addresses():
+                        m_addr = "%34s"%addr
+                        transaction.writerow([m_addr, str(self.wallet.get_private_key_base58(addr, password))])
+
+                    self.show_message(_("Private keys exported."))
+
+        except (IOError, os.error), reason:
+            export_error_label = _("Electrum was unable to produce a private key-export.")
+            QMessageBox.critical(None,"Unable to create csv", export_error_label + "\n" + str(reason))
+
+        except BaseException, e:
+          self.show_message(str(e))
+          return
+
 
     def do_import_labels(self):
         labelsFile = QFileDialog.getOpenFileName(QWidget(), _("Open text file"), util.user_dir(), self.tr("Text Files (labels.dat)"))
@@ -1918,6 +1950,8 @@ class ElectrumWindow(QMainWindow):
         grid_io.addWidget(HelpButton(_('Export your transaction history as csv')), 2, 3)
 
         grid_io.addWidget(QLabel(_('Private key')), 3, 0)
+
+        grid_io.addWidget(EnterButton(_("Export"), self.do_export_privkeys), 3, 1)
         grid_io.addWidget(EnterButton(_("Import"), self.do_import_privkey), 3, 2)
         grid_io.addWidget(HelpButton(_('Import private key')), 3, 3)
 
