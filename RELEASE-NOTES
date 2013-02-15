@@ -12,6 +12,8 @@ let users extend Electrum through custom scripts.
 * New menu item to display the private key corresponding to a
 receiving address.
 
+* Added the ability to export your private keys through the classic GUI.
+
 
 # Release 1.6.2
 
