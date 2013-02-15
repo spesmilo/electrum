@@ -1,4 +1,19 @@
-# Release 1.6.2 (Not released)
+# Release 1.7
+
+* Synchronization waits until transactions have 2 confirmations before
+creating new addresses. This makes recovery from seed more robust, but
+it might create unwanted gaps if you use Electrum 1.7 together with
+older versions of Electrum.
+
+* The Wall has been replaced by an interactive Python console. Wallet
+and Blockchain functions can be accessed through it. The goal is to
+let users extend Electrum through custom scripts. 
+
+* New menu item to display the private key corresponding to a
+receiving address.
+
+
+# Release 1.6.2
 
 == Classic GUI
 * Added new version notification
