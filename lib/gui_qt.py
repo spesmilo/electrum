@@ -1949,7 +1949,7 @@ class ElectrumWindow(QMainWindow):
         grid_io.addWidget(EnterButton(_("Export"), self.do_export_history), 2, 1)
         grid_io.addWidget(HelpButton(_('Export your transaction history as csv')), 2, 3)
 
-        grid_io.addWidget(QLabel(_('Private key')), 3, 0)
+        grid_io.addWidget(QLabel(_('Private keys')), 3, 0)
 
         grid_io.addWidget(EnterButton(_("Export"), self.do_export_privkeys), 3, 1)
         grid_io.addWidget(EnterButton(_("Import"), self.do_import_privkey), 3, 2)
