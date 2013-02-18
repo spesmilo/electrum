@@ -464,7 +464,7 @@ class Wallet:
         is_mine, v, fee = self.get_tx_value(tx_hash)
         conf, timestamp = self.verifier.get_confirmations(tx_hash)
 
-        if conf:
+        if timestamp:
             time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
         else:
             time_str = 'pending'
