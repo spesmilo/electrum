@@ -9,6 +9,9 @@ older versions of Electrum.
 and Blockchain functions can be accessed through it. The goal is to
 let users extend Electrum through custom scripts. 
 
+* The location of the Electrum folder in Windows changed from LOCALAPPDATA 
+to APPDATA. Discussion on this topic can be found here: https://bitcointalk.org/index.php?topic=144575.0
+
 * New menu item to display the private key corresponding to a
 receiving address.
 
