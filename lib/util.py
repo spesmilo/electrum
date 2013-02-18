@@ -80,8 +80,11 @@ def check_windows_wallet_migration():
             sys.exit()
 
         QMessageBox.information(None, _("Folder migration"), _("This version of Electrum moved the Electrum folder on windows from %s to %s, your Electrum folder will now be moved.") % (os.environ["LOCALAPPDATA"], os.environ["APPDATA"]))
-        shutil.move(os.path.join(os.environ["LOCALAPPDATA"], "Electrum"), os.path.join(os.environ["APPDATA"], "Electrum"))
-        QMessageBox.information(None,_("Migration status"), _("Your wallet has been moved sucessfully."))
+        try:
+            shutil.move(os.path.join(os.environ["LOCALAPPDATA"], "Electrum"), os.path.join(os.environ["APPDATA"]))
+            QMessageBox.information(None,_("Migration status"), _("Your wallet has been moved sucessfully."))
+        except:
+            QMessageBox.information(None,_("Migration status"), _("Failed to move your wallet"))
 
     
 
