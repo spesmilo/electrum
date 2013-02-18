@@ -44,7 +44,7 @@ class WalletVerifier(threading.Thread):
         self.height = 0
         self.local_height = 0
         self.running = False
-        self.headers_url = 'http://images.ecdsa.org/blockchain_headers'
+        self.headers_url = 'http://headers.electrum.org/blockchain_headers'
 
     def get_confirmations(self, tx):
         """ return the number of confirmations of a monitored transaction. """
