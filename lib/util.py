@@ -1,5 +1,6 @@
 import os, sys
 import platform
+import shutil
 from datetime import datetime
 is_verbose = True
 
@@ -68,14 +69,29 @@ def print_msg(*args):
     sys.stdout.write(" ".join(args) + "\n")
     sys.stdout.flush()
 
+def check_windows_wallet_migration():
+    from PyQt4.QtGui import *
+    from i18n import _
+
+    app = QApplication(sys.argv)
+    if os.path.exists(os.path.join(os.environ["LOCALAPPDATA"], "Electrum")):
+        if os.path.exists(os.path.join(os.environ["APPDATA"], "Electrum")):
+            QMessageBox.information(None,_("Folder migration"), _("Two Electrum folders have been found, the default Electrum location for Windows has changed from %s to %s since Electrum 1.7, please check your wallets and fix the problem manually." % (os.environ["LOCALAPPDATA"], os.environ["APPDATA"])))
+            sys.exit()
+
+        QMessageBox.information(None, _("Folder migration"), _("This version of Electrum moved the Electrum folder on windows from %s to %s, your Electrum folder will now be moved.") % (os.environ["LOCALAPPDATA"], os.environ["APPDATA"]))
+        shutil.move(os.path.join(os.environ["LOCALAPPDATA"], "Electrum"), os.path.join(os.environ["APPDATA"], "Electrum"))
+        QMessageBox.information(None,_("Migration status"), _("Your wallet has been moved sucessfully."))
+
+    
 
 def user_dir():
     if "HOME" in os.environ:
         return os.path.join(os.environ["HOME"], ".electrum")
-    elif "LOCALAPPDATA" in os.environ:
-        return os.path.join(os.environ["LOCALAPPDATA"], "Electrum")
     elif "APPDATA" in os.environ:
         return os.path.join(os.environ["APPDATA"], "Electrum")
+    elif "LOCALAPPDATA" in os.environ:
+        return os.path.join(os.environ["LOCALAPPDATA"], "Electrum")
     else:
         #raise BaseException("No home directory found in environment variables.")
         return 

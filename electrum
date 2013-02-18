@@ -19,6 +19,7 @@
 import re
 import sys, os, time
 import optparse
+import platform
 
 try:
     import ecdsa  
@@ -157,6 +158,11 @@ if __name__ == '__main__':
         for k, v in config_options.items():
             if v is None: config_options.pop(k)
 
+    # Wallet migration on Electrum 1.7
+    # Todo: In time we could remove this again
+    if platform.system() == "Windows":
+        util.check_windows_wallet_migration()
+
     config = SimpleConfig(config_options)
     wallet = Wallet(config)
 
@@ -174,6 +180,7 @@ if __name__ == '__main__':
     #right GUI toolkit based the GUI command line option given 
     if cmd == 'gui':
         pref_gui = config.get('gui','classic')
+
         if pref_gui == 'gtk':
             try:
                 import lib.gui as gui

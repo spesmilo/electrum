@@ -11,9 +11,6 @@ except ImportError:
     print "If you have pip installed try 'sudo pip install pyqt' if you are on Debian/Ubuntu try 'sudo apt-get install python-qt4'."
     sys.exit(0)
 
-
-
-
 from decimal import Decimal as D
 from util import get_resource_path as rsrc
 from i18n import _
