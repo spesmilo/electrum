@@ -69,23 +69,17 @@ def print_msg(*args):
     sys.stdout.write(" ".join(args) + "\n")
     sys.stdout.flush()
 
-def check_windows_wallet_migration():
-    from PyQt4.QtGui import *
-    from i18n import _
 
-    app = QApplication(sys.argv)
+def check_windows_wallet_migration():
     if os.path.exists(os.path.join(os.environ["LOCALAPPDATA"], "Electrum")):
         if os.path.exists(os.path.join(os.environ["APPDATA"], "Electrum")):
-            QMessageBox.information(None,_("Folder migration"), _("Two Electrum folders have been found, the default Electrum location for Windows has changed from %s to %s since Electrum 1.7, please check your wallets and fix the problem manually." % (os.environ["LOCALAPPDATA"], os.environ["APPDATA"])))
+            print_msg("Two Electrum folders have been found, the default Electrum location for Windows has changed from %s to %s since Electrum 1.7, please check your wallets and fix the problem manually." % (os.environ["LOCALAPPDATA"], os.environ["APPDATA"]))
             sys.exit()
-
-        QMessageBox.information(None, _("Folder migration"), _("This version of Electrum moved the Electrum folder on windows from %s to %s, your Electrum folder will now be moved.") % (os.environ["LOCALAPPDATA"], os.environ["APPDATA"]))
         try:
             shutil.move(os.path.join(os.environ["LOCALAPPDATA"], "Electrum"), os.path.join(os.environ["APPDATA"]))
-            QMessageBox.information(None,_("Migration status"), _("Your wallet has been moved sucessfully."))
+            print_msg("Your wallet has been moved from %s to %s."% (os.environ["LOCALAPPDATA"], os.environ["APPDATA"]))
         except:
-            QMessageBox.information(None,_("Migration status"), _("Failed to move your wallet"))
-
+            print_msg("Failed to move your wallet.")
     
 
 def user_dir():
