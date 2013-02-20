@@ -30,15 +30,16 @@ def print_json(obj):
 
 
 def check_windows_wallet_migration():
-    if os.path.exists(os.path.join(os.environ["LOCALAPPDATA"], "Electrum")):
-        if os.path.exists(os.path.join(os.environ["APPDATA"], "Electrum")):
-            print_msg("Two Electrum folders have been found, the default Electrum location for Windows has changed from %s to %s since Electrum 1.7, please check your wallets and fix the problem manually." % (os.environ["LOCALAPPDATA"], os.environ["APPDATA"]))
-            sys.exit()
-        try:
-            shutil.move(os.path.join(os.environ["LOCALAPPDATA"], "Electrum"), os.path.join(os.environ["APPDATA"]))
-            print_msg("Your wallet has been moved from %s to %s."% (os.environ["LOCALAPPDATA"], os.environ["APPDATA"]))
-        except:
-            print_msg("Failed to move your wallet.")
+    if platform.release() != "XP":
+        if os.path.exists(os.path.join(os.environ["LOCALAPPDATA"], "Electrum")):
+            if os.path.exists(os.path.join(os.environ["APPDATA"], "Electrum")):
+                print_msg("Two Electrum folders have been found, the default Electrum location for Windows has changed from %s to %s since Electrum 1.7, please check your wallets and fix the problem manually." % (os.environ["LOCALAPPDATA"], os.environ["APPDATA"]))
+                sys.exit()
+            try:
+                shutil.move(os.path.join(os.environ["LOCALAPPDATA"], "Electrum"), os.path.join(os.environ["APPDATA"]))
+                print_msg("Your wallet has been moved from %s to %s."% (os.environ["LOCALAPPDATA"], os.environ["APPDATA"]))
+            except:
+                print_msg("Failed to move your wallet.")
     
 
 def user_dir():
