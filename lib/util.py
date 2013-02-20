@@ -22,6 +22,12 @@ def print_msg(*args):
     sys.stdout.write(" ".join(args) + "\n")
     sys.stdout.flush()
 
+def print_json(obj):
+    import json
+    s = json.dumps(obj,sort_keys = True, indent = 4)
+    sys.stdout.write(s + "\n")
+    sys.stdout.flush()
+
 
 def check_windows_wallet_migration():
     if os.path.exists(os.path.join(os.environ["LOCALAPPDATA"], "Electrum")):

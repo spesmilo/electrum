@@ -378,14 +378,33 @@ def raw_tx( inputs, outputs, for_sig = None ):
         s += var_int( len(tx_filter(script))/2 )                #  script length
         s += script                                             #  script
     s += int_to_hex(0,4)                                        #  lock time
-    if for_sig is not None: s += int_to_hex(1, 4)               #  hash type
+    if for_sig is not None and for_sig != 1: s += int_to_hex(1, 4)               #  hash type
     return tx_filter(s)
 
 
-def multisig_script(public_keys):
+def deserialize(raw_tx):
+    import deserialize
+    vds = deserialize.BCDataStream()
+    vds.write(raw_tx.decode('hex'))
+    return deserialize.parse_Transaction(vds)
+
+
+def multisig_script(public_keys, num=None):
     # supports only "2 of 2", and "2 of 3" transactions
     n = len(public_keys)
-    s = '52'
+
+    if num is None:
+        num = n
+
+    assert num <= n and n <= 3 and n >= 2
+    
+    if num==2:
+        s = '52'
+    elif num == 3:
+        s = '53'
+    else:
+        raise
+    
     for k in public_keys:
         s += var_int(len(k)/2)
         s += k
