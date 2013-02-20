@@ -166,7 +166,32 @@ class Console(QtGui.QPlainTextEdit):
             return
         elif event.key() == QtCore.Qt.Key_L and event.modifiers() == QtCore.Qt.ControlModifier:
             self.clear()
+        if event.key() == QtCore.Qt.Key_Tab:
+            self.completion()
+            return
         super(Console, self).keyPressEvent(event)
+
+
+    def completion(self):
+        cmd = self.getCommand()
+        path = cmd.split('.')
+        ns = self.namespace.keys()
+
+        if len(path) == 1:
+            ns = ns
+        else:
+            obj = self.namespace.get(path[0])
+            ns = dir(obj)
+
+
+        print ns
+        prefixes = []
+        for x in ns:
+            if x.startswith(cmd):
+                prefixes.append(x)
+
+        if len(prefixes) == 1:
+            self.setCommand(prefixes[0])
 
 
 welcome_message = '''
