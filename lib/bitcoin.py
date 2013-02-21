@@ -397,7 +397,7 @@ def raw_tx( inputs, outputs, for_sig = None ):
         s += var_int( len(tx_filter(script))/2 )                #  script length
         s += script                                             #  script
     s += int_to_hex(0,4)                                        #  lock time
-    if for_sig is not None and for_sig != 1: s += int_to_hex(1, 4)               #  hash type
+    if for_sig is not None and for_sig != -1: s += int_to_hex(1, 4)               #  hash type
     return tx_filter(s)
 
 
