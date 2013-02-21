@@ -120,19 +120,8 @@ class Wallet:
         except:
             raise BaseException("Invalid password")
 
-        # rebuild public key from private key, compressed or uncompressed
-        pkey = regenerate_key(sec)
-        if not pkey:
-            return False
-        
-        # figure out if private key is compressed
-        compressed = is_compressed(sec)
-        
-        # rebuild private and public key from regenerated secret
-        private_key = GetPrivKey(pkey, compressed)
-        public_key = GetPubKey(pkey.pubkey, compressed)
-        address = public_key_to_bc_address(public_key)
-        
+        address = address_from_private_key(sec)
+
         if address in self.all_addresses():
             raise BaseException('Address already in wallet')
         

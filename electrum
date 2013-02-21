@@ -91,6 +91,7 @@ options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address 
     'unfreeze':'',
     'prioritize':'',
     'unprioritize':'',
+    'dumpprivkey':'',
     'createmultisig':'similar to bitcoind\'s command',
     'createrawtransaction':'similar to bitcoind\'s command',
     'decoderawtransaction':'similar to bitcoind\'s command',
@@ -112,7 +113,7 @@ offline_commands = [ 'password', 'mktx', 'signtx',
                      ]
 
 
-protected_commands = ['payto', 'password', 'mktx', 'signtx', 'seed', 'importprivkey','signmessage', 'signrawtransaction' ]
+protected_commands = ['payto', 'password', 'mktx', 'signtx', 'seed', 'importprivkey','signmessage', 'signrawtransaction','dumpprivkey' ]
 
 # get password routine
 def prompt_password(prompt, confirm=True):
@@ -696,6 +697,12 @@ if __name__ == '__main__':
         print_msg(wallet.unprioritize(addr))
 
 
+    elif cmd == 'dumpprivkey':
+        addr = args[1]
+        sec = wallet.get_private_key_base58(addr, password)
+        print_msg( sec )
+
+        
     elif cmd == 'createmultisig':
         import ast
         from lib.bitcoin import *
@@ -726,24 +733,34 @@ if __name__ == '__main__':
 
 
     elif cmd == 'signrawtransaction':
+        import ast
         tx = Transaction(args[1])
-        txouts = args[2] if len(args)>2 else []
-        private_keys = args[3] if len(args)>3 else {}
+        txouts = ast.literal_eval(args[2]) if len(args)>2 else []
+        private_keys = ast.literal_eval(args[3]) if len(args)>3 else {}
+
+        # lookup addresses
+        for txin in tx.inputs:
+            txid = txin["prevout_hash"]
+            index = txin["prevout_n"]
+            utx = wallet.transactions.get(txid)
+            txout = utx['outputs'][index]
+            txin['address'] = txout['address']
+            txin['raw_output_script'] = txout['raw_output_script']
+            # convert to own format
+            txin['tx_hash'] = txin['prevout_hash']
+            txin['index'] = txin['prevout_n']
 
         if not private_keys:
             for txin in tx.inputs:
-                txid = txin["prevout_hash"]
-                index = txin["prevout_n"]
-                utx = wallet.transactions.get(txid)
-                txout = utx['outputs'][index]
-                txin['address'] = txout['address']
-                txin['raw_output_script'] = txout['raw_output_script']
-                # convert to own format
-                txin['tx_hash'] = txin['prevout_hash']
-                txin['index'] = txin['prevout_n']
-                secexp, compressed = wallet.get_private_key(txin['address'], password)
-                private_keys[addr] = (secexp,compressed)
-            
+                addr = txin['address']
+                private_keys[addr] = wallet.get_private_key_base58(addr, password)
+        else:
+            pk = {}
+            for sec in private_keys:
+                address = bitcoin.address_from_private_key(sec)
+                pk[address] = sec
+            private_keys = pk
+
         tx.sign( private_keys )
         print_msg(tx)
         

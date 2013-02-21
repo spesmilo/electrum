@@ -232,6 +232,22 @@ def is_compressed(sec):
     b = ASecretToSecret(sec)
     return len(b) == 33
 
+
+def address_from_private_key(sec):
+    # rebuild public key from private key, compressed or uncompressed
+    pkey = regenerate_key(sec)
+    assert pkey
+
+    # figure out if private key is compressed
+    compressed = is_compressed(sec)
+        
+    # rebuild private and public key from regenerated secret
+    private_key = GetPrivKey(pkey, compressed)
+    public_key = GetPubKey(pkey.pubkey, compressed)
+    address = public_key_to_bc_address(public_key)
+    return address
+
+
 ########### end pywallet functions #######################
 
 # secp256k1, http://www.oid-info.com/get/1.3.132.0.10
@@ -447,7 +463,11 @@ class Transaction:
 
         for i in range(len(self.inputs)):
             txin = self.inputs[i]
-            secexp, compressed = private_keys[txin['address']]
+            sec = private_keys[txin['address']]
+            compressed = is_compressed(sec)
+            pkey = regenerate_key(sec)
+            secexp = pkey.secret
+
             private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
             public_key = private_key.get_verifying_key()
             pkey = EC_KEY(secexp)
