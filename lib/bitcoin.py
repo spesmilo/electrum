@@ -317,12 +317,14 @@ def tx_filter(s):
     return out
 
 def raw_tx( inputs, outputs, for_sig = None ):
+
     s  = int_to_hex(1,4)                                         # version
     s += var_int( len(inputs) )                                  # number of inputs
     for i in range(len(inputs)):
-        _, _, p_hash, p_index, p_script, pubkeysig = inputs[i]
-        s += p_hash.decode('hex')[::-1].encode('hex')            # prev hash
-        s += int_to_hex(p_index,4)                               # prev index
+        txin = inputs[i]
+        pubkeysig = txin.get('pubkeysig',[])
+        s += txin['tx_hash'].decode('hex')[::-1].encode('hex')            # prev hash
+        s += int_to_hex(txin['index'],4)                               # prev index
 
         if for_sig is None:
             if len(pubkeysig) == 1:
@@ -350,7 +352,7 @@ def raw_tx( inputs, outputs, for_sig = None ):
             if len(pubkeysig) > 1:
                 script = multisig_script(pubkeysig)              # p2sh uses the inner script
             else:
-                script = p_script                                # scriptsig
+                script = txin['raw_output_script']               # scriptsig
         else:
             script=''
         s += var_int( len(tx_filter(script))/2 )                 # script length
@@ -382,11 +384,6 @@ def raw_tx( inputs, outputs, for_sig = None ):
     return tx_filter(s)
 
 
-def deserialize(raw_tx):
-    import deserialize
-    vds = deserialize.BCDataStream()
-    vds.write(raw_tx.decode('hex'))
-    return deserialize.parse_Transaction(vds)
 
 
 def multisig_script(public_keys, num=None):
@@ -416,6 +413,56 @@ def multisig_script(public_keys, num=None):
         raise
     s += 'ae'
     return s
+
+
+
+class Transaction:
+    
+    def __init__(self, raw):
+        self.raw = raw
+        self.deserialize()
+        self.inputs = self.d['inputs']
+        self.outputs = self.d['outputs']
+        self.outputs = map(lambda x: (x['address'],x['value']), self.outputs)
+        
+    @classmethod
+    def from_io(klass, inputs, outputs):
+        raw = raw_tx(inputs, outputs, for_sig = -1) # for_sig=-1 means do not sign
+        self = klass(raw)
+        self.inputs = inputs
+        self.outputs = outputs
+        return self
+
+    def __str__(self):
+        return self.raw
+
+    def hash(self):
+        return Hash(self.raw.decode('hex') )[::-1].encode('hex')
+
+    def sign(self, private_keys):
+
+        for i in range(len(self.inputs)):
+            txin = self.inputs[i]
+            secexp, compressed = private_keys[txin['address']]
+            private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
+            public_key = private_key.get_verifying_key()
+            pkey = EC_KEY(secexp)
+            pubkey = GetPubKey(pkey.pubkey, compressed)
+            tx = raw_tx( self.inputs, self.outputs, for_sig = i )
+            sig = private_key.sign_digest( Hash( tx.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
+            assert public_key.verify_digest( sig, Hash( tx.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
+            self.inputs[i]["pubkeysig"] = [(pubkey, sig)]
+
+        self.raw = raw_tx( self.inputs, self.outputs )
+
+
+    def deserialize(self):
+        import deserialize
+        vds = deserialize.BCDataStream()
+        vds.write(self.raw.decode('hex'))
+        self.d = deserialize.parse_Transaction(vds)
+        return self.d
+    
 
 
 

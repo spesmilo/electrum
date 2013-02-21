@@ -210,7 +210,7 @@ class Wallet:
                 n = self.change_addresses.index(address)
                 for_change = True
             else:
-                raise BaseException("unknown address")
+                raise BaseException("unknown address", address)
 
             seed = self.pw_decode( self.seed, password)
             if not seed: return None
@@ -609,7 +609,8 @@ class Wallet:
             addr = item.get('address')
             v = item.get('value')
             total += v
-            inputs.append((addr, v, item['tx_hash'], item['index'], item['raw_output_script'], [(None,None)] ))
+            item['pubkeysig'] = [(None, None)]
+            inputs.append( item )
             fee = self.fee*len(inputs) if fixed_fee is None else fixed_fee
             if total >= amount + fee: break
         else:
@@ -628,22 +629,6 @@ class Wallet:
             outputs[posn:posn] = [( change_addr,  change_amount)]
         return outputs
 
-    def sign_inputs( self, inputs, outputs, password ):
-        s_inputs = []
-        for i in range(len(inputs)):
-            addr, v, p_hash, p_pos, p_scriptPubKey, _ = inputs[i]
-            secexp, compressed = self.get_private_key(addr, password)
-            private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
-            public_key = private_key.get_verifying_key()
-
-            pkey = EC_KEY(secexp)
-            pubkey = GetPubKey(pkey.pubkey, compressed)
-
-            tx = raw_tx( inputs, outputs, for_sig = i )
-            sig = private_key.sign_digest( Hash( tx.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
-            assert public_key.verify_digest( sig, Hash( tx.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
-            s_inputs.append( (addr, v, p_hash, p_pos, p_scriptPubKey, [(pubkey, sig)] ) )
-        return s_inputs
 
     def pw_encode(self, s, password):
         if password:
@@ -823,7 +808,7 @@ class Wallet:
             raise ValueError("Not enough funds")
 
         if not self.use_change and not change_addr:
-            change_addr = inputs[-1][0]
+            change_addr = inputs[-1]['address']
             print_error( "Sending change to", change_addr )
         outputs = self.add_tx_change(outputs, amount, fee, total, change_addr)
 
@@ -843,9 +828,14 @@ class Wallet:
         return tx
 
     def signed_tx(self, inputs, outputs, password):
-        s_inputs = self.sign_inputs( inputs, outputs, password )
-        tx = raw_tx( s_inputs, outputs )
-        return tx
+        tx = Transaction.from_io(inputs, outputs)
+        private_keys = {}
+        for txin in tx.inputs:
+            addr = txin['address']
+            secexp, compressed = self.get_private_key(addr, password)
+            private_keys[addr] = (secexp,compressed)
+        tx.sign(private_keys)
+        return str(tx)
 
     def sendtx(self, tx):
         # synchronous
@@ -1344,7 +1334,11 @@ class WalletSynchronizer(threading.Thread):
             elif method == 'blockchain.transaction.get':
                 tx_hash = params[0]
                 tx_height = params[1]
-                d = self.deserialize_tx(tx_hash, tx_height, result)
+                assert tx_hash == hash_encode(Hash(result.decode('hex')))
+                tx = Transaction(result)
+                d = tx.deserialize()
+                d['height'] = tx_height
+                d['tx_hash'] = tx_hash
                 self.wallet.receive_tx_callback(tx_hash, d)
                 self.was_updated = True
                 requested_tx.remove( (tx_hash, tx_height) )
@@ -1364,15 +1358,4 @@ class WalletSynchronizer(threading.Thread):
                 self.interface.trigger_callback('updated')
                 self.was_updated = False
 
-
-    def deserialize_tx(self, tx_hash, tx_height, raw_tx):
-
-        assert tx_hash == hash_encode(Hash(raw_tx.decode('hex')))
-        import deserialize
-        vds = deserialize.BCDataStream()
-        vds.write(raw_tx.decode('hex'))
-        d = deserialize.parse_Transaction(vds)
-        d['height'] = tx_height
-        d['tx_hash'] = tx_hash
-        return d
 
