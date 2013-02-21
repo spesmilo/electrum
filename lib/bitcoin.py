@@ -348,9 +348,9 @@ def raw_tx( inputs, outputs, for_sig = None ):
                 script += inner_script
 
         elif for_sig==i:
-            pubkeys = txin.get('multisig_pubkeys')
+            pubkeys = txin.get('pubkeys')
             if pubkeys:
-                num = txin['multisig_num']
+                num = txin['p2sh_num']
                 script = multisig_script(pubkeys, num)           # p2sh uses the inner script
             else:
                 script = txin['raw_output_script']               # scriptsig
