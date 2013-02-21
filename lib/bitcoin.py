@@ -322,11 +322,11 @@ def raw_tx( inputs, outputs, for_sig = None ):
     s += var_int( len(inputs) )                                  # number of inputs
     for i in range(len(inputs)):
         txin = inputs[i]
-        pubkeysig = txin.get('pubkeysig',[])
         s += txin['tx_hash'].decode('hex')[::-1].encode('hex')            # prev hash
         s += int_to_hex(txin['index'],4)                               # prev index
 
         if for_sig is None:
+            pubkeysig = txin['pubkeysig']
             if len(pubkeysig) == 1:
                 pubkey, sig = pubkeysig[0]
                 sig = sig + chr(1)                               # hashtype
@@ -335,22 +335,23 @@ def raw_tx( inputs, outputs, for_sig = None ):
                 script += int_to_hex( len(pubkey))
                 script += pubkey.encode('hex')
             else:
-                pubkey0, sig0 = pubkeysig[0]
-                pubkey1, sig1 = pubkeysig[1]
-                sig0 = sig0 + chr(1)
-                sig1 = sig1 + chr(1)
-                inner_script = multisig_script([pubkey0, pubkey1])
+                n = txin['multisig_num']
+                pubkeys = map(lambda x:x[0], pubkeysig)
                 script = '00'                                    # op_0
-                script += int_to_hex(len(sig0))
-                script += sig0.encode('hex')
-                script += int_to_hex(len(sig1))
-                script += sig1.encode('hex')
+                for item in pubkeysig:
+                    pubkey, sig = item
+                    sig = sig + chr(1)
+                    script += int_to_hex(len(sig))
+                    script += sig.encode('hex')
+                inner_script = multisig_script(pubkeys)
                 script += var_int(len(inner_script)/2)
                 script += inner_script
 
         elif for_sig==i:
-            if len(pubkeysig) > 1:
-                script = multisig_script(pubkeysig)              # p2sh uses the inner script
+            pubkeys = txin.get('multisig_pubkeys')
+            if pubkeys:
+                num = txin['multisig_num']
+                script = multisig_script(pubkeys, num)           # p2sh uses the inner script
             else:
                 script = txin['raw_output_script']               # scriptsig
         else:
@@ -436,6 +437,9 @@ class Transaction:
     def __str__(self):
         return self.raw
 
+    def for_sig(self,i):
+        return raw_tx(self.inputs, self.outputs, for_sig = i)
+
     def hash(self):
         return Hash(self.raw.decode('hex') )[::-1].encode('hex')
 
@@ -516,9 +520,12 @@ def test_p2sh():
     pubkey3 = "048d2455d2403e08708fc1f556002f1b6cd83f992d085097f9974ab08a28838f07896fbab08f39495e15fa6fad6edbfb1e754e35fa1c7844c41f322a1863d46213"
     pubkeys = [pubkey1, pubkey2, pubkey3]
 
-    tx_for_sig = raw_tx( [(None, None, '3c9018e8d5615c306d72397f8f5eef44308c98fb576a88e030c25456b4f3a7ac', 0, 'a914f815b036d9bbbce5e9f2a00abd1bf3dc91e9551087', pubkeys)],
-                         [('1GtpSrGhRGY5kkrNz4RykoqRQoJuG2L6DS',1000000)], for_sig = 0)
+    tx = Transaction.from_io(
+        [{'tx_hash':'3c9018e8d5615c306d72397f8f5eef44308c98fb576a88e030c25456b4f3a7ac', 'index':0,
+          'raw_output_script':'a914f815b036d9bbbce5e9f2a00abd1bf3dc91e9551087', 'pubkeys':pubkeys, 'p2sh_num':2}],
+        [('1GtpSrGhRGY5kkrNz4RykoqRQoJuG2L6DS',1000000)])
 
+    tx_for_sig = tx.for_sig(0)
     print "tx for sig", tx_for_sig
 
     signature1 = "304502200187af928e9d155c4b1ac9c1c9118153239aba76774f775d7c1f9c3e106ff33c0221008822b0f658edec22274d0b6ae9de10ebf2da06b1bbdaaba4e50eb078f39e3d78"
