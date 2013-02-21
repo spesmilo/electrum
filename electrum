@@ -563,6 +563,7 @@ if __name__ == '__main__':
 
     if cmd == 'history':
         import datetime
+        balance = 0
         for item in wallet.get_tx_history():
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
             try:
