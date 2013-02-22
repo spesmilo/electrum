@@ -186,7 +186,17 @@ def parse_TxIn(vds):
   d['prevout_n'] = vds.read_uint32()
   scriptSig = vds.read_bytes(vds.read_compact_size())
   d['sequence'] = vds.read_uint32()
-  d['address'] = get_address_from_input_script(scriptSig)
+
+  if scriptSig:
+    pubkeys, signatures, address = get_address_from_input_script(scriptSig)
+  else:
+    pubkeys = []
+    signatures = []
+    address = None
+    
+  d['address'] = address
+  d['signatures'] = signatures
+
   return d
 
 
@@ -215,6 +225,20 @@ def parse_Transaction(vds):
   d['lockTime'] = vds.read_uint32()
   return d
 
+def parse_redeemScript(bytes):
+  dec = [ x for x in script_GetOp(bytes.decode('hex')) ]
+
+  # 2 of 2
+  match = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_2, opcodes.OP_CHECKMULTISIG ]
+  if match_decoded(dec, match):
+    pubkeys = [ dec[1][1].encode('hex'), dec[2][1].encode('hex') ]
+    return 2, pubkeys
+
+  # 2 of 3
+  match = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_3, opcodes.OP_CHECKMULTISIG ]
+  if match_decoded(dec, match):
+    pubkeys = [ dec[1][1].encode('hex'), dec[2][1].encode('hex'), dec[3][1].encode('hex') ]
+    return 3, pubkeys
 
 
 
@@ -299,32 +323,37 @@ def get_address_from_input_script(bytes):
   # (65 bytes) onto the stack:
   match = [ opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4 ]
   if match_decoded(decoded, match):
-    return public_key_to_bc_address(decoded[1][1])
+    return None, None, public_key_to_bc_address(decoded[1][1])
 
   # p2sh transaction, 2 of n
-  match = [ opcodes.OP_0, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4 ] 
+  match = [ opcodes.OP_0 ]
+  while len(match) < len(decoded):
+    match.append(opcodes.OP_PUSHDATA4)
+
   if match_decoded(decoded, match):
-    bytes = decoded[3][1]
-    dec2 = [ x for x in script_GetOp(bytes) ]
+
+    redeemScript = decoded[-1][1]
+    num = len(match) - 2
+    signatures = map(lambda x:x[1].encode('hex'), decoded[1:-1])
+  
+    dec2 = [ x for x in script_GetOp(redeemScript) ]
 
     # 2 of 2
     match2 = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_2, opcodes.OP_CHECKMULTISIG ]
     if match_decoded(dec2, match2):
       pubkeys = [ dec2[1][1].encode('hex'), dec2[2][1].encode('hex') ]
       s = multisig_script(pubkeys)
-      return hash_160_to_bc_address(hash_160(s.decode('hex')), 5)
+      return pubkeys, signatures, hash_160_to_bc_address(hash_160(s.decode('hex')), 5)
  
     # 2 of 3
     match2 = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_3, opcodes.OP_CHECKMULTISIG ]
     if match_decoded(dec2, match2):
       pubkeys = [ dec2[1][1].encode('hex'), dec2[2][1].encode('hex'), dec2[3][1].encode('hex') ]
       s = multisig_script(pubkeys)
-      return hash_160_to_bc_address(hash_160(s.decode('hex')), 5)
+      return pubkeys, signatures, hash_160_to_bc_address(hash_160(s.decode('hex')), 5)
 
-    return "p2sh, unknown"
+  raise BaseException("no match for scriptsig")
 
-
-  return "(None)"
 
 
 def get_address_from_output_script(bytes):

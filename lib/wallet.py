@@ -821,8 +821,8 @@ class Wallet:
         private_keys = {}
         for txin in tx.inputs:
             addr = txin['address']
-            secexp, compressed = self.get_private_key(addr, password)
-            private_keys[addr] = (secexp,compressed)
+            sec = self.get_private_key_base58(addr, password)
+            private_keys[addr] = sec
         tx.sign(private_keys)
         return str(tx)
 

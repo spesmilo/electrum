@@ -39,6 +39,17 @@ def var_int(i):
     else:
         return "ff"+int_to_hex(i,8)
 
+def op_push(i):
+    if i<0x4c:
+        return int_to_hex(i)
+    elif i<0xff:
+        return '4c' + int_to_hex(i)
+    elif i<0xffff:
+        return '4d' + int_to_hex(i,2)
+    else:
+        return '4e' + int_to_hex(i,4)
+    
+
 
 Hash = lambda x: hashlib.sha256(hashlib.sha256(x).digest()).digest()
 hash_encode = lambda x: x[::-1].encode('hex')
@@ -326,11 +337,6 @@ def CKD_prime(K, c, n):
 ################################## transactions
 
 
-def tx_filter(s): 
-    out = re.sub('( [^\n]*|)\n','',s)
-    out = out.replace(' ','')
-    out = out.replace('\n','')
-    return out
 
 def raw_tx( inputs, outputs, for_sig = None ):
 
@@ -338,41 +344,39 @@ def raw_tx( inputs, outputs, for_sig = None ):
     s += var_int( len(inputs) )                                  # number of inputs
     for i in range(len(inputs)):
         txin = inputs[i]
-        s += txin['tx_hash'].decode('hex')[::-1].encode('hex')            # prev hash
-        s += int_to_hex(txin['index'],4)                               # prev index
+        s += txin['tx_hash'].decode('hex')[::-1].encode('hex')   # prev hash
+        s += int_to_hex(txin['index'],4)                         # prev index
 
         if for_sig is None:
-            pubkeysig = txin['pubkeysig']
-            if len(pubkeysig) == 1:
+            pubkeysig = txin.get('pubkeysig')
+            if pubkeysig:
                 pubkey, sig = pubkeysig[0]
                 sig = sig + chr(1)                               # hashtype
-                script  = int_to_hex( len(sig))
+                script  = op_push( len(sig))
                 script += sig.encode('hex')
-                script += int_to_hex( len(pubkey))
+                script += op_push( len(pubkey))
                 script += pubkey.encode('hex')
             else:
-                n = txin['multisig_num']
-                pubkeys = map(lambda x:x[0], pubkeysig)
+                signatures = txin['signatures']
+                pubkeys = txin['pubkeys']
                 script = '00'                                    # op_0
-                for item in pubkeysig:
-                    pubkey, sig = item
-                    sig = sig + chr(1)
-                    script += int_to_hex(len(sig))
-                    script += sig.encode('hex')
-                inner_script = multisig_script(pubkeys)
-                script += var_int(len(inner_script)/2)
-                script += inner_script
+                for sig in signatures:
+                    sig = sig + '01'
+                    script += op_push(len(sig)/2)
+                    script += sig
+
+                redeem_script = multisig_script(pubkeys,2)
+                script += op_push(len(redeem_script)/2)
+                script += redeem_script
 
         elif for_sig==i:
-            pubkeys = txin.get('pubkeys')
-            if pubkeys:
-                num = txin['p2sh_num']
-                script = multisig_script(pubkeys, num)           # p2sh uses the inner script
+            if txin.get('redeemScript'):
+                script = txin['redeemScript']                    # p2sh uses the inner script
             else:
                 script = txin['raw_output_script']               # scriptsig
         else:
             script=''
-        s += var_int( len(tx_filter(script))/2 )                 # script length
+        s += var_int( len(script)/2 )                            # script length
         s += script
         s += "ffffffff"                                          # sequence
 
@@ -394,11 +398,12 @@ def raw_tx( inputs, outputs, for_sig = None ):
         else:
             raise
             
-        s += var_int( len(tx_filter(script))/2 )                #  script length
+        s += var_int( len(script)/2 )                           #  script length
         s += script                                             #  script
     s += int_to_hex(0,4)                                        #  lock time
-    if for_sig is not None and for_sig != -1: s += int_to_hex(1, 4)               #  hash type
-    return tx_filter(s)
+    if for_sig is not None and for_sig != -1:
+        s += int_to_hex(1, 4)                                   #  hash type
+    return s
 
 
 
@@ -460,22 +465,60 @@ class Transaction:
         return Hash(self.raw.decode('hex') )[::-1].encode('hex')
 
     def sign(self, private_keys):
+        import deserialize
 
         for i in range(len(self.inputs)):
             txin = self.inputs[i]
-            sec = private_keys[txin['address']]
-            compressed = is_compressed(sec)
-            pkey = regenerate_key(sec)
-            secexp = pkey.secret
 
-            private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
-            public_key = private_key.get_verifying_key()
-            pkey = EC_KEY(secexp)
-            pubkey = GetPubKey(pkey.pubkey, compressed)
-            tx = raw_tx( self.inputs, self.outputs, for_sig = i )
-            sig = private_key.sign_digest( Hash( tx.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
-            assert public_key.verify_digest( sig, Hash( tx.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
-            self.inputs[i]["pubkeysig"] = [(pubkey, sig)]
+            if txin.get('redeemScript'):
+                # 1 parse the redeem script
+                num, redeem_pubkeys = deserialize.parse_redeemScript(txin.get('redeemScript'))
+                self.inputs[i]["pubkeys"] = redeem_pubkeys
+
+                # build list of public/private keys
+                keypairs = {}
+                for sec in private_keys.values():
+                    compressed = is_compressed(sec)
+                    pkey = regenerate_key(sec)
+                    pubkey = GetPubKey(pkey.pubkey, compressed)
+                    keypairs[ pubkey.encode('hex') ] = sec
+
+                # list of signatures
+                signatures = txin.get("signatures",[])
+                
+                # check if we have a key corresponding to the redeem script
+                for pubkey, privkey in keypairs.items():
+                    if pubkey in redeem_pubkeys:
+                        # add signature
+                        compressed = is_compressed(sec)
+                        pkey = regenerate_key(sec)
+                        secexp = pkey.secret
+                        private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
+                        public_key = private_key.get_verifying_key()
+
+                        tx = raw_tx( self.inputs, self.outputs, for_sig = i )
+                        sig = private_key.sign_digest( Hash( tx.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
+                        assert public_key.verify_digest( sig, Hash( tx.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
+                        signatures.append( sig.encode('hex') )
+
+                # for p2sh, pubkeysig is a tuple (may be incomplete)
+                self.inputs[i]["signatures"] = signatures
+
+            else:
+                sec = private_keys[txin['address']]
+                compressed = is_compressed(sec)
+                pkey = regenerate_key(sec)
+                secexp = pkey.secret
+
+                private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
+                public_key = private_key.get_verifying_key()
+                pkey = EC_KEY(secexp)
+                pubkey = GetPubKey(pkey.pubkey, compressed)
+                tx = raw_tx( self.inputs, self.outputs, for_sig = i )
+                sig = private_key.sign_digest( Hash( tx.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
+                assert public_key.verify_digest( sig, Hash( tx.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
+
+                self.inputs[i]["pubkeysig"] = [(pubkey, sig)]
 
         self.raw = raw_tx( self.inputs, self.outputs )
 
@@ -542,7 +585,7 @@ def test_p2sh():
 
     tx = Transaction.from_io(
         [{'tx_hash':'3c9018e8d5615c306d72397f8f5eef44308c98fb576a88e030c25456b4f3a7ac', 'index':0,
-          'raw_output_script':'a914f815b036d9bbbce5e9f2a00abd1bf3dc91e9551087', 'pubkeys':pubkeys, 'p2sh_num':2}],
+          'raw_output_script':'a914f815b036d9bbbce5e9f2a00abd1bf3dc91e9551087', 'redeemScript':multisig_script(pubkeys, 2)}],
         [('1GtpSrGhRGY5kkrNz4RykoqRQoJuG2L6DS',1000000)])
 
     tx_for_sig = tx.for_sig(0)
