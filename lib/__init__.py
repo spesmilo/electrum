@@ -7,6 +7,6 @@ from verifier import WalletVerifier
 from interface import Interface, pick_random_server, DEFAULT_SERVERS
 from simple_config import SimpleConfig
 import bitcoin
-from bitcoin import Transaction
+from bitcoin import Transaction, EC_KEY
 from mnemonic import mn_encode as mnemonic_encode
 from mnemonic import mn_decode as mnemonic_decode
