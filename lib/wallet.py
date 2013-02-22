@@ -800,7 +800,7 @@ class Wallet:
             target, auth_name, signing_addr, signature = line
             msg = "alias:%s:%s:%s"%(alias,target,auth_name)
             print msg, signature
-            self.verify_message(signing_addr, signature, msg)
+            EC_KEY.verify_message(signing_addr, signature, msg)
         
         # other lines are signed updates
         for line in lines[1:]:
@@ -810,7 +810,7 @@ class Wallet:
             previous = target
             print repr(line)
             target, signature = line
-            self.verify_message(previous, signature, "alias:%s:%s"%(alias,target))
+            EC_KEY.verify_message(previous, signature, "alias:%s:%s"%(alias,target))
 
         if not self.is_valid(target):
             raise ValueError("Invalid bitcoin address")
@@ -906,7 +906,7 @@ class Wallet:
             if not signing_address:
                 return
             try:
-                self.verify_message(signing_address, signature, url )
+                EC_KEY.verify_message(signing_address, signature, url )
                 self.receipt = (signing_address, signature, url)
             except:
                 show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.')
