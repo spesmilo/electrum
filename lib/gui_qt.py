@@ -1251,8 +1251,8 @@ class ElectrumWindow(QMainWindow):
             if address in alias_targets: continue
             label = self.wallet.labels.get(address,'')
             n = 0 
-            for item in self.wallet.transactions.values():
-                if address in item['outputs'] : n=n+1
+            #for item in self.wallet.transactions.values():
+            #    if address in item['outputs'] : n=n+1
             tx = "%d"%n
             item = QTreeWidgetItem( [ address, label, tx] )
             item.setFont(0, QFont(MONOSPACE_FONT))

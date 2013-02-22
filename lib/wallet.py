@@ -74,9 +74,17 @@ class Wallet:
         self.addressbook           = config.get('contacts', [])
         self.imported_keys         = config.get('imported_keys',{})
         self.history               = config.get('addr_history',{})        # address -> list(txid, height)
-        self.transactions          = config.get('transactions',{})        # txid -> deserialised
+        self.tx_height             = config.get('tx_height',{})
 
-        self.requested_amounts     = config.get('requested_amounts',{})   # txid -> deserialised
+        self.transactions = {}
+        tx = config.get('transactions',{})
+        try:
+            for k,v in tx.items(): self.transactions[k] = Transaction(v)
+        except:
+            print_msg("Warning: Cannot deserialize transactions. skipping")
+        
+
+        self.requested_amounts     = config.get('requested_amounts',{}) 
 
         # not saved
         self.prevout_values = {}     # my own transaction outputs
@@ -308,7 +316,7 @@ class Wallet:
 
     def fill_addressbook(self):
         for tx_hash, tx in self.transactions.items():
-            is_send, _, _ = self.get_tx_value(tx_hash)
+            is_send, _, _ = self.get_tx_value(tx)
             if is_send:
                 for o in tx['outputs']:
                     addr = o.get('address')
@@ -324,51 +332,9 @@ class Wallet:
         return flags
         
 
-    def get_tx_value(self, tx_hash, addresses = None):
-        # return the balance for that tx
+    def get_tx_value(self, tx, addresses=None):
         if addresses is None: addresses = self.all_addresses()
-        with self.lock:
-            is_send = False
-            is_pruned = False
-            v_in = v_out = v_out_mine = 0
-            d = self.transactions.get(tx_hash)
-            if not d: 
-                return 0, 0, 0
-
-            for item in d.get('inputs'):
-                addr = item.get('address')
-                if addr in addresses:
-                    is_send = True
-                    key = item['prevout_hash']  + ':%d'%item['prevout_n']
-                    value = self.prevout_values.get( key )
-                    if value is None:
-                        is_pruned = True
-                    else:
-                        v_in += value
-                else:
-                    is_pruned = True
-                    
-            for item in d.get('outputs'):
-                addr = item.get('address')
-                value = item.get('value')
-                v_out += value
-                if addr in addresses:
-                    v_out_mine += value
-
-        if not is_pruned:
-            # all inputs are mine:
-            fee = v_out - v_in
-            v = v_out_mine - v_in
-        else:
-            # some inputs are mine:
-            fee = None
-            if is_send:
-                v = v_out_mine - v_out
-            else:
-                # no input is mine
-                v = v_out_mine
-            
-        return is_send, v, fee
+        return tx.get_value(addresses, self.prevout_values)
 
 
     def get_tx_details(self, tx_hash):
@@ -414,13 +380,15 @@ class Wallet:
     
     def update_tx_outputs(self, tx_hash):
         tx = self.transactions.get(tx_hash)
-        for item in tx.get('outputs'):
-            value = item.get('value')
-            key = tx_hash+ ':%d'%item.get('index')
+        i = 0
+        for item in tx.outputs:
+            addr, value = item
+            key = tx_hash+ ':%d'%i
             with self.lock:
-                self.prevout_values[key] = value 
+                self.prevout_values[key] = value
+            i += 1
 
-        for item in tx.get('inputs'):
+        for item in tx.inputs:
             if self.is_mine(item.get('address')):
                 key = item['prevout_hash'] + ':%d'%item['prevout_n']
                 self.spent_outputs.append(key)
@@ -434,32 +402,36 @@ class Wallet:
         received_coins = []   # list of coins received at address
 
         for tx_hash, tx_height in h:
-            d = self.transactions.get(tx_hash)
-            if not d: continue
-            for item in d.get('outputs'):
-                addr = item.get('address')
+            tx = self.transactions.get(tx_hash)
+            if not tx: continue
+            i = 0
+            for item in tx.outputs:
+                addr, value = item
                 if addr == address:
-                    key = tx_hash + ':%d'%item['index']
+                    key = tx_hash + ':%d'%i
                     received_coins.append(key)
+                i +=1
 
         for tx_hash, tx_height in h:
-            d = self.transactions.get(tx_hash)
-            if not d: continue
+            tx = self.transactions.get(tx_hash)
+            if not tx: continue
             v = 0
 
-            for item in d.get('inputs'):
+            for item in tx.inputs:
                 addr = item.get('address')
                 if addr == address:
                     key = item['prevout_hash']  + ':%d'%item['prevout_n']
                     value = self.prevout_values.get( key )
                     if key in received_coins: 
                         v -= value
-                    
-            for item in d.get('outputs'):
-                addr = item.get('address')
-                key = tx_hash + ':%d'%item['index']
+
+            i = 0
+            for item in tx.outputs:
+                addr, value = item
+                key = tx_hash + ':%d'%i
                 if addr == address:
-                    v += item.get('value')
+                    v += value
+                i += 1
 
             if tx_height:
                 c += v
@@ -591,15 +563,16 @@ class Wallet:
 
 
 
-    def receive_tx_callback(self, tx_hash, tx):
+    def receive_tx_callback(self, tx_hash, tx, tx_height):
 
         if not self.check_new_tx(tx_hash, tx):
             raise BaseException("error: received transaction is not consistent with history"%tx_hash)
 
         with self.lock:
             self.transactions[tx_hash] = tx
+            self.tx_height[tx_hash] = tx_height
 
-        tx_height = tx.get('height')
+        #tx_height = tx.get('height')
         if self.verifier and tx_height>0: 
             self.verifier.add(tx_hash, tx_height)
 
@@ -623,22 +596,21 @@ class Wallet:
                     # add it in case it was previously unconfirmed
                     if self.verifier: self.verifier.add(tx_hash, tx_height)
                     # set the height in case it changed
-                    tx = self.transactions.get(tx_hash)
-                    if tx:
-                        if tx.get('height') != tx_height:
-                            print_error( "changing height for tx", tx_hash )
-                            tx['height'] = tx_height
+                    txh = self.tx_height.get(tx_hash)
+                    if txh and txh != tx_height:
+                        print_error( "changing height for tx", tx_hash )
+                        self.tx_height[tx_hash] = tx_height
 
 
     def get_tx_history(self):
         with self.lock:
-            history = self.transactions.values()
-        history.sort(key = lambda x: x.get('height') if x.get('height') else 1e12)
+            history = self.transactions.items()
+        history.sort(key = lambda x: self.tx_height.get(x[0],1e12) )
         result = []
     
         balance = 0
-        for tx in history:
-            is_mine, v, fee = self.get_tx_value(tx['tx_hash'])
+        for tx_hash, tx in history:
+            is_mine, v, fee = self.get_tx_value(tx)
             if v is not None: balance += v
         c, u = self.get_balance()
 
@@ -647,10 +619,9 @@ class Wallet:
             result.append( ('', 1000, 0, c+u-balance, None, c+u-balance, None ) )
 
         balance = c + u - balance
-        for tx in history:
-            tx_hash = tx['tx_hash']
+        for tx_hash, tx in history:
             conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
-            is_mine, value, fee = self.get_tx_value(tx_hash)
+            is_mine, value, fee = self.get_tx_value(tx)
             if value is not None:
                 balance += value
 
@@ -679,23 +650,23 @@ class Wallet:
         tx = self.transactions.get(tx_hash)
         default_label = ''
         if tx:
-            is_mine, _, _ = self.get_tx_value(tx_hash)
+            is_mine, _, _ = self.get_tx_value(tx)
             if is_mine:
-                for o in tx['outputs']:
-                    o_addr = o.get('address')
+                for o in tx.outputs:
+                    o_addr, _ = o
                     if not self.is_mine(o_addr):
                         try:
                             default_label = self.labels[o_addr]
                         except KeyError:
                             default_label = o_addr
             else:
-                for o in tx['outputs']:
-                    o_addr = o.get('address')
+                for o in tx.outputs:
+                    o_addr, _ = o
                     if self.is_mine(o_addr) and not self.is_change(o_addr):
                         break
                 else:
-                    for o in tx['outputs']:
-                        o_addr = o.get('address')
+                    for o in tx.outputs:
+                        o_addr, _ = o
                         if self.is_mine(o_addr):
                             break
                     else:
@@ -956,6 +927,10 @@ class Wallet:
             return False
 
     def save(self):
+        tx = {}
+        for k,v in self.transactions.items():
+            tx[k] = str(v)
+            
         s = {
             'use_encryption': self.use_encryption,
             'use_change': self.use_change,
@@ -973,7 +948,8 @@ class Wallet:
             'frozen_addresses': self.frozen_addresses,
             'prioritized_addresses': self.prioritized_addresses,
             'gap_limit': self.gap_limit,
-            'transactions': self.transactions,
+            'transactions': tx,
+            'tx_height': self.tx_height,
             'requested_amounts': self.requested_amounts,
         }
         for k, v in s.items():
@@ -986,7 +962,7 @@ class Wallet:
         # review stored transactions and send them to the verifier
         # (they are not necessarily in the history, because history items might have have been pruned)
         for tx_hash, tx in self.transactions.items():
-            tx_height = tx.get('height')
+            tx_height = self.tx_height[tx_hash]
             if tx_height <1:
                 print_error( "skipping", tx_hash, tx_height )
                 continue
@@ -1002,24 +978,12 @@ class Wallet:
                     # add it in case it was previously unconfirmed
                     self.verifier.add(tx_hash, tx_height)
                     # set the height in case it changed
-                    tx = self.transactions.get(tx_hash)
-                    if tx:
-                        if tx.get('height') != tx_height:
-                            print_error( "changing height for tx", tx_hash )
-                            tx['height'] = tx_height
+                    txh = self.tx_height.get(tx_hash)
+                    if txh and txh != tx_height:
+                        print_error( "changing height for tx", tx_hash )
+                        self.tx_height[tx_hash] = tx_height
 
 
-    def is_addr_in_tx(self, addr, tx):
-        found = False
-        for txin in tx.get('inputs'):
-            if addr == txin.get('address'): 
-                found = True
-                break
-        for txout in tx.get('outputs'):
-            if addr == txout.get('address'): 
-                found = True
-                break
-        return found
 
 
     def check_new_history(self, addr, hist):
@@ -1029,7 +993,7 @@ class Wallet:
             for tx_hash, height in hist:
                 tx = self.transactions.get(tx_hash)
                 if not tx: continue
-                if not self.is_addr_in_tx(addr,tx):
+                if not tx.has_address(addr):
                     return False
 
         # check that we are not "orphaning" a transaction
@@ -1053,7 +1017,7 @@ class Wallet:
                 if not tx: continue
                 
                 # already verified?
-                if tx.get('height'):
+                if self.tx_height.get(tx_hash):
                     continue
                 # unconfirmed tx
                 print_error("new history is orphaning transaction:", tx_hash)
@@ -1071,7 +1035,7 @@ class Wallet:
                     for item in h:
                         if item.get('tx_hash') == tx_hash:
                             height = item.get('height')
-                            tx['height'] = height
+                            self.tx_height[tx_hash] = height
                 if height:
                     print_error("found height for", tx_hash, height)
                     self.verifier.add(tx_hash, height)
@@ -1097,7 +1061,7 @@ class Wallet:
 
         # 2 check that referencing addresses are in the tx
         for addr in addresses:
-            if not self.is_addr_in_tx(addr, tx):
+            if not tx.has_address(addr):
                 return False
 
         return True
@@ -1250,13 +1214,10 @@ class WalletSynchronizer(threading.Thread):
                 tx_height = params[1]
                 assert tx_hash == hash_encode(Hash(result.decode('hex')))
                 tx = Transaction(result)
-                d = tx.deserialize()
-                d['height'] = tx_height
-                d['tx_hash'] = tx_hash
-                self.wallet.receive_tx_callback(tx_hash, d)
+                self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
                 self.was_updated = True
                 requested_tx.remove( (tx_hash, tx_height) )
-                print_error("received tx:", d)
+                print_error("received tx:", tx)
 
             elif method == 'blockchain.transaction.broadcast':
                 self.wallet.tx_result = result

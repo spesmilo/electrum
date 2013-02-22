@@ -597,6 +597,62 @@ class Transaction:
         return self.d
     
 
+    def has_address(self, addr):
+        print self.inputs
+        print self.outputs
+        
+        found = False
+        for txin in self.inputs:
+            if addr == txin.get('address'): 
+                found = True
+                break
+        for txout in self.outputs:
+            if addr == txout[0]:
+                found = True
+                break
+        return found
+
+
+    def get_value(self, addresses, prevout_values):
+        # return the balance for that tx
+        is_send = False
+        is_pruned = False
+        v_in = v_out = v_out_mine = 0
+
+        for item in self.inputs:
+            addr = item.get('address')
+            if addr in addresses:
+                is_send = True
+                key = item['prevout_hash']  + ':%d'%item['prevout_n']
+                value = prevout_values.get( key )
+                if value is None:
+                    is_pruned = True
+                else:
+                    v_in += value
+            else:
+                is_pruned = True
+                    
+        for item in self.outputs:
+            addr, value = item
+            v_out += value
+            if addr in addresses:
+                v_out_mine += value
+
+        if not is_pruned:
+            # all inputs are mine:
+            fee = v_out - v_in
+            v = v_out_mine - v_in
+        else:
+            # some inputs are mine:
+            fee = None
+            if is_send:
+                v = v_out_mine - v_out
+            else:
+                # no input is mine
+                v = v_out_mine
+            
+        return is_send, v, fee
+
 
 
 def test_bip32():
