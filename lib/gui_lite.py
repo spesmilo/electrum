@@ -905,7 +905,7 @@ class MiniActuator:
     def copy_master_public_key(self):
         master_pubkey = self.wallet.master_public_key
         qApp.clipboard().setText(master_pubkey)
-        QMessageBox.information(None,"Copy successful", "Your master public key has been copied to your clipboard.")
+        QMessageBox.information(None, _("Copy successful"), _("Your master public key has been copied to your clipboard."))
         
 
     def acceptbit(self, currency):
