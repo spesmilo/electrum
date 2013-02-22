@@ -91,11 +91,13 @@ options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address 
     'unfreeze':'',
     'prioritize':'',
     'unprioritize':'',
-    'dumpprivkey':'',
+    'dumpprivkey':'similar to bitcoind\'s command',
+    'listunspent':'similar to bitcoind\'s command',
     'createmultisig':'similar to bitcoind\'s command',
     'createrawtransaction':'similar to bitcoind\'s command',
     'decoderawtransaction':'similar to bitcoind\'s command',
     'signrawtransaction':'similar to bitcoind\'s command',
+    
     }
 
 
@@ -109,6 +111,7 @@ offline_commands = [ 'password', 'mktx', 'signtx',
                      'deseed','reseed',
                      'freeze','unfreeze',
                      'prioritize','unprioritize',
+                     'dumpprivkey','listunspent',
                      'createmultisig', 'createrawtransaction', 'decoderawtransaction', 'signrawtransaction'
                      ]
 
@@ -774,6 +777,11 @@ if __name__ == '__main__':
 
         tx.sign( private_keys )
         print_msg(tx)
+
+
+    elif cmd == 'listunspent':
+        unspent = map(lambda x: {"txid":x[0].split(':')[0],"vout":x[0].split(':')[1],"amount":x[1]*1.e-8},  wallet.prevout_values.items() )
+        print_json(unspent)
         
 
     if cmd not in offline_commands and not options.offline:
