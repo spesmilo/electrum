@@ -15,114 +15,116 @@ import StringIO
 import mmap
 
 class SerializationError(Exception):
-  """ Thrown when there's a problem deserializing or serializing """
+    """ Thrown when there's a problem deserializing or serializing """
 
 class BCDataStream(object):
-  def __init__(self):
-    self.input = None
-    self.read_cursor = 0
+    def __init__(self):
+        self.input = None
+        self.read_cursor = 0
 
-  def clear(self):
-    self.input = None
-    self.read_cursor = 0
+    def clear(self):
+        self.input = None
+        self.read_cursor = 0
 
-  def write(self, bytes):  # Initialize with string of bytes
-    if self.input is None:
-      self.input = bytes
-    else:
-      self.input += bytes
+    def write(self, bytes):  # Initialize with string of bytes
+        if self.input is None:
+            self.input = bytes
+        else:
+            self.input += bytes
 
-  def map_file(self, file, start):  # Initialize with bytes from file
-    self.input = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
-    self.read_cursor = start
-  def seek_file(self, position):
-    self.read_cursor = position
-  def close_file(self):
-    self.input.close()
+    def map_file(self, file, start):  # Initialize with bytes from file
+        self.input = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
+        self.read_cursor = start
 
-  def read_string(self):
-    # Strings are encoded depending on length:
-    # 0 to 252 :  1-byte-length followed by bytes (if any)
-    # 253 to 65,535 : byte'253' 2-byte-length followed by bytes
-    # 65,536 to 4,294,967,295 : byte '254' 4-byte-length followed by bytes
-    # ... and the Bitcoin client is coded to understand:
-    # greater than 4,294,967,295 : byte '255' 8-byte-length followed by bytes of string
-    # ... but I don't think it actually handles any strings that big.
-    if self.input is None:
-      raise SerializationError("call write(bytes) before trying to deserialize")
+    def seek_file(self, position):
+        self.read_cursor = position
+        
+    def close_file(self):
+        self.input.close()
 
-    try:
-      length = self.read_compact_size()
-    except IndexError:
-      raise SerializationError("attempt to read past end of buffer")
+    def read_string(self):
+        # Strings are encoded depending on length:
+        # 0 to 252 :  1-byte-length followed by bytes (if any)
+        # 253 to 65,535 : byte'253' 2-byte-length followed by bytes
+        # 65,536 to 4,294,967,295 : byte '254' 4-byte-length followed by bytes
+        # ... and the Bitcoin client is coded to understand:
+        # greater than 4,294,967,295 : byte '255' 8-byte-length followed by bytes of string
+        # ... but I don't think it actually handles any strings that big.
+        if self.input is None:
+            raise SerializationError("call write(bytes) before trying to deserialize")
 
-    return self.read_bytes(length)
+        try:
+            length = self.read_compact_size()
+        except IndexError:
+            raise SerializationError("attempt to read past end of buffer")
 
-  def write_string(self, string):
-    # Length-encoded as with read-string
-    self.write_compact_size(len(string))
-    self.write(string)
+        return self.read_bytes(length)
 
-  def read_bytes(self, length):
-    try:
-      result = self.input[self.read_cursor:self.read_cursor+length]
-      self.read_cursor += length
-      return result
-    except IndexError:
-      raise SerializationError("attempt to read past end of buffer")
+    def write_string(self, string):
+        # Length-encoded as with read-string
+        self.write_compact_size(len(string))
+        self.write(string)
 
-    return ''
+    def read_bytes(self, length):
+        try:
+            result = self.input[self.read_cursor:self.read_cursor+length]
+            self.read_cursor += length
+            return result
+        except IndexError:
+            raise SerializationError("attempt to read past end of buffer")
 
-  def read_boolean(self): return self.read_bytes(1)[0] != chr(0)
-  def read_int16(self): return self._read_num('<h')
-  def read_uint16(self): return self._read_num('<H')
-  def read_int32(self): return self._read_num('<i')
-  def read_uint32(self): return self._read_num('<I')
-  def read_int64(self): return self._read_num('<q')
-  def read_uint64(self): return self._read_num('<Q')
+        return ''
 
-  def write_boolean(self, val): return self.write(chr(1) if val else chr(0))
-  def write_int16(self, val): return self._write_num('<h', val)
-  def write_uint16(self, val): return self._write_num('<H', val)
-  def write_int32(self, val): return self._write_num('<i', val)
-  def write_uint32(self, val): return self._write_num('<I', val)
-  def write_int64(self, val): return self._write_num('<q', val)
-  def write_uint64(self, val): return self._write_num('<Q', val)
+    def read_boolean(self): return self.read_bytes(1)[0] != chr(0)
+    def read_int16(self): return self._read_num('<h')
+    def read_uint16(self): return self._read_num('<H')
+    def read_int32(self): return self._read_num('<i')
+    def read_uint32(self): return self._read_num('<I')
+    def read_int64(self): return self._read_num('<q')
+    def read_uint64(self): return self._read_num('<Q')
 
-  def read_compact_size(self):
-    size = ord(self.input[self.read_cursor])
-    self.read_cursor += 1
-    if size == 253:
-      size = self._read_num('<H')
-    elif size == 254:
-      size = self._read_num('<I')
-    elif size == 255:
-      size = self._read_num('<Q')
-    return size
+    def write_boolean(self, val): return self.write(chr(1) if val else chr(0))
+    def write_int16(self, val): return self._write_num('<h', val)
+    def write_uint16(self, val): return self._write_num('<H', val)
+    def write_int32(self, val): return self._write_num('<i', val)
+    def write_uint32(self, val): return self._write_num('<I', val)
+    def write_int64(self, val): return self._write_num('<q', val)
+    def write_uint64(self, val): return self._write_num('<Q', val)
 
-  def write_compact_size(self, size):
-    if size < 0:
-      raise SerializationError("attempt to write size < 0")
-    elif size < 253:
-       self.write(chr(size))
-    elif size < 2**16:
-      self.write('\xfd')
-      self._write_num('<H', size)
-    elif size < 2**32:
-      self.write('\xfe')
-      self._write_num('<I', size)
-    elif size < 2**64:
-      self.write('\xff')
-      self._write_num('<Q', size)
+    def read_compact_size(self):
+        size = ord(self.input[self.read_cursor])
+        self.read_cursor += 1
+        if size == 253:
+            size = self._read_num('<H')
+        elif size == 254:
+            size = self._read_num('<I')
+        elif size == 255:
+            size = self._read_num('<Q')
+        return size
 
-  def _read_num(self, format):
-    (i,) = struct.unpack_from(format, self.input, self.read_cursor)
-    self.read_cursor += struct.calcsize(format)
-    return i
+    def write_compact_size(self, size):
+        if size < 0:
+            raise SerializationError("attempt to write size < 0")
+        elif size < 253:
+            self.write(chr(size))
+        elif size < 2**16:
+            self.write('\xfd')
+            self._write_num('<H', size)
+        elif size < 2**32:
+            self.write('\xfe')
+            self._write_num('<I', size)
+        elif size < 2**64:
+            self.write('\xff')
+            self._write_num('<Q', size)
 
-  def _write_num(self, format, num):
-    s = struct.pack(format, num)
-    self.write(s)
+    def _read_num(self, format):
+        (i,) = struct.unpack_from(format, self.input, self.read_cursor)
+        self.read_cursor += struct.calcsize(format)
+        return i
+
+    def _write_num(self, format, num):
+        s = struct.pack(format, num)
+        self.write(s)
 
 #
 # enum-like type
@@ -181,64 +183,64 @@ def short_hex(bytes):
 
 
 def parse_TxIn(vds):
-  d = {}
-  d['prevout_hash'] = hash_encode(vds.read_bytes(32))
-  d['prevout_n'] = vds.read_uint32()
-  scriptSig = vds.read_bytes(vds.read_compact_size())
-  d['sequence'] = vds.read_uint32()
+    d = {}
+    d['prevout_hash'] = hash_encode(vds.read_bytes(32))
+    d['prevout_n'] = vds.read_uint32()
+    scriptSig = vds.read_bytes(vds.read_compact_size())
+    d['sequence'] = vds.read_uint32()
 
-  if scriptSig:
-    pubkeys, signatures, address = get_address_from_input_script(scriptSig)
-  else:
-    pubkeys = []
-    signatures = []
-    address = None
+    if scriptSig:
+        pubkeys, signatures, address = get_address_from_input_script(scriptSig)
+    else:
+        pubkeys = []
+        signatures = []
+        address = None
     
-  d['address'] = address
-  d['signatures'] = signatures
+    d['address'] = address
+    d['signatures'] = signatures
 
-  return d
+    return d
 
 
 def parse_TxOut(vds, i):
-  d = {}
-  d['value'] = vds.read_int64()
-  scriptPubKey = vds.read_bytes(vds.read_compact_size())
-  d['address'] = get_address_from_output_script(scriptPubKey)
-  d['raw_output_script'] = scriptPubKey.encode('hex')
-  d['index'] = i
-  return d
+    d = {}
+    d['value'] = vds.read_int64()
+    scriptPubKey = vds.read_bytes(vds.read_compact_size())
+    d['address'] = get_address_from_output_script(scriptPubKey)
+    d['raw_output_script'] = scriptPubKey.encode('hex')
+    d['index'] = i
+    return d
 
 
 def parse_Transaction(vds):
-  d = {}
-  start = vds.read_cursor
-  d['version'] = vds.read_int32()
-  n_vin = vds.read_compact_size()
-  d['inputs'] = []
-  for i in xrange(n_vin):
-    d['inputs'].append(parse_TxIn(vds))
-  n_vout = vds.read_compact_size()
-  d['outputs'] = []
-  for i in xrange(n_vout):
-    d['outputs'].append(parse_TxOut(vds, i))
-  d['lockTime'] = vds.read_uint32()
-  return d
+    d = {}
+    start = vds.read_cursor
+    d['version'] = vds.read_int32()
+    n_vin = vds.read_compact_size()
+    d['inputs'] = []
+    for i in xrange(n_vin):
+        d['inputs'].append(parse_TxIn(vds))
+    n_vout = vds.read_compact_size()
+    d['outputs'] = []
+    for i in xrange(n_vout):
+        d['outputs'].append(parse_TxOut(vds, i))
+    d['lockTime'] = vds.read_uint32()
+    return d
 
 def parse_redeemScript(bytes):
-  dec = [ x for x in script_GetOp(bytes.decode('hex')) ]
+    dec = [ x for x in script_GetOp(bytes.decode('hex')) ]
 
-  # 2 of 2
-  match = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_2, opcodes.OP_CHECKMULTISIG ]
-  if match_decoded(dec, match):
-    pubkeys = [ dec[1][1].encode('hex'), dec[2][1].encode('hex') ]
-    return 2, pubkeys
+    # 2 of 2
+    match = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_2, opcodes.OP_CHECKMULTISIG ]
+    if match_decoded(dec, match):
+        pubkeys = [ dec[1][1].encode('hex'), dec[2][1].encode('hex') ]
+        return 2, pubkeys
 
-  # 2 of 3
-  match = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_3, opcodes.OP_CHECKMULTISIG ]
-  if match_decoded(dec, match):
-    pubkeys = [ dec[1][1].encode('hex'), dec[2][1].encode('hex'), dec[3][1].encode('hex') ]
-    return 3, pubkeys
+    # 2 of 3
+    match = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_3, opcodes.OP_CHECKMULTISIG ]
+    if match_decoded(dec, match):
+        pubkeys = [ dec[1][1].encode('hex'), dec[2][1].encode('hex'), dec[3][1].encode('hex') ]
+        return 3, pubkeys
 
 
 
@@ -264,116 +266,122 @@ opcodes = Enumeration("Opcodes", [
     ("OP_INVALIDOPCODE", 0xFFFF),
 ])
 
+
 def script_GetOp(bytes):
-  i = 0
-  while i < len(bytes):
-    vch = None
-    opcode = ord(bytes[i])
-    i += 1
-    if opcode >= opcodes.OP_SINGLEBYTE_END:
-      opcode <<= 8
-      opcode |= ord(bytes[i])
-      i += 1
-
-    if opcode <= opcodes.OP_PUSHDATA4:
-      nSize = opcode
-      if opcode == opcodes.OP_PUSHDATA1:
-        nSize = ord(bytes[i])
+    i = 0
+    while i < len(bytes):
+        vch = None
+        opcode = ord(bytes[i])
         i += 1
-      elif opcode == opcodes.OP_PUSHDATA2:
-        (nSize,) = struct.unpack_from('<H', bytes, i)
-        i += 2
-      elif opcode == opcodes.OP_PUSHDATA4:
-        (nSize,) = struct.unpack_from('<I', bytes, i)
-        i += 4
-      vch = bytes[i:i+nSize]
-      i += nSize
+        if opcode >= opcodes.OP_SINGLEBYTE_END:
+            opcode <<= 8
+            opcode |= ord(bytes[i])
+            i += 1
 
-    yield (opcode, vch, i)
+        if opcode <= opcodes.OP_PUSHDATA4:
+            nSize = opcode
+            if opcode == opcodes.OP_PUSHDATA1:
+                nSize = ord(bytes[i])
+                i += 1
+            elif opcode == opcodes.OP_PUSHDATA2:
+                (nSize,) = struct.unpack_from('<H', bytes, i)
+                i += 2
+            elif opcode == opcodes.OP_PUSHDATA4:
+                (nSize,) = struct.unpack_from('<I', bytes, i)
+                i += 4
+            vch = bytes[i:i+nSize]
+            i += nSize
+
+        yield (opcode, vch, i)
+
 
 def script_GetOpName(opcode):
-  return (opcodes.whatis(opcode)).replace("OP_", "")
+    return (opcodes.whatis(opcode)).replace("OP_", "")
+
 
 def decode_script(bytes):
-  result = ''
-  for (opcode, vch, i) in script_GetOp(bytes):
-    if len(result) > 0: result += " "
-    if opcode <= opcodes.OP_PUSHDATA4:
-      result += "%d:"%(opcode,)
-      result += short_hex(vch)
-    else:
-      result += script_GetOpName(opcode)
-  return result
+    result = ''
+    for (opcode, vch, i) in script_GetOp(bytes):
+        if len(result) > 0: result += " "
+        if opcode <= opcodes.OP_PUSHDATA4:
+            result += "%d:"%(opcode,)
+            result += short_hex(vch)
+        else:
+            result += script_GetOpName(opcode)
+    return result
+
 
 def match_decoded(decoded, to_match):
-  if len(decoded) != len(to_match):
-    return False;
-  for i in range(len(decoded)):
-    if to_match[i] == opcodes.OP_PUSHDATA4 and decoded[i][0] <= opcodes.OP_PUSHDATA4:
-      continue  # Opcodes below OP_PUSHDATA4 all just push data onto stack, and are equivalent.
-    if to_match[i] != decoded[i][0]:
-      return False
-  return True
+    if len(decoded) != len(to_match):
+        return False;
+    for i in range(len(decoded)):
+        if to_match[i] == opcodes.OP_PUSHDATA4 and decoded[i][0] <= opcodes.OP_PUSHDATA4:
+            continue  # Opcodes below OP_PUSHDATA4 all just push data onto stack, and are equivalent.
+        if to_match[i] != decoded[i][0]:
+            return False
+    return True
 
 def get_address_from_input_script(bytes):
-  decoded = [ x for x in script_GetOp(bytes) ]
+    decoded = [ x for x in script_GetOp(bytes) ]
 
-  # non-generated TxIn transactions push a signature
-  # (seventy-something bytes) and then their public key
-  # (65 bytes) onto the stack:
-  match = [ opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4 ]
-  if match_decoded(decoded, match):
-    return None, None, public_key_to_bc_address(decoded[1][1])
+    # non-generated TxIn transactions push a signature
+    # (seventy-something bytes) and then their public key
+    # (65 bytes) onto the stack:
+    match = [ opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4 ]
+    if match_decoded(decoded, match):
+        return None, None, public_key_to_bc_address(decoded[1][1])
 
-  # p2sh transaction, 2 of n
-  match = [ opcodes.OP_0 ]
-  while len(match) < len(decoded):
-    match.append(opcodes.OP_PUSHDATA4)
+    # p2sh transaction, 2 of n
+    match = [ opcodes.OP_0 ]
+    while len(match) < len(decoded):
+        match.append(opcodes.OP_PUSHDATA4)
 
-  if match_decoded(decoded, match):
+    if match_decoded(decoded, match):
 
-    redeemScript = decoded[-1][1]
-    num = len(match) - 2
-    signatures = map(lambda x:x[1].encode('hex'), decoded[1:-1])
-  
-    dec2 = [ x for x in script_GetOp(redeemScript) ]
+        redeemScript = decoded[-1][1]
+        num = len(match) - 2
+        signatures = map(lambda x:x[1].encode('hex'), decoded[1:-1])
+        
+        dec2 = [ x for x in script_GetOp(redeemScript) ]
 
-    # 2 of 2
-    match2 = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_2, opcodes.OP_CHECKMULTISIG ]
-    if match_decoded(dec2, match2):
-      pubkeys = [ dec2[1][1].encode('hex'), dec2[2][1].encode('hex') ]
-      s = multisig_script(pubkeys)
-      return pubkeys, signatures, hash_160_to_bc_address(hash_160(s.decode('hex')), 5)
+        # 2 of 2
+        match2 = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_2, opcodes.OP_CHECKMULTISIG ]
+        if match_decoded(dec2, match2):
+            pubkeys = [ dec2[1][1].encode('hex'), dec2[2][1].encode('hex') ]
+            s = multisig_script(pubkeys)
+            return pubkeys, signatures, hash_160_to_bc_address(hash_160(s.decode('hex')), 5)
  
-    # 2 of 3
-    match2 = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_3, opcodes.OP_CHECKMULTISIG ]
-    if match_decoded(dec2, match2):
-      pubkeys = [ dec2[1][1].encode('hex'), dec2[2][1].encode('hex'), dec2[3][1].encode('hex') ]
-      s = multisig_script(pubkeys)
-      return pubkeys, signatures, hash_160_to_bc_address(hash_160(s.decode('hex')), 5)
+        # 2 of 3
+        match2 = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_3, opcodes.OP_CHECKMULTISIG ]
+        if match_decoded(dec2, match2):
+            pubkeys = [ dec2[1][1].encode('hex'), dec2[2][1].encode('hex'), dec2[3][1].encode('hex') ]
+            s = multisig_script(pubkeys)
+            return pubkeys, signatures, hash_160_to_bc_address(hash_160(s.decode('hex')), 5)
 
-  raise BaseException("no match for scriptsig")
+    raise BaseException("no match for scriptsig")
 
 
 
 def get_address_from_output_script(bytes):
-  decoded = [ x for x in script_GetOp(bytes) ]
+    decoded = [ x for x in script_GetOp(bytes) ]
 
-  # The Genesis Block, self-payments, and pay-by-IP-address payments look like:
-  # 65 BYTES:... CHECKSIG
-  match = [ opcodes.OP_PUSHDATA4, opcodes.OP_CHECKSIG ]
-  if match_decoded(decoded, match):
-    return public_key_to_bc_address(decoded[0][1])
+    # The Genesis Block, self-payments, and pay-by-IP-address payments look like:
+    # 65 BYTES:... CHECKSIG
+    match = [ opcodes.OP_PUSHDATA4, opcodes.OP_CHECKSIG ]
+    if match_decoded(decoded, match):
+        return public_key_to_bc_address(decoded[0][1])
 
-  # Pay-by-Bitcoin-address TxOuts look like:
-  # DUP HASH160 20 BYTES:... EQUALVERIFY CHECKSIG
-  match = [ opcodes.OP_DUP, opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG ]
-  if match_decoded(decoded, match):
-    return hash_160_to_bc_address(decoded[2][1])
+    # Pay-by-Bitcoin-address TxOuts look like:
+    # DUP HASH160 20 BYTES:... EQUALVERIFY CHECKSIG
+    match = [ opcodes.OP_DUP, opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG ]
+    if match_decoded(decoded, match):
+        return hash_160_to_bc_address(decoded[2][1])
 
-  # p2sh
-  match = [ opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUAL ]
-  if match_decoded(decoded, match):
-    return hash_160_to_bc_address(decoded[1][1],5)
+    # p2sh
+    match = [ opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUAL ]
+    if match_decoded(decoded, match):
+        return hash_160_to_bc_address(decoded[1][1],5)
 
-  return "(None)"
+    return "(None)"
+
+
