@@ -1456,7 +1456,7 @@ class ElectrumWindow(QMainWindow):
             password = None
 
         try:
-            pk = self.wallet.get_private_key_base58(address, password)
+            pk = self.wallet.get_private_key(address, password)
         except BaseException, e:
             self.show_message(str(e))
             return
@@ -1748,7 +1748,7 @@ class ElectrumWindow(QMainWindow):
 
                     for addr in self.wallet.all_addresses():
                         m_addr = "%34s"%addr
-                        transaction.writerow([m_addr, str(self.wallet.get_private_key_base58(addr, password))])
+                        transaction.writerow([m_addr, str(self.wallet.get_private_key(addr, password))])
 
                     self.show_message(_("Private keys exported."))
 

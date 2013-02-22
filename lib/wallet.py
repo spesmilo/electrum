@@ -174,23 +174,14 @@ class Wallet:
     def get_sequence(self,n,for_change):
         return string_to_number( Hash( "%d:%d:"%(n,for_change) + self.master_public_key.decode('hex') ) )
 
-    def get_private_key_base58(self, address, password):
-        secexp, compressed = self.get_private_key(address, password)
-        if secexp is None: return None
-        pk = number_to_string( secexp, generator_secp256k1.order() )
-        return SecretToASecret( pk, compressed )
-
     def get_private_key(self, address, password):
         """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
-        order = generator_secp256k1.order()
-        
+
+        # decode seed in any case, in order to make test the password
+        seed = self.decode_seed(password)
+
         if address in self.imported_keys.keys():
-            sec = self.pw_decode( self.imported_keys[address], password )
-            if not sec: return None, None
-            pkey = regenerate_key(sec)
-            compressed = is_compressed(sec)
-            secexp = pkey.secret
-        
+            return self.pw_decode( self.imported_keys[address], password )
         else:
             if address in self.addresses:
                 n = self.addresses.index(address)
@@ -201,23 +192,16 @@ class Wallet:
             else:
                 raise BaseException("unknown address", address)
 
-            seed = self.pw_decode( self.seed, password)
-            if not seed: return None
+            order = generator_secp256k1.order()
             secexp = self.stretch_key(seed)
             secexp = ( secexp + self.get_sequence(n,for_change) ) % order
+            pk = number_to_string( secexp, generator_secp256k1.order() )
             compressed = False
-            pkey = EC_KEY(secexp)
+            return SecretToASecret( pk, compressed )
 
-        public_key = GetPubKey(pkey.pubkey, compressed)
-        addr = public_key_to_bc_address(public_key)
-        if addr != address:
-            print_error('Invalid password with correct decoding')
-            raise BaseException('Invalid password')
-
-        return secexp, compressed
 
     def sign_message(self, address, message, password):
-        sec = self.get_private_key_base58(address, password)
+        sec = self.get_private_key(address, password)
         key = regenerate_key(sec)
         compressed = is_compressed(sec)
         return key.sign_message(message, compressed, address)
@@ -762,7 +746,7 @@ class Wallet:
         private_keys = {}
         for txin in tx.inputs:
             addr = txin['address']
-            sec = self.get_private_key_base58(addr, password)
+            sec = self.get_private_key(addr, password)
             private_keys[addr] = sec
         tx.sign(private_keys)
         return str(tx)

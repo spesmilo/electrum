@@ -561,7 +561,7 @@ if __name__ == '__main__':
                 else: b=''
                 m_addr = "%34s"%addr
                 if options.show_keys:
-                    m_addr += ':' + str(wallet.get_private_key_base58(addr, password))
+                    m_addr += ':' + str(wallet.get_private_key(addr, password))
                 print_msg(flags, m_addr, b, label)
 
     if cmd == 'history':
@@ -703,7 +703,7 @@ if __name__ == '__main__':
 
     elif cmd == 'dumpprivkey':
         addr = args[1]
-        sec = wallet.get_private_key_base58(addr, password)
+        sec = wallet.get_private_key(addr, password)
         print_msg( sec )
 
         
@@ -770,7 +770,7 @@ if __name__ == '__main__':
         if not private_keys:
             for txin in tx.inputs:
                 addr = txin['address']
-                private_keys[addr] = wallet.get_private_key_base58(addr, password)
+                private_keys[addr] = wallet.get_private_key(addr, password)
         else:
             pk = {}
             for sec in private_keys:
