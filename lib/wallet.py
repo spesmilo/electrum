@@ -32,7 +32,7 @@ import Queue
 import time
 
 from ecdsa.util import string_to_number, number_to_string
-from util import print_error, user_dir, format_satoshis
+from util import print_msg, print_error, user_dir, format_satoshis
 from bitcoin import *
 
 # URL decode
