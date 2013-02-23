@@ -32,7 +32,7 @@ import Queue
 import time
 
 from ecdsa.util import string_to_number, number_to_string
-from util import print_error, user_dir, format_satoshis
+from util import print_msg, print_error, user_dir, format_satoshis
 from bitcoin import *
 
 # URL decode
@@ -42,6 +42,27 @@ urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 # AES encryption
 EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
 DecodeAES = lambda secret, e: aes.decryptData(secret, base64.b64decode(e))
+
+def pw_encode(s, password):
+    if password:
+        secret = Hash(password)
+        return EncodeAES(secret, s)
+    else:
+        return s
+
+def pw_decode(s, password):
+    if password is not None:
+        secret = Hash(password)
+        try:
+            d = DecodeAES(secret, s)
+        except:
+            raise BaseException('Invalid password')
+        return d
+    else:
+        return s
+
+
+
 
 
 from version import ELECTRUM_VERSION, SEED_VERSION
@@ -60,7 +81,6 @@ class Wallet:
         self.use_change            = config.get('use_change',True)
         self.fee                   = int(config.get('fee',100000))
         self.num_zeros             = int(config.get('num_zeros',0))
-        self.master_public_key     = config.get('master_public_key','')
         self.use_encryption        = config.get('use_encryption', False)
         self.addresses             = config.get('addresses', [])          # receiving addresses visible for user
         self.change_addresses      = config.get('change_addresses', [])   # addresses used as change
@@ -75,6 +95,9 @@ class Wallet:
         self.imported_keys         = config.get('imported_keys',{})
         self.history               = config.get('addr_history',{})        # address -> list(txid, height)
         self.tx_height             = config.get('tx_height',{})
+
+        master_public_key     = config.get('master_public_key','')
+        self.sequence = DeterministicSequence(master_public_key)
 
         self.transactions = {}
         tx = config.get('transactions',{})
@@ -122,19 +145,15 @@ class Wallet:
         while not self.is_up_to_date(): time.sleep(0.1)
 
     def import_key(self, sec, password):
-        # try password
-        try:
-            seed = self.decode_seed(password)
-        except:
-            raise BaseException("Invalid password")
-
+        # check password
+        seed = self.decode_seed(password)
         address = address_from_private_key(sec)
 
         if address in self.all_addresses():
             raise BaseException('Address already in wallet')
         
         # store the originally requested keypair into the imported keys table
-        self.imported_keys[address] = self.pw_encode(sec, password )
+        self.imported_keys[address] = pw_encode(sec, password )
         return address
         
 
@@ -149,11 +168,8 @@ class Wallet:
 
     def init_mpk(self,seed):
         # public key
-        curve = SECP256k1
-        secexp = self.stretch_key(seed)
-        master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
-        self.master_public_key = master_private_key.get_verifying_key().to_string().encode('hex')
-        self.config.set_key('master_public_key', self.master_public_key, True)
+        self.sequence = DeterministicSequence.from_seed(seed)
+        self.config.set_key('master_public_key', self.sequence.master_public_key, True)
 
     def all_addresses(self):
         return self.addresses + self.change_addresses + self.imported_keys.keys()
@@ -173,23 +189,35 @@ class Wallet:
             return False
         return addr == hash_160_to_bc_address(h, addrtype)
 
-    def stretch_key(self,seed):
-        oldseed = seed
-        for i in range(100000):
-            seed = hashlib.sha256(seed + oldseed).digest()
-        return string_to_number( seed )
+    def get_master_public_key(self):
+        return self.sequence.master_public_key
 
-    def get_sequence(self,n,for_change):
-        return string_to_number( Hash( "%d:%d:"%(n,for_change) + self.master_public_key.decode('hex') ) )
+    def get_public_key(self, address):
+        if address in self.imported_keys.keys():
+            raise BaseException("imported key")
 
+        if address in self.addresses:
+            n = self.addresses.index(address)
+            for_change = False
+        elif address in self.change_addresses:
+            n = self.change_addresses.index(address)
+            for_change = True
+
+        return self.sequence.get_pubkey(n, for_change)
+
+
+    def decode_seed(self, password):
+        seed = pw_decode(self.seed, password)
+        self.sequence.check_seed(seed)
+        return seed
+        
     def get_private_key(self, address, password):
-        """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
 
-        # decode seed in any case, in order to make test the password
+        # decode seed in any case, in order to test the password
         seed = self.decode_seed(password)
 
         if address in self.imported_keys.keys():
-            return self.pw_decode( self.imported_keys[address], password )
+            return pw_decode( self.imported_keys[address], password )
         else:
             if address in self.addresses:
                 n = self.addresses.index(address)
@@ -199,13 +227,8 @@ class Wallet:
                 for_change = True
             else:
                 raise BaseException("unknown address", address)
-
-            order = generator_secp256k1.order()
-            secexp = self.stretch_key(seed)
-            secexp = ( secexp + self.get_sequence(n,for_change) ) % order
-            pk = number_to_string( secexp, generator_secp256k1.order() )
-            compressed = False
-            return SecretToASecret( pk, compressed )
+            
+            return self.sequence.get_private_key(n, for_change, seed)
 
 
     def sign_message(self, address, message, password):
@@ -225,16 +248,10 @@ class Wallet:
         return address
         
     def get_new_address(self, n, for_change):
-        """   Publickey(type,n) = Master_public_key + H(n|S|type)*point  """
-        curve = SECP256k1
-        z = self.get_sequence(n, for_change)
-        master_public_key = ecdsa.VerifyingKey.from_string( self.master_public_key.decode('hex'), curve = SECP256k1 )
-        pubkey_point = master_public_key.pubkey.point + z*curve.generator
-        public_key2 = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
-        address = public_key_to_bc_address( '04'.decode('hex') + public_key2.to_string() )
-        print address
+        pubkey = self.sequence.get_pubkey(n, for_change)
+        address = public_key_to_bc_address( pubkey.decode('hex') )
+        print_msg( address )
         return address
-                                                                      
 
     def change_gap_limit(self, value):
         if value >= self.gap_limit:
@@ -303,7 +320,7 @@ class Wallet:
         
 
     def synchronize(self):
-        if not self.master_public_key:
+        if not self.sequence.master_public_key:
             return []
         new_addresses = []
         new_addresses += self.synchronize_sequence(self.addresses, self.gap_limit, False)
@@ -514,39 +531,6 @@ class Wallet:
             posn = random.randint(0, len(outputs))
             outputs[posn:posn] = [( change_addr,  change_amount)]
         return outputs
-
-
-    def pw_encode(self, s, password):
-        if password:
-            secret = Hash(password)
-            return EncodeAES(secret, s)
-        else:
-            return s
-
-    def pw_decode(self, s, password):
-        if password is not None:
-            secret = Hash(password)
-            try:
-                d = DecodeAES(secret, s)
-            except:
-                raise BaseException('Invalid password')
-            return d
-        else:
-            return s
-
-    def decode_seed(self, password):
-        seed = self.pw_decode(self.seed, password)
-
-        # check decoded seed with master public key
-        curve = SECP256k1
-        secexp = self.stretch_key(seed)
-        master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
-        master_public_key = master_private_key.get_verifying_key().to_string().encode('hex')
-        if master_public_key != self.master_public_key:
-            print_error('invalid password (mpk)')
-            raise BaseException('Invalid password')
-
-        return seed
 
 
     def get_history(self, address):
@@ -791,12 +775,12 @@ class Wallet:
     def update_password(self, seed, old_password, new_password):
         if new_password == '': new_password = None
         self.use_encryption = (new_password != None)
-        self.seed = self.pw_encode( seed, new_password)
+        self.seed = pw_encode( seed, new_password)
         self.config.set_key('seed', self.seed, True)
         for k in self.imported_keys.keys():
             a = self.imported_keys[k]
-            b = self.pw_decode(a, old_password)
-            c = self.pw_encode(b, new_password)
+            b = pw_decode(a, old_password)
+            c = pw_encode(b, new_password)
             self.imported_keys[k] = c
         self.save()
 

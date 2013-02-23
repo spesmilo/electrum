@@ -398,7 +398,57 @@ def CKD_prime(K, c, n):
 
 
 
+class DeterministicSequence:
+    """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
 
+    def __init__(self, master_public_key):
+        self.master_public_key = master_public_key
+
+    @classmethod
+    def from_seed(klass, seed):
+        curve = SECP256k1
+        secexp = klass.stretch_key(seed)
+        master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
+        master_public_key = master_private_key.get_verifying_key().to_string().encode('hex')
+        self = klass(master_public_key)
+        return self
+
+    @classmethod
+    def stretch_key(self,seed):
+        oldseed = seed
+        for i in range(100000):
+            seed = hashlib.sha256(seed + oldseed).digest()
+        return string_to_number( seed )
+
+    def get_sequence(self,n,for_change):
+        return string_to_number( Hash( "%d:%d:"%(n,for_change) + self.master_public_key.decode('hex') ) )
+
+    def get_pubkey(self, n, for_change):
+        curve = SECP256k1
+        z = self.get_sequence(n, for_change)
+        master_public_key = ecdsa.VerifyingKey.from_string( self.master_public_key.decode('hex'), curve = SECP256k1 )
+        pubkey_point = master_public_key.pubkey.point + z*curve.generator
+        public_key2 = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
+        return '04' + public_key2.to_string().encode('hex')
+
+    def get_private_key(self, n, for_change, seed):
+        order = generator_secp256k1.order()
+        secexp = self.stretch_key(seed)
+        secexp = ( secexp + self.get_sequence(n,for_change) ) % order
+        pk = number_to_string( secexp, generator_secp256k1.order() )
+        compressed = False
+        return SecretToASecret( pk, compressed )
+
+    def check_seed(self, seed):
+        curve = SECP256k1
+        secexp = self.stretch_key(seed)
+        master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
+        master_public_key = master_private_key.get_verifying_key().to_string().encode('hex')
+        if master_public_key != self.master_public_key:
+            print_error('invalid password (mpk)')
+            raise BaseException('Invalid password')
+
+        return True
 
 ################################## transactions
 
