@@ -358,7 +358,7 @@ class Wallet:
         import datetime
         if not tx_hash: return ''
         tx = self.transactions.get(tx_hash)
-        is_mine, v, fee = self.get_tx_value(tx_hash)
+        is_mine, v, fee = self.get_tx_value(tx)
         conf, timestamp = self.verifier.get_confirmations(tx_hash)
 
         if timestamp:
@@ -366,8 +366,8 @@ class Wallet:
         else:
             time_str = 'pending'
 
-        inputs = map(lambda x: x.get('address'), tx['inputs'])
-        outputs = map(lambda x: x.get('address'), tx['outputs'])
+        inputs = map(lambda x: x.get('address'), tx.inputs)
+        outputs = map(lambda x: x.get('address'), tx.d['outputs'])
         tx_details = "Transaction Details" +"\n\n" \
             + "Transaction ID:\n" + tx_hash + "\n\n" \
             + "Status: %d confirmations\n"%conf
