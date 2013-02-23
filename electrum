@@ -247,7 +247,7 @@ if __name__ == '__main__':
                 wallet.gap_limit = gap
                 if len(seed) == 128:
                     wallet.seed = ''
-                    wallet.master_public_key = seed
+                    wallet.sequence.master_public_key = seed
                 else:
                     wallet.init_seed(str(seed))
             
@@ -332,7 +332,7 @@ if __name__ == '__main__':
 
             if len(seed) == 128:
                 wallet.seed = None
-                wallet.master_public_key = seed
+                wallet.sequence.master_public_key = seed
             else:
                 wallet.seed = str(seed)
                 wallet.init_mpk( wallet.seed )
@@ -488,12 +488,12 @@ if __name__ == '__main__':
             except:
                 sys.exit("Error: Error with seed file")
 
-            mpk = wallet.master_public_key
+            mpk = wallet.get_master_public_key()
             wallet.seed = seed
             wallet.imported_keys = imported_keys
             wallet.use_encryption = False
             wallet.init_mpk(seed)
-            if mpk == wallet.master_public_key:
+            if mpk == wallet.get_master_public_key():
                 wallet.save()
                 print_msg("Done: " + wallet.config.path)
             else:
@@ -501,7 +501,16 @@ if __name__ == '__main__':
 
     elif cmd == 'validateaddress':
         addr = args[1]
-        print_msg(wallet.is_valid(addr))
+        is_valid = wallet.is_valid(addr)
+        out = { 'isvalid':is_valid }
+        if is_valid:
+            is_mine = wallet.is_mine(addr)
+            out['address'] = addr
+            out['ismine'] = is_mine
+            if is_mine:
+                out['pubkey'] = wallet.get_public_key(addr)
+            
+        print_json(out)
 
     elif cmd == 'balance':
         try:
@@ -779,12 +788,11 @@ if __name__ == '__main__':
             private_keys = pk
 
         tx.sign( private_keys )
-        print_msg(tx)
+        print_json({ "hex":str(tx),"complete":tx.is_complete})
 
 
     elif cmd == 'listunspent':
-        unspent = map(lambda x: {"txid":x[0].split(':')[0],"vout":x[0].split(':')[1],"amount":x[1]*1.e-8},  wallet.prevout_values.items() )
-        print_json(unspent)
+        print_json(wallet.get_unspent_coins())
         
 
     if cmd not in offline_commands and not options.offline:

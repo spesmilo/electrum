@@ -398,7 +398,57 @@ def CKD_prime(K, c, n):
 
 
 
+class DeterministicSequence:
+    """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
 
+    def __init__(self, master_public_key):
+        self.master_public_key = master_public_key
+
+    @classmethod
+    def from_seed(klass, seed):
+        curve = SECP256k1
+        secexp = klass.stretch_key(seed)
+        master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
+        master_public_key = master_private_key.get_verifying_key().to_string().encode('hex')
+        self = klass(master_public_key)
+        return self
+
+    @classmethod
+    def stretch_key(self,seed):
+        oldseed = seed
+        for i in range(100000):
+            seed = hashlib.sha256(seed + oldseed).digest()
+        return string_to_number( seed )
+
+    def get_sequence(self,n,for_change):
+        return string_to_number( Hash( "%d:%d:"%(n,for_change) + self.master_public_key.decode('hex') ) )
+
+    def get_pubkey(self, n, for_change):
+        curve = SECP256k1
+        z = self.get_sequence(n, for_change)
+        master_public_key = ecdsa.VerifyingKey.from_string( self.master_public_key.decode('hex'), curve = SECP256k1 )
+        pubkey_point = master_public_key.pubkey.point + z*curve.generator
+        public_key2 = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
+        return '04' + public_key2.to_string().encode('hex')
+
+    def get_private_key(self, n, for_change, seed):
+        order = generator_secp256k1.order()
+        secexp = self.stretch_key(seed)
+        secexp = ( secexp + self.get_sequence(n,for_change) ) % order
+        pk = number_to_string( secexp, generator_secp256k1.order() )
+        compressed = False
+        return SecretToASecret( pk, compressed )
+
+    def check_seed(self, seed):
+        curve = SECP256k1
+        secexp = self.stretch_key(seed)
+        master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
+        master_public_key = master_private_key.get_verifying_key().to_string().encode('hex')
+        if master_public_key != self.master_public_key:
+            print_error('invalid password (mpk)')
+            raise BaseException('Invalid password')
+
+        return True
 
 ################################## transactions
 
@@ -535,6 +585,7 @@ class Transaction:
 
         for i in range(len(self.inputs)):
             txin = self.inputs[i]
+            tx_for_sig = raw_tx( self.inputs, self.outputs, for_sig = i )
 
             if txin.get('redeemScript'):
                 # 1 parse the redeem script
@@ -549,26 +600,43 @@ class Transaction:
                     pubkey = GetPubKey(pkey.pubkey, compressed)
                     keypairs[ pubkey.encode('hex') ] = sec
 
-                # list of signatures
+                # list of already existing signatures
                 signatures = txin.get("signatures",[])
-                
-                # check if we have a key corresponding to the redeem script
-                for pubkey, privkey in keypairs.items():
-                    if pubkey in redeem_pubkeys:
-                        # add signature
-                        compressed = is_compressed(sec)
-                        pkey = regenerate_key(sec)
-                        secexp = pkey.secret
-                        private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
-                        public_key = private_key.get_verifying_key()
+                found = False
+                complete = True
 
-                        tx = raw_tx( self.inputs, self.outputs, for_sig = i )
-                        sig = private_key.sign_digest( Hash( tx.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
-                        assert public_key.verify_digest( sig, Hash( tx.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
-                        signatures.append( sig.encode('hex') )
+                # check if we have a key corresponding to the redeem script
+                for pubkey in redeem_pubkeys:
+                    public_key = ecdsa.VerifyingKey.from_string(pubkey[2:].decode('hex'), curve = SECP256k1)
+
+                    for s in signatures:
+                        try:
+                            public_key.verify_digest( s.decode('hex')[:-1], Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
+                            break
+                        except ecdsa.keys.BadSignatureError:
+                            continue
+                    else:
+                        if pubkey in keypairs.keys():
+                            # add signature
+                            sec = keypairs[pubkey]
+                            compressed = is_compressed(sec)
+                            pkey = regenerate_key(sec)
+                            secexp = pkey.secret
+                            private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
+                            public_key = private_key.get_verifying_key()
+                            sig = private_key.sign_digest( Hash( tx_for_sig.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
+                            assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
+                            signatures.append( sig.encode('hex') )
+                            found = True
+                        else:
+                            complete = False
+                        
+                if not found:
+                    raise BaseException("public key not found", keypairs.keys(), redeem_pubkeys)
 
                 # for p2sh, pubkeysig is a tuple (may be incomplete)
                 self.inputs[i]["signatures"] = signatures
+                self.is_complete = complete
 
             else:
                 sec = private_keys[txin['address']]
@@ -580,11 +648,11 @@ class Transaction:
                 public_key = private_key.get_verifying_key()
                 pkey = EC_KEY(secexp)
                 pubkey = GetPubKey(pkey.pubkey, compressed)
-                tx = raw_tx( self.inputs, self.outputs, for_sig = i )
-                sig = private_key.sign_digest( Hash( tx.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
-                assert public_key.verify_digest( sig, Hash( tx.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
+                sig = private_key.sign_digest( Hash( tx_for_sig.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
+                assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
 
                 self.inputs[i]["pubkeysig"] = [(pubkey, sig)]
+                self.is_complete = True
 
         self.raw = raw_tx( self.inputs, self.outputs )
 
@@ -598,9 +666,6 @@ class Transaction:
     
 
     def has_address(self, addr):
-        print self.inputs
-        print self.outputs
-        
         found = False
         for txin in self.inputs:
             if addr == txin.get('address'): 

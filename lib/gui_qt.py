@@ -1319,10 +1319,10 @@ class ElectrumWindow(QMainWindow):
         dialog.setWindowTitle(_("Master Public Key"))
 
         main_text = QTextEdit()
-        main_text.setText(self.wallet.master_public_key)
+        main_text.setText(self.wallet.get_master_public_key())
         main_text.setReadOnly(True)
         main_text.setMaximumHeight(170)
-        qrw = QRCodeWidget(self.wallet.master_public_key, 6)
+        qrw = QRCodeWidget(self.wallet.get_master_public_key(), 6)
 
         ok_button = QPushButton(_("OK"))
         ok_button.setDefault(True)
