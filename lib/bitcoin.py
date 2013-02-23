@@ -598,9 +598,6 @@ class Transaction:
     
 
     def has_address(self, addr):
-        print self.inputs
-        print self.outputs
-        
         found = False
         for txin in self.inputs:
             if addr == txin.get('address'): 
