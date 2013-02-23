@@ -71,6 +71,8 @@ class Console(QtGui.QPlainTextEdit):
 
         c = self.textCursor()
         c.setPosition(self.completions_pos)
+
+        completions = map(lambda x: x.split('.')[-1], completions)
         t = '\n' + ' '.join(completions)
         if len(t) > 500:
             t = t[:500] + '...'
