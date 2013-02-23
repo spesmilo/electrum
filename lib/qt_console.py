@@ -159,6 +159,9 @@ class Console(QtGui.QPlainTextEdit):
                     self.write_func = write_func
                     self.skip = False
 
+                def flush(self):
+                    pass
+
                 def write(self, text):
                     if not self.skip:
                         stripped_text = text.rstrip('\n')
