@@ -585,6 +585,7 @@ class Transaction:
 
         for i in range(len(self.inputs)):
             txin = self.inputs[i]
+            tx_for_sig = raw_tx( self.inputs, self.outputs, for_sig = i )
 
             if txin.get('redeemScript'):
                 # 1 parse the redeem script
@@ -607,7 +608,6 @@ class Transaction:
                 # check if we have a key corresponding to the redeem script
                 for pubkey in redeem_pubkeys:
                     public_key = ecdsa.VerifyingKey.from_string(pubkey[2:].decode('hex'), curve = SECP256k1)
-                    tx_for_sig = raw_tx( self.inputs, self.outputs, for_sig = i )
 
                     for s in signatures:
                         try:
@@ -648,9 +648,8 @@ class Transaction:
                 public_key = private_key.get_verifying_key()
                 pkey = EC_KEY(secexp)
                 pubkey = GetPubKey(pkey.pubkey, compressed)
-                tx = raw_tx( self.inputs, self.outputs, for_sig = i )
-                sig = private_key.sign_digest( Hash( tx.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
-                assert public_key.verify_digest( sig, Hash( tx.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
+                sig = private_key.sign_digest( Hash( tx_for_sig.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
+                assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
 
                 self.inputs[i]["pubkeysig"] = [(pubkey, sig)]
                 self.is_complete = True
