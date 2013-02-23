@@ -354,7 +354,6 @@ def get_address_from_input_script(bytes):
         match2 = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_3, opcodes.OP_CHECKMULTISIG ]
         if match_decoded(dec2, match2):
             pubkeys = [ dec2[1][1].encode('hex'), dec2[2][1].encode('hex'), dec2[3][1].encode('hex') ]
-            s = multisig_script(pubkeys)
             return pubkeys, signatures, hash_160_to_bc_address(hash_160(redeemScript), 5)
 
     raise BaseException("no match for scriptsig")
