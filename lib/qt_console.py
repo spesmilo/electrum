@@ -1,6 +1,6 @@
 # source: http://stackoverflow.com/questions/2758159/how-to-embed-a-python-interpreter-in-a-pyqt-widget
 
-import sys, os
+import sys, os, re
 import traceback
 from PyQt4 import QtCore
 from PyQt4 import QtGui
@@ -221,7 +221,10 @@ class Console(QtGui.QPlainTextEdit):
 
     def completions(self):
         cmd = self.getCommand()
-        path = cmd.split('.')
+        lastword = re.split(' |\(|\)',cmd)[-1]
+        beginning = cmd[0:-len(lastword)]
+
+        path = lastword.split('.')
         ns = self.namespace.keys()
 
         if len(path) == 1:
@@ -237,20 +240,20 @@ class Console(QtGui.QPlainTextEdit):
         for x in ns:
             if x[0] == '_':continue
             xx = prefix + x
-            if xx.startswith(cmd):
+            if xx.startswith(lastword):
                 completions.append(xx)
                 
         if not completions:
             self.hide_completions()
         elif len(completions) == 1:
             self.hide_completions()
-            self.setCommand(completions[0])
+            self.setCommand(beginning + completions[0])
         else:
             # find common prefix
             p = os.path.commonprefix(completions)
-            if len(p)>len(self.getCommand()):
+            if len(p)>len(lastword):
                 self.hide_completions()
-                self.setCommand(p)
+                self.setCommand(beginning + p)
             else:
                 self.show_completions(completions)
 

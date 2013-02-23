@@ -1263,8 +1263,10 @@ class ElectrumWindow(QMainWindow):
 
     def create_wall_tab(self):
         from qt_console import Console
+        import util, bitcoin
         self.console = console = Console()
         console.updateNamespace({'wallet' : self.wallet, 'interface' : self.wallet.interface, 'gui':self})
+        console.updateNamespace({'util' : util, 'bitcoin':bitcoin})
         return console
 
 
