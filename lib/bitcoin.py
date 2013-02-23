@@ -755,52 +755,8 @@ def test_bip32():
     print "address", hash_160_to_bc_address(hash_160(K0137_compressed))
         
 
-def test_p2sh():
-
-    print "2 of 2"
-    pubkeys = ["04e89a79651522201d756f14b1874ae49139cc984e5782afeca30ffe84e5e6b2cfadcfe9875c490c8a1a05a4debd715dd57471af8886ab5dfbb3959d97f087f77a",
-               "0455cf4a3ab68a011b18cb0a86aae2b8e9cad6c6355476de05247c57a9632d127084ac7630ad89893b43c486c5a9f7ec6158fb0feb708fa9255d5c4d44bc0858f8"]
-    s = multisig_script(pubkeys)
-    print "address", hash_160_to_bc_address(hash_160(s.decode('hex')), 5)
-
-
-    print "Gavin's tutorial: redeem p2sh:  http://blockchain.info/tx-index/30888901"
-    pubkey1 = "0491bba2510912a5bd37da1fb5b1673010e43d2c6d812c514e91bfa9f2eb129e1c183329db55bd868e209aac2fbc02cb33d98fe74bf23f0c235d6126b1d8334f86"
-    pubkey2 = "04865c40293a680cb9c020e7b1e106d8c1916d3cef99aa431a56d253e69256dac09ef122b1a986818a7cb624532f062c1d1f8722084861c5c3291ccffef4ec6874"
-    pubkey3 = "048d2455d2403e08708fc1f556002f1b6cd83f992d085097f9974ab08a28838f07896fbab08f39495e15fa6fad6edbfb1e754e35fa1c7844c41f322a1863d46213"
-    pubkeys = [pubkey1, pubkey2, pubkey3]
-
-    tx = Transaction.from_io(
-        [{'tx_hash':'3c9018e8d5615c306d72397f8f5eef44308c98fb576a88e030c25456b4f3a7ac', 'index':0,
-          'raw_output_script':'a914f815b036d9bbbce5e9f2a00abd1bf3dc91e9551087', 'redeemScript':multisig_script(pubkeys, 2)}],
-        [('1GtpSrGhRGY5kkrNz4RykoqRQoJuG2L6DS',1000000)])
-
-    tx_for_sig = tx.for_sig(0)
-    print "tx for sig", tx_for_sig
-
-    signature1 = "304502200187af928e9d155c4b1ac9c1c9118153239aba76774f775d7c1f9c3e106ff33c0221008822b0f658edec22274d0b6ae9de10ebf2da06b1bbdaaba4e50eb078f39e3d78"
-    signature2 = "30440220795f0f4f5941a77ae032ecb9e33753788d7eb5cb0c78d805575d6b00a1d9bfed02203e1f4ad9332d1416ae01e27038e945bc9db59c732728a383a6f1ed2fb99da7a4"
-
-    for pubkey in pubkeys:
-        import traceback, sys
-
-        public_key = ecdsa.VerifyingKey.from_string(pubkey[2:].decode('hex'), curve = SECP256k1)
-
-        try:
-            public_key.verify_digest( signature1.decode('hex'), Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
-            print True
-        except ecdsa.keys.BadSignatureError:
-            #traceback.print_exc(file=sys.stdout)
-            print False
-
-        try:
-            public_key.verify_digest( signature2.decode('hex'), Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
-            print True
-        except ecdsa.keys.BadSignatureError:
-            #traceback.print_exc(file=sys.stdout)
-            print False
 
 if __name__ == '__main__':
-    #test_bip32()
-    test_p2sh()
+    test_bip32()
+
 
