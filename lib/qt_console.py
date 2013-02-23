@@ -5,9 +5,12 @@ import traceback
 from PyQt4 import QtCore
 from PyQt4 import QtGui
 
+
+
 class Console(QtGui.QPlainTextEdit):
     def __init__(self, prompt='>> ', startup_message='', parent=None):
         QtGui.QPlainTextEdit.__init__(self, parent)
+
         self.prompt = prompt
         self.history = []
         self.namespace = {}
@@ -18,6 +21,7 @@ class Console(QtGui.QPlainTextEdit):
         self.setUndoRedoEnabled(False)
         self.document().setDefaultFont(QtGui.QFont("monospace", 10, QtGui.QFont.Normal))
         self.showMessage(startup_message)
+
 
     def updateNamespace(self, namespace):
         self.namespace.update(namespace)
@@ -35,6 +39,10 @@ class Console(QtGui.QPlainTextEdit):
             prompt = '.' * len(self.prompt)
         else:
             prompt = self.prompt
+
+        self.completions_pos = self.textCursor().position()
+        self.completions_visible = False
+
         self.appendPlainText(prompt)
         self.moveCursor(QtGui.QTextCursor.End)
 
@@ -55,6 +63,35 @@ class Console(QtGui.QPlainTextEdit):
         self.textCursor().removeSelectedText()
         self.textCursor().insertText(command)
         self.moveCursor(QtGui.QTextCursor.End)
+
+
+    def show_completions(self, completions):
+        if self.completions_visible:
+            self.hide_completions()
+
+        c = self.textCursor()
+        c.setPosition(self.completions_pos)
+        t = '\n' + ' '.join(completions)
+        if len(t) > 500:
+            t = t[:500] + '...'
+        c.insertText(t)
+        self.completions_end = c.position()
+
+        self.moveCursor(QtGui.QTextCursor.End)
+        self.completions_visible = True
+        
+
+    def hide_completions(self):
+        if not self.completions_visible:
+            return
+        c = self.textCursor()
+        c.setPosition(self.completions_pos)
+        l = self.completions_end - self.completions_pos
+        for x in range(l): c.deleteChar()
+
+        self.moveCursor(QtGui.QTextCursor.End)
+        self.completions_visible = False
+
 
     def getConstruct(self, command):
         if self.construct:
@@ -147,6 +184,12 @@ class Console(QtGui.QPlainTextEdit):
         self.newPrompt()
 
     def keyPressEvent(self, event):
+        if event.key() == QtCore.Qt.Key_Tab:
+            self.completions()
+            return
+
+        self.hide_completions()
+
         if event.key() in (QtCore.Qt.Key_Enter, QtCore.Qt.Key_Return):
             self.runCommand()
             return
@@ -166,32 +209,45 @@ class Console(QtGui.QPlainTextEdit):
             return
         elif event.key() == QtCore.Qt.Key_L and event.modifiers() == QtCore.Qt.ControlModifier:
             self.clear()
-        if event.key() == QtCore.Qt.Key_Tab:
-            self.completion()
-            return
+
         super(Console, self).keyPressEvent(event)
 
 
-    def completion(self):
+
+    def completions(self):
         cmd = self.getCommand()
         path = cmd.split('.')
         ns = self.namespace.keys()
 
         if len(path) == 1:
             ns = ns
+            prefix = ''
         else:
             obj = self.namespace.get(path[0])
+            prefix = path[0] + '.'
             ns = dir(obj)
+            
 
-
-        print ns
-        prefixes = []
+        completions = []
         for x in ns:
-            if x.startswith(cmd):
-                prefixes.append(x)
-
-        if len(prefixes) == 1:
-            self.setCommand(prefixes[0])
+            if x[0] == '_':continue
+            xx = prefix + x
+            if xx.startswith(cmd):
+                completions.append(xx)
+                
+        if not completions:
+            self.hide_completions()
+        elif len(completions) == 1:
+            self.hide_completions()
+            self.setCommand(completions[0])
+        else:
+            # find common prefix
+            p = os.path.commonprefix(completions)
+            if len(p)>len(self.getCommand()):
+                self.hide_completions()
+                self.setCommand(p)
+            else:
+                self.show_completions(completions)
 
 
 welcome_message = '''
