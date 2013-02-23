@@ -484,7 +484,7 @@ class Wallet:
             if h == ['*']: continue
             for tx_hash, tx_height in h:
                 tx = self.transactions.get(tx_hash)
-                for output in tx.get('outputs'):
+                for output in tx.d.get('outputs'):
                     if output.get('address') != addr: continue
                     key = tx_hash + ":%d" % output.get('index')
                     if key in self.spent_outputs: continue
@@ -497,7 +497,7 @@ class Wallet:
             if h == ['*']: continue
             for tx_hash, tx_height in h:
                 tx = self.transactions.get(tx_hash)
-                for output in tx.get('outputs'):
+                for output in tx.d.get('outputs'):
                     if output.get('address') != addr: continue
                     key = tx_hash + ":%d" % output.get('index')
                     if key in self.spent_outputs: continue
