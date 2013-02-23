@@ -465,6 +465,24 @@ class Wallet:
         return conf, unconf
 
 
+    def get_unspent_coins(self, domain=None):
+        coins = []
+        if domain is None: domain = self.all_addresses()
+        for addr in domain:
+            h = self.history.get(addr, [])
+            if h == ['*']: continue
+            for tx_hash, tx_height in h:
+                tx = self.transactions.get(tx_hash)
+                for output in tx.d.get('outputs'):
+                    if output.get('address') != addr: continue
+                    key = tx_hash + ":%d" % output.get('index')
+                    if key in self.spent_outputs: continue
+                    output['tx_hash'] = tx_hash
+                    coins.append(output)
+        return coins
+
+
+
     def choose_tx_inputs( self, amount, fixed_fee, from_addr = None ):
         """ todo: minimize tx size """
         total = 0
@@ -479,31 +497,8 @@ class Wallet:
         for i in self.prioritized_addresses:
             if i in domain: domain.remove(i)
 
-        for addr in domain:
-            h = self.history.get(addr, [])
-            if h == ['*']: continue
-            for tx_hash, tx_height in h:
-                tx = self.transactions.get(tx_hash)
-                for output in tx.d.get('outputs'):
-                    if output.get('address') != addr: continue
-                    key = tx_hash + ":%d" % output.get('index')
-                    if key in self.spent_outputs: continue
-                    output['tx_hash'] = tx_hash
-                    coins.append(output)
-
-
-        for addr in self.prioritized_addresses:
-            h = self.history.get(addr, [])
-            if h == ['*']: continue
-            for tx_hash, tx_height in h:
-                tx = self.transactions.get(tx_hash)
-                for output in tx.d.get('outputs'):
-                    if output.get('address') != addr: continue
-                    key = tx_hash + ":%d" % output.get('index')
-                    if key in self.spent_outputs: continue
-                    output['tx_hash'] = tx_hash
-                    prioritized_coins.append(output)
-
+        coins = self.get_unspent_coins(domain)
+        prioritized_coins = self.get_unspent_coins(self.prioritized_addresses)
 
         inputs = []
         coins = prioritized_coins + coins

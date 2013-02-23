@@ -792,8 +792,7 @@ if __name__ == '__main__':
 
 
     elif cmd == 'listunspent':
-        unspent = map(lambda x: {"txid":x[0].split(':')[0],"vout":x[0].split(':')[1],"amount":x[1]*1.e-8},  wallet.prevout_values.items() )
-        print_json(unspent)
+        print_json(wallet.get_unspent_coins())
         
 
     if cmd not in offline_commands and not options.offline:
