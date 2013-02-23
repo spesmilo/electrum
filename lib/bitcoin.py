@@ -599,10 +599,11 @@ class Transaction:
                     pubkey = GetPubKey(pkey.pubkey, compressed)
                     keypairs[ pubkey.encode('hex') ] = sec
 
-                # list of signatures
+                # list of already existing signatures
                 signatures = txin.get("signatures",[])
                 
                 # check if we have a key corresponding to the redeem script
+                found = False
                 for pubkey, privkey in keypairs.items():
                     if pubkey in redeem_pubkeys:
                         # add signature
@@ -616,6 +617,10 @@ class Transaction:
                         sig = private_key.sign_digest( Hash( tx.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
                         assert public_key.verify_digest( sig, Hash( tx.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
                         signatures.append( sig.encode('hex') )
+                        found = True
+
+                if not found:
+                    raise BaseException("public key not found", keypairs.keys(), redeem_pubkeys)
 
                 # for p2sh, pubkeysig is a tuple (may be incomplete)
                 self.inputs[i]["signatures"] = signatures
