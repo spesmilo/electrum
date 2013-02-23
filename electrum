@@ -788,7 +788,7 @@ if __name__ == '__main__':
             private_keys = pk
 
         tx.sign( private_keys )
-        print_msg(tx)
+        print_json({ "hex":str(tx),"complete":tx.is_complete})
 
 
     elif cmd == 'listunspent':

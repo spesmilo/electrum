@@ -601,29 +601,42 @@ class Transaction:
 
                 # list of already existing signatures
                 signatures = txin.get("signatures",[])
-                
-                # check if we have a key corresponding to the redeem script
                 found = False
-                for pubkey, privkey in keypairs.items():
-                    if pubkey in redeem_pubkeys:
-                        # add signature
-                        compressed = is_compressed(sec)
-                        pkey = regenerate_key(sec)
-                        secexp = pkey.secret
-                        private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
-                        public_key = private_key.get_verifying_key()
+                complete = True
 
-                        tx = raw_tx( self.inputs, self.outputs, for_sig = i )
-                        sig = private_key.sign_digest( Hash( tx.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
-                        assert public_key.verify_digest( sig, Hash( tx.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
-                        signatures.append( sig.encode('hex') )
-                        found = True
+                # check if we have a key corresponding to the redeem script
+                for pubkey in redeem_pubkeys:
+                    public_key = ecdsa.VerifyingKey.from_string(pubkey[2:].decode('hex'), curve = SECP256k1)
+                    tx_for_sig = raw_tx( self.inputs, self.outputs, for_sig = i )
 
+                    for s in signatures:
+                        try:
+                            public_key.verify_digest( s.decode('hex')[:-1], Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
+                            break
+                        except ecdsa.keys.BadSignatureError:
+                            continue
+                    else:
+                        if pubkey in keypairs.keys():
+                            # add signature
+                            sec = keypairs[pubkey]
+                            compressed = is_compressed(sec)
+                            pkey = regenerate_key(sec)
+                            secexp = pkey.secret
+                            private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
+                            public_key = private_key.get_verifying_key()
+                            sig = private_key.sign_digest( Hash( tx_for_sig.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
+                            assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
+                            signatures.append( sig.encode('hex') )
+                            found = True
+                        else:
+                            complete = False
+                        
                 if not found:
                     raise BaseException("public key not found", keypairs.keys(), redeem_pubkeys)
 
                 # for p2sh, pubkeysig is a tuple (may be incomplete)
                 self.inputs[i]["signatures"] = signatures
+                self.is_complete = complete
 
             else:
                 sec = private_keys[txin['address']]
@@ -640,6 +653,7 @@ class Transaction:
                 assert public_key.verify_digest( sig, Hash( tx.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
 
                 self.inputs[i]["pubkeysig"] = [(pubkey, sig)]
+                self.is_complete = True
 
         self.raw = raw_tx( self.inputs, self.outputs )
 
