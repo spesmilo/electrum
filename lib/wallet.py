@@ -613,22 +613,13 @@ class Wallet:
 
         return result
 
-    def get_transactions_at_height(self, height):
-        with self.lock:
-            values = self.transactions.values()[:]
-
-        out = []
-        for tx in values:
-            if tx['height'] == height:
-                out.append(tx['tx_hash'])
-        return out
-
 
     def get_label(self, tx_hash):
         label = self.labels.get(tx_hash)
         is_default = (label == '') or (label is None)
         if is_default: label = self.get_default_label(tx_hash)
         return label, is_default
+
 
     def get_default_label(self, tx_hash):
         tx = self.transactions.get(tx_hash)
