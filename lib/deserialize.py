@@ -2,7 +2,7 @@
 #
 #
 
-from bitcoin import public_key_to_bc_address, hash_160_to_bc_address, hash_encode, multisig_script, hash_160
+from bitcoin import public_key_to_bc_address, hash_160_to_bc_address, hash_encode, hash_160
 #import socket
 import time
 import struct
@@ -348,15 +348,14 @@ def get_address_from_input_script(bytes):
         match2 = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_2, opcodes.OP_CHECKMULTISIG ]
         if match_decoded(dec2, match2):
             pubkeys = [ dec2[1][1].encode('hex'), dec2[2][1].encode('hex') ]
-            s = multisig_script(pubkeys)
-            return pubkeys, signatures, hash_160_to_bc_address(hash_160(s.decode('hex')), 5)
+            return pubkeys, signatures, hash_160_to_bc_address(hash_160(redeemScript), 5)
  
         # 2 of 3
         match2 = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_3, opcodes.OP_CHECKMULTISIG ]
         if match_decoded(dec2, match2):
             pubkeys = [ dec2[1][1].encode('hex'), dec2[2][1].encode('hex'), dec2[3][1].encode('hex') ]
             s = multisig_script(pubkeys)
-            return pubkeys, signatures, hash_160_to_bc_address(hash_160(s.decode('hex')), 5)
+            return pubkeys, signatures, hash_160_to_bc_address(hash_160(redeemScript), 5)
 
     raise BaseException("no match for scriptsig")
 

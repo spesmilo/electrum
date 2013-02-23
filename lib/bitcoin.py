@@ -454,103 +454,8 @@ class DeterministicSequence:
 
 
 
-def raw_tx( inputs, outputs, for_sig = None ):
-
-    s  = int_to_hex(1,4)                                         # version
-    s += var_int( len(inputs) )                                  # number of inputs
-    for i in range(len(inputs)):
-        txin = inputs[i]
-        s += txin['tx_hash'].decode('hex')[::-1].encode('hex')   # prev hash
-        s += int_to_hex(txin['index'],4)                         # prev index
-
-        if for_sig is None:
-            pubkeysig = txin.get('pubkeysig')
-            if pubkeysig:
-                pubkey, sig = pubkeysig[0]
-                sig = sig + chr(1)                               # hashtype
-                script  = op_push( len(sig))
-                script += sig.encode('hex')
-                script += op_push( len(pubkey))
-                script += pubkey.encode('hex')
-            else:
-                signatures = txin['signatures']
-                pubkeys = txin['pubkeys']
-                script = '00'                                    # op_0
-                for sig in signatures:
-                    sig = sig + '01'
-                    script += op_push(len(sig)/2)
-                    script += sig
-
-                redeem_script = multisig_script(pubkeys,2)
-                script += op_push(len(redeem_script)/2)
-                script += redeem_script
-
-        elif for_sig==i:
-            if txin.get('redeemScript'):
-                script = txin['redeemScript']                    # p2sh uses the inner script
-            else:
-                script = txin['raw_output_script']               # scriptsig
-        else:
-            script=''
-        s += var_int( len(script)/2 )                            # script length
-        s += script
-        s += "ffffffff"                                          # sequence
-
-    s += var_int( len(outputs) )                                 # number of outputs
-    for output in outputs:
-        addr, amount = output
-        s += int_to_hex( amount, 8)                              # amount
-        addrtype, hash_160 = bc_address_to_hash_160(addr)
-        if addrtype == 0:
-            script = '76a9'                                      # op_dup, op_hash_160
-            script += '14'                                       # push 0x14 bytes
-            script += hash_160.encode('hex')
-            script += '88ac'                                     # op_equalverify, op_checksig
-        elif addrtype == 5:
-            script = 'a9'                                        # op_hash_160
-            script += '14'                                       # push 0x14 bytes
-            script += hash_160.encode('hex')
-            script += '87'                                       # op_equal
-        else:
-            raise
-            
-        s += var_int( len(script)/2 )                           #  script length
-        s += script                                             #  script
-    s += int_to_hex(0,4)                                        #  lock time
-    if for_sig is not None and for_sig != -1:
-        s += int_to_hex(1, 4)                                   #  hash type
-    return s
 
 
-
-
-def multisig_script(public_keys, num=None):
-    # supports only "2 of 2", and "2 of 3" transactions
-    n = len(public_keys)
-
-    if num is None:
-        num = n
-
-    assert num <= n and n <= 3 and n >= 2
-    
-    if num==2:
-        s = '52'
-    elif num == 3:
-        s = '53'
-    else:
-        raise
-    
-    for k in public_keys:
-        s += var_int(len(k)/2)
-        s += k
-    if n==2:
-        s += '52'
-    elif n==3:
-        s += '53'
-    else:
-        raise
-    s += 'ae'
-    return s
 
 
 
@@ -565,7 +470,7 @@ class Transaction:
         
     @classmethod
     def from_io(klass, inputs, outputs):
-        raw = raw_tx(inputs, outputs, for_sig = -1) # for_sig=-1 means do not sign
+        raw = klass.serialize(inputs, outputs, for_sig = -1) # for_sig=-1 means do not sign
         self = klass(raw)
         self.inputs = inputs
         self.outputs = outputs
@@ -574,8 +479,106 @@ class Transaction:
     def __str__(self):
         return self.raw
 
+    @classmethod
+    def multisig_script(klass, public_keys, num=None):
+        n = len(public_keys)
+        if num is None: num = n
+        # supports only "2 of 2", and "2 of 3" transactions
+        assert num <= n and n in [2,3]
+    
+        if num==2:
+            s = '52'
+        elif num == 3:
+            s = '53'
+        else:
+            raise
+    
+        for k in public_keys:
+            s += var_int(len(k)/2)
+            s += k
+        if n==2:
+            s += '52'
+        elif n==3:
+            s += '53'
+        else:
+            raise
+        s += 'ae'
+
+        out = { "address": hash_160_to_bc_address(hash_160(s.decode('hex')), 5), "redeemScript":s }
+        return out
+
+    @classmethod
+    def serialize( klass, inputs, outputs, for_sig = None ):
+
+        s  = int_to_hex(1,4)                                         # version
+        s += var_int( len(inputs) )                                  # number of inputs
+        for i in range(len(inputs)):
+            txin = inputs[i]
+            s += txin['tx_hash'].decode('hex')[::-1].encode('hex')   # prev hash
+            s += int_to_hex(txin['index'],4)                         # prev index
+
+            if for_sig is None:
+                pubkeysig = txin.get('pubkeysig')
+                if pubkeysig:
+                    pubkey, sig = pubkeysig[0]
+                    sig = sig + chr(1)                               # hashtype
+                    script  = op_push( len(sig))
+                    script += sig.encode('hex')
+                    script += op_push( len(pubkey))
+                    script += pubkey.encode('hex')
+                else:
+                    signatures = txin['signatures']
+                    pubkeys = txin['pubkeys']
+                    script = '00'                                    # op_0
+                    for sig in signatures:
+                        sig = sig + '01'
+                        script += op_push(len(sig)/2)
+                        script += sig
+
+                    redeem_script = klass.multisig_script(pubkeys,2)
+                    script += op_push(len(redeem_script)/2)
+                    script += redeem_script
+
+            elif for_sig==i:
+                if txin.get('redeemScript'):
+                    script = txin['redeemScript']                    # p2sh uses the inner script
+                else:
+                    script = txin['raw_output_script']               # scriptsig
+            else:
+                script=''
+            s += var_int( len(script)/2 )                            # script length
+            s += script
+            s += "ffffffff"                                          # sequence
+
+        s += var_int( len(outputs) )                                 # number of outputs
+        for output in outputs:
+            addr, amount = output
+            s += int_to_hex( amount, 8)                              # amount
+            addrtype, hash_160 = bc_address_to_hash_160(addr)
+            if addrtype == 0:
+                script = '76a9'                                      # op_dup, op_hash_160
+                script += '14'                                       # push 0x14 bytes
+                script += hash_160.encode('hex')
+                script += '88ac'                                     # op_equalverify, op_checksig
+            elif addrtype == 5:
+                script = 'a9'                                        # op_hash_160
+                script += '14'                                       # push 0x14 bytes
+                script += hash_160.encode('hex')
+                script += '87'                                       # op_equal
+            else:
+                raise
+            
+            s += var_int( len(script)/2 )                           #  script length
+            s += script                                             #  script
+        s += int_to_hex(0,4)                                        #  lock time
+        if for_sig is not None and for_sig != -1:
+            s += int_to_hex(1, 4)                                   #  hash type
+        return s
+
+
     def for_sig(self,i):
-        return raw_tx(self.inputs, self.outputs, for_sig = i)
+        return self.serialize(self.inputs, self.outputs, for_sig = i)
+
 
     def hash(self):
         return Hash(self.raw.decode('hex') )[::-1].encode('hex')
@@ -585,7 +588,7 @@ class Transaction:
 
         for i in range(len(self.inputs)):
             txin = self.inputs[i]
-            tx_for_sig = raw_tx( self.inputs, self.outputs, for_sig = i )
+            tx_for_sig = self.serialize( self.inputs, self.outputs, for_sig = i )
 
             if txin.get('redeemScript'):
                 # 1 parse the redeem script
@@ -654,7 +657,7 @@ class Transaction:
                 self.inputs[i]["pubkeysig"] = [(pubkey, sig)]
                 self.is_complete = True
 
-        self.raw = raw_tx( self.inputs, self.outputs )
+        self.raw = self.serialize( self.inputs, self.outputs )
 
 
     def deserialize(self):

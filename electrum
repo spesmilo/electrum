@@ -717,13 +717,10 @@ if __name__ == '__main__':
 
         
     elif cmd == 'createmultisig':
-        from lib.bitcoin import *
         num = int(args[1])
         pubkeys = ast.literal_eval(args[2])
         assert isinstance(pubkeys,list)
-        s = multisig_script(pubkeys, num)
-        out = { "address": hash_160_to_bc_address(hash_160(s.decode('hex')), 5), "redeemScript":s }
-        print_json(out)
+        print_json( Transaction.multisig_script(pubkeys, num) )
     
 
     elif cmd == 'createrawtransaction':
