@@ -22,6 +22,14 @@ class Console(QtGui.QPlainTextEdit):
         self.document().setDefaultFont(QtGui.QFont("monospace", 10, QtGui.QFont.Normal))
         self.showMessage(startup_message)
 
+        self.updateNamespace({'run':self.run_script})
+    
+    def run_script(self, filename):
+        with open(filename) as f:
+            script = f.read()
+        result = eval(script, self.namespace, self.namespace)
+
+
 
     def updateNamespace(self, namespace):
         self.namespace.update(namespace)
