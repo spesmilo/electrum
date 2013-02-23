@@ -240,7 +240,7 @@ def parse_redeemScript(bytes):
     match = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_3, opcodes.OP_CHECKMULTISIG ]
     if match_decoded(dec, match):
         pubkeys = [ dec[1][1].encode('hex'), dec[2][1].encode('hex'), dec[3][1].encode('hex') ]
-        return 3, pubkeys
+        return 2, pubkeys
 
 
 

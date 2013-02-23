@@ -18,7 +18,7 @@
 
 
 import hashlib, base64, ecdsa, re
-
+from util import print_error
 
 def rev_hex(s):
     return s.decode('hex')[::-1].encode('hex')
@@ -605,13 +605,10 @@ class Transaction:
 
                 # list of already existing signatures
                 signatures = txin.get("signatures",[])
-                found = False
-                complete = True
+                print_error("signatures",signatures)
 
-                # check if we have a key corresponding to the redeem script
                 for pubkey in redeem_pubkeys:
                     public_key = ecdsa.VerifyingKey.from_string(pubkey[2:].decode('hex'), curve = SECP256k1)
-
                     for s in signatures:
                         try:
                             public_key.verify_digest( s.decode('hex')[:-1], Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
@@ -619,6 +616,7 @@ class Transaction:
                         except ecdsa.keys.BadSignatureError:
                             continue
                     else:
+                        # check if we have a key corresponding to the redeem script
                         if pubkey in keypairs.keys():
                             # add signature
                             sec = keypairs[pubkey]
@@ -630,16 +628,11 @@ class Transaction:
                             sig = private_key.sign_digest( Hash( tx_for_sig.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
                             assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
                             signatures.append( sig.encode('hex') )
-                            found = True
-                        else:
-                            complete = False
                         
-                if not found:
-                    raise BaseException("public key not found", keypairs.keys(), redeem_pubkeys)
-
                 # for p2sh, pubkeysig is a tuple (may be incomplete)
                 self.inputs[i]["signatures"] = signatures
-                self.is_complete = complete
+                print_error("signatures",signatures)
+                self.is_complete = len(signatures) == num
 
             else:
                 sec = private_keys[txin['address']]
