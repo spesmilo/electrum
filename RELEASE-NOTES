@@ -12,11 +12,16 @@ let users extend Electrum through custom scripts.
 * The location of the Electrum folder in Windows changed from LOCALAPPDATA 
 to APPDATA. Discussion on this topic can be found here: https://bitcointalk.org/index.php?topic=144575.0
 
-* New menu item to display the private key corresponding to a
-receiving address.
+* Private keys can be exported from within the classic GUI:
+  For a single address, use the address menu (right-click).
+  To export keys for the entire wallet, use the settings dialog (import/export tab).
 
-* Added the ability to export your private keys through the classic GUI.
-
+* It is possible to create, sign and redeem multisig transaction, using the command line interface.
+  This is made possible by the following new commands: 
+    dumpprivkey, listunspent, createmultisig, createrawtransaction, decoderawtransaction, signrawtransaction
+  The syntax of these commands is similar to their bitcoind counterpart. 
+  For an example, see Gavin's tutorial: https://gist.github.com/gavinandresen/3966071
+  
 
 # Release 1.6.2
 
