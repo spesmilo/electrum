@@ -535,7 +535,7 @@ class Transaction:
                         script += op_push(len(sig)/2)
                         script += sig
 
-                    redeem_script = klass.multisig_script(pubkeys,2)
+                    redeem_script = klass.multisig_script(pubkeys,2).get('redeemScript')
                     script += op_push(len(redeem_script)/2)
                     script += redeem_script
 
