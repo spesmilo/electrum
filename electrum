@@ -68,7 +68,6 @@ options:
 Syntax: mktx <recipient> <amount> [label]
 options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address -\n  --changeaddr, -c: send change to address
         """,
-    'signtx':"Sign an unsigned transaction created by a deseeded wallet\nSyntax: signtx <filename>",
     'seed':
             "Print the generation seed of your wallet.",
     'importprivkey': 
@@ -102,7 +101,7 @@ options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address 
 
 
 
-offline_commands = [ 'password', 'mktx', 'signtx',
+offline_commands = [ 'password', 'mktx',
                      'label', 'contacts',
                      'help', 'validateaddress',
                      'signmessage', 'verifymessage',
@@ -116,7 +115,7 @@ offline_commands = [ 'password', 'mktx', 'signtx',
                      ]
 
 
-protected_commands = ['payto', 'password', 'mktx', 'signtx', 'seed', 'importprivkey','signmessage', 'signrawtransaction','dumpprivkey' ]
+protected_commands = ['payto', 'password', 'mktx', 'seed', 'importprivkey','signmessage', 'signrawtransaction','dumpprivkey' ]
 
 # get password routine
 def prompt_password(prompt, confirm=True):
@@ -644,11 +643,6 @@ if __name__ == '__main__':
             del(wallet.history[from_addr])
         wallet.save()
 
-    elif cmd == 'signtx':
-        tx = Transaction(args[1])
-        tx = wallet.sign_tx( tx, password )
-        print_msg(tx)
-
     elif cmd == 'sendtx':
         tx = args[1]
         r, h = wallet.sendtx( tx )
@@ -740,27 +734,25 @@ if __name__ == '__main__':
         tx = Transaction(args[1])
         txouts = ast.literal_eval(args[2]) if len(args)>2 else []
         private_keys = ast.literal_eval(args[3]) if len(args)>3 else {}
+        unspent_coins = wallet.get_unspent_coins()
 
         for txin in tx.inputs:
-            txid = txin["prevout_hash"]
-            index = txin["prevout_n"]
             # convert to own format
             txin['tx_hash'] = txin['prevout_hash']
             txin['index'] = txin['prevout_n']
 
             for txout in txouts:
-                if txout.get('txid') == txid and txout.get('vout') == index:
+                if txout.get('txid') == txin['tx_hash'] and txout.get('vout') == txin['index']:
                     txin['raw_output_script'] = txout['scriptPubKey']
                     txin['redeemScript'] = txout['redeemScript']
                     break
                 
             else:
-                if wallet.transactions.get(txid):
-                    # lookup in my own list of transactions
-                    txout = wallet.transactions[txid].outputs[index]
-                    txin['address'] = txout[0]
-                    #txin['raw_output_script'] = txout['raw_output_script']
-
+                for item in unspent_coins:
+                    if txin['tx_hash'] == item['tx_hash'] and txin['index'] == item['index']:
+                        txin['address'] = item['address']
+                        txin['raw_output_script'] = item['raw_output_script']
+                        break
                 else:
                     # if neither, we might want to get it from the server..
                     raise
