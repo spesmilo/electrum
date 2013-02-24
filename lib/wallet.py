@@ -576,7 +576,7 @@ class Wallet:
                     if self.verifier: self.verifier.add(tx_hash, tx_height)
                     # set the height in case it changed
                     txh = self.tx_height.get(tx_hash)
-                    if txh and txh != tx_height:
+                    if txh is not None and txh != tx_height:
                         print_error( "changing height for tx", tx_hash )
                         self.tx_height[tx_hash] = tx_height
 
@@ -949,7 +949,7 @@ class Wallet:
                     self.verifier.add(tx_hash, tx_height)
                     # set the height in case it changed
                     txh = self.tx_height.get(tx_hash)
-                    if txh and txh != tx_height:
+                    if txh is not None and txh != tx_height:
                         print_error( "changing height for tx", tx_hash )
                         self.tx_height[tx_hash] = tx_height
 
