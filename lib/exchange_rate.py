@@ -29,7 +29,7 @@ class Exchanger(threading.Thread):
 
     def discovery(self):
         try:
-            connection = httplib.HTTPSConnection('blockchain.info')
+            connection = httplib.HTTPConnection('blockchain.info')
             connection.request("GET", "/ticker")
         except:
             return
