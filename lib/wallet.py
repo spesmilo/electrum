@@ -27,11 +27,9 @@ import ast
 import threading
 import random
 import aes
-import ecdsa
 import Queue
 import time
 
-from ecdsa.util import string_to_number, number_to_string
 from util import print_msg, print_error, user_dir, format_satoshis
 from bitcoin import *
 
@@ -160,7 +158,7 @@ class Wallet:
     def init_seed(self, seed):
         if self.seed: raise BaseException("a seed exists")
         if not seed: 
-            seed = "%032x"%ecdsa.util.randrange( pow(2,128) ) 
+            seed = random_seed(128)
         self.seed = seed 
         self.config.set_key('seed', self.seed, True)
         self.config.set_key('seed_version', self.seed_version, True)

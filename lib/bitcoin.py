@@ -348,6 +348,10 @@ class EC_KEY(object):
 
 ###################################### BIP32 ##############################
 
+random_seed = lambda n: "%032x"%ecdsa.util.randrange( pow(2,n) )
+
+
+
 def bip32_init(seed):
     import hmac
         
