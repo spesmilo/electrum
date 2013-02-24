@@ -476,6 +476,7 @@ class Transaction:
     def from_io(klass, inputs, outputs):
         raw = klass.serialize(inputs, outputs, for_sig = -1) # for_sig=-1 means do not sign
         self = klass(raw)
+        self.is_complete = False
         self.inputs = inputs
         self.outputs = outputs
         return self

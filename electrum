@@ -464,6 +464,7 @@ if __name__ == '__main__':
                 f.write(repr({'seed':wallet.seed, 'imported_keys':wallet.imported_keys})+"\n")
                 f.close()
                 wallet.seed = ''
+                wallet.config.set_key('seed','', True)
                 for k in wallet.imported_keys.keys(): wallet.imported_keys[k] = ''
                 wallet.save()
                 print_msg("Done.")
@@ -636,7 +637,7 @@ if __name__ == '__main__':
             r, h = wallet.sendtx( tx )
             print_msg(h)
         else:
-            print_msg(tx)
+            print_json({"hex":str(tx), "complete":tx.is_complete})
 
         if is_temporary:
             wallet.imported_keys.pop(from_addr)
@@ -644,13 +645,8 @@ if __name__ == '__main__':
         wallet.save()
 
     elif cmd == 'signtx':
-        filename = args[1]
-        f = open(filename, 'r')
-        d = ast.literal_eval(f.read())
-        f.close()
-        inputs = d['inputs']
-        outputs = d['outputs']
-        tx = wallet.signed_tx( inputs, outputs, password )
+        tx = Transaction(args[1])
+        tx = wallet.sign_tx( tx, password )
         print_msg(tx)
 
     elif cmd == 'sendtx':
@@ -761,9 +757,9 @@ if __name__ == '__main__':
             else:
                 if wallet.transactions.get(txid):
                     # lookup in my own list of transactions
-                    txout = wallet.transactions[txid]['outputs'][index]
-                    txin['address'] = txout['address']
-                    txin['raw_output_script'] = txout['raw_output_script']
+                    txout = wallet.transactions[txid].outputs[index]
+                    txin['address'] = txout[0]
+                    #txin['raw_output_script'] = txout['raw_output_script']
 
                 else:
                     # if neither, we might want to get it from the server..

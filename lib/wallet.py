@@ -665,10 +665,11 @@ class Wallet:
             print_error( "Sending change to", change_addr )
         outputs = self.add_tx_change(outputs, amount, fee, total, change_addr)
 
+        tx = Transaction.from_io(inputs, outputs)
         if not self.seed:
-            return repr({'inputs':inputs, 'outputs':outputs})
+            return tx
         
-        tx = self.signed_tx(inputs, outputs, password)
+        self.sign_tx(tx, password)
 
         for address, x in outputs:
             if address not in self.addressbook and not self.is_mine(address):
@@ -680,15 +681,13 @@ class Wallet:
 
         return tx
 
-    def signed_tx(self, inputs, outputs, password):
-        tx = Transaction.from_io(inputs, outputs)
+    def sign_tx(self, tx, password):
         private_keys = {}
         for txin in tx.inputs:
             addr = txin['address']
             sec = self.get_private_key(addr, password)
             private_keys[addr] = sec
         tx.sign(private_keys)
-        return str(tx)
 
     def sendtx(self, tx):
         # synchronous
