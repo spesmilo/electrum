@@ -190,7 +190,7 @@ class Wallet:
     def get_master_public_key(self):
         return self.sequence.master_public_key
 
-    def get_public_key(self, address):
+    def get_address_index(self, address):
         if address in self.imported_keys.keys():
             raise BaseException("imported key")
 
@@ -200,7 +200,10 @@ class Wallet:
         elif address in self.change_addresses:
             n = self.change_addresses.index(address)
             for_change = True
+        return n,for_change
 
+    def get_public_key(self, address):
+        n, for_change = self.get_address_index(address)
         return self.sequence.get_pubkey(n, for_change)
 
 
@@ -666,6 +669,11 @@ class Wallet:
         outputs = self.add_tx_change(outputs, amount, fee, total, change_addr)
 
         tx = Transaction.from_io(inputs, outputs)
+        for i in range(len(tx.inputs)):
+            addr = tx.inputs[i]['address']
+            n, is_change = self.get_address_index(addr)
+            tx.inputs_info[i]['electrumKeyID'] = (n, is_change)
+
         if not self.seed:
             return tx
         
