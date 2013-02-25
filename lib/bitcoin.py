@@ -484,7 +484,7 @@ class Transaction:
             print i
             e = { 'txid':i['tx_hash'], 'vout':i['index'],'scriptPubKey':i['raw_output_script'] }
             extras.append(e)
-        self.inputs_info = extras
+        self.input_info = extras
         return self
 
     def __str__(self):

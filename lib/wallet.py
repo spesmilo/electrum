@@ -672,7 +672,7 @@ class Wallet:
         for i in range(len(tx.inputs)):
             addr = tx.inputs[i]['address']
             n, is_change = self.get_address_index(addr)
-            tx.inputs_info[i]['electrumKeyID'] = (n, is_change)
+            tx.input_info[i]['electrumKeyID'] = (n, is_change)
 
         if not self.seed:
             return tx
