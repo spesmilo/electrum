@@ -386,6 +386,8 @@ if __name__ == '__main__':
         interface.register_callback('connected', lambda: sys.stderr.write("Connected to " + interface.connection_msg + "\n"))
         interface.start()
         wallet.interface = interface
+        verifier = WalletVerifier(interface, config)
+        wallet.set_verifier(verifier)
         synchronizer = WalletSynchronizer(wallet, config)
         synchronizer.start()
         wallet.update()
@@ -761,6 +763,8 @@ if __name__ == '__main__':
         
 
     if cmd not in offline_commands and not options.offline:
+        verifier.stop()
         synchronizer.stop()
-
-
+        interface.stop()
+        time.sleep(0.1)
+        sys.exit(0)
