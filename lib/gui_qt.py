@@ -927,7 +927,9 @@ class ElectrumWindow(QMainWindow):
         else:
             filename = 'unsigned_tx'
             f = open(filename,'w')
-            f.write(tx)
+            import json
+            out = json.dumps({"hex":str(tx), "complete":tx.is_complete, 'input_info':repr(tx.input_info).replace(' ','')})
+            f.write(out + '\n')
             f.close()
             QMessageBox.information(self, _('Unsigned transaction'), _("Unsigned transaction was saved to file:") + " " +filename, _('OK'))
 
