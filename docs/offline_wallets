@@ -1,0 +1,27 @@
+Here is how to sign a transaction with an offline Electrum wallet.
+
+1. With your online (seedless) wallet, create the transaction using mktx:
+
+./electrum mktx 1Cpf9zb5Rm5Z5qmmGezn6ERxFWvwuZ6UCx 0.1
+{
+    "complete": false, 
+    "hex": "010000000296f054a6eccd3051444aec20e9c5c9b58739e70c7d958e4eb03587acf99d02e70000000000ffffffffdf350752fe6e27534633bb59327d9feb347756fe8d6e5b0b56312aca57df0eb30000000000ffffffff02f4345c35000000001976a914aaf437e25805f288141bfcdc27887ee5492bd13188ac80969800000000001976a91481acc8b7f9ec7cbf45a02dd8b758c6ac6a1481ca88ac00000000", 
+    "input_info": "[{'scriptPubKey':'76a91411bbdc6e3a27c44644d83f783ca7df3bdc2778e688ac','electrumKeyID':(15,False),'vout':0,'txid':u'e7029df9ac8735b04e8e957d0ce73987b5c9c5e920ec4a445130cdeca654f096'},{'scriptPubKey':'76a914aaf437e25805f288141bfcdc27887ee5492bd13188ac','electrumKeyID':(112,True),'vout':0,'txid':u'b30edf57ca2a31560b5b6e8dfe567734eb9f7d3259bb334653276efe520735df'}]"
+}
+
+Note that returned json contains the unsigned tx in "hex". The field
+"complete" is false because the transaction is not signed, and
+"input_info" contains parameters that need to be passed to the offline
+wallet so that it knows which private keys to generate.
+
+2. Sign the transaction with your offline wallet: pass "hex" and "input_info" to 'signrawtransaction':
+
+./electrum signrawtransaction 010000000296f054a6eccd3051444aec20e9c5c9b58739e70c7d958e4eb03587acf99d02e70000000000ffffffffdf350752fe6e27534633bb59327d9feb347756fe8d6e5b0b56312aca57df0eb30000000000ffffffff0280969800000000001976a91481acc8b7f9ec7cbf45a02dd8b758c6ac6a1481ca88acf4345c35000000001976a914aaf437e25805f288141bfcdc27887ee5492bd13188ac00000000 "[{'scriptPubKey':'76a91411bbdc6e3a27c44644d83f783ca7df3bdc2778e688ac','electrumKeyID':(15,False),'vout':0,'txid':u'e7029df9ac8735b04e8e957d0ce73987b5c9c5e920ec4a445130cdeca654f096'},{'scriptPubKey':'76a914aaf437e25805f288141bfcdc27887ee5492bd13188ac','electrumKeyID':(112,True),'vout':0,'txid':u'b30edf57ca2a31560b5b6e8dfe567734eb9f7d3259bb334653276efe520735df'}]" 
+Password:
+{
+    "complete": true, 
+    "hex": "010000000296f054a6eccd3051444aec20e9c5c9b58739e70c7d958e4eb03587acf99d02e7000000008b483045022100893c91ffcf3886aeb9dd6b11e5063b501546924d888826c3a92e5c7f3cf5e43602207667a4bd014d7eda2d48a651f18540937f4aeaae629e2a8851826bcfdf0967cb01410483aab8cc5fb1497bf438fef22556d1d3ccda8e96c36d39c616ae56979f939057f1eee07212e7d02080d62e366a1d7eaaa25d0740d8f8f61c01b3405577204ad3ffffffffdf350752fe6e27534633bb59327d9feb347756fe8d6e5b0b56312aca57df0eb3000000008c493046022100d6086e63e3f0beac314cb71f29c52159ad2e6dccfb257b2378eeff1cbb0c2038022100eb1808698c2275565418731e16a6377c69c57209aba46c5fb65dc4240f1c06ba014104315efb3001e2452f7848c43329234f11e54a4e59df7bcadd8b32f4dd9c3ca384dac96820f39860011243586e30fe79be920378d3709ec71b504e59bb450f5066ffffffff0280969800000000001976a91481acc8b7f9ec7cbf45a02dd8b758c6ac6a1481ca88acf4345c35000000001976a914aaf437e25805f288141bfcdc27887ee5492bd13188ac00000000"
+}
+
+The command returns a fully signed transaction, as indicated by the "complete" field.
+This transaction can be sent to the network with 'sendrawtransaction'

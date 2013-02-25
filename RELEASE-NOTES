@@ -1,26 +1,35 @@
 # Release 1.7
 
-* Synchronization waits until transactions have 2 confirmations before
-creating new addresses. This makes recovery from seed more robust, but
-it might create unwanted gaps if you use Electrum 1.7 together with
-older versions of Electrum.
+* The wallet does not create new addresses until transactions have 2
+confirmations. This makes recovery from seed more robust. Note that it
+might create unwanted gaps if you use Electrum 1.7 together with older
+versions of Electrum.
 
-* The Wall has been replaced by an interactive Python console. Wallet
-and Blockchain functions can be accessed through it. The goal is to
-let users extend Electrum through custom scripts. 
+* An interactive Python console replaces the 'wall' tab. The provided
+python environment gives users access to the wallet and gui. Custom
+scripts an be loaded with a "run(filename)" command. Tab-completions
+are available.
 
-* The location of the Electrum folder in Windows changed from LOCALAPPDATA 
-to APPDATA. Discussion on this topic can be found here: https://bitcointalk.org/index.php?topic=144575.0
+* The location of the Electrum folder in Windows changed from
+LOCALAPPDATA to APPDATA. Discussion on this topic can be found here:
+https://bitcointalk.org/index.php?topic=144575.0
 
 * Private keys can be exported from within the classic GUI:
   For a single address, use the address menu (right-click).
-  To export keys for the entire wallet, use the settings dialog (import/export tab).
+  To export the keys of your entire wallet, use the settings dialog (import/export tab).
 
 * It is possible to create, sign and redeem multisig transaction, using the command line interface.
-  This is made possible by the following new commands: 
+This is made possible by the following new commands: 
     dumpprivkey, listunspent, createmultisig, createrawtransaction, decoderawtransaction, signrawtransaction
-  The syntax of these commands is similar to their bitcoind counterpart. 
-  For an example, see Gavin's tutorial: https://gist.github.com/gavinandresen/3966071
+The syntax of these commands is similar to their bitcoind counterpart. 
+For an example, see Gavin's tutorial: https://gist.github.com/gavinandresen/3966071
+
+* Offline wallets do not need to be resynchronized in order to sign a transaction. 
+  For this, use 'signrawtransaction'. ('signtx' is deprecated').
+  See the help in docs/offline_wallets
+
+
+
   
 
 # Release 1.6.2
