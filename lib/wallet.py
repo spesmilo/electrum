@@ -684,8 +684,7 @@ class Wallet:
                 self.addressbook.append(address)
 
         if label: 
-            tx_hash = Hash(tx.decode('hex') )[::-1].encode('hex')
-            self.labels[tx_hash] = label
+            self.labels[tx.hash()] = label
 
         return tx
 
