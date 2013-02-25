@@ -50,8 +50,8 @@ Syntax: payto <recipient> <amount> [label]
 <recipient> can be a bitcoin address or a label
 options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address -\n  --changeaddr, -c: send change to address
             """,
-    'sendtx':
-            'Broadcasts a transaction to the network. \nSyntax: sendtx <tx>\n<tx> must be in hexadecimal.',
+    'sendrawtransaction':
+            'Broadcasts a transaction to the network. \nSyntax: sendrawtransaction <tx in hexadecimal>',
     'password': 
             "Changes your password",
     'addresses':  
@@ -613,8 +613,8 @@ if __name__ == '__main__':
             del(wallet.history[from_addr])
         wallet.save()
 
-    elif cmd == 'sendtx':
-        tx = args[1]
+    elif cmd == 'sendrawtransaction':
+        tx = Transaction(args[1])
         r, h = wallet.sendtx( tx )
         print_msg(h)
 
