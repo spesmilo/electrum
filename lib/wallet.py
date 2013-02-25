@@ -336,7 +336,7 @@ class Wallet:
         for tx_hash, tx in self.transactions.items():
             is_send, _, _ = self.get_tx_value(tx)
             if is_send:
-                for o in tx['outputs']:
+                for o in tx.outputs:
                     addr = o.get('address')
                     if not self.is_mine(addr) and addr not in self.addressbook:
                         self.addressbook.append(addr)
