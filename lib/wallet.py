@@ -706,9 +706,8 @@ class Wallet:
     def send_tx(self, tx):
         # asynchronous
         self.tx_event.clear()
-        tx_hash = Hash(tx.decode('hex') )[::-1].encode('hex')
-        self.interface.send([('blockchain.transaction.broadcast', [tx])], 'synchronizer')
-        return tx_hash
+        self.interface.send([('blockchain.transaction.broadcast', [str(tx)])], 'synchronizer')
+        return tx.hash()
 
     def receive_tx(self,tx_hash):
         out = self.tx_result 
