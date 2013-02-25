@@ -83,9 +83,7 @@ options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address 
     'set': 
              "Set config parameter.",
     'deseed':
-            "Remove seed from the wallet. The seed is stored in a file that has the name of the wallet plus '.seed'",
-    'reseed':
-            "Restore seed of the wallet. The wallet must have no seed, and the seed must match the wallet's master public key.",
+            "Create a seedless, watching-only wallet.",
     'freeze':'',
     'unfreeze':'',
     'prioritize':'',
@@ -107,7 +105,7 @@ offline_commands = [ 'password', 'mktx',
                      'signmessage', 'verifymessage',
                      'eval', 'set', 'get', 'create', 'addresses',
                      'importprivkey', 'seed',
-                     'deseed','reseed',
+                     'deseed',
                      'freeze','unfreeze',
                      'prioritize','unprioritize',
                      'dumpprivkey','listunspent',
@@ -453,15 +451,11 @@ if __name__ == '__main__':
     elif cmd == 'deseed':
         if not wallet.seed:
             print_msg("Error: This wallet has no seed")
-        elif wallet.use_encryption:
-            print_msg("Error: This wallet is encrypted")
         else:
-            ns = wallet.config.path + '.seed'
-            print_msg("Warning: you are going to extract the seed from '%s'\nThe seed will be saved in '%s'"%(wallet.config.path,ns))
+            ns = wallet.config.path + '.seedless'
+            print_msg("Warning: you are going to create a seedless wallet'\nIt will be saved in '%s'"%ns)
             if raw_input("Are you sure you want to continue? (y/n) ") in ['y','Y','yes']:
-                f = open(ns,'w')
-                f.write(repr({'seed':wallet.seed, 'imported_keys':wallet.imported_keys})+"\n")
-                f.close()
+                wallet.config.path = ns
                 wallet.seed = ''
                 wallet.config.set_key('seed','', True)
                 for k in wallet.imported_keys.keys(): wallet.imported_keys[k] = ''
@@ -470,34 +464,6 @@ if __name__ == '__main__':
             else:
                 print_msg("Action canceled.")
 
-    elif cmd == 'reseed':
-        if wallet.seed:
-            print_msg("Warning: This wallet already has a seed", wallet.seed)
-        else:
-            ns = wallet.config.path + '.seed'
-            try:
-                f = open(ns,'r')
-                data = f.read()
-                f.close()
-            except IOError:
-                sys.exit("Error: Seed file not found")
-            try:
-                d = ast.literal_eval( data )
-                seed = d['seed']
-                imported_keys = d.get('imported_keys',{})
-            except:
-                sys.exit("Error: Error with seed file")
-
-            mpk = wallet.get_master_public_key()
-            wallet.seed = seed
-            wallet.imported_keys = imported_keys
-            wallet.use_encryption = False
-            wallet.init_mpk(seed)
-            if mpk == wallet.get_master_public_key():
-                wallet.save()
-                print_msg("Done: " + wallet.config.path)
-            else:
-                print_msg("Error: Master public key does not match")
 
     elif cmd == 'validateaddress':
         addr = args[1]
