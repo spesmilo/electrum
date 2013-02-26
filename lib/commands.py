@@ -43,7 +43,9 @@ class Commands:
         print_json(h)
 
     def listunspent(self):
-        print_json(self.wallet.get_unspent_coins())
+        l = self.wallet.get_unspent_coins()
+        for i in l: i["value"] = i["value"]*1e-8
+        print_json(l)
 
     def createrawtransaction(self, inputs, outputs):
         # convert to own format
