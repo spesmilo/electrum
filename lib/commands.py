@@ -22,7 +22,7 @@ from bitcoin import *
 from decimal import Decimal
 import bitcoin
 
-protected_commands = ['payto', 'password', 'mktx', 'get_seed', 'importprivkey','signmessage', 'signrawtransaction','dumpprivkey' ]
+protected_commands = ['payto', 'password', 'mktx', 'get_seed', 'importprivkey','signmessage', 'signrawtransaction', 'dumpprivkey', 'dumpprivkeys' ]
 
 class Commands:
 
@@ -135,8 +135,11 @@ class Commands:
         print_msg(self.wallet.unprioritize(addr))
 
     def dumpprivkey(self, addr):
-        sec = self.wallet.get_private_key(addr, self.password)
-        print_msg( sec )
+        print_msg( self.wallet.get_private_key(addr, self.password) )
+
+    def dumpprivkeys(self, addresses):
+        print_json( self.wallet.get_private_keys(addresses, self.password) )
+
 
     def validateaddress(self,addr):
         is_valid = self.wallet.is_valid(addr)

@@ -213,23 +213,29 @@ class Wallet:
         return seed
         
     def get_private_key(self, address, password):
+        return self.get_private_keys([address], password)[address]
 
+    def get_private_keys(self, addresses, password):
         # decode seed in any case, in order to test the password
         seed = self.decode_seed(password)
-
-        if address in self.imported_keys.keys():
-            return pw_decode( self.imported_keys[address], password )
-        else:
-            if address in self.addresses:
-                n = self.addresses.index(address)
-                for_change = False
-            elif address in self.change_addresses:
-                n = self.change_addresses.index(address)
-                for_change = True
+        secexp = self.sequence.stretch_key(seed)
+        out = {}
+        for address in addresses:
+            if address in self.imported_keys.keys():
+                pk = pw_decode( self.imported_keys[address], password )
             else:
-                raise BaseException("unknown address", address)
+                if address in self.addresses:
+                    n = self.addresses.index(address)
+                    for_change = False
+                elif address in self.change_addresses:
+                    n = self.change_addresses.index(address)
+                    for_change = True
+                else:
+                    raise BaseException("unknown address", address)
+                pk = self.sequence.get_private_key_from_stretched_exponent(n, for_change, secexp)
+            out[address] = pk
+        return out
             
-            return self.sequence.get_private_key(n, for_change, seed)
 
 
     def sign_message(self, address, message, password):

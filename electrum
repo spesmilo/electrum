@@ -89,6 +89,7 @@ options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address 
     'prioritize':'',
     'unprioritize':'',
     'dumpprivkey':'similar to bitcoind\'s command',
+    'dumpprivkeys':'dump all private keys',
     'listunspent':'similar to bitcoind\'s command',
     'createmultisig':'similar to bitcoind\'s command',
     'createrawtransaction':'similar to bitcoind\'s command',
@@ -138,7 +139,6 @@ def arg_parser():
     parser.add_option("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
     parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance at listed addresses")
-    parser.add_option("-k", "--keys",action="store_true", dest="show_keys",default=False, help="show the private keys of listed addresses")
     parser.add_option("-f", "--fee", dest="tx_fee", default="0.005", help="set tx fee")
     parser.add_option("-F", "--fromaddr", dest="from_addr", default=None, help="set source address for payto/mktx. if it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet.")
     parser.add_option("-c", "--changeaddr", dest="change_addr", default=None, help="set the change address for payto/mktx. default is a spare address, or the source address if it's not in the wallet")
@@ -384,13 +384,13 @@ if __name__ == '__main__':
 
                 
     # important warning
-    if cmd=='addresses' and options.show_keys:
+    if cmd in ['dumpprivkey', 'dumpprivkeys']:
         print_msg("WARNING: ALL your private keys are secret.")
         print_msg("Exposing a single private key can compromise your entire wallet!")
         print_msg("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
 
     # commands needing password
-    if cmd in protected_commands or ( cmd=='addresses' and options.show_keys):
+    if cmd in protected_commands:
         if wallet.use_encryption:
             password = prompt_password('Password:', False)
             if not password:
@@ -440,7 +440,6 @@ if __name__ == '__main__':
         args = [ cmd, address, signature, message]
 
     elif cmd == 'signrawtransaction':
-        
         args = [ cmd, args[1], ast.literal_eval(args[2]) if len(args)>2 else [], ast.literal_eval(args[3]) if len(args)>3 else []]
 
     elif cmd == 'createmultisig':
@@ -448,6 +447,13 @@ if __name__ == '__main__':
 
     elif cmd == 'createrawtransaction':
         args = [ cmd, ast.literal_eval(args[1]), ast.literal_eval(args[2])]
+
+    elif cmd == 'dumpprivkeys':
+        if options.show_all:
+            addresses = wallet.all_addresses()
+        else:
+            addresses = wallet.addresses + wallet.imported_keys.keys()
+        args = [cmd, addresses]
                 
     elif cmd == 'setlabel':
         try:
@@ -565,8 +571,6 @@ if __name__ == '__main__':
                     b = format_satoshis(wallet.get_addr_balance(addr)[0])
                 else: b=''
                 m_addr = "%34s"%addr
-                if options.show_keys:
-                    m_addr += ':' + str(wallet.get_private_key(addr, password))
                 print_msg(flags, m_addr, b, label)
 
 
@@ -580,7 +584,7 @@ if __name__ == '__main__':
         cmd_runner = Commands(wallet, interface)
         func = eval('cmd_runner.' + cmd)
         if password: 
-            args.append( password )
+            cmd_runner.password = password
         func(*args[1:])
         
 

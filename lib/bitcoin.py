@@ -435,13 +435,16 @@ class DeterministicSequence:
         public_key2 = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
         return '04' + public_key2.to_string().encode('hex')
 
-    def get_private_key(self, n, for_change, seed):
+    def get_private_key_from_stretched_exponent(self, n, for_change, secexp):
         order = generator_secp256k1.order()
-        secexp = self.stretch_key(seed)
         secexp = ( secexp + self.get_sequence(n,for_change) ) % order
         pk = number_to_string( secexp, generator_secp256k1.order() )
         compressed = False
         return SecretToASecret( pk, compressed )
+        
+    def get_private_key(self, n, for_change, seed):
+        secexp = self.stretch_key(seed)
+        return self.get_private_key_from_stretched_exponent(n, for_change, secexp)
 
     def check_seed(self, seed):
         curve = SECP256k1
