@@ -92,7 +92,7 @@ offline_commands = [ 'password', 'mktx',
                      'deseed',
                      'freeze','unfreeze',
                      'prioritize','unprioritize',
-                     'dumpprivkey','listunspent',
+                     'dumpprivkey','dumpprivkeys','listunspent',
                      'createmultisig', 'createrawtransaction', 'decoderawtransaction', 'signrawtransaction'
                      ]
 
