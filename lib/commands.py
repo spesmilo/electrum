@@ -209,7 +209,6 @@ class Commands:
 
         out = {"hex":str(tx), "complete":tx.is_complete}
         if not tx.is_complete: 
-            import json
             out['input_info'] = repr(tx.input_info).replace(' ','')
         print_json(out)
 
