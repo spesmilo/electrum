@@ -32,11 +32,10 @@ class Commands:
 
     def _run(self, method, args, password_getter):
         if method in protected_commands:
-            pw = apply(password_getter,())
-            args += (pw,)
-            
+            self.password = apply(password_getter,())
         f = eval('self.'+method)
         apply(f,args)
+        self.password = None
 
     def get_history(self, addr):
         h = self.wallet.get_history(addr)
@@ -55,7 +54,7 @@ class Commands:
         tx = Transaction.from_io(inputs, outputs)
         print_msg( tx )
 
-    def signrawtransaction(self, raw_tx, input_info, private_keys, password):
+    def signrawtransaction(self, raw_tx, input_info, private_keys):
         tx = Transaction(raw_tx)
         unspent_coins = self.wallet.get_unspent_coins()
 
@@ -100,7 +99,7 @@ class Commands:
 
             elif txin.get("raw_output_script"):
                 addr = deserialize.get_address_from_output_script(txin.get("raw_output_script").decode('hex'))
-                sec = wallet.get_private_key(addr, password)
+                sec = wallet.get_private_key(addr, self.password)
                 if sec: 
                     private_keys[addr] = sec
                     txin['address'] = addr
@@ -133,8 +132,8 @@ class Commands:
     def unprioritize(self, addr):
         print_msg(self.wallet.unprioritize(addr))
 
-    def dumpprivkey(self, addr, password):
-        sec = self.wallet.get_private_key(addr, password)
+    def dumpprivkey(self, addr):
+        sec = self.wallet.get_private_key(addr, self.password)
         print_msg( sec )
 
     def validateaddress(self,addr):
@@ -166,22 +165,22 @@ class Commands:
                     print_msg("%s %s" % (addr, str(Decimal(c)/100000000)))
 
 
-    def get_seed(self, password):
+    def get_seed(self):
         import mnemonic
-        seed = self.wallet.decode_seed(password)
+        seed = self.wallet.decode_seed(self.password)
         print_msg(seed + ' "' + ' '.join(mnemonic.mn_encode(seed)) + '"')
 
     def importprivkey(self, sec):
         try:
-            addr = wallet.import_key(sec,password)
+            addr = wallet.import_key(sec,self.password)
             wallet.save()
             print_msg("Keypair imported: ", addr)
         except BaseException as e:
             print_msg("Error: Keypair import failed: " + str(e))
 
 
-    def sign_message(self, address, message, password):
-        print_msg(self.wallet.sign_message(address, message, password))
+    def sign_message(self, address, message):
+        print_msg(self.wallet.sign_message(address, message, self.password))
 
 
     def verify_message(self, address, signature, message):
@@ -193,8 +192,7 @@ class Commands:
             print_msg(False)
 
 
-    def mktx(self, to_address, amount, fee, change_addr, from_addr, password = None):
-            
+    def mktx(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
         for k, v in self.wallet.labels.items():
             if v == to_address:
                 to_address = k
@@ -205,7 +203,7 @@ class Commands:
 
         amount = int(10000000*amount)
         if fee: fee = int(10000000*fee)
-        tx = self.wallet.mktx( [(to_address, amount)], password, fee , change_addr, from_addr)
+        tx = self.wallet.mktx( [(to_address, amount)], self.password, fee , change_addr, from_addr)
 
         out = {"hex":str(tx), "complete":tx.is_complete}
         if not tx.is_complete: 
@@ -213,11 +211,11 @@ class Commands:
         print_json(out)
 
 
-    def payto(self, to_address, amount, fee, change_addr, from_addr, password = None):
+    def payto(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
 
         amount = int(10000000*amount)
         if fee: fee = int(10000000*fee)
-        tx = self.wallet.mktx( [(to_address, amount)], password, fee, change_addr, from_addr )
+        tx = self.wallet.mktx( [(to_address, amount)], self.password, fee, change_addr, from_addr )
         r, h = wallet.sendtx( tx )
         print_msg(h)
 
