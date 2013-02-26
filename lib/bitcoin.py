@@ -474,6 +474,7 @@ class Transaction:
         self.inputs = self.d['inputs']
         self.outputs = self.d['outputs']
         self.outputs = map(lambda x: (x['address'],x['value']), self.outputs)
+        self.input_info = None
         
     @classmethod
     def from_io(klass, inputs, outputs):
@@ -733,7 +734,7 @@ class Transaction:
             "hex":self.raw,
             "complete":self.is_complete
             }
-        if not self.is_complete: 
+        if not self.is_complete and self.input_info:
             out['input_info'] = repr(self.input_info).replace(' ','')
         return out
 
