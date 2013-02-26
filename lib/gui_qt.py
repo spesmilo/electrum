@@ -1760,9 +1760,9 @@ class ElectrumWindow(QMainWindow):
                     transaction = csv.writer(csvfile)
                     transaction.writerow(["address", "private_key"])
 
-                    for addr in self.wallet.all_addresses():
-                        m_addr = "%34s"%addr
-                        transaction.writerow([m_addr, str(self.wallet.get_private_key(addr, password))])
+                    
+                    for addr, pk in self.wallet.get_private_keys(self.wallet.all_addresses(), password).items():
+                        transaction.writerow(["%34s"%addr,pk])
 
                     self.show_message(_("Private keys exported."))
 
