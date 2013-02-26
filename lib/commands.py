@@ -192,7 +192,7 @@ class Commands:
             print_msg(False)
 
 
-    def mktx(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
+    def _mktx(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
         for k, v in self.wallet.labels.items():
             if v == to_address:
                 to_address = k
@@ -203,8 +203,11 @@ class Commands:
 
         amount = int(10000000*amount)
         if fee: fee = int(10000000*fee)
-        tx = self.wallet.mktx( [(to_address, amount)], self.password, fee , change_addr, from_addr)
+        return self.wallet.mktx( [(to_address, amount)], self.password, fee , change_addr, from_addr)
 
+
+    def mktx(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
+        tx = self._mktx(to_address, amount, fee = None, change_addr = None, from_addr = None)
         out = {"hex":str(tx), "complete":tx.is_complete}
         if not tx.is_complete: 
             out['input_info'] = repr(tx.input_info).replace(' ','')
@@ -212,10 +215,7 @@ class Commands:
 
 
     def payto(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
-
-        amount = int(10000000*amount)
-        if fee: fee = int(10000000*fee)
-        tx = self.wallet.mktx( [(to_address, amount)], self.password, fee, change_addr, from_addr )
+        tx = self._mktx(to_address, amount, fee = None, change_addr = None, from_addr = None)
         r, h = wallet.sendtx( tx )
         print_msg(h)
 
