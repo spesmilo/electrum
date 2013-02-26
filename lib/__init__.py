@@ -10,4 +10,4 @@ import bitcoin
 from bitcoin import Transaction, EC_KEY
 from mnemonic import mn_encode as mnemonic_encode
 from mnemonic import mn_decode as mnemonic_decode
-from commands import protected_commands, Commands
+from commands import protected_commands, known_commands, offline_commands, Commands

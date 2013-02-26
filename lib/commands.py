@@ -22,6 +22,80 @@ from bitcoin import *
 from decimal import Decimal
 import bitcoin
 
+known_commands = {
+    'help':'Prints this help',
+    'validateaddress':'Check that the address is valid', 
+    'balance': "Display the balance of your wallet or of an address.\nSyntax: balance [<address>]", 
+    'contacts': "Show your list of contacts", 
+    'create':'Create a wallet', 
+    'restore':'Restore a wallet', 
+    'payto':"""Create and broadcast a transaction.
+Syntax: payto <recipient> <amount> [label]
+<recipient> can be a bitcoin address or a label
+options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address -\n  --changeaddr, -c: send change to address
+            """,
+    'sendrawtransaction':
+            'Broadcasts a transaction to the network. \nSyntax: sendrawtransaction <tx in hexadecimal>',
+    'password': 
+            "Changes your password",
+    'addresses':  
+            """Shows your list of addresses.
+options:
+  -a: show all addresses, including change addresses""",
+
+    'history':"Shows the transaction history",
+    'setlabel':'Assign a label to an item\nSyntax: label <tx_hash> <label>',
+    'mktx':
+        """Create a signed transaction, password protected.
+Syntax: mktx <recipient> <amount> [label]
+options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address -\n  --changeaddr, -c: send change to address
+        """,
+    'get_seed':
+            "Print the generation seed of your wallet.",
+    'importprivkey': 
+            'Import a private key\nSyntax: importprivkey <privatekey>',
+    'signmessage':
+            'Signs a message with a key\nSyntax: signmessage <address> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "',
+    'verifymessage':
+             'Verifies a signature\nSyntax: verifymessage <address> <signature> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "',
+    'eval':  
+             "Run python eval() on an object\nSyntax: eval <expression>\nExample: eval \"wallet.aliases\"",
+    'get': 
+             "Get config parameter.",
+    'set': 
+             "Set config parameter.",
+    'deseed':
+            "Create a seedless, watching-only wallet.",
+    'freeze':'',
+    'unfreeze':'',
+    'prioritize':'',
+    'unprioritize':'',
+    'dumpprivkey':'similar to bitcoind\'s command',
+    'dumpprivkeys':'dump all private keys',
+    'listunspent':'similar to bitcoind\'s command',
+    'createmultisig':'similar to bitcoind\'s command',
+    'createrawtransaction':'similar to bitcoind\'s command',
+    'decoderawtransaction':'similar to bitcoind\'s command',
+    'signrawtransaction':'similar to bitcoind\'s command',
+    'get_history': 'get history for an address'
+    
+    }
+
+
+
+offline_commands = [ 'password', 'mktx',
+                     'setlabel', 'contacts',
+                     'help', 'validateaddress',
+                     'signmessage', 'verifymessage',
+                     'eval', 'set', 'get', 'create', 'addresses',
+                     'importprivkey', 'get_seed',
+                     'deseed',
+                     'freeze','unfreeze',
+                     'prioritize','unprioritize',
+                     'dumpprivkey','listunspent',
+                     'createmultisig', 'createrawtransaction', 'decoderawtransaction', 'signrawtransaction'
+                     ]
+
 protected_commands = ['payto', 'password', 'mktx', 'get_seed', 'importprivkey','signmessage', 'signrawtransaction', 'dumpprivkey', 'dumpprivkeys' ]
 
 class Commands:
