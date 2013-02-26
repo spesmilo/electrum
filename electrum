@@ -488,7 +488,9 @@ if __name__ == '__main__':
         func = eval('cmd_runner.' + cmd)
         if password: 
             cmd_runner.password = password
-        func(*args[1:])
+        result = func(*args[1:])
+        util.print_json(result)
+            
         
 
     if cmd not in offline_commands and not options.offline:

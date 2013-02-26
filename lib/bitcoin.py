@@ -727,6 +727,15 @@ class Transaction:
             
         return is_send, v, fee
 
+    def as_dict(self):
+        import json
+        out = {
+            "hex":self.raw,
+            "complete":self.is_complete
+            }
+        if not self.is_complete: 
+            out['input_info'] = repr(self.input_info).replace(' ','')
+        return out
 
 
 def test_bip32():

@@ -100,26 +100,30 @@ protected_commands = ['payto', 'password', 'mktx', 'get_seed', 'importprivkey','
 
 class Commands:
 
-    def __init__(self, wallet, interface):
+    def __init__(self, wallet, interface, callback = None):
         self.wallet = wallet
         self.interface = interface
+        self.callback = callback
 
     def _run(self, method, args, password_getter):
         if method in protected_commands:
             self.password = apply(password_getter,())
         f = eval('self.'+method)
-        apply(f,args)
+        result = apply(f,args)
         self.password = None
+        if self.callback:
+            apply(self.callback, ())
+        return result
 
     def get_history(self, addr):
         h = self.wallet.get_history(addr)
         if h is None: h = self.wallet.interface.synchronous_get([ ('blockchain.address.get_history',[addr]) ])[0]
-        print_json(h)
+        return h
 
     def listunspent(self):
         l = self.wallet.get_unspent_coins()
         for i in l: i["value"] = i["value"]*1e-8
-        print_json(l)
+        return l
 
     def createrawtransaction(self, inputs, outputs):
         # convert to own format
@@ -128,7 +132,7 @@ class Commands:
             i['index'] = i['vout']
         outputs = map(lambda x: (x[0],int(1e8*x[1])), outputs.items())
         tx = Transaction.from_io(inputs, outputs)
-        print_msg( tx )
+        return tx.as_dict()
 
     def signrawtransaction(self, raw_tx, input_info, private_keys):
         tx = Transaction(raw_tx)
@@ -181,39 +185,38 @@ class Commands:
                     txin['address'] = addr
 
         tx.sign( private_keys )
-        print_json({ "hex":str(tx),"complete":tx.is_complete})
+        return tx.as_dict()
 
     def decoderawtransaction(self, raw):
         tx = Transaction(raw)
-        print_json( tx.deserialize() )
+        return tx.deserialize()
 
     def sendrawtransaction(self, raw):
         tx = Transaction(raw)
         r, h = wallet.sendtx( tx )
-        print_msg(h)
+        return h
 
     def createmultisig(self, num, pubkeys):
         assert isinstance(pubkeys, list)
-        print_json( Transaction.multisig_script(pubkeys, num) )
+        return Transaction.multisig_script(pubkeys, num)
     
     def freeze(self,addr):
-        print_msg(self.wallet.freeze(addr))
+        return self.wallet.freeze(addr)
         
     def unfreeze(self,addr):
-        print_msg(self.wallet.unfreeze(addr))
+        return self.wallet.unfreeze(addr)
 
     def prioritize(self, addr):
-        print_msg(self.wallet.prioritize(addr))
+        return self.wallet.prioritize(addr)
 
     def unprioritize(self, addr):
-        print_msg(self.wallet.unprioritize(addr))
+        return self.wallet.unprioritize(addr)
 
     def dumpprivkey(self, addr):
-        print_msg( self.wallet.get_private_key(addr, self.password) )
+        return self.wallet.get_private_key(addr, self.password)
 
     def dumpprivkeys(self, addresses):
-        print_json( self.wallet.get_private_keys(addresses, self.password) )
-
+        return self.wallet.get_private_keys(addresses, self.password)
 
     def validateaddress(self,addr):
         is_valid = self.wallet.is_valid(addr)
@@ -225,7 +228,7 @@ class Commands:
             if is_mine:
                 out['pubkey'] = self.wallet.get_public_key(addr)
             
-        print_json(out)
+        return out
 
         
     def balance(self, addresses = []):
@@ -259,16 +262,16 @@ class Commands:
 
 
     def sign_message(self, address, message):
-        print_msg(self.wallet.sign_message(address, message, self.password))
+        return self.wallet.sign_message(address, message, self.password)
 
 
     def verify_message(self, address, signature, message):
         try:
             EC_KEY.verify_message(address, signature, message)
-            print_msg(True)
+            return True
         except BaseException as e:
             print_error("Verification error: {0}".format(e))
-            print_msg(False)
+            return False
 
 
     def _mktx(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
@@ -287,16 +290,13 @@ class Commands:
 
     def mktx(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
         tx = self._mktx(to_address, amount, fee, change_addr, from_addr)
-        out = {"hex":str(tx), "complete":tx.is_complete}
-        if not tx.is_complete: 
-            out['input_info'] = repr(tx.input_info).replace(' ','')
-        print_json(out)
+        return tx.as_dict()
 
 
     def payto(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
         tx = self._mktx(to_address, amount, fee, change_addr, from_addr)
         r, h = wallet.sendtx( tx )
-        print_msg(h)
+        return h
 
 
     def history(self):
@@ -326,7 +326,7 @@ class Commands:
         c = {}
         for addr in self.wallet.addressbook:
             c[addr] = self.wallet.labels.get(addr)
-        print_json(c)
+        return c
 
 
     def addresses(self, show_all):

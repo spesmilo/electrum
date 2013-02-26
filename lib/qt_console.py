@@ -4,6 +4,7 @@ import sys, os, re
 import traceback
 from PyQt4 import QtCore
 from PyQt4 import QtGui
+import util
 
 
 
@@ -23,6 +24,10 @@ class Console(QtGui.QPlainTextEdit):
         self.showMessage(startup_message)
 
         self.updateNamespace({'run':self.run_script})
+        self.set_json(False)
+
+    def set_json(self, b):
+        self.is_json = b
     
     def run_script(self, filename):
         with open(filename) as f:
@@ -187,7 +192,10 @@ class Console(QtGui.QPlainTextEdit):
                 try:
                     result = eval(command, self.namespace, self.namespace)
                     if result != None:
-                        self.appendPlainText(repr(result))
+                        if self.is_json:
+                            util.print_json(result)
+                        else:
+                            self.appendPlainText(repr(result))
                 except SyntaxError:
                     exec command in self.namespace
             except SystemExit:
@@ -200,6 +208,8 @@ class Console(QtGui.QPlainTextEdit):
                 self.appendPlainText('\n'.join(traceback_lines))
             sys.stdout = tmp_stdout
         self.newPrompt()
+        self.set_json(False)
+                    
 
     def keyPressEvent(self, event):
         if event.key() == QtCore.Qt.Key_Tab:
