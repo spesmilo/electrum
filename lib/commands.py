@@ -302,6 +302,7 @@ class Commands:
     def history(self):
         import datetime
         balance = 0
+        out = []
         for item in self.wallet.get_tx_history():
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
             try:
@@ -313,8 +314,9 @@ class Commands:
             if not label: label = tx_hash
             else: label = label + ' '*(64 - len(label) )
 
-            print_msg("%17s"%time_str, "  " + label + "  " + format_satoshis(value)+ "  "+ format_satoshis(balance))
-        print_msg("# balance: ", format_satoshis(balance))
+            out.append( "%16s"%time_str + "  " + label + "  " + format_satoshis(value)+ "  "+ format_satoshis(balance) )
+        return out
+
 
 
     def setlabel(self, tx, label):
@@ -330,6 +332,7 @@ class Commands:
 
 
     def addresses(self, show_all):
+        out = []
         for addr in self.wallet.all_addresses():
             if show_all or not self.wallet.is_change(addr):
 
@@ -338,5 +341,7 @@ class Commands:
                 if label: label = "\"%s\""%label
                 b = format_satoshis(self.wallet.get_addr_balance(addr)[0])
                 m_addr = "%34s"%addr
-                print_msg(flags, m_addr, b, label)
+                out.append( flags + ' ' + m_addr + ' ' + b + ' ' + label )
+        return out
+                         
 
