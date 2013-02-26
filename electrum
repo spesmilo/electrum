@@ -449,11 +449,10 @@ if __name__ == '__main__':
         args = [ cmd, ast.literal_eval(args[1]), ast.literal_eval(args[2])]
 
     elif cmd == 'dumpprivkeys':
-        if options.show_all:
-            addresses = wallet.all_addresses()
-        else:
-            addresses = wallet.addresses + wallet.imported_keys.keys()
-        args = [cmd, addresses]
+        args = [cmd, wallet.all_addresses() if options.show_all else wallet.addresses + wallet.imported_keys.keys() ]
+
+    elif cmd=='addresses':
+        args = [cmd, options.show_all]
                 
     elif cmd == 'setlabel':
         try:
@@ -552,26 +551,6 @@ if __name__ == '__main__':
             print_msg(True)
         else:
             print_msg(False)
-
-    elif cmd in [ 'addresses']:
-        for addr in wallet.all_addresses():
-            if options.show_all or not wallet.is_change(addr):
-
-                flags = wallet.get_address_flags(addr)
-                label = wallet.labels.get(addr,'')
-                
-                if label: label = "\"%s\""%label
-
-                if options.show_balance:
-                    h = wallet.history.get(addr,[])
-                    #ni = no = 0
-                    #for item in h:
-                    #    if item['is_input']:  ni += 1
-                    #    else:              no += 1
-                    b = format_satoshis(wallet.get_addr_balance(addr)[0])
-                else: b=''
-                m_addr = "%34s"%addr
-                print_msg(flags, m_addr, b, label)
 
 
     elif cmd == 'password':

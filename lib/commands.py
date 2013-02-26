@@ -254,3 +254,15 @@ class Commands:
             c[addr] = self.wallet.labels.get(addr)
         print_json(c)
 
+
+    def addresses(self, show_all):
+        for addr in self.wallet.all_addresses():
+            if show_all or not self.wallet.is_change(addr):
+
+                flags = self.wallet.get_address_flags(addr)
+                label = self.wallet.labels.get(addr,'')
+                if label: label = "\"%s\""%label
+                b = format_satoshis(self.wallet.get_addr_balance(addr)[0])
+                m_addr = "%34s"%addr
+                print_msg(flags, m_addr, b, label)
+
