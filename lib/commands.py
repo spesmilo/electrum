@@ -207,7 +207,7 @@ class Commands:
 
 
     def mktx(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
-        tx = self._mktx(to_address, amount, fee = None, change_addr = None, from_addr = None)
+        tx = self._mktx(to_address, amount, fee, change_addr, from_addr)
         out = {"hex":str(tx), "complete":tx.is_complete}
         if not tx.is_complete: 
             out['input_info'] = repr(tx.input_info).replace(' ','')
@@ -215,7 +215,7 @@ class Commands:
 
 
     def payto(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
-        tx = self._mktx(to_address, amount, fee = None, change_addr = None, from_addr = None)
+        tx = self._mktx(to_address, amount, fee, change_addr, from_addr)
         r, h = wallet.sendtx( tx )
         print_msg(h)
 
