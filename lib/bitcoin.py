@@ -481,7 +481,7 @@ class Transaction:
         self.outputs = outputs
         extras = []
         for i in self.inputs:
-            e = { 'txid':i['tx_hash'], 'vout':i['index'],'scriptPubKey':i['raw_output_script'] }
+            e = { 'txid':i['tx_hash'], 'vout':i['index'], 'scriptPubKey':i.get('raw_output_script') }
             extras.append(e)
         self.input_info = extras
         return self

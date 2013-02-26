@@ -413,7 +413,7 @@ class ElectrumWindow(QMainWindow):
         tabs.addTab(self.create_send_tab(), _('Send') )
         tabs.addTab(self.create_receive_tab(), _('Receive') )
         tabs.addTab(self.create_contacts_tab(), _('Contacts') )
-        tabs.addTab(self.create_wall_tab(), _('Console') )
+        tabs.addTab(self.create_console_tab(), _('Console') )
         tabs.setMinimumSize(600, 400)
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
@@ -1263,12 +1263,22 @@ class ElectrumWindow(QMainWindow):
         l.setCurrentItem(l.topLevelItem(0))
 
 
-    def create_wall_tab(self):
+    def create_console_tab(self):
         from qt_console import Console
-        import util, bitcoin
+        import util, bitcoin, commands
         self.console = console = Console()
         console.updateNamespace({'wallet' : self.wallet, 'interface' : self.wallet.interface, 'gui':self})
         console.updateNamespace({'util' : util, 'bitcoin':bitcoin})
+
+        c = commands.Commands(self.wallet, self.wallet.interface)
+        methods = {}
+        def mkfunc(f, method):
+            return lambda *args: apply( f, (method, args, self.password_dialog ))
+        for m in dir(c):
+            if m[0]=='_' or m=='wallet' or m == 'interface': continue
+            methods[m] = mkfunc(c._run, m)
+            
+        console.updateNamespace(methods)
         return console
 
 

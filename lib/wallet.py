@@ -652,7 +652,7 @@ class Wallet:
         return default_label
 
 
-    def mktx(self, outputs, label, password, fee=None, change_addr=None, from_addr= None):
+    def mktx(self, outputs, password, fee=None, change_addr=None, from_addr= None):
 
         for address, x in outputs:
             assert self.is_valid(address)
@@ -682,8 +682,8 @@ class Wallet:
             if address not in self.addressbook and not self.is_mine(address):
                 self.addressbook.append(address)
 
-        if label: 
-            self.labels[tx.hash()] = label
+        #if label: 
+        #    self.labels[tx.hash()] = label
 
         return tx
 
