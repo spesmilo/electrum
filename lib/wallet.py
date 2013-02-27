@@ -336,7 +336,8 @@ class Wallet:
 
 
     def is_found(self):
-        return (len(self.change_addresses) > self.gap_limit_for_change ) or ( len(self.addresses) > self.gap_limit )
+        return self.history.values() != [[]] * len(self.history) 
+
 
     def fill_addressbook(self):
         for tx_hash, tx in self.transactions.items():
