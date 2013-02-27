@@ -265,6 +265,7 @@ class Console(QtGui.QPlainTextEdit):
             xx = prefix + x
             if xx.startswith(lastword):
                 completions.append(xx)
+        completions.sort()
                 
         if not completions:
             self.hide_completions()
