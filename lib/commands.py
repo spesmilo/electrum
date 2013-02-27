@@ -137,55 +137,7 @@ class Commands:
 
     def signrawtransaction(self, raw_tx, input_info, private_keys):
         tx = Transaction(raw_tx)
-        unspent_coins = self.wallet.get_unspent_coins()
-
-        # convert private_keys to dict 
-        pk = {}
-        for sec in private_keys:
-            address = bitcoin.address_from_private_key(sec)
-            pk[address] = sec
-        private_keys = pk
-
-        for txin in tx.inputs:
-            # convert to own format
-            txin['tx_hash'] = txin['prevout_hash']
-            txin['index'] = txin['prevout_n']
-
-            for item in input_info:
-                if item.get('txid') == txin['tx_hash'] and item.get('vout') == txin['index']:
-                    txin['raw_output_script'] = item['scriptPubKey']
-                    txin['redeemScript'] = item.get('redeemScript')
-                    txin['electrumKeyID'] = item.get('electrumKeyID')
-                    break
-            else:
-                for item in unspent_coins:
-                    if txin['tx_hash'] == item['tx_hash'] and txin['index'] == item['index']:
-                        txin['raw_output_script'] = item['raw_output_script']
-                        break
-                else:
-                    # if neither, we might want to get it from the server..
-                    raise
-
-            # find the address:
-            import deserialize
-            if txin.get('electrumKeyID'):
-                n, for_change = txin.get('electrumKeyID')
-                sec = wallet.sequence.get_private_key(n, for_change, seed)
-                address = bitcoin.address_from_private_key(sec)
-                txin['address'] = address
-                private_keys[address] = sec
-
-            elif txin.get("redeemScript"):
-                txin['address'] = bitcoin.hash_160_to_bc_address(bitcoin.hash_160(txin.get("redeemScript").decode('hex')), 5)
-
-            elif txin.get("raw_output_script"):
-                addr = deserialize.get_address_from_output_script(txin.get("raw_output_script").decode('hex'))
-                sec = wallet.get_private_key(addr, self.password)
-                if sec: 
-                    private_keys[addr] = sec
-                    txin['address'] = addr
-
-        tx.sign( private_keys )
+        self.wallet.signrawtransaction(tx, input_info, private_keys)
         return tx.as_dict()
 
     def decoderawtransaction(self, raw):
