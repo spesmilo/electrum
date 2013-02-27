@@ -415,8 +415,13 @@ def CKD_prime(K, c, n):
 class DeterministicSequence:
     """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
 
-    def __init__(self, master_public_key):
+    def __init__(self, master_public_key, mpk2 = None):
         self.master_public_key = master_public_key
+        if mpk2:
+            self.mpk2 = mpk2
+            self.is_p2sh = True
+        else:
+            self.is_p2sh = False
 
     @classmethod
     def from_seed(klass, seed):
@@ -434,8 +439,29 @@ class DeterministicSequence:
             seed = hashlib.sha256(seed + oldseed).digest()
         return string_to_number( seed )
 
-    def get_sequence(self,n,for_change):
+    def get_sequence(self, n, for_change):
         return string_to_number( Hash( "%d:%d:"%(n,for_change) + self.master_public_key.decode('hex') ) )
+
+    def get_address(self, for_change, n):
+        if not self.is_p2sh:
+            pubkey = self.get_pubkey(n, for_change)
+            address = public_key_to_bc_address( pubkey.decode('hex') )
+        else:
+            pubkey1 = self.get_pubkey(n, for_change)
+            pubkey2 = self.get_pubkey2(n, for_change)
+            address = Transaction.multisig_script([pubkey1, pubkey2], 2)["address"]
+        return address
+
+    #sec = self.p2sh_sequence.get_private_key(n, for_change, seed)
+    #addr = hash_160_to_bc_address(hash_160(txin["redeemScript"].decode('hex')), 5)
+
+    def get_pubkey2(self, n, for_change):
+        curve = SECP256k1
+        z = string_to_number( Hash( "%d:%d:"%(n, for_change) + self.mpk2.decode('hex') ) )
+        master_public_key = ecdsa.VerifyingKey.from_string( self.mpk2.decode('hex'), curve = SECP256k1 )
+        pubkey_point = master_public_key.pubkey.point + z*curve.generator
+        public_key2 = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
+        return '04' + public_key2.to_string().encode('hex')
 
     def get_pubkey(self, n, for_change):
         curve = SECP256k1
@@ -467,13 +493,24 @@ class DeterministicSequence:
 
         return True
 
+
+    def add_input_info(self, txin, account, is_change, n):
+
+        txin['electrumKeyID'] = (account, is_change, n) # used by the server to find the key
+        if not self.p2sh:
+            txin['pubkeysig'] = [(None, None)]
+            pk_addr = txin['address']
+        else:
+            pubkey1 = self.get_pubkey(n, is_change)
+            pubkey2 = self.get_pubkey2(n, is_change)
+            pk_addr = public_key_to_bc_address( pubkey1.decode('hex') ) # we need to return that address to get the right private key
+            txin['redeemScript'] = Transaction.multisig_script([pubkey1, pubkey2], 2)['redeemScript']
+        return pk_addr
+
+
+
+
 ################################## transactions
-
-
-
-
-
-
 
 
 class Transaction:
@@ -745,8 +782,24 @@ class Transaction:
             "hex":self.raw,
             "complete":self.is_complete
             }
-        if not self.is_complete and self.input_info:
-            out['input_info'] = json.dumps(self.input_info).replace(' ','')
+        if not self.is_complete:
+            extras = []
+            for i in self.inputs:
+                e = { 'txid':i['tx_hash'], 'vout':i['index'],
+                      'scriptPubKey':i.get('raw_output_script'),
+                      'electrumKeyID':i.get('electrumKeyID'),
+                      'redeemScript':i.get('redeemScript'),
+                      'signatures':i.get('signatures'),
+                      'pubkeys':i.get('pubkeys'),
+                      }
+                extras.append(e)
+            self.input_info = extras
+
+            if self.input_info:
+                out['input_info'] = json.dumps(self.input_info).replace(' ','')
+
+
+        print "out", out
         return out
 
 

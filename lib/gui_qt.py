@@ -387,7 +387,7 @@ def ok_cancel_buttons(dialog):
 
 
 default_column_widths = { "history":[40,140,350,140], "contacts":[350,330], 
-	"receive":[[310],[50,310,200,130,130],[50,310,200,130,130]] }
+	"receive":[[310],[310,200,130,130],[310,200,130,130]] }
 
 class ElectrumWindow(QMainWindow):
 
@@ -674,7 +674,7 @@ class ElectrumWindow(QMainWindow):
                 
             self.recv_changed(item)
 
-        if column == 3:
+        if column == 2:
             address = str( item.text(column_addr) )
             text = str( item.text(3) )
             try:
@@ -945,7 +945,7 @@ class ElectrumWindow(QMainWindow):
         if label: 
             self.wallet.labels[tx.hash()] = label
 
-        if self.wallet.seed:
+        if tx.is_complete:
             h = self.wallet.send_tx(tx)
             waiting_dialog(lambda: False if self.wallet.tx_event.isSet() else _("Please wait..."))
             status, msg = self.wallet.receive_tx( h )
@@ -964,6 +964,8 @@ class ElectrumWindow(QMainWindow):
                 QMessageBox.information(self, _('Unsigned transaction created'), _("Unsigned transaction was saved to file:") + " " +fileName, _('OK'))
             except:
                 QMessageBox.warning(self, _('Error'), _('Could not write transaction to file'), _('OK'))
+
+
 
 
     def set_url(self, url):
@@ -1046,11 +1048,11 @@ class ElectrumWindow(QMainWindow):
 
 
     def create_receive_tab(self):
-        l,w,hbox = self.create_list_tab([_('Flags'), _('Address'), _('Label'), _('Requested'), _('Balance'), _('Tx')])
+        l,w,hbox = self.create_list_tab([ _('Address'), _('Label'), _('Requested'), _('Balance'), _('Tx')])
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_receive_menu)
-        self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,1,2))
-        self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,1,2))
+        self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,0,1))
+        self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.connect(l, SIGNAL('currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)'), lambda a,b: self.recv_changed(a))
         self.receive_list = l
         self.receive_buttons_hbox = hbox
@@ -1069,7 +1071,7 @@ class ElectrumWindow(QMainWindow):
 
     def save_column_widths(self):
         if self.receive_tab_mode == 0:
-            widths = [ self.receive_list.columnWidth(1) ]
+            widths = [ self.receive_list.columnWidth(0) ]
         else:
             widths = []
             for i in range(self.receive_list.columnCount() -1):
@@ -1116,7 +1118,7 @@ class ElectrumWindow(QMainWindow):
 
         item = self.receive_list.itemAt(position)
         if not item: return
-        addr = unicode(item.text(1))
+        addr = unicode(item.text(0))
         menu = QMenu()
         menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
         if self.receive_tab_mode == 2:
@@ -1186,13 +1188,9 @@ class ElectrumWindow(QMainWindow):
 
 
     def update_receive_item(self, item):
-        address = str( item.data(1,0).toString() )
-
-        flags = self.wallet.get_address_flags(address)
-        item.setData(0,0,flags)
-
+        address = str(item.data(0,0).toString())
         label = self.wallet.labels.get(address,'')
-        item.setData(2,0,label)
+        item.setData(1,0,label)
 
         try:
             amount, currency = self.wallet.requested_amounts.get(address, (None, None))
@@ -1200,60 +1198,81 @@ class ElectrumWindow(QMainWindow):
             amount, currency = None, None
             
         amount_str = amount + (' ' + currency if currency else '') if amount is not None  else ''
-        item.setData(3,0,amount_str)
+        item.setData(2,0,amount_str)
                 
         c, u = self.wallet.get_addr_balance(address)
         balance = format_satoshis( c + u, False, self.wallet.num_zeros )
-        item.setData(4,0,balance)
+        item.setData(3,0,balance)
 
         if self.receive_tab_mode == 1:
             if address in self.wallet.frozen_addresses: 
-                item.setBackgroundColor(1, QColor('lightblue'))
+                item.setBackgroundColor(0, QColor('lightblue'))
             elif address in self.wallet.prioritized_addresses: 
-                item.setBackgroundColor(1, QColor('lightgreen'))
+                item.setBackgroundColor(0, QColor('lightgreen'))
         
 
     def update_receive_tab(self):
         l = self.receive_list
         
         l.clear()
-        l.setColumnHidden(0, not self.receive_tab_mode == 1)
-        l.setColumnHidden(3, not self.receive_tab_mode == 2)
-        l.setColumnHidden(4, self.receive_tab_mode == 0)
-        l.setColumnHidden(5, not self.receive_tab_mode == 1)
-        if self.receive_tab_mode ==0:
+        l.setColumnHidden(2, not self.receive_tab_mode == 2)
+        l.setColumnHidden(3, self.receive_tab_mode == 0)
+        l.setColumnHidden(4, not self.receive_tab_mode == 1)
+        if self.receive_tab_mode == 0:
             width = self.column_widths['receive'][0][0]
-            l.setColumnWidth(1, width)
+            l.setColumnWidth(0, width)
         else:
             for i,width in enumerate(self.column_widths['receive'][self.receive_tab_mode]):
                 l.setColumnWidth(i, width)        
 
-        gap = 0
-        is_red = False
-        for address in self.wallet.all_addresses():
 
-            if self.wallet.is_change(address) and self.receive_tab_mode != 1:
-                continue
+        for k, account in self.wallet.accounts.items():
+            name = account.get('name',str(k))
+            account_item = QTreeWidgetItem( [ name, '', '', '', ''] )
+            l.addTopLevelItem(account_item)
+            account_item.setExpanded(True)
 
-            h = self.wallet.history.get(address,[])
+            for is_change in [0,1]:
+                name = "Receiving" if not is_change else "Change"
+                seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
+                account_item.addChild(seq_item)
+                if not is_change: seq_item.setExpanded(True)
+                is_red = False
+                gap = 0
+
+                for address in account[is_change]:
+                    h = self.wallet.history.get(address,[])
             
-            if address in self.wallet.addresses:
-                if h == []:
-                    gap += 1
-                    if gap > self.wallet.gap_limit:
-                        is_red = True
-                else:
-                    gap = 0
+                    if not is_change:
+                        if h == []:
+                            gap += 1
+                            if gap > self.wallet.gap_limit:
+                                is_red = True
+                        else:
+                            gap = 0
 
-            num_tx = '*' if h == ['*'] else "%d"%len(h)
-            item = QTreeWidgetItem( [ '', address, '', '', '', num_tx] )
-            item.setFont(0, QFont(MONOSPACE_FONT))
-            item.setFont(1, QFont(MONOSPACE_FONT))
-            item.setFont(3, QFont(MONOSPACE_FONT))
-            self.update_receive_item(item)
-            if is_red and address in self.wallet.addresses:
-                item.setBackgroundColor(1, QColor('red'))
-            l.addTopLevelItem(item)
+                    num_tx = '*' if h == ['*'] else "%d"%len(h)
+                    item = QTreeWidgetItem( [ address, '', '', '', num_tx] )
+                    item.setFont(0, QFont(MONOSPACE_FONT))
+                    item.setFont(2, QFont(MONOSPACE_FONT))
+                    self.update_receive_item(item)
+                    if is_red and not is_change:
+                        item.setBackgroundColor(1, QColor('red'))
+                    seq_item.addChild(item)
+
+        if self.wallet.imported_keys:
+            account_item = QTreeWidgetItem( [ "Imported", '', '', '', ''] )
+            l.addTopLevelItem(account_item)
+            account_item.setExpanded(True)
+            for address in self.wallet.imported_keys.keys():
+                item = QTreeWidgetItem( [ address, '', '', '', ''] )
+                item.setFont(0, QFont(MONOSPACE_FONT))
+                item.setFont(2, QFont(MONOSPACE_FONT))
+                self.update_receive_item(item)
+                if is_red and not is_change:
+                    item.setBackgroundColor(1, QColor('red'))
+                account_item.addChild(item)
+                
 
         # we use column 1 because column 0 may be hidden
         l.setCurrentItem(l.topLevelItem(0),1)
@@ -1391,8 +1410,8 @@ class ElectrumWindow(QMainWindow):
         dialog.exec_()
         
 
-    @staticmethod
-    def show_seed_dialog(wallet, parent=None):
+    @classmethod
+    def show_seed_dialog(self, wallet, parent=None):
         if not wallet.seed:
             QMessageBox.information(parent, _('Message'), _('No seed'), _('OK'))
             return
@@ -1410,6 +1429,10 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(parent, _('Error'), _('Incorrect Password'), _('OK'))
             return
 
+        self.show_seed(seed)
+
+    @classmethod
+    def show_seed(self, seed):
         dialog = QDialog(None)
         dialog.setModal(1)
         dialog.setWindowTitle('Electrum' + ' - ' + _('Seed'))
@@ -1625,8 +1648,8 @@ class ElectrumWindow(QMainWindow):
             self.qr_window.setVisible(False)
 
         #self.print_button.setHidden(self.qr_window is None or not self.qr_window.isVisible())
-        self.receive_list.setColumnHidden(3, self.qr_window is None or not self.qr_window.isVisible())
-        self.receive_list.setColumnWidth(2, 200)
+        self.receive_list.setColumnHidden(2, self.qr_window is None or not self.qr_window.isVisible())
+        self.receive_list.setColumnWidth(1, 200)
 
 
     def question(self, msg):
