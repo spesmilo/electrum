@@ -934,14 +934,10 @@ class ElectrumWindow(QMainWindow):
                 QMessageBox.warning(self, _('Error'), msg, _('OK'))
         else:
             filename = 'unsigned_tx_%s' % (time.mktime(time.gmtime()))
-
             try:
                 fileName = QFileDialog.getSaveFileName(QWidget(), _("Select a transaction filename"), os.path.expanduser('~/%s' % (filename)))
-                f = open(fileName,'w')
-                import json
-                out = json.dumps({"hex":str(tx), "complete":tx.is_complete, 'input_info':repr(tx.input_info).replace(' ','')}, indent=4)
-                f.write(out + '\n')
-                f.close()
+                with open(fileName,'w') as f:
+                    f.write(json.dumps(tx.as_dict(),indent=4) + '\n')
                 QMessageBox.information(self, _('Unsigned transaction created'), _("Unsigned transaction was saved to file:") + " " +fileName, _('OK'))
             except:
                 QMessageBox.warning(self, _('Error'), _('Could not write transaction to file'), _('OK'))
@@ -1801,7 +1797,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def sign_raw_transaction(self):
-      input_info = ast.literal_eval(self.raw_tx["input_info"])
+      input_info = json.loads(self.raw_tx["input_info"])
       tx = Transaction(self.raw_tx["hex"])
 
       if self.wallet.use_encryption:
@@ -1814,12 +1810,11 @@ class ElectrumWindow(QMainWindow):
       try:
           self.wallet.signrawtransaction(tx, input_info, [], password)
 
-          fileName = QFileDialog.getSaveFileName(QWidget(), _("Select where to save your signed transaction"), os.path.expanduser('~/%s' % (tx.hash())))
-          tx_hash = tx.as_dict()
+          fileName = QFileDialog.getSaveFileName(QWidget(), _("Select where to save your signed transaction"), os.path.expanduser('~/signed_tx_%s' % (tx.hash()[0:8])))
           if fileName:
-              with open(fileName, "w+") as transaction_file:
-                  transaction_file.write(str(json.dumps(tx_hash)))
-                  self.show_message("Transaction signed succesfully")
+              with open(fileName, "w+") as f:
+                  f.write(json.dumps(tx.as_dict(),indent=4) + '\n')
+              self.show_message(_("Transaction saved succesfully"))
       except BaseException, e:
         self.show_message(str(e))
         return
