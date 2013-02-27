@@ -486,10 +486,12 @@ if __name__ == '__main__':
     else:
         cmd_runner = Commands(wallet, interface)
         func = eval('cmd_runner.' + cmd)
-        if password: 
-            cmd_runner.password = password
+        cmd_runner.password = password
         result = func(*args[1:])
-        util.print_json(result)
+        if type(result) == str:
+            util.print_msg(result)
+        else:
+            util.print_json(result)
             
         
 

@@ -235,31 +235,31 @@ class Commands:
     def balance(self, addresses = []):
         if addresses == []:
             c, u = self.wallet.get_balance()
-            if u:
-                print_msg(Decimal( c ) / 100000000 , Decimal( u ) / 100000000)
-            else:
-                print_msg(Decimal( c ) / 100000000)
         else:
+            c = u = 0
             for addr in addresses:
-                c, u = wallet.get_addr_balance(addr)
-                if u:
-                    print_msg("%s %s, %s" % (addr, str(Decimal(c)/100000000), str(Decimal(u)/100000000)))
-                else:
-                    print_msg("%s %s" % (addr, str(Decimal(c)/100000000)))
+                cc, uu = wallet.get_addr_balance(addr)
+                c += cc
+                u += uu
+
+        out = { "confirmed": str(Decimal(c)/100000000) }
+        if u: out["unconfirmed"] = str(Decimal(u)/100000000)
+        return out
 
 
     def get_seed(self):
         import mnemonic
         seed = self.wallet.decode_seed(self.password)
-        print_msg(seed + ' "' + ' '.join(mnemonic.mn_encode(seed)) + '"')
+        return { "hex":seed, "mnemonic": ' '.join(mnemonic.mn_encode(seed)) }
 
     def importprivkey(self, sec):
         try:
             addr = wallet.import_key(sec,self.password)
             wallet.save()
-            print_msg("Keypair imported: ", addr)
+            out = "Keypair imported: ", addr
         except BaseException as e:
-            print_msg("Error: Keypair import failed: " + str(e))
+            out = "Error: Keypair import failed: " + str(e)
+        return out
 
 
     def sign_message(self, address, message):
