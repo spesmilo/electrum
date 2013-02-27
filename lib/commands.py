@@ -216,7 +216,9 @@ class Commands:
     def dumpprivkey(self, addr):
         return self.wallet.get_private_key(addr, self.password)
 
-    def dumpprivkeys(self, addresses):
+    def dumpprivkeys(self, addresses = None):
+        if addresses is None:
+            addresses = self.wallet.all_addresses()
         return self.wallet.get_private_keys(addresses, self.password)
 
     def validateaddress(self,addr):

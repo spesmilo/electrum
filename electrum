@@ -372,9 +372,6 @@ if __name__ == '__main__':
     elif cmd == 'createrawtransaction':
         args = [ cmd, ast.literal_eval(args[1]), ast.literal_eval(args[2])]
 
-    elif cmd == 'dumpprivkeys':
-        args = [cmd, wallet.all_addresses() if options.show_all else wallet.addresses + wallet.imported_keys.keys() ]
-
     elif cmd=='addresses':
         args = [cmd, options.show_all]
                 
