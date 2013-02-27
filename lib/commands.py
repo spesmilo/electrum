@@ -103,7 +103,7 @@ class Commands:
     def __init__(self, wallet, interface, callback = None):
         self.wallet = wallet
         self.interface = interface
-        self.callback = callback
+        self._callback = callback
 
     def _run(self, method, args, password_getter):
         if method in protected_commands:
@@ -111,8 +111,8 @@ class Commands:
         f = eval('self.'+method)
         result = apply(f,args)
         self.password = None
-        if self.callback:
-            apply(self.callback, ())
+        if self._callback:
+            apply(self._callback, ())
         return result
 
     def get_history(self, addr):
