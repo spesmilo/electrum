@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import re
-import sys, os, time, ast
+import sys, os, time, json
 import optparse
 import platform
 
@@ -364,13 +364,14 @@ if __name__ == '__main__':
         args = [ cmd, address, signature, message]
 
     elif cmd == 'signrawtransaction':
-        args = [ cmd, args[1], ast.literal_eval(args[2]) if len(args)>2 else [], ast.literal_eval(args[3]) if len(args)>3 else []]
+        import json
+        args = [ cmd, args[1], json.loads(args[2]) if len(args)>2 else [], json.loads(args[3]) if len(args)>3 else []]
 
     elif cmd == 'createmultisig':
-        args = [ cmd, int(args[1]), ast.literal_eval(args[2])]
+        args = [ cmd, int(args[1]), json.loads(args[2])]
 
     elif cmd == 'createrawtransaction':
-        args = [ cmd, ast.literal_eval(args[1]), ast.literal_eval(args[2])]
+        args = [ cmd, json.loads(args[1]), json.loads(args[2])]
 
     elif cmd=='addresses':
         args = [cmd, options.show_all]

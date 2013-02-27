@@ -735,7 +735,7 @@ class Transaction:
             "complete":self.is_complete
             }
         if not self.is_complete and self.input_info:
-            out['input_info'] = repr(self.input_info).replace(' ','')
+            out['input_info'] = json.dumps(self.input_info).replace(' ','')
         return out
 
 
