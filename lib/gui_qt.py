@@ -19,7 +19,7 @@
 import sys, time, datetime, re
 from i18n import _
 from util import print_error
-import os.path, json, util
+import os.path, json, util, ast
 
 try:
     import PyQt4
@@ -38,6 +38,7 @@ except:
     sys.exit("Error: Could not import icons_rc.py, please generate it with: 'pyrcc4 icons.qrc -o lib/icons_rc.py'")
 
 from wallet import format_satoshis
+from bitcoin import Transaction
 import bmp, mnemonic, pyqrnative, qrscanner
 import exchange_rate
 
@@ -790,6 +791,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(QLabel(_('Description')), 2, 0)
         grid.addWidget(self.message_e, 2, 1, 1, 3)
         grid.addWidget(HelpButton(_('Description of the transaction (not mandatory).') + '\n\n' + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.')), 2, 4)
+        self.message_e.setEnabled(False)
 
         self.amount_e = QLineEdit()
         grid.addWidget(QLabel(_('Amount')), 3, 0)
@@ -805,8 +807,11 @@ class ElectrumWindow(QMainWindow):
                 _('Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
                     + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
                     + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')), 4, 3)
-        
-        b = EnterButton(_("Send"), self.do_send)
+        b = ''
+        if self.wallet.seed: 
+            b = EnterButton(_("Send"), self.do_send)
+        else:
+            b = EnterButton(_("Create unsigned transaction"), self.do_send)
         grid.addWidget(b, 6, 1)
 
         b = EnterButton(_("Clear"),self.do_clear)
@@ -928,13 +933,18 @@ class ElectrumWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, _('Error'), msg, _('OK'))
         else:
-            filename = 'unsigned_tx'
-            f = open(filename,'w')
-            import json
-            out = json.dumps({"hex":str(tx), "complete":tx.is_complete, 'input_info':repr(tx.input_info).replace(' ','')}, indent=4)
-            f.write(out + '\n')
-            f.close()
-            QMessageBox.information(self, _('Unsigned transaction'), _("Unsigned transaction was saved to file:") + " " +filename, _('OK'))
+            filename = 'unsigned_tx_%s' % (time.mktime(time.gmtime()))
+
+            try:
+                fileName = QFileDialog.getSaveFileName(QWidget(), _("Select a transaction filename"), os.path.expanduser('~/%s' % (filename)))
+                f = open(fileName,'w')
+                import json
+                out = json.dumps({"hex":str(tx), "complete":tx.is_complete, 'input_info':repr(tx.input_info).replace(' ','')}, indent=4)
+                f.write(out + '\n')
+                f.close()
+                QMessageBox.information(self, _('Unsigned transaction created'), _("Unsigned transaction was saved to file:") + " " +filename, _('OK'))
+            except:
+                QMessageBox.warning(self, _('Error'), _('Could not write transaction to file'), _('OK'))
 
 
     def set_url(self, url):
@@ -1746,6 +1756,168 @@ class ElectrumWindow(QMainWindow):
 
         return seed, gap
 
+    def generate_transaction_information_widget(self,layout, decoded_tx):
+        tabs = QTabWidget(self)
+        layout.addWidget(tabs)
+
+        tab1 = QWidget()
+        grid_ui = QGridLayout(tab1)
+        grid_ui.setColumnStretch(0,1)
+        tabs.addTab(tab1, _('Outputs') )
+
+        
+        tree_widget = MyTreeWidget(self)
+        tree_widget.setColumnCount(2)
+        tree_widget.setHeaderLabels( [_('Address'), _('Amount')] )
+        tree_widget.setColumnWidth(0, 300)
+        tree_widget.setColumnWidth(1, 50)
+
+        for output in decoded_tx["outputs"]:
+            item = QTreeWidgetItem( ["%s" %(output["address"]), "%s" % ( format_satoshis(output["value"]))] )
+            tree_widget.addTopLevelItem(item)
+
+        tree_widget.setMaximumHeight(100)
+
+        grid_ui.addWidget(tree_widget)
+
+
+        tab2 = QWidget()
+        grid_ui = QGridLayout(tab2)
+        grid_ui.setColumnStretch(0,1)
+        tabs.addTab(tab2, _('Inputs') )
+
+        
+        tree_widget = MyTreeWidget(self)
+        tree_widget.setColumnCount(2)
+        tree_widget.setHeaderLabels( [_('Sequence'), _('Address'), _('Previous output')] )
+
+        for input_line in decoded_tx["inputs"]:
+            item = QTreeWidgetItem( [str(input_line["sequence"]), str(input_line["address"]), str(input_line["prevout_hash"])] )
+            tree_widget.addTopLevelItem(item)
+
+        tree_widget.setMaximumHeight(100)
+
+        grid_ui.addWidget(tree_widget)
+
+
+    def sign_raw_transaction(self):
+      input_info = ast.literal_eval(self.raw_tx["input_info"])
+      tx = Transaction(self.raw_tx["hex"])
+
+      if self.wallet.use_encryption:
+          password = self.password_dialog()
+          if not password:
+              return
+      else:
+          password = None
+
+      try:
+          self.wallet.signrawtransaction(tx, input_info, [], password)
+
+          fileName = QFileDialog.getSaveFileName(QWidget(), _("Select where to save your signed transaction"), os.path.expanduser('~/%s' % (tx.hash())))
+          tx_hash = tx.as_dict()
+          if fileName:
+              with open(fileName, "w+") as transaction_file:
+                  transaction_file.write(str(json.dumps(tx_hash)))
+                  self.show_message("Transaction signed succesfully")
+      except BaseException, e:
+        self.show_message(str(e))
+        return
+
+    def create_sign_transaction_window(self, tx):
+        decoded_tx = Transaction(tx["hex"])
+        decoded_tx = decoded_tx.deserialize()
+        self.raw_tx = tx
+
+        dialog = QDialog(self)
+        dialog.setMinimumWidth(500)
+        dialog.setWindowTitle(_('Sign unsigned transaction'))
+        dialog.setModal(1)
+
+        vbox = QGridLayout()
+        dialog.setLayout(vbox)
+        tx_information_widget = self.generate_transaction_information_widget(vbox, decoded_tx)
+
+        if tx["complete"] == True:
+            vbox.addWidget(QLabel(_("This transaction is already signed.")))
+        else:
+            vbox.addWidget(EnterButton(_("Sign this transaction"), self.sign_raw_transaction))
+
+        if not dialog.exec_(): return
+
+    def do_sign_from_text(self):
+        tx, ok = QInputDialog.getText(QTextEdit(), _('Sign raw transaction'), _('Transaction data in JSON') + ':')
+
+        try:
+          tx = json.loads(unicode(tx))
+        except (ValueError, IOError, os.error), reason:
+          QMessageBox.critical(None,"Unable to read transaction", _("Electrum was unable to read your transaction:") + "\n" + str(reason))
+
+        self.create_sign_transaction_window(tx)
+
+    def do_sign_from_file(self):
+        try:
+            fileName = QFileDialog.getOpenFileName(QWidget(), _("Select your transaction file"), os.path.expanduser('~'))
+            if fileName:
+                with open(fileName, "r") as transaction_file:
+                    tx = json.loads(transaction_file.read())
+                    self.create_sign_transaction_window(tx)
+
+        except (ValueError, IOError, os.error), reason:
+            QMessageBox.critical(None,"Unable to read file or no transaction found", _("Electrum was unable to read your transaction file") + "\n" + str(reason))
+    
+    def send_raw_transaction(self):
+        tx = Transaction(self.raw_tx["hex"])
+        result, result_message = self.wallet.sendtx( tx )
+        if result:
+            self.show_message("Transaction succesfully sent: %s" % (result_message))
+        else:
+            self.show_message("There was a problem sending your transaction:\n %s" % (result_message))
+
+    def create_send_transaction_window(self, tx):
+        decoded_tx = Transaction(tx["hex"])
+        decoded_tx = decoded_tx.deserialize()
+        self.raw_tx = tx
+
+        dialog = QDialog(self)
+        dialog.setMinimumWidth(500)
+        dialog.setWindowTitle(_('Send raw transaction'))
+        dialog.setModal(1)
+
+        vbox = QGridLayout()
+        dialog.setLayout(vbox)
+        tx_information_widget = self.generate_transaction_information_widget(vbox, decoded_tx)
+
+        if tx["complete"] == False:
+            vbox.addWidget(QLabel(_("This transaction is not signed yet.")))
+        else:
+            vbox.addWidget(EnterButton(_("Send this transaction"), self.send_raw_transaction))
+
+        if not dialog.exec_(): return
+
+    def do_send_from_file(self):
+        try:
+            fileName = QFileDialog.getOpenFileName(QWidget(), _("Select your transaction file"), os.path.expanduser('~'))
+            if fileName:
+                with open(fileName, "r") as transaction_file:
+                    file_content = transaction_file.read()
+                    print file_content
+                    tx = json.loads(str(file_content))
+                    self.create_send_transaction_window(tx)
+
+        except (ValueError, IOError, os.error), reason:
+            QMessageBox.critical(None,"Unable to read file or no transaction found", _("Electrum was unable to read your transaction file") + "\n" + str(reason))
+
+    def do_send_from_text(self):
+        tx, ok = QInputDialog.getText(QTextEdit(), _('Send raw transaction'), _('Transaction data in JSON') + ':')
+
+        try:
+          tx = json.loads(unicode(tx))
+        except (ValueError, IOError, os.error), reason:
+          QMessageBox.critical(None,"Unable to read transaction", _("Electrum was unable to read your transaction:") + "\n" + str(reason))
+
+        self.create_send_transaction_window(tx)
+
     def do_export_privkeys(self):
         self.show_message("%s\n%s\n%s" % (_("WARNING: ALL your private keys are secret."),  _("Exposing a single private key can compromise your entire wallet!"), _("In particular, DO NOT use 'redeem private key' services proposed by third parties.")))
 
@@ -1979,6 +2151,27 @@ class ElectrumWindow(QMainWindow):
                               + _('If you restore your wallet from it, a watching-only (deseeded) wallet will be created.')), 4, 3)
 
         grid_io.setRowStretch(4,1)
+
+        tab4 = QWidget()
+        grid_raw = QGridLayout(tab4)
+        grid_raw.setColumnStretch(0,1)
+        tabs.addTab(tab4, _('Raw transactions') )
+        #
+        #grid_raw.addWidget(QLabel(_("Read raw transaction")), 3, 0)
+        #grid_raw.addWidget(EnterButton(_("From file"), self.do_sign_from_file),3,1)
+        #grid_raw.addWidget(EnterButton(_("From text"), self.do_sign_from_text),3,2)
+        #grid_raw.addWidget(HelpButton(_("This will show you some useful information about an unsigned transaction")),3,3)
+
+        grid_raw.addWidget(QLabel(_("Send raw transaction")), 2, 0)
+        grid_raw.addWidget(EnterButton(_("From file"), self.do_send_from_file),2,1)
+        grid_raw.addWidget(EnterButton(_("From text"), self.do_send_from_text),2,2)
+        grid_raw.addWidget(HelpButton(_("This will send a transaction.")),2,3)
+
+        grid_raw.addWidget(QLabel(_("Sign transaction")), 1, 0)
+        grid_raw.addWidget(EnterButton(_("From file"), self.do_sign_from_file),1,1)
+        grid_raw.addWidget(EnterButton(_("From text"), self.do_sign_from_text),1,2)
+        grid_raw.addWidget(HelpButton(_("This will sign an previously unsigned transaction")),1,3)
+
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
 
