@@ -137,7 +137,7 @@ class Commands:
 
     def signrawtransaction(self, raw_tx, input_info, private_keys):
         tx = Transaction(raw_tx)
-        self.wallet.signrawtransaction(tx, input_info, private_keys)
+        self.wallet.signrawtransaction(tx, input_info, private_keys, self.password)
         return tx.as_dict()
 
     def decoderawtransaction(self, raw):

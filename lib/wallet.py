@@ -236,8 +236,10 @@ class Wallet:
             out[address] = pk
         return out
 
-    def signrawtransaction(self, tx, input_info, private_keys):
+
+    def signrawtransaction(self, tx, input_info, private_keys, password):
         unspent_coins = self.get_unspent_coins()
+        seed = self.decode_seed(password)
 
         # convert private_keys to dict 
         pk = {}
@@ -267,7 +269,6 @@ class Wallet:
                     raise
 
             # find the address:
-            import deserialize
             if txin.get('electrumKeyID'):
                 n, for_change = txin.get('electrumKeyID')
                 sec = self.sequence.get_private_key(n, for_change, seed)
@@ -279,8 +280,9 @@ class Wallet:
                 txin['address'] = hash_160_to_bc_address(hash_160(txin.get("redeemScript").decode('hex')), 5)
 
             elif txin.get("raw_output_script"):
+                import deserialize
                 addr = deserialize.get_address_from_output_script(txin.get("raw_output_script").decode('hex'))
-                sec = self.get_private_key(addr, self.password)
+                sec = self.get_private_key(addr, password)
                 if sec: 
                     private_keys[addr] = sec
                     txin['address'] = addr
