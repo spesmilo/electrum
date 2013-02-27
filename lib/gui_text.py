@@ -265,6 +265,9 @@ class ElectrumGui:
             self.show_message(str(e))
             return
             
+        if self.str_description: 
+            self.wallet.labels[tx.hash()] = self.str_description
+
         h = self.wallet.send_tx(tx)
         self.show_message(_("Please wait..."), getchar=False)
         self.wallet.tx_event.wait()

@@ -457,6 +457,9 @@ def pay_to(recipient, amount, fee, label):
         droid.dialogDismiss()
         return
 
+    if label: 
+        self.wallet.labels[tx.hash()] = label
+
     droid.dialogDismiss()
 
     r, h = wallet.sendtx( tx )

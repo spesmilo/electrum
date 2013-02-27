@@ -689,9 +689,6 @@ class Wallet:
             if address not in self.addressbook and not self.is_mine(address):
                 self.addressbook.append(address)
 
-        #if label: 
-        #    self.labels[tx.hash()] = label
-
         return tx
 
     def sign_tx(self, tx, password):

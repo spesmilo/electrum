@@ -843,6 +843,9 @@ class ElectrumWindow:
             self.show_message(str(e))
             return
             
+        if label: 
+            self.wallet.labels[tx.hash()] = label
+
         status, msg = self.wallet.sendtx( tx )
         if status:
             self.show_message( "payment sent.\n" + msg )

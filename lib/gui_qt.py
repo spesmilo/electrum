@@ -914,6 +914,9 @@ class ElectrumWindow(QMainWindow):
             self.show_message(str(e))
             return
 
+        if label: 
+            self.wallet.labels[tx.hash()] = label
+
         if self.wallet.seed:
             h = self.wallet.send_tx(tx)
             waiting_dialog(lambda: False if self.wallet.tx_event.isSet() else _("Please wait..."))
