@@ -909,7 +909,7 @@ class ElectrumWindow(QMainWindow):
             password = None
 
         try:
-            tx = self.wallet.mktx( [(to_address, amount)], label, password, fee)
+            tx = self.wallet.mktx( [(to_address, amount)], password, fee)
         except BaseException, e:
             self.show_message(str(e))
             return

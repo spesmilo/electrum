@@ -851,7 +851,7 @@ class MiniActuator:
             fee = bitcoin(1) / 1000
 
         try:
-            tx = self.wallet.mktx([(dest_address, amount)], "", password, fee)
+            tx = self.wallet.mktx([(dest_address, amount)], password, fee)
         except BaseException as error:
             QMessageBox.warning(parent_window, _('Error'), str(error), _('OK'))
             return False

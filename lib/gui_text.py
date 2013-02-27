@@ -260,7 +260,7 @@ class ElectrumGui:
             password = None
 
         try:
-            tx = self.wallet.mktx( [(self.str_recipient, amount)], self.str_description, password, fee)
+            tx = self.wallet.mktx( [(self.str_recipient, amount)], password, fee)
         except BaseException, e:
             self.show_message(str(e))
             return
