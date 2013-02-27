@@ -121,7 +121,8 @@ class Commands:
         return h
 
     def listunspent(self):
-        l = self.wallet.get_unspent_coins()
+        import copy
+        l = copy.deepcopy(self.wallet.get_unspent_coins())
         for i in l: i["value"] = i["value"]*1e-8
         return l
 
