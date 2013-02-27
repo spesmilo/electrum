@@ -791,7 +791,6 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(QLabel(_('Description')), 2, 0)
         grid.addWidget(self.message_e, 2, 1, 1, 3)
         grid.addWidget(HelpButton(_('Description of the transaction (not mandatory).') + '\n\n' + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.')), 2, 4)
-        self.message_e.setEnabled(False)
 
         self.amount_e = QLineEdit()
         grid.addWidget(QLabel(_('Amount')), 3, 0)
