@@ -206,6 +206,10 @@ a SimpleConfig instance then reads the wallet file.
 
 
     def save_wallet_config(self):
+        # prevent the creation of incomplete wallets  
+        if self.wallet_config.get('master_public_key') is None: 
+            return
+
         s = repr(self.wallet_config)
         f = open(self.path,"w")
         f.write( s )
