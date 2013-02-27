@@ -942,7 +942,7 @@ class ElectrumWindow(QMainWindow):
                 out = json.dumps({"hex":str(tx), "complete":tx.is_complete, 'input_info':repr(tx.input_info).replace(' ','')}, indent=4)
                 f.write(out + '\n')
                 f.close()
-                QMessageBox.information(self, _('Unsigned transaction created'), _("Unsigned transaction was saved to file:") + " " +filename, _('OK'))
+                QMessageBox.information(self, _('Unsigned transaction created'), _("Unsigned transaction was saved to file:") + " " +fileName, _('OK'))
             except:
                 QMessageBox.warning(self, _('Error'), _('Could not write transaction to file'), _('OK'))
 
@@ -1901,7 +1901,6 @@ class ElectrumWindow(QMainWindow):
             if fileName:
                 with open(fileName, "r") as transaction_file:
                     file_content = transaction_file.read()
-                    print file_content
                     tx = json.loads(str(file_content))
                     self.create_send_transaction_window(tx)
 
