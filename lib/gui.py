@@ -1152,10 +1152,10 @@ class ElectrumWindow:
         for address in self.wallet.addressbook:
             label = self.wallet.labels.get(address)
             n = 0 
-            for item in self.wallet.transactions.values():
-                if address in item['outputs'] : n=n+1
-            tx = "None" if n==0 else "%d"%n
-            self.addressbook_list.append((address, label, tx))
+            for tx in self.wallet.transactions.values():
+                if address in map(lambda x:x[0], tx.outputs): n += 1
+
+            self.addressbook_list.append((address, label, "%d"%n))
 
     def update_history_tab(self):
         cursor = self.history_treeview.get_cursor()[0]

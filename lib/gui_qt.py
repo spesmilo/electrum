@@ -1262,10 +1262,10 @@ class ElectrumWindow(QMainWindow):
             if address in alias_targets: continue
             label = self.wallet.labels.get(address,'')
             n = 0 
-            #for item in self.wallet.transactions.values():
-            #    if address in item['outputs'] : n=n+1
-            tx = "%d"%n
-            item = QTreeWidgetItem( [ address, label, tx] )
+            for tx in self.wallet.transactions.values():
+                if address in map(lambda x: x[0], tx.outputs): n += 1
+            
+            item = QTreeWidgetItem( [ address, label, "%d"%n] )
             item.setFont(0, QFont(MONOSPACE_FONT))
             l.addTopLevelItem(item)
 
