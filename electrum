@@ -450,6 +450,7 @@ if __name__ == '__main__':
             if raw_input("Are you sure you want to continue? (y/n) ") in ['y','Y','yes']:
                 wallet.config.path = ns
                 wallet.seed = ''
+                wallet.use_encryption = False
                 wallet.config.set_key('seed','', True)
                 for k in wallet.imported_keys.keys(): wallet.imported_keys[k] = ''
                 wallet.save()
