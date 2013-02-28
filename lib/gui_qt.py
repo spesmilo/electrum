@@ -1751,23 +1751,21 @@ class ElectrumWindow(QMainWindow):
 
         return seed, gap
 
-    def generate_transaction_information_widget(self,layout, decoded_tx):
+    def generate_transaction_information_widget(self, tx):
         tabs = QTabWidget(self)
-        layout.addWidget(tabs)
 
         tab1 = QWidget()
         grid_ui = QGridLayout(tab1)
         grid_ui.setColumnStretch(0,1)
         tabs.addTab(tab1, _('Outputs') )
 
-        
         tree_widget = MyTreeWidget(self)
         tree_widget.setColumnCount(2)
         tree_widget.setHeaderLabels( [_('Address'), _('Amount')] )
         tree_widget.setColumnWidth(0, 300)
         tree_widget.setColumnWidth(1, 50)
 
-        for output in decoded_tx["outputs"]:
+        for output in tx.d["outputs"]:
             item = QTreeWidgetItem( ["%s" %(output["address"]), "%s" % ( format_satoshis(output["value"]))] )
             tree_widget.addTopLevelItem(item)
 
@@ -1775,141 +1773,155 @@ class ElectrumWindow(QMainWindow):
 
         grid_ui.addWidget(tree_widget)
 
-
         tab2 = QWidget()
         grid_ui = QGridLayout(tab2)
         grid_ui.setColumnStretch(0,1)
         tabs.addTab(tab2, _('Inputs') )
-
         
         tree_widget = MyTreeWidget(self)
         tree_widget.setColumnCount(2)
         tree_widget.setHeaderLabels( [_('Sequence'), _('Address'), _('Previous output')] )
 
-        for input_line in decoded_tx["inputs"]:
+        for input_line in tx.d["inputs"]:
             item = QTreeWidgetItem( [str(input_line["sequence"]), str(input_line["address"]), str(input_line["prevout_hash"])] )
             tree_widget.addTopLevelItem(item)
 
         tree_widget.setMaximumHeight(100)
 
         grid_ui.addWidget(tree_widget)
+        return tabs
 
 
-    def sign_raw_transaction(self):
-      input_info = json.loads(self.raw_tx["input_info"])
-      tx = Transaction(self.raw_tx["hex"])
+    def tx_dict_from_text(self, txt):
+        try:
+            tx_dict = json.loads(str(txt))
+            assert "hex" in tx_dict.keys()
+            assert "complete" in tx_dict.keys()
+            if not tx_dict["complete"]:
+                assert "input_info" in tx_dict.keys()
+        except:
+            QMessageBox.critical(None, "Unable to parse transaction", _("Electrum was unable to parse your transaction:"))
+            return None
+        return tx_dict
 
-      if self.wallet.use_encryption:
-          password = self.password_dialog()
-          if not password:
-              return
-      else:
-          password = None
 
-      try:
-          self.wallet.signrawtransaction(tx, input_info, [], password)
+    def read_tx_from_file(self):
+        fileName = QFileDialog.getOpenFileName(QWidget(), _("Select your transaction file"), os.path.expanduser('~'))
+        if not fileName:
+            return
+        try:
+            with open(fileName, "r") as f:
+                file_content = f.read()
+        except (ValueError, IOError, os.error), reason:
+            QMessageBox.critical(None,"Unable to read file or no transaction found", _("Electrum was unable to open your transaction file") + "\n" + str(reason))
 
-          fileName = QFileDialog.getSaveFileName(QWidget(), _("Select where to save your signed transaction"), os.path.expanduser('~/signed_tx_%s' % (tx.hash()[0:8])))
-          if fileName:
-              with open(fileName, "w+") as f:
-                  f.write(json.dumps(tx.as_dict(),indent=4) + '\n')
-              self.show_message(_("Transaction saved succesfully"))
-      except BaseException, e:
-        self.show_message(str(e))
-        return
+        return self.tx_dict_from_text(file_content)
 
-    def create_sign_transaction_window(self, tx):
-        decoded_tx = Transaction(tx["hex"])
-        decoded_tx = decoded_tx.deserialize()
-        self.raw_tx = tx
+
+    def sign_raw_transaction(self, tx, input_info):
+        if self.wallet.use_encryption:
+            password = self.password_dialog()
+            if not password:
+                return
+        else:
+            password = None
+
+        try:
+            self.wallet.signrawtransaction(tx, input_info, [], password)
+            
+            fileName = QFileDialog.getSaveFileName(QWidget(), _("Select where to save your signed transaction"), os.path.expanduser('~/signed_tx_%s' % (tx.hash()[0:8])))
+            if fileName:
+                with open(fileName, "w+") as f:
+                    f.write(json.dumps(tx.as_dict(),indent=4) + '\n')
+                self.show_message(_("Transaction saved succesfully"))
+        except BaseException, e:
+            self.show_message(str(e))
+
+
+    def create_sign_transaction_window(self, tx_dict):
+        tx = Transaction(tx_dict["hex"])
 
         dialog = QDialog(self)
         dialog.setMinimumWidth(500)
         dialog.setWindowTitle(_('Sign unsigned transaction'))
         dialog.setModal(1)
 
-        vbox = QGridLayout()
+        vbox = QVBoxLayout()
         dialog.setLayout(vbox)
-        tx_information_widget = self.generate_transaction_information_widget(vbox, decoded_tx)
+        vbox.addWidget( self.generate_transaction_information_widget(tx) )
 
-        if tx["complete"] == True:
+        if tx_dict["complete"] == True:
             vbox.addWidget(QLabel(_("This transaction is already signed.")))
         else:
-            vbox.addWidget(EnterButton(_("Sign this transaction"), self.sign_raw_transaction))
+            vbox.addWidget(QLabel(_("Create a signed transaction.")))
+            vbox.addLayout(ok_cancel_buttons(dialog))
+            input_info = json.loads(tx_dict["input_info"])
 
-        if not dialog.exec_(): return
+        if dialog.exec_():
+            self.sign_raw_transaction(tx, input_info)
+
+
 
     def do_sign_from_text(self):
-        tx, ok = QInputDialog.getText(QTextEdit(), _('Sign raw transaction'), _('Transaction data in JSON') + ':')
+        txt, ok = QInputDialog.getText(QTextEdit(), _('Sign raw transaction'), _('Transaction data in JSON') + ':')
+        if not ok:
+            return
+        tx_dict = self.tx_dict_from_text(unicode(txt))
+        if tx_dict:
+            self.create_sign_transaction_window(tx_dict)
 
-        try:
-          tx = json.loads(unicode(tx))
-        except (ValueError, IOError, os.error), reason:
-          QMessageBox.critical(None,"Unable to read transaction", _("Electrum was unable to read your transaction:") + "\n" + str(reason))
-
-        self.create_sign_transaction_window(tx)
 
     def do_sign_from_file(self):
-        try:
-            fileName = QFileDialog.getOpenFileName(QWidget(), _("Select your transaction file"), os.path.expanduser('~'))
-            if fileName:
-                with open(fileName, "r") as transaction_file:
-                    tx = json.loads(transaction_file.read())
-                    self.create_sign_transaction_window(tx)
-
-        except (ValueError, IOError, os.error), reason:
-            QMessageBox.critical(None,"Unable to read file or no transaction found", _("Electrum was unable to read your transaction file") + "\n" + str(reason))
+        tx_dict = self.read_tx_from_file()
+        if tx_dict:
+            self.create_sign_transaction_window(tx_dict)
     
-    def send_raw_transaction(self):
-        tx = Transaction(self.raw_tx["hex"])
-        result, result_message = self.wallet.sendtx( tx )
+
+    def send_raw_transaction(self, raw_tx):
+        print "sending", raw_tx
+        #result, result_message = self.wallet.sendtx( raw_tx )
         if result:
             self.show_message("Transaction succesfully sent: %s" % (result_message))
         else:
             self.show_message("There was a problem sending your transaction:\n %s" % (result_message))
 
-    def create_send_transaction_window(self, tx):
-        decoded_tx = Transaction(tx["hex"])
-        decoded_tx = decoded_tx.deserialize()
-        self.raw_tx = tx
+
+    def create_send_transaction_window(self, tx_dict):
+        tx = Transaction(tx_dict["hex"])
 
         dialog = QDialog(self)
         dialog.setMinimumWidth(500)
         dialog.setWindowTitle(_('Send raw transaction'))
         dialog.setModal(1)
 
-        vbox = QGridLayout()
+        vbox = QVBoxLayout()
         dialog.setLayout(vbox)
-        tx_information_widget = self.generate_transaction_information_widget(vbox, decoded_tx)
+        vbox.addWidget( self.generate_transaction_information_widget(tx))
 
-        if tx["complete"] == False:
+        if tx_dict["complete"] == False:
             vbox.addWidget(QLabel(_("This transaction is not signed yet.")))
         else:
-            vbox.addWidget(EnterButton(_("Send this transaction"), self.send_raw_transaction))
+            vbox.addWidget(QLabel(_("Broadcast this transaction")))
+            vbox.addLayout(ok_cancel_buttons(dialog))
 
-        if not dialog.exec_(): return
+        if dialog.exec_():
+            self.send_raw_transaction(tx_dict["hex"])
+
 
     def do_send_from_file(self):
-        try:
-            fileName = QFileDialog.getOpenFileName(QWidget(), _("Select your transaction file"), os.path.expanduser('~'))
-            if fileName:
-                with open(fileName, "r") as transaction_file:
-                    file_content = transaction_file.read()
-                    tx = json.loads(str(file_content))
-                    self.create_send_transaction_window(tx)
-
-        except (ValueError, IOError, os.error), reason:
-            QMessageBox.critical(None,"Unable to read file or no transaction found", _("Electrum was unable to read your transaction file") + "\n" + str(reason))
+        tx_dict = self.read_tx_from_file()
+        if tx_dict: 
+            self.create_send_transaction_window(tx_dict)
+        
 
     def do_send_from_text(self):
-        tx, ok = QInputDialog.getText(QTextEdit(), _('Send raw transaction'), _('Transaction data in JSON') + ':')
+        txt, ok = QInputDialog.getText(QTextEdit(), _('Send raw transaction'), _('Transaction data in JSON') + ':')
+        if not ok:
+            return
+        tx_dict = self.tx_dict_from_text(unicode(txt))
+        if tx_dict:
+            self.create_send_transaction_window(tx_dict)
 
-        try:
-          tx = json.loads(unicode(tx))
-        except (ValueError, IOError, os.error), reason:
-          QMessageBox.critical(None,"Unable to read transaction", _("Electrum was unable to read your transaction:") + "\n" + str(reason))
-
-        self.create_send_transaction_window(tx)
 
     def do_export_privkeys(self):
         self.show_message("%s\n%s\n%s" % (_("WARNING: ALL your private keys are secret."),  _("Exposing a single private key can compromise your entire wallet!"), _("In particular, DO NOT use 'redeem private key' services proposed by third parties.")))
@@ -2155,15 +2167,16 @@ class ElectrumWindow(QMainWindow):
         #grid_raw.addWidget(EnterButton(_("From text"), self.do_sign_from_text),3,2)
         #grid_raw.addWidget(HelpButton(_("This will show you some useful information about an unsigned transaction")),3,3)
 
-        grid_raw.addWidget(QLabel(_("Send raw transaction")), 2, 0)
+        if self.wallet.seed:
+            grid_raw.addWidget(QLabel(_("Sign transaction")), 1, 0)
+            grid_raw.addWidget(EnterButton(_("From file"), self.do_sign_from_file),1,1)
+            grid_raw.addWidget(EnterButton(_("From text"), self.do_sign_from_text),1,2)
+            grid_raw.addWidget(HelpButton(_("Sign an unsigned transaction generated by a watching-only wallet")),1,3)
+
+        grid_raw.addWidget(QLabel(_("Send signed transaction")), 2, 0)
         grid_raw.addWidget(EnterButton(_("From file"), self.do_send_from_file),2,1)
         grid_raw.addWidget(EnterButton(_("From text"), self.do_send_from_text),2,2)
-        grid_raw.addWidget(HelpButton(_("This will send a transaction.")),2,3)
-
-        grid_raw.addWidget(QLabel(_("Sign transaction")), 1, 0)
-        grid_raw.addWidget(EnterButton(_("From file"), self.do_sign_from_file),1,1)
-        grid_raw.addWidget(EnterButton(_("From text"), self.do_sign_from_text),1,2)
-        grid_raw.addWidget(HelpButton(_("This will sign an previously unsigned transaction")),1,3)
+        grid_raw.addWidget(HelpButton(_("This will broadcast a transaction to the network.")),2,3)
 
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
