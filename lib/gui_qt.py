@@ -537,34 +537,58 @@ class ElectrumWindow(QMainWindow):
         tx_hash = str(item.data(0, Qt.UserRole).toString())
         if not tx_hash: return
         menu = QMenu()
-        menu.addAction(_("Copy ID to Clipboard"), lambda: self.app.clipboard().setText(tx_hash))
-        menu.addAction(_("Details"), lambda: self.tx_details(tx_hash))
+        #menu.addAction(_("Copy ID to Clipboard"), lambda: self.app.clipboard().setText(tx_hash))
+        menu.addAction(_("Details"), lambda: self.show_tx_details(self.wallet.transactions.get(tx_hash)))
         menu.addAction(_("Edit description"), lambda: self.tx_label_clicked(item,2))
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
 
-    def tx_details(self, tx_hash):
+    def show_tx_details(self, tx):
         dialog = QDialog(None)
         dialog.setModal(1)
         dialog.setWindowTitle(_("Transaction Details"))
+        vbox = QVBoxLayout()
+        dialog.setLayout(vbox)
+        dialog.setMinimumSize(600,300)
 
-        main_text = QTextEdit()
-        main_text.setText(self.wallet.get_tx_details(tx_hash))
-        main_text.setReadOnly(True)
-        main_text.setMinimumSize(550,275)
-        
-        ok_button = QPushButton(_("OK"))
+        tx_hash = tx.hash()
+        if tx_hash in self.wallet.transactions.keys():
+            is_mine, v, fee = self.wallet.get_tx_value(tx)
+            conf, timestamp = self.wallet.verifier.get_confirmations(tx_hash)
+            if timestamp:
+                time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+            else:
+                time_str = 'pending'
+        else:
+            is_mine = False
+
+        vbox.addWidget(QLabel("Transaction ID:"))
+        e  = QLineEdit(tx_hash)
+        e.setReadOnly(True)
+        vbox.addWidget(e)
+
+        vbox.addWidget(QLabel("Date: %s"%time_str))
+        vbox.addWidget(QLabel("Status: %d confirmations"%conf))
+        if is_mine:
+            if fee: 
+                vbox.addWidget(QLabel("Amount sent: %s"% format_satoshis(v-fee, False)))
+                vbox.addWidget(QLabel("Transaction fee: %s"% format_satoshis(fee, False)))
+            else:
+                vbox.addWidget(QLabel("Amount sent: %s"% format_satoshis(v, False)))
+                vbox.addWidget(QLabel("Transaction fee: unknown"))
+        else:
+            vbox.addWidget(QLabel("Amount received: %s"% format_satoshis(v, False)))
+
+        vbox.addWidget( self.generate_transaction_information_widget(tx) )
+
+        ok_button = QPushButton(_("Close"))
         ok_button.setDefault(True)
         ok_button.clicked.connect(dialog.accept)
         
         hbox = QHBoxLayout()
         hbox.addStretch(1)
         hbox.addWidget(ok_button)
-        
-        vbox = QVBoxLayout()
-        vbox.addWidget(main_text)
         vbox.addLayout(hbox)
-        dialog.setLayout(vbox)
         dialog.exec_()
 
     def tx_label_clicked(self, item, column):
