@@ -1780,10 +1780,10 @@ class ElectrumWindow(QMainWindow):
         
         tree_widget = MyTreeWidget(self)
         tree_widget.setColumnCount(2)
-        tree_widget.setHeaderLabels( [_('Sequence'), _('Address'), _('Previous output')] )
+        tree_widget.setHeaderLabels( [ _('Address'), _('Previous output')] )
 
-        for input_line in tx.d["inputs"]:
-            item = QTreeWidgetItem( [str(input_line["sequence"]), str(input_line["address"]), str(input_line["prevout_hash"])] )
+        for input_line in tx.inputs:
+            item = QTreeWidgetItem( [ str(input_line["address"]), str(input_line["prevout_hash"])] )
             tree_widget.addTopLevelItem(item)
 
         tree_widget.setMaximumHeight(100)
