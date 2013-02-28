@@ -2176,6 +2176,7 @@ class ElectrumWindow(QMainWindow):
         grid_raw.addWidget(EnterButton(_("From file"), self.do_send_from_file),2,1)
         grid_raw.addWidget(EnterButton(_("From text"), self.do_send_from_text),2,2)
         grid_raw.addWidget(HelpButton(_("This will broadcast a transaction to the network.")),2,3)
+        grid_raw.setRowStretch(3,1)
 
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
