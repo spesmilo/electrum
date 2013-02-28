@@ -291,6 +291,9 @@ if __name__ == '__main__':
         if password:
             wallet.update_password(wallet.seed, None, password)
 
+        # terminate
+        sys.exit(0)
+
 
     # open session
     if cmd not in offline_commands and not options.offline:
