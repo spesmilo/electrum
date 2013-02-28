@@ -1878,8 +1878,7 @@ class ElectrumWindow(QMainWindow):
     
 
     def send_raw_transaction(self, raw_tx):
-        print "sending", raw_tx
-        #result, result_message = self.wallet.sendtx( raw_tx )
+        result, result_message = self.wallet.sendtx( raw_tx )
         if result:
             self.show_message("Transaction succesfully sent: %s" % (result_message))
         else:
