@@ -25,7 +25,7 @@ import bitcoin
 known_commands = {
     'help':'Prints this help',
     'validateaddress':'Check that the address is valid', 
-    'balance': "Display the balance of your wallet or of an address.\nSyntax: balance [<address>]", 
+    'getbalance': "Display the balance of your wallet or of an address.\nSyntax: getbalance [<address>]", 
     'contacts': "Show your list of contacts", 
     'create':'Create a wallet', 
     'restore':'Restore a wallet', 
@@ -189,7 +189,7 @@ class Commands:
         return out
 
         
-    def balance(self, addresses = []):
+    def getbalance(self, addresses = []):
         if addresses == []:
             c, u = self.wallet.get_balance()
         else:
