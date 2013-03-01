@@ -123,7 +123,7 @@ class Commands:
     def listunspent(self):
         import copy
         l = copy.deepcopy(self.wallet.get_unspent_coins())
-        for i in l: i["value"] = i["value"]*1e-8
+        for i in l: i["value"] = str(Decimal(i["value"])/100000000)
         return l
 
     def createrawtransaction(self, inputs, outputs):
