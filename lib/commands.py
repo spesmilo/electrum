@@ -286,7 +286,7 @@ class Commands:
         return c
 
 
-    def addresses(self, show_all):
+    def addresses(self, show_all = False):
         out = []
         for addr in self.wallet.all_addresses():
             if show_all or not self.wallet.is_change(addr):
