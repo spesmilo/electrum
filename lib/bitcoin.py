@@ -475,6 +475,7 @@ class Transaction:
         self.outputs = self.d['outputs']
         self.outputs = map(lambda x: (x['address'],x['value']), self.outputs)
         self.input_info = None
+        self.is_complete = True
         
     @classmethod
     def from_io(klass, inputs, outputs):

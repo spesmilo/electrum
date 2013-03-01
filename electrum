@@ -63,6 +63,8 @@ def arg_parser():
     parser.add_option("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
     parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance at listed addresses")
+    parser.add_option("-l", "--labels", action="store_true", dest="show_labels", default=False, help="show the labels of listed addresses")
+
     parser.add_option("-f", "--fee", dest="tx_fee", default="0.005", help="set tx fee")
     parser.add_option("-F", "--fromaddr", dest="from_addr", default=None, help="set source address for payto/mktx. if it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet.")
     parser.add_option("-c", "--changeaddr", dest="change_addr", default=None, help="set the change address for payto/mktx. default is a spare address, or the source address if it's not in the wallet")
@@ -376,8 +378,8 @@ if __name__ == '__main__':
     elif cmd == 'createrawtransaction':
         args = [ cmd, json.loads(args[1]), json.loads(args[2])]
 
-    elif cmd=='addresses':
-        args = [cmd, options.show_all]
+    elif cmd=='listaddresses':
+        args = [cmd, options.show_all, options.show_balance, options.show_labels]
                 
     elif cmd == 'setlabel':
         try:

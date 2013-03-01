@@ -38,7 +38,7 @@ options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address 
             'Broadcasts a transaction to the network. \nSyntax: sendrawtransaction <tx in hexadecimal>',
     'password': 
             "Changes your password",
-    'addresses':  
+    'listaddresses':
             """Shows your list of addresses.
 options:
   -a: show all addresses, including change addresses""",
@@ -87,7 +87,7 @@ offline_commands = [ 'password', 'mktx',
                      'setlabel', 'contacts',
                      'help', 'validateaddress',
                      'signmessage', 'verifymessage',
-                     'eval', 'set', 'get', 'create', 'addresses',
+                     'eval', 'set', 'get', 'create', 'listaddresses',
                      'importprivkey', 'get_seed',
                      'deseed',
                      'freeze','unfreeze',
@@ -286,17 +286,21 @@ class Commands:
         return c
 
 
-    def addresses(self, show_all = False):
+    def listaddresses(self, show_all = False, show_balance = False, show_label = False):
         out = []
         for addr in self.wallet.all_addresses():
             if show_all or not self.wallet.is_change(addr):
-
-                flags = self.wallet.get_address_flags(addr)
-                label = self.wallet.labels.get(addr,'')
-                if label: label = "\"%s\""%label
-                b = format_satoshis(self.wallet.get_addr_balance(addr)[0])
-                m_addr = "%34s"%addr
-                out.append( flags + ' ' + m_addr + ' ' + b + ' ' + label )
+                if show_balance or show_label:
+                    item = { 'address': addr }
+                    if show_balance:
+                        item['balance'] = str(Decimal(self.wallet.get_addr_balance(addr)[0])/100000000)
+                    if show_label:
+                        label = self.wallet.labels.get(addr,'')
+                        if label:
+                            item['label'] = label
+                else:
+                    item = addr
+                out.append( item )
         return out
                          
 
