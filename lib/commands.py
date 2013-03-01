@@ -208,6 +208,10 @@ class Commands:
 
 
     def _mktx(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
+
+        if from_addr and from_addr not in wallet.all_addresses():
+            raise BaseException("address not in wallet")
+
         for k, v in self.wallet.labels.items():
             if v == to_address:
                 to_address = k

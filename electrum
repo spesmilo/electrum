@@ -324,7 +324,7 @@ if __name__ == '__main__':
         password = None
 
 
-    # add missing arguments
+    # add missing arguments, do type conversions
     if cmd == 'importprivkey':
         # See if they specificed a key on the cmd line, if not prompt
         if len(args) == 1:
@@ -343,48 +343,8 @@ if __name__ == '__main__':
         args = [cmd, options.show_all, options.show_balance, options.show_labels]
 
     elif cmd in ['payto', 'mktx']:
+        args = [ 'mktx', args[1], Decimal(args[2]), Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, options.from_addr ]
 
-        #is_temporary = False
-        from_addr = None
-        if options.from_addr:
-            from_addr = options.from_addr
-            if from_addr not in wallet.all_addresses():
-                #is_temporary = True
-                raise BaseException("address not in wallet")
-
-        try:
-            to_address = args[1]
-            amount = Decimal(args[2])
-            change_addr = None
-            label = ' '.join(args[3:])
-            if options.tx_fee: 
-                options.tx_fee = Decimal(options.tx_fee)
-        except:
-            firstarg = cmd
-            cmd = 'help'
-
-        #if from_addr and is_temporary:
-        #    if from_addr.find(":") == -1:
-        #        keypair = from_addr + ":" + prompt_password('Private key:', False)
-        #    else:
-        #        keypair = from_addr
-        #        from_addr = keypair.split(':')[0]
-        #    if not wallet.import_key(keypair,password):
-        #        print_msg("Error: Invalid key pair")
-        #        exit(1)
-        #    wallet.history[from_addr] = interface.retrieve_history(from_addr)
-        #    wallet.update_tx_history()
-        #    change_addr = from_addr
-
-        if options.change_addr:
-            change_addr = options.change_addr
-            
-        args = [ 'mktx', to_address, amount, options.tx_fee, options.change_addr, from_addr ]
-
-        #if is_temporary:
-        #    wallet.imported_keys.pop(from_addr)
-        #    del(wallet.history[from_addr])
-        #wallet.save()
 
                 
 
