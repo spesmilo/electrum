@@ -24,6 +24,7 @@ pygtk.require('2.0')
 import gtk, gobject
 from decimal import Decimal
 from util import print_error
+from bitcoin import is_valid
 
 import pyqrnative, mnemonic
 
@@ -815,7 +816,7 @@ class ElectrumWindow:
         else:
             to_address = r
 
-        if not self.wallet.is_valid(to_address):
+        if not is_valid(to_address):
             self.show_message( "invalid bitcoin address:\n"+to_address)
             return
 
@@ -1220,7 +1221,7 @@ class ElectrumWindow:
         dialog.destroy()
 
         if result == 1:
-            if self.wallet.is_valid(address):
+            if is_valid(address):
                 self.wallet.addressbook.append(address)
                 if label:  self.wallet.labels[address] = label
                 self.wallet.save()

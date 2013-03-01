@@ -444,7 +444,12 @@ if __name__ == '__main__':
         cmd_runner = Commands(wallet, interface)
         func = eval('cmd_runner.' + cmd)
         cmd_runner.password = password
-        result = func(*args[1:])
+        try:
+            result = func(*args[1:])
+        except BaseException, e:
+            print_msg("Error: " + str(e))
+            sys.exit(1)
+            
         if type(result) == str:
             util.print_msg(result)
         else:

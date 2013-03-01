@@ -38,7 +38,7 @@ except:
     sys.exit("Error: Could not import icons_rc.py, please generate it with: 'pyrcc4 icons.qrc -o lib/icons_rc.py'")
 
 from wallet import format_satoshis
-from bitcoin import Transaction
+from bitcoin import Transaction, is_valid
 import bmp, mnemonic, pyqrnative, qrscanner
 import exchange_rate
 
@@ -914,7 +914,7 @@ class ElectrumWindow(QMainWindow):
         else:
             to_address = r
 
-        if not self.wallet.is_valid(to_address):
+        if not is_valid(to_address):
             QMessageBox.warning(self, _('Error'), _('Invalid Bitcoin Address') + ':\n' + to_address, _('OK'))
             return
 
@@ -1350,7 +1350,7 @@ class ElectrumWindow(QMainWindow):
         text, ok = QInputDialog.getText(self, _('New Contact'), _('Address') + ':')
         address = unicode(text)
         if ok:
-            if self.wallet.is_valid(address):
+            if is_valid(address):
                 self.wallet.addressbook.append(address)
                 self.wallet.save()
                 self.update_contacts_tab()

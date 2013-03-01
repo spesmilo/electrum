@@ -259,6 +259,16 @@ def address_from_private_key(sec):
     return address
 
 
+def is_valid(addr):
+    ADDRESS_RE = re.compile('[1-9A-HJ-NP-Za-km-z]{26,}\\Z')
+    if not ADDRESS_RE.match(addr): return False
+    try:
+        addrtype, h = bc_address_to_hash_160(addr)
+    except:
+        return False
+    return addr == hash_160_to_bc_address(h, addrtype)
+
+
 ########### end pywallet functions #######################
 
 # secp256k1, http://www.oid-info.com/get/1.3.132.0.10

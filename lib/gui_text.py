@@ -3,6 +3,7 @@ from decimal import Decimal
 _ = lambda x:x
 #from i18n import _
 from util import format_satoshis, set_verbosity
+from bitcoin import is_valid
 
 import tty, sys
 
@@ -238,7 +239,7 @@ class ElectrumGui:
         self.str_description = ''
 
     def do_send(self):
-        if not self.wallet.is_valid(self.str_recipient):
+        if not is_valid(self.str_recipient):
             self.show_message(_('Invalid Bitcoin address'))
             return
         try:

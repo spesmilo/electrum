@@ -178,15 +178,6 @@ class Wallet:
     def is_change(self, address):
         return address in self.change_addresses
 
-    def is_valid(self,addr):
-        ADDRESS_RE = re.compile('[1-9A-HJ-NP-Za-km-z]{26,}\\Z')
-        if not ADDRESS_RE.match(addr): return False
-        try:
-            addrtype, h = bc_address_to_hash_160(addr)
-        except:
-            return False
-        return addr == hash_160_to_bc_address(h, addrtype)
-
     def get_master_public_key(self):
         return self.sequence.master_public_key
 
@@ -714,7 +705,7 @@ class Wallet:
     def mktx(self, outputs, password, fee=None, change_addr=None, from_addr= None):
 
         for address, x in outputs:
-            assert self.is_valid(address)
+            assert is_valid(address)
 
         amount = sum( map(lambda x:x[1], outputs) )
         inputs, total, fee = self.choose_tx_inputs( amount, fee, from_addr )
@@ -811,7 +802,7 @@ class Wallet:
             target, signature = line
             EC_KEY.verify_message(previous, signature, "alias:%s:%s"%(alias,target))
 
-        if not self.is_valid(target):
+        if not is_valid(target):
             raise ValueError("Invalid bitcoin address")
 
         return target, signing_addr, auth_name
@@ -898,7 +889,7 @@ class Wallet:
         if signature:
             if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', identity):
                 signing_address = self.get_alias(identity, True, show_message, question)
-            elif self.is_valid(identity):
+            elif is_valid(identity):
                 signing_address = identity
             else:
                 signing_address = None

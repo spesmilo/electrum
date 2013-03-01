@@ -24,6 +24,7 @@ import android
 from electrum import SimpleConfig, Interface, WalletSynchronizer, Wallet, format_satoshis, mnemonic_encode, mnemonic_decode
 from decimal import Decimal
 import datetime, re
+from bitcoin import is_valid
 
 
 
@@ -483,7 +484,7 @@ def make_new_contact():
         if data:
             if re.match('^bitcoin:', data):
                 address, _, _, _, _, _, _ = wallet.parse_url(data, None, lambda x: modal_question('Question',x))
-            elif wallet.is_valid(data):
+            elif is_valid(data):
                 address = data
             else:
                 address = None
@@ -589,7 +590,7 @@ def payto_loop():
                 label  = droid.fullQueryDetail("label").result.get('text')
                 amount = droid.fullQueryDetail('amount').result.get('text')
 
-                if not wallet.is_valid(recipient):
+                if not is_valid(recipient):
                     modal_dialog('Error','Invalid Bitcoin address')
                     continue
 

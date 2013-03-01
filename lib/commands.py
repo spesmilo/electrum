@@ -152,9 +152,9 @@ class Commands:
         return self.wallet.get_private_keys(addresses, self.password)
 
     def validateaddress(self,addr):
-        is_valid = self.wallet.is_valid(addr)
-        out = { 'isvalid':is_valid }
-        if is_valid:
+        isvalid = is_valid(addr)
+        out = { 'isvalid':isvalid }
+        if isvalid:
             is_mine = self.wallet.is_mine(addr)
             out['address'] = addr
             out['ismine'] = is_mine
@@ -209,8 +209,19 @@ class Commands:
 
     def _mktx(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
 
-        if from_addr and from_addr not in wallet.all_addresses():
-            raise BaseException("address not in wallet")
+        if not is_valid(to_address):
+            raise BaseException("Invalid Bitcoin address", to_address)
+
+        if change_addr:
+            if not is_valid(change_addr):
+                raise BaseException("Invalid Bitcoin address", change_addr)
+
+        if from_addr:
+            if not is_valid(from_addr):
+                raise BaseException("invalid Bitcoin address", from_addr)
+            
+            if from_addr not in self.wallet.all_addresses():
+                raise BaseException("address not in wallet")
 
         for k, v in self.wallet.labels.items():
             if v == to_address:

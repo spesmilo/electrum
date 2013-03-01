@@ -13,6 +13,7 @@ except ImportError:
 
 from decimal import Decimal as D
 from util import get_resource_path as rsrc
+from bitcoin import is_valid
 from i18n import _
 import decimal
 import exchange_rate
@@ -554,7 +555,7 @@ class MiniWindow(QDialog):
           address = match2.group(2)
           self.address_input.setText(address)
 
-        if self.actuator.is_valid(address):
+        if is_valid(address):
             self.check_button_status()
             self.address_input.setProperty("isValid", True)
             self.recompute_style(self.address_input)
@@ -827,7 +828,7 @@ class MiniActuator:
         """Send bitcoins to the target address."""
         dest_address = self.fetch_destination(address)
 
-        if dest_address is None or not self.wallet.is_valid(dest_address):
+        if dest_address is None or not is_valid(dest_address):
             QMessageBox.warning(parent_window, _('Error'), 
                 _('Invalid Bitcoin Address') + ':\n' + address, _('OK'))
             return False
@@ -897,10 +898,6 @@ class MiniActuator:
         else:
             return recipient
 
-    def is_valid(self, address):
-        """Check if bitcoin address is valid."""
-
-        return self.wallet.is_valid(address)
 
     def copy_master_public_key(self):
         master_pubkey = self.wallet.master_public_key
