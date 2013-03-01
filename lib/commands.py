@@ -41,7 +41,10 @@ options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address 
     'listaddresses':
             """Shows your list of addresses.
 options:
-  -a: show all addresses, including change addresses""",
+  -a: show all addresses, including change addresses
+  -b: include balance in results
+  -l: include labels in results
+  """,
 
     'history':"Shows the transaction history",
     'setlabel':'Assign a label to an item\nSyntax: label <tx_hash> <label>',
@@ -50,7 +53,7 @@ options:
 Syntax: mktx <recipient> <amount> [label]
 options:\n  --fee, -f: set transaction fee\n  --fromaddr, -s: send from address -\n  --changeaddr, -c: send change to address
         """,
-    'get_seed':
+    'getseed':
             "Print the generation seed of your wallet.",
     'importprivkey': 
             'Import a private key\nSyntax: importprivkey <privatekey>',
@@ -88,7 +91,7 @@ offline_commands = [ 'password', 'mktx',
                      'help', 'validateaddress',
                      'signmessage', 'verifymessage',
                      'eval', 'set', 'get', 'create', 'listaddresses',
-                     'importprivkey', 'get_seed',
+                     'importprivkey', 'getseed',
                      'deseed',
                      'freeze','unfreeze',
                      'prioritize','unprioritize',
@@ -96,7 +99,7 @@ offline_commands = [ 'password', 'mktx',
                      'createmultisig', 'createrawtransaction', 'decoderawtransaction', 'signrawtransaction'
                      ]
 
-protected_commands = ['payto', 'password', 'mktx', 'get_seed', 'importprivkey','signmessage', 'signrawtransaction', 'dumpprivkey', 'dumpprivkeys' ]
+protected_commands = ['payto', 'password', 'mktx', 'getseed', 'importprivkey','signmessage', 'signrawtransaction', 'dumpprivkey', 'dumpprivkeys' ]
 
 class Commands:
 
@@ -201,7 +204,7 @@ class Commands:
         return out
 
 
-    def get_seed(self):
+    def getseed(self):
         import mnemonic
         seed = self.wallet.decode_seed(self.password)
         return { "hex":seed, "mnemonic": ' '.join(mnemonic.mn_encode(seed)) }
@@ -216,11 +219,11 @@ class Commands:
         return out
 
 
-    def sign_message(self, address, message):
+    def signmessage(self, address, message):
         return self.wallet.sign_message(address, message, self.password)
 
 
-    def verify_message(self, address, signature, message):
+    def verifymessage(self, address, signature, message):
         try:
             EC_KEY.verify_message(address, signature, message)
             return True
