@@ -1322,6 +1322,9 @@ class ElectrumWindow(QMainWindow):
         from qt_console import Console
         from electrum import util, bitcoin, commands
         self.console = console = Console()
+        self.console.history = self.config.get("console-history",[])
+        self.console.history_index = len(self.console.history)
+        
         console.updateNamespace({'wallet' : self.wallet, 'interface' : self.wallet.interface, 'gui':self})
         console.updateNamespace({'util' : util, 'bitcoin':bitcoin})
 
@@ -2474,6 +2477,7 @@ class ElectrumWindow(QMainWindow):
         self.config.set_key("winpos-qt", [g.left(),g.top(),g.width(),g.height()], True)
         self.save_column_widths()
         self.config.set_key("column-widths", self.column_widths, True)
+        self.config.set_key("console-history",self.console.history[-50:])
         event.accept()
 
 
