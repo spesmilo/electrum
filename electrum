@@ -17,6 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import re
+import pkgutil
 import sys, os, time, json
 import optparse
 import platform
@@ -40,6 +41,13 @@ if os.path.exists("lib"):
     imp.load_module('electrum', fp, pathname, description)
     fp, pathname, description = imp.find_module('gui')
     imp.load_module('electrumGUI', fp, pathname, description)
+    fp, pathname, description = imp.find_module('plugins')
+    imp.load_module('electrum_plugins', fp, pathname, description)
+    plugin_names = [name for _, name, _ in pkgutil.iter_modules(['plugins'])]
+    plugins = map(lambda name: imp.load_source('electrum_plugins.'+name, os.path.join(pathname,name+'.py')), plugin_names)
+else:
+    plugins = []
+
 
 from electrum import *
 
@@ -68,7 +76,6 @@ def arg_parser():
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
     parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance of listed addresses")
     parser.add_option("-l", "--labels", action="store_true", dest="show_labels", default=False, help="show the labels of listed addresses")
-
     parser.add_option("-f", "--fee", dest="tx_fee", default="0.005", help="set tx fee")
     parser.add_option("-F", "--fromaddr", dest="from_addr", default=None, help="set source address for payto/mktx. if it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet.")
     parser.add_option("-c", "--changeaddr", dest="change_addr", default=None, help="set the change address for payto/mktx. default is a spare address, or the source address if it's not in the wallet")
@@ -102,6 +109,8 @@ if __name__ == '__main__':
 
     config = SimpleConfig(config_options)
     wallet = Wallet(config)
+    wallet.init_plugins(plugins)
+
 
     if len(args)==0:
         url = None

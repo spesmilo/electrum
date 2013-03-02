@@ -95,11 +95,9 @@ class Wallet:
         self.accounts              = config.get('accounts', {})   # this should not include public keys
         self.sequences = {}
 
-        mpk1 = self.config.get('master_public_key')
-        self.sequences[0] = DeterministicSequence(mpk1)
+        self.sequences[0] = DeterministicSequence(self.config.get('master_public_key'))
         if self.accounts.get(0) is None:
             self.accounts[0] = { 0:[], 1:[], 'name':'Main account' }
-
 
         self.transactions = {}
         tx = config.get('transactions',{})
@@ -108,7 +106,9 @@ class Wallet:
         except:
             print_msg("Warning: Cannot deserialize transactions. skipping")
         
-
+        # plugins
+        self.plugins = []
+        self.plugin_hooks = {}
 
         # not saved
         self.prevout_values = {}     # my own transaction outputs
@@ -132,6 +132,28 @@ class Wallet:
 
         for tx_hash in self.transactions.keys():
             self.update_tx_outputs(tx_hash)
+
+
+    # plugins 
+    def set_hook(self, name, callback):
+        h = self.plugin_hooks.get(name, [])
+        h.append(callback)
+        self.plugin_hooks[name] = h
+
+    def unset_hook(self, name, callback):
+        h = self.plugin_hooks.get(name,[])
+        if callback in h: h.remove(callback)
+        self.plugin_hooks[name] = h
+
+    def init_plugins(self, plugins):
+        self.plugins = plugins
+        for p in plugins:
+            try:
+                p.init(self)
+            except:
+                import traceback
+                print_msg("Error:cannot initialize plugin",p)
+                traceback.print_exc(file=sys.stdout)
 
 
     def set_up_to_date(self,b):

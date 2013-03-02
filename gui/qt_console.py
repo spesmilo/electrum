@@ -158,6 +158,11 @@ class Console(QtGui.QPlainTextEdit):
         for i in range(len(self.prompt) + position):
             self.moveCursor(QtGui.QTextCursor.Right)
 
+    def register_command(self, c, func):
+        methods = { c: func}
+        self.updateNamespace(methods)
+        
+
     def runCommand(self):
         command = self.getCommand()
         self.addToHistory(command)

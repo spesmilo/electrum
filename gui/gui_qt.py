@@ -946,6 +946,11 @@ class ElectrumWindow(QMainWindow):
             self.show_message(str(e))
             return
 
+
+        for cb in self.wallet.plugin_hooks.get('send_tx'):
+            apply(cb, (wallet, self, tx))
+
+
         if label: 
             self.wallet.labels[tx.hash()] = label
 
@@ -1325,6 +1330,16 @@ class ElectrumWindow(QMainWindow):
         self.console = console = Console()
         self.console.history = self.config.get("console-history",[])
         self.console.history_index = len(self.console.history)
+
+        #init plugins
+        for p in self.wallet.plugins:
+            try:
+                p.init_console(self.console, self)
+            except:
+                import traceback
+                print_msg("Error:cannot initialize plugin",p)
+                traceback.print_exc(file=sys.stdout)
+
         
         console.updateNamespace({'wallet' : self.wallet, 'interface' : self.wallet.interface, 'gui':self})
         console.updateNamespace({'util' : util, 'bitcoin':bitcoin})
@@ -2543,3 +2558,5 @@ class ElectrumGui:
         w.show()
 
         self.app.exec_()
+
+
