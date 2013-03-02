@@ -1489,7 +1489,7 @@ class ElectrumWindow(QMainWindow):
         dialog.exec_()
 
     @staticmethod
-    def show_qrcode(data, title = "QR code")):
+    def show_qrcode(data, title = "QR code"):
         if not data: return
         d = QDialog(None)
         d.setModal(1)
