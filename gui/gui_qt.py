@@ -389,7 +389,7 @@ def ok_cancel_buttons(dialog):
 
 
 default_column_widths = { "history":[40,140,350,140], "contacts":[350,330], 
-	"receive":[[310],[310,200,130,130],[310,200,130,130]] }
+	"receive":[[370],[370,200,130,130],[370,200,130,130]] }
 
 class ElectrumWindow(QMainWindow):
 
