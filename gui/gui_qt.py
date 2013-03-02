@@ -1507,13 +1507,14 @@ class ElectrumWindow(QMainWindow):
             bmp.save_qrcode(qrw.qr, filename)
             QMessageBox.information(None, _('Message'), _("QR code saved to file") + " " + filename, _('OK'))
 
-        b = QPushButton(_("Print"))
+        b = QPushButton(_("Save"))
         hbox.addWidget(b)
         b.clicked.connect(print_qr)
 
         b = QPushButton(_("Close"))
         hbox.addWidget(b)
         b.clicked.connect(d.accept)
+        b.setDefault(True)
 
         vbox.addLayout(hbox)
         d.setLayout(vbox)
