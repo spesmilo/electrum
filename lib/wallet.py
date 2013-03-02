@@ -175,6 +175,8 @@ class Wallet:
         self.accounts[0] = { 0:[], 1:[], 'name':'Main account' }
         self.sequences[0] = sequence
         self.config.set_key('accounts', self.accounts, True)
+        mpk = sequence.master_public_key
+        self.config.set_key('master_public_key', mpk, True)
 
 
 
