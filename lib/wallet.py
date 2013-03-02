@@ -530,7 +530,14 @@ class Wallet:
     def get_account_addresses(self, a):
         ac = self.accounts[a]
         return ac[0] + ac[1]
-        
+
+    def get_imported_balance(self):
+        cc = uu = 0
+        for addr in self.imported_keys.keys():
+            c, u = self.get_addr_balance(addr)
+            cc += c
+            uu += u
+        return cc, uu
 
     def get_account_balance(self, account):
         conf = unconf = 0
@@ -546,6 +553,9 @@ class Wallet:
             c, u = self.get_account_balance(a)
             cc += c
             uu += u
+        c, u = self.get_imported_balance()
+        cc += c
+        uu += u
         return cc, uu
 
 

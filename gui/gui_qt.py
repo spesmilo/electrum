@@ -1232,9 +1232,11 @@ class ElectrumWindow(QMainWindow):
 
         for k, account in self.wallet.accounts.items():
             name = account.get('name',str(k))
-            account_item = QTreeWidgetItem( [ name, '', '', '', ''] )
+            c,u = self.wallet.get_account_balance(k)
+            account_item = QTreeWidgetItem( [ name, '', '', format_satoshis(c+u), ''] )
             l.addTopLevelItem(account_item)
             account_item.setExpanded(True)
+            
 
             for is_change in [0,1]:
                 name = "Receiving" if not is_change else "Change"
@@ -1260,12 +1262,13 @@ class ElectrumWindow(QMainWindow):
                     item.setFont(0, QFont(MONOSPACE_FONT))
                     item.setFont(2, QFont(MONOSPACE_FONT))
                     self.update_receive_item(item)
-                    if is_red and not is_change:
+                    if is_red:
                         item.setBackgroundColor(1, QColor('red'))
                     seq_item.addChild(item)
 
         if self.wallet.imported_keys:
-            account_item = QTreeWidgetItem( [ "Imported", '', '', '', ''] )
+            c,u = self.wallet.get_imported_balance()
+            account_item = QTreeWidgetItem( [ _('Imported'), '', '', format_satoshis(c+u), ''] )
             l.addTopLevelItem(account_item)
             account_item.setExpanded(True)
             for address in self.wallet.imported_keys.keys():
@@ -1273,8 +1276,6 @@ class ElectrumWindow(QMainWindow):
                 item.setFont(0, QFont(MONOSPACE_FONT))
                 item.setFont(2, QFont(MONOSPACE_FONT))
                 self.update_receive_item(item)
-                if is_red and not is_change:
-                    item.setBackgroundColor(1, QColor('red'))
                 account_item.addChild(item)
                 
 
