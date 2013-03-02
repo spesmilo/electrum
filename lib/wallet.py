@@ -786,11 +786,13 @@ class Wallet:
         for i in range(len(tx.inputs)):
             txin = tx.inputs[i]
             address = txin['address']
-            if address in self.imported_keys.keys(): continue
+            if address in self.imported_keys.keys(): 
+                pk_addresses.append(address)
+                continue
             account, is_change, n = self.get_address_index(address)
             txin['electrumKeyID'] = (account, is_change, n) # used by the server to find the key
             pk_addr, redeemScript = self.sequences[account].get_input_info(is_change, n)
-            txin['redeemScript'] = redeemScript
+            if redeemScript: txin['redeemScript'] = redeemScript
             pk_addresses.append(pk_addr)
 
         # get all private keys at once.
