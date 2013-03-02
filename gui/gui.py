@@ -23,18 +23,18 @@ import pygtk
 pygtk.require('2.0')
 import gtk, gobject
 from decimal import Decimal
-from util import print_error
-from bitcoin import is_valid
-
-import pyqrnative, mnemonic
+from electrum.util import print_error
+from electrum import is_valid
+from electrum import mnemonic
+import pyqrnative
 
 gtk.gdk.threads_init()
 APP_NAME = "Electrum"
 import platform
 MONOSPACE_FONT = 'Lucida Console' if platform.system() == 'Windows' else 'monospace'
 
-from wallet import format_satoshis
-from interface import DEFAULT_SERVERS
+from electrum.util import format_satoshis
+from electrum.interface import DEFAULT_SERVERS
 
 def numbify(entry, is_int = False):
     text = entry.get_text().strip()

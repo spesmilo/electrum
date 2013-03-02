@@ -17,9 +17,9 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import sys, time, datetime, re
-from i18n import _
-from util import print_error
-import os.path, json, util, ast
+from i18n import _, set_language
+from electrum.util import print_error
+import os.path, json, ast
 
 try:
     import PyQt4
@@ -30,16 +30,18 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
-from interface import DEFAULT_SERVERS
+from electrum.interface import DEFAULT_SERVERS
 
 try:
     import icons_rc
 except:
     sys.exit("Error: Could not import icons_rc.py, please generate it with: 'pyrcc4 icons.qrc -o lib/icons_rc.py'")
 
-from wallet import format_satoshis
-from bitcoin import Transaction, is_valid
-import bmp, mnemonic, pyqrnative, qrscanner
+from electrum.wallet import format_satoshis
+from electrum.bitcoin import Transaction, is_valid
+from electrum import mnemonic
+
+import bmp, pyqrnative, qrscanner
 import exchange_rate
 
 from decimal import Decimal
@@ -59,7 +61,7 @@ else:
 
 ALIAS_REGEXP = '^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$'    
 
-from version import ELECTRUM_VERSION
+from electrum import ELECTRUM_VERSION
 import re
 
 class UpdateLabel(QtGui.QLabel):
@@ -403,6 +405,8 @@ class ElectrumWindow(QMainWindow):
 
         self.receive_tab_mode = config.get('qt_receive_tab_mode', 0)
         self.merchant_name = config.get('merchant_name', 'Invoice')
+
+        set_language(config.get('language'))
 
         self.qr_window = None
         self.funds_error = False
@@ -1316,7 +1320,7 @@ class ElectrumWindow(QMainWindow):
 
     def create_console_tab(self):
         from qt_console import Console
-        import util, bitcoin, commands
+        from electrum import util, bitcoin, commands
         self.console = console = Console()
         console.updateNamespace({'wallet' : self.wallet, 'interface' : self.wallet.interface, 'gui':self})
         console.updateNamespace({'util' : util, 'bitcoin':bitcoin})

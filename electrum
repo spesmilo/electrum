@@ -38,6 +38,8 @@ if os.path.exists("lib"):
     import imp
     fp, pathname, description = imp.find_module('lib')
     imp.load_module('electrum', fp, pathname, description)
+    fp, pathname, description = imp.find_module('gui')
+    imp.load_module('electrumGUI', fp, pathname, description)
 
 from electrum import *
 
@@ -115,17 +117,16 @@ if __name__ == '__main__':
     #right GUI toolkit based the GUI command line option given 
     if cmd == 'gui':
         pref_gui = config.get('gui','classic')
-
         if pref_gui == 'gtk':
-            import electrum.gui as gui
+            import electrumGUI.gui as gui
         elif pref_gui in ['classic', 'qt']:
-            import electrum.gui_qt as gui
+            import electrumGUI.gui_qt as gui
         elif pref_gui == 'lite':
-            import electrum.gui_lite as gui
+            import electrumGUI.gui_lite as gui
         elif pref_gui == 'text':
-            import electrum.gui_text as gui
+            import electrumGUI.gui_text as gui
         elif pref_gui == 'android':
-            import electrum.gui_android as gui
+            import electrumGUI.gui_android as gui
         else:
             sys.exit("Error: Unknown GUI: " + pref_gui )
 
@@ -136,7 +137,6 @@ if __name__ == '__main__':
         if interface.is_connected:
             interface.send([('server.peers.subscribe',[])])
 
-        set_language(config.get('language'))
         gui = gui.ElectrumGui(wallet, config)
 
         found = config.wallet_file_exists

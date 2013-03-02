@@ -12,8 +12,8 @@ except ImportError:
     sys.exit(0)
 
 from decimal import Decimal as D
-from util import get_resource_path as rsrc
-from bitcoin import is_valid
+from electrum.util import get_resource_path as rsrc
+from electrum.bitcoin import is_valid
 from i18n import _
 import decimal
 import exchange_rate
@@ -21,16 +21,16 @@ import os.path
 import random
 import re
 import time
-import wallet
+from electrum import wallet
 import webbrowser
 import history_widget
 import receiving_widget
-import util
+from electrum import util
 import csv 
 import datetime
 
-from version import ELECTRUM_VERSION as electrum_version
-from wallet import format_satoshis
+from electrum.version import ELECTRUM_VERSION as electrum_version
+from electrum.util import format_satoshis, age
 import gui_qt
 import shutil
 
@@ -581,7 +581,6 @@ class MiniWindow(QDialog):
  
 
     def update_history(self, tx_history):
-        from util import format_satoshis, age
 
         self.history_list.empty()
 

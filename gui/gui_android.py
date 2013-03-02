@@ -21,10 +21,9 @@
 
 import android
 
-from electrum import SimpleConfig, Interface, WalletSynchronizer, Wallet, format_satoshis, mnemonic_encode, mnemonic_decode
+from electrum import SimpleConfig, Interface, WalletSynchronizer, Wallet, format_satoshis, mnemonic_encode, mnemonic_decode, is_valid
 from decimal import Decimal
 import datetime, re
-from bitcoin import is_valid
 
 
 

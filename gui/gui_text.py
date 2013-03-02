@@ -2,8 +2,8 @@ import curses, datetime
 from decimal import Decimal
 _ = lambda x:x
 #from i18n import _
-from util import format_satoshis, set_verbosity
-from bitcoin import is_valid
+from electrum.util import format_satoshis, set_verbosity
+from electrum.bitcoin import is_valid
 
 import tty, sys
 

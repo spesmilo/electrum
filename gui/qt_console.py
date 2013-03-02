@@ -4,7 +4,7 @@ import sys, os, re
 import traceback
 from PyQt4 import QtCore
 from PyQt4 import QtGui
-import util
+from electrum import util
 
 
 

@@ -1,4 +1,4 @@
-from util import print_error
+from electrum.util import print_error
 
 try:
     import zbar
