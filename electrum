@@ -20,6 +20,7 @@ import re
 import sys, os, time, json
 import optparse
 import platform
+from decimal import Decimal
 
 try:
     import ecdsa  
@@ -31,13 +32,14 @@ try:
 except ImportError:
     sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
 
-try:
-    from lib import *
-except ImportError:
-    from electrum import *
 
-from decimal import Decimal
+# load local module as electrum
+if os.path.exists("lib"):
+    import imp
+    fp, pathname, description = imp.find_module('lib')
+    imp.load_module('electrum', fp, pathname, description)
 
+from electrum import *
 
 
 # get password routine
@@ -115,30 +117,15 @@ if __name__ == '__main__':
         pref_gui = config.get('gui','classic')
 
         if pref_gui == 'gtk':
-            try:
-                import lib.gui as gui
-            except ImportError:
-                import electrum.gui as gui
+            import electrum.gui as gui
         elif pref_gui in ['classic', 'qt']:
-            try:
-                import lib.gui_qt as gui
-            except ImportError:
-                import electrum.gui_qt as gui
+            import electrum.gui_qt as gui
         elif pref_gui == 'lite':
-              try:
-                  import lib.gui_lite as gui
-              except ImportError:
-                  import electrum.gui_lite as gui
+            import electrum.gui_lite as gui
         elif pref_gui == 'text':
-              try:
-                  import lib.gui_text as gui
-              except ImportError:
-                  import electrum.gui_text as gui
+            import electrum.gui_text as gui
         elif pref_gui == 'android':
-              try:
-                  import lib.gui_android as gui
-              except ImportError:
-                  import electrum.gui_android as gui
+            import electrum.gui_android as gui
         else:
             sys.exit("Error: Unknown GUI: " + pref_gui )
 
