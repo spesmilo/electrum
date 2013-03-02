@@ -795,7 +795,7 @@ class MiniActuator:
 
     def copy_address(self, receive_popup):
         """Copy the wallet addresses into the client."""
-        addrs = [addr for addr in self.wallet.all_addresses()
+        addrs = [addr for addr in self.wallet.addresses(True)
                  if not self.wallet.is_change(addr)]
         # Select most recent addresses from gap limit
         addrs = addrs[-self.wallet.gap_limit:]

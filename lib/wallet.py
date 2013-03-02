@@ -150,7 +150,7 @@ class Wallet:
         seed = self.decode_seed(password)
         address = address_from_private_key(sec)
 
-        if address in self.all_addresses():
+        if self.is_mine(address):
             raise BaseException('Address already in wallet')
         
         # store the originally requested keypair into the imported keys table
@@ -178,16 +178,16 @@ class Wallet:
 
 
 
-    def all_addresses(self):
+    def addresses(self, include_change = False):
         o = self.imported_keys.keys()
         for a in self.accounts.values():
             o += a[0]
-            o += a[1]
+            if include_change: o += a[1]
         return o
 
 
     def is_mine(self, address):
-        return address in self.all_addresses()
+        return address in self.addresses(True)
 
     def is_change(self, address):
         #return address in self.change_addresses
@@ -419,7 +419,7 @@ class Wallet:
         
 
     def get_tx_value(self, tx, addresses=None):
-        if addresses is None: addresses = self.all_addresses()
+        if addresses is None: addresses = self.addresses(True)
         return tx.get_value(addresses, self.prevout_values)
 
 
@@ -549,7 +549,7 @@ class Wallet:
 
     def get_unspent_coins(self, domain=None):
         coins = []
-        if domain is None: domain = self.all_addresses()
+        if domain is None: domain = self.addresses(True)
         for addr in domain:
             h = self.history.get(addr, [])
             if h == ['*']: continue
@@ -572,7 +572,7 @@ class Wallet:
 
         coins = []
         prioritized_coins = []
-        domain = [from_addr] if from_addr else self.all_addresses()
+        domain = [from_addr] if from_addr else self.addresses(True)
         for i in self.frozen_addresses:
             if i in domain: domain.remove(i)
 
@@ -603,7 +603,8 @@ class Wallet:
         if change_amount != 0:
             # normally, the update thread should ensure that the last change address is unused
             if not change_addr:
-                change_addr = self.change_addresses[-self.gap_limit_for_change]
+                change_addresses = self.accounts[0][1]
+                change_addr = change_addresses[-self.gap_limit_for_change]
             # Insert the change output at a random position in the outputs
             posn = random.randint(0, len(outputs))
             outputs[posn:posn] = [( change_addr,  change_amount)]
@@ -911,7 +912,7 @@ class Wallet:
 
         if label and self.labels.get(address) != label:
             if question('Give label "%s" to address %s ?'%(label,address)):
-                if address not in self.addressbook and address not in self.all_addresses(): 
+                if address not in self.addressbook and not self.is_mine(address):
                     self.addressbook.append(address)
                 self.labels[address] = label
 
@@ -941,7 +942,7 @@ class Wallet:
 
 
     def freeze(self,addr):
-        if addr in self.all_addresses() and addr not in self.frozen_addresses:
+        if self.is_mine(addr) and addr not in self.frozen_addresses:
             self.unprioritize(addr)
             self.frozen_addresses.append(addr)
             self.config.set_key('frozen_addresses', self.frozen_addresses, True)
@@ -950,7 +951,7 @@ class Wallet:
             return False
 
     def unfreeze(self,addr):
-        if addr in self.all_addresses() and addr in self.frozen_addresses:
+        if self.is_mine(addr) and addr in self.frozen_addresses:
             self.frozen_addresses.remove(addr)
             self.config.set_key('frozen_addresses', self.frozen_addresses, True)
             return True
@@ -958,7 +959,7 @@ class Wallet:
             return False
 
     def prioritize(self,addr):
-        if addr in self.all_addresses() and addr not in self.prioritized_addresses:
+        if is_mine(addr) and addr not in self.prioritized_addresses:
             self.unfreeze(addr)
             self.prioritized_addresses.append(addr)
             self.config.set_key('prioritized_addresses', self.prioritized_addresses, True)
@@ -967,7 +968,7 @@ class Wallet:
             return False
 
     def unprioritize(self,addr):
-        if addr in self.all_addresses() and addr in self.prioritized_addresses:
+        if is_mine(addr) and addr in self.prioritized_addresses:
             self.prioritized_addresses.remove(addr)
             self.config.set_key('prioritized_addresses', self.prioritized_addresses, True)
             return True
@@ -1185,7 +1186,7 @@ class WalletSynchronizer(threading.Thread):
         self.interface.send([('server.banner',[])],'synchronizer')
 
         # subscriptions
-        self.subscribe_to_addresses(self.wallet.all_addresses())
+        self.subscribe_to_addresses(self.wallet.addresses(True))
 
         while self.is_running():
             # 1. send new requests

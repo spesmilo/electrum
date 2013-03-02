@@ -1134,7 +1134,7 @@ class ElectrumWindow:
 
     def update_receiving_tab(self):
         self.recv_list.clear()
-        for address in self.wallet.all_addresses():
+        for address in self.wallet.addresses(True):
             if self.wallet.is_change(address):continue
             label = self.wallet.labels.get(address)
             h = self.wallet.history.get(address,[])

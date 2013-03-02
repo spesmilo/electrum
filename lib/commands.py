@@ -148,7 +148,7 @@ class Commands:
 
     def dumpprivkeys(self, addresses = None):
         if addresses is None:
-            addresses = self.wallet.all_addresses()
+            addresses = self.wallet.addresses(True)
         return self.wallet.get_private_keys(addresses, self.password)
 
     def validateaddress(self,addr):
@@ -220,7 +220,7 @@ class Commands:
             if not is_valid(from_addr):
                 raise BaseException("invalid Bitcoin address", from_addr)
             
-            if from_addr not in self.wallet.all_addresses():
+            if not self.wallet.is_mine(from_addr):
                 raise BaseException("address not in wallet")
 
         for k, v in self.wallet.labels.items():
@@ -281,7 +281,7 @@ class Commands:
 
     def listaddresses(self, show_all = False, show_balance = False, show_label = False):
         out = []
-        for addr in self.wallet.all_addresses():
+        for addr in self.wallet.addresses(True):
             if show_all or not self.wallet.is_change(addr):
                 if show_balance or show_label:
                     item = { 'address': addr }

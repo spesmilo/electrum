@@ -1987,7 +1987,7 @@ class ElectrumWindow(QMainWindow):
                     transaction.writerow(["address", "private_key"])
 
                     
-                    for addr, pk in self.wallet.get_private_keys(self.wallet.all_addresses(), password).items():
+                    for addr, pk in self.wallet.get_private_keys(self.wallet.addresses(True), password).items():
                         transaction.writerow(["%34s"%addr,pk])
 
                     self.show_message(_("Private keys exported."))
@@ -2510,7 +2510,7 @@ class ElectrumGui:
             waiting_dialog(waiting)
 
         waiting = lambda: False if wallet.is_up_to_date() else "%s\n%s %d\n%s %.1f"\
-            %(_("Please wait..."),_("Addresses generated:"),len(wallet.all_addresses()),_("Kilobytes received:"), wallet.interface.bytes_received/1024.)
+            %(_("Please wait..."),_("Addresses generated:"),len(wallet.addresses(True)),_("Kilobytes received:"), wallet.interface.bytes_received/1024.)
 
         wallet.set_up_to_date(False)
         wallet.interface.poke('synchronizer')
