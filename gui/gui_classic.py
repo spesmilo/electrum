@@ -21,6 +21,7 @@ from i18n import _, set_language
 from electrum.util import print_error
 import os.path, json, ast
 
+
 try:
     import PyQt4
 except:
@@ -35,7 +36,7 @@ from electrum.interface import DEFAULT_SERVERS
 try:
     import icons_rc
 except:
-    sys.exit("Error: Could not import icons_rc.py, please generate it with: 'pyrcc4 icons.qrc -o lib/icons_rc.py'")
+    sys.exit("Error: Could not import icons_rc.py, please generate it with: 'pyrcc4 icons.qrc -o gui/icons_rc.py'")
 
 from electrum.wallet import format_satoshis
 from electrum.bitcoin import Transaction, is_valid
