@@ -93,9 +93,10 @@ class Wallet:
         self.tx_height             = config.get('tx_height',{})
         self.requested_amounts     = config.get('requested_amounts',{}) 
         self.accounts              = config.get('accounts', {})   # this should not include public keys
-        self.sequences = {}
 
+        self.sequences = {}
         self.sequences[0] = DeterministicSequence(self.config.get('master_public_key'))
+
         if self.accounts.get(0) is None:
             self.accounts[0] = { 0:[], 1:[], 'name':'Main account' }
 
@@ -188,17 +189,12 @@ class Wallet:
         self.config.set_key('seed', self.seed, True)
         self.config.set_key('seed_version', self.seed_version, True)
 
-        self.init_main_account(self.seed)
-        
-
-    def init_main_account(self, seed):
-        # public key
-        sequence = DeterministicSequence.from_seed(seed)
-        self.accounts[0] = { 0:[], 1:[], 'name':'Main account' }
-        self.sequences[0] = sequence
-        self.config.set_key('accounts', self.accounts, True)
-        mpk = sequence.master_public_key
+        mpk = DeterministicSequence.mpk_from_seed(self.seed)
         self.config.set_key('master_public_key', mpk, True)
+        self.sequences[0] = DeterministicSequence(mpk)
+
+        self.accounts[0] = { 0:[], 1:[], 'name':'Main account' }
+        self.config.set_key('accounts', self.accounts, True)
 
 
 
@@ -330,7 +326,7 @@ class Wallet:
 
     def get_new_address(self, account, for_change, n):
         return self.sequences[account].get_address(for_change, n)
-        print_msg( address )
+        print address
         return address
 
     def change_gap_limit(self, value):
@@ -790,12 +786,13 @@ class Wallet:
         for i in range(len(tx.inputs)):
             txin = tx.inputs[i]
             account, is_change, n = self.get_address_index(txin['address'])
-            pk_addr = self.sequences[account].add_input_info(txin, account, is_change, n)
+            pk_addr, redeemScript = self.sequences[account].get_input_info(is_change, n)
+            txin['redeemScript'] = redeemScript
+            txin['electrumKeyID'] = (account, is_change, n) # used by the server to find the key
             pk_addresses.append(pk_addr)
 
         # get all private keys at once.
         private_keys = self.get_private_keys(pk_addresses, password)
-        print "private keys", private_keys
         tx.sign(private_keys)
 
         for address, x in outputs:

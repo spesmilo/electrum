@@ -424,13 +424,12 @@ class DeterministicSequence:
             self.is_p2sh = False
 
     @classmethod
-    def from_seed(klass, seed):
+    def mpk_from_seed(klass, seed):
         curve = SECP256k1
         secexp = klass.stretch_key(seed)
         master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
         master_public_key = master_private_key.get_verifying_key().to_string().encode('hex')
-        self = klass(master_public_key)
-        return self
+        return master_public_key
 
     @classmethod
     def stretch_key(self,seed):
@@ -494,21 +493,57 @@ class DeterministicSequence:
         return True
 
 
-    def add_input_info(self, txin, account, is_change, n):
+    def get_input_info(self, is_change, n):
 
-        txin['electrumKeyID'] = (account, is_change, n) # used by the server to find the key
-        if not self.p2sh:
-            txin['pubkeysig'] = [(None, None)]
-            pk_addr = txin['address']
+        if not self.is_p2sh:
+            pk_addr = self.get_address(is_change, n)
+            redeemScript = None
         else:
             pubkey1 = self.get_pubkey(n, is_change)
             pubkey2 = self.get_pubkey2(n, is_change)
             pk_addr = public_key_to_bc_address( pubkey1.decode('hex') ) # we need to return that address to get the right private key
-            txin['redeemScript'] = Transaction.multisig_script([pubkey1, pubkey2], 2)['redeemScript']
-        return pk_addr
+            redeemScript = Transaction.multisig_script([pubkey1, pubkey2], 2)['redeemScript']
+
+        return pk_addr, redeemScript
 
 
 
+
+class BIP32Sequence:
+
+    def __init__(self, mpkc, mpkc2 = None):
+        self.master_public_key, self.master_chain = mpkc
+        if mpkc2:
+            self.master_public_key2, self.master_chain2 = mpkc2
+            self.is_p2sh = True
+        else:
+            self.is_p2sh = False
+    
+    @classmethod
+    def mpk_from_seed(klass, seed):
+        master_secret, master_chain, master_public_key, master_public_key_compressed = bip32_init(seed)
+        return master_public_key, master_chain
+
+    def get_pubkey(self, sequence):
+        K = self.master_public_key
+        chain = self.mchain
+        for i in sequence:
+            K, K_compressed, chain = CKD_prime(K, chain, i)
+        return K_compressed
+
+    def get_address(self, sequence):
+        return hash_160_to_bc_address(hash_160(self.get_pubkey(sequence)))
+
+    def get_private_key(self, seed, sequence):
+        k = self.master_secret
+        chain = self.master_chain
+        for i in sequence:
+            k, k_compressed, chain = CKD(k, chain, i)
+        return SecretToASecret(k0, True)
+
+    def check_seed(self, seed):
+        master_secret, master_chain, master_public_key, master_public_key_compressed = bip32_init(seed)
+        assert self.master_public_key == master_public_key
 
 ################################## transactions
 
@@ -798,9 +833,9 @@ class Transaction:
             if self.input_info:
                 out['input_info'] = json.dumps(self.input_info).replace(' ','')
 
-
-        print "out", out
         return out
+
+
 
 
 def test_bip32():
