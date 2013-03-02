@@ -106,7 +106,7 @@ class ElectrumGui:
         self.print_list(messages, "%19s  %25s "%("Address", "Label"))
 
     def print_receive(self):
-        messages = map(lambda addr: "%30s    %30s       "%(addr, self.wallet.labels.get(addr,"")), self.wallet.addresses)
+        messages = map(lambda addr: "%30s    %30s       "%(addr, self.wallet.labels.get(addr,"")), self.wallet.addresses())
         self.print_list(messages, "%19s  %25s "%("Address", "Label"))
 
     def print_edit_line(self, y, label, text, index, size):

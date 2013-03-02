@@ -101,8 +101,9 @@ def select_from_contacts():
 def select_from_addresses():
     droid.dialogCreateAlert("Addresses:")
     l = []
-    for i in range(len(wallet.addresses)):
-        addr = wallet.addresses[i]
+    addresses = wallet.addresses()
+    for i in range(len(addresses)):
+        addr = addresses[i]
         label = wallet.labels.get(addr,addr)
         l.append( label )
     droid.dialogSetItems(l)
@@ -111,7 +112,7 @@ def select_from_addresses():
     result = response.result.get('item')
     droid.dialogDismiss()
     if result is not None:
-        addr = wallet.addresses[result]
+        addr = addresses[result]
         return addr
 
 
