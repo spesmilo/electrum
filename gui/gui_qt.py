@@ -1127,7 +1127,7 @@ class ElectrumWindow(QMainWindow):
         menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
         if self.receive_tab_mode == 2:
             menu.addAction(_("Request amount"), lambda: self.edit_amount())
-        menu.addAction(_("View QR"), lambda: ElectrumWindow.show_qrcode(_("Address"),"bitcoin:"+addr) )
+        menu.addAction(_("QR code"), lambda: ElectrumWindow.show_qrcode("bitcoin:" + addr, _("Address")) )
         menu.addAction(_("Edit label"), lambda: self.edit_label(True))
         menu.addAction(_("Private key"), lambda: self.view_private_key(addr))
         menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
@@ -1182,7 +1182,7 @@ class ElectrumWindow(QMainWindow):
         menu = QMenu()
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("Pay to"), lambda: self.payto(x, is_alias))
-        menu.addAction(_("View QR code"),lambda: self.show_qrcode(_("Address"),"bitcoin:"+addr))
+        menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")))
         if not is_alias:
             menu.addAction(_("Edit label"), lambda: self.edit_label(False))
         else:
@@ -1489,7 +1489,7 @@ class ElectrumWindow(QMainWindow):
         dialog.exec_()
 
     @staticmethod
-    def show_qrcode(title, data):
+    def show_qrcode(data, title = "QR code")):
         if not data: return
         d = QDialog(None)
         d.setModal(1)
