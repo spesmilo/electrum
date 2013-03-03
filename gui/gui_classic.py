@@ -2249,12 +2249,14 @@ class ElectrumWindow(QMainWindow):
         grid_plugins = QGridLayout(tab5)
         grid_plugins.setColumnStretch(0,1)
         tabs.addTab(tab5, _('Plugins') )
+        def mk_toggle(cb, p):
+            return lambda: cb.setChecked(p.toggle(self))
         for i, p in enumerate(self.wallet.plugins):
             try:
                 name, description = p.get_info()
                 cb = QCheckBox(name)
                 cb.setChecked(p.is_enabled())
-                cb.stateChanged.connect(lambda: cb.setChecked(p.toggle(self)))
+                cb.stateChanged.connect(mk_toggle(cb,p))
                 grid_plugins.addWidget(cb, i, 0)
                 grid_plugins.addWidget(HelpButton(description), i, 2)
             except:
