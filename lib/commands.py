@@ -231,8 +231,8 @@ class Commands:
             if change_addr and v == change_addr:
                 change_addr = k
 
-        amount = int(10000000*amount)
-        if fee: fee = int(10000000*fee)
+        amount = int(100000000*amount)
+        if fee: fee = int(100000000*fee)
         return self.wallet.mktx( [(to_address, amount)], self.password, fee , change_addr, from_addr)
 
 
