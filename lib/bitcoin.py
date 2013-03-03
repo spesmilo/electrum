@@ -483,6 +483,10 @@ class DeterministicSequence:
         secexp = self.stretch_key(seed)
         return self.get_private_key_from_stretched_exponent(sequence, secexp)
 
+    def get_private_keys(self, sequence_list, seed):
+        secexp = self.stretch_key(seed)
+        return [ self.get_private_key_from_stretched_exponent( sequence, secexp) for sequence in sequence_list]
+
     def check_seed(self, seed):
         curve = SECP256k1
         secexp = self.stretch_key(seed)

@@ -244,15 +244,20 @@ class Wallet:
     def get_private_keys(self, addresses, password):
         # decode seed in any case, in order to test the password
         seed = self.decode_seed(password)
-        secexp = self.sequences[0].stretch_key(seed)
         out = {}
+        l_sequences = []
+        l_addresses = []
         for address in addresses:
             if address in self.imported_keys.keys():
                 out[address] = pw_decode( self.imported_keys[address], password )
             else:
                 account, sequence = self.get_address_index(address)
                 if account == 0:
-                    out[address] = self.sequences[0].get_private_key_from_stretched_exponent( sequence, secexp)
+                    l_sequences.append(sequence)
+                    l_addresses.append(address)
+
+        pk = self.sequences[0].get_private_keys(l_sequences, seed)
+        for i, address in enumerate(l_addresses): out[address] = pk[i]                     
         return out
 
 
