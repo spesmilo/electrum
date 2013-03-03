@@ -55,7 +55,17 @@ and <tt>dumpprivkeys</tt>, in order to dump the private keys of all adresses tha
     "1GavSCND6TB7HuCnJSTEbHEmCctNGeJwXF": "***************************************************"
 }
 </pre>
-Note that <tt>dumpprivkey</tt> will ask for your password if your wallet is encrypted.
+Note that <tt>dumpprivkey</tt> will ask for your password if your
+wallet is encrypted.
+<br/>
+The GUI methods can be accessed through the <tt>gui</tt> variable.
+For example, you can display a QR code from a string using
+gui.show_qrcode.
+Example: 
+<pre>
+gui.show_qrcode(dumpprivkey(listunspent()[0]['address']))
+</pre>
+
 </div> 
 </body>
 </html>
