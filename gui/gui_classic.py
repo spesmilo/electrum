@@ -260,7 +260,7 @@ def ok_cancel_buttons(dialog):
 
 
 default_column_widths = { "history":[40,140,350,140], "contacts":[350,330], 
-	"receive":[[370],[370,200,130,130],[370,200,130,130]] }
+	"receive":[[370],[370,200,130]] }
 
 class ElectrumWindow(QMainWindow):
 
@@ -898,7 +898,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def create_receive_tab(self):
-        l,w,hbox = self.create_list_tab([ _('Address'), _('Label'), _(''), _('Balance'), _('Tx')])
+        l,w,hbox = self.create_list_tab([ _('Address'), _('Label'), _('Balance'), _('Tx')])
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_receive_menu)
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,0,1))
@@ -1036,6 +1036,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def update_receive_item(self, item):
+        item.setFont(0, QFont(MONOSPACE_FONT))
         address = str(item.data(0,0).toString())
         label = self.wallet.labels.get(address,'')
         item.setData(1,0,label)
@@ -1044,7 +1045,7 @@ class ElectrumWindow(QMainWindow):
                 
         c, u = self.wallet.get_addr_balance(address)
         balance = format_satoshis( c + u, False, self.wallet.num_zeros )
-        item.setData(3,0,balance)
+        item.setData(2,0,balance)
 
         if self.expert_mode:
             if address in self.wallet.frozen_addresses: 
@@ -1057,8 +1058,8 @@ class ElectrumWindow(QMainWindow):
         l = self.receive_list
         
         l.clear()
+        l.setColumnHidden(2, not self.expert_mode)
         l.setColumnHidden(3, not self.expert_mode)
-        l.setColumnHidden(4, not self.expert_mode)
         if not self.expert_mode:
             width = self.column_widths['receive'][0][0]
             l.setColumnWidth(0, width)
@@ -1070,7 +1071,7 @@ class ElectrumWindow(QMainWindow):
         for k, account in self.wallet.accounts.items():
             name = account.get('name',str(k))
             c,u = self.wallet.get_account_balance(k)
-            account_item = QTreeWidgetItem( [ name, '', '', format_satoshis(c+u), ''] )
+            account_item = QTreeWidgetItem( [ name, '', format_satoshis(c+u), ''] )
             l.addTopLevelItem(account_item)
             account_item.setExpanded(True)
             
@@ -1095,9 +1096,7 @@ class ElectrumWindow(QMainWindow):
                             gap = 0
 
                     num_tx = '*' if h == ['*'] else "%d"%len(h)
-                    item = QTreeWidgetItem( [ address, '', '', '', num_tx] )
-                    item.setFont(0, QFont(MONOSPACE_FONT))
-                    item.setFont(2, QFont(MONOSPACE_FONT))
+                    item = QTreeWidgetItem( [ address, '', '', num_tx] )
                     self.update_receive_item(item)
                     if is_red:
                         item.setBackgroundColor(1, QColor('red'))
@@ -1105,13 +1104,11 @@ class ElectrumWindow(QMainWindow):
 
         if self.wallet.imported_keys:
             c,u = self.wallet.get_imported_balance()
-            account_item = QTreeWidgetItem( [ _('Imported'), '', '', format_satoshis(c+u), ''] )
+            account_item = QTreeWidgetItem( [ _('Imported'), '', format_satoshis(c+u), ''] )
             l.addTopLevelItem(account_item)
             account_item.setExpanded(True)
             for address in self.wallet.imported_keys.keys():
-                item = QTreeWidgetItem( [ address, '', '', '', ''] )
-                item.setFont(0, QFont(MONOSPACE_FONT))
-                item.setFont(2, QFont(MONOSPACE_FONT))
+                item = QTreeWidgetItem( [ address, '', '', ''] )
                 self.update_receive_item(item)
                 account_item.addChild(item)
                 

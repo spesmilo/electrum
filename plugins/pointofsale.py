@@ -20,6 +20,7 @@ elif platform.system() == 'Darwin':
 else:
     MONOSPACE_FONT = 'monospace'
 
+column_index = 3
 
 class QR_Window(QWidget):
 
@@ -113,6 +114,9 @@ def toggle(gui):
     toggle_QR_window(gui, enabled)
 
     if enabled:
+        gui.expert_mode = True
+        gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Request')])
+
         gui.set_hook('item_changed', item_changed)
         gui.set_hook('current_item_changed', recv_changed)
         gui.set_hook('receive_menu', receive_menu)
@@ -120,6 +124,7 @@ def toggle(gui):
         gui.set_hook('timer_actions', timer_actions)
         gui.set_hook('close_main_window', close_main_window)
     else:
+        gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Tx')])
         gui.unset_hook('item_changed', item_changed)
         gui.unset_hook('current_item_changed', recv_changed)
         gui.unset_hook('receive_menu', receive_menu)
@@ -158,7 +163,7 @@ def toggle_QR_window(self, show):
 
 
 def item_changed(self, item, column):
-    if column == 4:
+    if column == column_index:
         address = str( item.text(0) )
         text = str( item.text(column) )
         try:
@@ -214,7 +219,7 @@ def edit_amount(self):
     l = self.receive_list
     item = l.currentItem()
     item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
-    l.editItem( item, 4 )
+    l.editItem( item, column_index )
     item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
 
 def receive_menu(self, menu):
@@ -227,9 +232,10 @@ def update_receive_item(self, address, item):
     except:
         print "cannot get requested amount", address, self.requested_amounts.get(address)
         amount, currency = None, None
-            
+        self.requested_amounts.pop(address)
+
     amount_str = amount + (' ' + currency if currency else '') if amount is not None  else ''
-    item.setData(4,0,amount_str)
+    item.setData(column_index,0,amount_str)
 
 
 def close_main_window(self):
