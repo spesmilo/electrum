@@ -438,23 +438,25 @@ class DeterministicSequence:
             seed = hashlib.sha256(seed + oldseed).digest()
         return string_to_number( seed )
 
-    def get_sequence(self, n, for_change):
+    def get_sequence(self, sequence):
+        for_change, n = sequence
         return string_to_number( Hash( "%d:%d:"%(n,for_change) + self.master_public_key.decode('hex') ) )
 
-    def get_address(self, for_change, n):
+    def get_address(self, sequence):
         if not self.is_p2sh:
-            pubkey = self.get_pubkey(n, for_change)
+            pubkey = self.get_pubkey(sequence)
             address = public_key_to_bc_address( pubkey.decode('hex') )
         else:
-            pubkey1 = self.get_pubkey(n, for_change)
-            pubkey2 = self.get_pubkey2(n, for_change)
+            pubkey1 = self.get_pubkey(sequence)
+            pubkey2 = self.get_pubkey2(sequence)
             address = Transaction.multisig_script([pubkey1, pubkey2], 2)["address"]
         return address
 
     #sec = self.p2sh_sequence.get_private_key(n, for_change, seed)
     #addr = hash_160_to_bc_address(hash_160(txin["redeemScript"].decode('hex')), 5)
 
-    def get_pubkey2(self, n, for_change):
+    def get_pubkey2(self, sequence):
+        for_change, n = sequence
         curve = SECP256k1
         z = string_to_number( Hash( "%d:%d:"%(n, for_change) + self.mpk2.decode('hex') ) )
         master_public_key = ecdsa.VerifyingKey.from_string( self.mpk2.decode('hex'), curve = SECP256k1 )
@@ -462,24 +464,24 @@ class DeterministicSequence:
         public_key2 = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
         return '04' + public_key2.to_string().encode('hex')
 
-    def get_pubkey(self, n, for_change):
+    def get_pubkey(self, sequence):
         curve = SECP256k1
-        z = self.get_sequence(n, for_change)
+        z = self.get_sequence(sequence)
         master_public_key = ecdsa.VerifyingKey.from_string( self.master_public_key.decode('hex'), curve = SECP256k1 )
         pubkey_point = master_public_key.pubkey.point + z*curve.generator
         public_key2 = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
         return '04' + public_key2.to_string().encode('hex')
 
-    def get_private_key_from_stretched_exponent(self, n, for_change, secexp):
+    def get_private_key_from_stretched_exponent(self, sequence, secexp):
         order = generator_secp256k1.order()
-        secexp = ( secexp + self.get_sequence(n,for_change) ) % order
+        secexp = ( secexp + self.get_sequence(sequence) ) % order
         pk = number_to_string( secexp, generator_secp256k1.order() )
         compressed = False
         return SecretToASecret( pk, compressed )
         
-    def get_private_key(self, n, for_change, seed):
+    def get_private_key(self, sequence, seed):
         secexp = self.stretch_key(seed)
-        return self.get_private_key_from_stretched_exponent(n, for_change, secexp)
+        return self.get_private_key_from_stretched_exponent(sequence, secexp)
 
     def check_seed(self, seed):
         curve = SECP256k1
@@ -493,14 +495,14 @@ class DeterministicSequence:
         return True
 
 
-    def get_input_info(self, is_change, n):
+    def get_input_info(self, sequence):
 
         if not self.is_p2sh:
-            pk_addr = self.get_address(is_change, n)
+            pk_addr = self.get_address(sequence)
             redeemScript = None
         else:
-            pubkey1 = self.get_pubkey(n, is_change)
-            pubkey2 = self.get_pubkey2(n, is_change)
+            pubkey1 = self.get_pubkey(sequence)
+            pubkey2 = self.get_pubkey2(sequence)
             pk_addr = public_key_to_bc_address( pubkey1.decode('hex') ) # we need to return that address to get the right private key
             redeemScript = Transaction.multisig_script([pubkey1, pubkey2], 2)['redeemScript']
 

@@ -224,13 +224,13 @@ class Wallet:
                 addresses = self.accounts[account][for_change]
                 for addr in addresses:
                     if address == addr:
-                        return account, for_change, addresses.index(addr)
+                        return account, (for_change, addresses.index(addr))
         raise BaseException("not found")
         
 
     def get_public_key(self, address):
-        account, n, for_change = self.get_address_index(address)
-        return self.sequences[account].get_pubkey(n, for_change)
+        account, sequence = self.get_address_index(address)
+        return self.sequences[account].get_pubkey( sequence )
 
 
     def decode_seed(self, password):
@@ -250,9 +250,9 @@ class Wallet:
             if address in self.imported_keys.keys():
                 out[address] = pw_decode( self.imported_keys[address], password )
             else:
-                account, for_change, n = self.get_address_index(address)
+                account, sequence = self.get_address_index(address)
                 if account == 0:
-                    out[address] = self.sequences[0].get_private_key_from_stretched_exponent(n, for_change, secexp)
+                    out[address] = self.sequences[0].get_private_key_from_stretched_exponent( sequence, secexp)
         return out
 
 
@@ -289,9 +289,9 @@ class Wallet:
 
             # find the address:
             if txin.get('electrumKeyID'):
-                account, for_change, n = txin.get('electrumKeyID')
-                sec = self.sequences[account].get_private_key(n, for_change, seed)
-                addr = self.sequences[account].get_address(n, for_change)
+                account, sequence = txin.get('electrumKeyID')
+                sec = self.sequences[account].get_private_key(sequence, seed)
+                addr = self.sequences[account].get_address(sequence)
                 txin['address'] = addr
                 private_keys[addr] = sec
 
@@ -325,7 +325,7 @@ class Wallet:
         
 
     def get_new_address(self, account, for_change, n):
-        return self.sequences[account].get_address(for_change, n)
+        return self.sequences[account].get_address((for_change, n))
         print address
         return address
 
@@ -626,6 +626,7 @@ class Wallet:
         else:
             #print "not enough funds: %s %s"%(format_satoshis(total), format_satoshis(fee))
             inputs = []
+
         return inputs, total, fee
 
     def add_tx_change( self, outputs, amount, fee, total, change_addr=None ):
@@ -789,9 +790,9 @@ class Wallet:
             if address in self.imported_keys.keys(): 
                 pk_addresses.append(address)
                 continue
-            account, is_change, n = self.get_address_index(address)
-            txin['electrumKeyID'] = (account, is_change, n) # used by the server to find the key
-            pk_addr, redeemScript = self.sequences[account].get_input_info(is_change, n)
+            account, sequence = self.get_address_index(address)
+            txin['electrumKeyID'] = (account, sequence) # used by the server to find the key
+            pk_addr, redeemScript = self.sequences[account].get_input_info(sequence)
             if redeemScript: txin['redeemScript'] = redeemScript
             pk_addresses.append(pk_addr)
 
