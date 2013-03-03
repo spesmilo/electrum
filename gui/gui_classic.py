@@ -968,6 +968,9 @@ class ElectrumWindow(QMainWindow):
         item = self.receive_list.itemAt(position)
         if not item: return
         addr = unicode(item.text(0))
+        if not is_valid(addr): 
+            item.setExpanded(not item.isExpanded())
+            return 
         menu = QMenu()
         menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("QR code"), lambda: ElectrumWindow.show_qrcode("bitcoin:" + addr, _("Address")) )
