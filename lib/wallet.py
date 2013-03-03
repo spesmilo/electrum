@@ -973,7 +973,7 @@ class Wallet:
             return False
 
     def prioritize(self,addr):
-        if is_mine(addr) and addr not in self.prioritized_addresses:
+        if self.is_mine(addr) and addr not in self.prioritized_addresses:
             self.unfreeze(addr)
             self.prioritized_addresses.append(addr)
             self.config.set_key('prioritized_addresses', self.prioritized_addresses, True)
@@ -982,7 +982,7 @@ class Wallet:
             return False
 
     def unprioritize(self,addr):
-        if is_mine(addr) and addr in self.prioritized_addresses:
+        if self.is_mine(addr) and addr in self.prioritized_addresses:
             self.prioritized_addresses.remove(addr)
             self.config.set_key('prioritized_addresses', self.prioritized_addresses, True)
             return True
