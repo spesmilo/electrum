@@ -269,6 +269,8 @@ class ElectrumWindow(QMainWindow):
         self.lite = None
         self.wallet = wallet
         self.config = config
+        self.init_plugins()
+
         self.wallet.interface.register_callback('updated', self.update_callback)
         self.wallet.interface.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')) )
         self.wallet.interface.register_callback('disconnected', self.update_callback)
@@ -321,25 +323,51 @@ class ElectrumWindow(QMainWindow):
         # set initial message
         self.console.showMessage(self.wallet.banner)
 
-        #init plugins
-        for p in self.wallet.plugins:
+
+    # plugins
+    def init_plugins(self):
+        if os.path.exists("plugins"):
+            import imp, pkgutil
+            fp, pathname, description = imp.find_module('plugins')
+            imp.load_module('electrum_plugins', fp, pathname, description)
+            plugin_names = [name for a, name, b in pkgutil.iter_modules(['plugins'])]
+            self.plugins = map(lambda name: imp.load_source('electrum_plugins.'+name, os.path.join(pathname,name+'.py')), plugin_names)
+        else:
+            self.plugins = []
+
+        self.plugin_hooks = {}
+        for p in self.plugins:
             try:
-                p.init_gui(self)
+                p.init(self)
             except:
                 print_msg("Error:cannot initialize plugin",p)
                 traceback.print_exc(file=sys.stdout)
 
+    def set_hook(self, name, callback):
+        h = self.plugin_hooks.get(name, [])
+        h.append(callback)
+        self.plugin_hooks[name] = h
+
+    def unset_hook(self, name, callback):
+        h = self.plugin_hooks.get(name,[])
+        if callback in h: h.remove(callback)
+        self.plugin_hooks[name] = h
+
+    def run_hook(self, name, args):
+        for cb in self.plugin_hooks.get(name,[]):
+            apply(cb, args)
+
 
     def close(self):
         QMainWindow.close(self)
-        self.wallet.run_hook('close_main_window', (self,))
+        self.run_hook('close_main_window', (self,))
 
     def connect_slots(self, sender):
         self.connect(sender, QtCore.SIGNAL('timersignal'), self.timer_actions)
         self.previous_payto_e=''
 
     def timer_actions(self):
-        self.wallet.run_hook('timer_actions', (self,))
+        self.run_hook('timer_actions', (self,))
             
         if self.payto_e.hasFocus():
             return
@@ -547,11 +575,11 @@ class ElectrumWindow(QMainWindow):
                 
             self.current_item_changed(item)
 
-        self.wallet.run_hook('item_changed',(self, item, column))
+        self.run_hook('item_changed',(self, item, column))
 
 
     def current_item_changed(self, a):
-        self.wallet.run_hook('current_item_changed',(self, a))
+        self.run_hook('current_item_changed',(self, a))
 
 
 
@@ -697,7 +725,7 @@ class ElectrumWindow(QMainWindow):
         self.amount_e.textChanged.connect(lambda: entry_changed(False) )
         self.fee_e.textChanged.connect(lambda: entry_changed(True) )
 
-        self.wallet.run_hook('create_send_tab',(self,grid))
+        self.run_hook('create_send_tab',(self,grid))
         return w2
 
 
@@ -760,7 +788,7 @@ class ElectrumWindow(QMainWindow):
             self.show_message(str(e))
             return
 
-        self.wallet.run_hook('send_tx', (wallet, self, tx))
+        self.run_hook('send_tx', (wallet, self, tx))
 
         if label: 
             self.wallet.labels[tx.hash()] = label
@@ -953,7 +981,7 @@ class ElectrumWindow(QMainWindow):
             t = _("Unprioritize") if addr in self.wallet.prioritized_addresses else _("Prioritize")
             menu.addAction(t, lambda: self.toggle_priority(addr))
             
-        self.wallet.run_hook('receive_menu', (self, menu,))
+        self.run_hook('receive_menu', (self, menu,))
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
 
@@ -1010,7 +1038,7 @@ class ElectrumWindow(QMainWindow):
         label = self.wallet.labels.get(address,'')
         item.setData(1,0,label)
 
-        self.wallet.run_hook('update_receive_item', (self, address, item))
+        self.run_hook('update_receive_item', (self, address, item))
                 
         c, u = self.wallet.get_addr_balance(address)
         balance = format_satoshis( c + u, False, self.wallet.num_zeros )
@@ -2019,7 +2047,7 @@ class ElectrumWindow(QMainWindow):
         tabs.addTab(tab5, _('Plugins') )
         def mk_toggle(cb, p):
             return lambda: cb.setChecked(p.toggle(self))
-        for i, p in enumerate(self.wallet.plugins):
+        for i, p in enumerate(self.plugins):
             try:
                 name, description = p.get_info()
                 cb = QCheckBox(name)

@@ -7,14 +7,12 @@ except ImportError:
     zbar = None
 
 
-def init(wallet):
-    pass
 
-def init_gui(gui):
+def init(gui):
     if is_enabled():
-        gui.wallet.set_hook('create_send_tab', create_send_tab)
+        gui.set_hook('create_send_tab', create_send_tab)
     else:
-        gui.wallet.unset_hook('create_send_tab', create_send_tab)
+        gui.unset_hook('create_send_tab', create_send_tab)
 
 def get_info():
     return 'QR scans', "QR Scans.\nInstall the zbar package to enable this plugin"

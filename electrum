@@ -41,12 +41,6 @@ if os.path.exists("lib"):
     imp.load_module('electrum', fp, pathname, description)
     fp, pathname, description = imp.find_module('gui')
     imp.load_module('electrum_gui', fp, pathname, description)
-    fp, pathname, description = imp.find_module('plugins')
-    imp.load_module('electrum_plugins', fp, pathname, description)
-    plugin_names = [name for _, name, _ in pkgutil.iter_modules(['plugins'])]
-    plugins = map(lambda name: imp.load_source('electrum_plugins.'+name, os.path.join(pathname,name+'.py')), plugin_names)
-else:
-    plugins = []
 
 
 from electrum import *
@@ -109,7 +103,6 @@ if __name__ == '__main__':
 
     config = SimpleConfig(config_options)
     wallet = Wallet(config)
-    wallet.init_plugins(plugins)
 
 
     if len(args)==0:

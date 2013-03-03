@@ -96,11 +96,8 @@ class QR_Window(QWidget):
 def get_info():
     return 'Point of Sale', _('Show QR code window and amounts requested for each address. Add menu item to request amount.')
 
-def init(wallet):
-    wallet.requested_amounts = wallet.config.get('requested_amounts',{}) 
-
-
-def init_gui(gui):
+def init(gui):
+    gui.requested_amounts = gui.config.get('requested_amounts',{}) 
     gui.qr_window = None
 
 
@@ -116,19 +113,19 @@ def toggle(gui):
     toggle_QR_window(gui, enabled)
 
     if enabled:
-        gui.wallet.set_hook('item_changed', item_changed)
-        gui.wallet.set_hook('current_item_changed', recv_changed)
-        gui.wallet.set_hook('receive_menu', receive_menu)
-        gui.wallet.set_hook('update_receive_item', update_receive_item)
-        gui.wallet.set_hook('timer_actions', timer_actions)
-        gui.wallet.set_hook('close_main_window', close_main_window)
+        gui.set_hook('item_changed', item_changed)
+        gui.set_hook('current_item_changed', recv_changed)
+        gui.set_hook('receive_menu', receive_menu)
+        gui.set_hook('update_receive_item', update_receive_item)
+        gui.set_hook('timer_actions', timer_actions)
+        gui.set_hook('close_main_window', close_main_window)
     else:
-        gui.wallet.unset_hook('item_changed', item_changed)
-        gui.wallet.unset_hook('current_item_changed', recv_changed)
-        gui.wallet.unset_hook('receive_menu', receive_menu)
-        gui.wallet.unset_hook('update_receive_item', update_receive_item)
-        gui.wallet.unset_hook('timer_actions', timer_actions)
-        gui.wallet.unset_hook('close_main_window', close_main_window)
+        gui.unset_hook('item_changed', item_changed)
+        gui.unset_hook('current_item_changed', recv_changed)
+        gui.unset_hook('receive_menu', receive_menu)
+        gui.unset_hook('update_receive_item', update_receive_item)
+        gui.unset_hook('timer_actions', timer_actions)
+        gui.unset_hook('close_main_window', close_main_window)
         
 
     return enabled
@@ -143,7 +140,7 @@ def toggle_QR_window(self, show):
         if item:
             address = str(item.text(1))
             label = self.wallet.labels.get(address)
-            amount, currency = self.wallet.requested_amounts.get(address, (None, None))
+            amount, currency = self.requested_amounts.get(address, (None, None))
             self.qr_window.set_content( address, label, amount, currency )
 
     elif show and self.qr_window and not self.qr_window.isVisible():
@@ -182,8 +179,8 @@ def item_changed(self, item, column):
             else:
                 currency = currency.upper()
                     
-            self.wallet.requested_amounts[address] = (amount, currency)
-            self.wallet.config.set_key('requested_amounts', self.wallet.requested_amounts, True)
+            self.requested_amounts[address] = (amount, currency)
+            self.wallet.config.set_key('requested_amounts', self.requested_amounts, True)
 
             label = self.wallet.labels.get(address)
             if label is None:
@@ -195,8 +192,8 @@ def item_changed(self, item, column):
 
         else:
             item.setText(column,'')
-            if address in self.wallet.requested_amounts:
-                self.wallet.requested_amounts.pop(address)
+            if address in self.requested_amounts:
+                self.requested_amounts.pop(address)
             
         self.update_receive_item(self.receive_list.currentItem())
 
@@ -206,7 +203,7 @@ def recv_changed(self, a):
         address = str(a.text(0))
         label = self.wallet.labels.get(address)
         try:
-            amount, currency = self.wallet.requested_amounts.get(address, (None, None))
+            amount, currency = self.requested_amounts.get(address, (None, None))
         except:
             amount, currency = None, None
         self.qr_window.set_content( address, label, amount, currency )
@@ -226,9 +223,9 @@ def receive_menu(self, menu):
 
 def update_receive_item(self, address, item):
     try:
-        amount, currency = self.wallet.requested_amounts.get(address, (None, None))
+        amount, currency = self.requested_amounts.get(address, (None, None))
     except:
-        print "cannot get requested amount", address, self.wallet.requested_amounts.get(address)
+        print "cannot get requested amount", address, self.requested_amounts.get(address)
         amount, currency = None, None
             
     amount_str = amount + (' ' + currency if currency else '') if amount is not None  else ''

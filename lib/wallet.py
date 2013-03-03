@@ -106,10 +106,6 @@ class Wallet:
         except:
             print_msg("Warning: Cannot deserialize transactions. skipping")
         
-        # plugins
-        self.plugins = []
-        self.plugin_hooks = {}
-
         # not saved
         self.prevout_values = {}     # my own transaction outputs
         self.spent_outputs = []
@@ -132,32 +128,6 @@ class Wallet:
 
         for tx_hash in self.transactions.keys():
             self.update_tx_outputs(tx_hash)
-
-
-    # plugins 
-    def set_hook(self, name, callback):
-        h = self.plugin_hooks.get(name, [])
-        h.append(callback)
-        self.plugin_hooks[name] = h
-
-    def unset_hook(self, name, callback):
-        h = self.plugin_hooks.get(name,[])
-        if callback in h: h.remove(callback)
-        self.plugin_hooks[name] = h
-
-    def run_hook(self, name, args):
-        for cb in self.plugin_hooks.get(name,[]):
-            apply(cb, args)
-
-    def init_plugins(self, plugins):
-        self.plugins = plugins
-        for p in plugins:
-            try:
-                p.init(self)
-            except:
-                import traceback
-                print_msg("Error:cannot initialize plugin",p)
-                traceback.print_exc(file=sys.stdout)
 
 
     def set_up_to_date(self,b):
