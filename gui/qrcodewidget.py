@@ -3,7 +3,7 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
-import bmp, pyqrnative, qrscanner
+import bmp, pyqrnative
 
 
 class QRCodeWidget(QWidget):

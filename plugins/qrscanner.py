@@ -8,6 +8,26 @@ except ImportError:
 
 from urlparse import urlparse, parse_qs
 
+
+def init(wallet):
+    pass
+
+def init_gui(gui):
+    if is_enabled():
+        gui.wallet.set_hook('create_send_tab', create_send_tab)
+    else:
+        gui.wallet.unset_hook('create_send_tab', create_send_tab)
+
+def get_info():
+    return 'QR scans', "QR Scans"
+
+def is_enabled():
+    return is_available()
+
+def toggle(gui):
+    return is_enabled()
+
+
 def is_available():
     if not zbar:
         return False
@@ -61,6 +81,28 @@ def parse_uri(uri):
             result[k] = v[0]
         
     return result    
+
+
+
+def fill_from_qr(self):
+    qrcode = qrscanner.scan_qr()
+    if 'address' in qrcode:
+        self.payto_e.setText(qrcode['address'])
+    if 'amount' in qrcode:
+        self.amount_e.setText(str(qrcode['amount']))
+    if 'label' in qrcode:
+        self.message_e.setText(qrcode['label'])
+    if 'message' in qrcode:
+        self.message_e.setText("%s (%s)" % (self.message_e.text(), qrcode['message']))
+                
+
+def create_send_tab(gui, grid):
+    if qrscanner.is_available():
+        b = QPushButton(_("Scan QR code"))
+        b.clicked.connect(lambda: fill_from_qr(gui))
+        grid.addWidget(b, 1, 5)
+
+
 
 if __name__ == '__main__':
     # Run some tests

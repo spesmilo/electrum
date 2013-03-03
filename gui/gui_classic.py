@@ -42,7 +42,7 @@ from electrum.wallet import format_satoshis
 from electrum.bitcoin import Transaction, is_valid
 from electrum import mnemonic
 
-import bmp, pyqrnative, qrscanner
+import bmp, pyqrnative
 import exchange_rate
 
 from decimal import Decimal
@@ -620,24 +620,7 @@ class ElectrumWindow(QMainWindow):
         self.payto_e = QLineEdit()
         grid.addWidget(QLabel(_('Pay to')), 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, 3)
-        
-        def fill_from_qr():
-            qrcode = qrscanner.scan_qr()
-            if 'address' in qrcode:
-                self.payto_e.setText(qrcode['address'])
-            if 'amount' in qrcode:
-                self.amount_e.setText(str(qrcode['amount']))
-            if 'label' in qrcode:
-                self.message_e.setText(qrcode['label'])
-            if 'message' in qrcode:
-                self.message_e.setText("%s (%s)" % (self.message_e.text(), qrcode['message']))
-                
-
-        if qrscanner.is_available():
-            b = QPushButton(_("Scan QR code"))
-            b.clicked.connect(fill_from_qr)
-            grid.addWidget(b, 1, 5)
-    
+            
         grid.addWidget(HelpButton(_('Recipient of the funds.') + '\n\n' + _('You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)')), 1, 4)
 
         completer = QCompleter()
@@ -714,6 +697,7 @@ class ElectrumWindow(QMainWindow):
         self.amount_e.textChanged.connect(lambda: entry_changed(False) )
         self.fee_e.textChanged.connect(lambda: entry_changed(True) )
 
+        self.wallet.run_hook('create_send_tab',(self,grid))
         return w2
 
 
