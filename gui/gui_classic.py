@@ -326,14 +326,16 @@ class ElectrumWindow(QMainWindow):
 
     # plugins
     def init_plugins(self):
+        import imp, pkgutil
         if os.path.exists("plugins"):
-            import imp, pkgutil
             fp, pathname, description = imp.find_module('plugins')
             imp.load_module('electrum_plugins', fp, pathname, description)
             plugin_names = [name for a, name, b in pkgutil.iter_modules(['plugins'])]
             self.plugins = map(lambda name: imp.load_source('electrum_plugins.'+name, os.path.join(pathname,name+'.py')), plugin_names)
         else:
-            self.plugins = []
+            import electrum_plugins
+            plugin_names = [name for a, name, b in pkgutil.iter_modules(electrum_plugins.__path__)]
+            self.plugins = [ __import__('electrum_plugins.'+name, fromlist=['electrum_plugins']) for name in plugin_names]
 
         self.plugin_hooks = {}
         for p in self.plugins:
@@ -2041,25 +2043,25 @@ class ElectrumWindow(QMainWindow):
         grid_raw.setRowStretch(3,1)
 
         # plugins
-        tab5 = QWidget()
-        grid_plugins = QGridLayout(tab5)
-        grid_plugins.setColumnStretch(0,1)
-        tabs.addTab(tab5, _('Plugins') )
-        def mk_toggle(cb, p):
-            return lambda: cb.setChecked(p.toggle(self))
-        for i, p in enumerate(self.plugins):
-            try:
-                name, description = p.get_info()
-                cb = QCheckBox(name)
-                cb.setChecked(p.is_enabled())
-                cb.stateChanged.connect(mk_toggle(cb,p))
-                grid_plugins.addWidget(cb, i, 0)
-                grid_plugins.addWidget(HelpButton(description), i, 2)
-            except:
-                print_msg("Error: cannot display plugin", p)
-                traceback.print_exc(file=sys.stdout)
-
-        grid_plugins.setRowStretch(i+1,1)
+        if self.plugins:
+            tab5 = QWidget()
+            grid_plugins = QGridLayout(tab5)
+            grid_plugins.setColumnStretch(0,1)
+            tabs.addTab(tab5, _('Plugins') )
+            def mk_toggle(cb, p):
+                return lambda: cb.setChecked(p.toggle(self))
+            for i, p in enumerate(self.plugins):
+                try:
+                    name, description = p.get_info()
+                    cb = QCheckBox(name)
+                    cb.setChecked(p.is_enabled())
+                    cb.stateChanged.connect(mk_toggle(cb,p))
+                    grid_plugins.addWidget(cb, i, 0)
+                    grid_plugins.addWidget(HelpButton(description), i, 2)
+                except:
+                    print_msg("Error: cannot display plugin", p)
+                    traceback.print_exc(file=sys.stdout)
+            grid_plugins.setRowStretch(i+1,1)
 
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
