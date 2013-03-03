@@ -31,7 +31,7 @@ import datetime
 
 from electrum.version import ELECTRUM_VERSION as electrum_version
 from electrum.util import format_satoshis, age
-import gui_qt
+import gui_classic
 import shutil
 
 bitcoin = lambda v: v * 100000000
@@ -172,7 +172,7 @@ class ElectrumGui(QObject):
         if self.expert == None:
             timer = Timer()
             timer.start()
-            self.expert = gui_qt.ElectrumWindow(self.wallet, self.config)
+            self.expert = gui_classic.ElectrumWindow(self.wallet, self.config)
             self.expert.app = self.app
             self.expert.connect_slots(timer)
             self.expert.update_wallet()
@@ -199,7 +199,7 @@ class ElectrumGui(QObject):
         return choice == QMessageBox.Yes
 
     def restore_or_create(self):
-        qt_gui_object = gui_qt.ElectrumGui(self.wallet, self.app)
+        qt_gui_object = gui_classic.ElectrumGui(self.wallet, self.app)
         return qt_gui_object.restore_or_create()
 
 class TransactionWindow(QDialog):
@@ -910,7 +910,7 @@ class MiniActuator:
         webbrowser.open(url)
 
     def show_seed_dialog(self):
-        gui_qt.ElectrumWindow.show_seed_dialog(self.wallet)
+        gui_classic.ElectrumWindow.show_seed_dialog(self.wallet)
 
 class MiniDriver(QObject):
 
