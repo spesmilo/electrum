@@ -1,12 +1,10 @@
 from electrum.util import print_error
+from urlparse import urlparse, parse_qs
 
 try:
     import zbar
-except ImportError:    
-    print_error("Install zbar package to enable QR scans")
+except ImportError:
     zbar = None
-
-from urlparse import urlparse, parse_qs
 
 
 def init(wallet):
@@ -19,7 +17,7 @@ def init_gui(gui):
         gui.wallet.unset_hook('create_send_tab', create_send_tab)
 
 def get_info():
-    return 'QR scans', "QR Scans"
+    return 'QR scans', "QR Scans.\nInstall the zbar package to enable this plugin"
 
 def is_enabled():
     return is_available()
