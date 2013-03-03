@@ -1084,8 +1084,7 @@ class Wallet:
                 print_error("new history is orphaning transaction:", tx_hash)
                 # check that all outputs are not mine, request histories
                 ext_requests = []
-                for o in tx.get('outputs'):
-                    _addr = o.get('address')
+                for _addr, _v in tx.outputs:
                     # assert not self.is_mine(_addr)
                     ext_requests.append( ('blockchain.address.get_history', [_addr]) )
 
