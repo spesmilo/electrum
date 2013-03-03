@@ -453,6 +453,16 @@ class ElectrumWindow(QMainWindow):
         # set initial message
         self.console.showMessage(self.wallet.banner)
 
+        #init plugins
+        for p in self.wallet.plugins:
+            try:
+                p.init_gui(self)
+            except:
+                import traceback
+                print_msg("Error:cannot initialize plugin",p)
+                traceback.print_exc(file=sys.stdout)
+
+
     def close(self):
         QMainWindow.close(self)
         if self.qr_window: 
@@ -1332,16 +1342,6 @@ class ElectrumWindow(QMainWindow):
         self.console.history = self.config.get("console-history",[])
         self.console.history_index = len(self.console.history)
 
-        #init plugins
-        for p in self.wallet.plugins:
-            try:
-                p.init_console(self.console, self)
-            except:
-                import traceback
-                print_msg("Error:cannot initialize plugin",p)
-                traceback.print_exc(file=sys.stdout)
-
-        
         console.updateNamespace({'wallet' : self.wallet, 'interface' : self.wallet.interface, 'gui':self})
         console.updateNamespace({'util' : util, 'bitcoin':bitcoin})
 
