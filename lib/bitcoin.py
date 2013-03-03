@@ -463,7 +463,7 @@ class DeterministicSequence:
 
     def get_private_key_from_stretched_exponent(self, sequence, secexp):
         order = generator_secp256k1.order()
-        secexp = ( secexp + self.get_sequence(sequence) ) % order
+        secexp = ( secexp + self.get_sequence(sequence, self.master_public_key) ) % order
         pk = number_to_string( secexp, generator_secp256k1.order() )
         compressed = False
         return SecretToASecret( pk, compressed )
