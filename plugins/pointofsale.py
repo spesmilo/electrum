@@ -156,9 +156,6 @@ def toggle_QR_window(self, show):
         self.qr_window_geometry = self.qr_window.geometry()
         self.qr_window.setVisible(False)
 
-    #self.print_button.setHidden(self.qr_window is None or not self.qr_window.isVisible())
-    self.receive_list.setColumnHidden(2, self.qr_window is None or not self.qr_window.isVisible())
-    #self.receive_list.setColumnWidth(1, 200)
 
 
 
