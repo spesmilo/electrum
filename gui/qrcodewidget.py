@@ -28,7 +28,10 @@ class QRCodeWidget(QWidget):
         if self.addr and not self.qr:
             self.qr = pyqrnative.QRCode(self.size, pyqrnative.QRErrorCorrectLevel.L)
             self.qr.addData(self.addr)
-            self.qr.make()
+            try:
+                self.qr.make()
+            except:
+                self.qr=None
             self.update()
 
     def paintEvent(self, e):
