@@ -91,7 +91,6 @@ class Wallet:
         self.imported_keys         = config.get('imported_keys',{})
         self.history               = config.get('addr_history',{})        # address -> list(txid, height)
         self.tx_height             = config.get('tx_height',{})
-        self.requested_amounts     = config.get('requested_amounts',{}) 
         self.accounts              = config.get('accounts', {})   # this should not include public keys
 
         self.sequences = {}
@@ -145,6 +144,10 @@ class Wallet:
         h = self.plugin_hooks.get(name,[])
         if callback in h: h.remove(callback)
         self.plugin_hooks[name] = h
+
+    def run_hook(self, name, args):
+        for cb in self.plugin_hooks.get(name,[]):
+            apply(cb, args)
 
     def init_plugins(self, plugins):
         self.plugins = plugins
@@ -1039,7 +1042,6 @@ class Wallet:
             'gap_limit': self.gap_limit,
             'transactions': tx,
             'tx_height': self.tx_height,
-            'requested_amounts': self.requested_amounts,
         }
         for k, v in s.items():
             self.config.set_key(k,v)
