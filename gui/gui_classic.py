@@ -18,8 +18,8 @@
 
 import sys, time, datetime, re
 from i18n import _, set_language
-from electrum.util import print_error
-import os.path, json, ast
+from electrum.util import print_error, print_msg
+import os.path, json, ast, traceback
 
 
 try:
@@ -458,7 +458,6 @@ class ElectrumWindow(QMainWindow):
             try:
                 p.init_gui(self)
             except:
-                import traceback
                 print_msg("Error:cannot initialize plugin",p)
                 traceback.print_exc(file=sys.stdout)
 
@@ -2231,12 +2230,7 @@ class ElectrumWindow(QMainWindow):
         tab4 = QWidget()
         grid_raw = QGridLayout(tab4)
         grid_raw.setColumnStretch(0,1)
-        tabs.addTab(tab4, _('Raw transactions') )
-        #
-        #grid_raw.addWidget(QLabel(_("Read raw transaction")), 3, 0)
-        #grid_raw.addWidget(EnterButton(_("From file"), self.do_sign_from_file),3,1)
-        #grid_raw.addWidget(EnterButton(_("From text"), self.do_sign_from_text),3,2)
-        #grid_raw.addWidget(HelpButton(_("This will show you some useful information about an unsigned transaction")),3,3)
+        tabs.addTab(tab4, _('Raw tx') )  # move this to wallet tab
 
         if self.wallet.seed:
             grid_raw.addWidget(QLabel(_("Sign transaction")), 1, 0)
@@ -2249,6 +2243,25 @@ class ElectrumWindow(QMainWindow):
         grid_raw.addWidget(EnterButton(_("From text"), self.do_send_from_text),2,2)
         grid_raw.addWidget(HelpButton(_("This will broadcast a transaction to the network.")),2,3)
         grid_raw.setRowStretch(3,1)
+
+        # plugins
+        tab5 = QWidget()
+        grid_plugins = QGridLayout(tab5)
+        grid_plugins.setColumnStretch(0,1)
+        tabs.addTab(tab5, _('Plugins') )
+        for i, p in enumerate(self.wallet.plugins):
+            try:
+                name, description = p.get_info()
+                cb = QCheckBox(name)
+                cb.setChecked(p.is_enabled())
+                cb.stateChanged.connect(lambda: cb.setChecked(p.toggle(self)))
+                grid_plugins.addWidget(cb, i, 0)
+                grid_plugins.addWidget(HelpButton(description), i, 2)
+            except:
+                print_msg("Error: cannot display plugin", p)
+                traceback.print_exc(file=sys.stdout)
+
+        grid_plugins.setRowStretch(i+1,1)
 
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
