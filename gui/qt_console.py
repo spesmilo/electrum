@@ -69,10 +69,13 @@ class Console(QtGui.QPlainTextEdit):
     def setCommand(self, command):
         if self.getCommand() == command:
             return
+
+        doc = self.document()
+        curr_line = unicode(doc.findBlockByLineNumber(doc.lineCount() - 1).text())
         self.moveCursor(QtGui.QTextCursor.End)
-        self.moveCursor(QtGui.QTextCursor.StartOfLine, QtGui.QTextCursor.KeepAnchor)
-        for i in range(len(self.prompt)):
-            self.moveCursor(QtGui.QTextCursor.Right, QtGui.QTextCursor.KeepAnchor)
+        for i in range(len(curr_line) - len(self.prompt)):
+            self.moveCursor(QtGui.QTextCursor.Left, QtGui.QTextCursor.KeepAnchor)
+
         self.textCursor().removeSelectedText()
         self.textCursor().insertText(command)
         self.moveCursor(QtGui.QTextCursor.End)
@@ -151,7 +154,8 @@ class Console(QtGui.QPlainTextEdit):
         return ''
 
     def getCursorPosition(self):
-        return self.textCursor().columnNumber() - len(self.prompt)
+        c = self.textCursor()
+        return c.position() - c.block().position() - len(self.prompt)
 
     def setCursorPosition(self, position):
         self.moveCursor(QtGui.QTextCursor.StartOfLine)
