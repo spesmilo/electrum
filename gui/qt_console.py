@@ -192,7 +192,7 @@ class Console(QtGui.QPlainTextEdit):
                     self.skip = not self.skip
 
             if type(self.namespace.get(command)) == type(lambda:None):
-                self.appendPlainText("'%s' is a function. Type '%s()' to call it."%(command, command))
+                self.appendPlainText("'%s' is a function. Type '%s()' to use it in the Python console."%(command, command))
                 self.newPrompt()
                 return
 
