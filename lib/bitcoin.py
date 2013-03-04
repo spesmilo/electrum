@@ -412,7 +412,7 @@ def CKD_prime(K, c, n):
 
 
 
-class DeterministicSequence:
+class ElectrumSequence:
     """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
 
     def __init__(self, master_public_key, mpk2 = None):
@@ -517,11 +517,15 @@ class BIP32Sequence:
     @classmethod
     def mpk_from_seed(klass, seed):
         master_secret, master_chain, master_public_key, master_public_key_compressed = bip32_init(seed)
-        return master_public_key, master_chain
+        return master_public_key.encode('hex'), master_chain.encode('hex')
 
-    def get_pubkey(self, sequence):
-        K = self.master_public_key
-        chain = self.mchain
+    def get_pubkey(self, sequence, use_mpk2=False):
+        if not use_mpl2:
+            K = self.master_public_key.decode('hex')
+            chain = self.master_chain.decode('hex')
+        else:
+            K = self.master_public_key_2.decode('hex')
+            chain = self.master_chain_2.decode('hex')
         for i in sequence:
             K, K_compressed, chain = CKD_prime(K, chain, i)
         return K_compressed
