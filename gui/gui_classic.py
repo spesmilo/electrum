@@ -41,6 +41,7 @@ except:
 from electrum.wallet import format_satoshis
 from electrum.bitcoin import Transaction, is_valid
 from electrum import mnemonic
+from electrum import util, bitcoin, commands
 
 import bmp, pyqrnative
 import exchange_rate
@@ -1157,7 +1158,6 @@ class ElectrumWindow(QMainWindow):
 
     def create_console_tab(self):
         from qt_console import Console
-        from electrum import util, bitcoin, commands
         self.console = console = Console()
         self.console.history = self.config.get("console-history",[])
         self.console.history_index = len(self.console.history)
