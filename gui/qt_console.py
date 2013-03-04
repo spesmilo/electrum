@@ -191,11 +191,6 @@ class Console(QtGui.QPlainTextEdit):
                         QtCore.QCoreApplication.processEvents()
                     self.skip = not self.skip
 
-            if command == 'help()':
-                self.appendPlainText("no help here!")
-                self.newPrompt()
-                return
-
             sys.stdout = stdoutProxy(self.appendPlainText)
             try:
                 try:

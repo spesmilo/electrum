@@ -113,7 +113,6 @@ if __name__ == '__main__':
         cmd = 'gui'
     else:
         cmd = args[0]
-        firstarg = args[1] if len(args) > 1 else ''
        
 
     if cmd == 'gui':
@@ -318,11 +317,17 @@ if __name__ == '__main__':
     elif cmd == 'createrawtransaction':
         args = [ cmd, json.loads(args[1]), json.loads(args[2])]
 
-    elif cmd=='listaddresses':
+    elif cmd == 'listaddresses':
         args = [cmd, options.show_all, options.show_balance, options.show_labels]
 
     elif cmd in ['payto', 'mktx']:
         args = [ 'mktx', args[1], Decimal(args[2]), Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, options.from_addr ]
+
+    elif cmd == 'help':
+        if len(args) < 2:
+            parser.print_help()
+            print_msg("Type 'electrum help <command>' to see the help for a specific command")
+            print_msg("Type 'electrum --help' to see the list of options")
 
 
                 
@@ -349,8 +354,6 @@ if __name__ == '__main__':
 
 
 
-
-
     # open session
     if cmd not in offline_commands and not options.offline:
         interface = Interface(config)
@@ -366,20 +369,8 @@ if __name__ == '__main__':
 
 
     # run the command
-    if cmd == 'help':
-        cmd2 = firstarg
-        if cmd2 not in known_commands:
-            parser.print_help()
-            print_msg("Type 'electrum help <command>' to see the help for a specific command")
-            print_msg("Type 'electrum --help' to see the list of options")
-            print_msg("List of commands:", ', '.join(known_commands))
-        else:
-            _, _, description, syntax, options_syntax = known_commands[cmd2]
-            print_msg(description)
-            if syntax: print_msg("Syntax: " + syntax)
-            if options_syntax: print_msg("options:\n" + options_syntax)
 
-    elif cmd == 'deseed':
+    if cmd == 'deseed':
         if not wallet.seed:
             print_msg("Error: This wallet has no seed")
         else:
@@ -412,12 +403,9 @@ if __name__ == '__main__':
         else:
             print_msg(False)
 
-
     elif cmd == 'password':
         new_password = prompt_password('New password:')
         wallet.update_password(seed, password, new_password)
-
-
 
     else:
         cmd_runner = Commands(wallet, interface)
@@ -431,7 +419,7 @@ if __name__ == '__main__':
             
         if type(result) == str:
             util.print_msg(result)
-        else:
+        elif result is not None:
             util.print_json(result)
             
         

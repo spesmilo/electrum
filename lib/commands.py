@@ -296,4 +296,14 @@ class Commands:
                 out.append( item )
         return out
                          
+    def help(self, cmd2=None):
+        if cmd2 not in known_commands:
+            print_msg("List of commands:", ', '.join(known_commands))
+        else:
+            _, _, description, syntax, options_syntax = known_commands[cmd2]
+            print_msg(description)
+            if syntax: print_msg("Syntax: " + syntax)
+            if options_syntax: print_msg("options:\n" + options_syntax)
+        return None
+
 
