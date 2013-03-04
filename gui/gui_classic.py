@@ -272,13 +272,12 @@ class ElectrumWindow(QMainWindow):
         self.config = config
         self.init_plugins()
 
-        self.wallet.interface.register_callback('updated', self.update_callback)
-        self.wallet.interface.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')) )
-        self.wallet.interface.register_callback('disconnected', self.update_callback)
-        self.wallet.interface.register_callback('disconnecting', self.update_callback)
+        self.wallet.interface.register_callback('updated', lambda: self.emit(QtCore.SIGNAL('update_wallet')))
+        self.wallet.interface.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')))
+        self.wallet.interface.register_callback('disconnected', lambda: self.emit(QtCore.SIGNAL('update_status')))
+        self.wallet.interface.register_callback('disconnecting', lambda: self.emit(QtCore.SIGNAL('update_status')))
 
         self.expert_mode = config.get('classic_expert_mode', False)
-        self.merchant_name = config.get('merchant_name', 'Invoice')
 
         set_language(config.get('language'))
 
@@ -308,7 +307,8 @@ class ElectrumWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() - 1 )%tabs.count() ))
         QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() + 1 )%tabs.count() ))
         
-        self.connect(self, QtCore.SIGNAL('updatesignal'), self.update_wallet)
+        self.connect(self, QtCore.SIGNAL('update_wallet'), self.update_wallet)
+        self.connect(self, QtCore.SIGNAL('update_status'), self.update_status)
         self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.wallet.banner) )
         self.history_list.setFocus(True)
         
@@ -388,10 +388,8 @@ class ElectrumWindow(QMainWindow):
                     self.payto_e.setText(s)
 
 
-    def update_callback(self):
-        self.emit(QtCore.SIGNAL('updatesignal'))
 
-    def update_wallet(self):
+    def update_status(self):
         if self.wallet.interface and self.wallet.interface.is_connected:
             if not self.wallet.up_to_date:
                 text = _("Synchronizing...")
@@ -410,6 +408,8 @@ class ElectrumWindow(QMainWindow):
         self.statusBar().showMessage(text)
         self.status_button.setIcon( icon )
 
+    def update_wallet(self):
+        self.update_status()
         if self.wallet.up_to_date or not self.wallet.interface.is_connected:
             self.update_history_tab()
             self.update_receive_tab()
@@ -454,7 +454,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def show_tx_details(self, tx):
-        dialog = QDialog(None)
+        dialog = QDialog(self)
         dialog.setModal(1)
         dialog.setWindowTitle(_("Transaction Details"))
         vbox = QVBoxLayout()
@@ -973,7 +973,7 @@ class ElectrumWindow(QMainWindow):
             return 
         menu = QMenu()
         menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
-        menu.addAction(_("QR code"), lambda: ElectrumWindow.show_qrcode("bitcoin:" + addr, _("Address")) )
+        menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")) )
         menu.addAction(_("Edit label"), lambda: self.edit_label(True))
         menu.addAction(_("Private key"), lambda: self.view_private_key(addr))
         menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
@@ -1223,7 +1223,7 @@ class ElectrumWindow(QMainWindow):
                 QMessageBox.warning(self, _('Error'), _('Invalid Address'), _('OK'))
 
     def show_master_public_key(self):
-        dialog = QDialog(None)
+        dialog = QDialog(self)
         dialog.setModal(1)
         dialog.setWindowTitle(_("Master Public Key"))
 
@@ -1273,11 +1273,11 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(parent, _('Error'), _('Incorrect Password'), _('OK'))
             return
 
-        self.show_seed(seed)
+        self.show_seed(seed, parent)
 
     @classmethod
-    def show_seed(self, seed):
-        dialog = QDialog(None)
+    def show_seed(self, seed, parent=None):
+        dialog = QDialog(parent)
         dialog.setModal(1)
         dialog.setWindowTitle('Electrum' + ' - ' + _('Seed'))
 
@@ -1300,7 +1300,7 @@ class ElectrumWindow(QMainWindow):
         logo.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(56))
         logo.setMaximumWidth(60)
 
-        qrw = QRCodeWidget(seed, 4)
+        qrw = QRCodeWidget(seed)
 
         ok_button = QPushButton(_("OK"))
         ok_button.setDefault(True)
@@ -1328,10 +1328,9 @@ class ElectrumWindow(QMainWindow):
         dialog.setLayout(vbox)
         dialog.exec_()
 
-    @staticmethod
-    def show_qrcode(data, title = "QR code"):
+    def show_qrcode(self, data, title = "QR code"):
         if not data: return
-        d = QDialog(None)
+        d = QDialog(self)
         d.setModal(1)
         d.setWindowTitle(title)
         d.setMinimumSize(270, 300)
@@ -1634,8 +1633,8 @@ class ElectrumWindow(QMainWindow):
         tree_widget.setColumnWidth(0, 300)
         tree_widget.setColumnWidth(1, 50)
 
-        for output in tx.d["outputs"]:
-            item = QTreeWidgetItem( ["%s" %(output["address"]), "%s" % ( format_satoshis(output["value"]))] )
+        for address, value in tx.outputs:
+            item = QTreeWidgetItem( [address, "%s" % ( format_satoshis(value))] )
             tree_widget.addTopLevelItem(item)
 
         tree_widget.setMaximumHeight(100)
