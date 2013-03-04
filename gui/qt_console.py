@@ -191,6 +191,11 @@ class Console(QtGui.QPlainTextEdit):
                         QtCore.QCoreApplication.processEvents()
                     self.skip = not self.skip
 
+            if type(self.namespace.get(command)) == type(lambda:None):
+                self.appendPlainText("'%s' is a function. Type '%s()' to call it."%(command, command))
+                self.newPrompt()
+                return
+
             sys.stdout = stdoutProxy(self.appendPlainText)
             try:
                 try:
