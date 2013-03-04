@@ -790,7 +790,7 @@ class ElectrumWindow(QMainWindow):
             self.show_message(str(e))
             return
 
-        self.run_hook('send_tx', (wallet, self, tx))
+        self.run_hook('send_tx', (self.wallet, self, tx))
 
         if label: 
             self.wallet.labels[tx.hash()] = label
