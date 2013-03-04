@@ -790,7 +790,7 @@ class ElectrumWindow(QMainWindow):
             self.show_message(str(e))
             return
 
-        self.run_hook('send_tx', (wallet, self, tx))
+        self.run_hook('send_tx', (self.wallet, self, tx))
 
         if label: 
             self.wallet.labels[tx.hash()] = label
@@ -1753,6 +1753,41 @@ class ElectrumWindow(QMainWindow):
         else:
             self.show_message("There was a problem sending your transaction:\n %s" % (result_message))
 
+    def do_process_from_file(self):
+        tx_dict = self.read_tx_from_file()
+        if tx_dict: 
+            self.create_process_transaction_window(tx_dict)
+
+    def create_process_transaction_window(self, tx_dict):
+        tx = Transaction(tx_dict["hex"])
+
+        dialog = QDialog(self)
+        dialog.setMinimumWidth(500)
+        dialog.setWindowTitle(_('Process raw transaction'))
+        dialog.setModal(1)
+
+        l = QGridLayout()
+        dialog.setLayout(l)
+
+        l.addWidget(QLabel(_("Transaction status: ")), 0,0)
+        l.addWidget(QLabel(_("Actions")), 1,0)
+
+        if tx_dict["complete"] == False:
+            l.addWidget(QLabel(_("Unsigned")), 0,1)
+            if self.wallet.seed :
+                b = QPushButton("Sign transaction")
+                l.addWidget(b, 1, 1)
+            else:
+                l.addWidget(QLabel(_("Wallet is de-seeded, can't sign.")), 1,1)
+        else:
+            l.addWidget(QLabel(_("Signed")), 0,1)
+            b = QPushButton("Broadcast transaction")
+            l.addWidget(b,1,1)
+
+        l.addWidget( self.generate_transaction_information_widget(tx), 2,0,2,3)
+
+        if dialog.exec_():
+            self.send_raw_transaction(tx_dict["hex"])
 
     def create_send_transaction_window(self, tx_dict):
         tx = Transaction(tx_dict["hex"])
@@ -1774,7 +1809,6 @@ class ElectrumWindow(QMainWindow):
 
         if dialog.exec_():
             self.send_raw_transaction(tx_dict["hex"])
-
 
     def do_send_from_file(self):
         tx_dict = self.read_tx_from_file()
@@ -2039,6 +2073,11 @@ class ElectrumWindow(QMainWindow):
         grid_raw.addWidget(EnterButton(_("From file"), self.do_send_from_file),2,1)
         grid_raw.addWidget(EnterButton(_("From text"), self.do_send_from_text),2,2)
         grid_raw.addWidget(HelpButton(_("This will broadcast a transaction to the network.")),2,3)
+
+        grid_raw.addWidget(QLabel(_("Process raw transaction")), 3, 0)
+        grid_raw.addWidget(EnterButton(_("From file"), self.do_process_from_file),3,1)
+        grid_raw.addWidget(EnterButton(_("From text"), self.do_process_from_file),3,2)
+        grid_raw.addWidget(HelpButton(_("This will sign or broadcast a transaction.")),3,3)
         grid_raw.setRowStretch(3,1)
 
         # plugins
