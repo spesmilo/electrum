@@ -8,12 +8,11 @@ import bmp, pyqrnative
 
 class QRCodeWidget(QWidget):
 
-    def __init__(self, data = None, size=4):
+    def __init__(self, data = None):
         QWidget.__init__(self)
         self.setMinimumSize(210, 210)
         self.addr = None
         self.qr = None
-        self.size = size
         if data:
             self.set_addr(data)
             self.update_qr()
@@ -26,12 +25,15 @@ class QRCodeWidget(QWidget):
 
     def update_qr(self):
         if self.addr and not self.qr:
-            self.qr = pyqrnative.QRCode(self.size, pyqrnative.QRErrorCorrectLevel.L)
-            self.qr.addData(self.addr)
-            try:
-                self.qr.make()
-            except:
-                self.qr=None
+            for size in [4,5,6]:
+                try:
+                    self.qr = pyqrnative.QRCode(size, pyqrnative.QRErrorCorrectLevel.L)
+                    self.qr.addData(self.addr)
+                    self.qr.make()
+                    break
+                except:
+                    self.qr=None
+                    continue
             self.update()
 
     def paintEvent(self, e):
