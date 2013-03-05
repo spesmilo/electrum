@@ -389,6 +389,7 @@ class Wallet:
         return new
 
     def synchronize(self):
+        if self.seed is None: return
         new = []
         for account in self.accounts.keys():
             new += self.synchronize_account(account)
