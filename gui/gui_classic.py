@@ -251,12 +251,13 @@ def waiting_dialog(f):
 def ok_cancel_buttons(dialog):
     hbox = QHBoxLayout()
     hbox.addStretch(1)
-    b = QPushButton("OK")
-    hbox.addWidget(b)
-    b.clicked.connect(dialog.accept)
     b = QPushButton("Cancel")
     hbox.addWidget(b)
     b.clicked.connect(dialog.reject)
+    b = QPushButton("OK")
+    hbox.addWidget(b)
+    b.clicked.connect(dialog.accept)
+    b.setDefault(True)
     return hbox
 
 
