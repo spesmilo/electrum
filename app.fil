@@ -1,4 +1,4 @@
 gui/gui_gtk.py
-gui/gui_classci.py
+gui/gui_classic.py
 gui/gui_lite.py
 gui/history_widget.py
