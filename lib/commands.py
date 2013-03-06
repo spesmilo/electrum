@@ -186,8 +186,8 @@ class Commands:
 
     def importprivkey(self, sec):
         try:
-            addr = wallet.import_key(sec,self.password)
-            wallet.save()
+            addr = self.wallet.import_key(sec,self.password)
+            self.wallet.save()
             out = "Keypair imported: ", addr
         except BaseException as e:
             out = "Error: Keypair import failed: " + str(e)
