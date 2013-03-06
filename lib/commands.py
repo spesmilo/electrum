@@ -124,7 +124,7 @@ class Commands:
 
     def sendrawtransaction(self, raw):
         tx = Transaction(raw)
-        r, h = wallet.sendtx( tx )
+        r, h = self.wallet.sendtx( tx )
         return h
 
     def createmultisig(self, num, pubkeys):
@@ -170,7 +170,7 @@ class Commands:
         else:
             c = u = 0
             for addr in addresses:
-                cc, uu = wallet.get_addr_balance(addr)
+                cc, uu = self.wallet.get_addr_balance(addr)
                 c += cc
                 u += uu
 
@@ -186,8 +186,8 @@ class Commands:
 
     def importprivkey(self, sec):
         try:
-            addr = wallet.import_key(sec,self.password)
-            wallet.save()
+            addr = self.wallet.import_key(sec,self.password)
+            self.wallet.save()
             out = "Keypair imported: ", addr
         except BaseException as e:
             out = "Error: Keypair import failed: " + str(e)
@@ -243,7 +243,7 @@ class Commands:
 
     def payto(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
         tx = self._mktx(to_address, amount, fee, change_addr, from_addr)
-        r, h = wallet.sendtx( tx )
+        r, h = self.wallet.sendtx( tx )
         return h
 
 
