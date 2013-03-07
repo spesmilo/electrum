@@ -233,7 +233,7 @@ if __name__ == '__main__':
 
             if len(seed) == 128:
                 wallet.seed = None
-                wallet.sequence.master_public_key = seed
+                wallet.init_sequence(str(seed))
             else:
                 wallet.seed = str(seed)
                 wallet.init_mpk( wallet.seed )
