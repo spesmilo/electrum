@@ -216,6 +216,7 @@ class Wallet:
         return self.get_private_keys([address], password).get(address)
 
     def get_private_keys(self, addresses, password):
+        if not self.seed: return {}
         # decode seed in any case, in order to test the password
         seed = self.decode_seed(password)
         out = {}
@@ -776,8 +777,9 @@ class Wallet:
             pk_addresses.append(pk_addr)
 
         # get all private keys at once.
-        private_keys = self.get_private_keys(pk_addresses, password)
-        tx.sign(private_keys)
+        if self.seed:
+            private_keys = self.get_private_keys(pk_addresses, password)
+            tx.sign(private_keys)
 
         for address, x in outputs:
             if address not in self.addressbook and not self.is_mine(address):
