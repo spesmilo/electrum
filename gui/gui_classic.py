@@ -251,12 +251,13 @@ def waiting_dialog(f):
 def ok_cancel_buttons(dialog):
     hbox = QHBoxLayout()
     hbox.addStretch(1)
-    b = QPushButton("OK")
-    hbox.addWidget(b)
-    b.clicked.connect(dialog.accept)
     b = QPushButton("Cancel")
     hbox.addWidget(b)
     b.clicked.connect(dialog.reject)
+    b = QPushButton("OK")
+    hbox.addWidget(b)
+    b.clicked.connect(dialog.accept)
+    b.setDefault(True)
     return hbox
 
 
@@ -272,13 +273,12 @@ class ElectrumWindow(QMainWindow):
         self.config = config
         self.init_plugins()
 
-        self.wallet.interface.register_callback('updated', self.update_callback)
-        self.wallet.interface.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')) )
-        self.wallet.interface.register_callback('disconnected', self.update_callback)
-        self.wallet.interface.register_callback('disconnecting', self.update_callback)
+        self.wallet.interface.register_callback('updated', lambda: self.emit(QtCore.SIGNAL('update_wallet')))
+        self.wallet.interface.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')))
+        self.wallet.interface.register_callback('disconnected', lambda: self.emit(QtCore.SIGNAL('update_status')))
+        self.wallet.interface.register_callback('disconnecting', lambda: self.emit(QtCore.SIGNAL('update_status')))
 
         self.expert_mode = config.get('classic_expert_mode', False)
-        self.merchant_name = config.get('merchant_name', 'Invoice')
 
         set_language(config.get('language'))
 
@@ -308,7 +308,8 @@ class ElectrumWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() - 1 )%tabs.count() ))
         QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() + 1 )%tabs.count() ))
         
-        self.connect(self, QtCore.SIGNAL('updatesignal'), self.update_wallet)
+        self.connect(self, QtCore.SIGNAL('update_wallet'), self.update_wallet)
+        self.connect(self, QtCore.SIGNAL('update_status'), self.update_status)
         self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.wallet.banner) )
         self.history_list.setFocus(True)
         
@@ -388,10 +389,8 @@ class ElectrumWindow(QMainWindow):
                     self.payto_e.setText(s)
 
 
-    def update_callback(self):
-        self.emit(QtCore.SIGNAL('updatesignal'))
 
-    def update_wallet(self):
+    def update_status(self):
         if self.wallet.interface and self.wallet.interface.is_connected:
             if not self.wallet.up_to_date:
                 text = _("Synchronizing...")
@@ -410,6 +409,8 @@ class ElectrumWindow(QMainWindow):
         self.statusBar().showMessage(text)
         self.status_button.setIcon( icon )
 
+    def update_wallet(self):
+        self.update_status()
         if self.wallet.up_to_date or not self.wallet.interface.is_connected:
             self.update_history_tab()
             self.update_receive_tab()
@@ -454,7 +455,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def show_tx_details(self, tx):
-        dialog = QDialog(None)
+        dialog = QDialog(self)
         dialog.setModal(1)
         dialog.setWindowTitle(_("Transaction Details"))
         vbox = QVBoxLayout()
@@ -741,8 +742,12 @@ class ElectrumWindow(QMainWindow):
         self.completions.setStringList(l)
 
 
+    def protected(func):
+        return lambda s, *args: s.do_protect(func, args)
 
-    def do_send(self):
+
+    @protected
+    def do_send(self, password):
 
         label = unicode( self.message_e.text() )
         r = unicode( self.payto_e.text() )
@@ -776,13 +781,6 @@ class ElectrumWindow(QMainWindow):
         except:
             QMessageBox.warning(self, _('Error'), _('Invalid Fee'), _('OK'))
             return
-
-        if self.wallet.use_encryption:
-            password = self.password_dialog()
-            if not password:
-                return
-        else:
-            password = None
 
         try:
             tx = self.wallet.mktx( [(to_address, amount)], password, fee)
@@ -973,9 +971,9 @@ class ElectrumWindow(QMainWindow):
             return 
         menu = QMenu()
         menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
-        menu.addAction(_("QR code"), lambda: ElectrumWindow.show_qrcode("bitcoin:" + addr, _("Address")) )
+        menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")) )
         menu.addAction(_("Edit label"), lambda: self.edit_label(True))
-        menu.addAction(_("Private key"), lambda: self.view_private_key(addr))
+        menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
         menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
         if addr in self.wallet.imported_keys:
             menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
@@ -1193,7 +1191,7 @@ class ElectrumWindow(QMainWindow):
             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/lock.png"), _("Password"), lambda: self.change_password_dialog(self.wallet, self) ) )
         sb.addPermanentWidget( StatusBarButton( QIcon(":icons/preferences.png"), _("Preferences"), self.settings_dialog ) )
         if self.wallet.seed:
-            sb.addPermanentWidget( StatusBarButton( QIcon(":icons/seed.png"), _("Seed"), lambda: self.show_seed_dialog(self.wallet, self) ) )
+            sb.addPermanentWidget( StatusBarButton( QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog ) )
         self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), _("Network"), lambda: self.network_dialog(self.wallet, self) ) 
         sb.addPermanentWidget( self.status_button )
 
@@ -1223,7 +1221,7 @@ class ElectrumWindow(QMainWindow):
                 QMessageBox.warning(self, _('Error'), _('Invalid Address'), _('OK'))
 
     def show_master_public_key(self):
-        dialog = QDialog(None)
+        dialog = QDialog(self)
         dialog.setModal(1)
         dialog.setWindowTitle(_("Master Public Key"))
 
@@ -1254,30 +1252,22 @@ class ElectrumWindow(QMainWindow):
         dialog.exec_()
         
 
-    @classmethod
-    def show_seed_dialog(self, wallet, parent=None):
-        if not wallet.seed:
+    @protected
+    def show_seed_dialog(self, password):
+        if not self.wallet.seed:
             QMessageBox.information(parent, _('Message'), _('No seed'), _('OK'))
             return
-
-        if wallet.use_encryption:
-            password = parent.password_dialog()
-            if not password:
-                return
-        else:
-            password = None
-            
         try:
-            seed = wallet.decode_seed(password)
+            seed = self.wallet.decode_seed(password)
         except:
             QMessageBox.warning(parent, _('Error'), _('Incorrect Password'), _('OK'))
             return
+        self.show_seed(seed, self)
 
-        self.show_seed(seed)
 
     @classmethod
-    def show_seed(self, seed):
-        dialog = QDialog(None)
+    def show_seed(self, seed, parent=None):
+        dialog = QDialog(parent)
         dialog.setModal(1)
         dialog.setWindowTitle('Electrum' + ' - ' + _('Seed'))
 
@@ -1300,7 +1290,7 @@ class ElectrumWindow(QMainWindow):
         logo.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(56))
         logo.setMaximumWidth(60)
 
-        qrw = QRCodeWidget(seed, 4)
+        qrw = QRCodeWidget(seed)
 
         ok_button = QPushButton(_("OK"))
         ok_button.setDefault(True)
@@ -1328,10 +1318,9 @@ class ElectrumWindow(QMainWindow):
         dialog.setLayout(vbox)
         dialog.exec_()
 
-    @staticmethod
-    def show_qrcode(data, title = "QR code"):
+    def show_qrcode(self, data, title = "QR code"):
         if not data: return
-        d = QDialog(None)
+        d = QDialog(self)
         d.setModal(1)
         d.setWindowTitle(title)
         d.setMinimumSize(270, 300)
@@ -1360,25 +1349,42 @@ class ElectrumWindow(QMainWindow):
         d.setLayout(vbox)
         d.exec_()
 
-    def view_private_key(self,address):
-        if not address: return
+
+    def do_protect(self, func, args):
         if self.wallet.use_encryption:
             password = self.password_dialog()
             if not password:
                 return
         else:
             password = None
+            
+        if args != (False,):
+            args = (self,) + args + (password,)
+        else:
+            args = (self,password)
+        apply( func, args)
 
+
+    @protected
+    def show_private_key(self, address, password):
+        if not address: return
         try:
             pk = self.wallet.get_private_key(address, password)
         except BaseException, e:
             self.show_message(str(e))
             return
-
         QMessageBox.information(self, _('Private key'), 'Address'+ ': ' + address + '\n\n' + _('Private key') + ': ' + pk, _('OK'))
 
 
-    def sign_message(self,address):
+    @protected
+    def do_sign(self, address, message, signature, password):
+        try:
+            sig = self.wallet.sign_message(str(address.text()), str(message.toPlainText()), password)
+            signature.setText(sig)
+        except BaseException, e:
+            self.show_message(str(e))
+
+    def sign_message(self, address):
         if not address: return
         d = QDialog(self)
         d.setModal(1)
@@ -1405,25 +1411,11 @@ class ElectrumWindow(QMainWindow):
         layout.addWidget(sign_signature, 3, 1)
         layout.setRowStretch(3,1)
 
-        def do_sign():
-            if self.wallet.use_encryption:
-                password = self.password_dialog()
-                if not password:
-                    return
-            else:
-                password = None
-
-            try:
-                signature = self.wallet.sign_message(str(sign_address.text()), str(sign_message.toPlainText()), password)
-                sign_signature.setText(signature)
-            except BaseException, e:
-                self.show_message(str(e))
-                return
 
         hbox = QHBoxLayout()
         b = QPushButton(_("Sign"))
         hbox.addWidget(b)
-        b.clicked.connect(do_sign)
+        b.clicked.connect(lambda: self.do_sign(sign_address, sign_message, sign_signature))
         b = QPushButton(_("Close"))
         b.clicked.connect(d.accept)
         hbox.addWidget(b)
@@ -1634,8 +1626,8 @@ class ElectrumWindow(QMainWindow):
         tree_widget.setColumnWidth(0, 300)
         tree_widget.setColumnWidth(1, 50)
 
-        for output in tx.d["outputs"]:
-            item = QTreeWidgetItem( ["%s" %(output["address"]), "%s" % ( format_satoshis(output["value"]))] )
+        for address, value in tx.outputs:
+            item = QTreeWidgetItem( [address, "%s" % ( format_satoshis(value))] )
             tree_widget.addTopLevelItem(item)
 
         tree_widget.setMaximumHeight(100)
@@ -1687,14 +1679,8 @@ class ElectrumWindow(QMainWindow):
         return self.tx_dict_from_text(file_content)
 
 
-    def sign_raw_transaction(self, tx, input_info):
-        if self.wallet.use_encryption:
-            password = self.password_dialog()
-            if not password:
-                return
-        else:
-            password = None
-
+    @protected
+    def sign_raw_transaction(self, tx, input_info, password):
         try:
             self.wallet.signrawtransaction(tx, input_info, [], password)
             
@@ -1825,15 +1811,10 @@ class ElectrumWindow(QMainWindow):
             self.create_send_transaction_window(tx_dict)
 
 
-    def do_export_privkeys(self):
+    @protected
+    def do_export_privkeys(self, password):
         self.show_message("%s\n%s\n%s" % (_("WARNING: ALL your private keys are secret."),  _("Exposing a single private key can compromise your entire wallet!"), _("In particular, DO NOT use 'redeem private key' services proposed by third parties.")))
 
-        if self.wallet.use_encryption:
-            password = self.password_dialog()
-            if not password:
-                return
-        else:
-            password = None
         try:
             select_export = _('Select file to export your private keys to')
             fileName = QFileDialog.getSaveFileName(QWidget(), select_export, os.path.expanduser('~/electrum-private-keys.csv'), "*.csv")
@@ -1872,7 +1853,6 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.critical(None, _("Unable to import labels"), _("Electrum was unable to import your labels.")+"\n" + str(reason))
         
 
-
     def do_export_labels(self):
         labels = self.wallet.labels
         try:
@@ -1884,11 +1864,14 @@ class ElectrumWindow(QMainWindow):
         except (IOError, os.error), reason:
             QMessageBox.critical(None, "Unable to export labels", _("Electrum was unable to export your labels.")+"\n" + str(reason))
 
+
     def do_export_history(self):
         from gui_lite import csv_transaction
         csv_transaction(self.wallet)
 
-    def do_import_privkey(self):
+
+    @protected
+    def do_import_privkey(self, password):
         if not self.wallet.imported_keys:
             r = QMessageBox.question(None, _('Warning'), _('Warning: Imported keys are not recoverable from seed.') + ' ' \
                                          + _('If you ever need to restore your wallet from its seed, these keys will be lost.') + '\n\n' \
@@ -1898,12 +1881,6 @@ class ElectrumWindow(QMainWindow):
         text, ok = QInputDialog.getText(self, _('Import private key'), _('Private Key') + ':')
         if not ok: return
         sec = str(text).strip()
-        if self.wallet.use_encryption:
-            password = self.password_dialog()
-            if not password:
-                return
-        else:
-            password = None
         try:
             addr = self.wallet.import_key(sec, password)
             if not addr:
@@ -1914,6 +1891,7 @@ class ElectrumWindow(QMainWindow):
                 self.update_history_tab()
         except BaseException as e:
             QMessageBox.critical(None, _("Unable to import key"), str(e))
+
 
     def settings_dialog(self):
         d = QDialog(self)
@@ -2372,11 +2350,12 @@ class ElectrumGui:
         
 
     def show_seed(self):
-        ElectrumWindow.show_seed_dialog(self.wallet)
+        ElectrumWindow.show_seed(self.wallet.seed)
 
 
     def password_dialog(self):
-        ElectrumWindow.change_password_dialog(self.wallet)
+        if self.wallet.seed:
+            ElectrumWindow.change_password_dialog(self.wallet)
 
 
     def restore_wallet(self):

@@ -161,14 +161,15 @@ class Wallet:
         self.seed = seed 
         self.config.set_key('seed', self.seed, True)
         self.config.set_key('seed_version', self.seed_version, True)
-
         mpk = ElectrumSequence.mpk_from_seed(self.seed)
+        self.init_sequence(mpk)
+
+
+    def init_sequence(self, mpk):
         self.config.set_key('master_public_key', mpk, True)
         self.sequences[0] = ElectrumSequence(mpk)
-
         self.accounts[0] = { 0:[], 1:[], 'name':'Main account' }
         self.config.set_key('accounts', self.accounts, True)
-
 
 
     def addresses(self, include_change = False):

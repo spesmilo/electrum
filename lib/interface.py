@@ -243,8 +243,11 @@ class Interface(threading.Thread):
         if self.session_id:
             headers['cookie'] = 'SESSION=%s'%self.session_id
 
-        req = urllib2.Request(self.connection_msg, data_json, headers)
-        response_stream = urllib2.urlopen(req, timeout=DEFAULT_TIMEOUT)
+        try:
+            req = urllib2.Request(self.connection_msg, data_json, headers)
+            response_stream = urllib2.urlopen(req, timeout=DEFAULT_TIMEOUT)
+        except:
+            return
 
         for index, cookie in enumerate(cj):
             if cookie.name=='SESSION':

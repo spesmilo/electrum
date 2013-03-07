@@ -30,10 +30,11 @@ class QR_Window(QWidget):
         self.setWindowTitle('Electrum - '+_('Invoice'))
         self.setMinimumSize(800, 250)
         self.address = ''
-        self.labe = ''
+        self.label = ''
         self.amount = 0
         self.setFocusPolicy(QtCore.Qt.NoFocus)
 
+        self.merchant_name = config.get('merchant_name', 'Invoice')
         main_box = QHBoxLayout()
         
         self.qrw = QRCodeWidget()
