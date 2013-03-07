@@ -148,7 +148,7 @@ if __name__ == '__main__':
                 wallet.gap_limit = gap
                 if len(seed) == 128:
                     wallet.seed = ''
-                    wallet.sequence.master_public_key = seed
+                    wallet.init_sequence(str(seed))
                 else:
                     wallet.init_seed(str(seed))
             

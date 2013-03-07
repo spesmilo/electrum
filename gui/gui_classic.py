@@ -2315,7 +2315,8 @@ class ElectrumGui:
 
 
     def password_dialog(self):
-        ElectrumWindow.change_password_dialog(self.wallet)
+        if self.wallet.seed:
+            ElectrumWindow.change_password_dialog(self.wallet)
 
 
     def restore_wallet(self):
