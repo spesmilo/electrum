@@ -1704,6 +1704,27 @@ class ElectrumWindow(QMainWindow):
         else:
             self.show_message("There was a problem sending your transaction:\n %s" % (result_message))
 
+    def do_process_from_text(self):
+        dialog = QDialog(self)
+        dialog.setMinimumWidth(500)
+        dialog.setWindowTitle(_('Input raw transaction'))
+        dialog.setModal(1)
+        l = QVBoxLayout()
+        dialog.setLayout(l)
+        l.addWidget(QLabel(_("Transaction:")))
+        txt = QTextEdit()
+        l.addWidget(txt)
+
+        ok_button = QPushButton(_("Process transaction"))
+        ok_button.setDefault(True)
+        ok_button.clicked.connect(dialog.accept)
+        l.addWidget(ok_button)
+
+        dialog.exec_()
+        tx_dict = self.tx_dict_from_text(unicode(txt.toPlainText()))
+        if tx_dict:
+            self.create_process_transaction_window(tx_dict)
+
     def do_process_from_file(self):
         tx_dict = self.read_tx_from_file()
         if tx_dict: 
@@ -1973,10 +1994,10 @@ class ElectrumWindow(QMainWindow):
         grid_raw.setColumnStretch(0,1)
         tabs.addTab(tab4, _('Raw tx') )  # move this to wallet tab
 
-        grid_raw.addWidget(QLabel(_("Process raw transaction")), 3, 0)
-        grid_raw.addWidget(EnterButton(_("From file"), self.do_process_from_file),3,1)
-        grid_raw.addWidget(EnterButton(_("From text"), self.do_process_from_file),3,2)
-        grid_raw.addWidget(HelpButton(_("This will sign or broadcast a transaction.")),3,3)
+        grid_raw.addWidget(QLabel(_("Process raw transaction")), 0, 0)
+        grid_raw.addWidget(EnterButton(_("From file"), self.do_process_from_file),0,1)
+        grid_raw.addWidget(EnterButton(_("From text"), self.do_process_from_text),0,2)
+        grid_raw.addWidget(HelpButton(_("This will give you the option to sign or broadcast a transaction based on it's status.")),0,3)
         grid_raw.setRowStretch(3,1)
 
         # plugins
