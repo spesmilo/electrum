@@ -649,7 +649,8 @@ class Transaction:
         s += var_int( len(outputs) )                                 # number of outputs
         for output in outputs:
             addr, amount = output
-            s += int_to_hex( amount, 8)                              # amount
+            # amount can be (or always is?) decimal.Decimal which will fail hex(amount) below
+            s += int_to_hex( int(amount), 8)                         # amount
             addrtype, hash_160 = bc_address_to_hash_160(addr)
             if addrtype == 0:
                 script = '76a9'                                      # op_dup, op_hash_160
