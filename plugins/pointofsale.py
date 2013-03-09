@@ -34,7 +34,6 @@ class QR_Window(QWidget):
         self.amount = 0
         self.setFocusPolicy(QtCore.Qt.NoFocus)
 
-        self.merchant_name = config.get('merchant_name', 'Invoice')
         main_box = QHBoxLayout()
         
         self.qrw = QRCodeWidget()
@@ -100,6 +99,7 @@ def get_info():
 
 def init(gui):
     gui.requested_amounts = gui.config.get('requested_amounts',{}) 
+    gui.merchant_name = gui.config.get('merchant_name', 'Invoice')
     gui.qr_window = None
 
 
