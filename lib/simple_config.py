@@ -151,7 +151,6 @@ a SimpleConfig instance then reads the wallet file.
             except ConfigParser.NoSectionError:
                 pass
 
-
     def init_path(self, path):
         """Set the path of the wallet."""
 
