@@ -17,6 +17,7 @@ from electrum.bitcoin import is_valid
 from i18n import _
 import decimal
 import exchange_rate
+import json
 import os.path
 import random
 import re
@@ -293,7 +294,11 @@ class MiniWindow(QDialog):
         self.amount_input.setAttribute(Qt.WA_MacShowFocusRect, 0)
         self.amount_input.textChanged.connect(self.amount_input_changed)
 
-        self.send_button = QPushButton(_("&Send"))
+        if self.actuator.wallet.seed:
+            self.send_button = QPushButton(_("&Send"))
+        else:
+            self.send_button = QPushButton(_("&Create"))
+
         self.send_button.setObjectName("send_button")
         self.send_button.setDisabled(True);
         self.send_button.clicked.connect(self.send)
@@ -494,7 +499,7 @@ class MiniWindow(QDialog):
         quote_text = self.create_quote_text(btc_balance)
         if quote_text:
             quote_text = "(%s)" % quote_text
-        btc_balance = "%.2f" % (btc_balance / bitcoin(1))
+        btc_balance = "%.4f" % (btc_balance / bitcoin(1))
         self.balance_label.set_balance_text(btc_balance, quote_text)
         self.setWindowTitle("Electrum %s - %s BTC" % (electrum_version, btc_balance))
 
@@ -856,24 +861,32 @@ class MiniActuator:
             QMessageBox.warning(parent_window, _('Error'), str(error), _('OK'))
             return False
 
-        h = self.wallet.send_tx(tx)
+        if tx.is_complete:
+            h = self.wallet.send_tx(tx)
 
-        self.waiting_dialog(lambda: False if self.wallet.tx_event.isSet() else _("Sending transaction, please wait..."))
+            self.waiting_dialog(lambda: False if self.wallet.tx_event.isSet() else _("Sending transaction, please wait..."))
+              
+            status, message = self.wallet.receive_tx(h)
+
+            if not status:
+                import tempfile
+                dumpf = tempfile.NamedTemporaryFile(delete=False)
+                dumpf.write(tx)
+                dumpf.close()
+                print "Dumped error tx to", dumpf.name
+                QMessageBox.warning(parent_window, _('Error'), message, _('OK'))
+                return False
           
-        status, message = self.wallet.receive_tx(h)
-
-        if not status:
-            import tempfile
-            dumpf = tempfile.NamedTemporaryFile(delete=False)
-            dumpf.write(tx)
-            dumpf.close()
-            print "Dumped error tx to", dumpf.name
-            QMessageBox.warning(parent_window, _('Error'), message, _('OK'))
-            return False
-      
-        TransactionWindow(message, self)
-#        QMessageBox.information(parent_window, '',
-#            _('Your transaction has been sent.') + '\n' + message, _('OK'))
+            TransactionWindow(message, self)
+        else:
+            filename = 'unsigned_tx_%s' % (time.mktime(time.gmtime()))
+            try:
+                fileName = QFileDialog.getSaveFileName(QWidget(), _("Select a transaction filename"), os.path.expanduser('~/%s' % (filename)))
+                with open(fileName,'w') as f:
+                    f.write(json.dumps(tx.as_dict(),indent=4) + '\n')
+                QMessageBox.information(QWidget(), _('Unsigned transaction created'), _("Unsigned transaction was saved to file:") + " " +fileName, _('OK'))
+            except BaseException as e:
+                QMessageBox.warning(QWidget(), _('Error'), _('Could not write transaction to file: %s' % e), _('OK'))
         return True
 
     def fetch_destination(self, address):

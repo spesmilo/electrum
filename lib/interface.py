@@ -470,6 +470,9 @@ class Interface(threading.Thread):
                     if message not in self.subscriptions[channel]:
                         self.subscriptions[channel].append(message)
 
+        if not self.is_connected: 
+            return
+
         if self.protocol in 'st':
             with self.lock:
                 out = self.send_tcp(messages, channel)
@@ -516,14 +519,14 @@ class Interface(threading.Thread):
             print "changing server:", server, proxy
             self.server = server
             self.proxy = proxy
-            if self.protocol in 'st' and self.s:
+            if self.is_connected and self.protocol in 'st' and self.s:
                 self.s.shutdown(socket.SHUT_RDWR)
                 self.s.close()
             self.is_connected = False  # this exits the polling loop
             self.trigger_callback('disconnecting') # for actively disconnecting
 
     def stop(self):
-        if self.protocol in 'st' and self.s:
+        if self.is_connected and self.protocol in 'st' and self.s:
             self.s.shutdown(socket.SHUT_RDWR)
             self.s.close()
 
