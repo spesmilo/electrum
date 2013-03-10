@@ -2021,7 +2021,7 @@ class ElectrumWindow(QMainWindow):
 
         # plugins
         if self.plugins:
-            tab5 = QWidget()
+            tab5 = QScrollArea()
             grid_plugins = QGridLayout(tab5)
             grid_plugins.setColumnStretch(0,1)
             tabs.addTab(tab5, _('Plugins') )
@@ -2032,9 +2032,9 @@ class ElectrumWindow(QMainWindow):
                     name, description = p.get_info()
                     cb = QCheckBox(name)
                     cb.setChecked(p.is_enabled())
-                    cb.stateChanged.connect(mk_toggle(cb,p))
+                    cb.clicked.connect(mk_toggle(cb,p))
                     grid_plugins.addWidget(cb, i, 0)
-                    grid_plugins.addWidget(HelpButton(description), i, 2)
+                    grid_plugins.addWidget(HelpButton(description), i, 1)
                 except:
                     print_msg("Error: cannot display plugin", p)
                     traceback.print_exc(file=sys.stdout)
