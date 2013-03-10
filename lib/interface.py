@@ -586,11 +586,6 @@ class Interface(threading.Thread):
         return out
 
 
-    def start(self):
-        threading.Thread.start(self)
-        # wait until connection is established
-        self.connect_event.wait()
-
     def run(self):
         while True:
             self.init_interface()
