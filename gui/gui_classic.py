@@ -273,6 +273,8 @@ class ElectrumWindow(QMainWindow):
         self.config = config
         self.init_plugins()
 
+        self.create_status_bar()
+
         self.wallet.interface.register_callback('updated', lambda: self.emit(QtCore.SIGNAL('update_wallet')))
         self.wallet.interface.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')))
         self.wallet.interface.register_callback('disconnected', lambda: self.emit(QtCore.SIGNAL('update_status')))
@@ -295,7 +297,6 @@ class ElectrumWindow(QMainWindow):
         tabs.setMinimumSize(600, 400)
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
-        self.create_status_bar()
 
         g = self.config.get("winpos-qt",[100, 100, 840, 400])
         self.setGeometry(g[0], g[1], g[2], g[3])
@@ -520,6 +521,9 @@ class ElectrumWindow(QMainWindow):
         text = unicode( item.text(2) )
         if text: 
             self.wallet.labels[tx_hash] = text
+            # Label changed
+            self.run_hook('label_changed',(self, str(tx_hash), text))
+
             item.setForeground(2, QBrush(QColor('black')))
         else:
             if s: self.wallet.labels.pop(tx_hash)
@@ -562,6 +566,7 @@ class ElectrumWindow(QMainWindow):
                     if old_addr != addr:
                         self.wallet.labels[addr] = text
                         changed = True
+                        self.run_hook('label_changed',(self, addr, text))
                 else:
                     print_error("Error: This is one of your aliases")
                     label = self.wallet.labels.get(addr,'')
@@ -1194,6 +1199,8 @@ class ElectrumWindow(QMainWindow):
             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog ) )
         self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), _("Network"), lambda: self.network_dialog(self.wallet, self) ) 
         sb.addPermanentWidget( self.status_button )
+
+        self.run_hook('create_status_bar', (sb,))
 
         self.setStatusBar(sb)
         
@@ -1866,6 +1873,7 @@ class ElectrumWindow(QMainWindow):
         vbox = QVBoxLayout()
 
         tabs = QTabWidget(self)
+        self.settings_tab = tabs
         vbox.addWidget(tabs)
 
         tab1 = QWidget()
@@ -2039,6 +2047,8 @@ class ElectrumWindow(QMainWindow):
                     print_msg("Error: cannot display plugin", p)
                     traceback.print_exc(file=sys.stdout)
             grid_plugins.setRowStretch(i+1,1)
+
+        self.run_hook('create_settings_tab', (self,tabs,))
 
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
