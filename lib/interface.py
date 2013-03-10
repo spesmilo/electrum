@@ -586,6 +586,15 @@ class Interface(threading.Thread):
         return out
 
 
+    def start(self, wait=True):
+        threading.Thread.start(self)
+        if wait:
+            # wait until connection is established
+            self.connect_event.wait()
+            if not self.is_connected:
+                print_msg("Not connected, aborting.")
+                sys.exit(1)
+
     def run(self):
         while True:
             self.init_interface()

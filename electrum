@@ -124,7 +124,7 @@ if __name__ == '__main__':
         
         interface = Interface(config, True)
         wallet.interface = interface
-        interface.start()
+        interface.start(wait = False)
         interface.send([('server.peers.subscribe',[])])
 
         gui = gui.ElectrumGui(wallet, config)
@@ -239,11 +239,7 @@ if __name__ == '__main__':
 
             if not options.offline:
                 interface = Interface(config)
-                interface.start()
-                interface.connect_event.wait()
-                if not interface.is_connected:
-                    print_msg("Not connected, aborting.")
-                    sys.exit(1)
+                interface.start(wait=True)
                 wallet.interface = interface
                 verifier = WalletVerifier(interface, config)
                 wallet.set_verifier(verifier)
@@ -361,11 +357,6 @@ if __name__ == '__main__':
         interface = Interface(config)
         interface.register_callback('connected', lambda: sys.stderr.write("Connected to " + interface.connection_msg + "\n"))
         interface.start()
-        # wait until connected
-        interface.connect_event.wait()
-        if not interface.is_connected:
-            print_msg("Not connected, aborting.")
-            sys.exit(1)
         wallet.interface = interface
         verifier = WalletVerifier(interface, config)
         wallet.set_verifier(verifier)
