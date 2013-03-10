@@ -1715,7 +1715,7 @@ class ElectrumWindow(QMainWindow):
         txt = QTextEdit()
         l.addWidget(txt)
 
-        ok_button = QPushButton(_("Process transaction"))
+        ok_button = QPushButton(_("Load transaction"))
         ok_button.setDefault(True)
         ok_button.clicked.connect(dialog.accept)
         l.addWidget(ok_button)
@@ -1741,25 +1741,28 @@ class ElectrumWindow(QMainWindow):
         l = QGridLayout()
         dialog.setLayout(l)
 
-        l.addWidget(QLabel(_("Transaction status: ")), 0,0)
-        l.addWidget(QLabel(_("Actions")), 1,0)
+        l.addWidget(QLabel(_("Transaction status: ")), 3,0)
+        l.addWidget(QLabel(_("Actions")), 4,0)
 
         if tx_dict["complete"] == False:
-            l.addWidget(QLabel(_("Unsigned")), 0,1)
+            l.addWidget(QLabel(_("Unsigned")), 3,1)
             if self.wallet.seed :
                 b = QPushButton("Sign transaction")
                 input_info = json.loads(tx_dict["input_info"])
                 b.clicked.connect(lambda: self.sign_raw_transaction(tx, input_info, dialog))
-                l.addWidget(b, 1, 1)
+                l.addWidget(b, 4, 1)
             else:
-                l.addWidget(QLabel(_("Wallet is de-seeded, can't sign.")), 1,1)
+                l.addWidget(QLabel(_("Wallet is de-seeded, can't sign.")), 4,1)
         else:
-            l.addWidget(QLabel(_("Signed")), 0,1)
+            l.addWidget(QLabel(_("Signed")), 3,1)
             b = QPushButton("Broadcast transaction")
             b.clicked.connect(lambda: self.send_raw_transaction(tx, dialog))
-            l.addWidget(b,1,1)
+            l.addWidget(b,4,1)
 
-        l.addWidget( self.generate_transaction_information_widget(tx), 2,0,2,3)
+        l.addWidget( self.generate_transaction_information_widget(tx), 0,0,2,3)
+        cancelButton = QPushButton(_("Cancel"))
+        cancelButton.clicked.connect(lambda: dialog.done(0))
+        l.addWidget(cancelButton, 4,2)
 
         dialog.exec_()
 
@@ -1919,14 +1922,19 @@ class ElectrumWindow(QMainWindow):
         grid_wallet.setColumnStretch(0,1)
         tabs.addTab(tab2, _('Wallet') )
         
+        grid_wallet.addWidget(QLabel(_("Load raw transaction")), 3, 0)
+        grid_wallet.addWidget(EnterButton(_("From file"), self.do_process_from_file),3,1)
+        grid_wallet.addWidget(EnterButton(_("From text"), self.do_process_from_text),3,2)
+        grid_wallet.addWidget(HelpButton(_("This will give you the option to sign or broadcast a transaction based on it's status.")),3,3)
+
         fee_label = QLabel(_('Transaction fee'))
         grid_wallet.addWidget(fee_label, 0, 0)
         fee_e = QLineEdit()
         fee_e.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
-        grid_wallet.addWidget(fee_e, 0, 1)
+        grid_wallet.addWidget(fee_e, 0, 2)
         msg = _('Fee per transaction input. Transactions involving multiple inputs tend to require a higher fee.') + ' ' \
             + _('Recommended value') + ': 0.001'
-        grid_wallet.addWidget(HelpButton(msg), 0, 2)
+        grid_wallet.addWidget(HelpButton(msg), 0, 3)
         fee_e.textChanged.connect(lambda: numbify(fee_e,False))
         if not self.config.is_modifiable('fee'):
             for w in [fee_e, fee_label]: w.setEnabled(False)
@@ -1936,15 +1944,15 @@ class ElectrumWindow(QMainWindow):
         usechange_combo = QComboBox()
         usechange_combo.addItems([_('Yes'), _('No')])
         usechange_combo.setCurrentIndex(not self.wallet.use_change)
-        grid_wallet.addWidget(usechange_combo, 1, 1)
-        grid_wallet.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions.')+' '), 1, 2)
+        grid_wallet.addWidget(usechange_combo, 1, 2)
+        grid_wallet.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions.')+' '), 1, 3)
         if not self.config.is_modifiable('use_change'): usechange_combo.setEnabled(False)
 
         gap_label = QLabel(_('Gap limit'))
         grid_wallet.addWidget(gap_label, 2, 0)
         gap_e = QLineEdit()
         gap_e.setText("%d"% self.wallet.gap_limit)
-        grid_wallet.addWidget(gap_e, 2, 1)
+        grid_wallet.addWidget(gap_e, 2, 2)
         msg =  _('The gap limit is the maximal number of contiguous unused addresses in your sequence of receiving addresses.') + '\n' \
               + _('You may increase it if you need more receiving addresses.') + '\n\n' \
               + _('Your current gap limit is') + ': %d'%self.wallet.gap_limit + '\n' \
@@ -1952,7 +1960,7 @@ class ElectrumWindow(QMainWindow):
               + _('Warning') + ': ' \
               + _('The gap limit parameter must be provided in order to recover your wallet from seed.') + ' ' \
               + _('Do not modify it if you do not understand what you are doing, or if you expect to recover your wallet without knowing it!') + '\n\n' 
-        grid_wallet.addWidget(HelpButton(msg), 2, 2)
+        grid_wallet.addWidget(HelpButton(msg), 2, 3)
         gap_e.textChanged.connect(lambda: numbify(nz_e,True))
         if not self.config.is_modifiable('gap_limit'):
             for w in [gap_e, gap_label]: w.setEnabled(False)
@@ -1989,16 +1997,6 @@ class ElectrumWindow(QMainWindow):
 
         grid_io.setRowStretch(4,1)
 
-        tab4 = QWidget()
-        grid_raw = QGridLayout(tab4)
-        grid_raw.setColumnStretch(0,1)
-        tabs.addTab(tab4, _('Raw tx') )  # move this to wallet tab
-
-        grid_raw.addWidget(QLabel(_("Process raw transaction")), 0, 0)
-        grid_raw.addWidget(EnterButton(_("From file"), self.do_process_from_file),0,1)
-        grid_raw.addWidget(EnterButton(_("From text"), self.do_process_from_text),0,2)
-        grid_raw.addWidget(HelpButton(_("This will give you the option to sign or broadcast a transaction based on it's status.")),0,3)
-        grid_raw.setRowStretch(3,1)
 
         # plugins
         if self.plugins:
