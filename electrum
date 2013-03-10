@@ -124,9 +124,8 @@ if __name__ == '__main__':
         
         interface = Interface(config, True)
         wallet.interface = interface
-        interface.start()
-        if interface.is_connected:
-            interface.send([('server.peers.subscribe',[])])
+        interface.start(wait = False)
+        interface.send([('server.peers.subscribe',[])])
 
         gui = gui.ElectrumGui(wallet, config)
 
@@ -240,9 +239,8 @@ if __name__ == '__main__':
 
             if not options.offline:
                 interface = Interface(config)
-                interface.start()
+                interface.start(wait=True)
                 wallet.interface = interface
-
                 verifier = WalletVerifier(interface, config)
                 wallet.set_verifier(verifier)
 
