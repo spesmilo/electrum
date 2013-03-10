@@ -14,9 +14,16 @@ import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
 target_host = 'labelectrum.herokuapp.com'
-auth_token = 'naFniLDwQpHzoMkpwB8H'
 
 def init(gui):
+    """If you want to give this a spin create a account at the target_host url and put it in your user dir config
+    file with the label_api_key."""
+
+    global auth_token
+    auth_token = gui.config.get("label_api_key")
+    if not auth_token:
+      return 
+
     cloud_wallet = CloudWallet(gui.wallet)
     gui.set_hook('create_settings_tab', add_settings_tab)
     gui.set_hook('label_changed', label_changed)
@@ -32,7 +39,8 @@ def label_changed(gui,item,label):
     bundle = {"label": {"external_id": hashed, "text": label}}
     params = json.dumps(bundle)
     connection = httplib.HTTPConnection(target_host)
-    connection.request("POST", ("/api/wallets/%s/labels.json?auth_token=%s" % (wallet_id(gui.wallet), auth_token)), params, {'Content-Type': 'application/json'})
+    wallet = wallet_id(gui.wallet)
+    connection.request("POST", ("/api/wallets/%s/labels.json?auth_token=%s" % (wallet, auth_token)), params, {'Content-Type': 'application/json'})
 
     response = connection.getresponse()
     if response.reason == httplib.responses[httplib.NOT_FOUND]:
@@ -43,7 +51,7 @@ def add_settings_tab(gui, tabs):
       cloud_tab = QWidget()
       layout = QGridLayout(cloud_tab)
       layout.addWidget(QLabel("API Key: "),0,0)
-      layout.addWidget(QLineEdit("jEnsNBb5fAR5rYSBNYnR"), 0,2)
+      layout.addWidget(QLineEdit(auth_token), 0,2)
 
       layout.addWidget(QLabel("Label sync options: "),1,0)
 
@@ -64,7 +72,7 @@ def full_push(wallet):
 
 def full_pull(wallet):
     cloud_wallet = CloudWallet(wallet)
-    cloud_wallet.full_pull()
+    cloud_wallet.full_pull(True)
     print "Labels pulled, please restart your client"
 
 def show():
@@ -94,14 +102,13 @@ class CloudWallet():
         self.addresses = addresses
 
 
-    def full_pull(self):
+    def full_pull(self, force = False):
         global target_host, auth_token
         connection = httplib.HTTPConnection(target_host)
         connection.request("GET", ("/api/wallets/%s/labels.json?auth_token=%s" % (self.mpk, auth_token)),"", {'Content-Type': 'application/json'})
         response = connection.getresponse()
         if response.reason == httplib.responses[httplib.NOT_FOUND]:
             return
-
         try:
             response = json.loads(response.read())
         except ValueError as e:
@@ -111,12 +118,12 @@ class CloudWallet():
             for key in self.addresses:
                 target_hashed = hashlib.sha256(key).digest().encode('hex')
                 if label["external_id"] == target_hashed:
-                   if not self.labels.get(key):
+                   if force or not self.labels.get(key):
                        self.labels[key] = label["text"] 
             for key, value in self.transactions.iteritems():
                 target_hashed = hashlib.sha256(key).digest().encode('hex')
                 if label["external_id"] == target_hashed:
-                   if not self.labels.get(key):
+                   if force or not self.labels.get(key):
                        self.labels[key] = label["text"] 
 
     def full_push(self):
