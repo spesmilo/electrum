@@ -494,7 +494,7 @@ class MiniWindow(QDialog):
         quote_text = self.create_quote_text(btc_balance)
         if quote_text:
             quote_text = "(%s)" % quote_text
-        btc_balance = "%.2f" % (btc_balance / bitcoin(1))
+        btc_balance = "%.4f" % (btc_balance / bitcoin(1))
         self.balance_label.set_balance_text(btc_balance, quote_text)
         self.setWindowTitle("Electrum %s - %s BTC" % (electrum_version, btc_balance))
 
