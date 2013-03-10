@@ -13,8 +13,8 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
-target_host = 'localhost:3000'
-auth_token = 'jEnsNBb5fAR5rYSBNYnR'
+target_host = 'labelectrum.herokuapp.com'
+auth_token = 'naFniLDwQpHzoMkpwB8H'
 
 def init(gui):
     cloud_wallet = CloudWallet(gui.wallet)
@@ -24,7 +24,6 @@ def init(gui):
 
 def wallet_id(wallet):
     return hashlib.sha256(str(wallet.get_master_public_key())).digest().encode('hex')
-
 
 def label_changed(gui,item,label):
     print "Label changed! Item: %s Label: %s label" % ( item, label)
@@ -44,13 +43,29 @@ def add_settings_tab(gui, tabs):
       cloud_tab = QWidget()
       layout = QGridLayout(cloud_tab)
       layout.addWidget(QLabel("API Key: "),0,0)
-      layout.addWidget(QLineEdit(), 0,2)
+      layout.addWidget(QLineEdit("jEnsNBb5fAR5rYSBNYnR"), 0,2)
 
       layout.addWidget(QLabel("Label sync options: "),1,0)
-      layout.addWidget(QPushButton("Force upload"), 1,1)
-      layout.addWidget(QPushButton("Force download"), 1,2)
+
+      upload = QPushButton("Force upload")
+      upload.clicked.connect(lambda: full_push(gui.wallet))
+      layout.addWidget(upload, 1,1)
+
+      download = QPushButton("Force download")
+      download.clicked.connect(lambda: full_pull(gui.wallet))
+      layout.addWidget(download, 1,2)
 
       tabs.addTab(cloud_tab, "Label cloud")
+
+def full_push(wallet):
+    cloud_wallet = CloudWallet(wallet)
+    cloud_wallet.full_push()
+    print "Labels pushed"
+
+def full_pull(wallet):
+    cloud_wallet = CloudWallet(wallet)
+    cloud_wallet.full_pull()
+    print "Labels pulled, please restart your client"
 
 def show():
     print 'showing'
@@ -64,7 +79,7 @@ def is_enabled():
 def toggle(gui):
     return is_enabled()
 
-
+# This can probably be refactored into plain top level methods instead of a class
 class CloudWallet():
     def __init__(self, wallet):
         self.mpk = hashlib.sha256(str(wallet.get_master_public_key())).digest().encode('hex')
@@ -87,7 +102,11 @@ class CloudWallet():
         if response.reason == httplib.responses[httplib.NOT_FOUND]:
             return
 
-        response = json.loads(response.read())
+        try:
+            response = json.loads(response.read())
+        except ValueError as e:
+            return
+
         for label in response:
             for key in self.addresses:
                 target_hashed = hashlib.sha256(key).digest().encode('hex')
@@ -116,3 +135,4 @@ class CloudWallet():
         if response.reason == httplib.responses[httplib.NOT_FOUND]:
             return
         response = json.loads(response.read())
+        print response

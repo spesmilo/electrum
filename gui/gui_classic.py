@@ -554,7 +554,6 @@ class ElectrumWindow(QMainWindow):
 
 
     def address_label_changed(self, item, column, l, column_addr, column_label):
-
         if column == column_label:
             addr = unicode( item.text(column_addr) )
             text = unicode( item.text(column_label) )
