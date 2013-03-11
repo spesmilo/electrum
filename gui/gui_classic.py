@@ -2012,6 +2012,7 @@ class ElectrumWindow(QMainWindow):
                 try:
                     name, description = p.get_info()
                     cb = QCheckBox(name)
+                    cb.setDisabled(not p.is_available())
                     cb.setChecked(p.is_enabled())
                     cb.clicked.connect(mk_toggle(cb,p))
                     grid_plugins.addWidget(cb, i, 0)

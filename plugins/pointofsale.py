@@ -92,38 +92,36 @@ class QR_Window(QWidget):
             
 
 
-
+config = {}
 
 def get_info():
     return 'Point of Sale', _('Show QR code window and amounts requested for each address. Add menu item to request amount.')
 
 def init(gui):
-    gui.requested_amounts = gui.config.get('requested_amounts',{}) 
-    gui.merchant_name = gui.config.get('merchant_name', 'Invoice')
+    global config
+    config = gui.config
+    gui.requested_amounts = config.get('requested_amounts',{}) 
+    gui.merchant_name = config.get('merchant_name', 'Invoice')
     gui.qr_window = None
 
-
-
-enabled = False
-
 def is_enabled():
-    return False
+    return config.get('pointofsale') is True
+
+def is_available():
+    return True
 
 def toggle(gui):
-    global enabled
-    enabled = not enabled
-    toggle_QR_window(gui, enabled)
 
-    if enabled:
+    if not is_enabled():
         gui.expert_mode = True
         gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Request')])
-
         gui.set_hook('item_changed', item_changed)
         gui.set_hook('current_item_changed', recv_changed)
         gui.set_hook('receive_menu', receive_menu)
         gui.set_hook('update_receive_item', update_receive_item)
         gui.set_hook('timer_actions', timer_actions)
         gui.set_hook('close_main_window', close_main_window)
+        enabled = True
     else:
         gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Tx')])
         gui.unset_hook('item_changed', item_changed)
@@ -132,9 +130,13 @@ def toggle(gui):
         gui.unset_hook('update_receive_item', update_receive_item)
         gui.unset_hook('timer_actions', timer_actions)
         gui.unset_hook('close_main_window', close_main_window)
-        
+        enabled = False
 
+    config.set_key('pointofsale', enabled, True)
+    toggle_QR_window(gui, enabled)
     return enabled
+    
+
 
 
 def toggle_QR_window(self, show):
