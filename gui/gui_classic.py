@@ -1922,11 +1922,6 @@ class ElectrumWindow(QMainWindow):
         grid_wallet.setColumnStretch(0,1)
         tabs.addTab(tab2, _('Wallet') )
         
-        grid_wallet.addWidget(QLabel(_("Load raw transaction")), 3, 0)
-        grid_wallet.addWidget(EnterButton(_("From file"), self.do_process_from_file),3,1)
-        grid_wallet.addWidget(EnterButton(_("From text"), self.do_process_from_text),3,2)
-        grid_wallet.addWidget(HelpButton(_("This will give you the option to sign or broadcast a transaction based on it's status.")),3,3)
-
         fee_label = QLabel(_('Transaction fee'))
         grid_wallet.addWidget(fee_label, 0, 0)
         fee_e = QLineEdit()
@@ -1995,7 +1990,13 @@ class ElectrumWindow(QMainWindow):
                               + _('If you give it to someone, they will be able to see your transactions, but not to spend your money.') + ' ' \
                               + _('If you restore your wallet from it, a watching-only (deseeded) wallet will be created.')), 4, 3)
 
-        grid_io.setRowStretch(4,1)
+
+        grid_io.addWidget(QLabel(_("Load transaction")), 5, 0)
+        grid_io.addWidget(EnterButton(_("From file"), self.do_process_from_file), 5, 1)
+        grid_io.addWidget(EnterButton(_("From text"), self.do_process_from_text), 5, 2)
+        grid_io.addWidget(HelpButton(_("This will give you the option to sign or broadcast a transaction based on it's status.")), 5, 3)
+
+        grid_io.setRowStretch(5,1)
 
 
         # plugins
