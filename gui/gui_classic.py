@@ -806,7 +806,7 @@ class ElectrumWindow(QMainWindow):
         else:
             filename = 'unsigned_tx_%s' % (time.mktime(time.gmtime()))
             try:
-                fileName = QFileDialog.getSaveFileName(QWidget(), _("Select a transaction filename"), os.path.expanduser('~/%s' % (filename)))
+                fileName = QFileDialog.getSaveFileName(self, _("Select a transaction filename"), os.path.expanduser('~/%s' % (filename)))
                 with open(fileName,'w') as f:
                     f.write(json.dumps(tx.as_dict(),indent=4) + '\n')
                 QMessageBox.information(self, _('Unsigned transaction created'), _("Unsigned transaction was saved to file:") + " " +fileName, _('OK'))
@@ -1667,7 +1667,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def read_tx_from_file(self):
-        fileName = QFileDialog.getOpenFileName(QWidget(), _("Select your transaction file"), os.path.expanduser('~'))
+        fileName = QFileDialog.getOpenFileName(self, _("Select your transaction file"), os.path.expanduser('~'))
         if not fileName:
             return
         try:
@@ -1684,7 +1684,7 @@ class ElectrumWindow(QMainWindow):
         try:
             self.wallet.signrawtransaction(tx, input_info, [], password)
             
-            fileName = QFileDialog.getSaveFileName(QWidget(), _("Select where to save your signed transaction"), os.path.expanduser('~/signed_tx_%s' % (tx.hash()[0:8])))
+            fileName = QFileDialog.getSaveFileName(self, _("Select where to save your signed transaction"), os.path.expanduser('~/signed_tx_%s' % (tx.hash()[0:8])))
             if fileName:
                 with open(fileName, "w+") as f:
                     f.write(json.dumps(tx.as_dict(),indent=4) + '\n')
@@ -1773,7 +1773,7 @@ class ElectrumWindow(QMainWindow):
 
         try:
             select_export = _('Select file to export your private keys to')
-            fileName = QFileDialog.getSaveFileName(QWidget(), select_export, os.path.expanduser('~/electrum-private-keys.csv'), "*.csv")
+            fileName = QFileDialog.getSaveFileName(self, select_export, os.path.expanduser('~/electrum-private-keys.csv'), "*.csv")
             if fileName:
                 with open(fileName, "w+") as csvfile:
                     transaction = csv.writer(csvfile)
@@ -1795,7 +1795,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def do_import_labels(self):
-        labelsFile = QFileDialog.getOpenFileName(QWidget(), _("Open text file"), util.user_dir(), self.tr("Text Files (labels.dat)"))
+        labelsFile = QFileDialog.getOpenFileName(self, _("Open text file"), util.user_dir(), self.tr("Text Files (labels.dat)"))
         if not labelsFile: return
         try:
             f = open(labelsFile, 'r')
