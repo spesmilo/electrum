@@ -362,6 +362,24 @@ class ElectrumWindow(QMainWindow):
             apply(cb, args)
 
 
+    # custom wrappers for getOpenFileName and getSaveFileName, that remember the path selected by the user
+    def getOpenFileName(self, title, filter = None):
+        directory = self.config.get('io_dir', os.path.expanduser('~'))
+        fileName = unicode( QFileDialog.getOpenFileName(self, title, directory, filter) )
+        if fileName and directory != os.path.dirname(fileName):
+            self.config.set_key('io_dir', os.path.dirname(fileName), True)
+        return fileName
+
+    def getSaveFileName(self, title, filename, filter = None):
+        directory = self.config.get('io_dir', os.path.expanduser('~'))
+        path = os.path.join( directory, filename )
+        fileName = unicode( QFileDialog.getSaveFileName(self, title, path, filter) )
+        if fileName and directory != os.path.dirname(fileName):
+            self.config.set_key('io_dir', os.path.dirname(fileName), True)
+        return fileName
+
+
+
     def close(self):
         QMainWindow.close(self)
         self.run_hook('close_main_window', (self,))
@@ -804,9 +822,9 @@ class ElectrumWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, _('Error'), msg, _('OK'))
         else:
-            filename = 'unsigned_tx_%s' % (time.mktime(time.gmtime()))
+            filename = label + '.txn' if label else 'unsigned_%s.txn' % (time.mktime(time.gmtime()))
             try:
-                fileName = QFileDialog.getSaveFileName(self, _("Select a transaction filename"), os.path.expanduser('~/%s' % (filename)))
+                fileName = self.getSaveFileName(_("Select a transaction filename"), filename, "*.txn")
                 with open(fileName,'w') as f:
                     f.write(json.dumps(tx.as_dict(),indent=4) + '\n')
                 QMessageBox.information(self, _('Unsigned transaction created'), _("Unsigned transaction was saved to file:") + " " +fileName, _('OK'))
@@ -1667,7 +1685,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def read_tx_from_file(self):
-        fileName = QFileDialog.getOpenFileName(self, _("Select your transaction file"), os.path.expanduser('~'))
+        fileName = self.getOpenFileName(_("Select your transaction file"), "*.txn")
         if not fileName:
             return
         try:
@@ -1684,7 +1702,7 @@ class ElectrumWindow(QMainWindow):
         try:
             self.wallet.signrawtransaction(tx, input_info, [], password)
             
-            fileName = QFileDialog.getSaveFileName(self, _("Select where to save your signed transaction"), os.path.expanduser('~/signed_tx_%s' % (tx.hash()[0:8])))
+            fileName = self.getSaveFileName(_("Select where to save your signed transaction"), 'signed_%s.txn' % (tx.hash()[0:8]), "*.txn")
             if fileName:
                 with open(fileName, "w+") as f:
                     f.write(json.dumps(tx.as_dict(),indent=4) + '\n')
@@ -1773,7 +1791,7 @@ class ElectrumWindow(QMainWindow):
 
         try:
             select_export = _('Select file to export your private keys to')
-            fileName = QFileDialog.getSaveFileName(self, select_export, os.path.expanduser('~/electrum-private-keys.csv'), "*.csv")
+            fileName = self.getSaveFileName(select_export, 'electrum-private-keys.csv', "*.csv")
             if fileName:
                 with open(fileName, "w+") as csvfile:
                     transaction = csv.writer(csvfile)
@@ -1795,7 +1813,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def do_import_labels(self):
-        labelsFile = QFileDialog.getOpenFileName(self, _("Open text file"), util.user_dir(), self.tr("Text Files (labels.dat)"))
+        labelsFile = self.getOpenFileName(_("Open labels file"), "*.dat")
         if not labelsFile: return
         try:
             f = open(labelsFile, 'r')
@@ -1807,16 +1825,16 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.information(None, _("Labels imported"), _("Your labels where imported from")+" '%s'" % str(labelsFile))
         except (IOError, os.error), reason:
             QMessageBox.critical(None, _("Unable to import labels"), _("Electrum was unable to import your labels.")+"\n" + str(reason))
-        
+            
 
     def do_export_labels(self):
         labels = self.wallet.labels
         try:
-            labelsFile = util.user_dir() + '/labels.dat'
-            f = open(labelsFile, 'w+')
-            json.dump(labels, f)
-            f.close()
-            QMessageBox.information(None, "Labels exported", _("Your labels where exported to")+" '%s'" % str(labelsFile))
+            fileName = self.getSaveFileName(_("Select file to save your labels"), 'electrum_labels.dat', "*.dat")
+            if fileName:
+                with open(fileName, 'w+') as f:
+                    json.dump(labels, f)
+                QMessageBox.information(None, "Labels exported", _("Your labels where exported to")+" '%s'" % str(fileName))
         except (IOError, os.error), reason:
             QMessageBox.critical(None, "Unable to export labels", _("Electrum was unable to export your labels.")+"\n" + str(reason))
 
