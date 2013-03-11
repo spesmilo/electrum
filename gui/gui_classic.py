@@ -362,6 +362,24 @@ class ElectrumWindow(QMainWindow):
             apply(cb, args)
 
 
+    # custom wrappers for getOpenFileName and getSaveFileName, that remember the path selected by the user
+    def getOpenFileName(self, title, filter = None):
+        directory = self.config.get('io_dir', os.path.expanduser('~'))
+        fileName = unicode( QFileDialog.getOpenFileName(self, title, directory, filter) )
+        if fileName and directory != os.path.dirname(fileName):
+            self.config.set_key('io_dir', os.path.dirname(fileName), True)
+        return fileName
+
+    def getSaveFileName(self, title, filename, filter = None):
+        directory = self.config.get('io_dir', os.path.expanduser('~'))
+        path = os.path.join( directory, filename )
+        fileName = unicode( QFileDialog.getSaveFileName(self, title, path, filter) )
+        if fileName and directory != os.path.dirname(fileName):
+            self.config.set_key('io_dir', os.path.dirname(fileName), True)
+        return fileName
+
+
+
     def close(self):
         QMainWindow.close(self)
         self.run_hook('close_main_window', (self,))
@@ -804,9 +822,9 @@ class ElectrumWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, _('Error'), msg, _('OK'))
         else:
-            filename = 'unsigned_tx_%s' % (time.mktime(time.gmtime()))
+            filename = label + '.txn' if label else 'unsigned_%s.txn' % (time.mktime(time.gmtime()))
             try:
-                fileName = QFileDialog.getSaveFileName(QWidget(), _("Select a transaction filename"), os.path.expanduser('~/%s' % (filename)))
+                fileName = self.getSaveFileName(_("Select a transaction filename"), filename, "*.txn")
                 with open(fileName,'w') as f:
                     f.write(json.dumps(tx.as_dict(),indent=4) + '\n')
                 QMessageBox.information(self, _('Unsigned transaction created'), _("Unsigned transaction was saved to file:") + " " +fileName, _('OK'))
@@ -1667,7 +1685,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def read_tx_from_file(self):
-        fileName = QFileDialog.getOpenFileName(QWidget(), _("Select your transaction file"), os.path.expanduser('~'))
+        fileName = self.getOpenFileName(_("Select your transaction file"), "*.txn")
         if not fileName:
             return
         try:
@@ -1684,7 +1702,7 @@ class ElectrumWindow(QMainWindow):
         try:
             self.wallet.signrawtransaction(tx, input_info, [], password)
             
-            fileName = QFileDialog.getSaveFileName(QWidget(), _("Select where to save your signed transaction"), os.path.expanduser('~/signed_tx_%s' % (tx.hash()[0:8])))
+            fileName = self.getSaveFileName(_("Select where to save your signed transaction"), 'signed_%s.txn' % (tx.hash()[0:8]), "*.txn")
             if fileName:
                 with open(fileName, "w+") as f:
                     f.write(json.dumps(tx.as_dict(),indent=4) + '\n')
@@ -1773,7 +1791,7 @@ class ElectrumWindow(QMainWindow):
 
         try:
             select_export = _('Select file to export your private keys to')
-            fileName = QFileDialog.getSaveFileName(QWidget(), select_export, os.path.expanduser('~/electrum-private-keys.csv'), "*.csv")
+            fileName = self.getSaveFileName(select_export, 'electrum-private-keys.csv', "*.csv")
             if fileName:
                 with open(fileName, "w+") as csvfile:
                     transaction = csv.writer(csvfile)
@@ -1795,7 +1813,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def do_import_labels(self):
-        labelsFile = QFileDialog.getOpenFileName(QWidget(), _("Open text file"), util.user_dir(), self.tr("Text Files (labels.dat)"))
+        labelsFile = self.getOpenFileName(_("Open labels file"), "*.dat")
         if not labelsFile: return
         try:
             f = open(labelsFile, 'r')
@@ -1807,16 +1825,16 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.information(None, _("Labels imported"), _("Your labels where imported from")+" '%s'" % str(labelsFile))
         except (IOError, os.error), reason:
             QMessageBox.critical(None, _("Unable to import labels"), _("Electrum was unable to import your labels.")+"\n" + str(reason))
-        
+            
 
     def do_export_labels(self):
         labels = self.wallet.labels
         try:
-            labelsFile = util.user_dir() + '/labels.dat'
-            f = open(labelsFile, 'w+')
-            json.dump(labels, f)
-            f.close()
-            QMessageBox.information(None, "Labels exported", _("Your labels where exported to")+" '%s'" % str(labelsFile))
+            fileName = self.getSaveFileName(_("Select file to save your labels"), 'electrum_labels.dat', "*.dat")
+            if fileName:
+                with open(fileName, 'w+') as f:
+                    json.dump(labels, f)
+                QMessageBox.information(None, "Labels exported", _("Your labels where exported to")+" '%s'" % str(fileName))
         except (IOError, os.error), reason:
             QMessageBox.critical(None, "Unable to export labels", _("Electrum was unable to export your labels.")+"\n" + str(reason))
 
@@ -1864,18 +1882,18 @@ class ElectrumWindow(QMainWindow):
         tabs.addTab(tab1, _('Display') )
 
         nz_label = QLabel(_('Display zeros'))
-        grid_ui.addWidget(nz_label, 3, 0)
+        grid_ui.addWidget(nz_label, 0, 0)
         nz_e = QLineEdit()
         nz_e.setText("%d"% self.wallet.num_zeros)
-        grid_ui.addWidget(nz_e, 3, 1)
+        grid_ui.addWidget(nz_e, 0, 1)
         msg = _('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"')
-        grid_ui.addWidget(HelpButton(msg), 3, 2)
+        grid_ui.addWidget(HelpButton(msg), 0, 2)
         nz_e.textChanged.connect(lambda: numbify(nz_e,True))
         if not self.config.is_modifiable('num_zeros'):
             for w in [nz_e, nz_label]: w.setEnabled(False)
         
         lang_label=QLabel(_('Language') + ':')
-        grid_ui.addWidget(lang_label , 8, 0)
+        grid_ui.addWidget(lang_label, 1, 0)
         lang_combo = QComboBox()
         from i18n import languages
         lang_combo.addItems(languages.values())
@@ -1884,8 +1902,8 @@ class ElectrumWindow(QMainWindow):
         except:
             index = 0
         lang_combo.setCurrentIndex(index)
-        grid_ui.addWidget(lang_combo, 8, 1)
-        grid_ui.addWidget(HelpButton(_('Select which language is used in the GUI (after restart).')+' '), 8, 2)
+        grid_ui.addWidget(lang_combo, 1, 1)
+        grid_ui.addWidget(HelpButton(_('Select which language is used in the GUI (after restart).')+' '), 1, 2)
         if not self.config.is_modifiable('language'):
             for w in [lang_combo, lang_label]: w.setEnabled(False)
 
@@ -1893,7 +1911,7 @@ class ElectrumWindow(QMainWindow):
         currencies.insert(0, "None")
 
         cur_label=QLabel(_('Currency') + ':')
-        grid_ui.addWidget(cur_label , 9, 0)
+        grid_ui.addWidget(cur_label , 2, 0)
         cur_combo = QComboBox()
         cur_combo.addItems(currencies)
         try:
@@ -1901,20 +1919,21 @@ class ElectrumWindow(QMainWindow):
         except:
             index = 0
         cur_combo.setCurrentIndex(index)
-        grid_ui.addWidget(cur_combo, 9, 1)
-        grid_ui.addWidget(HelpButton(_('Select which currency is used for quotes.')+' '), 9, 2)
+        grid_ui.addWidget(cur_combo, 2, 1)
+        grid_ui.addWidget(HelpButton(_('Select which currency is used for quotes.')+' '), 2, 2)
         
         view_label=QLabel(_('Receive Tab') + ':')
-        grid_ui.addWidget(view_label , 10, 0)
+        grid_ui.addWidget(view_label , 3, 0)
         view_combo = QComboBox()
         view_combo.addItems([_('Simple'), _('Advanced')])
         view_combo.setCurrentIndex(self.expert_mode)
-        grid_ui.addWidget(view_combo, 10, 1)
+        grid_ui.addWidget(view_combo, 3, 1)
         hh = _('This selects the interaction mode of the "Receive" tab.')+' ' + '\n\n' \
              + _('Simple') +   ': ' + _('Show only addresses and labels.') + '\n\n' \
              + _('Advanced') + ': ' + _('Show address balances and add extra menu items to freeze/prioritize addresses.') + '\n\n' 
         
-        grid_ui.addWidget(HelpButton(hh), 10, 2)
+        grid_ui.addWidget(HelpButton(hh), 3, 2)
+        grid_ui.setRowStretch(4,1)
 
         # wallet tab
         tab2 = QWidget()
@@ -1922,11 +1941,6 @@ class ElectrumWindow(QMainWindow):
         grid_wallet.setColumnStretch(0,1)
         tabs.addTab(tab2, _('Wallet') )
         
-        grid_wallet.addWidget(QLabel(_("Load raw transaction")), 3, 0)
-        grid_wallet.addWidget(EnterButton(_("From file"), self.do_process_from_file),3,1)
-        grid_wallet.addWidget(EnterButton(_("From text"), self.do_process_from_text),3,2)
-        grid_wallet.addWidget(HelpButton(_("This will give you the option to sign or broadcast a transaction based on it's status.")),3,3)
-
         fee_label = QLabel(_('Transaction fee'))
         grid_wallet.addWidget(fee_label, 0, 0)
         fee_e = QLineEdit()
@@ -1995,7 +2009,13 @@ class ElectrumWindow(QMainWindow):
                               + _('If you give it to someone, they will be able to see your transactions, but not to spend your money.') + ' ' \
                               + _('If you restore your wallet from it, a watching-only (deseeded) wallet will be created.')), 4, 3)
 
-        grid_io.setRowStretch(4,1)
+
+        grid_io.addWidget(QLabel(_("Load transaction")), 5, 0)
+        grid_io.addWidget(EnterButton(_("From file"), self.do_process_from_file), 5, 1)
+        grid_io.addWidget(EnterButton(_("From text"), self.do_process_from_text), 5, 2)
+        grid_io.addWidget(HelpButton(_("This will give you the option to sign or broadcast a transaction based on it's status.")), 5, 3)
+
+        grid_io.setRowStretch(5,1)
 
 
         # plugins
@@ -2010,6 +2030,7 @@ class ElectrumWindow(QMainWindow):
                 try:
                     name, description = p.get_info()
                     cb = QCheckBox(name)
+                    cb.setDisabled(not p.is_available())
                     cb.setChecked(p.is_enabled())
                     cb.clicked.connect(mk_toggle(cb,p))
                     grid_plugins.addWidget(cb, i, 0)
