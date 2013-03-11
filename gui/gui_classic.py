@@ -1864,18 +1864,18 @@ class ElectrumWindow(QMainWindow):
         tabs.addTab(tab1, _('Display') )
 
         nz_label = QLabel(_('Display zeros'))
-        grid_ui.addWidget(nz_label, 3, 0)
+        grid_ui.addWidget(nz_label, 0, 0)
         nz_e = QLineEdit()
         nz_e.setText("%d"% self.wallet.num_zeros)
-        grid_ui.addWidget(nz_e, 3, 1)
+        grid_ui.addWidget(nz_e, 0, 1)
         msg = _('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"')
-        grid_ui.addWidget(HelpButton(msg), 3, 2)
+        grid_ui.addWidget(HelpButton(msg), 0, 2)
         nz_e.textChanged.connect(lambda: numbify(nz_e,True))
         if not self.config.is_modifiable('num_zeros'):
             for w in [nz_e, nz_label]: w.setEnabled(False)
         
         lang_label=QLabel(_('Language') + ':')
-        grid_ui.addWidget(lang_label , 8, 0)
+        grid_ui.addWidget(lang_label, 1, 0)
         lang_combo = QComboBox()
         from i18n import languages
         lang_combo.addItems(languages.values())
@@ -1884,8 +1884,8 @@ class ElectrumWindow(QMainWindow):
         except:
             index = 0
         lang_combo.setCurrentIndex(index)
-        grid_ui.addWidget(lang_combo, 8, 1)
-        grid_ui.addWidget(HelpButton(_('Select which language is used in the GUI (after restart).')+' '), 8, 2)
+        grid_ui.addWidget(lang_combo, 1, 1)
+        grid_ui.addWidget(HelpButton(_('Select which language is used in the GUI (after restart).')+' '), 1, 2)
         if not self.config.is_modifiable('language'):
             for w in [lang_combo, lang_label]: w.setEnabled(False)
 
@@ -1893,7 +1893,7 @@ class ElectrumWindow(QMainWindow):
         currencies.insert(0, "None")
 
         cur_label=QLabel(_('Currency') + ':')
-        grid_ui.addWidget(cur_label , 9, 0)
+        grid_ui.addWidget(cur_label , 2, 0)
         cur_combo = QComboBox()
         cur_combo.addItems(currencies)
         try:
@@ -1901,20 +1901,21 @@ class ElectrumWindow(QMainWindow):
         except:
             index = 0
         cur_combo.setCurrentIndex(index)
-        grid_ui.addWidget(cur_combo, 9, 1)
-        grid_ui.addWidget(HelpButton(_('Select which currency is used for quotes.')+' '), 9, 2)
+        grid_ui.addWidget(cur_combo, 2, 1)
+        grid_ui.addWidget(HelpButton(_('Select which currency is used for quotes.')+' '), 2, 2)
         
         view_label=QLabel(_('Receive Tab') + ':')
-        grid_ui.addWidget(view_label , 10, 0)
+        grid_ui.addWidget(view_label , 3, 0)
         view_combo = QComboBox()
         view_combo.addItems([_('Simple'), _('Advanced')])
         view_combo.setCurrentIndex(self.expert_mode)
-        grid_ui.addWidget(view_combo, 10, 1)
+        grid_ui.addWidget(view_combo, 3, 1)
         hh = _('This selects the interaction mode of the "Receive" tab.')+' ' + '\n\n' \
              + _('Simple') +   ': ' + _('Show only addresses and labels.') + '\n\n' \
              + _('Advanced') + ': ' + _('Show address balances and add extra menu items to freeze/prioritize addresses.') + '\n\n' 
         
-        grid_ui.addWidget(HelpButton(hh), 10, 2)
+        grid_ui.addWidget(HelpButton(hh), 3, 2)
+        grid_ui.setRowStretch(4,1)
 
         # wallet tab
         tab2 = QWidget()
