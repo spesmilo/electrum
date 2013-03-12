@@ -1759,7 +1759,7 @@ class ElectrumWindow(QMainWindow):
         l = QGridLayout()
         dialog.setLayout(l)
 
-        l.addWidget(QLabel(_("Transaction status: ")), 3,0)
+        l.addWidget(QLabel(_("Transaction status:")), 3,0)
         l.addWidget(QLabel(_("Actions")), 4,0)
 
         if tx_dict["complete"] == False:
