@@ -825,7 +825,7 @@ class Transaction:
             for i in self.inputs:
                 e = { 'txid':i['tx_hash'], 'vout':i['index'],
                       'scriptPubKey':i.get('raw_output_script'),
-                      'electrumKeyID':i.get('electrumKeyID'),
+                      'KeyID':i.get('KeyID'),
                       'redeemScript':i.get('redeemScript'),
                       'signatures':i.get('signatures'),
                       'pubkeys':i.get('pubkeys'),

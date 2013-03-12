@@ -1,14 +1,21 @@
 # Release 1.7
 
-* The wallet does not create new addresses until transactions have 2
-confirmations. This makes recovery from seed more robust. Note that it
+* The Classic GUI can be extended with plugins. Developers who want to
+add new features or third-party services to Electrum are invited to
+write plugins. Some previously existing and non-essential features of
+Electrum (point-of-sale mode, qrcode scanner) were removed from the
+core and are now available as plugins.
+
+* The wallet waits for 2 confirmations before creating new
+addresses. This makes recovery from seed more robust. Note that it
 might create unwanted gaps if you use Electrum 1.7 together with older
 versions of Electrum.
 
-* An interactive Python console replaces the 'wall' tab. The provided
-python environment gives users access to the wallet and gui. Custom
-scripts an be loaded with a "run(filename)" command. Tab-completions
-are available.
+* An interactive Python console replaces the 'Wall' tab. The provided
+python environment gives users access to the wallet and gui. Most
+electrum commands are available as python function in the
+console. Custom scripts an be loaded with a "run(filename)"
+command. Tab-completions are available.
 
 * The location of the Electrum folder in Windows changed from
 LOCALAPPDATA to APPDATA. Discussion on this topic can be found here:
@@ -18,19 +25,20 @@ https://bitcointalk.org/index.php?topic=144575.0
   For a single address, use the address menu (right-click).
   To export the keys of your entire wallet, use the settings dialog (import/export tab).
 
-* It is possible to create, sign and redeem multisig transaction, using the command line interface.
-This is made possible by the following new commands: 
+* It is possible to create, sign and redeem multisig transaction using the 
+command line interface.  This is made possible by the following new commands:
     dumpprivkey, listunspent, createmultisig, createrawtransaction, decoderawtransaction, signrawtransaction
 The syntax of these commands is similar to their bitcoind counterpart. 
 For an example, see Gavin's tutorial: https://gist.github.com/gavinandresen/3966071
 
-* Offline wallets do not need to be resynchronized in order to sign a transaction. 
-  For this, use 'signrawtransaction'. ('signtx' is deprecated').
-  See the help in docs/offline_wallets
+* Offline wallets now work in a way similar to Armory: 
+  1. user creates an unsigned transaction using the online (watching-only) wallet.
+  2. unsigned transaction is copied to the offline computer, and signed by the offline wallet.
+  3. signed transaction is copied to the online computer, broadcasted by the online client.
 
+* Raw transactions can also be loaded/signed/broadcasted via the GUI.
 
-
-  
+* Many command line commands have been renamed in order to make the syntax consistent with bitcoind.
 
 # Release 1.6.2
 

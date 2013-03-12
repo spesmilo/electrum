@@ -256,7 +256,7 @@ class Wallet:
                 if item.get('txid') == txin['tx_hash'] and item.get('vout') == txin['index']:
                     txin['raw_output_script'] = item['scriptPubKey']
                     txin['redeemScript'] = item.get('redeemScript')
-                    txin['electrumKeyID'] = item.get('electrumKeyID')
+                    txin['KeyID'] = item.get('KeyID')
                     break
             else:
                 for item in unspent_coins:
@@ -268,8 +268,9 @@ class Wallet:
                     raise
 
             # find the address:
-            if txin.get('electrumKeyID'):
-                account, sequence = txin.get('electrumKeyID')
+            if txin.get('KeyID'):
+                account, name, sequence = txin.get('KeyID')
+                if name != 'Electrum': continue
                 sec = self.sequences[account].get_private_key(sequence, seed)
                 addr = self.sequences[account].get_address(sequence)
                 txin['address'] = addr
@@ -639,7 +640,7 @@ class Wallet:
     def receive_tx_callback(self, tx_hash, tx, tx_height):
 
         if not self.check_new_tx(tx_hash, tx):
-            raise BaseException("error: received transaction is not consistent with history"%tx_hash)
+            raise BaseException("error: received transaction is not consistent with history", tx_hash)
 
         with self.lock:
             self.transactions[tx_hash] = tx
@@ -771,7 +772,7 @@ class Wallet:
                 pk_addresses.append(address)
                 continue
             account, sequence = self.get_address_index(address)
-            txin['electrumKeyID'] = (account, sequence) # used by the server to find the key
+            txin['KeyID'] = (account, 'Electrum', sequence) # used by the server to find the key
             pk_addr, redeemScript = self.sequences[account].get_input_info(sequence)
             if redeemScript: txin['redeemScript'] = redeemScript
             pk_addresses.append(pk_addr)
@@ -1197,9 +1198,6 @@ class WalletSynchronizer(threading.Thread):
         while not self.interface.is_connected:
             time.sleep(1)
         
-        # request banner, because 'connected' event happens before this thread is started
-        self.interface.send([('server.banner',[])],'synchronizer')
-
         # subscriptions
         self.subscribe_to_addresses(self.wallet.addresses(True))
 
