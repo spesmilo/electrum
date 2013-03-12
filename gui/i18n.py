@@ -44,10 +44,12 @@ languages = {
     'es':_('Spanish'),
     'fr':_('French'),
     'it':_('Italian'),
+    'ja':_('Japanese'),
     'lv':_('Latvian'),
     'nl':_('Dutch'),
     'ru':_('Russian'),
     'sl':_('Slovenian'),
+    'ta':_('Tamil'),
     'vi':_('Vietnamese'),
     'zh':_('Chinese')
     }

@@ -415,13 +415,10 @@ def CKD_prime(K, c, n):
 class ElectrumSequence:
     """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
 
-    def __init__(self, master_public_key, mpk2 = None):
+    def __init__(self, master_public_key, mpk2 = None, mpk3 = None):
         self.master_public_key = master_public_key
-        if mpk2:
-            self.mpk2 = mpk2
-            self.is_p2sh = True
-        else:
-            self.is_p2sh = False
+        self.mpk2 = mpk2
+        self.mpk3 = mpk3
 
     @classmethod
     def mpk_from_seed(klass, seed):
@@ -443,18 +440,23 @@ class ElectrumSequence:
         return string_to_number( Hash( "%d:%d:"%(n,for_change) + mpk.decode('hex') ) )
 
     def get_address(self, sequence):
-        if not self.is_p2sh:
+        if not self.mpk2:
             pubkey = self.get_pubkey(sequence)
             address = public_key_to_bc_address( pubkey.decode('hex') )
-        else:
+        elif not self.mpk3:
             pubkey1 = self.get_pubkey(sequence)
             pubkey2 = self.get_pubkey(sequence, use_mpk2=True)
             address = Transaction.multisig_script([pubkey1, pubkey2], 2)["address"]
+        else:
+            pubkey1 = self.get_pubkey(sequence)
+            pubkey2 = self.get_pubkey(sequence, mpk = self.mpk2)
+            pubkey3 = self.get_pubkey(sequence, mpk = self.mpk3)
+            address = Transaction.multisig_script([pubkey1, pubkey2, pubkey3], 2)["address"]
         return address
 
-    def get_pubkey(self, sequence, use_mpk2=False):
+    def get_pubkey(self, sequence, mpk=None):
         curve = SECP256k1
-        mpk = self.mpk2 if use_mpk2 else self.master_public_key
+        if mpk is None: mpk = self.master_public_key
         z = self.get_sequence(sequence, mpk)
         master_public_key = ecdsa.VerifyingKey.from_string( mpk.decode('hex'), curve = SECP256k1 )
         pubkey_point = master_public_key.pubkey.point + z*curve.generator
@@ -484,21 +486,23 @@ class ElectrumSequence:
         if master_public_key != self.master_public_key:
             print_error('invalid password (mpk)')
             raise BaseException('Invalid password')
-
         return True
 
-
     def get_input_info(self, sequence):
-
-        if not self.is_p2sh:
+        if not self.mpk2:
             pk_addr = self.get_address(sequence)
             redeemScript = None
-        else:
+        elif not self.mpk3:
             pubkey1 = self.get_pubkey(sequence)
-            pubkey2 = self.get_pubkey(sequence,use_mpk2=True)
+            pubkey2 = self.get_pubkey(sequence,mpk=self.mpk2)
             pk_addr = public_key_to_bc_address( pubkey1.decode('hex') ) # we need to return that address to get the right private key
             redeemScript = Transaction.multisig_script([pubkey1, pubkey2], 2)['redeemScript']
-
+        else:
+            pubkey1 = self.get_pubkey(sequence)
+            pubkey2 = self.get_pubkey(sequence,mpk=self.mpk2)
+            pubkey3 = self.get_pubkey(sequence,mpk=self.mpk3)
+            pk_addr = public_key_to_bc_address( pubkey1.decode('hex') ) # we need to return that address to get the right private key
+            redeemScript = Transaction.multisig_script([pubkey1, pubkey2, pubkey3], 2)['redeemScript']
         return pk_addr, redeemScript
 
 

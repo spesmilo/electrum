@@ -34,8 +34,10 @@ except ImportError:
     sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
 
 
+is_android = 'ANDROID_DATA' in os.environ
+
 # load local module as electrum
-if os.path.exists("lib"):
+if os.path.exists("lib") or is_android:
     import imp
     fp, pathname, description = imp.find_module('lib')
     imp.load_module('electrum', fp, pathname, description)
@@ -89,8 +91,8 @@ if __name__ == '__main__':
     set_verbosity(options.verbose)
 
     # config is an object passed to the various constructors (wallet, interface, gui)
-    if 'ANDROID_DATA' in os.environ:
-        config_options = {'wallet_path':"/sdcard/electrum.dat", 'portable':True, 'verbose':True, 'gui':'android'}
+    if is_android:
+        config_options = {'wallet_path':"/sdcard/electrum.dat", 'portable':True, 'verbose':True, 'gui':'android', 'auto_cycle':True}
     else:
         config_options = eval(str(options))
         for k, v in config_options.items():
