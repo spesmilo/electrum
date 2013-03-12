@@ -566,6 +566,7 @@ class Wallet:
             if h == ['*']: continue
             for tx_hash, tx_height in h:
                 tx = self.transactions.get(tx_hash)
+                if tx is None: raise BaseException("Wallet not synchronized")
                 for output in tx.d.get('outputs'):
                     if output.get('address') != addr: continue
                     key = tx_hash + ":%d" % output.get('index')
@@ -1157,22 +1158,6 @@ class WalletSynchronizer(threading.Thread):
     def is_running(self):
         with self.lock: return self.running
 
-    def synchronize_wallet(self):
-        new_addresses = self.wallet.synchronize()
-        if new_addresses:
-            self.subscribe_to_addresses(new_addresses)
-            self.wallet.up_to_date = False
-            return
-            
-        if not self.interface.is_up_to_date('synchronizer'):
-            if self.wallet.is_up_to_date():
-                self.wallet.set_up_to_date(False)
-                self.was_updated = True
-            return
-
-        self.wallet.set_up_to_date(True)
-        self.was_updated = True
-
     
     def subscribe_to_addresses(self, addresses):
         messages = []
@@ -1204,14 +1189,29 @@ class WalletSynchronizer(threading.Thread):
         self.subscribe_to_addresses(self.wallet.addresses(True))
 
         while self.is_running():
-            # 1. send new requests
-            self.synchronize_wallet()
+            # 1. create new addresses
+            new_addresses = self.wallet.synchronize()
 
+            # request missing addresses
+            if new_addresses:
+                self.subscribe_to_addresses(new_addresses)
+
+            # request missing transactions
             for tx_hash, tx_height in missing_tx:
                 if (tx_hash, tx_height) not in requested_tx:
                     self.interface.send([ ('blockchain.transaction.get',[tx_hash, tx_height]) ], 'synchronizer')
                     requested_tx.append( (tx_hash, tx_height) )
             missing_tx = []
+
+            # detect if situation has changed
+            if not self.interface.is_up_to_date('synchronizer'):
+                if self.wallet.is_up_to_date():
+                    self.wallet.set_up_to_date(False)
+                    self.was_updated = True
+            else:
+                if not self.wallet.is_up_to_date():
+                    self.wallet.set_up_to_date(True)
+                    self.was_updated = True
 
             if self.was_updated:
                 self.interface.trigger_callback('updated')
