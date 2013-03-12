@@ -1706,7 +1706,7 @@ class ElectrumWindow(QMainWindow):
             if fileName:
                 with open(fileName, "w+") as f:
                     f.write(json.dumps(tx.as_dict(),indent=4) + '\n')
-                self.show_message(_("Transaction saved succesfully"))
+                self.show_message(_("Transaction saved successfully"))
                 if dialog:
                     dialog.done(0)
         except BaseException, e:
@@ -1716,7 +1716,7 @@ class ElectrumWindow(QMainWindow):
     def send_raw_transaction(self, raw_tx, dialog = ""):
         result, result_message = self.wallet.sendtx( raw_tx )
         if result:
-            self.show_message("Transaction succesfully sent: %s" % (result_message))
+            self.show_message("Transaction successfully sent: %s" % (result_message))
             if dialog:
                 dialog.done(0)
         else:
