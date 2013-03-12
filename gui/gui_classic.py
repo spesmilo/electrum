@@ -357,7 +357,8 @@ class ElectrumWindow(QMainWindow):
         if callback in h: h.remove(callback)
         self.plugin_hooks[name] = h
 
-    def run_hook(self, name, args):
+    def run_hook(self, name, args = ()):
+        args = (self,) + args
         for cb in self.plugin_hooks.get(name,[]):
             apply(cb, args)
 
@@ -373,7 +374,7 @@ class ElectrumWindow(QMainWindow):
             if old_text:
                 self.wallet.labels.pop(name)
                 changed = True
-        self.run_hook('set_label', name, text, changed)
+        self.run_hook('set_label', (name, text, changed))
         return changed
 
 
@@ -397,14 +398,14 @@ class ElectrumWindow(QMainWindow):
 
     def close(self):
         QMainWindow.close(self)
-        self.run_hook('close_main_window', (self,))
+        self.run_hook('close_main_window')
 
     def connect_slots(self, sender):
         self.connect(sender, QtCore.SIGNAL('timersignal'), self.timer_actions)
         self.previous_payto_e=''
 
     def timer_actions(self):
-        self.run_hook('timer_actions', (self,))
+        self.run_hook('timer_actions')
             
         if self.payto_e.hasFocus():
             return
@@ -599,11 +600,11 @@ class ElectrumWindow(QMainWindow):
                 
             self.current_item_changed(item)
 
-        self.run_hook('item_changed',(self, item, column))
+        self.run_hook('item_changed', (item, column))
 
 
     def current_item_changed(self, a):
-        self.run_hook('current_item_changed',(self, a))
+        self.run_hook('current_item_changed', (a,))
 
 
 
@@ -749,7 +750,7 @@ class ElectrumWindow(QMainWindow):
         self.amount_e.textChanged.connect(lambda: entry_changed(False) )
         self.fee_e.textChanged.connect(lambda: entry_changed(True) )
 
-        self.run_hook('create_send_tab',(self,grid))
+        self.run_hook('create_send_tab', (grid,))
         return w2
 
 
@@ -809,7 +810,7 @@ class ElectrumWindow(QMainWindow):
             self.show_message(str(e))
             return
 
-        self.run_hook('send_tx', (self.wallet, self, tx))
+        self.run_hook('send_tx', (tx,))
 
         if label: 
             self.set_label(tx.hash(), label)
@@ -1005,7 +1006,7 @@ class ElectrumWindow(QMainWindow):
             t = _("Unprioritize") if addr in self.wallet.prioritized_addresses else _("Prioritize")
             menu.addAction(t, lambda: self.toggle_priority(addr))
             
-        self.run_hook('receive_menu', (self, menu,))
+        self.run_hook('receive_menu', (menu,))
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
 
@@ -1062,7 +1063,7 @@ class ElectrumWindow(QMainWindow):
         label = self.wallet.labels.get(address,'')
         item.setData(1,0,label)
 
-        self.run_hook('update_receive_item', (self, address, item))
+        self.run_hook('update_receive_item', (address, item))
                 
         c, u = self.wallet.get_addr_balance(address)
         balance = format_satoshis( c + u, False, self.wallet.num_zeros )
