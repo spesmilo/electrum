@@ -36,11 +36,9 @@ For an example, see Gavin's tutorial: https://gist.github.com/gavinandresen/3966
   2. unsigned transaction is copied to the offline computer, and signed by the offline wallet.
   3. signed transaction is copied to the online computer, broadcasted by the online client.
 
+* Raw transactions can also be loaded/signed/broadcasted via the GUI.
+
 * Many command line commands have been renamed in order to make the syntax consistent with bitcoind.
-
-
-
-  
 
 # Release 1.6.2
 
