@@ -363,6 +363,20 @@ class ElectrumWindow(QMainWindow):
             apply(cb, args)
 
 
+    def set_label(self, name, text = None):
+        changed = False
+        old_text = self.wallet.labels.get(name)
+        if text:
+            if old_text != text:
+                self.wallet.labels[name] = text
+                changed = True
+        else:
+            if old_text:
+                self.wallet.labels.pop(name)
+                changed = True
+        return changed
+
+
     # custom wrappers for getOpenFileName and getSaveFileName, that remember the path selected by the user
     def getOpenFileName(self, title, filter = None):
         directory = self.config.get('io_dir', os.path.expanduser('~'))
@@ -535,16 +549,11 @@ class ElectrumWindow(QMainWindow):
         self.is_edit=True
         tx_hash = str(item.data(0, Qt.UserRole).toString())
         tx = self.wallet.transactions.get(tx_hash)
-        s = self.wallet.labels.get(tx_hash)
         text = unicode( item.text(2) )
+        self.set_label(tx_hash, text) 
         if text: 
-            self.wallet.labels[tx_hash] = text
-            # Label changed
-            self.run_hook('label_changed',(self, str(tx_hash), text))
-
             item.setForeground(2, QBrush(QColor('black')))
         else:
-            if s: self.wallet.labels.pop(tx_hash)
             text = self.wallet.get_default_label(tx_hash)
             item.setText(2, text)
             item.setForeground(2, QBrush(QColor('gray')))
@@ -577,26 +586,16 @@ class ElectrumWindow(QMainWindow):
             text = unicode( item.text(column_label) )
             changed = False
 
-            if text:
-                if text not in self.wallet.aliases.keys():
-                    old_addr = self.wallet.labels.get(text)
-                    if old_addr != addr:
-                        self.wallet.labels[addr] = text
-                        changed = True
-                        self.run_hook('label_changed',(self, addr, text))
-                else:
-                    print_error("Error: This is one of your aliases")
-                    label = self.wallet.labels.get(addr,'')
-                    item.setText(column_label, QString(label))
-            else:
-                s = self.wallet.labels.get(addr)
-                if s: 
-                    self.wallet.labels.pop(addr)
-                    changed = True
+            if text in self.wallet.aliases.keys():
+                print_error("Error: This is one of your aliases")
+                label = self.wallet.labels.get(addr,'')
+                item.setText(column_label, QString(label))
 
-            if changed:
-                self.update_history_tab()
-                self.update_completions()
+            else:
+                changed = self.set_label(addr, text)
+                if changed:
+                    self.update_history_tab()
+                    self.update_completions()
                 
             self.current_item_changed(item)
 
@@ -813,7 +812,7 @@ class ElectrumWindow(QMainWindow):
         self.run_hook('send_tx', (self.wallet, self, tx))
 
         if label: 
-            self.wallet.labels[tx.hash()] = label
+            self.set_label(tx.hash(), label)
 
         if tx.is_complete:
             h = self.wallet.send_tx(tx)
@@ -1027,8 +1026,7 @@ class ElectrumWindow(QMainWindow):
         if self.question(_("Do you want to remove")+" %s "%x +_("from your list of contacts?")):
             if not is_alias and x in self.wallet.addressbook:
                 self.wallet.addressbook.remove(x)
-                if x in self.wallet.labels.keys():
-                    self.wallet.labels.pop(x)
+                self.set_label(x, None)
             elif is_alias and x in self.wallet.aliases:
                 self.wallet.aliases.pop(x)
             self.update_history_tab()
