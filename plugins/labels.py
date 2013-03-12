@@ -25,9 +25,6 @@ def auth_token():
     return config.get("plugin_label_api_key")
 
 def init(gui):
-    """If you want to give this a spin create a account at the target_host url and put it in your user dir config
-    file with the label_api_key."""
-
     global config
     config = gui.config
 
@@ -123,7 +120,9 @@ def show():
     print 'showing'
 
 def get_info():
-    return 'Label sync', "Syncs your labels with 'the cloud'. Labels are not encrypted, transactions and addresses are however. This code might increase the load of your wallet with a few micoseconds as it will sync labels on each startup."
+    return 'Label cloud', "This plugin can sync your labels accross multiple Electrum instances by using a remote database to save your data. Labels are not encrypted, \
+transactions and addresses are however. This code might increase the load of your wallet with a few micoseconds as it will sync labels on each startup.\n\n\
+To get started visit http://labelectrum.herokuapp.com/ to sign up for an account."
 
 def is_enabled():
     return config.get('plugin_label_enabled') is True
