@@ -374,7 +374,8 @@ class ElectrumWindow(QMainWindow):
             if old_text:
                 self.wallet.labels.pop(name)
                 changed = True
-        run_hook('set_label', name, text, changed)
+
+        self.run_hook('set_label', (name, text, changed,))
         return changed
 
 
@@ -2110,7 +2111,7 @@ class ElectrumWindow(QMainWindow):
             self.config.set_key('currency', cur_request, True)
             self.update_wallet()
 
-        self.run_hook('close_setting_dialog', (self,))
+        self.run_hook('close_settings_dialog', (self,))
 
         if need_restart:
             QMessageBox.warning(self, _('Success'), _('Please restart Electrum to activate the new GUI settings'), _('OK'))
