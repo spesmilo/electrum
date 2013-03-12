@@ -162,6 +162,7 @@ if __name__ == '__main__':
                 gui.show_seed()
 
         verifier = WalletVerifier(interface, config)
+        verifier.start()
         wallet.set_verifier(verifier)
         synchronizer = WalletSynchronizer(wallet, config)
         synchronizer.start()
@@ -181,7 +182,6 @@ if __name__ == '__main__':
             gui.password_dialog()
 
         wallet.save()
-        verifier.start()
         gui.main(url)
         wallet.save()
 
@@ -244,6 +244,7 @@ if __name__ == '__main__':
                 interface.start(wait=True)
                 wallet.interface = interface
                 verifier = WalletVerifier(interface, config)
+                verifier.start()
                 wallet.set_verifier(verifier)
 
                 print_msg("Recovering wallet...")
@@ -361,6 +362,7 @@ if __name__ == '__main__':
         interface.start()
         wallet.interface = interface
         verifier = WalletVerifier(interface, config)
+        verifier.start()
         wallet.set_verifier(verifier)
         synchronizer = WalletSynchronizer(wallet, config)
         synchronizer.start()
