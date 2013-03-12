@@ -1679,7 +1679,7 @@ class ElectrumWindow(QMainWindow):
             if not tx_dict["complete"]:
                 assert "input_info" in tx_dict.keys()
         except:
-            QMessageBox.critical(None, "Unable to parse transaction", _("Electrum was unable to parse your transaction:"))
+            QMessageBox.critical(None, "Unable to parse transaction", _("Electrum was unable to parse your transaction"))
             return None
         return tx_dict
 
