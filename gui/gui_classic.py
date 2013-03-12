@@ -325,6 +325,9 @@ class ElectrumWindow(QMainWindow):
         # set initial message
         self.console.showMessage(self.wallet.banner)
 
+        # plugins that need to change the GUI do it here
+        self.run_hook('init')
+
 
     # plugins
     def init_plugins(self):
