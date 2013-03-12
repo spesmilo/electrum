@@ -1197,9 +1197,6 @@ class WalletSynchronizer(threading.Thread):
         while not self.interface.is_connected:
             time.sleep(1)
         
-        # request banner, because 'connected' event happens before this thread is started
-        self.interface.send([('server.banner',[])],'synchronizer')
-
         # subscriptions
         self.subscribe_to_addresses(self.wallet.addresses(True))
 
