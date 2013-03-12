@@ -640,7 +640,9 @@ class Wallet:
     def receive_tx_callback(self, tx_hash, tx, tx_height):
 
         if not self.check_new_tx(tx_hash, tx):
-            raise BaseException("error: received transaction is not consistent with history", tx_hash)
+            # may happen due to pruning
+            print_error("received transaction that is no longer referenced in history", tx_hash)
+            return
 
         with self.lock:
             self.transactions[tx_hash] = tx
