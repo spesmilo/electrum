@@ -36,7 +36,10 @@ class Exchanger(threading.Thread):
         response = connection.getresponse()
         if response.reason == httplib.responses[httplib.NOT_FOUND]:
             return
-        response = json.loads(response.read())
+        try:
+            response = json.loads(response.read())
+        except:
+            return
         quote_currencies = {}
         try:
             for r in response:
