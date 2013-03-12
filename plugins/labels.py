@@ -47,7 +47,7 @@ def wallet_id():
     global config
     return hashlib.sha256(str(config.get("master_public_key"))).digest().encode('hex')
 
-def set_label(item,label, changed):
+def set_label(gui, item,label, changed):
     if not changed:
         return 
 

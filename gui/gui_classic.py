@@ -2051,7 +2051,7 @@ class ElectrumWindow(QMainWindow):
                     traceback.print_exc(file=sys.stdout)
             grid_plugins.setRowStretch(i+1,1)
 
-        self.run_hook('create_settings_tab', (self,tabs,))
+        self.run_hook('create_settings_tab', (tabs,))
 
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
@@ -2115,7 +2115,7 @@ class ElectrumWindow(QMainWindow):
             self.config.set_key('currency', cur_request, True)
             self.update_wallet()
 
-        self.run_hook('close_settings_dialog', (self,))
+        self.run_hook('close_settings_dialog', ())
 
         if need_restart:
             QMessageBox.warning(self, _('Success'), _('Please restart Electrum to activate the new GUI settings'), _('OK'))
