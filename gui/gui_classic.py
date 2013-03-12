@@ -374,6 +374,7 @@ class ElectrumWindow(QMainWindow):
             if old_text:
                 self.wallet.labels.pop(name)
                 changed = True
+        run_hook('set_label', name, text, changed)
         return changed
 
 
