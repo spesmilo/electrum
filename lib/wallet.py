@@ -640,7 +640,7 @@ class Wallet:
     def receive_tx_callback(self, tx_hash, tx, tx_height):
 
         if not self.check_new_tx(tx_hash, tx):
-            raise BaseException("error: received transaction is not consistent with history"%tx_hash)
+            raise BaseException("error: received transaction is not consistent with history", tx_hash)
 
         with self.lock:
             self.transactions[tx_hash] = tx
