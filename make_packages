@@ -20,10 +20,13 @@ if __name__ == '__main__':
     # android
     os.system('rm -rf dist/e4a-%s'%version)
     os.mkdir('dist/e4a-%s'%version)
-    shutil.copyfile("electrum",'dist/e4a-%s/electrum.py'%version)
+    shutil.copyfile("electrum",'dist/e4a-%s/e4a.py'%version)
     shutil.copytree("ecdsa",'dist/e4a-%s/ecdsa'%version)
     shutil.copytree("aes",'dist/e4a-%s/aes'%version)
-    shutil.copytree("lib",'dist/e4a-%s/electrum'%version)
+    shutil.copytree("lib",'dist/e4a-%s/lib'%version)
+    os.mkdir('dist/e4a-%s/gui'%version)
+    shutil.copy("gui/gui_android.py",'dist/e4a-%s/gui'%version)
+    shutil.copy("gui/__init__.py",'dist/e4a-%s/gui'%version)
 
     os.chdir("dist")
     # create the zip file

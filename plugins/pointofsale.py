@@ -103,6 +103,7 @@ def init(gui):
     gui.requested_amounts = config.get('requested_amounts',{}) 
     gui.merchant_name = config.get('merchant_name', 'Invoice')
     gui.qr_window = None
+    do_enable(gui, is_enabled())
 
 def is_enabled():
     return config.get('pointofsale') is True
@@ -110,33 +111,45 @@ def is_enabled():
 def is_available():
     return True
 
-def toggle(gui):
 
-    if not is_enabled():
+def toggle(gui):
+    enabled = not is_enabled()
+    config.set_key('pointofsale', enabled, True)
+    do_enable(gui, enabled)
+    update_gui(gui)
+    return enabled
+
+
+def do_enable(gui, enabled):
+    if enabled:
         gui.expert_mode = True
-        gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Request')])
         gui.set_hook('item_changed', item_changed)
         gui.set_hook('current_item_changed', recv_changed)
         gui.set_hook('receive_menu', receive_menu)
         gui.set_hook('update_receive_item', update_receive_item)
         gui.set_hook('timer_actions', timer_actions)
         gui.set_hook('close_main_window', close_main_window)
-        enabled = True
+        gui.set_hook('init', update_gui)
     else:
-        gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Tx')])
         gui.unset_hook('item_changed', item_changed)
         gui.unset_hook('current_item_changed', recv_changed)
         gui.unset_hook('receive_menu', receive_menu)
         gui.unset_hook('update_receive_item', update_receive_item)
         gui.unset_hook('timer_actions', timer_actions)
         gui.unset_hook('close_main_window', close_main_window)
-        enabled = False
+        gui.unset_hook('init', update_gui)
 
-    config.set_key('pointofsale', enabled, True)
+
+
+def update_gui(gui):
+    enabled = is_enabled()
+    if enabled:
+        gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Request')])
+    else:
+        gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Tx')])
+
     toggle_QR_window(gui, enabled)
-    return enabled
     
-
 
 
 def toggle_QR_window(self, show):

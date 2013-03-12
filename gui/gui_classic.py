@@ -325,6 +325,9 @@ class ElectrumWindow(QMainWindow):
         # set initial message
         self.console.showMessage(self.wallet.banner)
 
+        # plugins that need to change the GUI do it here
+        self.run_hook('init')
+
 
     # plugins
     def init_plugins(self):
@@ -357,9 +360,25 @@ class ElectrumWindow(QMainWindow):
         if callback in h: h.remove(callback)
         self.plugin_hooks[name] = h
 
-    def run_hook(self, name, args):
+    def run_hook(self, name, args = ()):
+        args = (self,) + args
         for cb in self.plugin_hooks.get(name,[]):
             apply(cb, args)
+
+
+    def set_label(self, name, text = None):
+        changed = False
+        old_text = self.wallet.labels.get(name)
+        if text:
+            if old_text != text:
+                self.wallet.labels[name] = text
+                changed = True
+        else:
+            if old_text:
+                self.wallet.labels.pop(name)
+                changed = True
+        self.run_hook('set_label', (name, text, changed))
+        return changed
 
 
     # custom wrappers for getOpenFileName and getSaveFileName, that remember the path selected by the user
@@ -382,14 +401,14 @@ class ElectrumWindow(QMainWindow):
 
     def close(self):
         QMainWindow.close(self)
-        self.run_hook('close_main_window', (self,))
+        self.run_hook('close_main_window')
 
     def connect_slots(self, sender):
         self.connect(sender, QtCore.SIGNAL('timersignal'), self.timer_actions)
         self.previous_payto_e=''
 
     def timer_actions(self):
-        self.run_hook('timer_actions', (self,))
+        self.run_hook('timer_actions')
             
         if self.payto_e.hasFocus():
             return
@@ -534,13 +553,11 @@ class ElectrumWindow(QMainWindow):
         self.is_edit=True
         tx_hash = str(item.data(0, Qt.UserRole).toString())
         tx = self.wallet.transactions.get(tx_hash)
-        s = self.wallet.labels.get(tx_hash)
         text = unicode( item.text(2) )
+        self.set_label(tx_hash, text) 
         if text: 
-            self.wallet.labels[tx_hash] = text
             item.setForeground(2, QBrush(QColor('black')))
         else:
-            if s: self.wallet.labels.pop(tx_hash)
             text = self.wallet.get_default_label(tx_hash)
             item.setText(2, text)
             item.setForeground(2, QBrush(QColor('gray')))
@@ -574,33 +591,23 @@ class ElectrumWindow(QMainWindow):
             text = unicode( item.text(column_label) )
             changed = False
 
-            if text:
-                if text not in self.wallet.aliases.keys():
-                    old_addr = self.wallet.labels.get(text)
-                    if old_addr != addr:
-                        self.wallet.labels[addr] = text
-                        changed = True
-                else:
-                    print_error("Error: This is one of your aliases")
-                    label = self.wallet.labels.get(addr,'')
-                    item.setText(column_label, QString(label))
+            if text in self.wallet.aliases.keys():
+                print_error("Error: This is one of your aliases")
+                label = self.wallet.labels.get(addr,'')
+                item.setText(column_label, QString(label))
             else:
-                s = self.wallet.labels.get(addr)
-                if s: 
-                    self.wallet.labels.pop(addr)
-                    changed = True
-
-            if changed:
-                self.update_history_tab()
-                self.update_completions()
+                changed = self.set_label(addr, text)
+                if changed:
+                    self.update_history_tab()
+                    self.update_completions()
                 
             self.current_item_changed(item)
 
-        self.run_hook('item_changed',(self, item, column))
+        self.run_hook('item_changed', (item, column))
 
 
     def current_item_changed(self, a):
-        self.run_hook('current_item_changed',(self, a))
+        self.run_hook('current_item_changed', (a,))
 
 
 
@@ -746,7 +753,7 @@ class ElectrumWindow(QMainWindow):
         self.amount_e.textChanged.connect(lambda: entry_changed(False) )
         self.fee_e.textChanged.connect(lambda: entry_changed(True) )
 
-        self.run_hook('create_send_tab',(self,grid))
+        self.run_hook('create_send_tab', (grid,))
         return w2
 
 
@@ -806,10 +813,10 @@ class ElectrumWindow(QMainWindow):
             self.show_message(str(e))
             return
 
-        self.run_hook('send_tx', (self.wallet, self, tx))
+        self.run_hook('send_tx', (tx,))
 
         if label: 
-            self.wallet.labels[tx.hash()] = label
+            self.set_label(tx.hash(), label)
 
         if tx.is_complete:
             h = self.wallet.send_tx(tx)
@@ -1002,7 +1009,7 @@ class ElectrumWindow(QMainWindow):
             t = _("Unprioritize") if addr in self.wallet.prioritized_addresses else _("Prioritize")
             menu.addAction(t, lambda: self.toggle_priority(addr))
             
-        self.run_hook('receive_menu', (self, menu,))
+        self.run_hook('receive_menu', (menu,))
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
 
@@ -1023,8 +1030,7 @@ class ElectrumWindow(QMainWindow):
         if self.question(_("Do you want to remove")+" %s "%x +_("from your list of contacts?")):
             if not is_alias and x in self.wallet.addressbook:
                 self.wallet.addressbook.remove(x)
-                if x in self.wallet.labels.keys():
-                    self.wallet.labels.pop(x)
+                self.set_label(x, None)
             elif is_alias and x in self.wallet.aliases:
                 self.wallet.aliases.pop(x)
             self.update_history_tab()
@@ -1060,7 +1066,7 @@ class ElectrumWindow(QMainWindow):
         label = self.wallet.labels.get(address,'')
         item.setData(1,0,label)
 
-        self.run_hook('update_receive_item', (self, address, item))
+        self.run_hook('update_receive_item', (address, item))
                 
         c, u = self.wallet.get_addr_balance(address)
         balance = format_satoshis( c + u, False, self.wallet.num_zeros )
@@ -1679,7 +1685,7 @@ class ElectrumWindow(QMainWindow):
             if not tx_dict["complete"]:
                 assert "input_info" in tx_dict.keys()
         except:
-            QMessageBox.critical(None, "Unable to parse transaction", _("Electrum was unable to parse your transaction:"))
+            QMessageBox.critical(None, "Unable to parse transaction", _("Electrum was unable to parse your transaction"))
             return None
         return tx_dict
 
@@ -1706,7 +1712,7 @@ class ElectrumWindow(QMainWindow):
             if fileName:
                 with open(fileName, "w+") as f:
                     f.write(json.dumps(tx.as_dict(),indent=4) + '\n')
-                self.show_message(_("Transaction saved succesfully"))
+                self.show_message(_("Transaction saved successfully"))
                 if dialog:
                     dialog.done(0)
         except BaseException, e:
@@ -1716,7 +1722,7 @@ class ElectrumWindow(QMainWindow):
     def send_raw_transaction(self, raw_tx, dialog = ""):
         result, result_message = self.wallet.sendtx( raw_tx )
         if result:
-            self.show_message("Transaction succesfully sent: %s" % (result_message))
+            self.show_message("Transaction successfully sent: %s" % (result_message))
             if dialog:
                 dialog.done(0)
         else:
@@ -1759,7 +1765,7 @@ class ElectrumWindow(QMainWindow):
         l = QGridLayout()
         dialog.setLayout(l)
 
-        l.addWidget(QLabel(_("Transaction status: ")), 3,0)
+        l.addWidget(QLabel(_("Transaction status:")), 3,0)
         l.addWidget(QLabel(_("Actions")), 4,0)
 
         if tx_dict["complete"] == False:
