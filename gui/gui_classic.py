@@ -1606,20 +1606,22 @@ class ElectrumWindow(QMainWindow):
         d.setModal(1)
 
         vbox = QVBoxLayout()
-        msg = _("Please enter your wallet seed or the corresponding mnemonic list of words, and the gap limit of your wallet.")
+        msg = _("Please enter your wallet seed (or your master public key if you want to create a watching-only wallet)." + '\n')
         vbox.addWidget(QLabel(msg))
 
         grid = QGridLayout()
         grid.setSpacing(8)
 
         seed_e = QLineEdit()
-        grid.addWidget(QLabel(_('Seed or mnemonic')), 1, 0)
+        grid.addWidget(QLabel(_('Seed or master public key')), 1, 0)
         grid.addWidget(seed_e, 1, 1)
+        grid.addWidget(HelpButton(_("Your seed can be entered as a mnemonic (sequence of words), or as a hexadecimal string.")), 1, 3)
 
         gap_e = QLineEdit()
         gap_e.setText("5")
         grid.addWidget(QLabel(_('Gap limit')), 2, 0)
         grid.addWidget(gap_e, 2, 1)
+        grid.addWidget(HelpButton(_('Keep the default value unless you modified this parameter in your wallet.')), 2, 3)
         gap_e.textChanged.connect(lambda: numbify(gap_e,True))
         vbox.addLayout(grid)
 
