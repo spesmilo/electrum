@@ -545,10 +545,12 @@ class BIP32Sequence:
         return address
 
     def get_private_key(self, sequence, seed):
-        k, chain = self.mpk
+        master_secret, master_chain, master_public_key, master_public_key_compressed = bip32_init(seed)
+        chain = master_chain
+        k = master_secret
         for i in sequence:
-            k, k_compressed, chain = CKD(k, chain, i)
-        return SecretToASecret(k0, True)
+            k, chain = CKD(k, chain, i)
+        return SecretToASecret(k, True)
 
     def get_private_keys(self, sequence_list, seed):
         return [ self.get_private_key( sequence, seed) for sequence in sequence_list]
