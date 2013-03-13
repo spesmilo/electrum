@@ -595,8 +595,8 @@ class Interface(threading.Thread):
             # wait until connection is established
             self.connect_event.wait()
             if not self.is_connected:
-                print_msg("Not connected, aborting.")
-                sys.exit(1)
+                return False
+        return True
 
     def run(self):
         while True:

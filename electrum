@@ -241,7 +241,9 @@ if __name__ == '__main__':
 
             if not options.offline:
                 interface = Interface(config)
-                interface.start(wait=True)
+                if not interface.start(wait=True):
+                    print_msg("Not connected, aborting.")
+                    sys.exit(1)
                 wallet.interface = interface
                 verifier = WalletVerifier(interface, config)
                 verifier.start()
@@ -359,7 +361,9 @@ if __name__ == '__main__':
     if cmd not in offline_commands and not options.offline:
         interface = Interface(config)
         interface.register_callback('connected', lambda: sys.stderr.write("Connected to " + interface.connection_msg + "\n"))
-        interface.start()
+        if not interface.start(wait=True):
+            print_msg("Not connected, aborting.")
+            sys.exit(1)
         wallet.interface = interface
         verifier = WalletVerifier(interface, config)
         verifier.start()
