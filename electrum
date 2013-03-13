@@ -236,8 +236,7 @@ if __name__ == '__main__':
                 wallet.seed = None
                 wallet.init_sequence(str(seed))
             else:
-                wallet.seed = str(seed)
-                wallet.init_mpk( wallet.seed )
+                wallet.init_seed( str(seed) )
 
             if not options.offline:
                 interface = Interface(config)
