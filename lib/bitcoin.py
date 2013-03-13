@@ -545,8 +545,7 @@ class BIP32Sequence:
         return address
 
     def get_private_key(self, sequence, seed):
-        k = self.master_secret
-        chain = self.master_chain
+        k, chain = self.mpk
         for i in sequence:
             k, k_compressed, chain = CKD(k, chain, i)
         return SecretToASecret(k0, True)
@@ -556,7 +555,7 @@ class BIP32Sequence:
 
     def check_seed(self, seed):
         master_secret, master_chain, master_public_key, master_public_key_compressed = bip32_init(seed)
-        assert self.master_public_key == master_public_key
+        assert self.mpk == master_public_key, master_chain
 
     def get_input_info(self, sequence):
         if not self.mpk2:
