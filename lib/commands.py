@@ -82,9 +82,10 @@ class Commands:
         self.wallet = wallet
         self.interface = interface
         self._callback = callback
+        self.password = None
 
     def _run(self, method, args, password_getter):
-        if method in protected_commands:
+        if method in protected_commands and self.wallet.use_encryption:
             self.password = apply(password_getter,())
         f = eval('self.'+method)
         result = apply(f,args)
