@@ -358,7 +358,7 @@ def get_address_from_input_script(bytes):
             return pubkeys, signatures, hash_160_to_bc_address(hash_160(redeemScript), 5)
 
     print_error("cannot find address in input script", bytes.encode('hex'))
-    return "(None)"
+    return [], [], "(None)"
 
 
 
