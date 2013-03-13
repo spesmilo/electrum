@@ -347,7 +347,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     if max_args < 0:
-        if len(args) > min_args:
+        if len(args) > min_args + 1:
             message = ' '.join(args[min_args:])
             print_msg("Warning: Final argument was reconstructed from several arguments:", repr(message))
             args = args[0:min_args] + [ message ]
