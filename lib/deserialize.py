@@ -3,6 +3,7 @@
 #
 
 from bitcoin import public_key_to_bc_address, hash_160_to_bc_address, hash_encode, hash_160
+from util import print_error
 #import socket
 import time
 import struct
