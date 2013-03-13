@@ -364,10 +364,9 @@ random_seed = lambda n: "%032x"%ecdsa.util.randrange( pow(2,n) )
 
 def bip32_init(seed):
     import hmac
-        
+    seed = seed.decode('hex')        
     I = hmac.new("Bitcoin seed", seed, hashlib.sha512).digest()
 
-    print "seed", seed.encode('hex')
     master_secret = I[0:32]
     master_chain = I[32:]
 
@@ -520,14 +519,14 @@ class BIP32Sequence:
         master_secret, master_chain, master_public_key, master_public_key_compressed = bip32_init(seed)
         return master_public_key.encode('hex'), master_chain.encode('hex')
 
-    def get_pubkey(self, sequence, mpk):
+    def get_pubkey(self, sequence, mpk = None):
         if not mpk: mpk = self.mpk
         master_public_key, master_chain = self.mpk
         K = master_public_key.decode('hex')
         chain = master_chain.decode('hex')
         for i in sequence:
             K, K_compressed, chain = CKD_prime(K, chain, i)
-        return K_compressed
+        return K_compressed.encode('hex')
 
     def get_address(self, sequence):
         if not self.mpk2:
@@ -557,7 +556,7 @@ class BIP32Sequence:
 
     def check_seed(self, seed):
         master_secret, master_chain, master_public_key, master_public_key_compressed = bip32_init(seed)
-        assert self.mpk == master_public_key, master_chain
+        assert self.mpk == (master_public_key.encode('hex'), master_chain.encode('hex'))
 
     def get_input_info(self, sequence):
         if not self.mpk2:
@@ -870,7 +869,7 @@ class Transaction:
 
 
 def test_bip32():
-    seed = "ff000000000000000000000000000000".decode('hex')
+    seed = "ff000000000000000000000000000000"
     master_secret, master_chain, master_public_key, master_public_key_compressed = bip32_init(seed)
         
     print "secret key", master_secret.encode('hex')
