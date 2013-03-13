@@ -226,7 +226,6 @@ class StatusBarButton(QPushButton):
 
 
 
-
 def waiting_dialog(f):
 
     s = Timer()
@@ -248,17 +247,33 @@ def waiting_dialog(f):
     w.destroy()
 
 
-def ok_cancel_buttons(dialog):
+def ok_cancel_buttons(dialog, ok_label=_("OK") ):
     hbox = QHBoxLayout()
     hbox.addStretch(1)
-    b = QPushButton("Cancel")
+    b = QPushButton(_("Cancel"))
     hbox.addWidget(b)
     b.clicked.connect(dialog.reject)
-    b = QPushButton("OK")
+    b = QPushButton(ok_label)
     hbox.addWidget(b)
     b.clicked.connect(dialog.accept)
     b.setDefault(True)
     return hbox
+
+
+def text_dialog(parent, title, label, ok_label):
+    dialog = QDialog(parent)
+    dialog.setMinimumWidth(500)
+    dialog.setWindowTitle(title)
+    dialog.setModal(1)
+    l = QVBoxLayout()
+    dialog.setLayout(l)
+    l.addWidget(QLabel(label))
+    txt = QTextEdit()
+    l.addWidget(txt)
+    l.addLayout(ok_cancel_buttons(dialog, ok_label))
+    if dialog.exec_():
+        return unicode(txt.toPlainText())
+
 
 
 default_column_widths = { "history":[40,140,350,140], "contacts":[350,330], 
@@ -1729,23 +1744,10 @@ class ElectrumWindow(QMainWindow):
             self.show_message("There was a problem sending your transaction:\n %s" % (result_message))
 
     def do_process_from_text(self):
-        dialog = QDialog(self)
-        dialog.setMinimumWidth(500)
-        dialog.setWindowTitle(_('Input raw transaction'))
-        dialog.setModal(1)
-        l = QVBoxLayout()
-        dialog.setLayout(l)
-        l.addWidget(QLabel(_("Transaction:")))
-        txt = QTextEdit()
-        l.addWidget(txt)
-
-        ok_button = QPushButton(_("Load transaction"))
-        ok_button.setDefault(True)
-        ok_button.clicked.connect(dialog.accept)
-        l.addWidget(ok_button)
-
-        dialog.exec_()
-        tx_dict = self.tx_dict_from_text(unicode(txt.toPlainText()))
+        text = text_dialog(self, _('Input raw transaction'), _("Transaction:"), _("Load transaction"))
+        if not text:
+            return
+        tx_dict = self.tx_dict_from_text(text)
         if tx_dict:
             self.create_process_transaction_window(tx_dict)
 
@@ -1858,19 +1860,28 @@ class ElectrumWindow(QMainWindow):
                                          + _('Are you sure you understand what you are doing?'), 3, 4)
             if r == 4: return
 
-        text, ok = QInputDialog.getText(self, _('Import private key'), _('Private Key') + ':')
-        if not ok: return
-        sec = str(text).strip()
-        try:
-            addr = self.wallet.import_key(sec, password)
-            if not addr:
-                QMessageBox.critical(None, _("Unable to import key"), "error")
+        text = text_dialog(self, _('Import private keys'), _("Enter private keys")+':', _("Import"))
+        if not text: return
+
+        text = str(text).split()
+        badkeys = []
+        addrlist = []
+        for key in text:
+            try:
+                addr = self.wallet.import_key(key, password)
+            except BaseException as e:
+                badkeys.append(key)
+                continue
+            if not addr: 
+                badkeys.append(key)
             else:
-                QMessageBox.information(None, _("Key imported"), addr)
-                self.update_receive_tab()
-                self.update_history_tab()
-        except BaseException as e:
-            QMessageBox.critical(None, _("Unable to import key"), str(e))
+                addrlist.append(addr)
+        if addrlist:
+            QMessageBox.information(self, _('Information'), _("The following addresses were added") + ':\n' + '\n'.join(addrlist))
+        if badkeys:
+            QMessageBox.critical(self, _('Error'), _("The following inputs could not be imported") + ':\n'+ '\n'.join(badkeys))
+        self.update_receive_tab()
+        self.update_history_tab()
 
 
     def settings_dialog(self):
