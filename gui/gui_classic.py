@@ -1299,7 +1299,7 @@ class ElectrumWindow(QMainWindow):
         try:
             seed = self.wallet.decode_seed(password)
         except:
-            QMessageBox.warning(parent, _('Error'), _('Incorrect Password'), _('OK'))
+            QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
             return
         self.show_seed(seed, self)
 
