@@ -302,6 +302,7 @@ class Wallet:
         address = self.get_new_address( account, for_change, n)
         self.accounts[account][for_change].append(address)
         self.history[address] = []
+        print_msg(address)
         return address
         
 
