@@ -722,6 +722,9 @@ class Wallet:
                             default_label = self.labels[o_addr]
                         except KeyError:
                             default_label = o_addr
+                        break
+                else:
+                    default_label = '(internal)'
             else:
                 for o in tx.outputs:
                     o_addr, _ = o
