@@ -145,6 +145,10 @@ class WalletVerifier(threading.Thread):
                 continue
             if not r: continue
 
+            if r.get('error'):
+                print_error('Verifier received an error:', r)
+                continue
+
             # 3. handle response
             method = r['method']
             params = r['params']
