@@ -61,8 +61,6 @@ elif platform.system() == 'Darwin':
 else:
     MONOSPACE_FONT = 'monospace'
 
-ALIAS_REGEXP = '^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$'    
-
 from electrum import ELECTRUM_VERSION
 import re
 
@@ -426,23 +424,6 @@ class ElectrumWindow(QMainWindow):
     def timer_actions(self):
         self.run_hook('timer_actions')
             
-        if self.payto_e.hasFocus():
-            return
-        r = unicode( self.payto_e.text() )
-        if r != self.previous_payto_e:
-            self.previous_payto_e = r
-            r = r.strip()
-            if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r):
-                try:
-                    to_address = self.wallet.get_alias(r, True, self.show_message, self.question)
-                except:
-                    return
-                if to_address:
-                    s = r + '  <' + to_address + '>'
-                    self.payto_e.setText(s)
-
-
-
     def update_status(self):
         if self.wallet.interface and self.wallet.interface.is_connected:
             if not self.wallet.up_to_date:
@@ -591,10 +572,11 @@ class ElectrumWindow(QMainWindow):
 
     def address_label_clicked(self, item, column, l, column_addr, column_label):
         if column == column_label and item.isSelected():
+            is_editable = item.data(0, 32).toBool()
+            if not is_editable:
+                return
             addr = unicode( item.text(column_addr) )
             label = unicode( item.text(column_label) )
-            if label in self.wallet.aliases.keys():
-                return
             item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
             l.editItem( item, column )
             item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
@@ -605,17 +587,14 @@ class ElectrumWindow(QMainWindow):
         if column == column_label:
             addr = unicode( item.text(column_addr) )
             text = unicode( item.text(column_label) )
-            changed = False
+            is_editable = item.data(0, 32).toBool()
+            if not is_editable:
+                return
 
-            if text in self.wallet.aliases.keys():
-                print_error("Error: This is one of your aliases")
-                label = self.wallet.labels.get(addr,'')
-                item.setText(column_label, QString(label))
-            else:
-                changed = self.set_label(addr, text)
-                if changed:
-                    self.update_history_tab()
-                    self.update_completions()
+            changed = self.set_label(addr, text)
+            if changed:
+                self.update_history_tab()
+                self.update_completions()
                 
             self.current_item_changed(item)
 
@@ -778,8 +757,8 @@ class ElectrumWindow(QMainWindow):
         for addr,label in self.wallet.labels.items():
             if addr in self.wallet.addressbook:
                 l.append( label + '  <' + addr + '>')
-        l = l + self.wallet.aliases.keys()
 
+        self.run_hook('update_completions', l)
         self.completions.setStringList(l)
 
 
@@ -794,19 +773,9 @@ class ElectrumWindow(QMainWindow):
         r = unicode( self.payto_e.text() )
         r = r.strip()
 
-        # alias
-        m1 = re.match(ALIAS_REGEXP, r)
         # label or alias, with address in brackets
-        m2 = re.match('(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
-        
-        if m1:
-            to_address = self.wallet.get_alias(r, True, self.show_message, self.question)
-            if not to_address:
-                return
-        elif m2:
-            to_address = m2.group(2)
-        else:
-            to_address = r
+        m = re.match('(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
+        to_address = m.group(2) if m else r
 
         if not is_valid(to_address):
             QMessageBox.warning(self, _('Error'), _('Invalid Bitcoin Address') + ':\n' + to_address, _('OK'))
@@ -858,10 +827,19 @@ class ElectrumWindow(QMainWindow):
 
 
     def set_url(self, url):
-        payto, amount, label, message, signature, identity, url = self.wallet.parse_url(url, self.show_message, self.question)
+        address, amount, label, message, signature, identity, url = util.parse_url(url)
+
+        if label and self.wallet.labels.get(address) != label:
+            if self.question('Give label "%s" to address %s ?'%(label,address)):
+                if address not in self.wallet.addressbook and not self.wallet.is_mine(address):
+                    self.wallet.addressbook.append(address)
+                self.set_label(address, label)
+
+        self.run_hook('set_url', url, self.show_message, self.question)
+
         self.tabs.setCurrentIndex(1)
-        label = self.wallet.labels.get(payto)
-        m_addr = label + '  <'+ payto+'>' if label else payto
+        label = self.wallet.labels.get(address)
+        m_addr = label + '  <'+ address +'>' if label else address
         self.payto_e.setText(m_addr)
 
         self.message_e.setText(message)
@@ -1029,50 +1007,41 @@ class ElectrumWindow(QMainWindow):
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
 
-    def payto(self, x, is_alias):
-        if not x: return
-        if is_alias:
-            label = x
-            m_addr = label
-        else:
-            addr = x
-            label = self.wallet.labels.get(addr)
-            m_addr = label + '  <' + addr + '>' if label else addr
+    def payto(self, addr):
+        if not addr: return
+        label = self.wallet.labels.get(addr)
+        m_addr = label + '  <' + addr + '>' if label else addr
         self.tabs.setCurrentIndex(1)
         self.payto_e.setText(m_addr)
         self.amount_e.setFocus()
 
-    def delete_contact(self, x, is_alias):
+
+    def delete_contact(self, x):
         if self.question(_("Do you want to remove")+" %s "%x +_("from your list of contacts?")):
-            if not is_alias and x in self.wallet.addressbook:
+            if x in self.wallet.addressbook:
                 self.wallet.addressbook.remove(x)
                 self.set_label(x, None)
-            elif is_alias and x in self.wallet.aliases:
-                self.wallet.aliases.pop(x)
-            self.update_history_tab()
-            self.update_contacts_tab()
-            self.update_completions()
+                self.update_history_tab()
+                self.update_contacts_tab()
+                self.update_completions()
+
 
     def create_contact_menu(self, position):
-        # fixme: this function apparently has a side effect.
-        # if it is not called the menu pops up several times
-        #self.contacts_list.selectedIndexes() 
-
         item = self.contacts_list.itemAt(position)
         if not item: return
         addr = unicode(item.text(0))
         label = unicode(item.text(1))
-        is_alias = label in self.wallet.aliases.keys()
-        x = label if is_alias else addr
+        is_editable = item.data(0,32).toBool()
+        payto_addr = item.data(0,33).toString()
         menu = QMenu()
         menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
-        menu.addAction(_("Pay to"), lambda: self.payto(x, is_alias))
+        menu.addAction(_("Pay to"), lambda: self.payto(payto_addr))
         menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")))
-        if not is_alias:
+        if is_editable:
             menu.addAction(_("Edit label"), lambda: self.edit_label(False))
-        else:
-            menu.addAction(_("View alias details"), lambda: self.show_contact_details(label))
-        menu.addAction(_("Delete"), lambda: self.delete_contact(x,is_alias))
+            menu.addAction(_("Delete"), lambda: self.delete_contact(addr))
+
+        self.run_hook('create_contact_menu', menu, item)
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
 
@@ -1157,31 +1126,13 @@ class ElectrumWindow(QMainWindow):
         # we use column 1 because column 0 may be hidden
         l.setCurrentItem(l.topLevelItem(0),1)
 
-    def show_contact_details(self, m):
-        a = self.wallet.aliases.get(m)
-        if a:
-            if a[0] in self.wallet.authorities.keys():
-                s = self.wallet.authorities.get(a[0])
-            else:
-                s = "self-signed"
-            msg = _('Alias:')+' '+ m + '\n'+_('Target address:')+' '+ a[1] + '\n\n'+_('Signed by:')+' ' + s + '\n'+_('Signing address:')+' ' + a[0]
-            QMessageBox.information(self, 'Alias', msg, 'OK')
 
     def update_contacts_tab(self):
 
         l = self.contacts_list
         l.clear()
 
-        alias_targets = []
-        for alias, v in self.wallet.aliases.items():
-            s, target = v
-            alias_targets.append(target)
-            item = QTreeWidgetItem( [ target, alias, '-'] )
-            item.setBackgroundColor(0, QColor('lightgray'))
-            l.addTopLevelItem(item)
-            
         for address in self.wallet.addressbook:
-            if address in alias_targets: continue
             label = self.wallet.labels.get(address,'')
             n = 0 
             for tx in self.wallet.transactions.values():
@@ -1189,9 +1140,15 @@ class ElectrumWindow(QMainWindow):
             
             item = QTreeWidgetItem( [ address, label, "%d"%n] )
             item.setFont(0, QFont(MONOSPACE_FONT))
+            # 32 = label can be edited (bool)
+            item.setData(0,32, True)
+            # 33 = payto string
+            item.setData(0,33, address)
             l.addTopLevelItem(item)
 
+        self.run_hook('update_contacts_tab', l)
         l.setCurrentItem(l.topLevelItem(0))
+
 
 
     def create_console_tab(self):
