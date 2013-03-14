@@ -90,7 +90,6 @@ class Wallet:
         self.addressbook           = config.get('contacts', [])
         self.imported_keys         = config.get('imported_keys',{})
         self.history               = config.get('addr_history',{})        # address -> list(txid, height)
-        self.tx_height             = config.get('tx_height',{})
         self.accounts              = config.get('accounts', {})   # this should not include public keys
 
         self.SequenceClass = ElectrumSequence
@@ -649,7 +648,6 @@ class Wallet:
 
         with self.lock:
             self.transactions[tx_hash] = tx
-            self.tx_height[tx_hash] = tx_height
 
         #tx_height = tx.get('height')
         if self.verifier and tx_height>0: 
@@ -674,17 +672,12 @@ class Wallet:
                 if tx_height>0:
                     # add it in case it was previously unconfirmed
                     if self.verifier: self.verifier.add(tx_hash, tx_height)
-                    # set the height in case it changed
-                    txh = self.tx_height.get(tx_hash)
-                    if txh is not None and txh != tx_height:
-                        print_error( "changing height for tx", tx_hash )
-                        self.tx_height[tx_hash] = tx_height
 
 
     def get_tx_history(self):
         with self.lock:
             history = self.transactions.items()
-        history.sort(key = lambda x: self.tx_height.get(x[0]) if self.tx_height.get(x[0]) else 1e12)
+        history.sort(key = lambda x: self.verifier.get_height(x[0]) if self.verifier.get_height(x[0]) else 1e12)
         result = []
     
         balance = 0
@@ -1020,7 +1013,6 @@ class Wallet:
             'prioritized_addresses': self.prioritized_addresses,
             'gap_limit': self.gap_limit,
             'transactions': tx,
-            'tx_height': self.tx_height,
         }
         for k, v in s.items():
             self.config.set_key(k,v)
@@ -1029,17 +1021,6 @@ class Wallet:
     def set_verifier(self, verifier):
         self.verifier = verifier
 
-        # review stored transactions and send them to the verifier
-        # (they are not necessarily in the history, because history items might have have been pruned)
-        for tx_hash, tx in self.transactions.items():
-            tx_height = self.tx_height[tx_hash]
-            if tx_height <1:
-                print_error( "skipping", tx_hash, tx_height )
-                continue
-            
-            if tx_height>0:
-                self.verifier.add(tx_hash, tx_height)
-
         # review transactions that are in the history
         for addr, hist in self.history.items():
             if hist == ['*']: continue
@@ -1047,11 +1028,6 @@ class Wallet:
                 if tx_height>0:
                     # add it in case it was previously unconfirmed
                     self.verifier.add(tx_hash, tx_height)
-                    # set the height in case it changed
-                    txh = self.tx_height.get(tx_hash)
-                    if txh is not None and txh != tx_height:
-                        print_error( "changing height for tx", tx_hash )
-                        self.tx_height[tx_hash] = tx_height
 
 
 
@@ -1087,7 +1063,7 @@ class Wallet:
                 if not tx: continue
                 
                 # already verified?
-                if self.tx_height.get(tx_hash):
+                if self.verifier.get_height(tx_hash):
                     continue
                 # unconfirmed tx
                 print_error("new history is orphaning transaction:", tx_hash)
@@ -1104,7 +1080,6 @@ class Wallet:
                     for item in h:
                         if item.get('tx_hash') == tx_hash:
                             height = item.get('height')
-                            self.tx_height[tx_hash] = height
                 if height:
                     print_error("found height for", tx_hash, height)
                     self.verifier.add(tx_hash, height)
