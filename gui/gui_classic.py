@@ -339,7 +339,7 @@ class ElectrumWindow(QMainWindow):
         self.console.showMessage(self.wallet.banner)
 
         # plugins that need to change the GUI do it here
-        self.run_hook('init')
+        self.run_hook('init_gui')
 
 
     # plugins
@@ -350,36 +350,33 @@ class ElectrumWindow(QMainWindow):
             plugin_names = [name for a, name, b in pkgutil.iter_modules([pathname])]
             plugin_names = filter( lambda name: os.path.exists(os.path.join(pathname,name+'.py')), plugin_names)
             imp.load_module('electrum_plugins', fp, pathname, description)
-            self.plugins = map(lambda name: imp.load_source('electrum_plugins.'+name, os.path.join(pathname,name+'.py')), plugin_names)
+            plugins = map(lambda name: imp.load_source('electrum_plugins.'+name, os.path.join(pathname,name+'.py')), plugin_names)
         else:
             import electrum_plugins
             plugin_names = [name for a, name, b in pkgutil.iter_modules(electrum_plugins.__path__)]
-            self.plugins = [ __import__('electrum_plugins.'+name, fromlist=['electrum_plugins']) for name in plugin_names]
+            plugins = [ __import__('electrum_plugins.'+name, fromlist=['electrum_plugins']) for name in plugin_names]
 
-        self.plugin_hooks = {}
-        for p in self.plugins:
+        self.plugins = []
+        for p in plugins:
             try:
-                p.init(self)
+                self.plugins.append( p.Plugin(self) )
             except:
                 print_msg("Error:cannot initialize plugin",p)
                 traceback.print_exc(file=sys.stdout)
 
-    def set_hook(self, name, callback):
-        h = self.plugin_hooks.get(name, [])
-        h.append(callback)
-        self.plugin_hooks[name] = h
-
-    def unset_hook(self, name, callback):
-        h = self.plugin_hooks.get(name,[])
-        if callback in h: h.remove(callback)
-        self.plugin_hooks[name] = h
 
     def run_hook(self, name, *args):
-        args = (self,) + args
-        for cb in self.plugin_hooks.get(name,[]):
-            apply(cb, args)
+        for p in self.plugins:
+            if not p.is_enabled():
+                continue
+            try:
+                f = eval('p.'+name)
+            except:
+                continue
+            apply(f, args)
+        return
 
-
+        
     def set_label(self, name, text = None):
         changed = False
         old_text = self.wallet.labels.get(name)
@@ -1487,8 +1484,9 @@ class ElectrumWindow(QMainWindow):
         vbox.addLayout(grid)
 
         vbox.addLayout(ok_cancel_buttons(d))
-        d.setLayout(vbox) 
+        d.setLayout(vbox)
 
+        self.run_hook('password_dialog', pw, grid, 1)
         if not d.exec_(): return
         return unicode(pw.text())
 
@@ -2002,7 +2000,7 @@ class ElectrumWindow(QMainWindow):
             grid_plugins.setColumnStretch(0,1)
             tabs.addTab(tab5, _('Plugins') )
             def mk_toggle(cb, p):
-                return lambda: cb.setChecked(p.toggle(self))
+                return lambda: cb.setChecked(p.toggle())
             for i, p in enumerate(self.plugins):
                 try:
                     name, description = p.get_info()

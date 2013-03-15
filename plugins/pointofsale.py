@@ -8,8 +8,7 @@ import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
 from electrum_gui.qrcodewidget import QRCodeWidget
-from electrum_gui import bmp, pyqrnative
-
+from electrum_gui import bmp, pyqrnative, BasePlugin
 from electrum_gui.i18n import _
 
 
@@ -89,98 +88,95 @@ class QR_Window(QWidget):
             
         self.qrw.set_addr( msg )
 
-            
-
-
-config = {}
-
-def get_info():
-    return 'Point of Sale', _('Show QR code window and amounts requested for each address. Add menu item to request amount.')
-
-def init(gui):
-    global config
-    config = gui.config
-    gui.requested_amounts = config.get('requested_amounts',{}) 
-    gui.merchant_name = config.get('merchant_name', 'Invoice')
-    gui.qr_window = None
-    do_enable(gui, is_enabled())
-
-def is_enabled():
-    return config.get('pointofsale') is True
-
-def is_available():
-    return True
-
-
-def toggle(gui):
-    enabled = not is_enabled()
-    config.set_key('pointofsale', enabled, True)
-    do_enable(gui, enabled)
-    update_gui(gui)
-    return enabled
-
-
-def do_enable(gui, enabled):
-    if enabled:
-        gui.expert_mode = True
-        gui.set_hook('item_changed', item_changed)
-        gui.set_hook('current_item_changed', recv_changed)
-        gui.set_hook('receive_menu', receive_menu)
-        gui.set_hook('update_receive_item', update_receive_item)
-        gui.set_hook('timer_actions', timer_actions)
-        gui.set_hook('close_main_window', close_main_window)
-        gui.set_hook('init', update_gui)
-    else:
-        gui.unset_hook('item_changed', item_changed)
-        gui.unset_hook('current_item_changed', recv_changed)
-        gui.unset_hook('receive_menu', receive_menu)
-        gui.unset_hook('update_receive_item', update_receive_item)
-        gui.unset_hook('timer_actions', timer_actions)
-        gui.unset_hook('close_main_window', close_main_window)
-        gui.unset_hook('init', update_gui)
 
 
 
-def update_gui(gui):
-    enabled = is_enabled()
-    if enabled:
-        gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Request')])
-    else:
-        gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Tx')])
+class Plugin(BasePlugin):
 
-    toggle_QR_window(gui, enabled)
+    def __init__(self, gui):
+        BasePlugin.__init__(self, gui, 'pointofsale', 'Point of Sale',
+                            _('Show QR code window and amounts requested for each address. Add menu item to request amount.') )
+        self.qr_window = None
+        self.requested_amounts = self.config.get('requested_amounts',{}) 
+        self.merchant_name = self.config.get('merchant_name', 'Invoice')
+
+
+    def init_gui(self):
+        enabled = self.is_enabled()
+        if enabled:
+            self.gui.expert_mode = True
+            self.gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Request')])
+        else:
+            self.gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Tx')])
+
+        self.toggle_QR_window(enabled)
     
 
+    def close_main_window(self):
+        if self.qr_window: 
+            self.qr_window.close()
+            self.qr_window = None
 
-def toggle_QR_window(self, show):
-    if show and not self.qr_window:
-        self.qr_window = QR_Window(self.exchanger)
-        self.qr_window.setVisible(True)
-        self.qr_window_geometry = self.qr_window.geometry()
-        item = self.receive_list.currentItem()
-        if item:
-            address = str(item.text(1))
-            label = self.wallet.labels.get(address)
+    
+    def timer_actions(self):
+        if self.qr_window:
+            self.qr_window.qrw.update_qr()
+
+
+    def toggle_QR_window(self, show):
+        if show and not self.qr_window:
+            self.qr_window = QR_Window(self.gui.exchanger)
+            self.qr_window.setVisible(True)
+            self.qr_window_geometry = self.qr_window.geometry()
+            item = self.gui.receive_list.currentItem()
+            if item:
+                address = str(item.text(1))
+                label = self.gui.wallet.labels.get(address)
+                amount, currency = self.requested_amounts.get(address, (None, None))
+                self.qr_window.set_content( address, label, amount, currency )
+
+        elif show and self.qr_window and not self.qr_window.isVisible():
+            self.qr_window.setVisible(True)
+            self.qr_window.setGeometry(self.qr_window_geometry)
+
+        elif not show and self.qr_window and self.qr_window.isVisible():
+            self.qr_window_geometry = self.qr_window.geometry()
+            self.qr_window.setVisible(False)
+
+
+    
+    def update_receive_item(self, address, item):
+        try:
             amount, currency = self.requested_amounts.get(address, (None, None))
+        except:
+            print "cannot get requested amount", address, self.requested_amounts.get(address)
+            amount, currency = None, None
+            self.requested_amounts.pop(address)
+
+        amount_str = amount + (' ' + currency if currency else '') if amount is not None  else ''
+        item.setData(column_index,0,amount_str)
+
+
+    
+    def current_item_changed(self, a):
+        if a is not None and self.qr_window and self.qr_window.isVisible():
+            address = str(a.text(0))
+            label = self.gui.wallet.labels.get(address)
+            try:
+                amount, currency = self.requested_amounts.get(address, (None, None))
+            except:
+                amount, currency = None, None
             self.qr_window.set_content( address, label, amount, currency )
 
-    elif show and self.qr_window and not self.qr_window.isVisible():
-        self.qr_window.setVisible(True)
-        self.qr_window.setGeometry(self.qr_window_geometry)
 
-    elif not show and self.qr_window and self.qr_window.isVisible():
-        self.qr_window_geometry = self.qr_window.geometry()
-        self.qr_window.setVisible(False)
-
-
-
-
-def item_changed(self, item, column):
-    if column == column_index:
+    
+    def item_changed(self, item, column):
+        if column != column_index:
+            return
         address = str( item.text(0) )
         text = str( item.text(column) )
         try:
-            seq = self.wallet.get_address_index(address)
+            seq = self.gui.wallet.get_address_index(address)
             index = seq[-1]
         except:
             print "cannot get index"
@@ -198,9 +194,9 @@ def item_changed(self, item, column):
                 currency = currency.upper()
                     
             self.requested_amounts[address] = (amount, currency)
-            self.wallet.config.set_key('requested_amounts', self.requested_amounts, True)
+            self.gui.wallet.config.set_key('requested_amounts', self.requested_amounts, True)
 
-            label = self.wallet.labels.get(address)
+            label = self.gui.wallet.labels.get(address)
             if label is None:
                 label = self.merchant_name + ' - %04d'%(index+1)
                 self.wallet.labels[address] = label
@@ -213,50 +209,20 @@ def item_changed(self, item, column):
             if address in self.requested_amounts:
                 self.requested_amounts.pop(address)
             
-        self.update_receive_item(self.receive_list.currentItem())
-
-
-def recv_changed(self, a):
-    if a is not None and self.qr_window and self.qr_window.isVisible():
-        address = str(a.text(0))
-        label = self.wallet.labels.get(address)
-        try:
-            amount, currency = self.requested_amounts.get(address, (None, None))
-        except:
-            amount, currency = None, None
-        self.qr_window.set_content( address, label, amount, currency )
+        self.gui.update_receive_item(self.gui.receive_list.currentItem())
 
 
 
-def edit_amount(self):
-    l = self.receive_list
-    item = l.currentItem()
-    item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
-    l.editItem( item, column_index )
-    item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
 
-def receive_menu(self, menu):
-    menu.addAction(_("Request amount"), lambda: edit_amount(self))
+    def edit_amount(self):
+        l = self.gui.receive_list
+        item = l.currentItem()
+        item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
+        l.editItem( item, column_index )
+        item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
 
-
-def update_receive_item(self, address, item):
-    try:
-        amount, currency = self.requested_amounts.get(address, (None, None))
-    except:
-        print "cannot get requested amount", address, self.requested_amounts.get(address)
-        amount, currency = None, None
-        self.requested_amounts.pop(address)
-
-    amount_str = amount + (' ' + currency if currency else '') if amount is not None  else ''
-    item.setData(column_index,0,amount_str)
+    
+    def receive_menu(self, menu):
+        menu.addAction(_("Request amount"), self.edit_amount)
 
 
-def close_main_window(self):
-    if self.qr_window: 
-        self.qr_window.close()
-        self.qr_window = None
-
-
-def timer_actions(self):
-    if self.qr_window:
-        self.qr_window.qrw.update_qr()
