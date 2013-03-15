@@ -1,5 +1,7 @@
 from electrum.util import print_error
 from urlparse import urlparse, parse_qs
+from PyQt4.QtGui import QPushButton
+from electrum_gui.i18n import _
 
 try:
     import zbar
