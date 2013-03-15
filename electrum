@@ -34,16 +34,19 @@ except ImportError:
     sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
 
 
+is_local = os.path.dirname(os.path.realpath(__file__)) == os.getcwd()
 is_android = 'ANDROID_DATA' in os.environ
 
+import __builtin__
+__builtin__.use_local_modules = is_local or is_android
+
 # load local module as electrum
-if os.path.exists("lib") or is_android:
+if __builtin__.use_local_modules:
     import imp
     imp.load_module('electrum', *imp.find_module('lib'))
     imp.load_module('electrum_gui', *imp.find_module('gui'))
 
 from electrum import *
-
 
 # get password routine
 def prompt_password(prompt, confirm=True):

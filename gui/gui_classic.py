@@ -346,11 +346,11 @@ class ElectrumWindow(QMainWindow):
 
     # plugins
     def init_plugins(self):
-        import imp, pkgutil
-        if os.path.exists("plugins"):
+        import imp, pkgutil, __builtin__
+        if __builtin__.use_local_modules:
             fp, pathname, description = imp.find_module('plugins')
+            plugin_names = [name for a, name, b in pkgutil.iter_modules([pathname])]
             imp.load_module('electrum_plugins', fp, pathname, description)
-            plugin_names = [name for a, name, b in pkgutil.iter_modules(['plugins'])]
             self.plugins = map(lambda name: imp.load_source('electrum_plugins.'+name, os.path.join(pathname,name+'.py')), plugin_names)
         else:
             import electrum_plugins
