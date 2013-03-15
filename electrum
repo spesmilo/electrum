@@ -39,11 +39,8 @@ is_android = 'ANDROID_DATA' in os.environ
 # load local module as electrum
 if os.path.exists("lib") or is_android:
     import imp
-    fp, pathname, description = imp.find_module('lib')
-    imp.load_module('electrum', fp, pathname, description)
-    fp, pathname, description = imp.find_module('gui')
-    imp.load_module('electrum_gui', fp, pathname, description)
-
+    imp.load_module('electrum', *imp.find_module('lib'))
+    imp.load_module('electrum_gui', *imp.find_module('gui'))
 
 from electrum import *
 
