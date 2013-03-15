@@ -350,6 +350,7 @@ class ElectrumWindow(QMainWindow):
         if __builtin__.use_local_modules:
             fp, pathname, description = imp.find_module('plugins')
             plugin_names = [name for a, name, b in pkgutil.iter_modules([pathname])]
+            plugin_names = filter( lambda name: os.path.exists(os.path.join(pathname,name+'.py')), plugin_names)
             imp.load_module('electrum_plugins', fp, pathname, description)
             self.plugins = map(lambda name: imp.load_source('electrum_plugins.'+name, os.path.join(pathname,name+'.py')), plugin_names)
         else:
