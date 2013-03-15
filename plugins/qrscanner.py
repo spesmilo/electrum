@@ -1,5 +1,7 @@
 from electrum.util import print_error
 from urlparse import urlparse, parse_qs
+from PyQt4.QtGui import QPushButton
+from electrum_gui.i18n import _
 
 try:
     import zbar
@@ -81,7 +83,7 @@ def parse_uri(uri):
 
 
 def fill_from_qr(self):
-    qrcode = qrscanner.scan_qr()
+    qrcode = scan_qr()
     if 'address' in qrcode:
         self.payto_e.setText(qrcode['address'])
     if 'amount' in qrcode:
@@ -93,7 +95,7 @@ def fill_from_qr(self):
                 
 
 def create_send_tab(gui, grid):
-    if qrscanner.is_available():
+    if is_available():
         b = QPushButton(_("Scan QR code"))
         b.clicked.connect(lambda: fill_from_qr(gui))
         grid.addWidget(b, 1, 5)

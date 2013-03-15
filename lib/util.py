@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, re
 import platform
 import shutil
 from datetime import datetime
@@ -147,3 +147,36 @@ def age(from_date, since_date = None, target_tz=None, include_seconds=False):
         return "about 1 year ago"
     else:
         return "over %d years ago" % (round(distance_in_minutes / 525600))
+
+
+
+
+# URL decode
+_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
+urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
+
+def parse_url(url):
+    o = url[8:].split('?')
+    address = o[0]
+    if len(o)>1:
+        params = o[1].split('&')
+    else:
+        params = []
+
+    amount = label = message = signature = identity = ''
+    for p in params:
+        k,v = p.split('=')
+        uv = urldecode(v)
+        if k == 'amount': amount = uv
+        elif k == 'message': message = uv
+        elif k == 'label': label = uv
+        elif k == 'signature':
+            identity, signature = uv.split(':')
+            url = url.replace('&%s=%s'%(k,v),'')
+        else: 
+            print k,v
+
+    return address, amount, label, message, signature, identity, url
+
+
+
