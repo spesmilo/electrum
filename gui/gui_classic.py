@@ -1813,8 +1813,9 @@ class ElectrumWindow(QMainWindow):
     @protected
     def do_import_privkey(self, password):
         if not self.wallet.imported_keys:
-            r = QMessageBox.question(None, _('Warning'), _('Warning: Imported keys are not recoverable from seed.') + ' ' \
-                                         + _('If you ever need to restore your wallet from its seed, these keys will be lost.') + '\n\n' \
+            r = QMessageBox.question(None, _('Warning'), '<b>'+_('Warning') +':\n</b><br/>'+ _('Imported keys are not recoverable from seed.') + ' ' \
+                                         + _('If you ever need to restore your wallet from its seed, these keys will be lost.') + '<p>' \
+                                         + _('In addition, when you send bitcoins from one of your imported addresses, the "change" will be sent to an address derived from your seed, unless you disabled this option.') + '<p>' \
                                          + _('Are you sure you understand what you are doing?'), 3, 4)
             if r == 4: return
 
