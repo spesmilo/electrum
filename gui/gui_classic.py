@@ -512,7 +512,7 @@ class ElectrumWindow(QMainWindow):
         vbox.addWidget(QLabel("Date: %s"%time_str))
         vbox.addWidget(QLabel("Status: %d confirmations"%conf))
         if is_mine:
-            if fee: 
+            if fee is not None: 
                 vbox.addWidget(QLabel("Amount sent: %s"% format_satoshis(v-fee, False)))
                 vbox.addWidget(QLabel("Transaction fee: %s"% format_satoshis(fee, False)))
             else:
