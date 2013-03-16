@@ -2179,7 +2179,7 @@ class ElectrumWindow(QMainWindow):
             for p in protocol_letters:
                 i = protocol_letters.index(p)
                 j = server_protocol.model().index(i,0)
-                if p not in pp.keys():
+                if p not in pp.keys() and interface.is_connected:
                     server_protocol.model().setData(j, QtCore.QVariant(0), QtCore.Qt.UserRole-1)
                 else:
                     server_protocol.model().setData(j, QtCore.QVariant(0,False), QtCore.Qt.UserRole-1)
