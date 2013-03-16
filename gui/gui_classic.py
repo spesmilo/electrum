@@ -1178,7 +1178,9 @@ class ElectrumWindow(QMainWindow):
         if (int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/switchgui.png"), _("Switch to Lite Mode"), self.go_lite ) )
         if self.wallet.seed:
-            sb.addPermanentWidget( StatusBarButton( QIcon(":icons/lock.png"), _("Password"), lambda: self.change_password_dialog(self.wallet, self) ) )
+            self.lock_icon = QIcon(":icons/lock.png") if self.wallet.use_encryption else QIcon(":icons/unlock.png")
+            self.password_button = StatusBarButton( self.lock_icon, _("Password"), lambda: self.change_password_dialog(self.wallet, self) )
+            sb.addPermanentWidget( self.password_button )
         sb.addPermanentWidget( StatusBarButton( QIcon(":icons/preferences.png"), _("Preferences"), self.settings_dialog ) )
         if self.wallet.seed:
             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog ) )
@@ -1553,6 +1555,10 @@ class ElectrumWindow(QMainWindow):
             return ElectrumWindow.change_password_dialog(wallet, parent) # Retry
 
         wallet.update_password(seed, password, new_password)
+        if parent: 
+            icon = QIcon(":icons/lock.png") if wallet.use_encryption else QIcon(":icons/unlock.png")
+            parent.password_button.setIcon( icon )
+
 
     @staticmethod
     def seed_dialog(wallet, parent=None):
