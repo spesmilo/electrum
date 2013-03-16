@@ -1094,13 +1094,12 @@ class ElectrumWindow(QMainWindow):
                 for address in account[is_change]:
                     h = self.wallet.history.get(address,[])
             
-                    if not is_change:
-                        if h == []:
-                            gap += 1
-                            if gap > self.wallet.gap_limit:
-                                is_red = True
-                        else:
-                            gap = 0
+                    if h == []:
+                        gap += 1
+                        if gap > self.wallet.gap_limit:
+                            is_red = True
+                    else:
+                        gap = 0
 
                     num_tx = '*' if h == ['*'] else "%d"%len(h)
                     item = QTreeWidgetItem( [ address, '', '', num_tx] )
