@@ -805,10 +805,7 @@ class Transaction:
         # return the balance for that tx
         is_send = False
         is_pruned = False
-
-        v_in_mine = 0    # sum of transaction inputs coming from my addresses
-        v_out = 0        # sum of all transaction outputs
-        v_out_mine = 0   # sum of outputs sent to my addresses
+        v_in = v_out = v_out_mine = 0
 
         for item in self.inputs:
             addr = item.get('address')
@@ -819,7 +816,7 @@ class Transaction:
                 if value is None:
                     is_pruned = True
                 else:
-                    v_in_mine += value
+                    v_in += value
             else:
                 is_pruned = True
                     
@@ -829,9 +826,19 @@ class Transaction:
             if addr in addresses:
                 v_out_mine += value
 
-        v = v_out_mine - v_in_mine
-        fee = None if is_pruned else v_out - v_in_mine
-
+        if not is_pruned:
+            # all inputs are mine:
+            fee = v_out - v_in
+            v = v_out_mine - v_in
+        else:
+            # some inputs are mine:
+            fee = None
+            if is_send:
+                v = v_out_mine - v_out
+            else:
+                # no input is mine
+                v = v_out_mine
+            
         return is_send, v, fee
 
     def as_dict(self):
