@@ -20,7 +20,6 @@ class Plugin(BasePlugin):
 
     def __init__(self, gui):
         self.target_host = 'labelectrum.herokuapp.com'
-        #self.target_host = 'localhost:3000'
         BasePlugin.__init__(self, gui, 'labels', _('Label Sync'),_('This plugin can sync your labels accross multiple Electrum installs by using a remote database to save your data. Labels are not encrypted, \
 transactions and addresses are however. This code might increase the load of your wallet with a few micoseconds as it will sync labels on each startup.\n\n\
 To get started visit http://labelectrum.herokuapp.com/ to sign up for an account.'))
@@ -40,13 +39,11 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
 
         self.addresses = addresses
 
-
     def auth_token(self):
         return self.config.get("plugin_label_api_key")
 
     def init_gui(self):
         if self.is_enabled() and self.auth_token():
-            self.enabled = True
             # If there is an auth token we can try to actually start syncing
             self.full_pull()
 
@@ -57,7 +54,6 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
         if not changed:
             return 
 
-        print "Label changed! Item: %s Label: %s label" % ( item, label)
         hashed = hashlib.sha256(item).digest().encode('hex')
         bundle = {"label": {"external_id": hashed, "text": label}}
         params = json.dumps(bundle)
@@ -75,7 +71,7 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
             if hasattr(self, 'auth_token_edit'):
                 self.config.set_key("plugin_label_api_key", str(self.auth_token_edit.text()))
             else:
-                QMessageBox.information(None, _("Cloud plugin loaded"), _("Please open the settings again to configure the label-cloud plugin."))
+                QMessageBox.information(None, _("Label sync loaded"), _("Please open the settings again to configure the label sync plugin."))
 
     def create_settings_tab(self, tabs):
         def check_for_api_key(api_key):
@@ -107,7 +103,7 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
 
         check_for_api_key(self.auth_token())
 
-        tabs.addTab(cloud_tab, "Label cloud")
+        tabs.addTab(cloud_tab, "Label sync")
 
     def full_push(self):
         if self.do_full_push():
@@ -142,7 +138,6 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
         return True
 
     def do_full_pull(self, force = False):
-        print "Pulling info, force: %s" % force
         connection = httplib.HTTPConnection(self.target_host)
         connection.request("GET", ("/api/wallets/%s/labels.json?auth_token=%s" % (self.wallet_id, self.auth_token())),"", {'Content-Type': 'application/json'})
         response = connection.getresponse()
@@ -157,7 +152,6 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
             QMessageBox.warning(None, _("Error"),_("Could not sync labels: %s" % response["error"]))
             return False
 
-        print response
         for label in response:
             for key in self.addresses:
                 target_hashed = hashlib.sha256(key).digest().encode('hex')
