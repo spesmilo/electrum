@@ -182,7 +182,7 @@ class Wallet:
         return s[0] == 1
 
     def get_master_public_key(self):
-        return self.sequences[0].master_public_key
+        return self.config.get("master_public_key")
 
     def get_address_index(self, address):
         if address in self.imported_keys.keys():
