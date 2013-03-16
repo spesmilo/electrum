@@ -4,7 +4,7 @@
 PYTHON_URL=http://www.python.org/ftp/python/2.6.6/python-2.6.6.msi
 PYQT4_URL=http://sourceforge.net/projects/pyqt/files/PyQt4/PyQt-4.9.5/PyQt-Py2.6-x86-gpl-4.9.5-1.exe
 PYWIN32_URL=http://sourceforge.net/projects/pywin32/files/pywin32/Build%20218/pywin32-218.win32-py2.6.exe/download
-PYINSTALLER_URL=https://github.com/downloads/pyinstaller/pyinstaller/pyinstaller-2.0.zip
+PYINSTALLER_URL=http://downloads.sourceforge.net/project/pyinstaller/2.0/pyinstaller-2.0.zip
 NSIS_URL=http://prdownloads.sourceforge.net/nsis/nsis-2.46-setup.exe?download
 #ZBAR_URL=http://sourceforge.net/projects/zbar/files/zbar/0.10/zbar-0.10-setup.exe/download
 

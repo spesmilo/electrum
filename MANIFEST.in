@@ -22,3 +22,5 @@ include scripts/servers
 include scripts/validate_tx
 include scripts/watch_address
 recursive-include data *
+recursive-include locale *.mo
+recursive-include docs *

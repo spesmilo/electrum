@@ -34,19 +34,19 @@ except ImportError:
     sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
 
 
+is_local = os.path.dirname(os.path.realpath(__file__)) == os.getcwd()
 is_android = 'ANDROID_DATA' in os.environ
 
-# load local module as electrum
-if os.path.exists("lib") or is_android:
-    import imp
-    fp, pathname, description = imp.find_module('lib')
-    imp.load_module('electrum', fp, pathname, description)
-    fp, pathname, description = imp.find_module('gui')
-    imp.load_module('electrum_gui', fp, pathname, description)
+import __builtin__
+__builtin__.use_local_modules = is_local or is_android
 
+# load local module as electrum
+if __builtin__.use_local_modules:
+    import imp
+    imp.load_module('electrum', *imp.find_module('lib'))
+    imp.load_module('electrum_gui', *imp.find_module('gui'))
 
 from electrum import *
-
 
 # get password routine
 def prompt_password(prompt, confirm=True):
@@ -162,6 +162,7 @@ if __name__ == '__main__':
                 gui.show_seed()
 
         verifier = WalletVerifier(interface, config)
+        verifier.start()
         wallet.set_verifier(verifier)
         synchronizer = WalletSynchronizer(wallet, config)
         synchronizer.start()
@@ -181,7 +182,6 @@ if __name__ == '__main__':
             gui.password_dialog()
 
         wallet.save()
-        verifier.start()
         gui.main(url)
         wallet.save()
 
@@ -236,14 +236,16 @@ if __name__ == '__main__':
                 wallet.seed = None
                 wallet.init_sequence(str(seed))
             else:
-                wallet.seed = str(seed)
-                wallet.init_mpk( wallet.seed )
+                wallet.init_seed( str(seed) )
 
             if not options.offline:
                 interface = Interface(config)
-                interface.start(wait=True)
+                if not interface.start(wait=True):
+                    print_msg("Not connected, aborting.")
+                    sys.exit(1)
                 wallet.interface = interface
                 verifier = WalletVerifier(interface, config)
+                verifier.start()
                 wallet.set_verifier(verifier)
 
                 print_msg("Recovering wallet...")
@@ -345,7 +347,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     if max_args < 0:
-        if len(args) > min_args:
+        if len(args) > min_args + 1:
             message = ' '.join(args[min_args:])
             print_msg("Warning: Final argument was reconstructed from several arguments:", repr(message))
             args = args[0:min_args] + [ message ]
@@ -358,9 +360,12 @@ if __name__ == '__main__':
     if cmd not in offline_commands and not options.offline:
         interface = Interface(config)
         interface.register_callback('connected', lambda: sys.stderr.write("Connected to " + interface.connection_msg + "\n"))
-        interface.start()
+        if not interface.start(wait=True):
+            print_msg("Not connected, aborting.")
+            sys.exit(1)
         wallet.interface = interface
         verifier = WalletVerifier(interface, config)
+        verifier.start()
         wallet.set_verifier(verifier)
         synchronizer = WalletSynchronizer(wallet, config)
         synchronizer.start()
