@@ -1152,10 +1152,7 @@ class ElectrumWindow:
             
         for address in self.wallet.addressbook:
             label = self.wallet.labels.get(address)
-            n = 0 
-            for tx in self.wallet.transactions.values():
-                if address in map(lambda x:x[0], tx.outputs): n += 1
-
+            n = self.wallet.get_num_tx(address)
             self.addressbook_list.append((address, label, "%d"%n))
 
     def update_history_tab(self):

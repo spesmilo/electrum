@@ -407,6 +407,12 @@ class Wallet:
         # redo labels
         # self.update_tx_labels()
 
+    def get_num_tx(self, address):
+        n = 0 
+        for tx in self.transactions.values():
+            if address in map(lambda x:x[0], tx.outputs): n += 1
+        return n
+
 
     def get_address_flags(self, addr):
         flags = "C" if self.is_change(addr) else "I" if addr in self.imported_keys.keys() else "-" 

@@ -1131,10 +1131,7 @@ class ElectrumWindow(QMainWindow):
 
         for address in self.wallet.addressbook:
             label = self.wallet.labels.get(address,'')
-            n = 0 
-            for tx in self.wallet.transactions.values():
-                if address in map(lambda x: x[0], tx.outputs): n += 1
-            
+            n = self.wallet.get_num_tx(address)
             item = QTreeWidgetItem( [ address, label, "%d"%n] )
             item.setFont(0, QFont(MONOSPACE_FONT))
             # 32 = label can be edited (bool)
