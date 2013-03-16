@@ -178,8 +178,8 @@ class Wallet:
         return address in self.addresses(True)
 
     def is_change(self, address):
-        #return address in self.change_addresses
-        return False
+        acct, s = self.get_address_index(address)
+        return s[0] == 1
 
     def get_master_public_key(self):
         return self.sequences[0].master_public_key
