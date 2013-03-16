@@ -1788,7 +1788,7 @@ class ElectrumWindow(QMainWindow):
             for key, value in json.loads(data).items():
                 self.wallet.labels[key] = value
             self.wallet.save()
-            QMessageBox.information(None, _("Labels imported"), _("Your labels where imported from")+" '%s'" % str(labelsFile))
+            QMessageBox.information(None, _("Labels imported"), _("Your labels were imported from")+" '%s'" % str(labelsFile))
         except (IOError, os.error), reason:
             QMessageBox.critical(None, _("Unable to import labels"), _("Electrum was unable to import your labels.")+"\n" + str(reason))
             
