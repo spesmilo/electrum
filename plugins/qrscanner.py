@@ -13,8 +13,9 @@ class Plugin(BasePlugin):
 
     def __init__(self, gui):
         BasePlugin.__init__(self, gui, 'qrscans', 'QR scans', "QR Scans.\nInstall the zbar package to enable this plugin")
+        self._is_available = self._init()
         
-    def is_available(self):
+    def _init(self):
         if not zbar:
             return False
         try:
@@ -23,8 +24,11 @@ class Plugin(BasePlugin):
         except zbar.SystemError:
             # Cannot open video device
             return False
+
         return True
 
+    def is_available(self):
+        return self._is_available
 
     def create_send_tab(self, grid):
         b = QPushButton(_("Scan QR code"))
