@@ -177,6 +177,8 @@ class Wallet:
         return address in self.addresses(True)
 
     def is_change(self, address):
+        if not self.is_mine(address): return False
+        if address in self.imported_keys.keys(): return False
         acct, s = self.get_address_index(address)
         return s[0] == 1
 
