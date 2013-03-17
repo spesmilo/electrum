@@ -50,6 +50,9 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
     def is_available(self):
         return True
 
+    def requires_settings(self):
+        return True
+
     def set_label(self, item,label, changed):
         if not changed:
             return 
@@ -65,23 +68,20 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
             return
         response = json.loads(response.read())
 
-
-    def requires_settings(self):
-        return True
-
     def settings_dialog(self):
-        dialog = QDialog(self.gui)
-
         def check_for_api_key(api_key):
             if api_key and len(api_key) > 12:
               self.config.set_key("plugin_label_api_key", str(self.auth_token_edit.text()))
               self.upload.setEnabled(True)
               self.download.setEnabled(True)
+              self.accept.setEnabled(True)
             else:
               self.upload.setEnabled(False)
               self.download.setEnabled(False)
+              self.accept.setEnabled(False)
 
-        layout = QGridLayout()
+        d = QDialog(self.gui)
+        layout = QGridLayout(d)
         layout.addWidget(QLabel("API Key: "),0,0)
 
         self.auth_token_edit = QLineEdit(self.auth_token())
@@ -98,14 +98,35 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
         self.download.clicked.connect(lambda: self.full_pull(True))
         layout.addWidget(self.download, 1,2)
 
+        c = QPushButton(_("Cancel"))
+        c.clicked.connect(d.reject)
+
+        self.accept = QPushButton(_("Done"))
+        self.accept.clicked.connect(d.accept)
+
+        layout.addWidget(c,2,1)
+        layout.addWidget(self.accept,2,2)
+
         check_for_api_key(self.auth_token())
 
-        dialog.setLayout(layout)
+        if d.exec_():
+          return True
+        else:
+          return False
 
-        dialog.exec_()
-        self.config.set_key("plugin_label_api_key", str(self.auth_token_edit.text()))
+    def toggle(self):
+        enabled = not self.is_enabled()
+        self.set_enabled(enabled)
+        self.init_gui()
 
-
+        if not self.auth_token() and enabled: # First run, throw plugin settings in your face
+            if self.settings_dialog():
+              self.set_enabled(True)
+              return True
+            else:
+              self.set_enabled(False)
+              return False
+        return enabled
 
     def full_push(self):
         if self.do_full_push():
