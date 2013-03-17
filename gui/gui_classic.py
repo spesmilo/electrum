@@ -301,7 +301,7 @@ class ElectrumWindow(QMainWindow):
         self.completions = QStringListModel()
 
         self.tabs = tabs = QTabWidget(self)
-        self.column_widths = self.config.get("column-widths", default_column_widths )
+        self.column_widths = self.config.get("column_widths", default_column_widths )
         tabs.addTab(self.create_history_tab(), _('History') )
         tabs.addTab(self.create_send_tab(), _('Send') )
         tabs.addTab(self.create_receive_tab(), _('Receive') )
@@ -2271,7 +2271,7 @@ class ElectrumWindow(QMainWindow):
         g = self.geometry()
         self.config.set_key("winpos-qt", [g.left(),g.top(),g.width(),g.height()], True)
         self.save_column_widths()
-        self.config.set_key("column-widths", self.column_widths, True)
+        self.config.set_key("column_widths", self.column_widths, True)
         self.config.set_key("console-history",self.console.history[-50:])
         event.accept()
 
