@@ -134,7 +134,10 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
 
     def full_pull(self, force = False):
         if self.do_full_pull(force) and force:
-            QMessageBox.information(None, _("Labels synced"), _("Your labels have been synced, please restart Electrum for the changes to take effect."))
+            self.gui.update_history_tab()
+            self.gui.update_completions()
+            self.gui.update_receive_tab()
+            self.gui.update_contacts_tab()
 
     def do_full_push(self):
         bundle = {"labels": {}}
