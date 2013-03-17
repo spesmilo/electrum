@@ -130,10 +130,11 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
 
     def full_push(self):
         if self.do_full_push():
-            QMessageBox.information(None, _("Labels synced"), _("Your labels have been uploaded."))
+            QMessageBox.information(None, _("Labels uploaded"), _("Your labels have been uploaded."))
 
     def full_pull(self, force = False):
         if self.do_full_pull(force) and force:
+            QMessageBox.information(None, _("Labels synchronized"), _("Your labels have been synchronized."))
             self.gui.update_history_tab()
             self.gui.update_completions()
             self.gui.update_receive_tab()
