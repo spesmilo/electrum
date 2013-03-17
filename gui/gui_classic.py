@@ -1047,6 +1047,7 @@ class ElectrumWindow(QMainWindow):
         address = str(item.data(0,0).toString())
         label = self.wallet.labels.get(address,'')
         item.setData(1,0,label)
+        item.setData(0,32, True) # is editable
 
         self.run_hook('update_receive_item', address, item)
                 
