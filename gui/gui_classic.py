@@ -324,7 +324,7 @@ class ElectrumWindow(QMainWindow):
         
         self.connect(self, QtCore.SIGNAL('update_wallet'), self.update_wallet)
         self.connect(self, QtCore.SIGNAL('update_status'), self.update_status)
-        self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.wallet.banner) )
+        self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.wallet.interface.banner) )
         self.history_list.setFocus(True)
         
         self.exchanger = exchange_rate.Exchanger(self)
@@ -337,7 +337,7 @@ class ElectrumWindow(QMainWindow):
             tabs.setCurrentIndex (0)
 
         # set initial message
-        self.console.showMessage(self.wallet.banner)
+        self.console.showMessage(self.wallet.interface.banner)
 
         # plugins that need to change the GUI do it here
         self.run_hook('init_gui')

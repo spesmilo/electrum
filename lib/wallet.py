@@ -104,7 +104,6 @@ class Wallet:
         self.prevout_values = {}     # my own transaction outputs
         self.spent_outputs = []
         self.receipt = None          # next receipt
-        self.banner = ''
 
         # spv
         self.verifier = None
@@ -951,7 +950,6 @@ class WalletSynchronizer(threading.Thread):
         self.interface = self.wallet.interface
         self.interface.register_channel('synchronizer')
         self.wallet.interface.register_callback('connected', lambda: self.wallet.set_up_to_date(False))
-        self.wallet.interface.register_callback('connected', lambda: self.interface.send([('server.banner',[])],'synchronizer') )
         self.was_updated = True
         self.running = False
         self.lock = threading.Lock()
@@ -1091,9 +1089,6 @@ class WalletSynchronizer(threading.Thread):
                 self.wallet.tx_result = result
                 self.wallet.tx_event.set()
 
-            elif method == 'server.banner':
-                self.wallet.banner = result
-                self.interface.trigger_callback('banner')
             else:
                 print_error("Error: Unknown message:" + method + ", " + repr(params) + ", " + repr(result) )
 

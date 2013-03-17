@@ -1129,7 +1129,7 @@ class ElectrumWindow:
             self.update_history_tab()
             self.update_receiving_tab()
             # addressbook too...
-            self.info.set_text( self.wallet.banner )
+            self.info.set_text( self.wallet.interface.banner )
             self.wallet_updated = False
 
     def update_receiving_tab(self):

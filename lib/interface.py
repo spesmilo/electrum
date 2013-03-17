@@ -77,7 +77,8 @@ class Interface(threading.Thread):
         #json
         self.message_id = 0
         self.unanswered_requests = {}
-
+        #banner
+        self.banner = ''
 
 
     def queue_json_response(self, c):
@@ -105,6 +106,10 @@ class Interface(threading.Thread):
 
             if method == 'server.version':
                 self.server_version = result
+
+            elif method == 'server.banner':
+                self.banner = result
+                self.trigger_callback('banner')
 
             elif method == 'server.peers.subscribe':
                 servers = {}
@@ -429,6 +434,7 @@ class Interface(threading.Thread):
         self.connect_event.set()
         if self.is_connected:
             self.send([('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])])
+            self.send([('server.banner',[])])
             self.trigger_callback('connected')
         else:
             self.trigger_callback('notconnected')
