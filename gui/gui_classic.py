@@ -2015,7 +2015,7 @@ class ElectrumWindow(QMainWindow):
                     cb.setChecked(p.is_enabled())
                     cb.clicked.connect(mk_toggle(cb,p))
                     grid_plugins.addWidget(cb, i, 0)
-                    if p.requires_settings:
+                    if p.requires_settings():
                         grid_plugins.addWidget(EnterButton(_('Settings'), p.settings_dialog), i, 1)
                     grid_plugins.addWidget(HelpButton(description), i, 2)
                 except:

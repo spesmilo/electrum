@@ -11,7 +11,9 @@ class BasePlugin:
         self.description = description
         self.gui = gui
         self.config = gui.config
-        self.requires_settings = False
+
+    def requires_settings(self):
+        return False
 
     def toggle(self):
         enabled = not self.is_enabled()

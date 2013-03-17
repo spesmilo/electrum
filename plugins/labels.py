@@ -65,15 +65,13 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
             return
         response = json.loads(response.read())
 
-    def close_settings_dialog(self):
-        # When you enable the plugin for the first time this won't exist.
-        if self.is_enabled():
-            if hasattr(self, 'auth_token_edit'):
-                self.config.set_key("plugin_label_api_key", str(self.auth_token_edit.text()))
-            else:
-                QMessageBox.information(None, _("Label sync loaded"), _("Please open the settings again to configure the label sync plugin."))
 
-    def create_settings_tab(self, tabs):
+    def requires_settings(self):
+        return True
+
+    def settings_dialog(self):
+        dialog = QDialog(self.gui)
+
         def check_for_api_key(api_key):
             if api_key and len(api_key) > 12:
               self.config.set_key("plugin_label_api_key", str(self.auth_token_edit.text()))
@@ -83,8 +81,7 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
               self.upload.setEnabled(False)
               self.download.setEnabled(False)
 
-        cloud_tab = QWidget()
-        layout = QGridLayout(cloud_tab)
+        layout = QGridLayout()
         layout.addWidget(QLabel("API Key: "),0,0)
 
         self.auth_token_edit = QLineEdit(self.auth_token())
@@ -103,7 +100,12 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
 
         check_for_api_key(self.auth_token())
 
-        tabs.addTab(cloud_tab, "Label sync")
+        dialog.setLayout(layout)
+
+        dialog.exec_()
+        self.config.set_key("plugin_label_api_key", str(self.auth_token_edit.text()))
+
+
 
     def full_push(self):
         if self.do_full_push():
