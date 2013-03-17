@@ -13,10 +13,20 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
+import aes
+import base64
 from electrum_gui import bmp, pyqrnative, BasePlugin
 from electrum_gui.i18n import _
 
 class Plugin(BasePlugin):
+
+    def encode(self, message):
+        encoded_message = base64.b64encode(aes.encryptData(self.encode_password, message))
+        return encoded_message
+
+    def decode(self, message):
+        decoded_message = aes.decryptData(self.encode_password, base64.b64decode(message)) 
+        return decoded_message
 
     def __init__(self, gui):
         self.target_host = 'labelectrum.herokuapp.com'
@@ -29,6 +39,7 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
         self.config = gui.config
         self.labels = self.wallet.labels
         self.transactions = self.wallet.transactions
+        self.encode_password = hashlib.sha1(self.config.get("master_public_key")).digest().encode('hex')[:32]
 
         self.wallet_id = hashlib.sha256(str(self.config.get("master_public_key"))).digest().encode('hex')
 
@@ -57,8 +68,7 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
         if not changed:
             return 
 
-        hashed = hashlib.sha256(item).digest().encode('hex')
-        bundle = {"label": {"external_id": hashed, "text": label}}
+        bundle = {"label": {"external_id": self.encode(item), "text": self.encode(label)}}
         params = json.dumps(bundle)
         connection = httplib.HTTPConnection(self.target_host)
         connection.request("POST", ("/api/wallets/%s/labels.json?auth_token=%s" % (self.wallet_id, self.auth_token())), params, {'Content-Type': 'application/json'})
@@ -143,8 +153,8 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
     def do_full_push(self):
         bundle = {"labels": {}}
         for key, value in self.labels.iteritems():
-            hashed = hashlib.sha256(key).digest().encode('hex')
-            bundle["labels"][hashed] = value
+            encoded = self.encode(key)
+            bundle["labels"][encoded] = self.encode(value)
 
         params = json.dumps(bundle)
         connection = httplib.HTTPConnection(self.target_host)
@@ -180,14 +190,8 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
             return False
 
         for label in response:
-            for key in self.addresses:
-                target_hashed = hashlib.sha256(key).digest().encode('hex')
-                if label["external_id"] == target_hashed:
-                   if force or not self.labels.get(key):
-                       self.labels[key] = label["text"] 
-            for key, value in self.transactions.iteritems():
-                target_hashed = hashlib.sha256(key).digest().encode('hex')
-                if label["external_id"] == target_hashed:
-                   if force or not self.labels.get(key):
-                       self.labels[key] = label["text"] 
+             decoded_key = self.decode(label["external_id"]) 
+             decoded_label = self.decode(label["text"]) 
+             if force or not self.labels.get(decoded_key):
+                 self.labels[decoded_key] = decoded_label 
         return True
