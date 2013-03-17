@@ -17,6 +17,5 @@
     <file>icons/switchgui.png</file>
     <file>icons/unconfirmed.png</file>
     <file>icons/network.png</file>
-    <file>icons/cloud.png</file>
   </qresource>
 </RCC>
