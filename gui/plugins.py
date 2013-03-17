@@ -11,6 +11,7 @@ class BasePlugin:
         self.description = description
         self.gui = gui
         self.config = gui.config
+        self.requires_settings = False
 
     def toggle(self):
         enabled = not self.is_enabled()
@@ -30,3 +31,5 @@ class BasePlugin:
     def set_enabled(self, enabled):
         self.config.set_key('use_'+self.name, enabled, True)
 
+    def settings_dialog(self):
+        pass
