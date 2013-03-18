@@ -1003,7 +1003,6 @@ class MiniDriver(QObject):
         for addr, label in self.wallet.labels.items():
             if addr in self.wallet.addressbook:
                 completions.append("%s <%s>" % (label, addr))
-        completions = completions + self.wallet.aliases.keys()
         self.window.update_completions(completions)
 
     def update_history(self):
