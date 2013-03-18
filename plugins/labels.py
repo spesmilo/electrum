@@ -17,15 +17,21 @@ import aes
 import base64
 from electrum_gui import bmp, pyqrnative, BasePlugin
 from electrum_gui.i18n import _
+from electrum_gui.gui_classic import HelpButton
 
 class Plugin(BasePlugin):
+    def version(self):
+        return "0.2"
 
     def encode(self, message):
-        encoded_message = base64.b64encode(aes.encryptData(self.encode_password, message))
+        encrypted = aes.encryptData(self.encode_password, unicode(message))
+        encoded_message = base64.b64encode(encrypted)
+
         return encoded_message
 
     def decode(self, message):
-        decoded_message = aes.decryptData(self.encode_password, base64.b64decode(message)) 
+        decoded_message = aes.decryptData(self.encode_password, base64.b64decode(unicode(message)) )
+
         return decoded_message
 
     def __init__(self, gui):
@@ -97,16 +103,22 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
         self.auth_token_edit = QLineEdit(self.auth_token())
         self.auth_token_edit.textChanged.connect(check_for_api_key)
 
+        layout.addWidget(QLabel("Label sync options: "),2,0)
         layout.addWidget(self.auth_token_edit, 0,1,1,2)
-        layout.addWidget(QLabel("Label sync options: "),1,0)
+
+        decrypt_key_text =  QLineEdit(self.encode_password)
+        decrypt_key_text.setReadOnly(True)
+        layout.addWidget(decrypt_key_text, 1,1)
+        layout.addWidget(QLabel("Decryption key: "),1,0)
+        layout.addWidget(HelpButton("This key can be used on the LabElectrum website to decrypt your data in case you want to review it online."),1,2)
 
         self.upload = QPushButton("Force upload")
         self.upload.clicked.connect(self.full_push)
-        layout.addWidget(self.upload, 1,1)
+        layout.addWidget(self.upload, 2,1)
 
         self.download = QPushButton("Force download")
         self.download.clicked.connect(lambda: self.full_pull(True))
-        layout.addWidget(self.download, 1,2)
+        layout.addWidget(self.download, 2,2)
 
         c = QPushButton(_("Cancel"))
         c.clicked.connect(d.reject)
@@ -114,8 +126,8 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
         self.accept = QPushButton(_("Done"))
         self.accept.clicked.connect(d.accept)
 
-        layout.addWidget(c,2,1)
-        layout.addWidget(self.accept,2,2)
+        layout.addWidget(c,3,1)
+        layout.addWidget(self.accept,3,2)
 
         check_for_api_key(self.auth_token())
 
