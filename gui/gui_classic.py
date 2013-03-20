@@ -2198,7 +2198,7 @@ class ElectrumWindow(QMainWindow):
                 if p not in pp.keys() and interface.is_connected:
                     server_protocol.model().setData(j, QtCore.QVariant(0), QtCore.Qt.UserRole-1)
                 else:
-                    server_protocol.model().setData(j, QtCore.QVariant(0,False), QtCore.Qt.UserRole-1)
+                    server_protocol.model().setData(j, QtCore.QVariant(33), QtCore.Qt.UserRole-1)
 
 
         if server:
