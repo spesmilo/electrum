@@ -124,7 +124,8 @@ class ElectrumGui:
         self.stdscr.addstr( 12, 25, _("[Clear]"), curses.A_REVERSE if self.pos%6==5 else curses.color_pair(2))
 
     def print_banner(self):
-        self.stdscr.addstr( 1, 1, self.wallet.interface.banner )
+        for i, x in enumerate( self.wallet.interface.banner.split('\n') ):
+            self.stdscr.addstr( 1+i, 1, x )
 
     def print_list(self, list, firstline):
         self.maxpos = len(list)
