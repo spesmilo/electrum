@@ -103,7 +103,6 @@ class Wallet:
         # not saved
         self.prevout_values = {}     # my own transaction outputs
         self.spent_outputs = []
-        self.receipt = None          # next receipt
 
         # spv
         self.verifier = None
@@ -774,9 +773,6 @@ class Wallet:
         out = self.tx_result 
         if out != tx_hash:
             return False, "error: " + out
-        if self.receipt:
-            self.receipts[tx_hash] = self.receipt
-            self.receipt = None
         return True, out
 
 
