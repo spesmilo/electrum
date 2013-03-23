@@ -876,6 +876,18 @@ class Transaction:
         return out
 
 
+    def requires_fee(self, verifier):
+        threshold = 57600000
+        size = len(self.raw)/2
+        sum = 0
+        for i in self.inputs:
+            age = verifier.get_confirmations(i["tx_hash"])[0]
+            sum += i["value"] * age
+        priority = sum / size
+        print_error(priority, threshold)
+        return priority < threshold
+
+
 
 
 def test_bip32():

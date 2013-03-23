@@ -74,7 +74,7 @@ class Wallet:
         self.seed_version          = config.get('seed_version', SEED_VERSION)
         self.gap_limit             = config.get('gap_limit', 5)
         self.use_change            = config.get('use_change',True)
-        self.fee                   = int(config.get('fee',100000))
+        self.fee                   = int(config.get('fee',10000))
         self.num_zeros             = int(config.get('num_zeros',0))
         self.use_encryption        = config.get('use_encryption', False)
         self.seed                  = config.get('seed', '')               # encrypted
@@ -565,13 +565,19 @@ class Wallet:
             total += v
 
             inputs.append( item )
-            fee = self.fee*len(inputs) if fixed_fee is None else fixed_fee
+            if fixed_fee is None:
+                estimated_size =  len(inputs) * 180 + 80     # this assumes non-compressed keys
+                fee = self.fee * round(estimated_size/1024.)
+                if fee == 0: fee = self.fee
+            else:
+                fee = fixed_fee
             if total >= amount + fee: break
         else:
-            #print "not enough funds: %s %s"%(format_satoshis(total), format_satoshis(fee))
             inputs = []
 
         return inputs, total, fee
+
+
 
     def add_tx_change( self, outputs, amount, fee, total, change_addr=None ):
         change_amount = total - ( amount + fee )

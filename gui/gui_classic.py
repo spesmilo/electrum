@@ -795,6 +795,10 @@ class ElectrumWindow(QMainWindow):
             self.show_message(str(e))
             return
 
+        if tx.requires_fee(self.wallet.verifier) and fee == 0:
+            QMessageBox.warning(self, _('Error'), _("This transaction requires a fee, or it will not be propagated by the network."), _('OK'))
+            return
+
         self.run_hook('send_tx', tx)
 
         if label: 
@@ -1928,8 +1932,8 @@ class ElectrumWindow(QMainWindow):
         fee_e = QLineEdit()
         fee_e.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
         grid_wallet.addWidget(fee_e, 0, 2)
-        msg = _('Fee per transaction input. Transactions involving multiple inputs tend to require a higher fee.') + ' ' \
-            + _('Recommended value') + ': 0.001'
+        msg = _('Fee per kilobyte of transaction.') + ' ' \
+            + _('Recommended value') + ': 0.0001'
         grid_wallet.addWidget(HelpButton(msg), 0, 3)
         fee_e.textChanged.connect(lambda: numbify(fee_e,False))
         if not self.config.is_modifiable('fee'):
