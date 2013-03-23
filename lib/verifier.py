@@ -35,7 +35,7 @@ class WalletVerifier(threading.Thread):
         self.transactions    = {}                                 # requested verifications (with height sent by the requestor)
         self.interface.register_channel('verifier')
 
-        self.verified_tx     = config.get('verified_tx2',{})      # height, timestamp of verified transactions
+        self.verified_tx     = config.get('verified_tx3',{})      # height, timestamp of verified transactions
         self.merkle_roots    = config.get('merkle_roots',{})      # hashed by me
         
         self.targets         = config.get('targets',{})           # compute targets
@@ -50,7 +50,7 @@ class WalletVerifier(threading.Thread):
         """ return the number of confirmations of a monitored transaction. """
         with self.lock:
             if tx in self.verified_tx:
-                height, timestamp = self.verified_tx[tx]
+                height, timestamp, pos = self.verified_tx[tx]
                 conf = (self.local_height - height + 1)
             else:
                 conf = 0
@@ -183,7 +183,8 @@ class WalletVerifier(threading.Thread):
 
     def verify_merkle(self, tx_hash, result):
         tx_height = result.get('block_height')
-        self.merkle_roots[tx_hash] = self.hash_merkle_root(result['merkle'], tx_hash, result.get('pos'))
+        pos = result.get('pos')
+        self.merkle_roots[tx_hash] = self.hash_merkle_root(result['merkle'], tx_hash, pos)
         header = self.read_header(tx_height)
         if not header: return
         assert header.get('merkle_root') == self.merkle_roots[tx_hash]
@@ -191,9 +192,9 @@ class WalletVerifier(threading.Thread):
         header = self.read_header(tx_height)
         timestamp = header.get('timestamp')
         with self.lock:
-            self.verified_tx[tx_hash] = (tx_height, timestamp)
+            self.verified_tx[tx_hash] = (tx_height, timestamp, pos)
         print_error("verified %s"%tx_hash)
-        self.config.set_key('verified_tx2', self.verified_tx, True)
+        self.config.set_key('verified_tx3', self.verified_tx, True)
         self.interface.trigger_callback('updated')
 
 

@@ -644,7 +644,7 @@ class Wallet:
     def get_tx_history(self):
         with self.lock:
             history = self.transactions.items()
-        history.sort(key = lambda x: self.verifier.get_height(x[0]) if self.verifier.get_height(x[0]) else 1e12)
+        history.sort(key = lambda x: self.verifier.verified_tx.get(x[0]) if self.verifier.verified_tx.get(x[0]) else (1e12,0,0))
         result = []
     
         balance = 0
