@@ -1936,7 +1936,7 @@ class ElectrumWindow(QMainWindow):
             + _('Recommended value') + ': 0.0001'
         grid_wallet.addWidget(HelpButton(msg), 0, 3)
         fee_e.textChanged.connect(lambda: numbify(fee_e,False))
-        if not self.config.is_modifiable('fee'):
+        if not self.config.is_modifiable('fee_per_kb'):
             for w in [fee_e, fee_label]: w.setEnabled(False)
 
         usechange_label = QLabel(_('Use change addresses'))

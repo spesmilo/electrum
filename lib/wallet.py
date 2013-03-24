@@ -74,7 +74,7 @@ class Wallet:
         self.seed_version          = config.get('seed_version', SEED_VERSION)
         self.gap_limit             = config.get('gap_limit', 5)
         self.use_change            = config.get('use_change',True)
-        self.fee                   = int(config.get('fee',10000))
+        self.fee                   = int(config.get('fee_per_kb',10000))
         self.num_zeros             = int(config.get('num_zeros',0))
         self.use_encryption        = config.get('use_encryption', False)
         self.seed                  = config.get('seed', '')               # encrypted
@@ -831,7 +831,7 @@ class Wallet:
         s = {
             'use_encryption': self.use_encryption,
             'use_change': self.use_change,
-            'fee': self.fee,
+            'fee_per_kb': self.fee,
             'accounts': self.accounts,
             'addr_history': self.history, 
             'labels': self.labels,
