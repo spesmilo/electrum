@@ -35,6 +35,7 @@ MONOSPACE_FONT = 'Lucida Console' if platform.system() == 'Windows' else 'monosp
 
 from electrum.util import format_satoshis
 from electrum.interface import DEFAULT_SERVERS
+from electrum.bitcoin import MIN_RELAY_TX_FEE
 
 def numbify(entry, is_int = False):
     text = entry.get_text().strip()
@@ -844,8 +845,8 @@ class ElectrumWindow:
             self.show_message(str(e))
             return
 
-        if tx.requires_fee(self.wallet.verifier) and fee == 0:
-            self.show_message( "This transaction requires a fee, or it will not be propagated by the network." )
+        if tx.requires_fee(self.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
+            self.show_message( "This transaction requires a higher fee, or it will not be propagated by the network." )
             return
 
             

@@ -32,6 +32,7 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 from electrum.interface import DEFAULT_SERVERS
+from electrum.bitcoin import MIN_RELAY_TX_FEE
 
 try:
     import icons_rc
@@ -795,8 +796,8 @@ class ElectrumWindow(QMainWindow):
             self.show_message(str(e))
             return
 
-        if tx.requires_fee(self.wallet.verifier) and fee == 0:
-            QMessageBox.warning(self, _('Error'), _("This transaction requires a fee, or it will not be propagated by the network."), _('OK'))
+        if tx.requires_fee(self.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
+            QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
             return
 
         self.run_hook('send_tx', tx)

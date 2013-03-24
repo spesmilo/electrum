@@ -912,6 +912,7 @@ class Wallet:
                 height = None
                 for h in ext_h:
                     if h == ['*']: continue
+                    print_error(h)
                     for item in h:
                         if item.get('tx_hash') == tx_hash:
                             height = item.get('height')

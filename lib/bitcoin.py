@@ -577,6 +577,7 @@ class BIP32Sequence:
 
 ################################## transactions
 
+MIN_RELAY_TX_FEE = 10000
 
 class Transaction:
     
@@ -877,15 +878,23 @@ class Transaction:
 
 
     def requires_fee(self, verifier):
+        # see https://en.bitcoin.it/wiki/Transaction_fees
         threshold = 57600000
         size = len(self.raw)/2
+        if size >= 10000: 
+            return True
+
+        for o in self.outputs:
+            value = o[1]
+            if value < 1000000:
+                return True
         sum = 0
         for i in self.inputs:
             age = verifier.get_confirmations(i["tx_hash"])[0]
             sum += i["value"] * age
         priority = sum / size
         print_error(priority, threshold)
-        return priority < threshold
+        return priority < threshold 
 
 
 
