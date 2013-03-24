@@ -1,3 +1,15 @@
+
+# Release 1.7.2:  
+
+* Transactions that belong in the same block are displayed in chronological order in the history.
+* The client computes transaction priority and rejects zero-fee transactions that need a fee.
+* The default fee was lowered to 100 uBTC per kb.
+* Due to an internal format change, your history may be pruned when
+  you open your wallet for the first time after upgrading to 1.7.2. If
+  this is the case, please visit a full server to restore your full
+  history. You will only need to do that once.
+
+
 # Release 1.7.1:  bugfixes.
 
 
