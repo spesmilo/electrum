@@ -559,7 +559,7 @@ class Wallet:
             inputs.append( item )
             if fixed_fee is None:
                 estimated_size =  len(inputs) * 180 + 80     # this assumes non-compressed keys
-                fee = self.fee * round(estimated_size/1024.)
+                fee = self.fee * int(round(estimated_size/1024.))
                 if fee == 0: fee = self.fee
             else:
                 fee = fixed_fee
