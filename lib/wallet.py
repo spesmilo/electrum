@@ -429,12 +429,10 @@ class Wallet:
     
     def update_tx_outputs(self, tx_hash):
         tx = self.transactions.get(tx_hash)
-        i = 0
-        for item in tx.outputs:
-            addr, value = item
+
+        for i, (addr, value) in enumerate(tx.outputs):
             key = tx_hash+ ':%d'%i
             self.prevout_values[key] = value
-            i += 1
 
         for item in tx.inputs:
             if self.is_mine(item.get('address')):
@@ -452,13 +450,11 @@ class Wallet:
         for tx_hash, tx_height in h:
             tx = self.transactions.get(tx_hash)
             if not tx: continue
-            i = 0
-            for item in tx.outputs:
-                addr, value = item
+
+            for i, (addr, value) in enumerate(tx.outputs):
                 if addr == address:
                     key = tx_hash + ':%d'%i
                     received_coins.append(key)
-                i +=1
 
         for tx_hash, tx_height in h:
             tx = self.transactions.get(tx_hash)
@@ -473,13 +469,10 @@ class Wallet:
                     if key in received_coins: 
                         v -= value
 
-            i = 0
-            for item in tx.outputs:
-                addr, value = item
+            for i, (addr, value) in enumerate(tx.outputs):
                 key = tx_hash + ':%d'%i
                 if addr == address:
                     v += value
-                i += 1
 
             if tx_height:
                 c += v
@@ -651,7 +644,7 @@ class Wallet:
             c, u = self.get_balance()
 
             if balance != c+u:
-                v_str = format_satoshis( c+u - balance, True, self.num_zeros)
+                #v_str = format_satoshis( c+u - balance, True, self.num_zeros)
                 result.append( ('', 1000, 0, c+u-balance, None, c+u-balance, None ) )
 
             balance = c + u - balance
@@ -909,10 +902,10 @@ class Wallet:
                     ext_requests.append( ('blockchain.address.get_history', [_addr]) )
 
                 ext_h = self.interface.synchronous_get(ext_requests)
+                print_error("sync:", ext_requests, ext_h)
                 height = None
                 for h in ext_h:
                     if h == ['*']: continue
-                    print_error(h)
                     for item in h:
                         if item.get('tx_hash') == tx_hash:
                             height = item.get('height')
