@@ -113,6 +113,7 @@ class Wallet:
         
         self.up_to_date = False
         self.lock = threading.Lock()
+        self.transaction_lock = threading.Lock()
         self.tx_event = threading.Event()
 
         if self.seed_version != SEED_VERSION:
@@ -432,8 +433,7 @@ class Wallet:
         for item in tx.outputs:
             addr, value = item
             key = tx_hash+ ':%d'%i
-            with self.lock:
-                self.prevout_values[key] = value
+            self.prevout_values[key] = value
             i += 1
 
         for item in tx.inputs:
@@ -607,19 +607,17 @@ class Wallet:
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
 
+
         if not self.check_new_tx(tx_hash, tx):
             # may happen due to pruning
             print_error("received transaction that is no longer referenced in history", tx_hash)
             return
 
-        with self.lock:
+        with self.transaction_lock:
             self.transactions[tx_hash] = tx
-
-        #tx_height = tx.get('height')
-        if self.verifier and tx_height>0: 
-            self.verifier.add(tx_hash, tx_height)
-
-        self.update_tx_outputs(tx_hash)
+            if self.verifier and tx_height>0: 
+                self.verifier.add(tx_hash, tx_height)
+            self.update_tx_outputs(tx_hash)
 
         self.save()
 
@@ -641,29 +639,29 @@ class Wallet:
 
 
     def get_tx_history(self):
-        with self.lock:
+        with self.transaction_lock:
             history = self.transactions.items()
-        history.sort(key = lambda x: self.verifier.verified_tx.get(x[0]) if self.verifier.verified_tx.get(x[0]) else (1e12,0,0))
-        result = []
+            history.sort(key = lambda x: self.verifier.verified_tx.get(x[0]) if self.verifier.verified_tx.get(x[0]) else (1e12,0,0))
+            result = []
     
-        balance = 0
-        for tx_hash, tx in history:
-            is_mine, v, fee = self.get_tx_value(tx)
-            if v is not None: balance += v
-        c, u = self.get_balance()
+            balance = 0
+            for tx_hash, tx in history:
+                is_mine, v, fee = self.get_tx_value(tx)
+                if v is not None: balance += v
+            c, u = self.get_balance()
 
-        if balance != c+u:
-            v_str = format_satoshis( c+u - balance, True, self.num_zeros)
-            result.append( ('', 1000, 0, c+u-balance, None, c+u-balance, None ) )
+            if balance != c+u:
+                v_str = format_satoshis( c+u - balance, True, self.num_zeros)
+                result.append( ('', 1000, 0, c+u-balance, None, c+u-balance, None ) )
 
-        balance = c + u - balance
-        for tx_hash, tx in history:
-            conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
-            is_mine, value, fee = self.get_tx_value(tx)
-            if value is not None:
-                balance += value
+            balance = c + u - balance
+            for tx_hash, tx in history:
+                conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
+                is_mine, value, fee = self.get_tx_value(tx)
+                if value is not None:
+                    balance += value
 
-            result.append( (tx_hash, conf, is_mine, value, fee, balance, timestamp) )
+                result.append( (tx_hash, conf, is_mine, value, fee, balance, timestamp) )
 
         return result
 
