@@ -25,7 +25,8 @@ if __name__ == '__main__':
     shutil.copytree("aes",'dist/e4a-%s/aes'%version)
     shutil.copytree("lib",'dist/e4a-%s/lib'%version)
     os.mkdir('dist/e4a-%s/gui'%version)
-    shutil.copy("gui/gui_android.py",'dist/e4a-%s/gui'%version)
+    for n in ['gui_android.py', 'pyqrnative.py', 'bmp.py']:
+        shutil.copy("gui/%s"%n,'dist/e4a-%s/gui'%version)
     open('dist/e4a-%s/gui/__init__.py'%version,'w').close()
 
     os.chdir("dist")
