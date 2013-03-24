@@ -859,6 +859,12 @@ class Wallet:
                     self.verifier.add(tx_hash, tx_height)
 
 
+        # if we are on a pruning server, remove unverified transactions
+        vr = self.verifier.transactions.keys() + self.verifier.verified_tx.keys()
+        for tx_hash in self.transactions.keys():
+            if tx_hash not in vr:
+                self.transactions.pop(tx_hash)
+
 
 
     def check_new_history(self, addr, hist):
