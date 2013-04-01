@@ -253,7 +253,7 @@ class WalletVerifier(threading.Thread):
             with self.lock:
                 items = self.verified_tx.items()[:]
             for tx_hash, item in items:
-                tx_height, timestamp = item
+                tx_height, timestamp, pos = item
                 if tx_height >= height:
                     print_error("redoing", tx_hash)
                     with self.lock:
