@@ -318,14 +318,14 @@ class ElectrumGui:
     def settings_dialog(self):
         out = self.run_dialog('Settings', [
             {'label':'Default GUI', 'type':'list', 'choices':['classic','lite','gtk','text'], 'value':self.config.get('gui')},
-            {'label':'Default fee', 'type':'satoshis', 'value': format_satoshis(self.config.get('fee')).strip() }
+            {'label':'Default fee', 'type':'satoshis', 'value': format_satoshis(self.config.get('fee_per_kb')).strip() }
             ], buttons = 1)
         if out:
             if out.get('Default GUI'):
                 self.config.set_key('gui', out['Default GUI'], True)
             if out.get('Default fee'):
                 fee = int ( Decimal( out['Default fee']) *10000000 )
-                self.config.set_key('fee', fee, True)
+                self.config.set_key('fee_per_kb', fee, True)
 
 
     def password_dialog(self):

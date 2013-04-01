@@ -32,6 +32,7 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 from electrum.interface import DEFAULT_SERVERS
+from electrum.bitcoin import MIN_RELAY_TX_FEE
 
 try:
     import icons_rc
@@ -793,6 +794,10 @@ class ElectrumWindow(QMainWindow):
             tx = self.wallet.mktx( [(to_address, amount)], password, fee)
         except BaseException, e:
             self.show_message(str(e))
+            return
+
+        if tx.requires_fee(self.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
+            QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
             return
 
         self.run_hook('send_tx', tx)
@@ -1928,11 +1933,11 @@ class ElectrumWindow(QMainWindow):
         fee_e = QLineEdit()
         fee_e.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
         grid_wallet.addWidget(fee_e, 0, 2)
-        msg = _('Fee per transaction input. Transactions involving multiple inputs tend to require a higher fee.') + ' ' \
-            + _('Recommended value') + ': 0.001'
+        msg = _('Fee per kilobyte of transaction.') + ' ' \
+            + _('Recommended value') + ': 0.0001'
         grid_wallet.addWidget(HelpButton(msg), 0, 3)
         fee_e.textChanged.connect(lambda: numbify(fee_e,False))
-        if not self.config.is_modifiable('fee'):
+        if not self.config.is_modifiable('fee_per_kb'):
             for w in [fee_e, fee_label]: w.setEnabled(False)
 
         usechange_label = QLabel(_('Use change addresses'))

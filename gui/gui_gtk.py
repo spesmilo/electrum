@@ -35,6 +35,7 @@ MONOSPACE_FONT = 'Lucida Console' if platform.system() == 'Windows' else 'monosp
 
 from electrum.util import format_satoshis
 from electrum.interface import DEFAULT_SERVERS
+from electrum.bitcoin import MIN_RELAY_TX_FEE
 
 def numbify(entry, is_int = False):
     text = entry.get_text().strip()
@@ -198,7 +199,7 @@ def run_settings_dialog(wallet, parent):
     fee_entry.connect('changed', numbify, False)
     fee_entry.show()
     fee.pack_start(fee_entry,False,False, 10)
-    add_help_button(fee, 'Fee per transaction input. Transactions involving multiple inputs tend to have a higher fee. Recommended value:0.0005')
+    add_help_button(fee, 'Fee per kilobyte of transaction. Recommended value:0.0001')
     fee.show()
     vbox.pack_start(fee, False,False, 5)
             
@@ -843,6 +844,11 @@ class ElectrumWindow:
         except BaseException, e:
             self.show_message(str(e))
             return
+
+        if tx.requires_fee(self.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
+            self.show_message( "This transaction requires a higher fee, or it will not be propagated by the network." )
+            return
+
             
         if label: 
             self.wallet.labels[tx.hash()] = label
