@@ -1085,7 +1085,7 @@ class WalletSynchronizer(threading.Thread):
                 self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
                 self.was_updated = True
                 requested_tx.remove( (tx_hash, tx_height) )
-                print_error("received tx:", tx)
+                print_error("received tx:", tx_hash, len(tx.raw))
 
             elif method == 'blockchain.transaction.broadcast':
                 self.wallet.tx_result = result

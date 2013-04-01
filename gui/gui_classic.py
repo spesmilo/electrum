@@ -31,7 +31,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
-from electrum.interface import DEFAULT_SERVERS
+from electrum.interface import DEFAULT_SERVERS, DEFAULT_PORTS
 from electrum.bitcoin import MIN_RELAY_TX_FEE
 
 try:
@@ -2146,9 +2146,8 @@ class ElectrumWindow(QMainWindow):
         server_port = QLineEdit()
         server_port.setFixedWidth(60)
 
-        protocol_names = ['TCP', 'HTTP', 'TCP/SSL', 'HTTPS']
+        protocol_names = ['TCP', 'HTTP', 'SSL', 'HTTPS']
         protocol_letters = 'thsg'
-        DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
         server_protocol.addItems(protocol_names)
 
         grid.addWidget(QLabel(_('Server') + ':'), 0, 0)
@@ -2184,8 +2183,8 @@ class ElectrumWindow(QMainWindow):
                 if not port: protocol = None
                     
             if not protocol:
-                if 't' in pp.keys():
-                    protocol = 't'
+                if 's' in pp.keys():
+                    protocol = 's'
                     port = pp.get(protocol)
                 else:
                     protocol = pp.keys()[0]
@@ -2209,7 +2208,8 @@ class ElectrumWindow(QMainWindow):
             host, port, protocol = server.split(':')
             change_server(host,protocol)
 
-        servers_list_widget.connect(servers_list_widget, SIGNAL('itemClicked(QTreeWidgetItem*, int)'), lambda x: change_server(unicode(x.text(0))))
+        servers_list_widget.connect(servers_list_widget, SIGNAL('currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)'), 
+                                    lambda x,y: change_server(unicode(x.text(0))))
         grid.addWidget(servers_list_widget, 1, 1, 1, 3)
 
         if not wallet.config.is_modifiable('server'):

@@ -25,18 +25,23 @@ from util import print_error, print_msg
 
 
 DEFAULT_TIMEOUT = 5
+DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 DEFAULT_SERVERS = [ 
-    #'electrum.bitcoins.sk:50001:t',
-    #'uncle-enzo.info:50001:t',
-    #'electrum.bitfoo.org:50001:t',
-    #'webbtc.net:50001:t',
-    'electrum.bitcoin.cz:50001:t',
-    'electrum.novit.ro:50001:t', 
-    'electrum.be:50001:t',
-    'electrum.bysh.me:50001:t',
-    'electrum.pdmc.net:50001:t',
-    'electrum.no-ip.org:50001:t',
-    'ecdsa.org:50001:t'
+    'electrum.bitcoin.cz:50002:s',
+    'electrum.novit.ro:50002:s',
+    'electrum.be:50002:s',
+    'electrum.bysh.me:50002:s',
+    'electrum.pdmc.net:50002:s',
+    'electrum.no-ip.org:50002:s',
+    'ecdsa.org:50002:s',
+    'electra.datemas.de:50002:s',
+    'electrum.datemas.de:50002:s',
+    'electrum.mooo.com:50002:s',
+    'btcback.com:50002:s',
+    'electrum.bitcoins.sk:50002:s',
+    'btc.stytt.com:50002:s',
+    'electrum.stepkrav.pw:50002:s',
+    'btc.it-zone.org:110:s'
     ]
 
 # add only port 80 servers here
@@ -121,8 +126,10 @@ class Interface(threading.Thread):
                     pruning = False
                     if len(item) > 2:
                         for v in item[2]:
-                            if re.match("[stgh]\d+", v):
-                                ports.append((v[0], v[1:]))
+                            if re.match("[stgh]\d*", v):
+                                protocol, port = v[0], v[1:]
+                                if port == '': port = DEFAULT_PORTS[protocol]
+                                ports.append((protocol, port))
                             elif re.match("v(.?)+", v):
                                 version = v[1:]
                             elif v == 'p':
