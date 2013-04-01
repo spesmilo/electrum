@@ -12,7 +12,7 @@ from electrum_gui import BasePlugin
 class Plugin(BasePlugin):
 
     def __init__(self, gui):
-        BasePlugin.__init__(self, gui, 'qrscans', 'QR scans', "QR Scans.\nInstall the zbar package to enable this plugin")
+        BasePlugin.__init__(self, gui, 'qrscans', 'QR scans', "QR Scans.\nInstall the zbar package (http://zbar.sourceforge.net/download.html) to enable this plugin")
         self._is_available = self._init()
         
     def _init(self):
