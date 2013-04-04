@@ -35,6 +35,7 @@ MONOSPACE_FONT = 'Lucida Console' if platform.system() == 'Windows' else 'monosp
 
 from electrum.util import format_satoshis
 from electrum.interface import DEFAULT_SERVERS
+from electrum.bitcoin import MIN_RELAY_TX_FEE
 
 def numbify(entry, is_int = False):
     text = entry.get_text().strip()
@@ -198,7 +199,7 @@ def run_settings_dialog(wallet, parent):
     fee_entry.connect('changed', numbify, False)
     fee_entry.show()
     fee.pack_start(fee_entry,False,False, 10)
-    add_help_button(fee, 'Fee per transaction input. Transactions involving multiple inputs tend to have a higher fee. Recommended value:0.0005')
+    add_help_button(fee, 'Fee per kilobyte of transaction. Recommended value:0.0001')
     fee.show()
     vbox.pack_start(fee, False,False, 5)
             
@@ -843,6 +844,11 @@ class ElectrumWindow:
         except BaseException, e:
             self.show_message(str(e))
             return
+
+        if tx.requires_fee(self.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
+            self.show_message( "This transaction requires a higher fee, or it will not be propagated by the network." )
+            return
+
             
         if label: 
             self.wallet.labels[tx.hash()] = label
@@ -868,14 +874,14 @@ class ElectrumWindow:
                 self.show_message(tx_details)
             elif treeview == self.contacts_treeview:
                 m = self.addressbook_list.get_value( self.addressbook_list.get_iter(c), 0)
-                a = self.wallet.aliases.get(m)
-                if a:
-                    if a[0] in self.wallet.authorities.keys():
-                        s = self.wallet.authorities.get(a[0])
-                    else:
-                        s = "self-signed"
-                    msg = 'Alias: '+ m + '\nTarget address: '+ a[1] + '\n\nSigned by: ' + s + '\nSigning address:' + a[0]
-                    self.show_message(msg)
+                #a = self.wallet.aliases.get(m)
+                #if a:
+                #    if a[0] in self.wallet.authorities.keys():
+                #        s = self.wallet.authorities.get(a[0])
+                #    else:
+                #        s = "self-signed"
+                #    msg = 'Alias: '+ m + '\nTarget address: '+ a[1] + '\n\nSigned by: ' + s + '\nSigning address:' + a[0]
+                #    self.show_message(msg)
             
 
     def treeview_key_press(self, treeview, event):
@@ -890,14 +896,14 @@ class ElectrumWindow:
                 self.show_message(tx_details)
             elif treeview == self.contacts_treeview:
                 m = self.addressbook_list.get_value( self.addressbook_list.get_iter(c), 0)
-                a = self.wallet.aliases.get(m)
-                if a:
-                    if a[0] in self.wallet.authorities.keys():
-                        s = self.wallet.authorities.get(a[0])
-                    else:
-                        s = "self"
-                    msg = 'Alias:'+ m + '\n\nTarget: '+ a[1] + '\nSigned by: ' + s + '\nSigning address:' + a[0]
-                    self.show_message(msg)
+                #a = self.wallet.aliases.get(m)
+                #if a:
+                #    if a[0] in self.wallet.authorities.keys():
+                #        s = self.wallet.authorities.get(a[0])
+                #    else:
+                #        s = "self"
+                #    msg = 'Alias:'+ m + '\n\nTarget: '+ a[1] + '\nSigned by: ' + s + '\nSigning address:' + a[0]
+                #    self.show_message(msg)
 
         return False
 
@@ -1129,7 +1135,7 @@ class ElectrumWindow:
             self.update_history_tab()
             self.update_receiving_tab()
             # addressbook too...
-            self.info.set_text( self.wallet.banner )
+            self.info.set_text( self.wallet.interface.banner )
             self.wallet_updated = False
 
     def update_receiving_tab(self):
@@ -1145,17 +1151,14 @@ class ElectrumWindow:
     def update_sending_tab(self):
         # detect addresses that are not mine in history, add them here...
         self.addressbook_list.clear()
-        for alias, v in self.wallet.aliases.items():
-            s, target = v
-            label = self.wallet.labels.get(alias)
-            self.addressbook_list.append((alias, label, '-'))
+        #for alias, v in self.wallet.aliases.items():
+        #    s, target = v
+        #    label = self.wallet.labels.get(alias)
+        #    self.addressbook_list.append((alias, label, '-'))
             
         for address in self.wallet.addressbook:
             label = self.wallet.labels.get(address)
-            n = 0 
-            for tx in self.wallet.transactions.values():
-                if address in map(lambda x:x[0], tx.outputs): n += 1
-
+            n = self.wallet.get_num_tx(address)
             self.addressbook_list.append((address, label, "%d"%n))
 
     def update_history_tab(self):
@@ -1176,12 +1179,46 @@ class ElectrumWindow:
 
             label, is_default_label = self.wallet.get_label(tx_hash)
             tooltip = tx_hash + "\n%d confirmations"%conf if tx_hash else ''
-            details = self.wallet.get_tx_details(tx_hash)
+            details = self.get_tx_details(tx_hash)
 
             self.history_list.prepend( [tx_hash, conf_icon, time_str, label, is_default_label,
                                         format_satoshis(value,True,self.wallet.num_zeros),
                                         format_satoshis(balance,False,self.wallet.num_zeros), tooltip, details] )
         if cursor: self.history_treeview.set_cursor( cursor )
+
+
+    def get_tx_details(self, tx_hash):
+        import datetime
+        if not tx_hash: return ''
+        tx = self.wallet.transactions.get(tx_hash)
+        is_mine, v, fee = self.wallet.get_tx_value(tx)
+        conf, timestamp = self.wallet.verifier.get_confirmations(tx_hash)
+
+        if timestamp:
+            time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+        else:
+            time_str = 'pending'
+
+        inputs = map(lambda x: x.get('address'), tx.inputs)
+        outputs = map(lambda x: x.get('address'), tx.d['outputs'])
+        tx_details = "Transaction Details" +"\n\n" \
+            + "Transaction ID:\n" + tx_hash + "\n\n" \
+            + "Status: %d confirmations\n"%conf
+        if is_mine:
+            if fee: 
+                tx_details += "Amount sent: %s\n"% format_satoshis(v-fee, False) \
+                              + "Transaction fee: %s\n"% format_satoshis(fee, False)
+            else:
+                tx_details += "Amount sent: %s\n"% format_satoshis(v, False) \
+                              + "Transaction fee: unknown\n"
+        else:
+            tx_details += "Amount received: %s\n"% format_satoshis(v, False) \
+
+        tx_details += "Date: %s\n\n"%time_str \
+            + "Inputs:\n-"+ '\n-'.join(inputs) + "\n\n" \
+            + "Outputs:\n-"+ '\n-'.join(outputs)
+
+        return tx_details
 
 
 

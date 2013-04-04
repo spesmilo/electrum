@@ -35,7 +35,7 @@ class WalletVerifier(threading.Thread):
         self.transactions    = {}                                 # requested verifications (with height sent by the requestor)
         self.interface.register_channel('verifier')
 
-        self.verified_tx     = config.get('verified_tx2',{})      # height, timestamp of verified transactions
+        self.verified_tx     = config.get('verified_tx3',{})      # height, timestamp of verified transactions
         self.merkle_roots    = config.get('merkle_roots',{})      # hashed by me
         
         self.targets         = config.get('targets',{})           # compute targets
@@ -49,20 +49,23 @@ class WalletVerifier(threading.Thread):
     def get_confirmations(self, tx):
         """ return the number of confirmations of a monitored transaction. """
         with self.lock:
-            if tx in self.transactions.keys():
-                if tx in self.verified_tx:
-                    height, timestamp = self.verified_tx[tx]
-                    conf = (self.local_height - height + 1)
-                else:
-                    conf = -1
+            if tx in self.verified_tx:
+                height, timestamp, pos = self.verified_tx[tx]
+                conf = (self.local_height - height + 1)
             else:
-                #print "verifier: tx not in list", tx
                 conf = 0
 
             if conf <= 0:
                 timestamp = None
 
         return conf, timestamp
+
+
+    def get_height(self, tx_hash):
+        with self.lock:
+            v = self.verified_tx.get(tx_hash)
+        height = v[0] if v else None
+        return height
 
 
     def add(self, tx_hash, tx_height):
@@ -145,6 +148,10 @@ class WalletVerifier(threading.Thread):
                 continue
             if not r: continue
 
+            if r.get('error'):
+                print_error('Verifier received an error:', r)
+                continue
+
             # 3. handle response
             method = r['method']
             params = r['params']
@@ -176,16 +183,18 @@ class WalletVerifier(threading.Thread):
 
     def verify_merkle(self, tx_hash, result):
         tx_height = result.get('block_height')
-        self.merkle_roots[tx_hash] = self.hash_merkle_root(result['merkle'], tx_hash, result.get('pos'))
+        pos = result.get('pos')
+        self.merkle_roots[tx_hash] = self.hash_merkle_root(result['merkle'], tx_hash, pos)
         header = self.read_header(tx_height)
         if not header: return
         assert header.get('merkle_root') == self.merkle_roots[tx_hash]
         # we passed all the tests
         header = self.read_header(tx_height)
         timestamp = header.get('timestamp')
-        self.verified_tx[tx_hash] = (tx_height, timestamp)
+        with self.lock:
+            self.verified_tx[tx_hash] = (tx_height, timestamp, pos)
         print_error("verified %s"%tx_hash)
-        self.config.set_key('verified_tx2', self.verified_tx, True)
+        self.config.set_key('verified_tx3', self.verified_tx, True)
         self.interface.trigger_callback('updated')
 
 
@@ -241,12 +250,16 @@ class WalletVerifier(threading.Thread):
             # this can be caused by a reorg.
             print_error("verify header failed"+ repr(header))
             # undo verifications
-            for tx_hash, item in self.verified_tx.items():
-                tx_height, timestamp = item
+            with self.lock:
+                items = self.verified_tx.items()[:]
+            for tx_hash, item in items:
+                tx_height, timestamp, pos = item
                 if tx_height >= height:
                     print_error("redoing", tx_hash)
-                    self.verified_tx.pop(tx_hash)
-                    if tx_hash in self.merkle_roots: self.merkle_roots.pop(tx_hash)
+                    with self.lock:
+                        self.verified_tx.pop(tx_hash)
+                        if tx_hash in self.merkle_roots:
+                            self.merkle_roots.pop(tx_hash)
             # return False to request previous header.
             return False
 

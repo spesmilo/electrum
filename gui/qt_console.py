@@ -1,11 +1,18 @@
 # source: http://stackoverflow.com/questions/2758159/how-to-embed-a-python-interpreter-in-a-pyqt-widget
 
 import sys, os, re
-import traceback
+import traceback, platform
 from PyQt4 import QtCore
 from PyQt4 import QtGui
 from electrum import util
 
+
+if platform.system() == 'Windows':
+    MONOSPACE_FONT = 'Lucida Console'
+elif platform.system() == 'Darwin':
+    MONOSPACE_FONT = 'Monaco'
+else:
+    MONOSPACE_FONT = 'monospace'
 
 
 class Console(QtGui.QPlainTextEdit):
@@ -20,7 +27,7 @@ class Console(QtGui.QPlainTextEdit):
         self.setGeometry(50, 75, 600, 400)
         self.setWordWrapMode(QtGui.QTextOption.WrapAnywhere)
         self.setUndoRedoEnabled(False)
-        self.document().setDefaultFont(QtGui.QFont("monospace", 10, QtGui.QFont.Normal))
+        self.document().setDefaultFont(QtGui.QFont(MONOSPACE_FONT, 10, QtGui.QFont.Normal))
         self.showMessage(startup_message)
 
         self.updateNamespace({'run':self.run_script})
