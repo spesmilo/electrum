@@ -6,3 +6,5 @@ dist/
 *.egg/
 /electrum.py
 contrib/pyinstaller/
+
+.DS_Store
