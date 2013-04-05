@@ -1275,11 +1275,11 @@ class ElectrumWindow(QMainWindow):
         except:
             QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
             return
-        self.show_seed(seed, self)
+        self.show_seed(seed, self.wallet.imported_keys, self)
 
 
     @classmethod
-    def show_seed(self, seed, parent=None):
+    def show_seed(self, seed, imported_keys, parent=None):
         dialog = QDialog(parent)
         dialog.setModal(1)
         dialog.setWindowTitle('Electrum' + ' - ' + _('Seed'))
@@ -1296,6 +1296,8 @@ class ElectrumWindow(QMainWindow):
               + _("This seed will allow you to recover your wallet in case of computer failure.") + " " \
               + _("Your seed is also displayed as QR code, in case you want to transfer it to a mobile phone.") + "<p>" \
               + "<b>"+_("WARNING")+":</b> " + _("Never disclose your seed. Never type it on a website.") + "</b><p>"
+        if imported_keys:
+            msg2 += "<b>"+_("WARNING")+":</b> " + _("Your wallet contains imported keys. These keys cannot be recovered from seed.") + "</b><p>"
         label2 = QLabel(msg2)
         label2.setWordWrap(True)
 
@@ -2314,7 +2316,7 @@ class ElectrumGui:
         
 
     def show_seed(self):
-        ElectrumWindow.show_seed(self.wallet.seed)
+        ElectrumWindow.show_seed(self.wallet.seed, self.wallet.imported_keys)
 
 
     def password_dialog(self):
