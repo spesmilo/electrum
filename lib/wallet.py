@@ -555,20 +555,20 @@ class Wallet:
             addr = item.get('address')
             v = item.get('value')
             total += v
-
             inputs.append( item )
-            if fixed_fee is None:
-                estimated_size =  len(inputs) * 180 + 80     # this assumes non-compressed keys
-                fee = self.fee * int(round(estimated_size/1024.))
-                if fee == 0: fee = self.fee
-            else:
-                fee = fixed_fee
+            fee = self.estimated_fee(inputs) if fixed_fee is None else fixed_fee
             if total >= amount + fee: break
         else:
             inputs = []
 
         return inputs, total, fee
 
+
+    def estimated_fee(self, inputs):
+        estimated_size =  len(inputs) * 180 + 80     # this assumes non-compressed keys
+        fee = self.fee * int(round(estimated_size/1024.))
+        if fee == 0: fee = self.fee
+        return fee
 
 
     def add_tx_change( self, outputs, amount, fee, total, change_addr=None ):
