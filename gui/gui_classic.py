@@ -1914,7 +1914,10 @@ class ElectrumWindow(QMainWindow):
         expert_cb = QCheckBox(_('Expert mode'))
         expert_cb.setChecked(self.expert_mode)
         grid_ui.addWidget(expert_cb, 3, 0)
-        hh = _('Show address balances and add extra menu items to freeze/prioritize addresses.') 
+        hh =  _('In expert mode, your client will:') + '\n'  \
+            + _(' - Show change addresses in the Receive tab') + '\n'  \
+            + _(' - Display the balance of each address') + '\n'  \
+            + _(' - Add freeze/prioritize actions to addresses.') 
         grid_ui.addWidget(HelpButton(hh), 3, 2)
         grid_ui.setRowStretch(4,1)
 
