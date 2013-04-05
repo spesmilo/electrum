@@ -1088,12 +1088,14 @@ class ElectrumWindow(QMainWindow):
             l.addTopLevelItem(account_item)
             account_item.setExpanded(True)
             
-
-            for is_change in [0,1]:
-                name = "Receiving" if not is_change else "Change"
-                seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
-                account_item.addChild(seq_item)
-                if not is_change: seq_item.setExpanded(True)
+            for is_change in ([0,1] if self.expert_mode else [0]):
+                if self.expert_mode:
+                    name = "Receiving" if not is_change else "Change"
+                    seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
+                    account_item.addChild(seq_item)
+                    if not is_change: seq_item.setExpanded(True)
+                else:
+                    seq_item = account_item
                 is_red = False
                 gap = 0
 
@@ -1909,16 +1911,10 @@ class ElectrumWindow(QMainWindow):
         grid_ui.addWidget(cur_combo, 2, 1)
         grid_ui.addWidget(HelpButton(_('Select which currency is used for quotes.')+' '), 2, 2)
         
-        view_label=QLabel(_('Receive Tab') + ':')
-        grid_ui.addWidget(view_label , 3, 0)
-        view_combo = QComboBox()
-        view_combo.addItems([_('Simple'), _('Advanced')])
-        view_combo.setCurrentIndex(self.expert_mode)
-        grid_ui.addWidget(view_combo, 3, 1)
-        hh = _('This selects the interaction mode of the "Receive" tab.')+' ' + '\n\n' \
-             + _('Simple') +   ': ' + _('Show only addresses and labels.') + '\n\n' \
-             + _('Advanced') + ': ' + _('Show address balances and add extra menu items to freeze/prioritize addresses.') + '\n\n' 
-        
+        expert_cb = QCheckBox(_('Expert mode'))
+        expert_cb.setChecked(self.expert_mode)
+        grid_ui.addWidget(expert_cb, 3, 0)
+        hh = _('Show address balances and add extra menu items to freeze/prioritize addresses.') 
         grid_ui.addWidget(HelpButton(hh), 3, 2)
         grid_ui.setRowStretch(4,1)
 
@@ -2098,7 +2094,7 @@ class ElectrumWindow(QMainWindow):
         if need_restart:
             QMessageBox.warning(self, _('Success'), _('Please restart Electrum to activate the new GUI settings'), _('OK'))
 
-        self.receive_tab_set_mode(view_combo.currentIndex())
+        self.receive_tab_set_mode(expert_cb.isChecked())
 
 
     @staticmethod 
