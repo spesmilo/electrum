@@ -285,8 +285,9 @@ class ElectrumWindow(QMainWindow):
         self.lite = None
         self.wallet = wallet
         self.config = config
-        self.init_plugins()
+        self.current_account = self.config.get("current_account", None)
 
+        self.init_plugins()
         self.create_status_bar()
 
         self.wallet.interface.register_callback('updated', lambda: self.emit(QtCore.SIGNAL('update_wallet')))
@@ -429,7 +430,7 @@ class ElectrumWindow(QMainWindow):
                 text = _("Synchronizing...")
                 icon = QIcon(":icons/status_waiting.png")
             else:
-                c, u = self.wallet.get_balance()
+                c, u = self.wallet.get_account_balance(self.current_account)
                 text =  _( "Balance" ) + ": %s "%( format_satoshis(c,False,self.wallet.num_zeros) )
                 if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True,self.wallet.num_zeros).strip() )
                 text += self.create_quote_text(Decimal(c+u)/100000000)
@@ -607,7 +608,7 @@ class ElectrumWindow(QMainWindow):
     def update_history_tab(self):
 
         self.history_list.clear()
-        for item in self.wallet.get_tx_history():
+        for item in self.wallet.get_tx_history(self.current_account):
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
             if conf:
                 try:
@@ -665,6 +666,7 @@ class ElectrumWindow(QMainWindow):
         grid.setSpacing(8)
         grid.setColumnMinimumWidth(3,300)
         grid.setColumnStretch(5,1)
+
 
         self.payto_e = QLineEdit()
         grid.addWidget(QLabel(_('Pay to')), 1, 0)
@@ -724,8 +726,8 @@ class ElectrumWindow(QMainWindow):
             self.funds_error = False
 
             if self.amount_e.text() == '!':
-                c, u = self.wallet.get_balance()
-                inputs, total, fee = self.wallet.choose_tx_inputs( c + u, 0 )
+                c, u = self.wallet.get_account_balance(self.current_account)
+                inputs, total, fee = self.wallet.choose_tx_inputs( c + u, 0, self.current_account)
                 fee = self.wallet.estimated_fee(inputs)
                 amount = c + u - fee
                 self.amount_e.setText( str( Decimal( amount ) / 100000000 ) )
@@ -737,7 +739,7 @@ class ElectrumWindow(QMainWindow):
             if not is_fee: fee = None
             if amount is None:
                 return
-            inputs, total, fee = self.wallet.choose_tx_inputs( amount, fee )
+            inputs, total, fee = self.wallet.choose_tx_inputs( amount, fee, self.current_account )
             if not is_fee:
                 self.fee_e.setText( str( Decimal( fee ) / 100000000 ) )
             if inputs:
@@ -802,7 +804,7 @@ class ElectrumWindow(QMainWindow):
             return
 
         try:
-            tx = self.wallet.mktx( [(to_address, amount)], password, fee)
+            tx = self.wallet.mktx( [(to_address, amount)], password, fee, account=self.current_account)
         except BaseException, e:
             self.show_message(str(e))
             return
@@ -1091,8 +1093,16 @@ class ElectrumWindow(QMainWindow):
             for i,width in enumerate(self.column_widths['receive'][self.expert_mode]):
                 l.setColumnWidth(i, width)        
 
+        if self.current_account is None:
+            account_items = self.wallet.accounts.items()
+        elif self.current_account != -1:
+            account_items = [(self.current_account, self.wallet.accounts.get(self.current_account))]
+        else:
+            account_items = []
 
-        for k, account in self.wallet.accounts.items():
+        print self.current_account
+            
+        for k, account in account_items:
             name = account.get('name',str(k))
             c,u = self.wallet.get_account_balance(k)
             account_item = QTreeWidgetItem( [ name, '', format_satoshis(c+u), ''] )
@@ -1127,7 +1137,8 @@ class ElectrumWindow(QMainWindow):
                         item.setBackgroundColor(1, QColor('red'))
                     seq_item.addChild(item)
 
-        if self.wallet.imported_keys:
+
+        if self.wallet.imported_keys and (self.current_account is None or self.current_account == -1):
             c,u = self.wallet.get_imported_balance()
             account_item = QTreeWidgetItem( [ _('Imported'), '', format_satoshis(c+u), ''] )
             l.addTopLevelItem(account_item)
@@ -1183,6 +1194,17 @@ class ElectrumWindow(QMainWindow):
         console.updateNamespace(methods)
         return console
 
+    def change_account(self,s):
+        if s == _("All accounts"):
+            self.current_account = None
+        else:
+            accounts = self.wallet.get_accounts()
+            for k, v in accounts.items():
+                if v == s:
+                    self.current_account = k
+        self.update_history_tab()
+        self.update_status()
+        self.update_receive_tab()
 
     def create_status_bar(self):
         self.status_text = ""
@@ -1193,6 +1215,14 @@ class ElectrumWindow(QMainWindow):
         update_notification = UpdateLabel(self.config)
         if(update_notification.new_version):
             sb.addPermanentWidget(update_notification)
+
+        accounts = self.wallet.get_accounts()
+        if len(accounts) > 1:
+            from_combo = QComboBox()
+            from_combo.addItems([_("All accounts")] + accounts.values())
+            from_combo.setCurrentIndex(0)
+            self.connect(from_combo,SIGNAL("activated(QString)"),self.change_account) 
+            sb.addPermanentWidget(from_combo)
 
         if (int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/switchgui.png"), _("Switch to Lite Mode"), self.go_lite ) )

@@ -208,7 +208,7 @@ class Commands:
             return False
 
 
-    def _mktx(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
+    def _mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):
 
         if not is_valid(to_address):
             raise BaseException("Invalid Bitcoin address", to_address)
@@ -217,12 +217,13 @@ class Commands:
             if not is_valid(change_addr):
                 raise BaseException("Invalid Bitcoin address", change_addr)
 
-        if from_addr:
-            if not is_valid(from_addr):
-                raise BaseException("invalid Bitcoin address", from_addr)
+        if domain is not None:
+            for addr in domain:
+                if not is_valid(addr):
+                    raise BaseException("invalid Bitcoin address", addr)
             
-            if not self.wallet.is_mine(from_addr):
-                raise BaseException("address not in wallet")
+                if not self.wallet.is_mine(addr):
+                    raise BaseException("address not in wallet", addr)
 
         for k, v in self.wallet.labels.items():
             if v == to_address:
@@ -234,16 +235,16 @@ class Commands:
 
         amount = int(100000000*amount)
         if fee: fee = int(100000000*fee)
-        return self.wallet.mktx( [(to_address, amount)], self.password, fee , change_addr, from_addr)
+        return self.wallet.mktx( [(to_address, amount)], self.password, fee , change_addr, domain)
 
 
-    def mktx(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
-        tx = self._mktx(to_address, amount, fee, change_addr, from_addr)
+    def mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):
+        tx = self._mktx(to_address, amount, fee, change_addr, domain)
         return tx.as_dict()
 
 
-    def payto(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
-        tx = self._mktx(to_address, amount, fee, change_addr, from_addr)
+    def payto(self, to_address, amount, fee = None, change_addr = None, domain = None):
+        tx = self._mktx(to_address, amount, fee, change_addr, domain)
         r, h = self.wallet.sendtx( tx )
         return h
 

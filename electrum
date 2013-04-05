@@ -323,7 +323,8 @@ if __name__ == '__main__':
         args = [cmd, options.show_all, options.show_balance, options.show_labels]
 
     elif cmd in ['payto', 'mktx']:
-        args = [ 'mktx', args[1], Decimal(args[2]), Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, options.from_addr ]
+        domain = [options.from_addr] if options.from_addr else None
+        args = [ 'mktx', args[1], Decimal(args[2]), Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, domain ]
 
     elif cmd == 'help':
         if len(args) < 2:

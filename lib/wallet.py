@@ -165,11 +165,10 @@ class Wallet:
         self.config.set_key('accounts', self.accounts, True)
 
 
-    def addresses(self, include_change = False):
-        o = self.imported_keys.keys()
-        for a in self.accounts.values():
-            o += a[0]
-            if include_change: o += a[1]
+    def addresses(self, include_change = True):
+        o = self.get_account_addresses(-1, include_change)
+        for a in self.accounts.keys():
+            o += self.get_account_addresses(a, include_change)
         return o
 
 
@@ -400,7 +399,7 @@ class Wallet:
 
     def fill_addressbook(self):
         for tx_hash, tx in self.transactions.items():
-            is_send, _, _ = self.get_tx_value(tx)
+            is_relevant, is_send, _, _ = self.get_tx_value(tx)
             if is_send:
                 for addr, v in tx.outputs:
                     if not self.is_mine(addr) and addr not in self.addressbook:
@@ -421,10 +420,9 @@ class Wallet:
         return flags
         
 
-    def get_tx_value(self, tx, addresses=None):
-        if addresses is None: addresses = self.addresses(True)
-        return tx.get_value(addresses, self.prevout_values)
-
+    def get_tx_value(self, tx, account=None):
+        domain = self.get_account_addresses(account)
+        return tx.get_value(domain, self.prevout_values)
 
     
     def update_tx_outputs(self, tx_hash):
@@ -480,9 +478,25 @@ class Wallet:
                 u += v
         return c, u
 
-    def get_account_addresses(self, a):
-        ac = self.accounts[a]
-        return ac[0] + ac[1]
+
+    def get_accounts(self):
+        accounts = {}
+        for k, account in self.accounts.items():
+            accounts[k] = account.get('name')
+        if self.imported_keys:
+            accounts[-1] = 'Imported keys'
+        return accounts
+
+    def get_account_addresses(self, a, include_change=True):
+        if a is None:
+            o = self.addresses(True)
+        elif a == -1:
+            o = self.imported_keys.keys()
+        else:
+            ac = self.accounts[a]
+            o = ac[0][:]
+            if include_change: o += ac[1]
+        return o
 
     def get_imported_balance(self):
         cc = uu = 0
@@ -493,6 +507,11 @@ class Wallet:
         return cc, uu
 
     def get_account_balance(self, account):
+        if account is None:
+            return self.get_balance()
+        elif account == -1:
+            return self.get_imported_balance()
+        
         conf = unconf = 0
         for addr in self.get_account_addresses(account): 
             c, u = self.get_addr_balance(addr)
@@ -531,14 +550,13 @@ class Wallet:
 
 
 
-    def choose_tx_inputs( self, amount, fixed_fee, from_addr = None ):
+    def choose_tx_inputs( self, amount, fixed_fee, account = None ):
         """ todo: minimize tx size """
         total = 0
         fee = self.fee if fixed_fee is None else fixed_fee
-
+        domain = self.get_account_addresses(account)
         coins = []
         prioritized_coins = []
-        domain = [from_addr] if from_addr else self.addresses(True)
         for i in self.frozen_addresses:
             if i in domain: domain.remove(i)
 
@@ -571,13 +589,17 @@ class Wallet:
         return fee
 
 
-    def add_tx_change( self, outputs, amount, fee, total, change_addr=None ):
+    def add_tx_change( self, inputs, outputs, amount, fee, total, change_addr=None, account=0 ):
+        "add change to a transaction"
         change_amount = total - ( amount + fee )
         if change_amount != 0:
-            # normally, the update thread should ensure that the last change address is unused
             if not change_addr:
-                change_addresses = self.accounts[0][1]
-                change_addr = change_addresses[-self.gap_limit_for_change]
+                if not self.use_change or account == -1:
+                    change_addr = inputs[-1]['address']
+                else:
+                    if account is None: account = 0
+                    change_addr = self.accounts[account][1][-self.gap_limit_for_change]
+
             # Insert the change output at a random position in the outputs
             posn = random.randint(0, len(outputs))
             outputs[posn:posn] = [( change_addr,  change_amount)]
@@ -588,6 +610,7 @@ class Wallet:
         with self.lock:
             return self.history.get(address)
 
+
     def get_status(self, h):
         if not h: return None
         if h == ['*']: return '*'
@@ -597,9 +620,7 @@ class Wallet:
         return hashlib.sha256( status ).digest().encode('hex')
 
 
-
     def receive_tx_callback(self, tx_hash, tx, tx_height):
-
 
         if not self.check_new_tx(tx_hash, tx):
             # may happen due to pruning
@@ -631,7 +652,7 @@ class Wallet:
                     if self.verifier: self.verifier.add(tx_hash, tx_height)
 
 
-    def get_tx_history(self):
+    def get_tx_history(self, account=None):
         with self.transaction_lock:
             history = self.transactions.items()
             history.sort(key = lambda x: self.verifier.verified_tx.get(x[0]) if self.verifier.verified_tx.get(x[0]) else (1e12,0,0))
@@ -639,21 +660,23 @@ class Wallet:
     
             balance = 0
             for tx_hash, tx in history:
-                is_mine, v, fee = self.get_tx_value(tx)
+                is_relevant, is_mine, v, fee = self.get_tx_value(tx, account)
                 if v is not None: balance += v
-            c, u = self.get_balance()
+
+            c, u = self.get_account_balance(account)
 
             if balance != c+u:
-                #v_str = format_satoshis( c+u - balance, True, self.num_zeros)
                 result.append( ('', 1000, 0, c+u-balance, None, c+u-balance, None ) )
 
             balance = c + u - balance
             for tx_hash, tx in history:
-                conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
-                is_mine, value, fee = self.get_tx_value(tx)
+                is_relevant, is_mine, value, fee = self.get_tx_value(tx, account)
+                if not is_relevant:
+                    continue
                 if value is not None:
                     balance += value
 
+                conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
                 result.append( (tx_hash, conf, is_mine, value, fee, balance, timestamp) )
 
         return result
@@ -670,7 +693,7 @@ class Wallet:
         tx = self.transactions.get(tx_hash)
         default_label = ''
         if tx:
-            is_mine, _, _ = self.get_tx_value(tx)
+            is_relevant, is_mine, _, _ = self.get_tx_value(tx)
             if is_mine:
                 for o in tx.outputs:
                     o_addr, _ = o
@@ -705,20 +728,27 @@ class Wallet:
         return default_label
 
 
-    def mktx(self, outputs, password, fee=None, change_addr=None, from_addr= None):
-
+    def mktx(self, outputs, password, fee=None, change_addr=None, account=None ):
+        """
+        create a transaction
+        account parameter:
+           None means use all accounts
+           -1 means imported keys
+           0, 1, etc are seed accounts
+        """
+        
         for address, x in outputs:
             assert is_valid(address)
 
         amount = sum( map(lambda x:x[1], outputs) )
-        inputs, total, fee = self.choose_tx_inputs( amount, fee, from_addr )
+        
+        domain = self.get_account_addresses(account)
+            
+        inputs, total, fee = self.choose_tx_inputs( amount, fee, domain )
         if not inputs:
             raise ValueError("Not enough funds")
 
-        if not self.use_change and not change_addr:
-            change_addr = inputs[-1]['address']
-            print_error( "Sending change to", change_addr )
-        outputs = self.add_tx_change(outputs, amount, fee, total, change_addr)
+        outputs = self.add_tx_change(inputs, outputs, amount, fee, total, change_addr, account)
 
         tx = Transaction.from_io(inputs, outputs)
 
@@ -726,7 +756,7 @@ class Wallet:
         for i in range(len(tx.inputs)):
             txin = tx.inputs[i]
             address = txin['address']
-            if address in self.imported_keys.keys(): 
+            if address in self.imported_keys.keys():
                 pk_addresses.append(address)
                 continue
             account, sequence = self.get_address_index(address)
