@@ -47,6 +47,8 @@ from electrum import util, bitcoin, commands
 import bmp, pyqrnative
 import exchange_rate
 
+from amountedit import AmountEdit
+
 from decimal import Decimal
 
 import platform
@@ -139,29 +141,6 @@ class UpdateLabel(QtGui.QLabel):
         
         if not dialog.exec_(): return
 
-def numbify(entry, is_int = False):
-    text = unicode(entry.text()).strip()
-    pos = entry.cursorPosition()
-    chars = '0123456789'
-    if not is_int: chars +='.'
-    s = ''.join([i for i in text if i in chars])
-    if not is_int:
-        if '.' in s:
-            p = s.find('.')
-            s = s.replace('.','')
-            s = s[:p] + '.' + s[p:p+8]
-        try:
-            amount = int( Decimal(s) * 100000000 )
-        except:
-            amount = None
-    else:
-        try:
-            amount = int( s )
-        except:
-            amount = None
-    entry.setText(s)
-    entry.setCursorPosition(pos)
-    return amount
 
 
 class Timer(QtCore.QThread):
@@ -296,6 +275,7 @@ class ElectrumWindow(QMainWindow):
         self.wallet.interface.register_callback('disconnecting', lambda: self.emit(QtCore.SIGNAL('update_status')))
 
         self.expert_mode = config.get('classic_expert_mode', False)
+        self.decimal_point = config.get('decimal_point', 8)
 
         set_language(config.get('language'))
 
@@ -423,7 +403,19 @@ class ElectrumWindow(QMainWindow):
 
     def timer_actions(self):
         self.run_hook('timer_actions')
-            
+    
+    def format_amount(self, x, is_diff=False):
+        return format_satoshis(x, is_diff, self.wallet.num_zeros, self.decimal_point)
+
+    def read_amount(self, x):
+        if x == '': return None
+        p = pow(10, self.decimal_point)
+        return int( p * Decimal(x) )
+
+    def base_unit(self):
+        assert self.decimal_point in [5,8]
+        return "BTC" if self.decimal_point == 8 else "mBTC"
+
     def update_status(self):
         if self.wallet.interface and self.wallet.interface.is_connected:
             if not self.wallet.up_to_date:
@@ -431,8 +423,8 @@ class ElectrumWindow(QMainWindow):
                 icon = QIcon(":icons/status_waiting.png")
             else:
                 c, u = self.wallet.get_account_balance(self.current_account)
-                text =  _( "Balance" ) + ": %s "%( format_satoshis(c,False,self.wallet.num_zeros) )
-                if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True,self.wallet.num_zeros).strip() )
+                text =  _( "Balance" ) + ": %s "%( self.format_amount(c) ) + self.base_unit()
+                if u: text +=  "[%s unconfirmed]"%( self.format_amount(u,True).strip() )
                 text += self.create_quote_text(Decimal(c+u)/100000000)
                 icon = QIcon(":icons/status_connected.png")
         else:
@@ -516,13 +508,13 @@ class ElectrumWindow(QMainWindow):
         vbox.addWidget(QLabel("Status: %d confirmations"%conf))
         if is_mine:
             if fee is not None: 
-                vbox.addWidget(QLabel("Amount sent: %s"% format_satoshis(v-fee, False)))
-                vbox.addWidget(QLabel("Transaction fee: %s"% format_satoshis(fee, False)))
+                vbox.addWidget(QLabel("Amount sent: %s"% self.format_amount(v-fee)))
+                vbox.addWidget(QLabel("Transaction fee: %s"% self.format_amount(fee)))
             else:
-                vbox.addWidget(QLabel("Amount sent: %s"% format_satoshis(v, False)))
+                vbox.addWidget(QLabel("Amount sent: %s"% self.format_amount(v)))
                 vbox.addWidget(QLabel("Transaction fee: unknown"))
         else:
-            vbox.addWidget(QLabel("Amount received: %s"% format_satoshis(v, False)))
+            vbox.addWidget(QLabel("Amount received: %s"% self.format_amount(v)))
 
         vbox.addWidget( self.generate_transaction_information_widget(tx) )
 
@@ -628,11 +620,11 @@ class ElectrumWindow(QMainWindow):
                 icon = QIcon(":icons/unconfirmed.png")
 
             if value is not None:
-                v_str = format_satoshis(value, True, self.wallet.num_zeros)
+                v_str = self.format_amount(value, True)
             else:
                 v_str = '--'
 
-            balance_str = format_satoshis(balance, False, self.wallet.num_zeros)
+            balance_str = self.format_amount(balance)
             
             if tx_hash:
                 label, is_default_label = self.wallet.get_label(tx_hash)
@@ -684,7 +676,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.message_e, 2, 1, 1, 3)
         grid.addWidget(HelpButton(_('Description of the transaction (not mandatory).') + '\n\n' + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.')), 2, 4)
 
-        self.amount_e = QLineEdit()
+        self.amount_e = AmountEdit(self.base_unit)
         grid.addWidget(QLabel(_('Amount')), 3, 0)
         grid.addWidget(self.amount_e, 3, 1, 1, 2)
         grid.addWidget(HelpButton(
@@ -692,7 +684,7 @@ class ElectrumWindow(QMainWindow):
                     + _('The amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.')
                     + _('Keyboard shortcut: type "!" to send all your coins.')), 3, 3)
         
-        self.fee_e = QLineEdit()
+        self.fee_e = AmountEdit(self.base_unit)
         grid.addWidget(QLabel(_('Fee')), 4, 0)
         grid.addWidget(self.fee_e, 4, 1, 1, 2) 
         grid.addWidget(HelpButton(
@@ -730,18 +722,19 @@ class ElectrumWindow(QMainWindow):
                 inputs, total, fee = self.wallet.choose_tx_inputs( c + u, 0, self.current_account)
                 fee = self.wallet.estimated_fee(inputs)
                 amount = c + u - fee
-                self.amount_e.setText( str( Decimal( amount ) / 100000000 ) )
-                self.fee_e.setText( str( Decimal( fee ) / 100000000 ) )
+                self.amount_e.setText( self.format_amount(amount) )
+                self.fee_e.setText( self.format_amount( fee ) )
                 return
                 
-            amount = numbify(self.amount_e)
-            fee = numbify(self.fee_e)
+            amount = self.read_amount(str(self.amount_e.text()))
+            fee = self.read_amount(str(self.fee_e.text()))
+
             if not is_fee: fee = None
             if amount is None:
                 return
             inputs, total, fee = self.wallet.choose_tx_inputs( amount, fee, self.current_account )
             if not is_fee:
-                self.fee_e.setText( str( Decimal( fee ) / 100000000 ) )
+                self.fee_e.setText( self.format_amount( fee ) )
             if inputs:
                 palette = QPalette()
                 palette.setColor(self.amount_e.foregroundRole(), QColor('black'))
@@ -793,12 +786,12 @@ class ElectrumWindow(QMainWindow):
             return
 
         try:
-            amount = int( Decimal( unicode( self.amount_e.text())) * 100000000 )
+            amount = self.read_amount(unicode( self.amount_e.text()))
         except:
             QMessageBox.warning(self, _('Error'), _('Invalid Amount'), _('OK'))
             return
         try:
-            fee = int( Decimal( unicode( self.fee_e.text())) * 100000000 )
+            fee = self.read_amount(unicode( self.fee_e.text()))
         except:
             QMessageBox.warning(self, _('Error'), _('Invalid Fee'), _('OK'))
             return
@@ -843,6 +836,7 @@ class ElectrumWindow(QMainWindow):
 
     def set_url(self, url):
         address, amount, label, message, signature, identity, url = util.parse_url(url)
+        if self.base_unit() == 'mBTC': amount = str( 1000* Decimal(amount))
 
         if label and self.wallet.labels.get(address) != label:
             if self.question('Give label "%s" to address %s ?'%(label,address)):
@@ -1070,7 +1064,7 @@ class ElectrumWindow(QMainWindow):
         self.run_hook('update_receive_item', address, item)
                 
         c, u = self.wallet.get_addr_balance(address)
-        balance = format_satoshis( c + u, False, self.wallet.num_zeros )
+        balance = self.format_amount(c + u)
         item.setData(2,0,balance)
 
         if self.expert_mode:
@@ -1103,7 +1097,7 @@ class ElectrumWindow(QMainWindow):
         for k, account in account_items:
             name = account.get('name',str(k))
             c,u = self.wallet.get_account_balance(k)
-            account_item = QTreeWidgetItem( [ name, '', format_satoshis(c+u), ''] )
+            account_item = QTreeWidgetItem( [ name, '', self.format_amount(c+u), ''] )
             l.addTopLevelItem(account_item)
             account_item.setExpanded(True)
             
@@ -1138,7 +1132,7 @@ class ElectrumWindow(QMainWindow):
 
         if self.wallet.imported_keys and (self.current_account is None or self.current_account == -1):
             c,u = self.wallet.get_imported_balance()
-            account_item = QTreeWidgetItem( [ _('Imported'), '', format_satoshis(c+u), ''] )
+            account_item = QTreeWidgetItem( [ _('Imported'), '', self.format_amount(c+u), ''] )
             l.addTopLevelItem(account_item)
             account_item.setExpanded(True)
             for address in self.wallet.imported_keys.keys():
@@ -1626,12 +1620,11 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(seed_e, 1, 1)
         grid.addWidget(HelpButton(_("Your seed can be entered as a mnemonic (sequence of words), or as a hexadecimal string.")), 1, 3)
 
-        gap_e = QLineEdit()
+        gap_e = AmountEdit(None, True)
         gap_e.setText("5")
         grid.addWidget(QLabel(_('Gap limit')), 2, 0)
         grid.addWidget(gap_e, 2, 1)
         grid.addWidget(HelpButton(_('Keep the default value unless you modified this parameter in your wallet.')), 2, 3)
-        gap_e.textChanged.connect(lambda: numbify(gap_e,True))
         vbox.addLayout(grid)
 
         vbox.addLayout(ok_cancel_buttons(d))
@@ -1677,7 +1670,7 @@ class ElectrumWindow(QMainWindow):
         tree_widget.setColumnWidth(1, 50)
 
         for address, value in tx.outputs:
-            item = QTreeWidgetItem( [address, "%s" % ( format_satoshis(value))] )
+            item = QTreeWidgetItem( [address, "%s" % ( self.format_amount(value))] )
             tree_widget.addTopLevelItem(item)
 
         tree_widget.setMaximumHeight(100)
@@ -1912,12 +1905,11 @@ class ElectrumWindow(QMainWindow):
 
         nz_label = QLabel(_('Display zeros'))
         grid_ui.addWidget(nz_label, 0, 0)
-        nz_e = QLineEdit()
+        nz_e = AmountEdit(None,True)
         nz_e.setText("%d"% self.wallet.num_zeros)
         grid_ui.addWidget(nz_e, 0, 1)
         msg = _('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"')
         grid_ui.addWidget(HelpButton(msg), 0, 2)
-        nz_e.textChanged.connect(lambda: numbify(nz_e,True))
         if not self.config.is_modifiable('num_zeros'):
             for w in [nz_e, nz_label]: w.setEnabled(False)
         
@@ -1969,13 +1961,12 @@ class ElectrumWindow(QMainWindow):
         
         fee_label = QLabel(_('Transaction fee'))
         grid_wallet.addWidget(fee_label, 0, 0)
-        fee_e = QLineEdit()
-        fee_e.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
+        fee_e = AmountEdit(self.base_unit)
+        fee_e.setText(self.format_amount(self.wallet.fee).strip())
         grid_wallet.addWidget(fee_e, 0, 2)
         msg = _('Fee per kilobyte of transaction.') + ' ' \
-            + _('Recommended value') + ': 0.0002'
+            + _('Recommended value') + ': ' + self.format_amount(20000)
         grid_wallet.addWidget(HelpButton(msg), 0, 3)
-        fee_e.textChanged.connect(lambda: numbify(fee_e,False))
         if not self.config.is_modifiable('fee_per_kb'):
             for w in [fee_e, fee_label]: w.setEnabled(False)
 
@@ -1990,7 +1981,7 @@ class ElectrumWindow(QMainWindow):
 
         gap_label = QLabel(_('Gap limit'))
         grid_wallet.addWidget(gap_label, 2, 0)
-        gap_e = QLineEdit()
+        gap_e = AmountEdit(None,True)
         gap_e.setText("%d"% self.wallet.gap_limit)
         grid_wallet.addWidget(gap_e, 2, 2)
         msg =  _('The gap limit is the maximal number of contiguous unused addresses in your sequence of receiving addresses.') + '\n' \
@@ -2001,11 +1992,20 @@ class ElectrumWindow(QMainWindow):
               + _('The gap limit parameter must be provided in order to recover your wallet from seed.') + ' ' \
               + _('Do not modify it if you do not understand what you are doing, or if you expect to recover your wallet without knowing it!') + '\n\n' 
         grid_wallet.addWidget(HelpButton(msg), 2, 3)
-        gap_e.textChanged.connect(lambda: numbify(nz_e,True))
         if not self.config.is_modifiable('gap_limit'):
             for w in [gap_e, gap_label]: w.setEnabled(False)
 
-        grid_wallet.setRowStretch(3,1)
+        units = ['BTC', 'mBTC']
+        unit_label = QLabel(_('Base unit'))
+        grid_wallet.addWidget(unit_label, 3, 0)
+        unit_combo = QComboBox()
+        unit_combo.addItems(units)
+        unit_combo.setCurrentIndex(units.index(self.base_unit()))
+        grid_wallet.addWidget(unit_combo, 3, 2)
+        grid_wallet.addWidget(HelpButton(_('Base unit of your wallet.')\
+                                             + '\n1BTC=1000mBTC.\n' \
+                                             + _(' This settings affects the fields in the Send tab')+' '), 3, 3)
+        grid_wallet.setRowStretch(4,1)
 
 
         # import/export tab
@@ -2078,7 +2078,7 @@ class ElectrumWindow(QMainWindow):
 
         fee = unicode(fee_e.text())
         try:
-            fee = int( 100000000 * Decimal(fee) )
+            fee = self.read_amount(fee)
         except:
             QMessageBox.warning(self, _('Error'), _('Invalid value') +': %s'%fee, _('OK'))
             return
@@ -2105,6 +2105,13 @@ class ElectrumWindow(QMainWindow):
         if self.wallet.use_change != usechange_result:
             self.wallet.use_change = usechange_result
             self.config.set_key('use_change', self.wallet.use_change, True)
+        
+        unit_result = units[unit_combo.currentIndex()]
+        if self.base_unit() != unit_result:
+            self.decimal_point = 8 if unit_result == 'BTC' else 5
+            self.config.set_key('decimal_point', self.decimal_point, True)
+            self.update_history_tab()
+            self.update_status()
         
         try:
             n = int(gap_e.text())
