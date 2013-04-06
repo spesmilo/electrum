@@ -1946,7 +1946,7 @@ class ElectrumWindow(QMainWindow):
         fee_e.setText("%s"% str( Decimal( self.wallet.fee)/100000000 ) )
         grid_wallet.addWidget(fee_e, 0, 2)
         msg = _('Fee per kilobyte of transaction.') + ' ' \
-            + _('Recommended value') + ': 0.0001'
+            + _('Recommended value') + ': 0.0002'
         grid_wallet.addWidget(HelpButton(msg), 0, 3)
         fee_e.textChanged.connect(lambda: numbify(fee_e,False))
         if not self.config.is_modifiable('fee_per_kb'):
