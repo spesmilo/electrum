@@ -1100,8 +1100,6 @@ class ElectrumWindow(QMainWindow):
         else:
             account_items = []
 
-        print self.current_account
-            
         for k, account in account_items:
             name = account.get('name',str(k))
             c,u = self.wallet.get_account_balance(k)
