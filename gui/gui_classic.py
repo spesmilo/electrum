@@ -2213,7 +2213,7 @@ class ElectrumWindow(QMainWindow):
         servers_list_widget.setMaximumHeight(150)
         servers_list_widget.setColumnWidth(0, 240)
         for _host in servers_list.keys():
-            pruning_level = servers_list[_host].get('pruning')
+            pruning_level = servers_list[_host].get('pruning','')
             servers_list_widget.addTopLevelItem(QTreeWidgetItem( [ _host, pruning_level ] ))
         servers_list_widget.setColumnHidden(1, not parent.expert_mode if parent else True)
 
