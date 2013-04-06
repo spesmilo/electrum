@@ -2182,12 +2182,13 @@ class ElectrumWindow(QMainWindow):
         
         label = _('Active Servers') if wallet.interface.servers else _('Default Servers')
         servers_list_widget = QTreeWidget(parent)
-        servers_list_widget.setHeaderLabels( [ label, _('Type') ] )
+        servers_list_widget.setHeaderLabels( [ label, _('Pruning') ] )
         servers_list_widget.setMaximumHeight(150)
         servers_list_widget.setColumnWidth(0, 240)
         for _host in servers_list.keys():
-            _type = 'P' if servers_list[_host].get('pruning') else 'F'
-            servers_list_widget.addTopLevelItem(QTreeWidgetItem( [ _host, _type ] ))
+            pruning_level = servers_list[_host].get('pruning')
+            servers_list_widget.addTopLevelItem(QTreeWidgetItem( [ _host, pruning_level ] ))
+        servers_list_widget.setColumnHidden(1, not parent.expert_mode if parent else True)
 
         def change_server(host, protocol=None):
             pp = plist.get(host,DEFAULT_PORTS)

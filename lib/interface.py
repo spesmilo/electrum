@@ -123,7 +123,7 @@ class Interface(threading.Thread):
                     host = item[1]
                     ports = []
                     version = None
-                    pruning = False
+                    pruning_level = '-'
                     if len(item) > 2:
                         for v in item[2]:
                             if re.match("[stgh]\d*", v):
@@ -132,14 +132,15 @@ class Interface(threading.Thread):
                                 ports.append((protocol, port))
                             elif re.match("v(.?)+", v):
                                 version = v[1:]
-                            elif v == 'p':
-                                pruning = True
+                            elif re.match("p\d*", v):
+                                pruning_level = v[1:]
+                                if pruning_level == '': pruning_level = '0'
                     try: 
                         is_recent = float(version)>=float(PROTOCOL_VERSION)
                     except:
                         is_recent = False
                     if ports and is_recent:
-                        servers[host] = {'ports':ports, 'pruning':pruning}
+                        servers[host] = {'ports':ports, 'pruning':pruning_level}
                 self.servers = servers
                 self.trigger_callback('peers')
 
