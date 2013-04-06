@@ -1191,7 +1191,7 @@ class ElectrumWindow:
         import datetime
         if not tx_hash: return ''
         tx = self.wallet.transactions.get(tx_hash)
-        is_mine, v, fee = self.wallet.get_tx_value(tx)
+        is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
         conf, timestamp = self.wallet.verifier.get_confirmations(tx_hash)
 
         if timestamp:
