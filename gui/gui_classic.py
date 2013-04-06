@@ -498,7 +498,7 @@ class ElectrumWindow(QMainWindow):
 
         tx_hash = tx.hash()
         if tx_hash in self.wallet.transactions.keys():
-            is_mine, v, fee = self.wallet.get_tx_value(tx)
+            is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
             conf, timestamp = self.wallet.verifier.get_confirmations(tx_hash)
             if timestamp:
                 time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
