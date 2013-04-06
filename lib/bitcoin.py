@@ -804,6 +804,7 @@ class Transaction:
 
     def get_value(self, addresses, prevout_values):
         # return the balance for that tx
+        is_relevant = False
         is_send = False
         is_pruned = False
         is_partial = False
@@ -813,6 +814,7 @@ class Transaction:
             addr = item.get('address')
             if addr in addresses:
                 is_send = True
+                is_relevant = True
                 key = item['prevout_hash']  + ':%d'%item['prevout_n']
                 value = prevout_values.get( key )
                 if value is None:
@@ -829,6 +831,7 @@ class Transaction:
             v_out += value
             if addr in addresses:
                 v_out_mine += value
+                is_relevant = True
 
         if is_pruned:
             # some inputs are mine:
@@ -850,7 +853,7 @@ class Transaction:
                 # all inputs are mine
                 fee = v_out - v_in
 
-        return is_send, v, fee
+        return is_relevant, is_send, v, fee
 
     def as_dict(self):
         import json
