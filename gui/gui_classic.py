@@ -681,8 +681,8 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.amount_e, 3, 1, 1, 2)
         grid.addWidget(HelpButton(
                 _('Amount to be sent.') + '\n\n' \
-                    + _('The amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.')
-                    + _('Keyboard shortcut: type "!" to send all your coins.')), 3, 3)
+                    + _('The amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') \
+                    + '\n\n' + _('Keyboard shortcut: type "." to send all your coins.')), 3, 3)
         
         self.fee_e = AmountEdit(self.base_unit)
         grid.addWidget(QLabel(_('Fee')), 4, 0)
@@ -717,7 +717,7 @@ class ElectrumWindow(QMainWindow):
         def entry_changed( is_fee ):
             self.funds_error = False
 
-            if self.amount_e.text() == '!':
+            if self.amount_e.text() == '.':
                 c, u = self.wallet.get_account_balance(self.current_account)
                 inputs, total, fee = self.wallet.choose_tx_inputs( c + u, 0, self.current_account)
                 fee = self.wallet.estimated_fee(inputs)
