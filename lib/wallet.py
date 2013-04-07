@@ -741,10 +741,8 @@ class Wallet:
             assert is_valid(address)
 
         amount = sum( map(lambda x:x[1], outputs) )
-        
-        domain = self.get_account_addresses(account)
-            
-        inputs, total, fee = self.choose_tx_inputs( amount, fee, domain )
+
+        inputs, total, fee = self.choose_tx_inputs( amount, fee, account )
         if not inputs:
             raise ValueError("Not enough funds")
 
