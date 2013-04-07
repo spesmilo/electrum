@@ -1970,14 +1970,11 @@ class ElectrumWindow(QMainWindow):
         if not self.config.is_modifiable('fee_per_kb'):
             for w in [fee_e, fee_label]: w.setEnabled(False)
 
-        usechange_label = QLabel(_('Use change addresses'))
-        grid_wallet.addWidget(usechange_label, 1, 0)
-        usechange_combo = QComboBox()
-        usechange_combo.addItems([_('Yes'), _('No')])
-        usechange_combo.setCurrentIndex(not self.wallet.use_change)
-        grid_wallet.addWidget(usechange_combo, 1, 2)
+        usechange_cb = QCheckBox(_('Use change addresses'))
+        usechange_cb.setChecked(self.wallet.use_change)
+        grid_wallet.addWidget(usechange_cb, 1, 0)
         grid_wallet.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions.')+' '), 1, 3)
-        if not self.config.is_modifiable('use_change'): usechange_combo.setEnabled(False)
+        if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
 
         gap_label = QLabel(_('Gap limit'))
         grid_wallet.addWidget(gap_label, 2, 0)
@@ -2101,7 +2098,7 @@ class ElectrumWindow(QMainWindow):
             self.update_history_tab()
             self.update_receive_tab()
 
-        usechange_result = usechange_combo.currentIndex() == 0
+        usechange_result = usechange_cb.isChecked()
         if self.wallet.use_change != usechange_result:
             self.wallet.use_change = usechange_result
             self.config.set_key('use_change', self.wallet.use_change, True)
