@@ -191,6 +191,7 @@ class Interface(threading.Thread):
     def init_http(self, host, port, proxy=None, use_ssl=True):
         self.init_server(host, port, proxy, use_ssl)
         self.session_id = None
+        self.is_connected = True
         self.connection_msg = ('https' if self.use_ssl else 'http') + '://%s:%d'%( self.host, self.port )
         try:
             self.poll()
