@@ -408,7 +408,7 @@ class ElectrumWindow(QMainWindow):
         return format_satoshis(x, is_diff, self.wallet.num_zeros, self.decimal_point)
 
     def read_amount(self, x):
-        if x == '': return None
+        if x in['.', '']: return None
         p = pow(10, self.decimal_point)
         return int( p * Decimal(x) )
 
@@ -717,7 +717,8 @@ class ElectrumWindow(QMainWindow):
         def entry_changed( is_fee ):
             self.funds_error = False
 
-            if self.amount_e.text() == '.':
+            if self.amount_e.is_shortcut:
+                self.amount_e.is_shortcut = False
                 c, u = self.wallet.get_account_balance(self.current_account)
                 inputs, total, fee = self.wallet.choose_tx_inputs( c + u, 0, self.current_account)
                 fee = self.wallet.estimated_fee(inputs)

@@ -11,6 +11,7 @@ class AmountEdit(QLineEdit):
         self.text_getter = text_getter
         self.textChanged.connect(self.numbify)
         self.is_int = is_int
+        self.is_shortcut = False
 
 
     def paintEvent(self, event):
@@ -27,6 +28,8 @@ class AmountEdit(QLineEdit):
 
     def numbify(self):
         text = unicode(self.text()).strip()
+        if text == '!':
+            self.is_shortcut = True
         pos = self.cursorPosition()
         chars = '0123456789'
         if not self.is_int: chars +='.'
