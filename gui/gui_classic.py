@@ -2039,14 +2039,25 @@ class ElectrumWindow(QMainWindow):
         grid_io.addWidget(EnterButton(_("From text"), self.do_process_from_text), 5, 2)
         grid_io.addWidget(HelpButton(_("This will give you the option to sign or broadcast a transaction based on it's status.")), 5, 3)
 
-        grid_io.setRowStretch(5,1)
+        grid_io.setRowStretch(6,1)
 
 
         # plugins
         if self.plugins:
             tab5 = QScrollArea()
-            grid_plugins = QGridLayout(tab5)
+            tab5.setEnabled(True)
+            tab5.setWidgetResizable(True)
+
+            grid_plugins = QGridLayout()
             grid_plugins.setColumnStretch(0,1)
+
+            w = QtGui.QWidget()
+            w.setLayout(grid_plugins)
+            tab5.setWidget(w)
+            tab5.setMaximumSize(tab3.size())  # optional
+
+            w.setMinimumHeight(len(self.plugins)*35)
+
             tabs.addTab(tab5, _('Plugins') )
             def mk_toggle(cb, p):
                 return lambda: cb.setChecked(p.toggle())
