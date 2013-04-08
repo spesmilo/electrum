@@ -424,7 +424,7 @@ class ElectrumWindow(QMainWindow):
             else:
                 c, u = self.wallet.get_account_balance(self.current_account)
                 text =  _( "Balance" ) + ": %s "%( self.format_amount(c) ) + self.base_unit()
-                if u: text +=  "[%s unconfirmed]"%( self.format_amount(u,True).strip() )
+                if u: text +=  " [%s unconfirmed]"%( self.format_amount(u,True).strip() )
                 text += self.create_quote_text(Decimal(c+u)/100000000)
                 icon = QIcon(":icons/status_connected.png")
         else:
