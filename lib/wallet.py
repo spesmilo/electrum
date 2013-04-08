@@ -594,10 +594,14 @@ class Wallet:
         change_amount = total - ( amount + fee )
         if change_amount != 0:
             if not change_addr:
+                if account is None: 
+                    # send change to one of the accounts involved in the tx
+                    address = inputs[0].get('address')
+                    account, _ = self.get_address_index(address)
+
                 if not self.use_change or account == -1:
                     change_addr = inputs[-1]['address']
                 else:
-                    if account is None: account = 0
                     change_addr = self.accounts[account][1][-self.gap_limit_for_change]
 
             # Insert the change output at a random position in the outputs
