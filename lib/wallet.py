@@ -186,7 +186,7 @@ class Wallet:
 
     def get_address_index(self, address):
         if address in self.imported_keys.keys():
-            raise BaseException("imported key")
+            return -1, None
         for account in self.accounts.keys():
             for for_change in [0,1]:
                 addresses = self.accounts[account][for_change]
