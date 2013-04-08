@@ -59,8 +59,9 @@ register_command('importprivkey',        1, 1, True,  True,  'Import a private k
 register_command('listaddresses',        3, 3, False, True,  'Returns your list of addresses.', '', listaddr_options)
 register_command('listunspent',          0, 0, False, True,  'Returns a list of unspent inputs in your wallet.')
 register_command('mktx',                 5, 5, True,  True,  'Create a signed transaction', 'mktx <recipient> <amount> [label]', payto_options)
-register_command('mksendmanytx',         4, 4, True,  True,  'Create a signed transaction', 'mktx <recipient> <amount> [<recipient> <amount> ...]', payto_options)
+register_command('mksendmanytx',         4, 4, True,  True,  'Create a signed transaction', 'mksendmanytx <recipient> <amount> [<recipient> <amount> ...]', payto_options)
 register_command('payto',                5, 5, True,  False, 'Create and broadcast a transaction.', "payto <recipient> <amount> [label]\n<recipient> can be a bitcoin address or a label", payto_options)
+register_command('paytomany',            4, 4, True,  False, 'Create and broadcast a transaction.', "paytomany <recipient> <amount> [<recipient> <amount> ...]\n<recipient> can be a bitcoin address or a label", payto_options)
 register_command('password',             0, 0, True,  True,  'Change your password')
 register_command('prioritize',           1, 1, False, True,  'Coins at prioritized addresses are spent first.', 'prioritize <address>')
 register_command('restore',              0, 0, False, False, 'Restore a wallet')
@@ -257,6 +258,11 @@ class Commands:
 
     def payto(self, to_address, amount, fee = None, change_addr = None, domain = None):
         tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
+        r, h = self.wallet.sendtx( tx )
+        return h
+
+    def paytomany(self, outputs, fee = None, change_addr = None, domain = None):
+        tx = self._mktx(outputs, fee, change_addr, domain)
         r, h = self.wallet.sendtx( tx )
         return h
 
