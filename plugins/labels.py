@@ -1,6 +1,7 @@
 from electrum.util import print_error
 from electrum_gui.i18n import _
 import httplib, urllib
+import socket
 import hashlib
 import json
 from urlparse import urlparse, parse_qs
@@ -21,7 +22,7 @@ from electrum_gui.gui_classic import HelpButton
 
 class Plugin(BasePlugin):
     def version(self):
-        return "0.2"
+        return "0.2.1"
 
     def encode(self, message):
         encrypted = aes.encryptData(self.encode_password, unicode(message))
@@ -73,16 +74,19 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
     def set_label(self, item,label, changed):
         if not changed:
             return 
+        try:
+            bundle = {"label": {"external_id": self.encode(item), "text": self.encode(label)}}
+            params = json.dumps(bundle)
+            connection = httplib.HTTPConnection(self.target_host)
+            connection.request("POST", ("/api/wallets/%s/labels.json?auth_token=%s" % (self.wallet_id, self.auth_token())), params, {'Content-Type': 'application/json'})
 
-        bundle = {"label": {"external_id": self.encode(item), "text": self.encode(label)}}
-        params = json.dumps(bundle)
-        connection = httplib.HTTPConnection(self.target_host)
-        connection.request("POST", ("/api/wallets/%s/labels.json?auth_token=%s" % (self.wallet_id, self.auth_token())), params, {'Content-Type': 'application/json'})
-
-        response = connection.getresponse()
-        if response.reason == httplib.responses[httplib.NOT_FOUND]:
-            return
-        response = json.loads(response.read())
+            response = connection.getresponse()
+            if response.reason == httplib.responses[httplib.NOT_FOUND]:
+                return
+            response = json.loads(response.read())
+        except socket.gaierror as e:
+            print_error('Error connecting to service: %s ' %  e)
+            return False
 
     def settings_dialog(self):
         def check_for_api_key(api_key):
@@ -163,47 +167,55 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
             self.gui.update_contacts_tab()
 
     def do_full_push(self):
-        bundle = {"labels": {}}
-        for key, value in self.labels.iteritems():
-            encoded = self.encode(key)
-            bundle["labels"][encoded] = self.encode(value)
-
-        params = json.dumps(bundle)
-        connection = httplib.HTTPConnection(self.target_host)
-        connection.request("POST", ("/api/wallets/%s/labels/batch.json?auth_token=%s" % (self.wallet_id, self.auth_token())), params, {'Content-Type': 'application/json'})
-
-        response = connection.getresponse()
-        if response.reason == httplib.responses[httplib.NOT_FOUND]:
-            return
         try:
-            response = json.loads(response.read())
-        except ValueError as e:
-            return False
+            bundle = {"labels": {}}
+            for key, value in self.labels.iteritems():
+                encoded = self.encode(key)
+                bundle["labels"][encoded] = self.encode(value)
 
-        if "error" in response:
-            QMessageBox.warning(None, _("Error"),_("Could not sync labels: %s" % response["error"]))
-            return False
+            params = json.dumps(bundle)
+            connection = httplib.HTTPConnection(self.target_host)
+            connection.request("POST", ("/api/wallets/%s/labels/batch.json?auth_token=%s" % (self.wallet_id, self.auth_token())), params, {'Content-Type': 'application/json'})
 
-        return True
+            response = connection.getresponse()
+            if response.reason == httplib.responses[httplib.NOT_FOUND]:
+                return
+            try:
+                response = json.loads(response.read())
+            except ValueError as e:
+                return False
+
+            if "error" in response:
+                QMessageBox.warning(None, _("Error"),_("Could not sync labels: %s" % response["error"]))
+                return False
+
+            return True
+        except socket.gaierror as e:
+            print_error('Error connecting to service: %s ' %  e)
+            return False
 
     def do_full_pull(self, force = False):
-        connection = httplib.HTTPConnection(self.target_host)
-        connection.request("GET", ("/api/wallets/%s/labels.json?auth_token=%s" % (self.wallet_id, self.auth_token())),"", {'Content-Type': 'application/json'})
-        response = connection.getresponse()
-        if response.reason == httplib.responses[httplib.NOT_FOUND]:
-            return
         try:
-            response = json.loads(response.read())
-        except ValueError as e:
-            return False
+            connection = httplib.HTTPConnection(self.target_host)
+            connection.request("GET", ("/api/wallets/%s/labels.json?auth_token=%s" % (self.wallet_id, self.auth_token())),"", {'Content-Type': 'application/json'})
+            response = connection.getresponse()
+            if response.reason == httplib.responses[httplib.NOT_FOUND]:
+                return
+            try:
+                response = json.loads(response.read())
+            except ValueError as e:
+                return False
 
-        if "error" in response:
-            QMessageBox.warning(None, _("Error"),_("Could not sync labels: %s" % response["error"]))
-            return False
+            if "error" in response:
+                QMessageBox.warning(None, _("Error"),_("Could not sync labels: %s" % response["error"]))
+                return False
 
-        for label in response:
-             decoded_key = self.decode(label["external_id"]) 
-             decoded_label = self.decode(label["text"]) 
-             if force or not self.labels.get(decoded_key):
-                 self.labels[decoded_key] = decoded_label 
-        return True
+            for label in response:
+                 decoded_key = self.decode(label["external_id"]) 
+                 decoded_label = self.decode(label["text"]) 
+                 if force or not self.labels.get(decoded_key):
+                     self.labels[decoded_key] = decoded_label 
+            return True
+        except socket.gaierror as e:
+            print_error('Error connecting to service: %s ' %  e)
+            return False
