@@ -337,6 +337,16 @@ if __name__ == '__main__':
     elif cmd in ['payto', 'mktx']:
         domain = [options.from_addr] if options.from_addr else None
         args = [ 'mktx', args[1], Decimal(args[2]), Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, domain ]
+        
+    elif cmd == 'mksendmanytx':
+        domain = [options.from_addr] if options.from_addr else None
+        outputs = []
+        for i in range(1, len(args), 2):
+            if len(args) < i+2:
+                print_msg("Error: Mismatched arguments.")
+                exit(1)
+            outputs.append((args[i], Decimal(args[i+1])))
+        args = [ 'mksendmanytx', outputs, Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, domain ]        
 
     elif cmd == 'help':
         if len(args) < 2:
