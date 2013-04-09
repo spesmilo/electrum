@@ -1604,57 +1604,6 @@ class ElectrumWindow(QMainWindow):
             parent.password_button.setIcon( icon )
 
 
-    @staticmethod
-    def seed_dialog(wallet, parent=None):
-        d = QDialog(parent)
-        d.setModal(1)
-
-        vbox = QVBoxLayout()
-        msg = _("Please enter your wallet seed (or your master public key if you want to create a watching-only wallet)." + '\n')
-        vbox.addWidget(QLabel(msg))
-
-        grid = QGridLayout()
-        grid.setSpacing(8)
-
-        seed_e = QLineEdit()
-        grid.addWidget(QLabel(_('Seed or master public key')), 1, 0)
-        grid.addWidget(seed_e, 1, 1)
-        grid.addWidget(HelpButton(_("Your seed can be entered as a mnemonic (sequence of words), or as a hexadecimal string.")), 1, 3)
-
-        gap_e = AmountEdit(None, True)
-        gap_e.setText("5")
-        grid.addWidget(QLabel(_('Gap limit')), 2, 0)
-        grid.addWidget(gap_e, 2, 1)
-        grid.addWidget(HelpButton(_('Keep the default value unless you modified this parameter in your wallet.')), 2, 3)
-        vbox.addLayout(grid)
-
-        vbox.addLayout(ok_cancel_buttons(d))
-        d.setLayout(vbox) 
-
-        if not d.exec_(): return
-
-        try:
-            gap = int(unicode(gap_e.text()))
-        except:
-            QMessageBox.warning(None, _('Error'), 'error', 'OK')
-            return
-
-        try:
-            seed = str(seed_e.text())
-            seed.decode('hex')
-        except:
-            print_error("Warning: Not hex, trying decode")
-            try:
-                seed = mnemonic.mn_decode( seed.split(' ') )
-            except:
-                QMessageBox.warning(None, _('Error'), _('I cannot decode this'), _('OK'))
-                return
-
-        if not seed:
-            QMessageBox.warning(None, _('Error'), _('No seed'), _('OK'))
-            return
-
-        return seed, gap
 
     def generate_transaction_information_widget(self, tx):
         tabs = QTabWidget(self)
@@ -2352,8 +2301,79 @@ class ElectrumGui:
         if r==2: return None
         return 'restore' if r==1 else 'create'
 
-    def seed_dialog(self):
-        return ElectrumWindow.seed_dialog( self.wallet )
+
+    def verify_seed(self):
+        r = self.seed_dialog(False)
+        if not r: return False
+        if r[0] != self.wallet.seed:
+            QMessageBox.warning(None, _('Error'), 'incorrect seed', 'OK')
+            return False
+        else:
+            self.wallet.save_seed()
+            return True
+        
+
+
+    def seed_dialog(self, is_restore=True):
+        d = QDialog()
+        d.setModal(1)
+
+        vbox = QVBoxLayout()
+        if is_restore:
+            msg = _("Please enter your wallet seed (or your master public key if you want to create a watching-only wallet)." + '\n')
+        else:
+            msg = _("Please type your seed." + '\n')
+            
+        vbox.addWidget(QLabel(msg))
+
+        grid = QGridLayout()
+        grid.setSpacing(8)
+
+        seed_e = QLineEdit()
+        seed_e.setMinimumWidth(400)
+        grid.addWidget(QLabel(_('Seed or master public key') if is_restore else _('Seed')), 1, 0)
+        grid.addWidget(seed_e, 1, 1)
+        grid.addWidget(HelpButton(_("Your seed can be entered as a mnemonic (sequence of words), or as a hexadecimal string.")), 1, 3)
+
+        if is_restore:
+            gap_e = AmountEdit(None, True)
+            gap_e.setText("5")
+            grid.addWidget(QLabel(_('Gap limit')), 2, 0)
+            grid.addWidget(gap_e, 2, 1)
+            grid.addWidget(HelpButton(_('Keep the default value unless you modified this parameter in your wallet.')), 2, 3)
+
+        vbox.addLayout(grid)
+        vbox.addLayout(ok_cancel_buttons(d))
+        d.setLayout(vbox) 
+
+        if not d.exec_(): return
+
+        if is_restore:
+            try:
+                gap = int(unicode(gap_e.text()))
+            except:
+                QMessageBox.warning(None, _('Error'), 'error', 'OK')
+                return
+        else:
+            gap = None
+
+        try:
+            seed = str(seed_e.text())
+            seed.decode('hex')
+        except:
+            print_error("Warning: Not hex, trying decode")
+            try:
+                seed = mnemonic.mn_decode( seed.split(' ') )
+            except:
+                QMessageBox.warning(None, _('Error'), _('I cannot decode this'), _('OK'))
+                return
+
+        if not seed:
+            QMessageBox.warning(None, _('Error'), _('No seed'), _('OK'))
+            return
+
+        return seed, gap
+
 
     def network_dialog(self):
         return ElectrumWindow.network_dialog( self.wallet, parent=None )
@@ -2361,7 +2381,6 @@ class ElectrumGui:
 
     def show_seed(self):
         ElectrumWindow.show_seed(self.wallet.seed, self.wallet.imported_keys)
-
 
     def password_dialog(self):
         if self.wallet.seed:

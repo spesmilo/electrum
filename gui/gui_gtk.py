@@ -1292,6 +1292,10 @@ class ElectrumGui():
     def seed_dialog(self):
         return run_recovery_dialog( self.wallet )
 
+    def verify_seed(self):
+        self.wallet.save_seed()
+        return True
+
     def network_dialog(self):
         return run_network_dialog( self.wallet, parent=None )
 

@@ -126,8 +126,6 @@ if __name__ == '__main__':
         
         interface = Interface(config, True)
         wallet.interface = interface
-        interface.start(wait = False)
-        interface.send([('server.peers.subscribe',[])])
 
         gui = gui.ElectrumGui(wallet, config)
 
@@ -135,11 +133,16 @@ if __name__ == '__main__':
         if not found:
             a = gui.restore_or_create()
             if not a: exit()
-            # select a server.
-            s = gui.network_dialog()
 
             if a =='create':
                 wallet.init_seed(None)
+                # display seed
+                gui.show_seed()
+
+                # retype seed
+                if not gui.verify_seed():
+                    exit()
+
             else:
                 # ask for seed and gap.
                 sg = gui.seed_dialog()
@@ -153,13 +156,15 @@ if __name__ == '__main__':
                 else:
                     wallet.init_seed(str(seed))
             
+            # select a server.
+            s = gui.network_dialog()
+            
+        interface.start(wait = False)
+        interface.send([('server.peers.subscribe',[])])
 
-            # generate the first addresses, in case we are offline
-            if s is None or a == 'create':
-                wallet.synchronize()
-            if a == 'create':
-                # display seed
-                gui.show_seed()
+        # generate the first addresses, in case we are offline
+        if not found and ( s is None or a == 'create'):
+            wallet.synchronize()
 
         verifier = WalletVerifier(interface, config)
         verifier.start()

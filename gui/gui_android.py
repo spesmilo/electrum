@@ -969,6 +969,9 @@ class ElectrumGui:
     def network_dialog(self):
         return True
 
+    def verify_seed(self):
+        self.wallet.save_seed()
+        return True
         
     def show_seed(self):
         modal_dialog('Your seed is:', wallet.seed)

@@ -151,7 +151,9 @@ class Wallet:
         if self.seed: raise BaseException("a seed exists")
         if not seed: 
             seed = random_seed(128)
-        self.seed = seed 
+        self.seed = seed
+
+    def save_seed(self):
         self.config.set_key('seed', self.seed, True)
         self.config.set_key('seed_version', self.seed_version, True)
         mpk = self.SequenceClass.mpk_from_seed(self.seed)

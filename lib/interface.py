@@ -382,7 +382,7 @@ class Interface(threading.Thread):
 
 
     def __init__(self, config=None, loop=False):
-        self.server = None
+        self.server = random.choice(DEFAULT_SERVERS[:])
         self.proxy = None
 
         if config is None:
