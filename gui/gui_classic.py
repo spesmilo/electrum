@@ -2307,7 +2307,6 @@ class ElectrumGui:
             QMessageBox.warning(None, _('Error'), 'incorrect seed', 'OK')
             return False
         else:
-            self.wallet.save_seed()
             return True
         
 

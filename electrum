@@ -137,7 +137,9 @@ if __name__ == '__main__':
             if a =='create':
                 wallet.init_seed(None)
                 gui.show_seed()
-                if not gui.verify_seed():
+                if gui.verify_seed():
+                    wallet.save_seed()
+                else:
                     exit()
 
             else:
