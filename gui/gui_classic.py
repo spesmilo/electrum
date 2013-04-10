@@ -2209,7 +2209,6 @@ class ElectrumWindow(QMainWindow):
                 else:
                     server_protocol.model().setData(j, QtCore.QVariant(33), QtCore.Qt.UserRole-1)
 
-
         if server:
             host, port, protocol = server.split(':')
             change_server(host,protocol)
@@ -2223,7 +2222,7 @@ class ElectrumWindow(QMainWindow):
 
         # auto cycle
         autocycle_cb = QCheckBox(_('Try random servers if disconnected'))
-        autocycle_cb.setChecked(wallet.config.get('auto_cycle', False))
+        autocycle_cb.setChecked(wallet.config.get('auto_cycle', True))
         grid.addWidget(autocycle_cb, 3, 1, 3, 2)
         if not wallet.config.is_modifiable('auto_cycle'): autocycle_cb.setEnabled(False)
 
@@ -2304,8 +2303,7 @@ class ElectrumGui:
 
     def verify_seed(self):
         r = self.seed_dialog(False)
-        if not r: return False
-        if r[0] != self.wallet.seed:
+        if r != self.wallet.seed:
             QMessageBox.warning(None, _('Error'), 'incorrect seed', 'OK')
             return False
         else:
@@ -2320,48 +2318,39 @@ class ElectrumGui:
 
         vbox = QVBoxLayout()
         if is_restore:
-            msg = _("Please enter your wallet seed (or your master public key if you want to create a watching-only wallet)." + '\n')
+            msg = _("Please enter your wallet seed (or your master public key if you want to create a watching-only wallet)." + ' ')
         else:
-            msg = _("Please type your seed." + '\n')
-            
-        vbox.addWidget(QLabel(msg))
+            msg = _("Your seed is important! To make sure that you have properly saved your seed, please type it here." + ' ')
 
-        grid = QGridLayout()
-        grid.setSpacing(8)
+        msg += _("Your seed can be entered as a sequence of words, or as a hexadecimal string."+ '\n')
+        
+        label=QLabel(msg)
+        label.setWordWrap(True)
+        vbox.addWidget(label)
 
-        seed_e = QLineEdit()
-        seed_e.setMinimumWidth(400)
-        grid.addWidget(QLabel(_('Seed or master public key') if is_restore else _('Seed')), 1, 0)
-        grid.addWidget(seed_e, 1, 1)
-        grid.addWidget(HelpButton(_("Your seed can be entered as a mnemonic (sequence of words), or as a hexadecimal string.")), 1, 3)
+        seed_e = QTextEdit()
+        seed_e.setMaximumHeight(100)
+        vbox.addWidget(seed_e)
 
         if is_restore:
+            grid = QGridLayout()
+            grid.setSpacing(8)
             gap_e = AmountEdit(None, True)
             gap_e.setText("5")
             grid.addWidget(QLabel(_('Gap limit')), 2, 0)
             grid.addWidget(gap_e, 2, 1)
             grid.addWidget(HelpButton(_('Keep the default value unless you modified this parameter in your wallet.')), 2, 3)
+            vbox.addLayout(grid)
 
-        vbox.addLayout(grid)
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
 
         if not d.exec_(): return
 
-        if is_restore:
-            try:
-                gap = int(unicode(gap_e.text()))
-            except:
-                QMessageBox.warning(None, _('Error'), 'error', 'OK')
-                return
-        else:
-            gap = None
-
         try:
-            seed = str(seed_e.text())
+            seed = str(seed_e.toPlainText())
             seed.decode('hex')
         except:
-            print_error("Warning: Not hex, trying decode")
             try:
                 seed = mnemonic.mn_decode( seed.split(' ') )
             except:
@@ -2372,7 +2361,15 @@ class ElectrumGui:
             QMessageBox.warning(None, _('Error'), _('No seed'), _('OK'))
             return
 
-        return seed, gap
+        if not is_restore:
+            return seed
+        else:
+            try:
+                gap = int(unicode(gap_e.text()))
+            except:
+                QMessageBox.warning(None, _('Error'), 'error', 'OK')
+                return
+            return seed, gap
 
 
     def network_dialog(self):

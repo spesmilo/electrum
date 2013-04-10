@@ -136,10 +136,7 @@ if __name__ == '__main__':
 
             if a =='create':
                 wallet.init_seed(None)
-                # display seed
                 gui.show_seed()
-
-                # retype seed
                 if not gui.verify_seed():
                     exit()
 
@@ -155,6 +152,7 @@ if __name__ == '__main__':
                     wallet.init_sequence(str(seed))
                 else:
                     wallet.init_seed(str(seed))
+                    wallet.save_seed()
             
             # select a server.
             s = gui.network_dialog()
