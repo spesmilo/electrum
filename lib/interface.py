@@ -196,11 +196,15 @@ class Interface(threading.Thread):
         try:
             self.poll()
         except:
+            print_error("http init session failed")
+            self.is_connected = False
             return
 
         if self.session_id:
             print_error('http session:',self.session_id)
             self.is_connected = True
+        else:
+            self.is_connected = False
 
     def run_http(self):
         self.is_connected = True
@@ -226,6 +230,7 @@ class Interface(threading.Thread):
 
     def send_http(self, messages, channel='default'):
         import urllib2, json, time, cookielib
+        print_error( "send_http", messages )
         
         if self.proxy:
             import socks
