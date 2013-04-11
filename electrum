@@ -88,6 +88,8 @@ if __name__ == '__main__':
 
     parser = arg_parser()
     options, args = parser.parse_args()
+    if options.portable and options.wallet_path is None:
+        options.wallet_path = os.path.dirname(os.path.realpath(__file__)) + '/electrum.dat'
     set_verbosity(options.verbose)
 
     # config is an object passed to the various constructors (wallet, interface, gui)
