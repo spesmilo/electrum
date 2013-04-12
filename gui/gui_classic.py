@@ -867,6 +867,7 @@ class ElectrumWindow(QMainWindow):
         for e in [self.payto_e, self.message_e, self.amount_e, self.fee_e]:
             e.setText('')
             self.set_frozen(e,False)
+        self.update_status()
 
     def set_frozen(self,entry,frozen):
         if frozen:
