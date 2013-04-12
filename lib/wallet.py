@@ -521,6 +521,15 @@ class Wallet:
             unconf += u
         return conf, unconf
 
+    def get_frozen_balance(self):
+        conf = unconf = 0
+        for addr in self.frozen_addresses:
+            c, u = self.get_addr_balance(addr)
+            conf += c
+            unconf += u
+        return conf, unconf
+
+        
     def get_balance(self):
         cc = uu = 0
         for a in self.accounts.keys():

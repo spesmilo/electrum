@@ -745,6 +745,8 @@ class ElectrumWindow(QMainWindow):
                 palette.setColor(self.amount_e.foregroundRole(), QColor('red'))
                 self.funds_error = True
                 text = _( "Not enough funds" )
+                c, u = self.wallet.get_frozen_balance()
+                if c+u: text += ' (' + self.format_amount(c+u).strip() + self.base_unit() + ' ' +_("are frozen") + ')'
 
             self.statusBar().showMessage(text)
             self.amount_e.setPalette(palette)
