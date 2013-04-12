@@ -43,14 +43,15 @@ a.datas += extra_datas('plugins')
 pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,
-          exclude_binaries=1,
+          a.binaries,
+          a.datas,
           name=os.path.join('build\\pyi.win32\\electrum', 'electrum.exe'),
           debug=False,
           strip=None,
           upx=False,
           icon='icons/electrum.ico',
-          console=True)
-          # The console True makes an annoying black box pop up, but it does make Electrum accept command line options.
+          console=False)
+          # The console True makes an annoying black box pop up, but it does make Electrum output command line commands, with this turned off no output will be given but commands can still be used
 
 coll = COLLECT(exe,
                a.binaries,
@@ -60,5 +61,5 @@ coll = COLLECT(exe,
                upx=True,
                debug=False,
                icon='icons/electrum.ico',
-               console=True,
+               console=False,
                name=os.path.join('dist', 'electrum'))
