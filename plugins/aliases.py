@@ -11,6 +11,7 @@ from electrum_gui.qrcodewidget import QRCodeWidget
 from electrum_gui import bmp, pyqrnative
 from electrum_gui.i18n import _
 
+from electrum import util
 
 ALIAS_REGEXP = '^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$'    
 
@@ -145,12 +146,12 @@ class Plugin(BasePlugin):
                 show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.')
                 address = amount = label = identity = message = ''
 
-        if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', address):
-            payto_address = get_alias(address, True, show_message, question)
+        if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', payto):
+            payto_address = get_alias(payto, True, show_message, question)
             if payto_address:
-                address = address + ' <' + payto_address + '>'
+                payto += ' <' + payto_address + '>'
 
-        return address, amount, label, message, signature, identity, url
+        return payto, amount, label, message, signature, identity, url
 
 
 
