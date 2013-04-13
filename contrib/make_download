@@ -1,0 +1,46 @@
+#!/usr/bin/python
+import sys
+string = sys.stdin.read()
+
+
+import hashlib, os
+version = "1.7.3"
+version_win = "1.7.2"
+version_mac = "1.7.2"
+
+_tgz="Electrum-%s.tar.gz"%version
+_zip="Electrum-%s.zip"%version
+
+_mac="electrum-v%s.dmg"%version_mac
+_win="Electrum-%s.exe"%version_win
+_win_setup="Electrum-%s-setup.exe"%version_win
+_win_portable="Electrum-%s-portable.exe"%version_win
+
+md5_tgz = hashlib.md5(file('dist/'+_tgz, 'r').read()).digest().encode('hex')
+md5_zip = hashlib.md5(file('dist/'+_zip, 'r').read()).digest().encode('hex')
+
+for n in [_win, _win_portable, _win_setup, _mac]:
+    if not os.path.exists("binaries/%s"%n):
+        os.system("wget http://download.electrum.org/download/%s -O binaries/%s"%(n,n))
+
+md5_mac = hashlib.md5(file('binaries/'+_mac, 'r').read()).digest().encode('hex')
+md5_win = hashlib.md5(file('binaries/'+_win, 'r').read()).digest().encode('hex')
+md5_win_setup = hashlib.md5(file('binaries/'+_win_setup, 'r').read()).digest().encode('hex')
+md5_win_portable = hashlib.md5(file('binaries/'+_win_portable, 'r').read()).digest().encode('hex')
+
+
+string = string.replace("##VERSION##", version)
+string = string.replace("##VERSION_WIN##", version_win)
+string = string.replace("##VERSION_MAC##", version_mac)
+string = string.replace("##md5_tgz##", md5_tgz)
+string = string.replace("##md5_zip##", md5_zip)
+string = string.replace("##md5_mac##", md5_mac)
+string = string.replace("##md5_win##", md5_win)
+string = string.replace("##md5_win_setup##", md5_win_setup)
+string = string.replace("##md5_win_portable##", md5_win_portable)
+
+
+print string
+
+
+#

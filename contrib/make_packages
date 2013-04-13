@@ -32,11 +32,12 @@ if __name__ == '__main__':
     os.chdir("dist")
     # create the zip file
     os.system( "zip -r e4a-%s.zip e4a-%s"%(version, version) )
+    os.system( "rm -rf e4a-%s"%(version) )
 
     # change filename because some 3G carriers do not allow users to download a zip file...
     e4a_name = "e4a-%s.zip"%version
     e4a_name2 = e4a_name.replace(".","")
-    os.system( "cp %s %s"%(e4a_name, e4a_name2) )
+    os.system( "mv %s %s"%(e4a_name, e4a_name2) )
     os.chdir("..")
 
     md5_tgz = hashlib.md5(file('dist/'+_tgz, 'r').read()).digest().encode('hex')
