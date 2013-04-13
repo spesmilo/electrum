@@ -1,3 +1,10 @@
+# Release 1.7.3:
+
+* Classic GUI can display amounts in mBTC
+* Account selector in the classic GUI
+* Changed the way the portable flag uses without supplying a -w argument
+* Classic GUI asks users to enter their seed on wallet creation
+
 
 # Release 1.7.2:  
 
