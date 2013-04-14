@@ -244,6 +244,7 @@ if __name__ == '__main__':
                 wallet.init_sequence(str(seed))
             else:
                 wallet.init_seed( str(seed) )
+                wallet.save_seed()
 
             if not options.offline:
                 interface = Interface(config)
@@ -269,6 +270,7 @@ if __name__ == '__main__':
             print_msg("Wallet saved in '%s'"%wallet.config.path)
         else:
             wallet.init_seed(None)
+            wallet.save_seed()
             wallet.synchronize() # there is no wallet thread 
             wallet.save()
             print_msg("Your wallet generation seed is: " + wallet.seed)
