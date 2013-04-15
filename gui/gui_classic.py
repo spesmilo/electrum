@@ -355,7 +355,12 @@ class ElectrumWindow(QMainWindow):
                 f = eval('p.'+name)
             except:
                 continue
-            apply(f, args)
+            try:
+                apply(f, args)
+            except:
+                print_error("Plugin error")
+                traceback.print_exc(file=sys.stdout)
+                
         return
 
         
