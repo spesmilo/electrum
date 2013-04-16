@@ -246,8 +246,8 @@ if __name__ == '__main__':
                 wallet.init_seed( str(seed) )
                 wallet.save_seed()
 
+            interface = Interface(config)
             if not options.offline:
-                interface = Interface(config)
                 if not interface.start(wait=True):
                     print_msg("Not connected, aborting.")
                     sys.exit(1)
@@ -264,6 +264,7 @@ if __name__ == '__main__':
                 else:
                     print_msg("Warning: Found no history for this wallet")
             else:
+                interface.start(wait=False)
                 wallet.synchronize()
             wallet.fill_addressbook()
             wallet.save()
