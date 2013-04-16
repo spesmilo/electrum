@@ -49,8 +49,9 @@ register_command('dumpprivkey',          1, 1, True,  True,  'similar to bitcoin
 register_command('dumpprivkeys',         0, 0, True,  True,  'dump all private keys')
 register_command('eval',                 1, 1, False, True,  'Run python eval() on an object', 'eval <expression>\nExample: eval \"wallet.aliases\"')
 register_command('freeze',               1, 1, False, True,  'Freeze the funds at one of your wallet\'s addresses')
-register_command('getbalance',           0, 1, False, False, 'Display the balance of your wallet or of an address', 'getbalance [<address>]')
-register_command('getaddresshistory',    1, 1, False, False, 'get history for an address')
+register_command('getbalance',           0, 1, False, False, 'Return the balance of your wallet, or of one account in your wallet', 'getbalance [<account>]')
+register_command('getaddressbalance',    0, 1, False, False, 'Return the balance of an address', 'getbalance <address>')
+register_command('getaddresshistory',    1, 1, False, False, 'Return the transaction history of an address')
 register_command('getconfig',            1, 1, False, True,  'Return a configuration variable', 'getconfig <name>')
 register_command('getseed',              0, 0, True,  True,  'Print the generation seed of your wallet.')
 register_command('help',                 0, 1, False, True,  'Prints this help')
@@ -164,17 +165,18 @@ class Commands:
             
         return out
 
-        
-    def getbalance(self, addresses = []):
-        if addresses == []:
+    def getbalance(self, account= None):
+        if account is None:
             c, u = self.wallet.get_balance()
         else:
-            c = u = 0
-            for addr in addresses:
-                cc, uu = self.wallet.get_addr_balance(addr)
-                c += cc
-                u += uu
+            c, u = self.wallet.get_account_balance(account)
 
+        out = { "confirmed": str(Decimal(c)/100000000) }
+        if u: out["unconfirmed"] = str(Decimal(u)/100000000)
+        return out
+
+    def getaddressbalance(self, addr):
+        c, u = self.wallet.get_addr_balance(addr)
         out = { "confirmed": str(Decimal(c)/100000000) }
         if u: out["unconfirmed"] = str(Decimal(u)/100000000)
         return out
