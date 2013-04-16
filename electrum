@@ -249,7 +249,7 @@ if __name__ == '__main__':
             interface = Interface(config)
             if not options.offline:
                 if not interface.start(wait=True):
-                    print_msg("Not connected, aborting.")
+                    print_msg("Not connected, aborting. Try option -o if you want to restore offline.")
                     sys.exit(1)
                 wallet.interface = interface
                 verifier = WalletVerifier(interface, config)
