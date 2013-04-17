@@ -50,7 +50,7 @@ register_command('dumpprivkeys',         0, 0, True,  True,  'dump all private k
 register_command('eval',                 1, 1, False, True,  'Run python eval() on an object', 'eval <expression>\nExample: eval \"wallet.aliases\"')
 register_command('freeze',               1, 1, False, True,  'Freeze the funds at one of your wallet\'s addresses')
 register_command('getbalance',           0, 1, False, False, 'Return the balance of your wallet, or of one account in your wallet', 'getbalance [<account>]')
-register_command('getaddressbalance',    0, 1, False, False, 'Return the balance of an address', 'getbalance <address>')
+register_command('getaddressbalance',    1, 1, False, False, 'Return the balance of an address', 'getbalance <address>')
 register_command('getaddresshistory',    1, 1, False, False, 'Return the transaction history of an address')
 register_command('getconfig',            1, 1, False, True,  'Return a configuration variable', 'getconfig <name>')
 register_command('getseed',              0, 0, True,  True,  'Print the generation seed of your wallet.')
