@@ -277,6 +277,52 @@ class ElectrumWindow(QMainWindow):
         if not self.wallet.seed: title += ' [%s]' % (_('seedless'))
         self.setWindowTitle( title )
 
+        menubar = QMenuBar()
+
+        electrum_menu = menubar.addMenu(_("&File"))
+        preferences_name = _("Preferences")
+        if sys.platform == 'darwin':
+          preferences_name = _("Electrum preferences") # Settings / Preferences are all reserved keywords in OSX using this as work around
+
+        preferences_menu = electrum_menu.addAction(preferences_name)
+        electrum_menu.addSeparator()
+
+        accounts_menu = electrum_menu.addMenu(_("&Accounts"))
+        accounts_menu.addAction(_("All accounts"))
+        accounts_menu.addAction(_("Main account"))
+        accounts_menu.addAction(_("Imported keys"))
+
+        raw_transaction_menu = electrum_menu.addMenu(_("&Load raw transaction"))
+        raw_transaction_file = raw_transaction_menu.addAction(_("&From file"))
+        raw_transaction_text = raw_transaction_menu.addAction(_("&From text"))
+
+        electrum_menu.addSeparator()
+        quit_item = electrum_menu.addAction(_("&Close"))
+
+        wallet_menu = menubar.addMenu(_("&Wallet"))
+        wallet_backup = wallet_menu.addAction(_("&Create backup"))
+        show_seed = wallet_menu.addAction(_("&Show seed"))
+        chnage_password = wallet_menu.addAction(_("&Password"))
+        wallet_menu.addSeparator()
+        new_contact = wallet_menu.addAction(_("&New contact"))
+
+        import_menu = menubar.addMenu(_("&Import"))
+        in_labels = import_menu.addAction(_("&Labels"))
+        in_private_keys = import_menu.addAction(_("&Private key"))
+
+        export_menu = menubar.addMenu(_("&Export"))
+        ex_private_keys = export_menu.addAction(_("&Private keys"))
+        ex_history = export_menu.addAction(_("&History"))
+        ex_labels = export_menu.addAction(_("&Labels"))
+
+        help_menu = menubar.addMenu(_("&Help"))
+        help_menu.addAction(_("&About")) 
+        help_menu.addAction(_("&Documentation")) # http://electrum.org/documentation.html
+        help_menu.addAction(_("&Official website")) 
+
+        self.setMenuBar(menubar)
+
+
         QShortcut(QKeySequence("Ctrl+W"), self, self.close)
         QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
         QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() - 1 )%tabs.count() ))
