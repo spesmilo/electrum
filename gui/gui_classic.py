@@ -2355,7 +2355,7 @@ class ElectrumGui:
             seed.decode('hex')
         except:
             try:
-                seed = mnemonic.mn_decode( seed.split(' ') )
+                seed = mnemonic.mn_decode( seed.split() )
             except:
                 QMessageBox.warning(None, _('Error'), _('I cannot decode this'), _('OK'))
                 return
