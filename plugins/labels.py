@@ -37,8 +37,8 @@ class Plugin(BasePlugin):
 
     def __init__(self, gui):
         self.target_host = 'labelectrum.herokuapp.com'
-        BasePlugin.__init__(self, gui, 'labels', _('Label Sync'),_('This plugin can sync your labels accross multiple Electrum installs by using a remote database to save your data. Labels are not encrypted, \
-transactions and addresses are however. This code might increase the load of your wallet with a few micoseconds as it will sync labels on each startup.\n\n\
+        BasePlugin.__init__(self, gui, 'labels', _('Label Sync'),_('This plugin can sync your labels accross multiple Electrum installs by using a remote database to save your data. Labels,  \
+transactions and addresses are all sent and stored encrypted on the remote server. This code might increase the load of your wallet with a few microseconds as it will sync labels on each startup.\n\n\
 To get started visit http://labelectrum.herokuapp.com/ to sign up for an account.'))
 
         self.wallet = gui.wallet
