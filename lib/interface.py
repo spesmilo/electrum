@@ -336,6 +336,13 @@ class Interface(threading.Thread):
                     timeout = True
                 except ssl.SSLError:
                     timeout = True
+                except socket.error, err:
+                    if err.errno == 11:
+                        time.sleep(0.1)
+                        continue
+                    else:
+                        traceback.print_exc(file=sys.stdout)
+                        raise
 
                 if timeout:
                     # ping the server with server.version, as a real ping does not exist yet
