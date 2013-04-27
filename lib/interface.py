@@ -338,7 +338,7 @@ class Interface(threading.Thread):
                     timeout = True
                 except socket.error, err:
                     if err.errno in [11, 10035]:
-                        print_log("socket errno", err.errno)
+                        print_error("socket errno", err.errno)
                         time.sleep(0.1)
                         continue
                     else:
