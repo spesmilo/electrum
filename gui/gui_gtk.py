@@ -1167,12 +1167,15 @@ class ElectrumWindow:
 
         for item in self.wallet.get_tx_history():
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
-            if conf:
+            if conf > 0:
                 try:
                     time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
                 except:
                     time_str = "------"
                 conf_icon = gtk.STOCK_APPLY
+            elif conf == -1:
+                time_str = 'unverified'
+                conf_icon = None
             else:
                 time_str = 'pending'
                 conf_icon = gtk.STOCK_EXECUTE
