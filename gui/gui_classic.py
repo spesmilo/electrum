@@ -614,7 +614,7 @@ class ElectrumWindow(QMainWindow):
 
             if conf == -1:
                 time_str = 'unverified'
-                icon = None
+                icon = QIcon(":icons/unconfirmed.png")
             elif conf == 0:
                 time_str = 'pending'
                 icon = QIcon(":icons/unconfirmed.png")
