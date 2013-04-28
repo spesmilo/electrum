@@ -688,9 +688,9 @@ def contacts_loop():
     return out
 
 
-def server_dialog(plist):
+def server_dialog(servers):
     droid.dialogCreateAlert("Public servers")
-    droid.dialogSetItems( plist.keys() )
+    droid.dialogSetItems( servers.keys() )
     droid.dialogSetPositiveButtonText('Private server')
     droid.dialogShow()
     response = droid.dialogGetResponse().result
@@ -702,7 +702,7 @@ def server_dialog(plist):
 
     i = response.get('item')
     if i is not None:
-        response = plist.keys()[i]
+        response = servers.keys()[i]
         return response
 
 
@@ -774,7 +774,7 @@ def settings_loop():
         if event == 'OK': continue
         if not event: continue
 
-        plist, servers_list = interface.get_servers_list()
+        servers = interface.get_servers()
         name = event.get("name")
         if not name: continue
 
@@ -783,9 +783,9 @@ def settings_loop():
             host, port, protocol = interface.server.split(':')
 
             if pos == "0": #server
-                host = server_dialog(plist)
+                host = server_dialog(servers)
                 if host:
-                    p = plist[host]
+                    p = servers[host]
                     port = p['t']
                     srv = host + ':' + port + ':t'
                     wallet.config.set_key("server", srv, True)
@@ -796,8 +796,8 @@ def settings_loop():
                     set_listview()
 
             elif pos == "1": #protocol
-                if host in plist:
-                    srv = protocol_dialog(host, protocol, plist[host])
+                if host in servers:
+                    srv = protocol_dialog(host, protocol, servers[host])
                     if srv:
                         wallet.config.set_key("server", srv, True)
                         try:

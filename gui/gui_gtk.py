@@ -282,7 +282,7 @@ def run_network_dialog( wallet, parent ):
         status = "Please choose a server.\nSelect cancel if you are offline."
 
     server = interface.server
-    plist, servers_list = interface.get_servers_list()
+    servers = interface.get_servers()
 
     dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                                     gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, status)
@@ -331,7 +331,7 @@ def run_network_dialog( wallet, parent ):
 
     def set_protocol(protocol):
         host = current_line()[0]
-        pp = plist[host]
+        pp = servers[host]
         if protocol not in pp.keys():
             protocol = pp.keys()[0]
             set_button(protocol)
@@ -342,7 +342,7 @@ def run_network_dialog( wallet, parent ):
     radio2.connect("toggled", lambda x,y:set_protocol('h'), "radio button 1")
         
     server_list = gtk.ListStore(str)
-    for host in plist.keys():
+    for host in servers.keys():
         server_list.append([host])
     
     treeview = gtk.TreeView(model=server_list)
@@ -372,7 +372,7 @@ def run_network_dialog( wallet, parent ):
         path, view_column = treeview.get_cursor()
         host = server_list.get_value( server_list.get_iter(path), 0)
 
-        pp = plist[host]
+        pp = servers[host]
         if 't' in pp.keys():
             protocol = 't'
         else:

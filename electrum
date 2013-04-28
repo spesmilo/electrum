@@ -219,7 +219,7 @@ if __name__ == '__main__':
         w_host, w_port, w_protocol = server.split(':')
         host = raw_input("server (default:%s):"%w_host)
         port = raw_input("port (default:%s):"%w_port)
-        protocol = raw_input("protocol [t=tcp;h=http;n=native] (default:%s):"%w_protocol)
+        protocol = raw_input("protocol [t=tcp;h=http] (default:%s):"%w_protocol)
         fee = raw_input("fee (default:%s):"%( str(Decimal(wallet.fee)/100000000)) )
         gap = raw_input("gap limit (default 5):")
         if host: w_host = host

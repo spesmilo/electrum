@@ -20,7 +20,7 @@ import sys, time, datetime, re, threading
 from i18n import _, set_language
 from electrum.util import print_error, print_msg
 import os.path, json, ast, traceback
-from qrcodewidget import QRCodeWidget
+
 
 try:
     import PyQt4
@@ -30,8 +30,7 @@ except:
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
-import PyQt4.QtGui as QtGui
-from electrum.interface import DEFAULT_SERVERS, DEFAULT_PORTS
+
 from electrum.bitcoin import MIN_RELAY_TX_FEE
 
 try:
@@ -48,6 +47,8 @@ import bmp, pyqrnative
 import exchange_rate
 
 from amountedit import AmountEdit
+from network_dialog import NetworkDialog
+from qrcodewidget import QRCodeWidget
 
 from decimal import Decimal
 
@@ -67,9 +68,11 @@ else:
 from electrum import ELECTRUM_VERSION
 import re
 
-class UpdateLabel(QtGui.QLabel):
+from qt_util import *
+
+class UpdateLabel(QLabel):
     def __init__(self, config, parent=None):
-        QtGui.QLabel.__init__(self, parent)
+        QLabel.__init__(self, parent)
         self.new_version = False
 
         try:
@@ -225,32 +228,7 @@ def waiting_dialog(f):
     w.destroy()
 
 
-def ok_cancel_buttons(dialog, ok_label=_("OK") ):
-    hbox = QHBoxLayout()
-    hbox.addStretch(1)
-    b = QPushButton(_("Cancel"))
-    hbox.addWidget(b)
-    b.clicked.connect(dialog.reject)
-    b = QPushButton(ok_label)
-    hbox.addWidget(b)
-    b.clicked.connect(dialog.accept)
-    b.setDefault(True)
-    return hbox
 
-
-def text_dialog(parent, title, label, ok_label):
-    dialog = QDialog(parent)
-    dialog.setMinimumWidth(500)
-    dialog.setWindowTitle(title)
-    dialog.setModal(1)
-    l = QVBoxLayout()
-    dialog.setLayout(l)
-    l.addWidget(QLabel(label))
-    txt = QTextEdit()
-    l.addWidget(txt)
-    l.addLayout(ok_cancel_buttons(dialog, ok_label))
-    if dialog.exec_():
-        return unicode(txt.toPlainText())
 
 
 
@@ -1234,7 +1212,7 @@ class ElectrumWindow(QMainWindow):
         sb.addPermanentWidget( StatusBarButton( QIcon(":icons/preferences.png"), _("Preferences"), self.settings_dialog ) )
         if self.wallet.seed:
             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog ) )
-        self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), _("Network"), lambda: self.network_dialog(self.wallet, self) ) 
+        self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), _("Network"), self.run_network_dialog ) 
         sb.addPermanentWidget( self.status_button )
 
         self.run_hook('create_status_bar', (sb,))
@@ -2008,7 +1986,7 @@ class ElectrumWindow(QMainWindow):
             grid_plugins = QGridLayout()
             grid_plugins.setColumnStretch(0,1)
 
-            w = QtGui.QWidget()
+            w = QWidget()
             w.setLayout(grid_plugins)
             tab5.setWidget(w)
             tab5.setMaximumSize(tab3.size())  # optional
@@ -2112,177 +2090,8 @@ class ElectrumWindow(QMainWindow):
 
         self.receive_tab_set_mode(expert_cb.isChecked())
 
-
-    @staticmethod 
-    def network_dialog(wallet, parent=None):
-        interface = wallet.interface
-        if parent:
-            if interface.is_connected:
-                status = _("Connected to")+" %s\n%d "%(interface.host, wallet.verifier.height)+_("blocks")
-            else:
-                status = _("Not connected")
-            server = interface.server
-        else:
-            import random
-            status = _("Please choose a server.") + "\n" + _("Select 'Cancel' if you are offline.")
-            server = interface.server
-
-        plist, servers_list = interface.get_servers_list()
-
-        d = QDialog(parent)
-        d.setModal(1)
-        d.setWindowTitle(_('Server'))
-        d.setMinimumSize(375, 20)
-
-        vbox = QVBoxLayout()
-        vbox.setSpacing(30)
-
-        hbox = QHBoxLayout()
-        l = QLabel()
-        l.setPixmap(QPixmap(":icons/network.png"))
-        hbox.addStretch(10)
-        hbox.addWidget(l)
-        hbox.addWidget(QLabel(status))
-        hbox.addStretch(50)
-        vbox.addLayout(hbox)
-
-
-        # grid layout
-        grid = QGridLayout()
-        grid.setSpacing(8)
-        vbox.addLayout(grid)
-
-        # server
-        server_protocol = QComboBox()
-        server_host = QLineEdit()
-        server_host.setFixedWidth(200)
-        server_port = QLineEdit()
-        server_port.setFixedWidth(60)
-
-        protocol_names = ['TCP', 'HTTP', 'SSL', 'HTTPS']
-        protocol_letters = 'thsg'
-        server_protocol.addItems(protocol_names)
-
-        grid.addWidget(QLabel(_('Server') + ':'), 0, 0)
-        grid.addWidget(server_protocol, 0, 1)
-        grid.addWidget(server_host, 0, 2)
-        grid.addWidget(server_port, 0, 3)
-
-        def change_protocol(p):
-            protocol = protocol_letters[p]
-            host = unicode(server_host.text())
-            pp = plist.get(host,DEFAULT_PORTS)
-            if protocol not in pp.keys():
-                protocol = pp.keys()[0]
-            port = pp[protocol]
-            server_host.setText( host )
-            server_port.setText( port )
-
-        server_protocol.connect(server_protocol, SIGNAL('currentIndexChanged(int)'), change_protocol)
-        
-        label = _('Active Servers') if wallet.interface.servers else _('Default Servers')
-        servers_list_widget = QTreeWidget(parent)
-        servers_list_widget.setHeaderLabels( [ label, _('Limit') ] )
-        servers_list_widget.setMaximumHeight(150)
-        servers_list_widget.setColumnWidth(0, 240)
-        for _host in servers_list.keys():
-            pruning_level = servers_list[_host].get('pruning','')
-            servers_list_widget.addTopLevelItem(QTreeWidgetItem( [ _host, pruning_level ] ))
-        servers_list_widget.setColumnHidden(1, not parent.expert_mode if parent else True)
-
-        def change_server(host, protocol=None):
-            pp = plist.get(host,DEFAULT_PORTS)
-            if protocol:
-                port = pp.get(protocol)
-                if not port: protocol = None
-                    
-            if not protocol:
-                if 's' in pp.keys():
-                    protocol = 's'
-                    port = pp.get(protocol)
-                else:
-                    protocol = pp.keys()[0]
-                    port = pp.get(protocol)
-            
-            server_host.setText( host )
-            server_port.setText( port )
-            server_protocol.setCurrentIndex(protocol_letters.index(protocol))
-
-            if not plist: return
-            for p in protocol_letters:
-                i = protocol_letters.index(p)
-                j = server_protocol.model().index(i,0)
-                if p not in pp.keys() and interface.is_connected:
-                    server_protocol.model().setData(j, QtCore.QVariant(0), QtCore.Qt.UserRole-1)
-                else:
-                    server_protocol.model().setData(j, QtCore.QVariant(33), QtCore.Qt.UserRole-1)
-
-        if server:
-            host, port, protocol = server.split(':')
-            change_server(host,protocol)
-
-        servers_list_widget.connect(servers_list_widget, SIGNAL('currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)'), 
-                                    lambda x,y: change_server(unicode(x.text(0))))
-        grid.addWidget(servers_list_widget, 1, 1, 1, 3)
-
-        if not wallet.config.is_modifiable('server'):
-            for w in [server_host, server_port, server_protocol, servers_list_widget]: w.setEnabled(False)
-
-        # auto cycle
-        autocycle_cb = QCheckBox(_('Try random servers if disconnected'))
-        autocycle_cb.setChecked(wallet.config.get('auto_cycle', True))
-        grid.addWidget(autocycle_cb, 3, 1, 3, 2)
-        if not wallet.config.is_modifiable('auto_cycle'): autocycle_cb.setEnabled(False)
-
-        # proxy setting
-        proxy_mode = QComboBox()
-        proxy_host = QLineEdit()
-        proxy_host.setFixedWidth(200)
-        proxy_port = QLineEdit()
-        proxy_port.setFixedWidth(60)
-        proxy_mode.addItems(['NONE', 'SOCKS4', 'SOCKS5', 'HTTP'])
-
-        def check_for_disable(index = False):
-            if proxy_mode.currentText() != 'NONE':
-                proxy_host.setEnabled(True)
-                proxy_port.setEnabled(True)
-            else:
-                proxy_host.setEnabled(False)
-                proxy_port.setEnabled(False)
-
-        check_for_disable()
-        proxy_mode.connect(proxy_mode, SIGNAL('currentIndexChanged(int)'), check_for_disable)
-
-        if not wallet.config.is_modifiable('proxy'):
-            for w in [proxy_host, proxy_port, proxy_mode]: w.setEnabled(False)
-
-        proxy_config = interface.proxy if interface.proxy else { "mode":"none", "host":"localhost", "port":"8080"}
-        proxy_mode.setCurrentIndex(proxy_mode.findText(str(proxy_config.get("mode").upper())))
-        proxy_host.setText(proxy_config.get("host"))
-        proxy_port.setText(proxy_config.get("port"))
-
-        grid.addWidget(QLabel(_('Proxy') + ':'), 2, 0)
-        grid.addWidget(proxy_mode, 2, 1)
-        grid.addWidget(proxy_host, 2, 2)
-        grid.addWidget(proxy_port, 2, 3)
-
-        # buttons
-        vbox.addLayout(ok_cancel_buttons(d))
-        d.setLayout(vbox) 
-
-        if not d.exec_(): return
-
-        server = unicode( server_host.text() ) + ':' + unicode( server_port.text() ) + ':' + (protocol_letters[server_protocol.currentIndex()])
-        if proxy_mode.currentText() != 'NONE':
-            proxy = { u'mode':unicode(proxy_mode.currentText()).lower(), u'host':unicode(proxy_host.text()), u'port':unicode(proxy_port.text()) }
-        else:
-            proxy = None
-
-        wallet.config.set_key("proxy", proxy, True)
-        wallet.config.set_key("server", server, True)
-        interface.set_server(server, proxy)
-        wallet.config.set_key('auto_cycle', autocycle_cb.isChecked(), True)
-        return True
+    def run_network_dialog(self):
+        NetworkDialog(self.wallet.interface, self.config, self).do_exec()
 
     def closeEvent(self, event):
         g = self.geometry()
@@ -2290,6 +2099,9 @@ class ElectrumWindow(QMainWindow):
         self.save_column_widths()
         self.config.set_key("console-history",self.console.history[-50:])
         event.accept()
+
+
+
 
 
 class ElectrumGui:
@@ -2379,7 +2191,7 @@ class ElectrumGui:
 
 
     def network_dialog(self):
-        return ElectrumWindow.network_dialog( self.wallet, parent=None )
+        return NetworkDialog(self.wallet.interface, self.config, None).do_exec()
         
 
     def show_seed(self):
