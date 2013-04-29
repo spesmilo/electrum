@@ -144,6 +144,7 @@ class Wallet:
         
         # store the originally requested keypair into the imported keys table
         self.imported_keys[address] = pw_encode(sec, password )
+        self.config.set_key('imported_keys', self.imported_keys, True)
         return address
         
 
@@ -813,16 +814,17 @@ class Wallet:
 
     def update_password(self, seed, old_password, new_password):
         if new_password == '': new_password = None
-        self.use_encryption = (new_password != None)
+        # this will throw an exception if unicode cannot be converted
         self.seed = pw_encode( seed, new_password)
         self.config.set_key('seed', self.seed, True)
+        self.use_encryption = (new_password != None)
+        self.config.set_key('use_encryption', self.use_encryption,True)
         for k in self.imported_keys.keys():
             a = self.imported_keys[k]
             b = pw_decode(a, old_password)
             c = pw_encode(b, new_password)
             self.imported_keys[k] = c
-        self.save()
-
+        self.config.set_key('imported_keys', self.imported_keys, True)
 
 
     def freeze(self,addr):
@@ -865,14 +867,12 @@ class Wallet:
             tx[k] = str(v)
             
         s = {
-            'use_encryption': self.use_encryption,
             'use_change': self.use_change,
             'fee_per_kb': self.fee,
             'accounts': self.accounts,
             'addr_history': self.history, 
             'labels': self.labels,
             'contacts': self.addressbook,
-            'imported_keys': self.imported_keys,
             'num_zeros': self.num_zeros,
             'frozen_addresses': self.frozen_addresses,
             'prioritized_addresses': self.prioritized_addresses,
