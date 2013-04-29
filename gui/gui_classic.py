@@ -1584,7 +1584,14 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(parent, _('Error'), _('Passwords do not match'), _('OK'))
             return ElectrumWindow.change_password_dialog(wallet, parent) # Retry
 
-        wallet.update_password(seed, password, new_password)
+        try:
+            wallet.update_password(seed, password, new_password)
+        except:
+            QMessageBox.warning(parent, _('Error'), _('Failed to update password'), _('OK'))
+            return
+
+        QMessageBox.information(parent, _('Success'), _('Password was updated successfully'), _('OK'))
+
         if parent: 
             icon = QIcon(":icons/lock.png") if wallet.use_encryption else QIcon(":icons/unlock.png")
             parent.password_button.setIcon( icon )
