@@ -1465,12 +1465,10 @@ class ElectrumWindow(QMainWindow):
         layout.setRowStretch(3,1)
 
         def do_verify():
-            try:
-                self.wallet.verify_message(verify_address.text(), str(verify_signature.toPlainText()), str(verify_message.toPlainText()))
+            if self.wallet.verify_message(verify_address.text(), str(verify_signature.toPlainText()), str(verify_message.toPlainText())):
                 self.show_message(_("Signature verified"))
-            except BaseException, e:
-                self.show_message(str(e))
-                return
+            else:
+                self.show_message(_("Error: wrong signature"))
 
         hbox = QHBoxLayout()
         b = QPushButton(_("Verify"))

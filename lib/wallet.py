@@ -292,6 +292,13 @@ class Wallet:
         compressed = is_compressed(sec)
         return key.sign_message(message, compressed, address)
 
+    def verify_message(self, address, signature, message):
+        try:
+            EC_KEY.verify_message(address, signature, message)
+            return True
+        except BaseException as e:
+            print_error("Verification error: {0}".format(e))
+            return False
 
     def create_new_address(self, account, for_change):
         addresses = self.accounts[account][for_change]

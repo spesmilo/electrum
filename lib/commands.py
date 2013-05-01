@@ -203,12 +203,7 @@ class Commands:
 
 
     def verifymessage(self, address, signature, message):
-        try:
-            EC_KEY.verify_message(address, signature, message)
-            return True
-        except BaseException as e:
-            print_error("Verification error: {0}".format(e))
-            return False
+        return self.wallet.verify_message(address, signature, message)
 
 
     def _mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):
