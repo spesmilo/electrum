@@ -412,6 +412,14 @@ class Wallet:
         return self.history.values() != [[]] * len(self.history) 
 
 
+    def add_contact(self, address, label=None):
+        self.addressbook.append(address)
+        self.config.set_key('addressbook', self.addressbook, True)
+        if label:  
+            self.labels[address] = label
+            self.config.set_key('labels',self.labels)
+
+
     def fill_addressbook(self):
         for tx_hash, tx in self.transactions.items():
             is_relevant, is_send, _, _ = self.get_tx_value(tx)

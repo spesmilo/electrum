@@ -491,8 +491,7 @@ def make_new_contact():
                 address = None
             if address:
                 if modal_question('Add to contacts?', address):
-                    wallet.addressbook.append(address)
-                    wallet.save()
+                    wallet.add_contact(address)
         else:
             modal_dialog('Invalid address', data)
 

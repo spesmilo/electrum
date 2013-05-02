@@ -929,7 +929,6 @@ class ElectrumWindow(QMainWindow):
         self.save_column_widths()
         self.expert_mode = (i == 1)
         self.config.set_key('classic_expert_mode', self.expert_mode, True)
-        self.wallet.save()
         self.update_receive_tab()
 
 
@@ -1233,8 +1232,7 @@ class ElectrumWindow(QMainWindow):
         address = unicode(text)
         if ok:
             if is_valid(address):
-                self.wallet.addressbook.append(address)
-                self.wallet.save()
+                self.wallet.add_contact(address)
                 self.update_contacts_tab()
                 self.update_history_tab()
                 self.update_completions()
