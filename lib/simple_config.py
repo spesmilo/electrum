@@ -200,7 +200,7 @@ a SimpleConfig instance then reads the wallet file.
 
 
 
-    def save(self):
+    def save(self, key=None):
         self.save_wallet_config()
 
 

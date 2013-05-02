@@ -48,7 +48,6 @@ register_command('deseed',               0, 0, False, True,  'Remove seed from w
 register_command('decoderawtransaction', 1, 1, False, True,  'similar to bitcoind\'s command')
 register_command('dumpprivkey',          1, 1, True,  True,  'Dumps a specified private key for a given address', 'dumpprivkey <bitcoin address>')
 register_command('dumpprivkeys',         0, 0, True,  True,  'dump all private keys')
-register_command('eval',                 1, 1, False, True,  'Run python eval() on an object', 'eval <expression>\nExample: eval \"wallet.aliases\"')
 register_command('freeze',               1, 1, False, True,  'Freeze the funds at one of your wallet\'s addresses', 'freeze <address>')
 register_command('getbalance',           0, 1, False, False, 'Return the balance of your wallet, or of one account in your wallet', 'getbalance [<account>]')
 register_command('getaddressbalance',    1, 1, False, False, 'Return the balance of an address', 'getbalance <address>')

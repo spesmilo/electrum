@@ -188,9 +188,9 @@ if __name__ == '__main__':
         if not found:
             gui.password_dialog()
 
-        wallet.save()
+        #wallet.save()
         gui.main(url)
-        wallet.save()
+        #wallet.save()
 
         verifier.stop()
         synchronizer.stop()
@@ -267,13 +267,12 @@ if __name__ == '__main__':
                 interface.start(wait=False)
                 wallet.synchronize()
             wallet.fill_addressbook()
-            wallet.save()
+            #wallet.save()
             print_msg("Wallet saved in '%s'"%wallet.config.path)
         else:
             wallet.init_seed(None)
             wallet.save_seed()
             wallet.synchronize() # there is no wallet thread 
-            wallet.save()
             print_msg("Your wallet generation seed is: " + wallet.seed)
             print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
             print_msg("Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:")
@@ -381,7 +380,7 @@ if __name__ == '__main__':
         synchronizer = WalletSynchronizer(wallet, config)
         synchronizer.start()
         wallet.update()
-        wallet.save()
+        #wallet.save()
 
 
     # run the command
@@ -395,17 +394,14 @@ if __name__ == '__main__':
             if raw_input("Are you sure you want to continue? (y/n) ") in ['y','Y','yes']:
                 wallet.config.path = ns
                 wallet.seed = ''
+                wallet.config.set_key('seed', '', True)
                 wallet.use_encryption = False
-                wallet.config.set_key('seed','', True)
+                wallet.config.set_key('use_encryption', wallet.use_encryption, True)
                 for k in wallet.imported_keys.keys(): wallet.imported_keys[k] = ''
-                wallet.save()
+                wallet.config.set_key('imported_keys',wallet.imported_keys, True)
                 print_msg("Done.")
             else:
                 print_msg("Action canceled.")
-
-    elif cmd == 'eval':
-        print_msg(eval(args[1]))
-        wallet.save()
 
     elif cmd == 'getconfig':
         key = args[1]
