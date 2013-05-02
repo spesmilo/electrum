@@ -971,10 +971,9 @@ class ElectrumWindow(QMainWindow):
 
     def delete_imported_key(self, addr):
         if self.question(_("Do you want to remove")+" %s "%addr +_("from your wallet?")):
-            self.wallet.imported_keys.pop(addr)
+            self.wallet.delete_imported_key(addr)
             self.update_receive_tab()
             self.update_history_tab()
-            self.wallet.save()
 
 
     def create_receive_menu(self, position):

@@ -147,6 +147,11 @@ class Wallet:
         self.config.set_key('imported_keys', self.imported_keys, True)
         return address
         
+    def delete_imported_key(self, addr):
+        if addr in self.imported_keys:
+            self.imported_keys.pop(addr)
+            self.config.set_key('imported_keys', self.imported_keys, True)
+
 
     def init_seed(self, seed):
         if self.seed: raise BaseException("a seed exists")
@@ -318,7 +323,7 @@ class Wallet:
     def change_gap_limit(self, value):
         if value >= self.gap_limit:
             self.gap_limit = value
-            self.save()
+            self.config.set_key('gap_limit', self.gap_limit, True)
             self.interface.poke('synchronizer')
             return True
 
