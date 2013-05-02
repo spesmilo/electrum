@@ -2031,9 +2031,7 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(self, _('Error'), _('Invalid value') +': %s'%fee, _('OK'))
             return
 
-        if self.wallet.fee != fee:
-            self.wallet.fee = fee
-            self.wallet.save()
+        self.wallet.set_fee(fee)
         
         nz = unicode(nz_e.text())
         try:

@@ -873,6 +873,12 @@ class Wallet:
         else:
             return False
 
+    def set_fee(self, fee):
+        if self.fee != fee:
+            self.fee = fee
+            self.config.set_key('fee_per_kb', self.fee, True)
+        
+
     def save(self):
         tx = {}
         for k,v in self.transactions.items():

@@ -249,9 +249,7 @@ def run_settings_dialog(wallet, parent):
     except:
         show_message("error")
         return
-    if wallet.fee != fee:
-        wallet.fee = fee
-        wallet.save()
+    wallet.set_fee(fee)
 
     try:
         nz = int( nz )

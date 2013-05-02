@@ -825,11 +825,9 @@ def settings_loop():
                         fee = int( 100000000 * Decimal(fee) )
                     except:
                         modal_dialog('error','invalid fee value')
-                    if wallet.fee != fee:
-                        wallet.fee = fee
-                        wallet.save()
-                        set_listview()
-        
+                    wallet.set_fee(fee)
+                    set_listview()
+
             elif pos == "4":
                 if change_password_dialog():
                     set_listview()
