@@ -1016,12 +1016,11 @@ class ElectrumWindow(QMainWindow):
 
     def delete_contact(self, x):
         if self.question(_("Do you want to remove")+" %s "%x +_("from your list of contacts?")):
-            if x in self.wallet.addressbook:
-                self.wallet.addressbook.remove(x)
-                self.set_label(x, None)
-                self.update_history_tab()
-                self.update_contacts_tab()
-                self.update_completions()
+            self.wallet.delete_contact(x)
+            self.set_label(x, None)
+            self.update_history_tab()
+            self.update_contacts_tab()
+            self.update_completions()
 
 
     def create_contact_menu(self, position):

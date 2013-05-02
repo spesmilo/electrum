@@ -417,7 +417,12 @@ class Wallet:
         self.config.set_key('addressbook', self.addressbook, True)
         if label:  
             self.labels[address] = label
-            self.config.set_key('labels',self.labels)
+            self.config.set_key('labels', self.labels)
+
+    def delete_contact(self, addr):
+        if addr in self.addressbook:
+            self.addressbook.remove(addr)
+            self.config.set_key('addressbook', self.addressbook, True)
 
 
     def fill_addressbook(self):
