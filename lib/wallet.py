@@ -694,7 +694,7 @@ class Wallet:
             
         with self.lock:
             self.history[addr] = hist
-            self.config.set_key('addr_history', history, True)
+            self.config.set_key('addr_history', self.history, True)
 
         if hist != ['*']:
             for tx_hash, tx_height in hist:
