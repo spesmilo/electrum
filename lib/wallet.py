@@ -137,7 +137,10 @@ class Wallet:
     def import_key(self, sec, password):
         # check password
         seed = self.decode_seed(password)
-        address = address_from_private_key(sec)
+        try:
+            address = address_from_private_key(sec)
+        except:
+            raise BaseException('Invalid private key')
 
         if self.is_mine(address):
             raise BaseException('Address already in wallet')
