@@ -28,13 +28,14 @@ DEFAULT_TIMEOUT = 5
 DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
 DEFAULT_SERVERS = {
-    'electrum.thecoinwillprevail.com': {'h': '8081', 's': '50002', 't': '50001'},
     'the9ull.homelinux.org': {'h': '8082', 't': '50001'},
-    'electra.datemas.de': {'h': '8081', 's': '50002', 't': '50001', 'g': '808'},
-    'electrum.datemas.de': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.coinwallet.me': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.dynaloop.net': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.koh.ms': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.novit.ro': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.stepkrav.pw': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
     'ecdsa.org': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
     'electrum.mooo.com': {'h': '8081', 't': '50001'},
-    'btcback.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
     'electrum.bitcoins.sk': {'h': '8081', 's': '50002', 't': '50001', 'g': '8'},
     'electrum.no-ip.org': {'h': '80', 's': '50002', 't': '50001', 'g': '443'},
     'electrum.drollette.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
