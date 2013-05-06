@@ -117,6 +117,8 @@ class Commands:
 
     def signrawtransaction(self, raw_tx, input_info, private_keys):
         tx = Transaction(raw_tx)
+        addresses = map( lambda o: o[0], tx.outputs )
+        self.wallet.synchronize_offline(addresses)
         self.wallet.signrawtransaction(tx, input_info, private_keys, self.password)
         return tx.as_dict()
 
