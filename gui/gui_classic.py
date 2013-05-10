@@ -416,8 +416,7 @@ class ElectrumWindow(QMainWindow):
             text = _("Not connected")
             icon = QIcon(":icons/status_disconnected.png")
 
-        self.status_text = text
-        self.statusBar().showMessage(text)
+        self.balance_label.setText(text)
         self.status_button.setIcon( icon )
 
     def update_wallet(self):
@@ -724,7 +723,7 @@ class ElectrumWindow(QMainWindow):
             if inputs:
                 palette = QPalette()
                 palette.setColor(self.amount_e.foregroundRole(), QColor('black'))
-                text = self.status_text
+                text = ""
             else:
                 palette = QPalette()
                 palette.setColor(self.amount_e.foregroundRole(), QColor('red'))
@@ -1183,10 +1182,13 @@ class ElectrumWindow(QMainWindow):
         self.update_receive_tab()
 
     def create_status_bar(self):
-        self.status_text = ""
+
         sb = QStatusBar()
         sb.setFixedHeight(35)
         qtVersion = qVersion()
+
+        self.balance_label = QLabel("")
+        sb.addWidget(self.balance_label)
 
         update_notification = UpdateLabel(self.config)
         if(update_notification.new_version):
