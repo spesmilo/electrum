@@ -1909,7 +1909,7 @@ class ElectrumWindow(QMainWindow):
         fee_e.setText(self.format_amount(self.wallet.fee).strip())
         grid_wallet.addWidget(fee_e, 0, 2)
         msg = _('Fee per kilobyte of transaction.') + ' ' \
-            + _('Recommended value') + ': ' + self.format_amount(20000)
+            + _('Recommended value') + ': ' + self.format_amount(50000)
         grid_wallet.addWidget(HelpButton(msg), 0, 3)
         if not self.config.is_modifiable('fee_per_kb'):
             for w in [fee_e, fee_label]: w.setEnabled(False)
