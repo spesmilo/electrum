@@ -1,3 +1,10 @@
+# Release 1.7.4
+
+* Increase default fee
+* fix create and restore in command line
+* fix verify message in the gui
+
+
 # Release 1.7.3:
 
 * Classic GUI can display amounts in mBTC
