@@ -295,6 +295,11 @@ class ElectrumWindow(QMainWindow):
             tabs.setCurrentIndex (n)
             tabs.setCurrentIndex (0)
 
+        # fix fee
+        if self.wallet.fee < 50000:
+            self.wallet.set_fee(50000)
+            self.show_message("Note: Your default fee was raised to 0.0005 BTC/kilobyte")
+
         # set initial message
         self.console.showMessage(self.wallet.interface.banner)
 
