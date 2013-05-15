@@ -277,12 +277,46 @@ class ElectrumWindow(QMainWindow):
         if not self.wallet.seed: title += ' [%s]' % (_('seedless'))
         self.setWindowTitle( title )
 
+        self.init_menubar()
+
+        QShortcut(QKeySequence("Ctrl+W"), self, self.close)
+        QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
+        QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() - 1 )%tabs.count() ))
+        QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() + 1 )%tabs.count() ))
+        
+        self.connect(self, QtCore.SIGNAL('update_status'), self.update_status)
+        self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.wallet.interface.banner) )
+        self.history_list.setFocus(True)
+        
+        self.exchanger = exchange_rate.Exchanger(self)
+        self.connect(self, SIGNAL("refresh_balance()"), self.update_wallet)
+
+        # dark magic fix by flatfly; https://bitcointalk.org/index.php?topic=73651.msg959913#msg959913
+        if platform.system() == 'Windows':
+            n = 3 if self.wallet.seed else 2
+            tabs.setCurrentIndex (n)
+            tabs.setCurrentIndex (0)
+
+        # fix fee
+        if self.wallet.fee < 50000:
+            self.wallet.set_fee(50000)
+            self.show_message("Note: Your default fee was raised to 0.0005 BTC/kilobyte")
+
+        # set initial message
+        self.console.showMessage(self.wallet.interface.banner)
+
+        # plugins that need to change the GUI do it here
+        self.run_hook('init_gui')
+
+
+
+    def init_menubar(self):
         menubar = QMenuBar()
 
         electrum_menu = menubar.addMenu(_("&File"))
         preferences_name = _("Preferences")
         if sys.platform == 'darwin':
-          preferences_name = _("Electrum preferences") # Settings / Preferences are all reserved keywords in OSX using this as work around
+            preferences_name = _("Electrum preferences") # Settings / Preferences are all reserved keywords in OSX using this as work around
 
         preferences_menu = electrum_menu.addAction(preferences_name)
         electrum_menu.addSeparator()
@@ -323,35 +357,31 @@ class ElectrumWindow(QMainWindow):
         self.setMenuBar(menubar)
 
 
-        QShortcut(QKeySequence("Ctrl+W"), self, self.close)
-        QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
-        QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() - 1 )%tabs.count() ))
-        QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() + 1 )%tabs.count() ))
+
+    def load_wallet(self, filename):
+        import electrum
+
+        config = electrum.SimpleConfig({'wallet_path': filename})
+        if not config.wallet_file_exists:
+            self.show_message("file not found "+ filename)
+            return
+
+        #self.wallet.verifier.stop()
+        interface = self.wallet.interface
+        verifier = self.wallet.verifier
+        self.wallet.synchronizer.stop()
         
-        self.connect(self, QtCore.SIGNAL('update_status'), self.update_status)
-        self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.wallet.interface.banner) )
-        self.history_list.setFocus(True)
+        self.config = config
+        self.wallet = electrum.Wallet(self.config)
+        self.wallet.interface = interface
+        self.wallet.verifier = verifier
+
+        synchronizer = electrum.WalletSynchronizer(self.wallet, self.config)
+        synchronizer.start()
+
+        self.update_wallet()
+
         
-        self.exchanger = exchange_rate.Exchanger(self)
-        self.connect(self, SIGNAL("refresh_balance()"), self.update_wallet)
-
-        # dark magic fix by flatfly; https://bitcointalk.org/index.php?topic=73651.msg959913#msg959913
-        if platform.system() == 'Windows':
-            n = 3 if self.wallet.seed else 2
-            tabs.setCurrentIndex (n)
-            tabs.setCurrentIndex (0)
-
-        # fix fee
-        if self.wallet.fee < 50000:
-            self.wallet.set_fee(50000)
-            self.show_message("Note: Your default fee was raised to 0.0005 BTC/kilobyte")
-
-        # set initial message
-        self.console.showMessage(self.wallet.interface.banner)
-
-        # plugins that need to change the GUI do it here
-        self.run_hook('init_gui')
-
 
     # plugins
     def init_plugins(self):

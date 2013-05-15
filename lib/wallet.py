@@ -1037,6 +1037,7 @@ class WalletSynchronizer(threading.Thread):
         threading.Thread.__init__(self)
         self.daemon = True
         self.wallet = wallet
+        wallet.synchronizer = self
         self.interface = self.wallet.interface
         self.interface.register_channel('synchronizer')
         self.wallet.interface.register_callback('connected', lambda: self.wallet.set_up_to_date(False))
