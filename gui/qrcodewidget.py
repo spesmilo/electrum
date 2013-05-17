@@ -62,6 +62,11 @@ class QRCodeWidget(QWidget):
         left = (r.width() - size)/2
         top = (r.height() - size)/2         
 
+        # Make a white margin around the QR in case of dark theme use:
+        margin = 10
+        qp.setBrush(white)
+        qp.drawRect(left-margin, top-margin, size+(margin*2), size+(margin*2))
+
         for r in range(k):
             for c in range(k):
                 if self.qr.isDark(r, c):
