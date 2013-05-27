@@ -18,12 +18,12 @@ class QRCodeWidget(QWidget):
 
     def set_addr(self, addr):
         if self.addr != addr:
-	        if len(addr) < 128:
-		        MinSize = 210
-	        else:
-		        MinSize = 500
-	    self.setMinimumSize(MinSize, MinSize)
-	    self.addr = addr
+            if len(addr) < 128:
+                MinSize = 210
+            else:
+                MinSize = 500
+            self.setMinimumSize(MinSize, MinSize)
+            self.addr = addr
             self.qr = None
             self.update()
 

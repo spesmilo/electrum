@@ -215,9 +215,8 @@ class Plugin(BasePlugin):
     def sign_raw_transaction(self, tx, input_info, dialog ="", password = ""):
         try:
             self.gui.wallet.signrawtransaction(tx, input_info, [], password)
-        txtext = json.dumps(tx.as_dict()).replace(' ', '')
-        self.show_tx_qrcode(txtext, 'Signed Transaction')
-            
+            txtext = json.dumps(tx.as_dict()).replace(' ', '')
+            self.show_tx_qrcode(txtext, 'Signed Transaction')
         except BaseException, e:
             self.gui.show_message(str(e))
 
