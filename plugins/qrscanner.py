@@ -151,11 +151,11 @@ class Plugin(BasePlugin):
         d.exec_()
 
     def read_raw_qr(self):
-    qrcode = self.scan_qr()
-    if qrcode:
-        tx_dict = self.gui.tx_dict_from_text(qrcode)
-        if tx_dict:
-            self.create_transaction_details_window(tx_dict)
+        qrcode = self.scan_qr()
+        if qrcode:
+            tx_dict = self.gui.tx_dict_from_text(qrcode)
+            if tx_dict:
+                self.create_transaction_details_window(tx_dict)
 
 
     def create_transaction_details_window(self, tx_dict):
@@ -183,7 +183,7 @@ class Plugin(BasePlugin):
                 l.addWidget(QLabel(_("Wallet is de-seeded, can't sign.")), 4,1)
         else:
             l.addWidget(QLabel(_("Signed")), 3,1)
-        b = QPushButton("Broadcast transaction")
+            b = QPushButton("Broadcast transaction")
             b.clicked.connect(lambda: self.gui.send_raw_transaction(tx, dialog))
             l.addWidget(b,4,1)
     
