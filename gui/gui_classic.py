@@ -20,6 +20,7 @@ import sys, time, datetime, re, threading
 from i18n import _, set_language
 from electrum.util import print_error, print_msg
 import os.path, json, ast, traceback
+import shutil
 
 
 try:
@@ -309,50 +310,101 @@ class ElectrumWindow(QMainWindow):
         self.run_hook('init_gui')
 
 
+    def select_wallet_file(self):
+        file_name = self.getOpenFileName("Select your wallet file", "*.dat")
+        if not file_name:
+            return
+        else:
+          self.load_wallet(file_name)
+
+    # TODO: I rather import this from the lite gui, is that possible?
+    def backup_wallet(self):
+        try:
+          folderName = QFileDialog.getExistingDirectory(QWidget(), _('Select folder to save a copy of your wallet to'), os.path.expanduser('~/'))
+          if folderName:
+            # TODO: Can we get the current wallet file instead of bruteforcing the default one?
+            sourceFile = util.user_dir() + '/electrum.dat'
+            shutil.copy2(sourceFile, str(folderName))
+            QMessageBox.information(None,"Wallet backup created", _("A copy of your wallet file was created in")+" '%s'" % str(folderName))
+        except (IOError, os.error), reason:
+          QMessageBox.critical(None,"Unable to create backup", _("Electrum was unable to copy your wallet file to the specified location.")+"\n" + str(reason))
 
     def init_menubar(self):
         menubar = QMenuBar()
 
         electrum_menu = menubar.addMenu(_("&File"))
+        open_wallet_action = electrum_menu.addAction(_("Open wallet"))
+        open_wallet_action.triggered.connect(self.select_wallet_file)
+
         preferences_name = _("Preferences")
         if sys.platform == 'darwin':
             preferences_name = _("Electrum preferences") # Settings / Preferences are all reserved keywords in OSX using this as work around
 
         preferences_menu = electrum_menu.addAction(preferences_name)
+        preferences_menu.triggered.connect(self.settings_dialog)
         electrum_menu.addSeparator()
 
         accounts_menu = electrum_menu.addMenu(_("&Accounts"))
-        accounts_menu.addAction(_("All accounts"))
-        accounts_menu.addAction(_("Main account"))
-        accounts_menu.addAction(_("Imported keys"))
+        all_accounts = accounts_menu.addAction(_("All accounts"))
+        all_accounts.triggered.connect(lambda: self.change_account(_("All accounts")))
+
+        main_account = accounts_menu.addAction(_("Main account"))
+        main_account.triggered.connect(lambda: self.change_account(_("Main account")))
+
+        imported_account = accounts_menu.addAction(_("Imported keys"))
+        imported_account.triggered.connect(lambda: self.change_account(_("Imported keys")))
 
         raw_transaction_menu = electrum_menu.addMenu(_("&Load raw transaction"))
+
         raw_transaction_file = raw_transaction_menu.addAction(_("&From file"))
+        raw_transaction_file.triggered.connect(self.do_process_from_file)
+
         raw_transaction_text = raw_transaction_menu.addAction(_("&From text"))
+        raw_transaction_text.triggered.connect(self.do_process_from_text)
 
         electrum_menu.addSeparator()
         quit_item = electrum_menu.addAction(_("&Close"))
+        quit_item.triggered.connect(self.close)
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
         wallet_backup = wallet_menu.addAction(_("&Create backup"))
-        show_seed = wallet_menu.addAction(_("&Show seed"))
-        chnage_password = wallet_menu.addAction(_("&Password"))
+        wallet_backup.triggered.connect(self.backup_wallet)
+
+        show_menu = wallet_menu.addMenu(_("Show"))
+
+        if self.wallet.seed:
+            show_seed = show_menu.addAction(_("&Seed"))
+            show_seed.triggered.connect(self.show_seed_dialog)
+
+        show_mpk = show_menu.addAction(_("&Master Public Key"))
+        show_mpk.triggered.connect(self.show_master_public_key)
+
         wallet_menu.addSeparator()
         new_contact = wallet_menu.addAction(_("&New contact"))
+        new_contact.triggered.connect(self.new_contact_dialog)
 
         import_menu = menubar.addMenu(_("&Import"))
         in_labels = import_menu.addAction(_("&Labels"))
-        in_private_keys = import_menu.addAction(_("&Private key"))
+        in_labels.triggered.connect(self.do_import_labels)
+
+        in_private_keys = import_menu.addAction(_("&Private keys"))
+        in_private_keys.triggered.connect(self.do_import_privkey)
 
         export_menu = menubar.addMenu(_("&Export"))
         ex_private_keys = export_menu.addAction(_("&Private keys"))
+        ex_private_keys.triggered.connect(self.do_export_privkeys)
+
         ex_history = export_menu.addAction(_("&History"))
+        ex_history.triggered.connect(self.do_export_history)
+
         ex_labels = export_menu.addAction(_("&Labels"))
+        ex_labels.triggered.connect(self.do_export_labels)
 
         help_menu = menubar.addMenu(_("&Help"))
-        help_menu.addAction(_("&About")) 
-        help_menu.addAction(_("&Documentation")) # http://electrum.org/documentation.html
-        help_menu.addAction(_("&Official website")) 
+        doc_open = help_menu.addAction(_("&Documentation"))
+        doc_open.triggered.connect(lambda: webbrowser.open("http://electrum.org/documentation.html"))
+        web_open = help_menu.addAction(_("&Official website")) 
+        web_open.triggered.connect(lambda: webbrowser.open("http://electrum.org"))
 
         self.setMenuBar(menubar)
 
