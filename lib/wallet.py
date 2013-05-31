@@ -674,7 +674,6 @@ class Wallet:
 
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
-
         if not self.check_new_tx(tx_hash, tx):
             # may happen due to pruning
             print_error("received transaction that is no longer referenced in history", tx_hash)
@@ -682,6 +681,10 @@ class Wallet:
 
         with self.transaction_lock:
             self.transactions[tx_hash] = tx
+
+            self.interface.pending_transactions.append(tx)
+            self.interface.trigger_callback("new_transaction")
+
             self.save_transactions()
             if self.verifier and tx_height>0: 
                 self.verifier.add(tx_hash, tx_height)
@@ -693,7 +696,6 @@ class Wallet:
         for k,v in self.transactions.items():
             tx[k] = str(v)
         self.config.set_key('transactions', tx, True)
-
 
     def receive_history_callback(self, addr, hist):
 

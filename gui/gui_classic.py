@@ -244,6 +244,11 @@ class ElectrumWindow(QMainWindow):
         self.config = config
         self.current_account = self.config.get("current_account", None)
 
+        self.icon = QIcon(os.getcwd() + '/icons/electrum.png')
+        self.notifier = QSystemTrayIcon(self.icon, self)
+        self.notifier.setToolTip('Electrum')
+        self.notifier.show()
+
         self.init_plugins()
         self.create_status_bar()
 
@@ -252,6 +257,7 @@ class ElectrumWindow(QMainWindow):
         self.wallet.interface.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')))
         self.wallet.interface.register_callback('disconnected', lambda: self.emit(QtCore.SIGNAL('update_status')))
         self.wallet.interface.register_callback('disconnecting', lambda: self.emit(QtCore.SIGNAL('update_status')))
+        self.wallet.interface.register_callback('new_transaction', self.notify_transactions)
 
         self.expert_mode = config.get('classic_expert_mode', False)
         self.decimal_point = config.get('decimal_point', 8)
@@ -288,6 +294,7 @@ class ElectrumWindow(QMainWindow):
         
         self.connect(self, QtCore.SIGNAL('update_status'), self.update_status)
         self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.wallet.interface.banner) )
+
         self.history_list.setFocus(True)
         
         self.exchanger = exchange_rate.Exchanger(self)
@@ -390,8 +397,6 @@ class ElectrumWindow(QMainWindow):
 
         self.setMenuBar(menubar)
 
-
-
     def load_wallet(self, filename):
         import electrum
 
@@ -415,7 +420,15 @@ class ElectrumWindow(QMainWindow):
 
         self.update_wallet()
 
-        
+    def notify_transactions(self):
+        for tx in self.wallet.interface.pending_transactions:
+            if tx:
+                self.wallet.interface.pending_transactions.remove(tx)
+                is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
+                self.notify("New transaction received. %s BTC" % (self.format_amount(v)))
+
+    def notify(self, message):
+        self.notifier.showMessage("Electrum", message, QSystemTrayIcon.Information, 20000)
 
     # plugins
     def init_plugins(self):
