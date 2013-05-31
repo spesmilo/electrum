@@ -257,7 +257,7 @@ class ElectrumWindow(QMainWindow):
         self.wallet.interface.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')))
         self.wallet.interface.register_callback('disconnected', lambda: self.emit(QtCore.SIGNAL('update_status')))
         self.wallet.interface.register_callback('disconnecting', lambda: self.emit(QtCore.SIGNAL('update_status')))
-        self.wallet.interface.register_callback('new_transaction', self.notify_transactions)
+        self.wallet.interface.register_callback('new_transaction', lambda: self.emit(QtCore.SIGNAL('transaction_signal')))
 
         self.expert_mode = config.get('classic_expert_mode', False)
         self.decimal_point = config.get('decimal_point', 8)
@@ -294,7 +294,7 @@ class ElectrumWindow(QMainWindow):
         
         self.connect(self, QtCore.SIGNAL('update_status'), self.update_status)
         self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.wallet.interface.banner) )
-
+        self.connect(self, QtCore.SIGNAL('transaction_signal'), lambda: self.notify_transactions() )
         self.history_list.setFocus(True)
         
         self.exchanger = exchange_rate.Exchanger(self)
@@ -425,7 +425,8 @@ class ElectrumWindow(QMainWindow):
             if tx:
                 self.wallet.interface.pending_transactions.remove(tx)
                 is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
-                self.notify("New transaction received. %s BTC" % (self.format_amount(v)))
+                if(v > 0):
+                    self.notify("New transaction received. %s BTC" % (self.format_amount(v)))
 
     def notify(self, message):
         self.notifier.showMessage("Electrum", message, QSystemTrayIcon.Information, 20000)
