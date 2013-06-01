@@ -312,7 +312,9 @@ class ElectrumWindow(QMainWindow):
 
 
     def select_wallet_file(self):
-        file_name = self.getOpenFileName(self, "Select your wallet file", os.path.expanduser('~/'), "*.dat")
+        wallet_folder = self.wallet.config.path
+        re.sub("(\/\w*.dat)$", "", wallet_folder)
+        file_name = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder, "*.dat")
         if not file_name:
             return
         else:
