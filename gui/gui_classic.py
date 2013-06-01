@@ -1088,7 +1088,6 @@ class ElectrumWindow(QMainWindow):
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.contacts_list = l
         self.contacts_buttons_hbox = hbox
-        hbox.addWidget(EnterButton(_("New"), self.new_contact_dialog))
         hbox.addStretch(1)
         return w
 
@@ -2069,43 +2068,6 @@ class ElectrumWindow(QMainWindow):
                                              + _(' This settings affects the fields in the Send tab')+' '), 3, 3)
         grid_wallet.setRowStretch(4,1)
 
-
-        # import/export tab
-        tab3 = QWidget()
-        grid_io = QGridLayout(tab3)
-        grid_io.setColumnStretch(0,1)
-        tabs.addTab(tab3, _('Import/Export') )
-        
-        grid_io.addWidget(QLabel(_('Labels')), 1, 0)
-        grid_io.addWidget(EnterButton(_("Export"), self.do_export_labels), 1, 1)
-        grid_io.addWidget(EnterButton(_("Import"), self.do_import_labels), 1, 2)
-        grid_io.addWidget(HelpButton(_('Export your labels as json')), 1, 3)
-
-        grid_io.addWidget(QLabel(_('History')), 2, 0)
-        grid_io.addWidget(EnterButton(_("Export"), self.do_export_history), 2, 1)
-        grid_io.addWidget(HelpButton(_('Export your transaction history as csv')), 2, 3)
-
-        grid_io.addWidget(QLabel(_('Private keys')), 3, 0)
-
-        grid_io.addWidget(EnterButton(_("Export"), self.do_export_privkeys), 3, 1)
-        grid_io.addWidget(EnterButton(_("Import"), self.do_import_privkey), 3, 2)
-        grid_io.addWidget(HelpButton(_('Import private key')), 3, 3)
-
-        grid_io.addWidget(QLabel(_('Master Public Key')), 4, 0)
-        grid_io.addWidget(EnterButton(_("Show"), self.show_master_public_key), 4, 1)
-        grid_io.addWidget(HelpButton(_('Your Master Public Key can be used to create receiving addresses, but not to sign transactions.') + ' ' \
-                              + _('If you give it to someone, they will be able to see your transactions, but not to spend your money.') + ' ' \
-                              + _('If you restore your wallet from it, a watching-only (deseeded) wallet will be created.')), 4, 3)
-
-
-        grid_io.addWidget(QLabel(_("Load transaction")), 5, 0)
-        grid_io.addWidget(EnterButton(_("From file"), self.do_process_from_file), 5, 1)
-        grid_io.addWidget(EnterButton(_("From text"), self.do_process_from_text), 5, 2)
-        grid_io.addWidget(HelpButton(_("This will give you the option to sign or broadcast a transaction based on it's status.")), 5, 3)
-
-        grid_io.setRowStretch(6,1)
-
-
         # plugins
         if self.plugins:
             tab5 = QScrollArea()
@@ -2118,7 +2080,6 @@ class ElectrumWindow(QMainWindow):
             w = QWidget()
             w.setLayout(grid_plugins)
             tab5.setWidget(w)
-            tab5.setMaximumSize(tab3.size())  # optional
 
             w.setMinimumHeight(len(self.plugins)*35)
 
