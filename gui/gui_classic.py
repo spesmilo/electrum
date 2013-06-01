@@ -345,16 +345,6 @@ class ElectrumWindow(QMainWindow):
         preferences_menu.triggered.connect(self.settings_dialog)
         electrum_menu.addSeparator()
 
-        accounts_menu = electrum_menu.addMenu(_("&Accounts"))
-        all_accounts = accounts_menu.addAction(_("All accounts"))
-        all_accounts.triggered.connect(lambda: self.change_account(_("All accounts")))
-
-        main_account = accounts_menu.addAction(_("Main account"))
-        main_account.triggered.connect(lambda: self.change_account(_("Main account")))
-
-        imported_account = accounts_menu.addAction(_("Imported keys"))
-        imported_account.triggered.connect(lambda: self.change_account(_("Imported keys")))
-
         raw_transaction_menu = electrum_menu.addMenu(_("&Load raw transaction"))
 
         raw_transaction_file = raw_transaction_menu.addAction(_("&From file"))
