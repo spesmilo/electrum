@@ -1,3 +1,10 @@
+# Release 1.8
+
+* Menubar in classic gui
+* Updated the QR Code plugin to enable offline/online wallets to transmit unsigned/signed transactions via QR code.
+* Fixed bug where never-confirmed transactions prevented further spending
+
+
 # Release 1.7.4
 
 * Increase default fee
