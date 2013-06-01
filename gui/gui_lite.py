@@ -35,6 +35,8 @@ from electrum.util import format_satoshis, age
 import gui_classic
 import shutil
 
+from qt_util import *
+
 bitcoin = lambda v: v * 100000000
 
 def IconButton(filename, parent=None):
@@ -367,8 +369,8 @@ class MiniWindow(QDialog):
         view_menu = menubar.addMenu(_("&View"))
         extra_menu = menubar.addMenu(_("&Extra"))
 
-        backup_wallet = extra_menu.addAction( _("&Create wallet backup"))
-        backup_wallet.triggered.connect(self.backup_wallet)
+        backup_wallet_menu = extra_menu.addAction( _("&Create wallet backup"))
+        backup_wallet_menu.triggered.connect(backup_wallet)
 
         export_csv = extra_menu.addAction( _("&Export transactions to CSV") )
         export_csv.triggered.connect(lambda: csv_transaction(self.actuator.wallet))
@@ -624,19 +626,6 @@ class MiniWindow(QDialog):
         else:
             self.main_layout.setRowMinimumHeight(3,0)
             self.history_list.hide()
-
-    def backup_wallet(self):
-        try:
-          folderName = QFileDialog.getExistingDirectory(QWidget(), _('Select folder to save a copy of your wallet to'), os.path.expanduser('~/'))
-          if folderName:
-            sourceFile = util.user_dir() + '/electrum.dat'
-            shutil.copy2(sourceFile, str(folderName))
-            QMessageBox.information(None,"Wallet backup created", _("A copy of your wallet file was created in")+" '%s'" % str(folderName))
-        except (IOError, os.error), reason:
-          QMessageBox.critical(None,"Unable to create backup", _("Electrum was unable to copy your wallet file to the specified location.")+"\n" + str(reason))
-
-
-
 
 class BalanceLabel(QLabel):
 

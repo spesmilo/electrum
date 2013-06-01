@@ -320,17 +320,6 @@ class ElectrumWindow(QMainWindow):
         else:
           self.load_wallet(file_name)
 
-    # TODO: I rather import this from the lite gui, is that possible?
-    def backup_wallet(self):
-        try:
-          folderName = QFileDialog.getExistingDirectory(QWidget(), _('Select folder to save a copy of your wallet to'), os.path.expanduser('~/'))
-          if folderName:
-            # TODO: Can we get the current wallet file instead of bruteforcing the default one?
-            sourceFile = self.wallet.config.path
-            shutil.copy2(sourceFile, str(folderName))
-            QMessageBox.information(None,"Wallet backup created", _("A copy of your wallet file was created in")+" '%s'" % str(folderName))
-        except (IOError, os.error), reason:
-          QMessageBox.critical(None,"Unable to create backup", _("Electrum was unable to copy your wallet file to the specified location.")+"\n" + str(reason))
 
     def init_menubar(self):
         menubar = QMenuBar()
@@ -361,7 +350,7 @@ class ElectrumWindow(QMainWindow):
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
         wallet_backup = wallet_menu.addAction(_("&Create backup"))
-        wallet_backup.triggered.connect(self.backup_wallet)
+        wallet_backup.triggered.connect(backup_wallet)
 
         show_menu = wallet_menu.addMenu(_("Show"))
 
