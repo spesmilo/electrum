@@ -324,7 +324,7 @@ class ElectrumWindow(QMainWindow):
           folderName = QFileDialog.getExistingDirectory(QWidget(), _('Select folder to save a copy of your wallet to'), os.path.expanduser('~/'))
           if folderName:
             # TODO: Can we get the current wallet file instead of bruteforcing the default one?
-            sourceFile = util.user_dir() + '/electrum.dat'
+            sourceFile = self.wallet.config.path
             shutil.copy2(sourceFile, str(folderName))
             QMessageBox.information(None,"Wallet backup created", _("A copy of your wallet file was created in")+" '%s'" % str(folderName))
         except (IOError, os.error), reason:
