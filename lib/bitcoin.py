@@ -521,7 +521,7 @@ class BIP32Sequence:
 
     def get_pubkey(self, sequence, mpk = None):
         if not mpk: mpk = self.mpk
-        master_public_key, master_chain = self.mpk
+        master_public_key, master_chain = mpk
         K = master_public_key.decode('hex')
         chain = master_chain.decode('hex')
         for i in sequence:
