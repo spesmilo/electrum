@@ -460,7 +460,7 @@ def pay_to(recipient, amount, fee, label):
         return
 
     if label: 
-        self.wallet.labels[tx.hash()] = label
+        wallet.labels[tx.hash()] = label
 
     droid.dialogDismiss()
 
@@ -968,7 +968,7 @@ class ElectrumGui:
         return True
 
     def verify_seed(self):
-        self.wallet.save_seed()
+        wallet.save_seed()
         return True
         
     def show_seed(self):
