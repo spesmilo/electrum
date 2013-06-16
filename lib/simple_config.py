@@ -10,7 +10,7 @@ class SimpleConfig:
     """
 The SimpleConfig class is responsible for handling operations involving
 configuration files.  The constructor reads and stores the system and 
-user configurations from electrum.conf into seperate dictionaries within
+user configurations from electrum.conf into separate dictionaries within
 a SimpleConfig instance then reads the wallet file.
 """
     def __init__(self, options={}):
