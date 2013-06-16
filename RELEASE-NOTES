@@ -1,3 +1,24 @@
+# Release 1.8
+
+* Menubar in classic gui
+* Updated the QR Code plugin to enable offline/online wallets to transmit unsigned/signed transactions via QR code.
+* Fixed bug where never-confirmed transactions prevented further spending
+
+
+# Release 1.7.4
+
+* Increase default fee
+* fix create and restore in command line
+* fix verify message in the gui
+
+
+# Release 1.7.3:
+
+* Classic GUI can display amounts in mBTC
+* Account selector in the classic GUI
+* Changed the way the portable flag uses without supplying a -w argument
+* Classic GUI asks users to enter their seed on wallet creation
+
 
 # Release 1.7.2:  
 

@@ -64,7 +64,7 @@ def prompt_password(prompt, confirm=True):
     return password
 
 def arg_parser():
-    usage = "usage: %prog [options] command\nCommands: "+ (', '.join(known_commands))
+    usage = "%prog [options] command" 
     parser = optparse.OptionParser(prog=usage)
     parser.add_option("-g", "--gui", dest="gui", help="User interface: qt, lite, gtk or text")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
@@ -88,6 +88,8 @@ if __name__ == '__main__':
 
     parser = arg_parser()
     options, args = parser.parse_args()
+    if options.portable and options.wallet_path is None:
+        options.wallet_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum.dat')
     set_verbosity(options.verbose)
 
     # config is an object passed to the various constructors (wallet, interface, gui)
@@ -126,8 +128,6 @@ if __name__ == '__main__':
         
         interface = Interface(config, True)
         wallet.interface = interface
-        interface.start(wait = False)
-        interface.send([('server.peers.subscribe',[])])
 
         gui = gui.ElectrumGui(wallet, config)
 
@@ -135,11 +135,15 @@ if __name__ == '__main__':
         if not found:
             a = gui.restore_or_create()
             if not a: exit()
-            # select a server.
-            s = gui.network_dialog()
 
             if a =='create':
                 wallet.init_seed(None)
+                gui.show_seed()
+                if gui.verify_seed():
+                    wallet.save_seed()
+                else:
+                    exit()
+
             else:
                 # ask for seed and gap.
                 sg = gui.seed_dialog()
@@ -152,14 +156,17 @@ if __name__ == '__main__':
                     wallet.init_sequence(str(seed))
                 else:
                     wallet.init_seed(str(seed))
+                    wallet.save_seed()
             
+            # select a server.
+            s = gui.network_dialog()
+            
+        interface.start(wait = False)
+        interface.send([('server.peers.subscribe',[])])
 
-            # generate the first addresses, in case we are offline
-            if s is None or a == 'create':
-                wallet.synchronize()
-            if a == 'create':
-                # display seed
-                gui.show_seed()
+        # generate the first addresses, in case we are offline
+        if not found and ( s is None or a == 'create'):
+            wallet.synchronize()
 
         verifier = WalletVerifier(interface, config)
         verifier.start()
@@ -181,9 +188,9 @@ if __name__ == '__main__':
         if not found:
             gui.password_dialog()
 
-        wallet.save()
+        #wallet.save()
         gui.main(url)
-        wallet.save()
+        #wallet.save()
 
         verifier.stop()
         synchronizer.stop()
@@ -212,7 +219,7 @@ if __name__ == '__main__':
         w_host, w_port, w_protocol = server.split(':')
         host = raw_input("server (default:%s):"%w_host)
         port = raw_input("port (default:%s):"%w_port)
-        protocol = raw_input("protocol [t=tcp;h=http;n=native] (default:%s):"%w_protocol)
+        protocol = raw_input("protocol [t=tcp;h=http] (default:%s):"%w_protocol)
         fee = raw_input("fee (default:%s):"%( str(Decimal(wallet.fee)/100000000)) )
         gap = raw_input("gap limit (default 5):")
         if host: w_host = host
@@ -237,11 +244,12 @@ if __name__ == '__main__':
                 wallet.init_sequence(str(seed))
             else:
                 wallet.init_seed( str(seed) )
+                wallet.save_seed()
 
+            interface = Interface(config)
             if not options.offline:
-                interface = Interface(config)
                 if not interface.start(wait=True):
-                    print_msg("Not connected, aborting.")
+                    print_msg("Not connected, aborting. Try option -o if you want to restore offline.")
                     sys.exit(1)
                 wallet.interface = interface
                 verifier = WalletVerifier(interface, config)
@@ -256,14 +264,15 @@ if __name__ == '__main__':
                 else:
                     print_msg("Warning: Found no history for this wallet")
             else:
+                interface.start(wait=False)
                 wallet.synchronize()
             wallet.fill_addressbook()
-            wallet.save()
+            #wallet.save()
             print_msg("Wallet saved in '%s'"%wallet.config.path)
         else:
             wallet.init_seed(None)
+            wallet.save_seed()
             wallet.synchronize() # there is no wallet thread 
-            wallet.save()
             print_msg("Your wallet generation seed is: " + wallet.seed)
             print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
             print_msg("Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:")
@@ -323,7 +332,8 @@ if __name__ == '__main__':
         args = [cmd, options.show_all, options.show_balance, options.show_labels]
 
     elif cmd in ['payto', 'mktx']:
-        args = [ 'mktx', args[1], Decimal(args[2]), Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, options.from_addr ]
+        domain = [options.from_addr] if options.from_addr else None
+        args = [ 'mktx', args[1], Decimal(args[2]), Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, domain ]
 
     elif cmd == 'help':
         if len(args) < 2:
@@ -370,7 +380,7 @@ if __name__ == '__main__':
         synchronizer = WalletSynchronizer(wallet, config)
         synchronizer.start()
         wallet.update()
-        wallet.save()
+        #wallet.save()
 
 
     # run the command
@@ -384,17 +394,14 @@ if __name__ == '__main__':
             if raw_input("Are you sure you want to continue? (y/n) ") in ['y','Y','yes']:
                 wallet.config.path = ns
                 wallet.seed = ''
+                wallet.config.set_key('seed', '', True)
                 wallet.use_encryption = False
-                wallet.config.set_key('seed','', True)
+                wallet.config.set_key('use_encryption', wallet.use_encryption, True)
                 for k in wallet.imported_keys.keys(): wallet.imported_keys[k] = ''
-                wallet.save()
+                wallet.config.set_key('imported_keys',wallet.imported_keys, True)
                 print_msg("Done.")
             else:
                 print_msg("Action canceled.")
-
-    elif cmd == 'eval':
-        print_msg(eval(args[1]))
-        wallet.save()
 
     elif cmd == 'getconfig':
         key = args[1]

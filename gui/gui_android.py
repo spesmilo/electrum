@@ -22,6 +22,7 @@
 import android
 
 from electrum import SimpleConfig, Interface, WalletSynchronizer, Wallet, format_satoshis, mnemonic_encode, mnemonic_decode, is_valid
+from electrum import util
 from decimal import Decimal
 import datetime, re
 
@@ -459,7 +460,7 @@ def pay_to(recipient, amount, fee, label):
         return
 
     if label: 
-        self.wallet.labels[tx.hash()] = label
+        wallet.labels[tx.hash()] = label
 
     droid.dialogDismiss()
 
@@ -483,15 +484,14 @@ def make_new_contact():
         data = r['extras']['SCAN_RESULT']
         if data:
             if re.match('^bitcoin:', data):
-                address, _, _, _, _, _, _ = wallet.parse_url(data, None, lambda x: modal_question('Question',x))
+                address, _, _, _, _, _, _ = util.parse_url(data)
             elif is_valid(data):
                 address = data
             else:
                 address = None
             if address:
                 if modal_question('Add to contacts?', address):
-                    wallet.addressbook.append(address)
-                    wallet.save()
+                    wallet.add_contact(address)
         else:
             modal_dialog('Invalid address', data)
 
@@ -615,7 +615,7 @@ def payto_loop():
                     data = r['extras']['SCAN_RESULT']
                     if data:
                         if re.match('^bitcoin:', data):
-                            payto, amount, label, _, _, _, _ = wallet.parse_url(data, None, lambda x: modal_question('Question', x))
+                            payto, amount, label, _, _, _, _ = util.parse_url(data)
                             droid.fullSetProperty("recipient", "text",payto)
                             droid.fullSetProperty("amount", "text", amount)
                             droid.fullSetProperty("label", "text", label)
@@ -687,9 +687,9 @@ def contacts_loop():
     return out
 
 
-def server_dialog(plist):
+def server_dialog(servers):
     droid.dialogCreateAlert("Public servers")
-    droid.dialogSetItems( plist.keys() )
+    droid.dialogSetItems( servers.keys() )
     droid.dialogSetPositiveButtonText('Private server')
     droid.dialogShow()
     response = droid.dialogGetResponse().result
@@ -701,7 +701,7 @@ def server_dialog(plist):
 
     i = response.get('item')
     if i is not None:
-        response = plist.keys()[i]
+        response = servers.keys()[i]
         return response
 
 
@@ -773,7 +773,7 @@ def settings_loop():
         if event == 'OK': continue
         if not event: continue
 
-        plist, servers_list = interface.get_servers_list()
+        servers = interface.get_servers()
         name = event.get("name")
         if not name: continue
 
@@ -782,9 +782,9 @@ def settings_loop():
             host, port, protocol = interface.server.split(':')
 
             if pos == "0": #server
-                host = server_dialog(plist)
+                host = server_dialog(servers)
                 if host:
-                    p = plist[host]
+                    p = servers[host]
                     port = p['t']
                     srv = host + ':' + port + ':t'
                     wallet.config.set_key("server", srv, True)
@@ -795,8 +795,8 @@ def settings_loop():
                     set_listview()
 
             elif pos == "1": #protocol
-                if host in plist:
-                    srv = protocol_dialog(host, protocol, plist[host])
+                if host in servers:
+                    srv = protocol_dialog(host, protocol, servers[host])
                     if srv:
                         wallet.config.set_key("server", srv, True)
                         try:
@@ -824,11 +824,9 @@ def settings_loop():
                         fee = int( 100000000 * Decimal(fee) )
                     except:
                         modal_dialog('error','invalid fee value')
-                    if wallet.fee != fee:
-                        wallet.fee = fee
-                        wallet.save()
-                        set_listview()
-        
+                    wallet.set_fee(fee)
+                    set_listview()
+
             elif pos == "4":
                 if change_password_dialog():
                     set_listview()
@@ -969,6 +967,9 @@ class ElectrumGui:
     def network_dialog(self):
         return True
 
+    def verify_seed(self):
+        wallet.save_seed()
+        return True
         
     def show_seed(self):
         modal_dialog('Your seed is:', wallet.seed)

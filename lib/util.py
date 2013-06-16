@@ -79,14 +79,14 @@ def local_data_dir():
     return local_data
 
 
-def format_satoshis(x, is_diff=False, num_zeros = 0):
+def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8):
     from decimal import Decimal
     s = Decimal(x)
     sign, digits, exp = s.as_tuple()
     digits = map(str, digits)
-    while len(digits) < 9:
+    while len(digits) < decimal_point + 1:
         digits.insert(0,'0')
-    digits.insert(-8,'.')
+    digits.insert(-decimal_point,'.')
     s = ''.join(digits).rstrip('0')
     if sign: 
         s = '-' + s
@@ -95,8 +95,8 @@ def format_satoshis(x, is_diff=False, num_zeros = 0):
 
     p = s.find('.')
     s += "0"*( 1 + num_zeros - ( len(s) - p ))
-    s += " "*( 9 - ( len(s) - p ))
-    s = " "*( 5 - ( p )) + s
+    s += " "*( 1 + decimal_point - ( len(s) - p ))
+    s = " "*( 13 - decimal_point - ( p )) + s 
     return s
 
 

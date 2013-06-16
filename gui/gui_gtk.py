@@ -249,9 +249,7 @@ def run_settings_dialog(wallet, parent):
     except:
         show_message("error")
         return
-    if wallet.fee != fee:
-        wallet.fee = fee
-        wallet.save()
+    wallet.set_fee(fee)
 
     try:
         nz = int( nz )
@@ -282,7 +280,7 @@ def run_network_dialog( wallet, parent ):
         status = "Please choose a server.\nSelect cancel if you are offline."
 
     server = interface.server
-    plist, servers_list = interface.get_servers_list()
+    servers = interface.get_servers()
 
     dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                                     gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, status)
@@ -331,7 +329,7 @@ def run_network_dialog( wallet, parent ):
 
     def set_protocol(protocol):
         host = current_line()[0]
-        pp = plist[host]
+        pp = servers[host]
         if protocol not in pp.keys():
             protocol = pp.keys()[0]
             set_button(protocol)
@@ -342,7 +340,7 @@ def run_network_dialog( wallet, parent ):
     radio2.connect("toggled", lambda x,y:set_protocol('h'), "radio button 1")
         
     server_list = gtk.ListStore(str)
-    for host in plist.keys():
+    for host in servers.keys():
         server_list.append([host])
     
     treeview = gtk.TreeView(model=server_list)
@@ -372,7 +370,7 @@ def run_network_dialog( wallet, parent ):
         path, view_column = treeview.get_cursor()
         host = server_list.get_value( server_list.get_iter(path), 0)
 
-        pp = plist[host]
+        pp = servers[host]
         if 't' in pp.keys():
             protocol = 't'
         else:
@@ -1167,12 +1165,15 @@ class ElectrumWindow:
 
         for item in self.wallet.get_tx_history():
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
-            if conf:
+            if conf > 0:
                 try:
                     time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
                 except:
                     time_str = "------"
                 conf_icon = gtk.STOCK_APPLY
+            elif conf == -1:
+                time_str = 'unverified'
+                conf_icon = None
             else:
                 time_str = 'pending'
                 conf_icon = gtk.STOCK_EXECUTE
@@ -1191,7 +1192,7 @@ class ElectrumWindow:
         import datetime
         if not tx_hash: return ''
         tx = self.wallet.transactions.get(tx_hash)
-        is_mine, v, fee = self.wallet.get_tx_value(tx)
+        is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
         conf, timestamp = self.wallet.verifier.get_confirmations(tx_hash)
 
         if timestamp:
@@ -1259,9 +1260,7 @@ class ElectrumWindow:
 
         if result == 1:
             if is_valid(address):
-                self.wallet.addressbook.append(address)
-                if label:  self.wallet.labels[address] = label
-                self.wallet.save()
+                self.wallet.add_contact(address,label)
                 self.update_sending_tab()
             else:
                 errorDialog = gtk.MessageDialog(
@@ -1291,6 +1290,10 @@ class ElectrumGui():
 
     def seed_dialog(self):
         return run_recovery_dialog( self.wallet )
+
+    def verify_seed(self):
+        self.wallet.save_seed()
+        return True
 
     def network_dialog(self):
         return run_network_dialog( self.wallet, parent=None )

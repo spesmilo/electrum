@@ -37,21 +37,22 @@ def register_command(name, min_args, max_args, is_protected, is_offline, descrip
 
 payto_options = ' --fee, -f: set transaction fee\n --fromaddr, -s: send from address -\n --changeaddr, -c: send change to address'
 listaddr_options = " -a: show all addresses, including change addresses\n -b: include balance in results\n -l: include labels in results"
-
+restore_options = " accepts a seed or master public key."
+config_options = " accounts, addr_history, auto_cycle, column_widths, console-history, contacts,\n fee_per_kb, frozen_addresses, gap_limit, imported_keys, labels,\n master_public_key, num_zeros, prioritized_addresses, proxy, seed,\n seed_version, server, transactions, use_change, use_encryption, winpos-qt"
 
 register_command('contacts',             0, 0, False, True,  'Show your list of contacts')
 register_command('create',               0, 0, False, True,  'Create a new wallet')
 register_command('createmultisig',       2, 2, False, True,  'similar to bitcoind\'s command')
 register_command('createrawtransaction', 2, 2, False, True,  'similar to bitcoind\'s command')
-register_command('deseed',               0, 0, False, True,  'Create a seedless, watching-only wallet.')
+register_command('deseed',               0, 0, False, True,  'Remove seed from wallet, creating a seedless, watching-only wallet.')
 register_command('decoderawtransaction', 1, 1, False, True,  'similar to bitcoind\'s command')
-register_command('dumpprivkey',          1, 1, True,  True,  'similar to bitcoind\'s command')
+register_command('dumpprivkey',          1, 1, True,  True,  'Dumps a specified private key for a given address', 'dumpprivkey <bitcoin address>')
 register_command('dumpprivkeys',         0, 0, True,  True,  'dump all private keys')
-register_command('eval',                 1, 1, False, True,  'Run python eval() on an object', 'eval <expression>\nExample: eval \"wallet.aliases\"')
-register_command('freeze',               1, 1, False, True,  'Freeze the funds at one of your wallet\'s addresses')
-register_command('getbalance',           0, 1, False, False, 'Display the balance of your wallet or of an address', 'getbalance [<address>]')
-register_command('getaddresshistory',    1, 1, False, False, 'get history for an address')
-register_command('getconfig',            1, 1, False, True,  'Return a configuration variable', 'getconfig <name>')
+register_command('freeze',               1, 1, False, True,  'Freeze the funds at one of your wallet\'s addresses', 'freeze <address>')
+register_command('getbalance',           0, 1, False, False, 'Return the balance of your wallet, or of one account in your wallet', 'getbalance [<account>]')
+register_command('getaddressbalance',    1, 1, False, False, 'Return the balance of an address', 'getbalance <address>')
+register_command('getaddresshistory',    1, 1, False, False, 'Return the transaction history of an address', 'getaddresshistory <address>')
+register_command('getconfig',            1, 1, False, True,  'Return a configuration variable', 'getconfig <name>', config_options)
 register_command('getseed',              0, 0, True,  True,  'Print the generation seed of your wallet.')
 register_command('help',                 0, 1, False, True,  'Prints this help')
 register_command('history',              0, 0, False, False, 'Returns the transaction history of your wallet')
@@ -62,15 +63,15 @@ register_command('mktx',                 5, 5, True,  True,  'Create a signed tr
 register_command('payto',                5, 5, True,  False, 'Create and broadcast a transaction.', "payto <recipient> <amount> [label]\n<recipient> can be a bitcoin address or a label", payto_options)
 register_command('password',             0, 0, True,  True,  'Change your password')
 register_command('prioritize',           1, 1, False, True,  'Coins at prioritized addresses are spent first.', 'prioritize <address>')
-register_command('restore',              0, 0, False, False, 'Restore a wallet')
-register_command('setconfig',            2, 2, False, True,  'Set a configuration variable', 'setconfig <name> <value>')
+register_command('restore',              0, 0, False, False, 'Restore a wallet', '', restore_options)
+register_command('setconfig',            2, 2, False, True,  'Set a configuration variable', 'setconfig <name> <value>', config_options)
 register_command('setlabel',             2,-1, False, True,  'Assign a label to an item', 'setlabel <tx_hash> <label>')
 register_command('sendrawtransaction',   1, 1, False, False, 'Broadcasts a transaction to the network.', 'sendrawtransaction <tx in hexadecimal>')
 register_command('signrawtransaction',   1, 3, True,  True,  'similar to bitcoind\'s command')
 register_command('signmessage',          2,-1, True,  True,  'Sign a message with a key', 'signmessage <address> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "')
-register_command('unfreeze',             1, 1, False, True,  '')
-register_command('unprioritize',         1, 1, False, True,  '')
-register_command('validateaddress',      1, 1, False, True,  'Check that the address is valid')
+register_command('unfreeze',             1, 1, False, True,  'Unfreeze the funds at one of your wallet\'s address', 'unfreeze <address>')
+register_command('unprioritize',         1, 1, False, True,  'Unprioritize an address', 'unprioritize <address>')
+register_command('validateaddress',      1, 1, False, True,  'Check that the address is valid', 'validateaddress <address>')
 register_command('verifymessage',        3,-1, False, True,  'Verifies a signature', 'verifymessage <address> <signature> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "')
     
 
@@ -164,17 +165,18 @@ class Commands:
             
         return out
 
-        
-    def getbalance(self, addresses = []):
-        if addresses == []:
+    def getbalance(self, account= None):
+        if account is None:
             c, u = self.wallet.get_balance()
         else:
-            c = u = 0
-            for addr in addresses:
-                cc, uu = self.wallet.get_addr_balance(addr)
-                c += cc
-                u += uu
+            c, u = self.wallet.get_account_balance(account)
 
+        out = { "confirmed": str(Decimal(c)/100000000) }
+        if u: out["unconfirmed"] = str(Decimal(u)/100000000)
+        return out
+
+    def getaddressbalance(self, addr):
+        c, u = self.wallet.get_addr_balance(addr)
         out = { "confirmed": str(Decimal(c)/100000000) }
         if u: out["unconfirmed"] = str(Decimal(u)/100000000)
         return out
@@ -200,15 +202,10 @@ class Commands:
 
 
     def verifymessage(self, address, signature, message):
-        try:
-            EC_KEY.verify_message(address, signature, message)
-            return True
-        except BaseException as e:
-            print_error("Verification error: {0}".format(e))
-            return False
+        return self.wallet.verify_message(address, signature, message)
 
 
-    def _mktx(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
+    def _mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):
 
         if not is_valid(to_address):
             raise BaseException("Invalid Bitcoin address", to_address)
@@ -217,12 +214,13 @@ class Commands:
             if not is_valid(change_addr):
                 raise BaseException("Invalid Bitcoin address", change_addr)
 
-        if from_addr:
-            if not is_valid(from_addr):
-                raise BaseException("invalid Bitcoin address", from_addr)
+        if domain is not None:
+            for addr in domain:
+                if not is_valid(addr):
+                    raise BaseException("invalid Bitcoin address", addr)
             
-            if not self.wallet.is_mine(from_addr):
-                raise BaseException("address not in wallet")
+                if not self.wallet.is_mine(addr):
+                    raise BaseException("address not in wallet", addr)
 
         for k, v in self.wallet.labels.items():
             if v == to_address:
@@ -234,16 +232,16 @@ class Commands:
 
         amount = int(100000000*amount)
         if fee: fee = int(100000000*fee)
-        return self.wallet.mktx( [(to_address, amount)], self.password, fee , change_addr, from_addr)
+        return self.wallet.mktx( [(to_address, amount)], self.password, fee , change_addr, domain)
 
 
-    def mktx(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
-        tx = self._mktx(to_address, amount, fee, change_addr, from_addr)
+    def mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):
+        tx = self._mktx(to_address, amount, fee, change_addr, domain)
         return tx.as_dict()
 
 
-    def payto(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
-        tx = self._mktx(to_address, amount, fee, change_addr, from_addr)
+    def payto(self, to_address, amount, fee = None, change_addr = None, domain = None):
+        tx = self._mktx(to_address, amount, fee, change_addr, domain)
         r, h = self.wallet.sendtx( tx )
         return h
 
@@ -299,7 +297,7 @@ class Commands:
                          
     def help(self, cmd2=None):
         if cmd2 not in known_commands:
-            print_msg("List of commands:", ', '.join(known_commands))
+            print_msg("\nList of commands:", ', '.join(sorted(known_commands)))
         else:
             _, _, description, syntax, options_syntax = known_commands[cmd2]
             print_msg(description)

@@ -10,7 +10,6 @@ class QRCodeWidget(QWidget):
 
     def __init__(self, data = None):
         QWidget.__init__(self)
-        self.setMinimumSize(210, 210)
         self.addr = None
         self.qr = None
         if data:
@@ -19,13 +18,18 @@ class QRCodeWidget(QWidget):
 
     def set_addr(self, addr):
         if self.addr != addr:
+            if len(addr) < 128:
+                MinSize = 210
+            else:
+                MinSize = 500
+            self.setMinimumSize(MinSize, MinSize)
             self.addr = addr
             self.qr = None
             self.update()
 
     def update_qr(self):
         if self.addr and not self.qr:
-            for size in [4,5,6]:
+            for size in range(len(pyqrnative.QRUtil.PATTERN_POSITION_TABLE)): # [4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32]:
                 try:
                     self.qr = pyqrnative.QRCode(size, pyqrnative.QRErrorCorrectLevel.L)
                     self.qr.addData(self.addr)
@@ -61,6 +65,11 @@ class QRCodeWidget(QWidget):
         size = k*boxsize
         left = (r.width() - size)/2
         top = (r.height() - size)/2         
+
+        # Make a white margin around the QR in case of dark theme use:
+        margin = 10
+        qp.setBrush(white)
+        qp.drawRect(left-margin, top-margin, size+(margin*2), size+(margin*2))
 
         for r in range(k):
             for c in range(k):

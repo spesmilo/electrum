@@ -25,30 +25,41 @@ from util import print_error, print_msg
 
 
 DEFAULT_TIMEOUT = 5
-DEFAULT_SERVERS = [ 
-    #'electrum.bitcoins.sk:50001:t',
-    #'uncle-enzo.info:50001:t',
-    #'electrum.bitfoo.org:50001:t',
-    #'webbtc.net:50001:t',
-    'electrum.bitcoin.cz:50001:t',
-    'electrum.novit.ro:50001:t', 
-    'electrum.be:50001:t',
-    'electrum.bysh.me:50001:t',
-    'electrum.pdmc.net:50001:t',
-    'electrum.no-ip.org:50001:t',
-    'ecdsa.org:50001:t'
-    ]
+DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
-# add only port 80 servers here
-DEFAULT_HTTP_SERVERS = [
-    'electrum.no-ip.org:80:h'
-]
+DEFAULT_SERVERS = {
+    'the9ull.homelinux.org': {'h': '8082', 't': '50001'},
+    'electrum.coinwallet.me': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.dynaloop.net': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.koh.ms': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.novit.ro': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.stepkrav.pw': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'ecdsa.org': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.mooo.com': {'h': '8081', 't': '50001'},
+    'electrum.bitcoins.sk': {'h': '8081', 's': '50002', 't': '50001', 'g': '8'},
+    'electrum.no-ip.org': {'h': '80', 's': '50002', 't': '50001', 'g': '443'},
+    'electrum.drollette.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'btc.it-zone.org': {'h': '80', 's': '110', 't': '50001', 'g': '443'},
+    'electrum.yacoin.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.be': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'}
+}
+
+
+
+def filter_protocol(servers, p):
+    l = []
+    for k, protocols in servers.items():
+        if p in protocols:
+            l.append( ':'.join([k, protocols[p], p]) )
+    return l
+    
+
 
 proxy_modes = ['socks4', 'socks5', 'http']
 
 
 def pick_random_server():
-    return random.choice( DEFAULT_SERVERS )
+    return random.choice( filter_protocol(DEFAULT_SERVERS,'s') )
 
 
 
@@ -114,25 +125,32 @@ class Interface(threading.Thread):
             elif method == 'server.peers.subscribe':
                 servers = {}
                 for item in result:
-                    s = []
+
                     host = item[1]
-                    ports = []
+                    out = {}
+
                     version = None
-                    pruning = False
+                    pruning_level = '-'
                     if len(item) > 2:
                         for v in item[2]:
-                            if re.match("[stgh]\d+", v):
-                                ports.append((v[0], v[1:]))
+                            if re.match("[stgh]\d*", v):
+                                protocol, port = v[0], v[1:]
+                                if port == '': port = DEFAULT_PORTS[protocol]
+                                out[protocol] = port
                             elif re.match("v(.?)+", v):
                                 version = v[1:]
-                            elif v == 'p':
-                                pruning = True
+                            elif re.match("p\d*", v):
+                                pruning_level = v[1:]
+                                if pruning_level == '': pruning_level = '0'
                     try: 
                         is_recent = float(version)>=float(PROTOCOL_VERSION)
                     except:
                         is_recent = False
-                    if ports and is_recent:
-                        servers[host] = {'ports':ports, 'pruning':pruning}
+
+                    if out and is_recent:
+                        out['pruning'] = pruning_level
+                        servers[host] = out 
+
                 self.servers = servers
                 self.trigger_callback('peers')
 
@@ -183,15 +201,20 @@ class Interface(threading.Thread):
     def init_http(self, host, port, proxy=None, use_ssl=True):
         self.init_server(host, port, proxy, use_ssl)
         self.session_id = None
+        self.is_connected = True
         self.connection_msg = ('https' if self.use_ssl else 'http') + '://%s:%d'%( self.host, self.port )
         try:
             self.poll()
         except:
+            print_error("http init session failed")
+            self.is_connected = False
             return
 
         if self.session_id:
             print_error('http session:',self.session_id)
             self.is_connected = True
+        else:
+            self.is_connected = False
 
     def run_http(self):
         self.is_connected = True
@@ -217,6 +240,7 @@ class Interface(threading.Thread):
 
     def send_http(self, messages, channel='default'):
         import urllib2, json, time, cookielib
+        print_error( "send_http", messages )
         
         if self.proxy:
             import socks
@@ -295,26 +319,28 @@ class Interface(threading.Thread):
             s.setproxy(proxy_modes.index(self.proxy["mode"]) + 1, self.proxy["host"], int(self.proxy["port"]) )
 
         if self.use_ssl:
-            s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23)
+            s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23, do_handshake_on_connect=True)
             
         s.settimeout(2)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
         try:
             s.connect(( self.host.encode('ascii'), int(self.port)))
-            s.settimeout(60)
-            self.s = s
-            self.is_connected = True
         except:
+            traceback.print_exc(file=sys.stdout)
             self.is_connected = False
             self.s = None
+            return
 
+        s.settimeout(60)
+        self.s = s
+        self.is_connected = True
 
     def run_tcp(self):
         try:
+            #if self.use_ssl: self.s.do_handshake()
             out = ''
             while self.is_connected:
-
                 try: 
                     timeout = False
                     msg = self.s.recv(1024)
@@ -322,6 +348,14 @@ class Interface(threading.Thread):
                     timeout = True
                 except ssl.SSLError:
                     timeout = True
+                except socket.error, err:
+                    if err.errno in [11, 10035]:
+                        print_error("socket errno", err.errno)
+                        time.sleep(0.1)
+                        continue
+                    else:
+                        traceback.print_exc(file=sys.stdout)
+                        raise
 
                 if timeout:
                     # ping the server with server.version, as a real ping does not exist yet
@@ -373,7 +407,7 @@ class Interface(threading.Thread):
 
 
     def __init__(self, config=None, loop=False):
-        self.server = None
+        self.server = random.choice(filter_protocol(DEFAULT_SERVERS, 's'))
         self.proxy = None
 
         if config is None:
@@ -409,16 +443,10 @@ class Interface(threading.Thread):
 
         if not self.is_connected and self.config.get('auto_cycle'):
             print_msg("Using random server...")
-            servers_tcp = DEFAULT_SERVERS[:]
-            servers_http = DEFAULT_HTTP_SERVERS[:] 
-            while servers_tcp or servers_http:
-                if servers_tcp:
-                    server = random.choice( servers_tcp )
-                    servers_tcp.remove(server)
-                else:
-                    # try HTTP if we can't get a TCP connection
-                    server = random.choice( servers_http )
-                    servers_http.remove(server)
+            servers = filter_protocol(DEFAULT_SERVERS, 's')
+            while servers:
+                server = random.choice( servers )
+                servers.remove(server)
                 print server
                 self.config.set_key('server', server, False)
                 self.init_with_server(self.config)
@@ -537,25 +565,11 @@ class Interface(threading.Thread):
             self.s.close()
 
 
-    def get_servers_list(self):
-        plist = {}
+    def get_servers(self):
         if not self.servers:
-            servers_list = {}
-            for x in DEFAULT_SERVERS:
-                h,port,protocol = x.split(':')
-                servers_list[h] = {'ports':[(protocol,port)]}
+            return DEFAULT_SERVERS
         else:
-            servers_list = self.servers
-        
-        for _host, v in servers_list.items():
-            pp = v['ports']
-            z = {}
-            for item2 in pp:
-                _protocol, _port = item2
-                z[_protocol] = _port
-            plist[_host] = z
-                
-        return plist, servers_list
+            return self.servers
 
 
     def is_empty(self, channel):

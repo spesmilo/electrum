@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
-from electrum import Interface, DEFAULT_SERVERS
+from electrum import interface, Interface, DEFAULT_SERVERS
 import time, Queue
 
-servers = DEFAULT_SERVERS
+servers = interface.filter_protocol(DEFAULT_SERVERS,'s')
 interfaces = map ( lambda server: Interface({'server':server} ), servers )
 for i in interfaces: i.start()
 

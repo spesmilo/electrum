@@ -47,7 +47,9 @@ class ElectrumGui:
     def restore_or_create(self):
         pass
 
-
+    def verify_seed(self):
+        pass
+    
     def get_string(self, y, x):
         curses.curs_set(1)
         curses.echo()

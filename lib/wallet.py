@@ -74,7 +74,7 @@ class Wallet:
         self.seed_version          = config.get('seed_version', SEED_VERSION)
         self.gap_limit             = config.get('gap_limit', 5)
         self.use_change            = config.get('use_change',True)
-        self.fee                   = int(config.get('fee_per_kb',20000))
+        self.fee                   = int(config.get('fee_per_kb',50000))
         self.num_zeros             = int(config.get('num_zeros',0))
         self.use_encryption        = config.get('use_encryption', False)
         self.seed                  = config.get('seed', '')               # encrypted
@@ -119,8 +119,12 @@ class Wallet:
         if self.seed_version != SEED_VERSION:
             raise ValueError("This wallet seed is deprecated. Please run upgrade.py for a diagnostic.")
 
-        for tx_hash in self.transactions.keys():
-            self.update_tx_outputs(tx_hash)
+        for tx_hash, tx in self.transactions.items():
+            if self.check_new_tx(tx_hash, tx):
+                self.update_tx_outputs(tx_hash)
+            else:
+                print_error("unreferenced tx", tx_hash)
+                self.transactions.pop(tx_hash)
 
 
     def set_up_to_date(self,b):
@@ -137,21 +141,32 @@ class Wallet:
     def import_key(self, sec, password):
         # check password
         seed = self.decode_seed(password)
-        address = address_from_private_key(sec)
+        try:
+            address = address_from_private_key(sec)
+        except:
+            raise BaseException('Invalid private key')
 
         if self.is_mine(address):
             raise BaseException('Address already in wallet')
         
         # store the originally requested keypair into the imported keys table
         self.imported_keys[address] = pw_encode(sec, password )
+        self.config.set_key('imported_keys', self.imported_keys, True)
         return address
         
+    def delete_imported_key(self, addr):
+        if addr in self.imported_keys:
+            self.imported_keys.pop(addr)
+            self.config.set_key('imported_keys', self.imported_keys, True)
+
 
     def init_seed(self, seed):
         if self.seed: raise BaseException("a seed exists")
         if not seed: 
             seed = random_seed(128)
-        self.seed = seed 
+        self.seed = seed
+
+    def save_seed(self):
         self.config.set_key('seed', self.seed, True)
         self.config.set_key('seed_version', self.seed_version, True)
         mpk = self.SequenceClass.mpk_from_seed(self.seed)
@@ -165,11 +180,10 @@ class Wallet:
         self.config.set_key('accounts', self.accounts, True)
 
 
-    def addresses(self, include_change = False):
-        o = self.imported_keys.keys()
-        for a in self.accounts.values():
-            o += a[0]
-            if include_change: o += a[1]
+    def addresses(self, include_change = True):
+        o = self.get_account_addresses(-1, include_change)
+        for a in self.accounts.keys():
+            o += self.get_account_addresses(a, include_change)
         return o
 
 
@@ -187,7 +201,7 @@ class Wallet:
 
     def get_address_index(self, address):
         if address in self.imported_keys.keys():
-            raise BaseException("imported key")
+            return -1, None
         for account in self.accounts.keys():
             for for_change in [0,1]:
                 addresses = self.accounts[account][for_change]
@@ -290,6 +304,13 @@ class Wallet:
         compressed = is_compressed(sec)
         return key.sign_message(message, compressed, address)
 
+    def verify_message(self, address, signature, message):
+        try:
+            EC_KEY.verify_message(address, signature, message)
+            return True
+        except BaseException as e:
+            print_error("Verification error: {0}".format(e))
+            return False
 
     def create_new_address(self, account, for_change):
         addresses = self.accounts[account][for_change]
@@ -309,7 +330,7 @@ class Wallet:
     def change_gap_limit(self, value):
         if value >= self.gap_limit:
             self.gap_limit = value
-            self.save()
+            self.config.set_key('gap_limit', self.gap_limit, True)
             self.interface.poke('synchronizer')
             return True
 
@@ -322,7 +343,8 @@ class Wallet:
                 self.accounts[key][0] = addresses
 
             self.gap_limit = value
-            self.save()
+            self.config.set_key('gap_limit', self.gap_limit, True)
+            self.config.set_key('accounts', self.accounts, True)
             return True
         else:
             return False
@@ -391,6 +413,9 @@ class Wallet:
         new = []
         for account in self.accounts.keys():
             new += self.synchronize_account(account)
+        if new:
+            self.config.set_key('accounts', self.accounts, True)
+            self.config.set_key('addr_history', self.history, True)
         return new
 
 
@@ -398,9 +423,22 @@ class Wallet:
         return self.history.values() != [[]] * len(self.history) 
 
 
+    def add_contact(self, address, label=None):
+        self.addressbook.append(address)
+        self.config.set_key('addressbook', self.addressbook, True)
+        if label:  
+            self.labels[address] = label
+            self.config.set_key('labels', self.labels)
+
+    def delete_contact(self, addr):
+        if addr in self.addressbook:
+            self.addressbook.remove(addr)
+            self.config.set_key('addressbook', self.addressbook, True)
+
+
     def fill_addressbook(self):
         for tx_hash, tx in self.transactions.items():
-            is_send, _, _ = self.get_tx_value(tx)
+            is_relevant, is_send, _, _ = self.get_tx_value(tx)
             if is_send:
                 for addr, v in tx.outputs:
                     if not self.is_mine(addr) and addr not in self.addressbook:
@@ -421,10 +459,9 @@ class Wallet:
         return flags
         
 
-    def get_tx_value(self, tx, addresses=None):
-        if addresses is None: addresses = self.addresses(True)
-        return tx.get_value(addresses, self.prevout_values)
-
+    def get_tx_value(self, tx, account=None):
+        domain = self.get_account_addresses(account)
+        return tx.get_value(domain, self.prevout_values)
 
     
     def update_tx_outputs(self, tx_hash):
@@ -480,9 +517,25 @@ class Wallet:
                 u += v
         return c, u
 
-    def get_account_addresses(self, a):
-        ac = self.accounts[a]
-        return ac[0] + ac[1]
+
+    def get_accounts(self):
+        accounts = {}
+        for k, account in self.accounts.items():
+            accounts[k] = account.get('name')
+        if self.imported_keys:
+            accounts[-1] = 'Imported keys'
+        return accounts
+
+    def get_account_addresses(self, a, include_change=True):
+        if a is None:
+            o = self.addresses(True)
+        elif a == -1:
+            o = self.imported_keys.keys()
+        else:
+            ac = self.accounts[a]
+            o = ac[0][:]
+            if include_change: o += ac[1]
+        return o
 
     def get_imported_balance(self):
         cc = uu = 0
@@ -493,6 +546,11 @@ class Wallet:
         return cc, uu
 
     def get_account_balance(self, account):
+        if account is None:
+            return self.get_balance()
+        elif account == -1:
+            return self.get_imported_balance()
+        
         conf = unconf = 0
         for addr in self.get_account_addresses(account): 
             c, u = self.get_addr_balance(addr)
@@ -500,6 +558,15 @@ class Wallet:
             unconf += u
         return conf, unconf
 
+    def get_frozen_balance(self):
+        conf = unconf = 0
+        for addr in self.frozen_addresses:
+            c, u = self.get_addr_balance(addr)
+            conf += c
+            unconf += u
+        return conf, unconf
+
+        
     def get_balance(self):
         cc = uu = 0
         for a in self.accounts.keys():
@@ -531,14 +598,13 @@ class Wallet:
 
 
 
-    def choose_tx_inputs( self, amount, fixed_fee, from_addr = None ):
+    def choose_tx_inputs( self, amount, fixed_fee, account = None ):
         """ todo: minimize tx size """
         total = 0
         fee = self.fee if fixed_fee is None else fixed_fee
-
+        domain = self.get_account_addresses(account)
         coins = []
         prioritized_coins = []
-        domain = [from_addr] if from_addr else self.addresses(True)
         for i in self.frozen_addresses:
             if i in domain: domain.remove(i)
 
@@ -555,14 +621,8 @@ class Wallet:
             addr = item.get('address')
             v = item.get('value')
             total += v
-
             inputs.append( item )
-            if fixed_fee is None:
-                estimated_size =  len(inputs) * 180 + 80     # this assumes non-compressed keys
-                fee = self.fee * int(round(estimated_size/1024.))
-                if fee == 0: fee = self.fee
-            else:
-                fee = fixed_fee
+            fee = self.estimated_fee(inputs) if fixed_fee is None else fixed_fee
             if total >= amount + fee: break
         else:
             inputs = []
@@ -570,14 +630,28 @@ class Wallet:
         return inputs, total, fee
 
 
+    def estimated_fee(self, inputs):
+        estimated_size =  len(inputs) * 180 + 80     # this assumes non-compressed keys
+        fee = self.fee * int(round(estimated_size/1024.))
+        if fee == 0: fee = self.fee
+        return fee
 
-    def add_tx_change( self, outputs, amount, fee, total, change_addr=None ):
+
+    def add_tx_change( self, inputs, outputs, amount, fee, total, change_addr=None, account=0 ):
+        "add change to a transaction"
         change_amount = total - ( amount + fee )
         if change_amount != 0:
-            # normally, the update thread should ensure that the last change address is unused
             if not change_addr:
-                change_addresses = self.accounts[0][1]
-                change_addr = change_addresses[-self.gap_limit_for_change]
+                if account is None: 
+                    # send change to one of the accounts involved in the tx
+                    address = inputs[0].get('address')
+                    account, _ = self.get_address_index(address)
+
+                if not self.use_change or account == -1:
+                    change_addr = inputs[-1]['address']
+                else:
+                    change_addr = self.accounts[account][1][-self.gap_limit_for_change]
+
             # Insert the change output at a random position in the outputs
             posn = random.randint(0, len(outputs))
             outputs[posn:posn] = [( change_addr,  change_amount)]
@@ -588,6 +662,7 @@ class Wallet:
         with self.lock:
             return self.history.get(address)
 
+
     def get_status(self, h):
         if not h: return None
         if h == ['*']: return '*'
@@ -597,9 +672,7 @@ class Wallet:
         return hashlib.sha256( status ).digest().encode('hex')
 
 
-
     def receive_tx_callback(self, tx_hash, tx, tx_height):
-
 
         if not self.check_new_tx(tx_hash, tx):
             # may happen due to pruning
@@ -608,11 +681,17 @@ class Wallet:
 
         with self.transaction_lock:
             self.transactions[tx_hash] = tx
+            self.save_transactions()
             if self.verifier and tx_height>0: 
                 self.verifier.add(tx_hash, tx_height)
             self.update_tx_outputs(tx_hash)
 
-        self.save()
+
+    def save_transactions(self):
+        tx = {}
+        for k,v in self.transactions.items():
+            tx[k] = str(v)
+        self.config.set_key('transactions', tx, True)
 
 
     def receive_history_callback(self, addr, hist):
@@ -622,7 +701,7 @@ class Wallet:
             
         with self.lock:
             self.history[addr] = hist
-            self.save()
+            self.config.set_key('addr_history', self.history, True)
 
         if hist != ['*']:
             for tx_hash, tx_height in hist:
@@ -631,29 +710,31 @@ class Wallet:
                     if self.verifier: self.verifier.add(tx_hash, tx_height)
 
 
-    def get_tx_history(self):
+    def get_tx_history(self, account=None):
         with self.transaction_lock:
             history = self.transactions.items()
-            history.sort(key = lambda x: self.verifier.verified_tx.get(x[0]) if self.verifier.verified_tx.get(x[0]) else (1e12,0,0))
+            history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
             result = []
     
             balance = 0
             for tx_hash, tx in history:
-                is_mine, v, fee = self.get_tx_value(tx)
+                is_relevant, is_mine, v, fee = self.get_tx_value(tx, account)
                 if v is not None: balance += v
-            c, u = self.get_balance()
+
+            c, u = self.get_account_balance(account)
 
             if balance != c+u:
-                #v_str = format_satoshis( c+u - balance, True, self.num_zeros)
                 result.append( ('', 1000, 0, c+u-balance, None, c+u-balance, None ) )
 
             balance = c + u - balance
             for tx_hash, tx in history:
-                conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
-                is_mine, value, fee = self.get_tx_value(tx)
+                is_relevant, is_mine, value, fee = self.get_tx_value(tx, account)
+                if not is_relevant:
+                    continue
                 if value is not None:
                     balance += value
 
+                conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
                 result.append( (tx_hash, conf, is_mine, value, fee, balance, timestamp) )
 
         return result
@@ -670,7 +751,7 @@ class Wallet:
         tx = self.transactions.get(tx_hash)
         default_label = ''
         if tx:
-            is_mine, _, _ = self.get_tx_value(tx)
+            is_relevant, is_mine, _, _ = self.get_tx_value(tx)
             if is_mine:
                 for o in tx.outputs:
                     o_addr, _ = o
@@ -705,20 +786,25 @@ class Wallet:
         return default_label
 
 
-    def mktx(self, outputs, password, fee=None, change_addr=None, from_addr= None):
-
+    def mktx(self, outputs, password, fee=None, change_addr=None, account=None ):
+        """
+        create a transaction
+        account parameter:
+           None means use all accounts
+           -1 means imported keys
+           0, 1, etc are seed accounts
+        """
+        
         for address, x in outputs:
             assert is_valid(address)
 
         amount = sum( map(lambda x:x[1], outputs) )
-        inputs, total, fee = self.choose_tx_inputs( amount, fee, from_addr )
+
+        inputs, total, fee = self.choose_tx_inputs( amount, fee, account )
         if not inputs:
             raise ValueError("Not enough funds")
 
-        if not self.use_change and not change_addr:
-            change_addr = inputs[-1]['address']
-            print_error( "Sending change to", change_addr )
-        outputs = self.add_tx_change(outputs, amount, fee, total, change_addr)
+        outputs = self.add_tx_change(inputs, outputs, amount, fee, total, change_addr, account)
 
         tx = Transaction.from_io(inputs, outputs)
 
@@ -726,7 +812,7 @@ class Wallet:
         for i in range(len(tx.inputs)):
             txin = tx.inputs[i]
             address = txin['address']
-            if address in self.imported_keys.keys(): 
+            if address in self.imported_keys.keys():
                 pk_addresses.append(address)
                 continue
             account, sequence = self.get_address_index(address)
@@ -770,16 +856,17 @@ class Wallet:
 
     def update_password(self, seed, old_password, new_password):
         if new_password == '': new_password = None
-        self.use_encryption = (new_password != None)
+        # this will throw an exception if unicode cannot be converted
         self.seed = pw_encode( seed, new_password)
         self.config.set_key('seed', self.seed, True)
+        self.use_encryption = (new_password != None)
+        self.config.set_key('use_encryption', self.use_encryption,True)
         for k in self.imported_keys.keys():
             a = self.imported_keys[k]
             b = pw_decode(a, old_password)
             c = pw_encode(b, new_password)
             self.imported_keys[k] = c
-        self.save()
-
+        self.config.set_key('imported_keys', self.imported_keys, True)
 
 
     def freeze(self,addr):
@@ -816,20 +903,25 @@ class Wallet:
         else:
             return False
 
+    def set_fee(self, fee):
+        if self.fee != fee:
+            self.fee = fee
+            self.config.set_key('fee_per_kb', self.fee, True)
+        
+
     def save(self):
+        print_error("Warning: wallet.save() is deprecated")
         tx = {}
         for k,v in self.transactions.items():
             tx[k] = str(v)
             
         s = {
-            'use_encryption': self.use_encryption,
             'use_change': self.use_change,
             'fee_per_kb': self.fee,
             'accounts': self.accounts,
             'addr_history': self.history, 
             'labels': self.labels,
             'contacts': self.addressbook,
-            'imported_keys': self.imported_keys,
             'num_zeros': self.num_zeros,
             'frozen_addresses': self.frozen_addresses,
             'prioritized_addresses': self.prioritized_addresses,
@@ -949,6 +1041,7 @@ class WalletSynchronizer(threading.Thread):
         threading.Thread.__init__(self)
         self.daemon = True
         self.wallet = wallet
+        wallet.synchronizer = self
         self.interface = self.wallet.interface
         self.interface.register_channel('synchronizer')
         self.wallet.interface.register_callback('connected', lambda: self.wallet.set_up_to_date(False))
@@ -1085,7 +1178,7 @@ class WalletSynchronizer(threading.Thread):
                 self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
                 self.was_updated = True
                 requested_tx.remove( (tx_hash, tx_height) )
-                print_error("received tx:", tx)
+                print_error("received tx:", tx_hash, len(tx.raw))
 
             elif method == 'blockchain.transaction.broadcast':
                 self.wallet.tx_result = result

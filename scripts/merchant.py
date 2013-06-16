@@ -113,7 +113,7 @@ def process_request(i, amount, confirmations, expires_in, password):
     if password!=my_password:
         print "wrong password ", password
         return 
-    addr = wallet.get_new_address(i, 0)
+    addr = wallet.get_new_address(0, i, 0)
     out_queue.put( ('request', (i, addr, amount, confirmations, expires_in) ))
     return addr
 
