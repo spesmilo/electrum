@@ -6,8 +6,7 @@ class Plugin(BasePlugin):
 
 
     def __init__(self, gui):
-        BasePlugin.__init__(self, gui, 'virtualkeyboard', 'Virtual Keyboard',
-                            _("Add an optional, mouse keyboard to the password dialog.\nWarning: do not use this if it makes you pick a weaker password."))
+        BasePlugin.__init__(self, gui, 'virtualkeyboard', 'Virtual Keyboard', '%s\n%s' % (_("Add an optional, mouse keyboard to the password dialog."), _("Warning: do not use this if it makes you pick a weaker password.")))
         self.vkb = None
         self.vkb_index = 0
 
