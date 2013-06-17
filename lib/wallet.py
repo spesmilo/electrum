@@ -82,6 +82,7 @@ class Wallet:
         self.frozen_addresses      = config.get('frozen_addresses',[])
         self.prioritized_addresses = config.get('prioritized_addresses',[])
         self.addressbook           = config.get('contacts', [])
+
         self.imported_keys         = config.get('imported_keys',{})
         self.history               = config.get('addr_history',{})        # address -> list(txid, height)
         self.accounts              = config.get('accounts', {})   # this should not include public keys
@@ -425,7 +426,7 @@ class Wallet:
 
     def add_contact(self, address, label=None):
         self.addressbook.append(address)
-        self.config.set_key('addressbook', self.addressbook, True)
+        self.config.set_key('contacts', self.addressbook, True)
         if label:  
             self.labels[address] = label
             self.config.set_key('labels', self.labels)
