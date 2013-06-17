@@ -438,7 +438,7 @@ class MiniWindow(QDialog):
         show_history.setChecked(show_hist)
         self.show_history(show_hist)
         
-        self.setWindowIcon(QIcon(":electrum.png"))
+        self.setWindowIcon(QIcon(":icons/electrum.png"))
         self.setWindowTitle("Electrum")
         self.setWindowFlags(Qt.Window|Qt.MSWindowsFixedSizeDialogHint)
         self.layout().setSizeConstraint(QLayout.SetFixedSize)

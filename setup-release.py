@@ -31,6 +31,7 @@ if sys.platform == 'darwin':
                                  includes = ['PyQt4.QtCore','PyQt4.QtGui', 'sip'],
                                  packages = ['lib', 'gui', 'plugins'],
                                  iconfile='electrum.icns',
+                                 plist=dict(CFBundleIconFile='electrum.icns'),
                                  resources=["data", "icons"])),
     )
 elif sys.platform == 'win32':
