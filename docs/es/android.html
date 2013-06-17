@@ -1,0 +1,60 @@
+<html>
+<meta charset=utf-8 />
+<body>
+<div style="width:35em;margin-left:5em;">
+<h2>Electrum para Android</h2>
+
+Esta página explica como instalar Electrum en dispositivos Android.<br/><br/> 
+
+Nótese que Electrum no se distribuye como un paquete binario, pero
+como el código fuente de python; esto da a los usuarios la posibilidad
+de ver lo que el código está haciendo, que no contiene código malicioso.
+La desventaja es que la instalación es un poco más complicada que descargar
+una aplicación de la tienda Android, pero sigue siendo muy simple. <br/><br/>
+
+Es posible imprimir esta página en papel e instalar todo desde los códigos QR
+Si encuentras problemas, puedes encontrar ayuda en
+<a href="http://maketecheasier.com/install-applications-without-the-market/2011/01/28">
+este enlace</a>.
+
+
+<h3>1. Descarga e instala Google Scripting Layer para Android</h3>
+
+Puedes conseguirlo
+<a href="http://code.google.com/p/android-scripting/wiki/Unofficial">aquí</a>,
+o escaneando el siguiente código QR: <br/>
+<img src="http://chart.apis.google.com/chart?cht=qr&chs=150x150&chld=L&choe=UTF-8&chl=http%3A%2F%2Fwww.mithril.com.au%2Fandroid%2Fsl4a_r5x.apk"
+/>
+
+
+<h3>2. Descarga e instala Python para Android</h3>
+
+Puedes conseguirlo
+<a href="http://code.google.com/p/python-for-android/downloads/detail?name=PythonForAndroid_r5.apk">aquí</a>,
+o escaneando el siguiente código QR: <br/>
+<img src="http://chart.apis.google.com/chart?cht=qr&chs=200x200&chld=L&choe=UTF-8&chl=http%3A%2F%2Fpython-for-android.googlecode.com%2Ffiles%2FPythonForAndroid_r5.apk"/>
+<br/>
+Una vez hayas instalado la apk, inicia la aplicación Python para Android y haz click en 'install'
+
+<h3>3. Descarga el script de instalación de Electrum</h3>
+
+Descarga <a href="e4a_install.py">e4a_install.py</a> e instálalo en la carpeta sl4a/scripts.
+Puedes hacerlo manualmente, o desde el código QR, de esta forma:
+<pre>
+1. Inicia SL4A.
+2. Presiona el botón Menú.
+3. Presiona Add.
+4. Presiona Scan Barcode.
+5. Escanea el siguiente código QR:
+</pre>
+<img src="http://chart.apis.google.com/chart?cht=qr&chs=300x300&chld=L&choe=UTF-8&chl=e4a_install.py%0Aimport+urllib%2C+zipfile%2C+os%0Ap%3D%22http%3A%2F%2Fecdsa.org%2Felectrum%2Fe4a%22%0An%3D%22Electrum-0.43d%22%0Anz%3Dn%2B%22.zip%22%0Aurllib.urlretrieve(p%2Cnz)%0Azipfile.ZipFile(nz).extractall()%0Aos.rename(n%2C'scripts%2F'%2Bn)"
+/>
+<pre>Esto instalará el script llamado e4a_install.py</pre>
+
+<h3>4. Descarga e instala Electrum</h3>
+<pre>
+1. Presiona e4a_install.py: se descargará e instalará una carpeta llamda "Electrum-0.43d"
+2. Para iniciar Electrum, entra en la carpeta "Electrum-0.43d" y presiona 'electrum4a.py'
+</pre>
+</body>
+</html>
