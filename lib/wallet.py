@@ -682,8 +682,7 @@ class Wallet:
         with self.transaction_lock:
             self.transactions[tx_hash] = tx
 
-            self.interface.pending_transactions.append(tx)
-            self.interface.trigger_callback("new_transaction")
+            self.interface.pending_transactions_for_notifications.append(tx)
 
             self.save_transactions()
             if self.verifier and tx_height>0: 
@@ -1192,6 +1191,7 @@ class WalletSynchronizer(threading.Thread):
 
             if self.was_updated and not requested_tx:
                 self.interface.trigger_callback('updated')
+                self.interface.trigger_callback("new_transaction") # Updated gets called too many times from other places as well; if we use that signal we get the notification three times
+                
+
                 self.was_updated = False
-
-

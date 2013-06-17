@@ -314,6 +314,9 @@ class ElectrumWindow(QMainWindow):
         # set initial message
         self.console.showMessage(self.wallet.interface.banner)
 
+        # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
+        self.notify_transactions()
+
         # plugins that need to change the GUI do it here
         self.run_hook('init_gui')
 
@@ -421,12 +424,27 @@ class ElectrumWindow(QMainWindow):
         self.update_wallet()
 
     def notify_transactions(self):
-        for tx in self.wallet.interface.pending_transactions:
-            if tx:
-                self.wallet.interface.pending_transactions.remove(tx)
-                is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
-                if(v > 0):
-                    self.notify("New transaction received. %s BTC" % (self.format_amount(v)))
+        print_error("Notifying GUI")
+        if len(self.wallet.interface.pending_transactions_for_notifications) > 0:
+            # Combine the transactions if there are more then three
+            tx_amount = len(self.wallet.interface.pending_transactions_for_notifications)
+            if(tx_amount >= 3):
+                total_amount = 0
+                for tx in self.wallet.interface.pending_transactions_for_notifications:
+                    is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
+                    if(v > 0):
+                        total_amount += v
+
+                self.notify("%s new transactions received. Total amount received in the new transactions %s BTC" % (tx_amount, self.format_amount(total_amount)))
+
+                self.wallet.interface.pending_transactions_for_notifications = []
+            else:
+              for tx in self.wallet.interface.pending_transactions_for_notifications:
+                  if tx:
+                      self.wallet.interface.pending_transactions_for_notifications.remove(tx)
+                      is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
+                      if(v > 0):
+                          self.notify("New transaction received. %s BTC" % (self.format_amount(v)))
 
     def notify(self, message):
         self.notifier.showMessage("Electrum", message, QSystemTrayIcon.Information, 20000)

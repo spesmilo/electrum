@@ -90,7 +90,7 @@ class Interface(threading.Thread):
         self.unanswered_requests = {}
         #banner
         self.banner = ''
-        self.pending_transactions = []
+        self.pending_transactions_for_notifications= []
 
 
     def queue_json_response(self, c):
