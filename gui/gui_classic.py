@@ -463,6 +463,7 @@ class ElectrumWindow(QMainWindow):
         if text:
             if old_text != text:
                 self.wallet.labels[name] = text
+                self.wallet.config.set_key('labels', self.wallet.labels)
                 changed = True
         else:
             if old_text:
@@ -1243,7 +1244,6 @@ class ElectrumWindow(QMainWindow):
 
 
     def update_contacts_tab(self):
-
         l = self.contacts_list
         l.clear()
 
