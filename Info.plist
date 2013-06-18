@@ -13,5 +13,10 @@
       </array>
     </dict>
   </array>
+  <key>LSArchitecturePriority</key>
+  <array>
+    <string>i386</string>
+    <string>x86_64</string>
+  </array>
 </dict>
 </plist>
