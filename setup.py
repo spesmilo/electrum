@@ -23,6 +23,7 @@ if (len(sys.argv) > 1 and (sys.argv[1] == "sdist")) or (platform.system() != 'Wi
     for lang in os.listdir('locale'):
         if os.path.exists('locale/%s/LC_MESSAGES/electrum.mo'%lang):
             data_files.append(  ('/usr/share/locale/%s/LC_MESSAGES'%lang, ['locale/%s/LC_MESSAGES/electrum.mo'%lang]) )
+    data_files = [data for data in data_files if os.access(data[0], os.W_OK)]
 
 data_files += [
     (util.appdata_dir(), ["data/README"]),
