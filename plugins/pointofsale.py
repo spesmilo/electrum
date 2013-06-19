@@ -177,15 +177,15 @@ class Plugin(BasePlugin):
         text = str( item.text(column) )
         try:
             seq = self.gui.wallet.get_address_index(address)
-            index = seq[-1]
+            index = seq[1][1]
         except:
             print "cannot get index"
             return
 
         text = text.strip().upper()
         print text
-        m = re.match('^(\d+(|\.\d*))\s*(|BTC|EUR|USD|GBP|CNY|JPY|RUB|BRL)$', text)
-        if m:
+        m = re.match('^(\d*(|\.\d*))\s*(|BTC|EUR|USD|GBP|CNY|JPY|RUB|BRL)$', text)
+        if m and m.group(1) and m.group(1)!='.':
             amount = m.group(1)
             currency = m.group(3)
             if not currency:
@@ -199,7 +199,7 @@ class Plugin(BasePlugin):
             label = self.gui.wallet.labels.get(address)
             if label is None:
                 label = self.merchant_name + ' - %04d'%(index+1)
-                self.wallet.labels[address] = label
+                self.gui.wallet.labels[address] = label
 
             if self.qr_window:
                 self.qr_window.set_content( address, label, amount, currency )
