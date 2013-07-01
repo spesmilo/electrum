@@ -4,6 +4,7 @@ import sys
 try:
     from PyQt4.QtCore import *
     from PyQt4.QtGui import *
+    from PyQt4.Qt import Qt
     import PyQt4.QtCore as QtCore
 
 except ImportError:
@@ -482,9 +483,13 @@ class MiniWindow(QDialog):
         self.quote_currencies.insert(0, currency)
         self.refresh_balance()
 
-    def change_quote_currency(self):
-        self.quote_currencies = \
-            self.quote_currencies[1:] + self.quote_currencies[0:1]
+    def change_quote_currency(self, forward=True):
+        if forward:
+            self.quote_currencies = \
+                self.quote_currencies[1:] + self.quote_currencies[0:1]
+        else:
+            self.quote_currencies = \
+                self.quote_currencies[-1:] + self.quote_currencies[0:-1]
         self.actuator.set_config_currency(self.quote_currencies[0])
         self.refresh_balance()
 
@@ -643,7 +648,7 @@ class BalanceLabel(QLabel):
     def mousePressEvent(self, event):
         """Change the fiat currency selection if window background is clicked."""
         if self.state != self.SHOW_CONNECTING:
-            self.change_quote_currency()
+            self.change_quote_currency(event.button() == Qt.LeftButton)
 
     def set_balance_text(self, btc_balance, quote_text):
         """Set the amount of bitcoins in the gui."""
