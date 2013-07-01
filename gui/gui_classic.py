@@ -245,9 +245,14 @@ class ElectrumWindow(QMainWindow):
         self.current_account = self.config.get("current_account", None)
 
         self.icon = QIcon(os.getcwd() + '/icons/electrum.png')
-        self.notifier = QSystemTrayIcon(self.icon, self)
-        self.notifier.setToolTip('Electrum')
-        self.notifier.show()
+        self.tray = QSystemTrayIcon(self.icon, self)
+        self.tray.setToolTip('Electrum')
+
+        m = QMenu()
+        m.addAction(_("Exit Electrum"), self.close)
+        self.tray.setContextMenu(m)
+
+        self.tray.show()
 
         self.init_plugins()
         self.create_status_bar()
@@ -447,7 +452,7 @@ class ElectrumWindow(QMainWindow):
                           self.notify("New transaction received. %s BTC" % (self.format_amount(v)))
 
     def notify(self, message):
-        self.notifier.showMessage("Electrum", message, QSystemTrayIcon.Information, 20000)
+        self.tray.showMessage("Electrum", message, QSystemTrayIcon.Information, 20000)
 
     # plugins
     def init_plugins(self):
