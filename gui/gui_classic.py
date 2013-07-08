@@ -574,7 +574,7 @@ class ElectrumWindow(QMainWindow):
         tx_hash = str(item.data(0, Qt.UserRole).toString())
         if not tx_hash: return
         menu = QMenu()
-        #menu.addAction(_("Copy ID to Clipboard"), lambda: self.app.clipboard().setText(tx_hash))
+        #menu.addAction(_("Copy ID to Clipboard"), lambda: self.app.clipboard().setText(tx_hash, QClipboard.Selection))
         menu.addAction(_("Details"), lambda: self.show_tx_details(self.wallet.transactions.get(tx_hash)))
         menu.addAction(_("Edit description"), lambda: self.tx_label_clicked(item,2))
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
@@ -1101,7 +1101,7 @@ class ElectrumWindow(QMainWindow):
             item.setExpanded(not item.isExpanded())
             return 
         menu = QMenu()
-        menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
+        menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr, QClipboard.Selection))
         menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")) )
         menu.addAction(_("Edit label"), lambda: self.edit_label(True))
         menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
@@ -1145,7 +1145,7 @@ class ElectrumWindow(QMainWindow):
         is_editable = item.data(0,32).toBool()
         payto_addr = item.data(0,33).toString()
         menu = QMenu()
-        menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
+        menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr, QClipboard.Selection))
         menu.addAction(_("Pay to"), lambda: self.payto(payto_addr))
         menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")))
         if is_editable:
