@@ -505,8 +505,8 @@ class ElectrumWindow(QMainWindow):
             self.need_update.clear()
         self.run_hook('timer_actions')
     
-    def format_amount(self, x, is_diff=False):
-        return format_satoshis(x, is_diff, self.wallet.num_zeros, self.decimal_point)
+    def format_amount(self, x, is_diff=False, whitespaces=False):
+        return format_satoshis(x, is_diff, self.wallet.num_zeros, self.decimal_point, whitespaces)
 
     def read_amount(self, x):
         if x in['.', '']: return None
@@ -720,11 +720,11 @@ class ElectrumWindow(QMainWindow):
                 icon = QIcon(":icons/confirmed.png")
 
             if value is not None:
-                v_str = self.format_amount(value, True)
+                v_str = self.format_amount(value, True, whitespaces=True)
             else:
                 v_str = '--'
 
-            balance_str = self.format_amount(balance)
+            balance_str = self.format_amount(balance, whitespaces=True)
             
             if tx_hash:
                 label, is_default_label = self.wallet.get_label(tx_hash)

@@ -79,7 +79,7 @@ class ElectrumGui:
                 time_str = 'pending'
 
             label, is_default_label = self.wallet.get_label(tx_hash)
-            messages.append( format_str%( time_str, label, format_satoshis(value), format_satoshis(balance) ) )
+            messages.append( format_str%( time_str, label, format_satoshis(value, whitespaces=True), format_satoshis(balance, whitespaces=True) ) )
 
         self.print_list(messages[::-1], format_str%( _("Date"), _("Description"), _("Amount"), _("Balance")))
 

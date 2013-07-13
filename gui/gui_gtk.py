@@ -1183,8 +1183,8 @@ class ElectrumWindow:
             details = self.get_tx_details(tx_hash)
 
             self.history_list.prepend( [tx_hash, conf_icon, time_str, label, is_default_label,
-                                        format_satoshis(value,True,self.wallet.num_zeros),
-                                        format_satoshis(balance,False,self.wallet.num_zeros), tooltip, details] )
+                                        format_satoshis(value,True,self.wallet.num_zeros, whitespaces=True),
+                                        format_satoshis(balance,False,self.wallet.num_zeros, whitespaces=True), tooltip, details] )
         if cursor: self.history_treeview.set_cursor( cursor )
 
 
