@@ -909,6 +909,11 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
             return
 
+        confirm_amount = self.config.get('confirm_amount', 100000000)
+        if amount >= confirm_amount:
+            if not self.question("send %s to %s?"%(self.format_amount(amount) + ' '+ self.base_unit(), to_address)):
+                return
+
         self.run_hook('send_tx', tx)
 
         if label: 
