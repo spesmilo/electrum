@@ -873,8 +873,7 @@ class ElectrumWindow(QMainWindow):
         return lambda s, *args: s.do_protect(func, args)
 
 
-    @protected
-    def do_send(self, password):
+    def do_send(self):
 
         label = unicode( self.message_e.text() )
         r = unicode( self.payto_e.text() )
@@ -899,6 +898,17 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(self, _('Error'), _('Invalid Fee'), _('OK'))
             return
 
+        confirm_amount = self.config.get('confirm_amount', 100000000)
+        if amount >= confirm_amount:
+            if not self.question("send %s to %s?"%(self.format_amount(amount) + ' '+ self.base_unit(), to_address)):
+                return
+
+        self.send_tx(to_address, amount, fee, label)
+
+
+    @protected
+    def send_tx(self, to_address, amount, fee, label, password):
+
         try:
             tx = self.wallet.mktx( [(to_address, amount)], password, fee, account=self.current_account)
         except BaseException, e:
@@ -908,11 +918,6 @@ class ElectrumWindow(QMainWindow):
         if tx.requires_fee(self.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
             QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
             return
-
-        confirm_amount = self.config.get('confirm_amount', 100000000)
-        if amount >= confirm_amount:
-            if not self.question("send %s to %s?"%(self.format_amount(amount) + ' '+ self.base_unit(), to_address)):
-                return
 
         self.run_hook('send_tx', tx)
 
