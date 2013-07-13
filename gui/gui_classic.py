@@ -440,7 +440,8 @@ class ElectrumWindow(QMainWindow):
                     if(v > 0):
                         total_amount += v
 
-                self.notify("%s new transactions received. Total amount received in the new transactions %s BTC" % (tx_amount, self.format_amount(total_amount)))
+                self.notify("%s new transactions received. Total amount received in the new transactions %s %s" \
+                                % (tx_amount, self.format_amount(total_amount), self.base_unit()))
 
                 self.wallet.interface.pending_transactions_for_notifications = []
             else:
@@ -449,7 +450,7 @@ class ElectrumWindow(QMainWindow):
                       self.wallet.interface.pending_transactions_for_notifications.remove(tx)
                       is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
                       if(v > 0):
-                          self.notify("New transaction received. %s BTC" % (self.format_amount(v)))
+                          self.notify("New transaction received. %s %s" % (self.format_amount(v), self.base_unit()))
 
     def notify(self, message):
         self.tray.showMessage("Electrum", message, QSystemTrayIcon.Information, 20000)
