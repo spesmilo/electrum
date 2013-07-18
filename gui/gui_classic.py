@@ -21,7 +21,8 @@ from i18n import _, set_language
 from electrum.util import print_error, print_msg
 import os.path, json, ast, traceback
 import shutil
-
+ 
+import piper
 
 try:
     import PyQt4
@@ -396,6 +397,12 @@ class ElectrumWindow(QMainWindow):
 
         ex_labels = export_menu.addAction(_("&Labels"))
         ex_labels.triggered.connect(self.do_export_labels)
+
+        ex_piper_print_encrypted_seed = export_menu.addAction(_("&Print encrypted wallet seed with Piper"))
+        ex_piper_print_encrypted_seed.triggered.connect(self.piper_print_encrypted_seed)
+
+        ex_piper_print_seed = export_menu.addAction(_("&Print unencryped wallet seed with Piper"))
+        ex_piper_print_seed.triggered.connect(self.piper_print_seed)
 
         help_menu = menubar.addMenu(_("&Help"))
         doc_open = help_menu.addAction(_("&Documentation"))
@@ -1154,7 +1161,8 @@ class ElectrumWindow(QMainWindow):
         menu.addAction(_("Edit label"), lambda: self.edit_label(True))
         menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
         menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
-        if addr in self.wallet.imported_keys:
+        menu.addAction(_("Print with Piper"), lambda: self.piper_print_keypair(addr))
+	if addr in self.wallet.imported_keys:
             menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
 
         if self.expert_mode:
@@ -1435,6 +1443,27 @@ class ElectrumWindow(QMainWindow):
         
 
     @protected
+    def piper_print_encrypted_seed(self, password):
+        if not self.wallet.seed:
+            QMessageBox.information(parent, _('Message'), _('No seed'), _('OK'))
+            return
+	piper.print_seed(self.wallet.seed)
+
+
+    @protected
+    def piper_print_seed(self, password):
+        if not self.wallet.seed:
+            QMessageBox.information(parent, _('Message'), _('No seed'), _('OK'))
+            return
+        try:
+            seed = self.wallet.decode_seed(password)
+        except:
+            QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
+            return
+	piper.print_seed(seed)
+
+
+    @protected
     def show_seed_dialog(self, password):
         if not self.wallet.seed:
             QMessageBox.information(parent, _('Message'), _('No seed'), _('OK'))
@@ -1547,6 +1576,20 @@ class ElectrumWindow(QMainWindow):
         else:
             args = (self,password)
         apply( func, args)
+
+
+    @protected
+    def piper_print_keypair(self, address, password):
+        if not address: return
+        try:
+            pk = self.wallet.get_private_key(address, password)
+        except BaseException, e:
+            self.show_message(str(e))
+            return
+	
+	piper.print_keypair(address, pk)
+
+        QMessageBox.information(self, _('Private key'), 'Printing complete\n\nAddress'+ ': ' + address + '\n\n' + _('Private key') + ': ' + pk, _('OK'))
 
 
     @protected
