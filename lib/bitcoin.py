@@ -359,8 +359,7 @@ class EC_KEY(object):
 ###################################### BIP32 ##############################
 
 random_seed = lambda n: "%032x"%ecdsa.util.randrange( pow(2,n) )
-
-
+BIP32_PRIME = 0x80000000
 
 def bip32_init(seed):
     import hmac
@@ -370,13 +369,20 @@ def bip32_init(seed):
     master_secret = I[0:32]
     master_chain = I[32:]
 
+    K, K_compressed = get_pubkeys_from_secret(master_secret)
+    return master_secret, master_chain, K, K_compressed
+
+
+def get_pubkeys_from_secret(secret):
     # public key
     curve = SECP256k1
-    master_private_key = ecdsa.SigningKey.from_string( master_secret, curve = SECP256k1 )
-    master_public_key = master_private_key.get_verifying_key()
-    K = master_public_key.to_string()
-    K_compressed = GetPubKey(master_public_key.pubkey,True)
-    return master_secret, master_chain, K, K_compressed
+    private_key = ecdsa.SigningKey.from_string( secret, curve = SECP256k1 )
+    public_key = private_key.get_verifying_key()
+    K = public_key.to_string()
+    K_compressed = GetPubKey(public_key.pubkey,True)
+    return K, K_compressed
+
+
 
     
 def CKD(k, c, n):
@@ -385,8 +391,14 @@ def CKD(k, c, n):
     order = generator_secp256k1.order()
     keypair = EC_KEY(string_to_number(k))
     K = GetPubKey(keypair.pubkey,True)
-    I = hmac.new(c, K + rev_hex(int_to_hex(n,4)).decode('hex'), hashlib.sha512).digest()
-    k_n = number_to_string( (string_to_number(I[0:32]) * string_to_number(k)) % order , order )
+
+    if n & BIP32_PRIME:
+        data = chr(0) + k + rev_hex(int_to_hex(n,4)).decode('hex')
+        I = hmac.new(c, data, hashlib.sha512).digest()
+    else:
+        I = hmac.new(c, K + rev_hex(int_to_hex(n,4)).decode('hex'), hashlib.sha512).digest()
+        
+    k_n = number_to_string( (string_to_number(I[0:32]) + string_to_number(k)) % order , order )
     c_n = I[32:]
     return k_n, c_n
 
@@ -396,13 +408,17 @@ def CKD_prime(K, c, n):
     from ecdsa.util import string_to_number, number_to_string
     order = generator_secp256k1.order()
 
+    if n & BIP32_PRIME: raise
+
     K_public_key = ecdsa.VerifyingKey.from_string( K, curve = SECP256k1 )
     K_compressed = GetPubKey(K_public_key.pubkey,True)
 
     I = hmac.new(c, K_compressed + rev_hex(int_to_hex(n,4)).decode('hex'), hashlib.sha512).digest()
 
-    #pubkey = ecdsa.ecdsa.Public_key( generator_secp256k1, string_to_number(I[0:32]) * K_public_key.pubkey.point )
-    public_key = ecdsa.VerifyingKey.from_public_point( string_to_number(I[0:32]) * K_public_key.pubkey.point, curve = SECP256k1 )
+    curve = SECP256k1
+    pubkey_point = string_to_number(I[0:32])*curve.generator + K_public_key.pubkey.point
+    public_key = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
+
     K_n = public_key.to_string()
     K_n_compressed = GetPubKey(public_key.pubkey,True)
     c_n = I[32:]
@@ -902,8 +918,12 @@ class Transaction:
 
 
 
-def test_bip32():
-    seed = "ff000000000000000000000000000000"
+def test_bip32(seed, sequence):
+    """
+    run a test vector,
+    see https://en.bitcoin.it/wiki/BIP_0032_TestVectors
+    """
+
     master_secret, master_chain, master_public_key, master_public_key_compressed = bip32_init(seed)
         
     print "secret key", master_secret.encode('hex')
@@ -915,30 +935,36 @@ def test_bip32():
     print "address", hash_160_to_bc_address(key_id)
     print "secret key", SecretToASecret(master_secret, True)
 
-    print "-- m/0 --"
-    k0, c0 = CKD(master_secret, master_chain, 0)
-    print "secret", k0.encode('hex')
-    print "chain", c0.encode('hex')
-    print "secret key", SecretToASecret(k0, True)
-    
-    K0, K0_compressed, c0 = CKD_prime(master_public_key, master_chain, 0)
-    print "address", hash_160_to_bc_address(hash_160(K0_compressed))
-    
-    print "-- m/0/1 --"
-    K01, K01_compressed, c01 = CKD_prime(K0, c0, 1)
-    print "address", hash_160_to_bc_address(hash_160(K01_compressed))
-    
-    print "-- m/0/1/3 --"
-    K013, K013_compressed, c013 = CKD_prime(K01, c01, 3)
-    print "address", hash_160_to_bc_address(hash_160(K013_compressed))
-    
-    print "-- m/0/1/3/7 --"
-    K0137, K0137_compressed, c0137 = CKD_prime(K013, c013, 7)
-    print "address", hash_160_to_bc_address(hash_160(K0137_compressed))
+    k = master_secret
+    c = master_chain
+
+    s = ['m']
+    for n in sequence.split('/'):
+        s.append(n)
+        print "Chain [%s]" % '/'.join(s)
+        
+        n = int(n[:-1]) + BIP32_PRIME if n[-1] == "'" else int(n)
+        k0, c0 = CKD(k, c, n)
+        K0, K0_compressed = get_pubkeys_from_secret(k0)
+
+        print "* Identifier"
+        print "  * (main addr)", hash_160_to_bc_address(hash_160(K0_compressed))
+
+        print "* Secret Key"
+        print "  * (hex)", k0.encode('hex')
+        print "  * (wif)", SecretToASecret(k0, True)
+
+        print "* Chain Code"
+        print "   * (hex)", c0.encode('hex')
+
+        k = k0
+        c = c0
+    print "----"
+
         
 
 
 if __name__ == '__main__':
-    test_bip32()
-
+    test_bip32("000102030405060708090a0b0c0d0e0f", "0'/1/2'/2/1000000000")
+    test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","0/2147483647'/1/2147483646'/2")
 
