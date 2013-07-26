@@ -326,7 +326,7 @@ class ElectrumGui:
     def settings_dialog(self):
         out = self.run_dialog('Settings', [
             {'label':'Default GUI', 'type':'list', 'choices':['classic','lite','gtk','text'], 'value':self.config.get('gui')},
-            {'label':'Default fee', 'type':'satoshis', 'value': format_satoshis(self.config.get('fee_per_kb')).strip() }
+            {'label':'Default fee', 'type':'satoshis', 'value': format_satoshis(self.wallet.fee).strip() }
             ], buttons = 1)
         if out:
             if out.get('Default GUI'):
