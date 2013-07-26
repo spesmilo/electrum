@@ -181,7 +181,8 @@ class ElectrumGui:
             
 
     def edit_str(self, target, c, is_num=False):
-        if c==263 and target:
+        # detect backspace
+        if c in [8, 127, 263] and target:
             target = target[:-1]
         elif not is_num or curses.unctrl(c) in '0123456789.':
             target += curses.unctrl(c)
