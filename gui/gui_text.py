@@ -21,7 +21,7 @@ class ElectrumGui:
         self.stdscr.keypad(1)
         self.stdscr.border(0)
         self.maxy, self.maxx = self.stdscr.getmaxyx()
-        try_curs_set(0)
+        self.try_curs_set(0)
         self.w = curses.newwin(10, 50, 5, 5)
 
         self.wallet = wallet
@@ -43,12 +43,6 @@ class ElectrumGui:
         self.tab_names = [_("History"), _("Send"), _("Receive"), _("Contacts"), _("Wall")]
         self.num_tabs = len(self.tab_names)
         
-    def try_curs_set(i):
-        try:
-            curses.curs_set(i)
-        except curses.error:
-            pass
-
     def restore_or_create(self):
         pass
 
@@ -56,12 +50,12 @@ class ElectrumGui:
         pass
     
     def get_string(self, y, x):
-        try_curs_set(1)
+        self.try_curs_set(1)
         curses.echo()
         self.stdscr.addstr( y, x, " "*20, curses.A_REVERSE)
         s = self.stdscr.getstr(y,x)
         curses.noecho()
-        try_curs_set(0)
+        self.try_curs_set(0)
         return s
 
 
@@ -429,3 +423,8 @@ class ElectrumGui:
 
         return out
 
+    def try_curs_set(self, i):
+        try:
+            curses.curs_set(i)
+        except curses.error:
+            pass
