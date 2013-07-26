@@ -208,7 +208,7 @@ class ElectrumGui:
             out = self.run_popup('Address', ["Edit label", "Freeze", "Prioritize"])
             
     def run_contacts_tab(self, c):
-        if c == 10:
+        if c == 10 and self.wallet.addressbook:
             out = self.run_popup('Adress', ["Copy", "Pay to", "Edit label", "Delete"]).get('button')
             address = self.wallet.addressbook[self.pos%len(self.wallet.addressbook)]
             if out == "Pay to":
