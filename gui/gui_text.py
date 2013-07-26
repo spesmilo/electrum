@@ -389,8 +389,8 @@ class ElectrumGui:
 
             c = self.stdscr.getch()
             if c in [ord('q'), 27]: break
-            elif c == curses.KEY_UP: self.popup_pos -= 1
-            elif c == curses.KEY_DOWN: self.popup_pos +=1
+            elif c in [curses.KEY_LEFT, curses.KEY_UP]: self.popup_pos -= 1
+            elif c in [curses.KEY_RIGHT, curses.KEY_DOWN]: self.popup_pos +=1
             else:
                 i = self.popup_pos%numpos
                 if buttons and c==10:
