@@ -21,7 +21,10 @@ class ElectrumGui:
         self.stdscr.keypad(1)
         self.stdscr.border(0)
         self.maxy, self.maxx = self.stdscr.getmaxyx()
-        curses.curs_set(0)
+        try:
+          curses.curs_set(0)
+        except curses.error:
+          pass
         self.w = curses.newwin(10, 50, 5, 5)
 
         self.wallet = wallet
