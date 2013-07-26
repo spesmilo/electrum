@@ -565,6 +565,7 @@ class ElectrumWindow(QMainWindow):
                 text =  _( "Balance" ) + ": %s "%( self.format_amount(c) ) + self.base_unit()
                 if u: text +=  " [%s unconfirmed]"%( self.format_amount(u,True).strip() )
                 text += self.create_quote_text(Decimal(c+u)/100000000)
+                self.tray.setToolTip(text)
                 icon = QIcon(":icons/status_connected.png")
         else:
             text = _("Not connected")
