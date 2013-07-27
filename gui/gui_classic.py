@@ -236,9 +236,38 @@ def waiting_dialog(f):
 default_column_widths = { "history":[40,140,350,140], "contacts":[350,330], "receive":[[370], [370,200,130]] }
 
 class ElectrumWindow(QMainWindow):
+    def changeEvent(self, event):
+        flags = self.windowFlags();
+        if event and event.type() == QtCore.QEvent.WindowStateChange:
+            if self.windowState() & QtCore.Qt.WindowMinimized:
+                self.build_menu(True)
+                # The only way to toggle the icon in the window managers taskbar is to use the Qt.Tooltip flag
+                # The problem is that it somehow creates an (in)visible window that will stay active and prevent
+                # Electrum from closing.
+                # As for now I have no clue how to implement a proper 'hide to tray' functionality.
+                # self.setWindowFlags(flags & ~Qt.ToolTip)
+            elif event.oldState() & QtCore.Qt.WindowMinimized:
+                self.build_menu(False)
+                #self.setWindowFlags(flags | Qt.ToolTip)
+
+    def build_menu(self, is_hidden = False):
+        m = QMenu()
+        if self.isMinimized():
+            m.addAction(_("Show"), self.showNormal)
+        else:
+            m.addAction(_("Hide"), self.showMinimized)
+
+        m.addSeparator()
+        m.addAction(_("Exit Electrum"), self.close)
+        self.tray.setContextMenu(m)
+
+    def tray_activated(self, reason):
+        if reason == QSystemTrayIcon.DoubleClick:
+            self.showNormal()
 
     def __init__(self, wallet, config):
         QMainWindow.__init__(self)
+        self._close_electrum = False
         self.lite = None
         self.wallet = wallet
         self.config = config
@@ -247,11 +276,9 @@ class ElectrumWindow(QMainWindow):
         self.icon = QIcon(os.getcwd() + '/icons/electrum.png')
         self.tray = QSystemTrayIcon(self.icon, self)
         self.tray.setToolTip('Electrum')
+        self.tray.activated.connect(self.tray_activated)
 
-        m = QMenu()
-        m.addAction(_("Exit Electrum"), self.close)
-        self.tray.setContextMenu(m)
-
+        self.build_menu()
         self.tray.show()
 
         self.init_plugins()
@@ -324,7 +351,6 @@ class ElectrumWindow(QMainWindow):
 
         # plugins that need to change the GUI do it here
         self.run_hook('init_gui')
-
 
     def select_wallet_file(self):
         wallet_folder = self.wallet.config.path
