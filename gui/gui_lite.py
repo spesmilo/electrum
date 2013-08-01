@@ -371,7 +371,7 @@ class MiniWindow(QDialog):
         extra_menu = menubar.addMenu(_("&Extra"))
 
         backup_wallet_menu = extra_menu.addAction( _("&Create wallet backup"))
-        backup_wallet_menu.triggered.connect(backup_wallet)
+        backup_wallet_menu.triggered.connect(lambda: backup_wallet(self.config.path))
 
         export_csv = extra_menu.addAction( _("&Export transactions to CSV") )
         export_csv.triggered.connect(lambda: csv_transaction(self.actuator.wallet))
