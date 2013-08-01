@@ -433,6 +433,10 @@ class Interface(threading.Thread):
         self.bytes_received = 0
         self.is_connected = False
 
+        # init with None server, in case we are offline 
+        self.init_server(None, None)
+
+
 
 
     def init_interface(self):

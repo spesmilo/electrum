@@ -211,7 +211,10 @@ class NetworkDialog(QDialog):
 
     def do_exec(self):
 
-        if not self.exec_(): return
+        if not self.exec_():
+            self.config.set_key("server", None, True)
+            self.config.set_key('auto_cycle', False, True)
+            return
 
         server = ':'.join([str( self.server_host.text() ),
                            str( self.server_port.text() ),
