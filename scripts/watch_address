@@ -9,7 +9,7 @@ except:
     print "usage: watch_address <bitcoin_address>"
     sys.exit(1)
 
-i = Interface({'server':'ecdsa.org:50001:t'})
+i = Interface()
 i.start()
 i.send([('blockchain.address.subscribe',[addr])] )
 time.sleep(1)
@@ -18,8 +18,8 @@ while True:
     r = i.get_response()
     method = r.get('method') 
     if method == 'blockchain.address.subscribe':
-        #i.send([('blockchain.address.get_history',[addr])])
-        print r
+        i.send([('blockchain.address.get_history',[addr])])
+        #print r
         
     elif method == 'blockchain.address.get_history':
         confirmed = unconfirmed = 0
@@ -32,6 +32,6 @@ while True:
                 confirmed += v
             else:
                 unconfirmed += v
-        print (confirmed+unconfirmed)/1.e8
+        print "balance:", (confirmed+unconfirmed)/1.e8
 
 
