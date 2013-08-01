@@ -32,7 +32,7 @@ import time
 
 from util import print_msg, print_error, user_dir, format_satoshis
 from bitcoin import *
-
+from account import *
 
 # AES encryption
 EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
@@ -85,14 +85,12 @@ class Wallet:
 
         self.imported_keys         = config.get('imported_keys',{})
         self.history               = config.get('addr_history',{})        # address -> list(txid, height)
-        self.accounts              = config.get('accounts', {})   # this should not include public keys
 
-        self.SequenceClass = ElectrumSequence
-        self.sequences = {}
-        self.sequences[0] = self.SequenceClass(self.config.get('master_public_key'))
 
-        if self.accounts.get(0) is None:
-            self.accounts[0] = { 0:[], 1:[], 'name':'Main account' }
+        self.master_public_keys = config.get('master_public_keys',{})
+        self.master_private_keys = config.get('master_private_keys', {})
+
+        self.load_accounts(config)
 
         self.transactions = {}
         tx = config.get('transactions',{})
@@ -167,18 +165,88 @@ class Wallet:
             seed = random_seed(128)
         self.seed = seed
 
+
     def save_seed(self):
         self.config.set_key('seed', self.seed, True)
         self.config.set_key('seed_version', self.seed_version, True)
-        mpk = self.SequenceClass.mpk_from_seed(self.seed)
-        self.init_sequence(mpk)
+
+        master_k, master_c, master_K, master_cK = bip32_init(self.seed)
+        
+        k0, c0, K0, cK0 = bip32_private_derivation(master_k, master_c, "m/", "m/0'/")
+        k1, c1, K1, cK1 = bip32_private_derivation(master_k, master_c, "m/", "m/1'/")
+        k2, c2, K2, cK2 = bip32_private_derivation(master_k, master_c, "m/", "m/2'/")
+
+        self.master_public_keys = {
+            "m/0'/": (c0, K0, cK0),
+            "m/1'/": (c1, K1, cK1),
+            "m/2'/": (c2, K2, cK2)
+            }
+        
+        self.master_private_keys = {
+            "m/0'/": k0,
+            "m/1'/": k1
+            }
+        # send k2 to service
+        
+        self.config.set_key('master_public_keys', self.master_public_keys, True)
+        self.config.set_key('master_private_keys', self.master_private_keys, True)
+
+        # create default account
+        self.create_new_account('Main account')
 
 
-    def init_sequence(self, mpk):
-        self.config.set_key('master_public_key', mpk, True)
-        self.sequences[0] = self.SequenceClass(mpk)
-        self.accounts[0] = { 0:[], 1:[], 'name':'Main account' }
-        self.config.set_key('accounts', self.accounts, True)
+    def create_new_account(self, name):
+        keys = self.accounts.keys()
+        i = 0
+
+        while True:
+            derivation = "m/0'/%d'"%i
+            if derivation not in keys: break
+            i += 1
+
+        start = "m/0'/"
+        master_c, master_K, master_cK = self.master_public_keys[start]
+        master_k = self.master_private_keys[start] # needs decryption
+        k, c, K, cK = bip32_private_derivation(master_k, master_c, start, derivation) # this is a type 1 derivation
+        
+        self.accounts[derivation] = BIP32_Account({ 'name':name, 'c':c, 'K':K, 'cK':cK })
+        self.save_accounts()
+
+    def create_p2sh_account(self, name):
+        keys = self.accounts.keys()
+        i = 0
+        while True:
+            account_id = "m/1'/%d & m/2'/%d"%(i,i)
+            if account_id not in keys: break
+            i += 1
+
+        master_c1, master_K1, _ = self.master_public_keys["m/1'/"]
+        c1, K1, cK1 = bip32_public_derivation(master_c1.decode('hex'), master_K1.decode('hex'), "m/1'/", "m/1'/%d"%i)
+        
+        master_c2, master_K2, _ = self.master_public_keys["m/2'/"]
+        c2, K2, cK2 = bip32_public_derivation(master_c2.decode('hex'), master_K2.decode('hex'), "m/2'/", "m/2'/%d"%i)
+        
+        self.accounts[account_id] = BIP32_Account_2of2({ 'name':name, 'c':c1, 'K':K1, 'cK':cK1, 'c2':c2, 'K2':K2, 'cK2':cK2 })
+        self.save_accounts()
+
+
+    def save_accounts(self):
+        d = {}
+        for k, v in self.accounts.items():
+            d[k] = v.dump()
+        self.config.set_key('accounts', d, True)
+
+
+    def load_accounts(self, config):
+        d = config.get('accounts', {})
+        self.accounts = {}
+        for k, v in d.items():
+            if '&' in k:
+                self.accounts[k] = BIP32_Account_2of2(v)
+            else:
+                self.accounts[k] = BIP32_Account(v)
+
+
 
 
     def addresses(self, include_change = True):
@@ -198,6 +266,7 @@ class Wallet:
         return s[0] == 1
 
     def get_master_public_key(self):
+        raise
         return self.config.get("master_public_key")
 
     def get_address_index(self, address):
@@ -205,7 +274,7 @@ class Wallet:
             return -1, None
         for account in self.accounts.keys():
             for for_change in [0,1]:
-                addresses = self.accounts[account][for_change]
+                addresses = self.accounts[account].get_addresses(for_change)
                 for addr in addresses:
                     if address == addr:
                         return account, (for_change, addresses.index(addr))
@@ -214,12 +283,12 @@ class Wallet:
 
     def get_public_key(self, address):
         account, sequence = self.get_address_index(address)
-        return self.sequences[account].get_pubkey( sequence )
+        return self.accounts[account].get_pubkey( sequence )
 
 
     def decode_seed(self, password):
         seed = pw_decode(self.seed, password)
-        self.sequences[0].check_seed(seed)
+        #todo:  #self.sequences[0].check_seed(seed)
         return seed
         
     def get_private_key(self, address, password):
@@ -230,19 +299,27 @@ class Wallet:
         # decode seed in any case, in order to test the password
         seed = self.decode_seed(password)
         out = {}
-        l_sequences = []
-        l_addresses = []
         for address in addresses:
             if address in self.imported_keys.keys():
                 out[address] = pw_decode( self.imported_keys[address], password )
             else:
                 account, sequence = self.get_address_index(address)
-                if account == 0:
-                    l_sequences.append(sequence)
-                    l_addresses.append(address)
+                print "found index", address, account, sequence
+                if account == "m/0'/0'":
+                    # FIXME: this is ugly
+                    master_k = self.master_private_keys["m/0'/"]
+                    master_c, _, _ = self.master_public_keys["m/0'/"]
+                    master_k, master_c = CKD(master_k, master_c, 0 + BIP32_PRIME)
+                    pk = self.accounts["m/0'/0'"].get_private_key(sequence, master_k)
+                    out[address] = pk
 
-        pk = self.sequences[0].get_private_keys(l_sequences, seed)
-        for i, address in enumerate(l_addresses): out[address] = pk[i]                     
+                elif account == "m/1'/1 & m/2'/1":
+                    master_k = self.master_private_keys["m/1'/"]
+                    master_c, master_K, _ = self.master_public_keys["m/1'/"]
+                    master_k, master_c = CKD(master_k.decode('hex'), master_c.decode('hex'), 1)
+                    pk = self.accounts[account].get_private_key(sequence, master_k)
+                    out[address] = pk
+
         return out
 
 
@@ -281,8 +358,8 @@ class Wallet:
             if txin.get('KeyID'):
                 account, name, sequence = txin.get('KeyID')
                 if name != 'Electrum': continue
-                sec = self.sequences[account].get_private_key(sequence, seed)
-                addr = self.sequences[account].get_address(sequence)
+                sec = self.accounts[account].get_private_key(sequence, seed)
+                addr = self.accounts[account].get_address(sequence)
                 txin['address'] = addr
                 private_keys[addr] = sec
 
@@ -313,20 +390,6 @@ class Wallet:
             print_error("Verification error: {0}".format(e))
             return False
 
-    def create_new_address(self, account, for_change):
-        addresses = self.accounts[account][for_change]
-        n = len(addresses)
-        address = self.get_new_address( account, for_change, n)
-        self.accounts[account][for_change].append(address)
-        self.history[address] = []
-        print_msg(address)
-        return address
-        
-
-    def get_new_address(self, account, for_change, n):
-        return self.sequences[account].get_address((for_change, n))
-        print address
-        return address
 
     def change_gap_limit(self, value):
         if value >= self.gap_limit:
@@ -345,7 +408,7 @@ class Wallet:
 
             self.gap_limit = value
             self.config.set_key('gap_limit', self.gap_limit, True)
-            self.config.set_key('accounts', self.accounts, True)
+            self.save_accounts()
             return True
         else:
             return False
@@ -363,7 +426,7 @@ class Wallet:
         nmax = 0
 
         for account in self.accounts.values():
-            addresses = account[0]
+            addresses = account.get_addresses(0)
             k = self.num_unused_trailing_addresses(addresses)
             for a in addresses[0:-k]:
                 if self.history.get(a):
@@ -391,16 +454,22 @@ class Wallet:
 
     def synchronize_sequence(self, account, for_change):
         limit = self.gap_limit_for_change if for_change else self.gap_limit
-        addresses = self.accounts[account][for_change]
         new_addresses = []
         while True:
+            addresses = account.get_addresses(for_change)
             if len(addresses) < limit:
-                new_addresses.append( self.create_new_address(account, for_change) )
+                address = account.create_new_address(for_change)
+                self.history[address] = []
+                new_addresses.append( address )
                 continue
+
             if map( lambda a: self.address_is_old(a), addresses[-limit:] ) == limit*[False]:
                 break
             else:
-                new_addresses.append( self.create_new_address(account, for_change) )
+                address = account.create_new_address(for_change)
+                self.history[address] = []
+                new_addresses.append( address )
+
         return new_addresses
         
 
@@ -412,10 +481,10 @@ class Wallet:
 
     def synchronize(self):
         new = []
-        for account in self.accounts.keys():
+        for account in self.accounts.values():
             new += self.synchronize_account(account)
         if new:
-            self.config.set_key('accounts', self.accounts, True)
+            self.save_accounts()
             self.config.set_key('addr_history', self.history, True)
         return new
 
@@ -522,7 +591,7 @@ class Wallet:
     def get_accounts(self):
         accounts = {}
         for k, account in self.accounts.items():
-            accounts[k] = account.get('name')
+            accounts[k] = account.name
         if self.imported_keys:
             accounts[-1] = 'Imported keys'
         return accounts
@@ -534,8 +603,8 @@ class Wallet:
             o = self.imported_keys.keys()
         else:
             ac = self.accounts[a]
-            o = ac[0][:]
-            if include_change: o += ac[1]
+            o = ac.get_addresses(0)
+            if include_change: o += ac.get_addresses(1)
         return o
 
     def get_imported_balance(self):
@@ -818,14 +887,20 @@ class Wallet:
                 pk_addresses.append(address)
                 continue
             account, sequence = self.get_address_index(address)
-            txin['KeyID'] = (account, 'Electrum', sequence) # used by the server to find the key
-            pk_addr, redeemScript = self.sequences[account].get_input_info(sequence)
+
+            txin['KeyID'] = (account, 'BIP32', sequence) # used by the server to find the key
+
+            _, redeemScript = self.accounts[account].get_input_info(sequence)
+            
             if redeemScript: txin['redeemScript'] = redeemScript
-            pk_addresses.append(pk_addr)
+            pk_addresses.append(address)
+
+        print "pk_addresses", pk_addresses
 
         # get all private keys at once.
         if self.seed:
             private_keys = self.get_private_keys(pk_addresses, password)
+            print "private keys", private_keys
             tx.sign(private_keys)
 
         for address, x in outputs:
@@ -920,7 +995,6 @@ class Wallet:
         s = {
             'use_change': self.use_change,
             'fee_per_kb': self.fee,
-            'accounts': self.accounts,
             'addr_history': self.history, 
             'labels': self.labels,
             'contacts': self.addressbook,

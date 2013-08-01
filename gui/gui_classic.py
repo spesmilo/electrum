@@ -401,6 +401,9 @@ class ElectrumWindow(QMainWindow):
         new_contact = wallet_menu.addAction(_("&New contact"))
         new_contact.triggered.connect(self.new_contact_dialog)
 
+        new_account = wallet_menu.addAction(_("&New account"))
+        new_account.triggered.connect(self.new_account_dialog)
+
         import_menu = menubar.addMenu(_("&Import"))
         in_labels = import_menu.addAction(_("&Labels"))
         in_labels.triggered.connect(self.do_import_labels)
@@ -972,6 +975,7 @@ class ElectrumWindow(QMainWindow):
         try:
             tx = self.wallet.mktx( [(to_address, amount)], password, fee, account=self.current_account)
         except BaseException, e:
+            traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
             return
 
@@ -1263,7 +1267,7 @@ class ElectrumWindow(QMainWindow):
             account_items = []
 
         for k, account in account_items:
-            name = account.get('name',str(k))
+            name = account.get_name()
             c,u = self.wallet.get_account_balance(k)
             account_item = QTreeWidgetItem( [ name, '', self.format_amount(c+u), ''] )
             l.addTopLevelItem(account_item)
@@ -1280,7 +1284,7 @@ class ElectrumWindow(QMainWindow):
                 is_red = False
                 gap = 0
 
-                for address in account[is_change]:
+                for address in account.get_addresses(is_change):
                     h = self.wallet.history.get(address,[])
             
                     if h == []:
@@ -1423,6 +1427,16 @@ class ElectrumWindow(QMainWindow):
                 self.update_completions()
             else:
                 QMessageBox.warning(self, _('Error'), _('Invalid Address'), _('OK'))
+
+    def new_account_dialog(self):
+        text, ok = QInputDialog.getText(self, _('New Account'), _('Name') + ':')
+        name = unicode(text)
+        if ok:
+            self.wallet.create_new_account(name)
+            self.wallet.synchronize()
+            self.update_contacts_tab()
+            self.update_history_tab()
+            self.update_completions()
 
     def show_master_public_key(self):
         dialog = QDialog(self)
