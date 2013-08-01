@@ -160,6 +160,9 @@ if __name__ == '__main__':
             
             # select a server.
             s = gui.network_dialog()
+            if s is None:
+                config.set_key("server", None, True)
+                config.set_key('auto_cycle', False, True)
             
         interface.start(wait = False)
         interface.send([('server.peers.subscribe',[])])
