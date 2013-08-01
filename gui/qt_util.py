@@ -3,16 +3,16 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import os.path
 
-def backup_wallet():
+def backup_wallet(path):
+    import shutil
+    directory, fileName = os.path.split(path)
     try:
-      folderName = QFileDialog.getExistingDirectory(QWidget(), _('Select folder to save a copy of your wallet to'), os.path.expanduser('~/'))
-      if folderName:
-        # TODO: Can we get the current wallet file instead of bruteforcing the default one?
-        sourceFile = self.wallet.config.path
-        shutil.copy2(sourceFile, str(folderName))
-        QMessageBox.information(None,"Wallet backup created", _("A copy of your wallet file was created in")+" '%s'" % str(folderName))
+        otherpath = unicode( QFileDialog.getOpenFileName(QWidget(), _('Enter a filename for the copy of your wallet'), directory) )
+        if otherpath and path!=otherpath:
+            shutil.copy2(path, otherpath)
+            QMessageBox.information(None,"Wallet backup created", _("A copy of your wallet file was created in")+" '%s'" % str(otherpath))
     except (IOError, os.error), reason:
-      QMessageBox.critical(None,"Unable to create backup", _("Electrum was unable to copy your wallet file to the specified location.")+"\n" + str(reason))
+        QMessageBox.critical(None,"Unable to create backup", _("Electrum was unable to copy your wallet file to the specified location.")+"\n" + str(reason))
 
 def ok_cancel_buttons(dialog, ok_label=_("OK") ):
     hbox = QHBoxLayout()

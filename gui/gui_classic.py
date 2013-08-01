@@ -386,7 +386,7 @@ class ElectrumWindow(QMainWindow):
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
         wallet_backup = wallet_menu.addAction(_("&Create backup"))
-        wallet_backup.triggered.connect(backup_wallet)
+        wallet_backup.triggered.connect(lambda: backup_wallet(self.config.path))
 
         show_menu = wallet_menu.addMenu(_("Show"))
 
