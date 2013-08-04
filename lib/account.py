@@ -35,12 +35,12 @@ class Account(object):
     def create_new_address(self, for_change):
         addresses = self.change if for_change else self.addresses
         n = len(addresses)
-        address = self.get_new_address( for_change, n)
+        address = self.get_address( for_change, n)
         addresses.append(address)
         print address
         return address
 
-    def get_new_address(self, for_change, n):
+    def get_address(self, for_change, n):
         pass
         
 
@@ -156,7 +156,7 @@ class BIP32_Account(Account):
         d['cK'] = self.cK.encode('hex')
         return d
 
-    def get_new_address(self, for_change, n):
+    def get_address(self, for_change, n):
         pubkey = self.get_pubkey(for_change, n)
         address = public_key_to_bc_address( pubkey )
         return address
@@ -167,12 +167,6 @@ class BIP32_Account(Account):
         for i in [for_change, n]:
             K, K_compressed, chain = CKD_prime(K, chain, i)
         return K_compressed
-
-    def get_address(self, sequence):
-        for_change, n = sequence
-        pubkey = self.get_pubkey(for_change, n)
-        address = public_key_to_bc_address( pubkey )
-        return address
 
     def get_private_key(self, sequence, master_k):
         chain = self.c
@@ -189,7 +183,8 @@ class BIP32_Account(Account):
         assert self.mpk == (master_public_key.encode('hex'), master_chain.encode('hex'))
 
     def get_input_info(self, sequence):
-        pk_addr = self.get_address(sequence)
+        chain, i = sequence
+        pk_addr = self.get_address(chain, i)
         redeemScript = None
         return pk_addr, redeemScript
 
@@ -217,7 +212,7 @@ class BIP32_Account_2of2(BIP32_Account):
             K, K_compressed, chain = CKD_prime(K, chain, i)
         return K_compressed
 
-    def get_new_address(self, for_change, n):
+    def get_address(self, for_change, n):
         pubkey1 = self.get_pubkey(for_change, n)
         pubkey2 = self.get_pubkey2(for_change, n)
         address = Transaction.multisig_script([pubkey1.encode('hex'), pubkey2.encode('hex')], 2)["address"]
