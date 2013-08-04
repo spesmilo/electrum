@@ -19,19 +19,8 @@ while True:
     method = r.get('method') 
     if method == 'blockchain.address.subscribe':
         i.send([('blockchain.address.get_history',[addr])])
-        #print r
         
     elif method == 'blockchain.address.get_history':
-        confirmed = unconfirmed = 0
-        h = r.get('result')
-        if h is None:
-            continue
-        for item in h:
-            v = item['value']
-            if item['height']:
-                confirmed += v
-            else:
-                unconfirmed += v
-        print "balance:", (confirmed+unconfirmed)/1.e8
-
-
+        for line in r.get('result'):
+            print line
+        print "---"
