@@ -313,10 +313,10 @@ class Wallet:
                     pk = self.accounts["m/0'/0'"].get_private_key(sequence, master_k)
                     out[address] = pk
 
-                elif account == "m/1'/1 & m/2'/1":
+                elif account == "m/1'/0 & m/2'/0":
                     master_k = self.master_private_keys["m/1'/"]
                     master_c, master_K, _ = self.master_public_keys["m/1'/"]
-                    master_k, master_c = CKD(master_k.decode('hex'), master_c.decode('hex'), 1)
+                    master_k, master_c = CKD(master_k.decode('hex'), master_c.decode('hex'), 0)
                     pk = self.accounts[account].get_private_key(sequence, master_k)
                     out[address] = pk
 
