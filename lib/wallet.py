@@ -195,7 +195,7 @@ class Wallet:
         self.create_new_account('Main account')
 
 
-    def create_new_account(self, name):
+    def create_new_account(self, name, password):
         keys = self.accounts.keys()
         i = 0
 
@@ -205,9 +205,9 @@ class Wallet:
             i += 1
 
         start = "m/0'/"
+        master_k = self.get_master_private_key(start, password )
         master_c, master_K, master_cK = self.master_public_keys[start]
-        master_k = self.master_private_keys[start] # needs decryption
-        k, c, K, cK = bip32_private_derivation(master_k, master_c, start, derivation) # this is a type 1 derivation
+        k, c, K, cK = bip32_private_derivation(master_k, master_c, start, derivation)
         
         self.accounts[derivation] = BIP32_Account({ 'name':name, 'c':c, 'K':K, 'cK':cK })
         self.save_accounts()
@@ -269,6 +269,17 @@ class Wallet:
         raise
         return self.config.get("master_public_key")
 
+    def get_master_private_key(self, account, password):
+        master_k = pw_decode( self.master_private_keys[account], password)
+        master_c, master_K, master_Kc = self.master_public_keys[account]
+        try:
+            K, Kc = get_pubkeys_from_secret(master_k.decode('hex'))
+            assert K.encode('hex') == master_K
+        except:
+            raise BaseException("Invalid password")
+        return master_k
+
+
     def get_address_index(self, address):
         if address in self.imported_keys.keys():
             return -1, None
@@ -291,8 +302,29 @@ class Wallet:
         #todo:  #self.sequences[0].check_seed(seed)
         return seed
         
+
     def get_private_key(self, address, password):
-        return self.get_private_keys([address], password).get(address)
+        if address in self.imported_keys.keys():
+            return pw_decode( self.imported_keys[address], password )
+        else:
+            account, sequence = self.get_address_index(address)
+            m = re.match("m/0'/(\d+)'", account)
+            if m:
+                num = int(m.group(1))
+                master_k = self.get_master_private_key("m/0'/", password)
+                master_c, _, _ = self.master_public_keys["m/0'/"]
+                master_k, master_c = CKD(master_k, master_c, num + BIP32_PRIME)
+                return self.accounts[account].get_private_key(sequence, master_k)
+                
+            m2 = re.match("m/1'/(\d+) & m/2'/(\d+)", account)
+            if m2:
+                num = int(m2.group(1))
+                master_k = self.get_master_private_key("m/1'/", password)
+                master_c, master_K, _ = self.master_public_keys["m/1'/"]
+                master_k, master_c = CKD(master_k.decode('hex'), master_c.decode('hex'), num)
+                return self.accounts[account].get_private_key(sequence, master_k)
+        return
+
 
     def get_private_keys(self, addresses, password):
         if not self.seed: return {}
@@ -300,29 +332,8 @@ class Wallet:
         seed = self.decode_seed(password)
         out = {}
         for address in addresses:
-            if address in self.imported_keys.keys():
-                out[address] = pw_decode( self.imported_keys[address], password )
-            else:
-                account, sequence = self.get_address_index(address)
-                print_error( "found index", address, account, sequence)
-
-                m = re.match("m/0'/(\d+)'", account)
-                if m:
-                    num = int(m.group(1))
-                    master_k = self.master_private_keys["m/0'/"]
-                    master_c, _, _ = self.master_public_keys["m/0'/"]
-                    master_k, master_c = CKD(master_k, master_c, num + BIP32_PRIME)
-                    pk = self.accounts[account].get_private_key(sequence, master_k)
-                    out[address] = pk
-
-                m2 = re.match("m/1'/(\d+) & m/2'/(\d+)", account)
-                if m2:
-                    num = int(m2.group(1))
-                    master_k = self.master_private_keys["m/1'/"]
-                    master_c, master_K, _ = self.master_public_keys["m/1'/"]
-                    master_k, master_c = CKD(master_k.decode('hex'), master_c.decode('hex'), num)
-                    pk = self.accounts[account].get_private_key(sequence, master_k)
-                    out[address] = pk
+            pk = self.get_private_key(address, password)
+            if pk: out[address] = pk
 
         return out
 
@@ -724,7 +735,7 @@ class Wallet:
                 if not self.use_change or account == -1:
                     change_addr = inputs[-1]['address']
                 else:
-                    change_addr = self.accounts[account][1][-self.gap_limit_for_change]
+                    change_addr = self.accounts[account].get_addresses(1)[-self.gap_limit_for_change]
 
             # Insert the change output at a random position in the outputs
             posn = random.randint(0, len(outputs))
@@ -948,6 +959,12 @@ class Wallet:
             c = pw_encode(b, new_password)
             self.imported_keys[k] = c
         self.config.set_key('imported_keys', self.imported_keys, True)
+
+        for k, v in self.master_private_keys.items():
+            b = pw_decode(v, old_password)
+            c = pw_encode(b, new_password)
+            self.master_private_keys[k] = c
+        self.config.set_key('master_private_keys', self.master_private_keys, True)
 
 
     def freeze(self,addr):
