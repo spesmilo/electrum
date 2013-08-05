@@ -304,19 +304,23 @@ class Wallet:
                 out[address] = pw_decode( self.imported_keys[address], password )
             else:
                 account, sequence = self.get_address_index(address)
-                print "found index", address, account, sequence
-                if account == "m/0'/0'":
-                    # FIXME: this is ugly
+                print_error( "found index", address, account, sequence)
+
+                m = re.match("m/0'/(\d+)'", account)
+                if m:
+                    num = int(m.group(1))
                     master_k = self.master_private_keys["m/0'/"]
                     master_c, _, _ = self.master_public_keys["m/0'/"]
-                    master_k, master_c = CKD(master_k, master_c, 0 + BIP32_PRIME)
-                    pk = self.accounts["m/0'/0'"].get_private_key(sequence, master_k)
+                    master_k, master_c = CKD(master_k, master_c, num + BIP32_PRIME)
+                    pk = self.accounts[account].get_private_key(sequence, master_k)
                     out[address] = pk
 
-                elif account == "m/1'/0 & m/2'/0":
+                m2 = re.match("m/1'/(\d+) & m/2'/(\d+)", account)
+                if m2:
+                    num = int(m2.group(1))
                     master_k = self.master_private_keys["m/1'/"]
                     master_c, master_K, _ = self.master_public_keys["m/1'/"]
-                    master_k, master_c = CKD(master_k.decode('hex'), master_c.decode('hex'), 0)
+                    master_k, master_c = CKD(master_k.decode('hex'), master_c.decode('hex'), num)
                     pk = self.accounts[account].get_private_key(sequence, master_k)
                     out[address] = pk
 
