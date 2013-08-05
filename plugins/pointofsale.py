@@ -93,23 +93,24 @@ class QR_Window(QWidget):
 
 class Plugin(BasePlugin):
 
-    def __init__(self, gui):
-        BasePlugin.__init__(self, gui, 'pointofsale', 'Point of Sale',
-                            _('Show QR code window and amounts requested for each address. Add menu item to request amount.') )
+    def fullname(self):
+        return 'Point of Sale'
+
+    def description(self):
+        return _('Show QR code window and amounts requested for each address. Add menu item to request amount.')
+
+    def init(self):
         self.qr_window = None
         self.requested_amounts = self.config.get('requested_amounts',{}) 
         self.merchant_name = self.config.get('merchant_name', 'Invoice')
 
+        self.gui.expert_mode = True
+        self.gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Request')])
+        self.toggle_QR_window(True)
 
-    def init_gui(self):
-        enabled = self.is_enabled()
-        if enabled:
-            self.gui.expert_mode = True
-            self.gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Request')])
-        else:
-            self.gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Tx')])
-
-        self.toggle_QR_window(enabled)
+    def close(self):
+        self.gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Tx')])
+        self.toggle_QR_window(False)
     
 
     def close_main_window(self):

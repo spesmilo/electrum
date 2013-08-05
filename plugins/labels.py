@@ -21,6 +21,13 @@ from electrum_gui.i18n import _
 from electrum_gui.gui_classic import HelpButton
 
 class Plugin(BasePlugin):
+
+    def fullname(self):
+        return _('Label Sync')
+
+    def description(self):
+        return '%s\n\n%s%s%s' % (_("This plugin can sync your labels across multiple Electrum installs by using a remote database to save your data. Labels, transactions and addresses are all sent and stored encrypted on the remote server. This code might increase the load of your wallet with a few microseconds as it will sync labels on each startup."), _("To get started visit"), " http://labelectrum.herokuapp.com/", _(" to sign up for an account."))
+
     def version(self):
         return "0.2.1"
 
@@ -35,33 +42,31 @@ class Plugin(BasePlugin):
 
         return decoded_message
 
-    def __init__(self, gui):
-        self.target_host = 'labelectrum.herokuapp.com'
-        BasePlugin.__init__(self, gui, 'labels', _('Label Sync'), '%s\n\n%s%s%s' % (_("This plugin can sync your labels across multiple Electrum installs by using a remote database to save your data. Labels, transactions and addresses are all sent and stored encrypted on the remote server. This code might increase the load of your wallet with a few microseconds as it will sync labels on each startup."), _("To get started visit"), " http://labelectrum.herokuapp.com/", _(" to sign up for an account.")))
 
+    def init(self):
+        self.target_host = 'labelectrum.herokuapp.com'
         self.wallet = gui.wallet
         self.gui = gui
         self.config = gui.config
         self.labels = self.wallet.labels
         self.transactions = self.wallet.transactions
-        self.encode_password = hashlib.sha1(self.config.get("master_public_key")).digest().encode('hex')[:32]
-
-        self.wallet_id = hashlib.sha256(str(self.config.get("master_public_key"))).digest().encode('hex')
+        mpk = self.wallet.master_public_keys["m/0'/"][1]
+        self.encode_password = hashlib.sha1(mpk).digest().encode('hex')[:32]
+        self.wallet_id = hashlib.sha256(mpk).digest().encode('hex')
 
         addresses = [] 
-        for k, account in self.wallet.accounts.items():
-            for address in account[0]:
+        for account in self.wallet.accounts.values():
+            for address in account.get_addresses(0):
                 addresses.append(address)
 
         self.addresses = addresses
 
-    def auth_token(self):
-        return self.config.get("plugin_label_api_key")
-
-    def init_gui(self):
-        if self.is_enabled() and self.auth_token():
+        if self.auth_token():
             # If there is an auth token we can try to actually start syncing
             self.full_pull()
+
+    def auth_token(self):
+        return self.config.get("plugin_label_api_key")
 
     def is_available(self):
         return True
@@ -138,18 +143,14 @@ class Plugin(BasePlugin):
         else:
           return False
 
-    def toggle(self):
-        enabled = not self.is_enabled()
-        self.set_enabled(enabled)
-        self.init_gui()
-
-        if not self.auth_token() and enabled: # First run, throw plugin settings in your face
+    def enable(self):
+        if not self.auth_token(): # First run, throw plugin settings in your face
             if self.settings_dialog():
-              self.set_enabled(True)
-              return True
+                self.set_enabled(True)
+                return True
             else:
-              self.set_enabled(False)
-              return False
+                self.set_enabled(False)
+                return False
         return enabled
 
     def full_push(self):

@@ -20,11 +20,15 @@ ALIAS_REGEXP = '^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$'
 from electrum_gui import BasePlugin
 class Plugin(BasePlugin):
 
-    def __init__(self, gui):
-        BasePlugin.__init__(self, gui, 'aliases', 'Aliases', _('Retrieve aliases using http.'))
+    def fullname(self): return 'Aliases'
+
+    def description(self): return _('Retrieve aliases using http.')
+
+    def init(self):
         self.aliases      = self.config.get('aliases', {})            # aliases for addresses
         self.authorities  = self.config.get('authorities', {})        # trusted addresses
         self.receipts     = self.config.get('receipts',{})            # signed URIs
+
 
 
     def timer_actions(self):
