@@ -1,18 +1,21 @@
-"""
-todolist:
- * passwords, private keys storage
- * multisig service
- * compatibility with old addresses for restore
- * gui
- 
-        an account may use one or several MPKs.
-        due to the type 1 derivations, we need to pass the mpk to this function
-        None : all accounts
-        -1 : imported
-        0,1... : seeded sequences
+#!/usr/bin/env python
+#
+# Electrum - lightweight Bitcoin client
+# Copyright (C) 2013 thomasv@gitorious
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-        each account has a public and private master key
-"""
 
 from bitcoin import *
 
