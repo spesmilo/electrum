@@ -345,7 +345,8 @@ class ElectrumWindow(QMainWindow):
         self.notify_transactions()
 
         # plugins that need to change the GUI do it here
-        self.run_hook('init_gui')
+        self.run_hook('init')
+
 
     def select_wallet_file(self):
         wallet_folder = self.wallet.config.path
@@ -494,9 +495,9 @@ class ElectrumWindow(QMainWindow):
             plugins = [ __import__('electrum_plugins.'+name, fromlist=['electrum_plugins']) for name in plugin_names]
 
         self.plugins = []
-        for p in plugins:
+        for name, p in zip(plugin_names, plugins):
             try:
-                self.plugins.append( p.Plugin(self) )
+                self.plugins.append( p.Plugin(self, name) )
             except:
                 print_msg("Error:cannot initialize plugin",p)
                 traceback.print_exc(file=sys.stdout)
@@ -2161,15 +2162,14 @@ class ElectrumWindow(QMainWindow):
                 return lambda: cb.setChecked(p.toggle())
             for i, p in enumerate(self.plugins):
                 try:
-                    name, description = p.get_info()
-                    cb = QCheckBox(name)
+                    cb = QCheckBox(p.fullname())
                     cb.setDisabled(not p.is_available())
                     cb.setChecked(p.is_enabled())
                     cb.clicked.connect(mk_toggle(cb,p))
                     grid_plugins.addWidget(cb, i, 0)
                     if p.requires_settings():
                         grid_plugins.addWidget(EnterButton(_('Settings'), p.settings_dialog), i, 1)
-                    grid_plugins.addWidget(HelpButton(description), i, 2)
+                    grid_plugins.addWidget(HelpButton(p.description()), i, 2)
                 except:
                     print_msg("Error: cannot display plugin", p)
                     traceback.print_exc(file=sys.stdout)

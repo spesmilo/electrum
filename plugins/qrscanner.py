@@ -18,10 +18,14 @@ except ImportError:
 from electrum_gui import BasePlugin
 class Plugin(BasePlugin):
 
-    def __init__(self, gui):
-        BasePlugin.__init__(self, gui, 'qrscans', 'QR scans', "QR Scans.\nInstall the zbar package (http://zbar.sourceforge.net/download.html) to enable this plugin")
+    def fullname(self): return 'QR scans'
+
+    def description(self): return "QR Scans.\nInstall the zbar package (http://zbar.sourceforge.net/download.html) to enable this plugin"
+
+    def __init__(self, gui, name):
+        BasePlugin.__init__(self, gui, name)
         self._is_available = self._init()
-        
+
     def _init(self):
         if not zbar:
             return False

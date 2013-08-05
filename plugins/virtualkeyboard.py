@@ -5,8 +5,13 @@ from electrum_gui.i18n import _
 class Plugin(BasePlugin):
 
 
-    def __init__(self, gui):
-        BasePlugin.__init__(self, gui, 'virtualkeyboard', 'Virtual Keyboard', '%s\n%s' % (_("Add an optional, mouse keyboard to the password dialog."), _("Warning: do not use this if it makes you pick a weaker password.")))
+    def fullname(self):
+        return 'Virtual Keyboard'
+
+    def description(self):
+        return '%s\n%s' % (_("Add an optional, mouse keyboard to the password dialog."), _("Warning: do not use this if it makes you pick a weaker password."))
+
+    def init(self):
         self.vkb = None
         self.vkb_index = 0
 

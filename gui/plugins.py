@@ -2,27 +2,42 @@
 
 class BasePlugin:
 
-    def get_info(self):
-        return self.fullname, self.description
-
-    def __init__(self, gui, name, fullname, description):
-        self.name = name
-        self.fullname = fullname
-        self.description = description
+    def __init__(self, gui, name):
         self.gui = gui
+        self.name = name
         self.config = gui.config
+
+    def fullname(self):
+        return self.name
+
+    def description(self):
+        return 'undefined'
 
     def requires_settings(self):
         return False
 
     def toggle(self):
-        enabled = not self.is_enabled()
-        self.set_enabled(enabled)
-        self.init_gui()
-        return enabled
+        if self.is_enabled():
+            if self.disable():
+                self.close()
+        else:
+            if self.enable():
+                self.init()
+
+        return self.is_enabled()
+
     
-    def init_gui(self):
-        pass
+    def enable(self):
+        self.set_enabled(True)
+        return True
+
+    def disable(self):
+        self.set_enabled(False)
+        return True
+
+    def init(self): pass
+
+    def close(self): pass
 
     def is_enabled(self):
         return self.is_available() and self.config.get('use_'+self.name) is True
