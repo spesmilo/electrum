@@ -1429,15 +1429,24 @@ class ElectrumWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, _('Error'), _('Invalid Address'), _('OK'))
 
+
     def new_account_dialog(self):
         text, ok = QInputDialog.getText(self, _('New Account'), _('Name') + ':')
+        if not ok or not text: 
+            return
         name = unicode(text)
-        if ok:
-            self.wallet.create_new_account(name)
-            self.wallet.synchronize()
-            self.update_contacts_tab()
-            self.update_history_tab()
-            self.update_completions()
+        try:
+            self.create_new_account(name)
+        except:
+            QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
+            
+    @protected
+    def create_new_account(self, name, password):
+        self.wallet.create_new_account(name, password)
+        self.wallet.synchronize()
+        self.update_receive_tab()
+        self.update_history_tab()
+        self.update_completions()
 
     def show_master_public_key(self):
         dialog = QDialog(self)

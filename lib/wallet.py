@@ -192,7 +192,7 @@ class Wallet:
         self.config.set_key('master_private_keys', self.master_private_keys, True)
 
         # create default account
-        self.create_new_account('Main account')
+        self.create_new_account('Main account', None)
 
 
     def create_new_account(self, name, password):
