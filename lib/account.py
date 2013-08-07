@@ -161,7 +161,7 @@ class BIP32_Account(Account):
 
     def get_address(self, for_change, n):
         pubkey = self.get_pubkey(for_change, n)
-        address = public_key_to_bc_address( pubkey )
+        address = public_key_to_bc_address( pubkey.decode('hex') )
         return address
 
     def get_pubkey(self, for_change, n):
@@ -169,7 +169,7 @@ class BIP32_Account(Account):
         chain = self.c
         for i in [for_change, n]:
             K, K_compressed, chain = CKD_prime(K, chain, i)
-        return K_compressed
+        return K_compressed.encode('hex')
 
     def get_private_key(self, sequence, master_k):
         chain = self.c
@@ -213,12 +213,12 @@ class BIP32_Account_2of2(BIP32_Account):
         chain = self.c2
         for i in [for_change, n]:
             K, K_compressed, chain = CKD_prime(K, chain, i)
-        return K_compressed
+        return K_compressed.encode('hex')
 
     def get_address(self, for_change, n):
         pubkey1 = self.get_pubkey(for_change, n)
         pubkey2 = self.get_pubkey2(for_change, n)
-        address = Transaction.multisig_script([pubkey1.encode('hex'), pubkey2.encode('hex')], 2)["address"]
+        address = Transaction.multisig_script([pubkey1, pubkey2], 2)["address"]
         return address
 
     def get_input_info(self, sequence):
@@ -227,6 +227,6 @@ class BIP32_Account_2of2(BIP32_Account):
         pubkey2 = self.get_pubkey2(chain, i)
         # fixme
         pk_addr = None # public_key_to_bc_address( pubkey1 ) # we need to return that address to get the right private key
-        redeemScript = Transaction.multisig_script([pubkey1.encode('hex'), pubkey2.encode('hex')], 2)['redeemScript']
+        redeemScript = Transaction.multisig_script([pubkey1, pubkey2], 2)['redeemScript']
         return pk_addr, redeemScript
 

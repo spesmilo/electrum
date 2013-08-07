@@ -294,7 +294,7 @@ class Wallet:
 
     def get_public_key(self, address):
         account, sequence = self.get_address_index(address)
-        return self.accounts[account].get_pubkey( sequence )
+        return self.accounts[account].get_pubkey( *sequence )
 
 
     def decode_seed(self, password):
