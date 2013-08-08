@@ -45,9 +45,7 @@ class Plugin(BasePlugin):
 
     def init(self):
         self.target_host = 'labelectrum.herokuapp.com'
-        self.wallet = gui.wallet
-        self.gui = gui
-        self.config = gui.config
+        self.wallet = self.gui.wallet
         self.labels = self.wallet.labels
         self.transactions = self.wallet.transactions
         mpk = self.wallet.master_public_keys["m/0'/"][1]
@@ -145,6 +143,7 @@ class Plugin(BasePlugin):
 
     def enable(self):
         if not self.auth_token(): # First run, throw plugin settings in your face
+            self.init()
             if self.settings_dialog():
                 self.set_enabled(True)
                 return True
