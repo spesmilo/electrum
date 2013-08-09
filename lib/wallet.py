@@ -96,8 +96,9 @@ class Wallet:
         if self.accounts.get(1):
             pubkeys = self.accounts[1]['pubkeys']
             key1 = pubkeys[0]
-            key2 = None if len(pubkeys) == 1 else pubkeys[1]
-            self.sequences[1] = self.SequenceClass(self.config.get('master_public_key'), key1, key2)
+            key2 = pubkeys[1]
+            key3 = None if len(pubkeys) <= 2 else pubkeys[2]
+            self.sequences[1] = self.SequenceClass(key1, key2, key3)
 
         self.transactions = {}
         tx = config.get('transactions',{})
@@ -859,7 +860,8 @@ class Wallet:
                 pk_addresses.append(address)
                 continue
             account, sequence = self.get_address_index(address)
-            txin['KeyID'] = (account, 'Electrum', sequence) # used by the server to find the key
+            offline_account = self.translate_account(account)
+            txin['KeyID'] = (offline_account, 'Electrum', sequence) # used by the server to find the key
             pk_addr, redeemScript = self.sequences[account].get_input_info(sequence)
             if redeemScript: txin['redeemScript'] = redeemScript
             pk_addresses.append(pk_addr)
@@ -876,6 +878,11 @@ class Wallet:
         return tx
 
 
+    def translate_account(self, account):
+        # Translate multisig account to account zero for the offline wallet
+        if self.accounts[account].get('numsigs'):
+            account = 0
+        return account
 
     def sendtx(self, tx):
         # synchronous

@@ -103,6 +103,7 @@ if __name__ == '__main__':
         archive_dir = path.join(path.dirname(tx_file), 'archive')
         (base, ignore) = path.splitext(tx_file)
         signed_file = base + '.stxn'
+        partial_file = base + '-part.txn'
         archived_file = path.join(archive_dir, path.basename(tx_file))
         archived_signed_file = path.join(archive_dir, path.basename(signed_file))
 
@@ -127,10 +128,11 @@ if __name__ == '__main__':
         if not raw_input('Sign this transaction? ').startswith('y'):
             sys.exit(0)
         wallet.signrawtransaction(tx, input_info, [], None)
-        f = open(signed_file, "wb")
+        out_file = signed_file if tx.is_complete else partial_file
+        f = open(out_file, "wb")
         f.write(json.dumps(tx.as_dict()))
         f.write("\n")
         f.close()
-        print "Created %s"%(signed_file)
+        print "Created %s"%(out_file)
         os.rename(tx_file, archived_file)
         print
