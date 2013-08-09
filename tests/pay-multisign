@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# See create-multisign
+
+# Arguments: ADDRESS AMOUNT 
+
+set -e
+
+TD=electrum-test
+EL="./electrum"
+
+if [ -z "$1" -o -z "$2" ]; then
+  echo "usage: pay-multisign ADDRESS AMOUNT"
+  exit 1
+fi
+
+if [ -e $TD/counter ]; then
+  count=`cat $TD/counter`
+else
+  count=1
+fi
+
+echo Tranasaction x$count
+
+rm -rf $TD/archive $TD/*.txn $TD/*.stxn
+#$EL setconfig use_change False - this doesn't set the flag correctly
+$EL -w $TD/o1 getbalance
+$EL -w $TD/o1 mktx $1 $2 > $TD/x$count.txn
+
+# Simulate offline signatures
+./scripts/osigner -w $TD/o1.seeded $TD
+#./scripts/osigner -w $TD/o2.seeded $TD
+./scripts/osigner -w $TD/o3.seeded $TD
+
+count=`expr 1 + $count`
+echo $count > $TD/counter
+
+# Some other servers don't handle broadcasting p2sh transactions correctly
+./scripts/osender -s btcback.com:50001:t -w $TD/o1 $TD
