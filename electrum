@@ -328,6 +328,17 @@ if __name__ == '__main__':
     elif cmd == 'createrawtransaction':
         args = [ cmd, json.loads(args[1]), json.loads(args[2])]
 
+    elif cmd == 'setup_oms':
+        wallets = []
+        if len(args) > 3:
+            for path in args[2:]:
+                oconfig = eval(str(config_options))
+                oconfig['wallet_path'] = path
+                sconfig = SimpleConfig(oconfig)
+                owallet = Wallet(sconfig)
+                wallets.append(owallet)
+            args = [cmd, int(args[1]), wallets]
+
     elif cmd == 'listaddresses':
         args = [cmd, options.show_all, options.show_balance, options.show_labels]
 
@@ -346,6 +357,7 @@ if __name__ == '__main__':
 
     # check the number of arguments
     min_args, max_args, description, syntax, options_syntax = known_commands[cmd]
+
     if len(args) - 1 < min_args:
         print_msg("Not enough arguments")
         print_msg("Syntax:", syntax)

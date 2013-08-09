@@ -93,6 +93,12 @@ class Wallet:
         if self.accounts.get(0) is None:
             self.accounts[0] = { 0:[], 1:[], 'name':'Main account' }
 
+        if self.accounts.get(1):
+            pubkeys = self.accounts[1]['pubkeys']
+            key1 = pubkeys[0]
+            key2 = None if len(pubkeys) == 1 else pubkeys[1]
+            self.sequences[1] = self.SequenceClass(self.config.get('master_public_key'), key1, key2)
+
         self.transactions = {}
         tx = config.get('transactions',{})
         try:
@@ -146,7 +152,7 @@ class Wallet:
         self.imported_keys[address] = pw_encode(sec, password )
         self.config.set_key('imported_keys', self.imported_keys, True)
         return address
-        
+
     def delete_imported_key(self, addr):
         if addr in self.imported_keys:
             self.imported_keys.pop(addr)
@@ -1068,6 +1074,9 @@ class Wallet:
 
         return True
 
+    def setup_oms(self, pubkeys, numsigs):
+        self.accounts[1] = { 0:[], 1:[], 'name':'OMS Account', 'pubkeys':pubkeys, 'numsigs':numsigs }
+
 
 
 
@@ -1098,7 +1107,6 @@ class WalletSynchronizer(threading.Thread):
         for addr in addresses:
             messages.append(('blockchain.address.subscribe', [addr]))
         self.interface.send( messages, 'synchronizer')
-
 
     def run(self):
         with self.lock: self.running = True

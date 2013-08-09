@@ -73,6 +73,7 @@ register_command('unfreeze',             1, 1, False, True,  'Unfreeze the funds
 register_command('unprioritize',         1, 1, False, True,  'Unprioritize an address', 'unprioritize <address>')
 register_command('validateaddress',      1, 1, False, True,  'Check that the address is valid', 'validateaddress <address>')
 register_command('verifymessage',        3,-1, False, True,  'Verifies a signature', 'verifymessage <address> <signature> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "')
+register_command('setup_oms',            2, 2, False, False,  'Setup offline multisig account', 'setup_oms <minimum-signatures> <wallet1> <wallet2> <wallet3>?')
     
 
 
@@ -296,7 +297,22 @@ class Commands:
                     item = addr
                 out.append( item )
         return out
-                         
+
+    def setup_oms(self, numsigs, wallets):
+        assert isinstance(wallets, list)
+        pubkeys = []
+        for wallet in wallets:
+            account = wallet.accounts[0]
+            pubkey = wallet.get_master_public_key()
+            pubkeys.append(pubkey)
+        try:
+            self.wallet.setup_oms(pubkeys, numsigs)
+            self.wallet.save()
+            out = "OMS set up"
+        except BaseException as e:
+            out = "Error: Keypair import failed: " + str(e)
+        return out
+
     def help(self, cmd2=None):
         if cmd2 not in known_commands:
             print_msg("\nList of commands:", ', '.join(sorted(known_commands)))
