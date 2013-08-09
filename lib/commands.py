@@ -35,7 +35,7 @@ def register_command(name, min_args, max_args, is_protected, is_offline, descrip
         offline_commands.append(name)
 
 
-payto_options = ' --fee, -f: set transaction fee\n --fromaddr, -s: send from address -\n --changeaddr, -c: send change to address'
+payto_options = ' --fee, -f: set transaction fee\n --changeaddr, -c: send change to address\n --account, -A: send from account (integer)'
 listaddr_options = " -a: show all addresses, including change addresses\n -b: include balance in results\n -l: include labels in results"
 restore_options = " accepts a seed or master public key."
 config_options = " accounts, addr_history, auto_cycle, column_widths, console-history, contacts,\n fee_per_kb, frozen_addresses, gap_limit, imported_keys, labels,\n master_public_key, num_zeros, prioritized_addresses, proxy, seed,\n seed_version, server, transactions, use_change, use_encryption, winpos-qt"
@@ -208,7 +208,7 @@ class Commands:
         return self.wallet.verify_message(address, signature, message)
 
 
-    def _mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):
+    def _mktx(self, to_address, amount, fee = None, change_addr = None, account = None):
 
         if not is_valid(to_address):
             raise BaseException("Invalid Bitcoin address", to_address)
@@ -217,13 +217,15 @@ class Commands:
             if not is_valid(change_addr):
                 raise BaseException("Invalid Bitcoin address", change_addr)
 
-        if domain is not None:
-            for addr in domain:
-                if not is_valid(addr):
-                    raise BaseException("invalid Bitcoin address", addr)
-            
-                if not self.wallet.is_mine(addr):
-                    raise BaseException("address not in wallet", addr)
+# XXX wallet.mktx doesn't support addresses in the domain param.  It supports an account.
+#
+#        if domain is not None:
+#            for addr in domain:
+#                if not is_valid(addr):
+#                    raise BaseException("invalid Bitcoin address", addr)
+#            
+#                if not self.wallet.is_mine(addr):
+#                    raise BaseException("address not in wallet", addr)
 
         for k, v in self.wallet.labels.items():
             if v == to_address:
@@ -235,16 +237,16 @@ class Commands:
 
         amount = int(100000000*amount)
         if fee: fee = int(100000000*fee)
-        return self.wallet.mktx( [(to_address, amount)], self.password, fee , change_addr, domain)
+        return self.wallet.mktx( [(to_address, amount)], self.password, fee , change_addr, account)
 
 
-    def mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):
-        tx = self._mktx(to_address, amount, fee, change_addr, domain)
+    def mktx(self, to_address, amount, fee = None, change_addr = None, account = None):
+        tx = self._mktx(to_address, amount, fee, change_addr, account)
         return tx.as_dict()
 
 
-    def payto(self, to_address, amount, fee = None, change_addr = None, domain = None):
-        tx = self._mktx(to_address, amount, fee, change_addr, domain)
+    def payto(self, to_address, amount, fee = None, change_addr = None, account = None):
+        tx = self._mktx(to_address, amount, fee, change_addr, account)
         r, h = self.wallet.sendtx( tx )
         return h
 
