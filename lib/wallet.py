@@ -152,7 +152,7 @@ class Wallet:
         self.imported_keys[address] = pw_encode(sec, password )
         self.config.set_key('imported_keys', self.imported_keys, True)
         return address
-        
+
     def delete_imported_key(self, addr):
         if addr in self.imported_keys:
             self.imported_keys.pop(addr)
@@ -229,6 +229,20 @@ class Wallet:
         self.accounts[account_id] = BIP32_Account_2of2({ 'name':name, 'c':c1, 'K':K1, 'cK':cK1, 'c2':c2, 'K2':K2, 'cK2':cK2 })
         self.save_accounts()
 
+    def create_oms_account(self, wallets, numsigs):
+        if "oms" in self.accounts.keys(): return
+
+        pubkeys = []
+        for wallet in wallets:
+            account = wallet.accounts["m/0'/0'"]
+            pubkeys.append({
+                'c':account.c.encode('hex'),
+                'K':account.K.encode('hex'),
+                'cK':account.cK.encode('hex')})
+
+        self.accounts["oms"] = BIP32_Account_oms({ 'name':'OMS Account', 'pubkeys':pubkeys, 'numsigs':numsigs })
+        self.save_accounts()
+
 
     def save_accounts(self):
         d = {}
@@ -243,6 +257,8 @@ class Wallet:
         for k, v in d.items():
             if '&' in k:
                 self.accounts[k] = BIP32_Account_2of2(v)
+            elif k == 'oms':
+                self.accounts[k] = BIP32_Account_oms(v)
             else:
                 self.accounts[k] = BIP32_Account(v)
 
@@ -308,6 +324,10 @@ class Wallet:
             return pw_decode( self.imported_keys[address], password )
         else:
             account, sequence = self.get_address_index(address)
+            return self.get_private_key_by_account(account, sequence, password)
+
+    def get_private_key_by_account(self, account, sequence, password):
+        if True:
             m = re.match("m/0'/(\d+)'", account)
             if m:
                 num = int(m.group(1))
@@ -340,7 +360,6 @@ class Wallet:
 
     def signrawtransaction(self, tx, input_info, private_keys, password):
         unspent_coins = self.get_unspent_coins()
-        seed = self.decode_seed(password)
 
         # convert private_keys to dict 
         pk = {}
@@ -372,9 +391,10 @@ class Wallet:
             # find the address:
             if txin.get('KeyID'):
                 account, name, sequence = txin.get('KeyID')
-                if name != 'Electrum': continue
-                sec = self.accounts[account].get_private_key(sequence, seed)
-                addr = self.accounts[account].get_address(sequence)
+                if name != 'BIP32': continue
+                sec = self.get_private_key_by_account(account, sequence, password)
+                for_change, n = sequence
+                addr = self.accounts[account].get_address(for_change, n)
                 txin['address'] = addr
                 private_keys[addr] = sec
 
@@ -468,12 +488,12 @@ class Wallet:
 
 
     def peek_new_addresses(self, account, for_change):
-        addresses = self.accounts[account][for_change]
+        addresses = account.get_addresses(for_change)
         new_addresses = []
         n = len(addresses)
         limit = self.gap_limit_for_change if for_change else self.gap_limit
         for i in xrange(n, n+limit):
-            address = self.get_new_address( account, for_change, i)
+            address = account.peek_new_address(for_change, i)
             new_addresses.append(address)
         return new_addresses
 
@@ -487,10 +507,8 @@ class Wallet:
         new_addresses = []
         if sync_to is not None:
             for i in xrange(0, sync_to + 1):
-                address = addresses[i]
-                self.accounts[account][for_change].append(address)
+                address = account.create_new_address(for_change)
                 self.history[address] = []
-                print_msg(address)
                 new_addresses.append(address)
         return new_addresses
 
@@ -503,10 +521,10 @@ class Wallet:
     def synchronize_offline(self, to_addresses):
         """ Look ahead and try to find if any of the provided addresses are ours.  If so, sync to the latest.  Useful for history-less offline wallets so that we can keep track of change. """
         new = []
-        for account in self.accounts.keys():
+        for account in self.accounts.values():
             new += self.synchronize_account_offline(account, to_addresses)
         if new:
-            self.config.set_key('accounts', self.accounts, True)
+            self.save_accounts()
             self.config.set_key('addr_history', self.history, True)
         return new
 
@@ -946,15 +964,11 @@ class Wallet:
                 pk_addresses.append(address)
                 continue
             account, sequence = self.get_address_index(address)
-
-            txin['KeyID'] = (account, 'BIP32', sequence) # used by the server to find the key
-
+            offline_account = self.accounts[account].get_offline_account_id(account)
+            txin['KeyID'] = (offline_account, 'BIP32', sequence) # used by the server to find the key
             _, redeemScript = self.accounts[account].get_input_info(sequence)
-            
             if redeemScript: txin['redeemScript'] = redeemScript
             pk_addresses.append(address)
-
-        print "pk_addresses", pk_addresses
 
         # get all private keys at once.
         if self.seed:
@@ -967,8 +981,6 @@ class Wallet:
                 self.addressbook.append(address)
 
         return tx
-
-
 
     def sendtx(self, tx):
         # synchronous
@@ -1174,7 +1186,6 @@ class Wallet:
 
 
 
-
 class WalletSynchronizer(threading.Thread):
 
 
@@ -1203,7 +1214,6 @@ class WalletSynchronizer(threading.Thread):
         for addr in addresses:
             messages.append(('blockchain.address.subscribe', [addr]))
         self.interface.send( messages, 'synchronizer')
-
 
     def run(self):
         with self.lock: self.running = True

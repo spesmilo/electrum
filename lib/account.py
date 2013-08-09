@@ -43,9 +43,16 @@ class Account(object):
         print address
         return address
 
+    def peek_new_address(self, for_change, i):
+        addresses = self.change if for_change else self.addresses
+        address = self.get_address( for_change, i)
+        return address
+
     def get_address(self, for_change, n):
         pass
         
+    def get_offline_account_id(self, my_id):
+        return my_id
 
 
 
@@ -230,3 +237,66 @@ class BIP32_Account_2of2(BIP32_Account):
         redeemScript = Transaction.multisig_script([pubkey1, pubkey2], 2)['redeemScript']
         return pk_addr, redeemScript
 
+class BIP32_Account_oms(Account):
+
+    def __init__(self, v):
+        Account.__init__(self, v)
+        self.pubkeys = []
+        self.numsigs = v['numsigs']
+        for p in v['pubkeys']:
+            c = p['c'].decode('hex')
+            K = p['K'].decode('hex')
+            cK = p['cK'].decode('hex')
+            self.pubkeys.append([c, K, cK])
+
+    def dump(self):
+        d = Account.dump(self)
+        d['numsigs'] = self.numsigs
+        d['pubkeys'] = []
+        for pubkey in self.pubkeys:
+            c, K, cK = pubkey
+            p = {}
+            p['c'] = c.encode('hex')
+            p['K'] = K.encode('hex')
+            p['cK'] = cK.encode('hex')
+            d['pubkeys'].append(p)
+        return d
+
+    def get_pubkey_multi(self, pubkey_i, for_change, n):
+        chain, K, _ = self.pubkeys[pubkey_i]
+        for i in [for_change, n]:
+            K, K_compressed, chain = CKD_prime(K, chain, i)
+        return K_compressed.encode('hex')
+
+    def get_address(self, for_change, n):
+        pubkeys = []
+        for pubkey_i in xrange(len(self.pubkeys)):
+            pubkeys.append(self.get_pubkey_multi(pubkey_i, for_change, n))
+        address = Transaction.multisig_script(pubkeys, self.numsigs)["address"]
+        return address
+
+    def get_input_info(self, sequence):
+        pk_addr = None
+        redeemScript = ""
+        for_change, n = sequence
+
+        if len(self.pubkeys) == 2:
+            pubkey1 = self.get_pubkey_multi(0, for_change, n)
+            pubkey2 = self.get_pubkey_multi(1, for_change, n)
+            redeemScript = Transaction.multisig_script([pubkey1, pubkey2], self.numsigs)['redeemScript']
+        elif len(self.pubkeys) == 3:
+            pubkey1 = self.get_pubkey_multi(0, for_change, n)
+            pubkey2 = self.get_pubkey_multi(1, for_change, n)
+            pubkey3 = self.get_pubkey_multi(2, for_change, n)
+            txn = Transaction.multisig_script([pubkey1, pubkey2, pubkey3], self.numsigs)
+            redeemScript = txn['redeemScript']
+            import sys
+            sys.stderr.write(txn['address'])
+        else:
+            raise BaseException('Invalid number of pubkeys - %d' %(len(self.pubkeys)))
+
+        return pk_addr, redeemScript
+
+    def get_offline_account_id(self, my_id):
+        # Translate to main account for offline signing
+        return "m/0'/0'"

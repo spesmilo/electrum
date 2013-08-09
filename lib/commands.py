@@ -35,7 +35,7 @@ def register_command(name, min_args, max_args, is_protected, is_offline, descrip
         offline_commands.append(name)
 
 
-payto_options = ' --fee, -f: set transaction fee\n --fromaddr, -s: send from address -\n --changeaddr, -c: send change to address'
+payto_options = ' --fee, -f: set transaction fee\n --changeaddr, -c: send change to address\n --account, -A: send from account (integer)'
 listaddr_options = " -a: show all addresses, including change addresses\n -b: include balance in results\n -l: include labels in results"
 restore_options = " accepts a seed or master public key."
 config_options = " accounts, addr_history, auto_cycle, column_widths, console-history, contacts,\n fee_per_kb, frozen_addresses, gap_limit, imported_keys, labels,\n master_public_key, num_zeros, prioritized_addresses, proxy, seed,\n seed_version, server, transactions, use_change, use_encryption, winpos-qt"
@@ -73,6 +73,7 @@ register_command('unfreeze',             1, 1, False, True,  'Unfreeze the funds
 register_command('unprioritize',         1, 1, False, True,  'Unprioritize an address', 'unprioritize <address>')
 register_command('validateaddress',      1, 1, False, True,  'Check that the address is valid', 'validateaddress <address>')
 register_command('verifymessage',        3,-1, False, True,  'Verifies a signature', 'verifymessage <address> <signature> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "')
+register_command('setup_oms',            2, 2, False, False,  'Setup offline multisig account', 'setup_oms <minimum-signatures> <wallet1> <wallet2> <wallet3>?')
     
 
 
@@ -207,7 +208,7 @@ class Commands:
         return self.wallet.verify_message(address, signature, message)
 
 
-    def _mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):
+    def _mktx(self, to_address, amount, fee = None, change_addr = None, account = None):
 
         if not is_valid(to_address):
             raise BaseException("Invalid Bitcoin address", to_address)
@@ -216,13 +217,15 @@ class Commands:
             if not is_valid(change_addr):
                 raise BaseException("Invalid Bitcoin address", change_addr)
 
-        if domain is not None:
-            for addr in domain:
-                if not is_valid(addr):
-                    raise BaseException("invalid Bitcoin address", addr)
-            
-                if not self.wallet.is_mine(addr):
-                    raise BaseException("address not in wallet", addr)
+# XXX wallet.mktx doesn't support addresses in the domain param.  It supports an account.
+#
+#        if domain is not None:
+#            for addr in domain:
+#                if not is_valid(addr):
+#                    raise BaseException("invalid Bitcoin address", addr)
+#            
+#                if not self.wallet.is_mine(addr):
+#                    raise BaseException("address not in wallet", addr)
 
         for k, v in self.wallet.labels.items():
             if v == to_address:
@@ -234,16 +237,16 @@ class Commands:
 
         amount = int(100000000*amount)
         if fee: fee = int(100000000*fee)
-        return self.wallet.mktx( [(to_address, amount)], self.password, fee , change_addr, domain)
+        return self.wallet.mktx( [(to_address, amount)], self.password, fee , change_addr, account)
 
 
-    def mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):
-        tx = self._mktx(to_address, amount, fee, change_addr, domain)
+    def mktx(self, to_address, amount, fee = None, change_addr = None, account = None):
+        tx = self._mktx(to_address, amount, fee, change_addr, account)
         return tx.as_dict()
 
 
-    def payto(self, to_address, amount, fee = None, change_addr = None, domain = None):
-        tx = self._mktx(to_address, amount, fee, change_addr, domain)
+    def payto(self, to_address, amount, fee = None, change_addr = None, account = None):
+        tx = self._mktx(to_address, amount, fee, change_addr, account)
         r, h = self.wallet.sendtx( tx )
         return h
 
@@ -296,7 +299,17 @@ class Commands:
                     item = addr
                 out.append( item )
         return out
-                         
+
+    def setup_oms(self, numsigs, wallets):
+        assert isinstance(wallets, list)
+        try:
+            self.wallet.create_oms_account(wallets, numsigs)
+            self.wallet.save()
+            out = "OMS set up"
+        except BaseException as e:
+            out = "Error: OMS setup failed: " + str(e)
+        return out
+
     def help(self, cmd2=None):
         if cmd2 not in known_commands:
             print_msg("\nList of commands:", ', '.join(sorted(known_commands)))
