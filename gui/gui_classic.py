@@ -2270,18 +2270,28 @@ class ElectrumWindow(QMainWindow):
         self.config.set_key("console-history",self.console.history[-50:])
         event.accept()
 
+class OpenFileEventFilter(QObject):
+    def __init__(self, windows):
+        self.windows = windows
+        super(OpenFileEventFilter, self).__init__()
 
-
-
+    def eventFilter(self, obj, event):
+        if event.type() == QtCore.QEvent.FileOpen:
+            if len(self.windows) >= 1:
+                self.windows[0].set_url(event.url().toString())
+                return True
+        return False
 
 class ElectrumGui:
 
     def __init__(self, wallet, config, app=None):
         self.wallet = wallet
         self.config = config
+        self.windows = []
+        self.efilter = OpenFileEventFilter(self.windows)
         if app is None:
             self.app = QApplication(sys.argv)
-
+        self.app.installEventFilter(self.efilter)
 
     def restore_or_create(self):
         msg = _("Wallet file not found.")+"\n"+_("Do you want to create a new wallet, or to restore an existing one?")
@@ -2396,6 +2406,7 @@ class ElectrumGui:
         s = Timer()
         s.start()
         w = ElectrumWindow(self.wallet, self.config)
+        self.windows.append(w)
         if url: w.set_url(url)
         w.app = self.app
         w.connect_slots(s)
