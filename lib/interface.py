@@ -93,6 +93,38 @@ class Interface(threading.Thread):
         self.pending_transactions_for_notifications= []
 
 
+    def parse_servers(self, result):
+        """ parse servers list into dict format"""
+
+        servers = {}
+        for item in result:
+            host = item[1]
+            out = {}
+            version = None
+            pruning_level = '-'
+            if len(item) > 2:
+                for v in item[2]:
+                    if re.match("[stgh]\d*", v):
+                        protocol, port = v[0], v[1:]
+                        if port == '': port = DEFAULT_PORTS[protocol]
+                        out[protocol] = port
+                    elif re.match("v(.?)+", v):
+                        version = v[1:]
+                    elif re.match("p\d*", v):
+                        pruning_level = v[1:]
+                    if pruning_level == '': pruning_level = '0'
+            try: 
+                is_recent = float(version)>=float(PROTOCOL_VERSION)
+            except:
+                is_recent = False
+
+            if out and is_recent:
+                out['pruning'] = pruning_level
+                servers[host] = out
+
+        return servers
+
+
     def queue_json_response(self, c):
 
         # uncomment to debug
@@ -124,35 +156,7 @@ class Interface(threading.Thread):
                 self.trigger_callback('banner')
 
             elif method == 'server.peers.subscribe':
-                servers = {}
-                for item in result:
-
-                    host = item[1]
-                    out = {}
-
-                    version = None
-                    pruning_level = '-'
-                    if len(item) > 2:
-                        for v in item[2]:
-                            if re.match("[stgh]\d*", v):
-                                protocol, port = v[0], v[1:]
-                                if port == '': port = DEFAULT_PORTS[protocol]
-                                out[protocol] = port
-                            elif re.match("v(.?)+", v):
-                                version = v[1:]
-                            elif re.match("p\d*", v):
-                                pruning_level = v[1:]
-                                if pruning_level == '': pruning_level = '0'
-                    try: 
-                        is_recent = float(version)>=float(PROTOCOL_VERSION)
-                    except:
-                        is_recent = False
-
-                    if out and is_recent:
-                        out['pruning'] = pruning_level
-                        servers[host] = out 
-
-                self.servers = servers
+                self.servers = self.parse_servers(result)
                 self.trigger_callback('peers')
 
         else:
