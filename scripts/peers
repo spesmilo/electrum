@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 
-from electrum import Interface
+from electrum import interface, Interface
 
-i = Interface({'server':'ecdsa.org:50001:t'})
+i = Interface()
 i.start()
-i.send([('server.peers.subscribe',[])])
-
-while True:
-    r = i.get_response()
-    print r.get('result')
+servers = i.synchronous_get([('server.peers.subscribe',[])])[0]
+servers = i.parse_servers( servers )
+print servers
