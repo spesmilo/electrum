@@ -1,0 +1,138 @@
+#!/usr/bin/env python
+#
+# osigner - offline (cold) wallet signer utility
+# Copyright (C) 2013 TradeHill Inc
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+import re
+import pkgutil
+import sys, os, time, json
+from os import path
+from glob import glob
+import optparse
+import platform
+from decimal import Decimal
+
+try:
+    import ecdsa  
+except ImportError:
+    sys.exit("Error: python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'")
+
+try:
+    import aes
+except ImportError:
+    sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
+
+
+is_local = os.path.dirname(os.path.realpath(__file__)) == os.path.join(os.getcwd(), 'scripts')
+is_android = 'ANDROID_DATA' in os.environ
+
+import __builtin__
+__builtin__.use_local_modules = is_local or is_android
+
+# load local module as electrum
+if __builtin__.use_local_modules:
+    import imp
+    imp.load_module('electrum', *imp.find_module('../lib'))
+
+from electrum import *
+
+def arg_parser():
+    usage = """usage: %prog [options] DIR ...
+Signs all unsigned transactions files of the form *.txn in each directory.
+The signed transactions are of the form *.stxn.
+After signing, each unsigned file is moved into an archive subdirectory.
+""" 
+    parser = optparse.OptionParser(prog=usage)
+    parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
+    parser.add_option("-v", "--verbose", action="store_true", dest="verbose", default=False, help="show debugging information")
+    return parser
+
+def print_outputs(outs, wallet):
+    for out in outs:
+        address, amount = out
+        if wallet.is_mine(address):
+            print "    CHANGE:%s -> %s"%(util.format_satoshis(amount, False), address)
+        else:
+            print "    OUT   :%s -> %s"%(util.format_satoshis(amount, False), address)
+
+if __name__ == '__main__':
+
+    parser = arg_parser()
+    options, args = parser.parse_args()
+    set_verbosity(options.verbose)
+
+    # config is an object passed to the various constructors (wallet, interface, gui)
+    if is_android:
+        config_options = {'wallet_path':"/sdcard/electrum.dat", 'portable':True, 'verbose':True, 'gui':'android', 'auto_cycle':True}
+    else:
+        config_options = eval(str(options))
+        for k, v in config_options.items():
+              if v is None: config_options.pop(k)
+
+    config = SimpleConfig(config_options)
+    wallet = Wallet(config)
+
+    if not config.wallet_file_exists:
+        print_msg("Error: Wallet file not found.")
+        sys.exit(1)
+
+    tx_files = []
+    for tx_dir in args:
+        tx_files = tx_files + glob(path.join(tx_dir, '*.txn'))
+        archive_dir = path.join(tx_dir, 'archive')
+        if not path.isdir(archive_dir):
+            os.mkdir(archive_dir)
+
+    tx_files.sort()
+
+    for tx_file in tx_files:
+        print tx_file + ":"
+        archive_dir = path.join(path.dirname(tx_file), 'archive')
+        (base, ignore) = path.splitext(tx_file)
+        signed_file = base + '.stxn'
+        partial_file = base + '-part.txn'
+        archived_file = path.join(archive_dir, path.basename(tx_file))
+        archived_signed_file = path.join(archive_dir, path.basename(signed_file))
+
+        if path.isfile(signed_file):
+            print "%s already exists!"%(signed_file)
+            sys.exit(1)
+        if path.isfile(archived_file):
+            print "Archived unsigned file %s already exists!"%(archived_file)
+            sys.exit(1)
+        if path.isfile(archived_signed_file):
+            print "Archived signed file %s already exists!"%(archived_signed_file)
+            sys.exit(1)
+
+        unsigned_tx = json.load(open(tx_file, "rb"))
+        raw_tx = unsigned_tx['hex']
+        input_info = json.loads(unsigned_tx['input_info'])
+        tx = Transaction(raw_tx)
+        addresses = map( lambda o: o[0], tx.outputs )
+        wallet.synchronize_offline(addresses)
+
+        print_outputs(tx.outputs, wallet)
+        if not raw_input('Sign this transaction? ').startswith('y'):
+            sys.exit(0)
+        wallet.signrawtransaction(tx, input_info, [], None)
+        out_file = signed_file if tx.is_complete else partial_file
+        f = open(out_file, "wb")
+        f.write(json.dumps(tx.as_dict()))
+        f.write("\n")
+        f.close()
+        print "Created %s"%(out_file)
+        os.rename(tx_file, archived_file)
+        print

@@ -94,6 +94,13 @@ class Wallet:
         if self.accounts.get(0) is None:
             self.accounts[0] = { 0:[], 1:[], 'name':'Main account' }
 
+        if self.accounts.get(1):
+            pubkeys = self.accounts[1]['pubkeys']
+            key1 = pubkeys[0]
+            key2 = pubkeys[1]
+            key3 = None if len(pubkeys) <= 2 else pubkeys[2]
+            self.sequences[1] = self.SequenceClass(key1, key2, key3)
+
         self.transactions = {}
         tx = config.get('transactions',{})
         try:
@@ -154,7 +161,7 @@ class Wallet:
         self.imported_keys[address] = pw_encode(sec, password )
         self.config.set_key('imported_keys', self.imported_keys, True)
         return address
-        
+
     def delete_imported_key(self, addr):
         if addr in self.imported_keys:
             self.imported_keys.pop(addr)
@@ -387,6 +394,50 @@ class Wallet:
             if tx_age > age:
                 age = tx_age
         return age > 2
+
+
+    def peek_new_addresses(self, account, for_change):
+        addresses = self.accounts[account][for_change]
+        new_addresses = []
+        n = len(addresses)
+        limit = self.gap_limit_for_change if for_change else self.gap_limit
+        for i in xrange(n, n+limit):
+            address = self.get_new_address( account, for_change, i)
+            new_addresses.append(address)
+        return new_addresses
+
+    def synchronize_sequence_offline(self, account, for_change, to_addresses):
+        addresses = self.peek_new_addresses(account, for_change)
+        sync_to = None
+        for to_address in to_addresses:
+            if not self.is_mine(to_address) and to_address in addresses:
+                sync_to = max(sync_to, addresses.index(to_address))
+                print_error("Sync to %d for %d" %(sync_to, for_change))
+        new_addresses = []
+        if sync_to is not None:
+            for i in xrange(0, sync_to + 1):
+                address = addresses[i]
+                self.accounts[account][for_change].append(address)
+                self.history[address] = []
+                print_msg(address)
+                new_addresses.append(address)
+        return new_addresses
+
+    def synchronize_account_offline(self, account, to_addresses):
+        new = []
+        new += self.synchronize_sequence_offline(account, 0, to_addresses)
+        new += self.synchronize_sequence_offline(account, 1, to_addresses)
+        return new
+
+    def synchronize_offline(self, to_addresses):
+        """ Look ahead and try to find if any of the provided addresses are ours.  If so, sync to the latest.  Useful for history-less offline wallets so that we can keep track of change. """
+        new = []
+        for account in self.accounts.keys():
+            new += self.synchronize_account_offline(account, to_addresses)
+        if new:
+            self.config.set_key('accounts', self.accounts, True)
+            self.config.set_key('addr_history', self.history, True)
+        return new
 
 
     def synchronize_sequence(self, account, for_change):
@@ -818,7 +869,8 @@ class Wallet:
                 pk_addresses.append(address)
                 continue
             account, sequence = self.get_address_index(address)
-            txin['KeyID'] = (account, 'Electrum', sequence) # used by the server to find the key
+            offline_account = self.translate_account(account)
+            txin['KeyID'] = (offline_account, 'Electrum', sequence) # used by the server to find the key
             pk_addr, redeemScript = self.sequences[account].get_input_info(sequence)
             if redeemScript: txin['redeemScript'] = redeemScript
             pk_addresses.append(pk_addr)
@@ -835,6 +887,11 @@ class Wallet:
         return tx
 
 
+    def translate_account(self, account):
+        # Translate multisig account to account zero for the offline wallet
+        if self.accounts[account].get('numsigs'):
+            account = 0
+        return account
 
     def sendtx(self, tx):
         # synchronous
@@ -1033,6 +1090,9 @@ class Wallet:
 
         return True
 
+    def setup_oms(self, pubkeys, numsigs):
+        self.accounts[1] = { 0:[], 1:[], 'name':'OMS Account', 'pubkeys':pubkeys, 'numsigs':numsigs }
+
 
 
 
@@ -1064,7 +1124,6 @@ class WalletSynchronizer(threading.Thread):
         for addr in addresses:
             messages.append(('blockchain.address.subscribe', [addr]))
         self.interface.send( messages, 'synchronizer')
-
 
     def run(self):
         with self.lock: self.running = True

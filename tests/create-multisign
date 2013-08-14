@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# Create a testing multi-signature/offline setup
+
+# HOWTO:
+#
+# * Run this script
+# * Send BTC to any of the 3XXX bitcoin addresses displayed
+# * Set up the env variable DEST_ADDR to where you want the bitcoin to end up
+# * Run tests/pay-multisign any number of times
+#
+# NOTES:
+#
+# * All the 3XXX bitcoin addresses will be in sync across the three wallets
+# * The o*.seeded wallets are the offline wallets
+# * The o* wallets are the online watching-only versions
+
+set -e
+
+TD=electrum-test
+EL="./electrum"
+if [ -e $TD ]; then
+  echo "Test directory already exists"
+  exit 1
+fi
+
+mkdir $TD
+for w in o1 o2 o3; do
+  echo -n "\n\n\n\n\n\n\n" | $EL -w $TD/$w create
+
+  echo "y" | $EL -w $TD/$w deseed
+  mv $TD/$w $TD/$w.seeded
+  mv $TD/$w.seedless $TD/$w
+done
+
+for w in o1 o2 o3; do
+    $EL -o -w $TD/$w.seeded setup_oms 2 $TD/o1 $TD/o2 $TD/o3
+    $EL -w $TD/$w setup_oms 2 $TD/o1 $TD/o2 $TD/o3
+    $EL -w $TD/$w getbalance
+done
+
+$EL -w $TD/o1 listaddresses
