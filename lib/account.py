@@ -215,18 +215,44 @@ class BIP32_Account_2of2(BIP32_Account):
             K, K_compressed, chain = CKD_prime(K, chain, i)
         return K_compressed.encode('hex')
 
-    def get_address(self, for_change, n):
-        pubkey1 = self.get_pubkey(for_change, n)
-        pubkey2 = self.get_pubkey2(for_change, n)
-        address = Transaction.multisig_script([pubkey1, pubkey2], 2)["address"]
-        return address
-
-    def get_input_info(self, sequence):
+    def redeem_script(self, sequence):
         chain, i = sequence
         pubkey1 = self.get_pubkey(chain, i)
         pubkey2 = self.get_pubkey2(chain, i)
-        # fixme
-        pk_addr = None # public_key_to_bc_address( pubkey1 ) # we need to return that address to get the right private key
-        redeemScript = Transaction.multisig_script([pubkey1, pubkey2], 2)['redeemScript']
-        return pk_addr, redeemScript
+        return Transaction.multisig_script([pubkey1, pubkey2], 2)
+
+    def get_address(self, for_change, n):
+        address = hash_160_to_bc_address(hash_160(self.redeem_script((for_change, n)).decode('hex')), 5)
+        return address
+
+
+class BIP32_Account_2of3(BIP32_Account_2of2):
+
+    def __init__(self, v):
+        BIP32_Account_2of2.__init__(self, v)
+        self.c3 = v['c3'].decode('hex')
+        self.K3 = v['K3'].decode('hex')
+        self.cK3 = v['cK3'].decode('hex')
+
+    def dump(self):
+        d = BIP32_Account_2of2.dump(self)
+        d['c3'] = self.c3.encode('hex')
+        d['K3'] = self.K3.encode('hex')
+        d['cK3'] = self.cK3.encode('hex')
+        return d
+
+    def get_pubkey3(self, for_change, n):
+        K = self.K3
+        chain = self.c3
+        for i in [for_change, n]:
+            K, K_compressed, chain = CKD_prime(K, chain, i)
+        return K_compressed.encode('hex')
+
+    def get_redeem_script(self, sequence):
+        chain, i = sequence
+        pubkey1 = self.get_pubkey(chain, i)
+        pubkey2 = self.get_pubkey2(chain, i)
+        pubkey3 = self.get_pubkey3(chain, i)
+        return Transaction.multisig_script([pubkey1, pubkey2, pubkey3], 3)
+
 

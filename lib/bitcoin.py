@@ -508,8 +508,7 @@ class Transaction:
             raise
         s += 'ae'
 
-        out = { "address": hash_160_to_bc_address(hash_160(s.decode('hex')), 5), "redeemScript":s }
-        return out
+        return s
 
     @classmethod
     def serialize( klass, inputs, outputs, for_sig = None ):

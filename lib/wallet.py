@@ -172,21 +172,33 @@ class Wallet:
 
         master_k, master_c, master_K, master_cK = bip32_init(self.seed)
         
+        # normal accounts
         k0, c0, K0, cK0 = bip32_private_derivation(master_k, master_c, "m/", "m/0'/")
+        # p2sh 2 of 2
         k1, c1, K1, cK1 = bip32_private_derivation(master_k, master_c, "m/", "m/1'/")
         k2, c2, K2, cK2 = bip32_private_derivation(master_k, master_c, "m/", "m/2'/")
+        # p2sh 2 of 3
+        k3, c3, K3, cK3 = bip32_private_derivation(master_k, master_c, "m/", "m/3'/")
+        k4, c4, K4, cK4 = bip32_private_derivation(master_k, master_c, "m/", "m/4'/")
+        k5, c5, K5, cK5 = bip32_private_derivation(master_k, master_c, "m/", "m/5'/")
 
         self.master_public_keys = {
             "m/0'/": (c0, K0, cK0),
             "m/1'/": (c1, K1, cK1),
-            "m/2'/": (c2, K2, cK2)
+            "m/2'/": (c2, K2, cK2),
+            "m/3'/": (c3, K3, cK3),
+            "m/4'/": (c4, K4, cK4),
+            "m/5'/": (c5, K5, cK5)
             }
         
         self.master_private_keys = {
             "m/0'/": k0,
-            "m/1'/": k1
+            "m/1'/": k1,
+            "m/2'/": k2,
+            "m/3'/": k3,
+            "m/4'/": k4,
+            "m/5'/": k5
             }
-        # send k2 to service
         
         self.config.set_key('master_public_keys', self.master_public_keys, True)
         self.config.set_key('master_private_keys', self.master_private_keys, True)
@@ -902,15 +914,10 @@ class Wallet:
                 pk_addresses.append(address)
                 continue
             account, sequence = self.get_address_index(address)
-
             txin['KeyID'] = (account, 'BIP32', sequence) # used by the server to find the key
-
-            _, redeemScript = self.accounts[account].get_input_info(sequence)
-            
+            redeemScript = self.accounts[account].redeem_script(sequence)
             if redeemScript: txin['redeemScript'] = redeemScript
             pk_addresses.append(address)
-
-        print "pk_addresses", pk_addresses
 
         # get all private keys at once.
         if self.seed:
