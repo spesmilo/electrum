@@ -172,12 +172,12 @@ class Wallet:
 
         master_k, master_c, master_K, master_cK = bip32_init(self.seed)
         
-        # normal accounts
+        # normal accounts
         k0, c0, K0, cK0 = bip32_private_derivation(master_k, master_c, "m/", "m/0'/")
-        # p2sh 2 of 2
+        # p2sh 2of2
         k1, c1, K1, cK1 = bip32_private_derivation(master_k, master_c, "m/", "m/1'/")
         k2, c2, K2, cK2 = bip32_private_derivation(master_k, master_c, "m/", "m/2'/")
-        # p2sh 2 of 3
+        # p2sh 2of3
         k3, c3, K3, cK3 = bip32_private_derivation(master_k, master_c, "m/", "m/3'/")
         k4, c4, K4, cK4 = bip32_private_derivation(master_k, master_c, "m/", "m/4'/")
         k5, c5, K5, cK5 = bip32_private_derivation(master_k, master_c, "m/", "m/5'/")
@@ -204,41 +204,50 @@ class Wallet:
         self.config.set_key('master_private_keys', self.master_private_keys, True)
 
         # create default account
-        self.create_new_account('Main account', None)
+        self.create_account('Main account')
 
 
-    def create_new_account(self, name, password):
-        keys = self.accounts.keys()
-        i = 0
 
-        while True:
-            derivation = "m/0'/%d'"%i
-            if derivation not in keys: break
-            i += 1
+    def create_account(self, name, account_type = None):
 
-        start = "m/0'/"
-        master_k = self.get_master_private_key(start, password )
-        master_c, master_K, master_cK = self.master_public_keys[start]
-        k, c, K, cK = bip32_private_derivation(master_k, master_c, start, derivation)
-        
-        self.accounts[derivation] = BIP32_Account({ 'name':name, 'c':c, 'K':K, 'cK':cK })
-        self.save_accounts()
+        if account_type is None:
+            derivation = lambda i: "m/0'/%d'"%i
+        elif account_type == '2of2':
+            derivation = lambda i: "m/1'/%d & m/2'/%d"%(i,i)
+        elif account_type == '2of3':
+            derivation = lambda i: "m/3'/%d & m/4'/%d & m/5'/%d"%(i,i,i)
+        else:
+            raise BaseException('unknown account type')
 
-    def create_p2sh_account(self, name):
         keys = self.accounts.keys()
         i = 0
         while True:
-            account_id = "m/1'/%d & m/2'/%d"%(i,i)
+            account_id = derivation(i)
             if account_id not in keys: break
             i += 1
 
-        master_c1, master_K1, _ = self.master_public_keys["m/1'/"]
-        c1, K1, cK1 = bip32_public_derivation(master_c1.decode('hex'), master_K1.decode('hex'), "m/1'/", "m/1'/%d"%i)
-        
-        master_c2, master_K2, _ = self.master_public_keys["m/2'/"]
-        c2, K2, cK2 = bip32_public_derivation(master_c2.decode('hex'), master_K2.decode('hex'), "m/2'/", "m/2'/%d"%i)
-        
-        self.accounts[account_id] = BIP32_Account_2of2({ 'name':name, 'c':c1, 'K':K1, 'cK':cK1, 'c2':c2, 'K2':K2, 'cK2':cK2 })
+        if account_type is None:
+            master_c0, master_K0, _ = self.master_public_keys["m/0'/"]
+            c0, K0, cK0 = bip32_public_derivation(master_c0.decode('hex'), master_K0.decode('hex'), "m/0'/", "m/0'/%d"%i)
+            account = BIP32_Account({ 'name':name, 'c':c0, 'K':K0, 'cK':cK0 })
+
+        elif account_type == '2of2':
+            master_c1, master_K1, _ = self.master_public_keys["m/1'/"]
+            c1, K1, cK1 = bip32_public_derivation(master_c1.decode('hex'), master_K1.decode('hex'), "m/1'/", "m/1'/%d"%i)
+            master_c2, master_K2, _ = self.master_public_keys["m/2'/"]
+            c2, K2, cK2 = bip32_public_derivation(master_c2.decode('hex'), master_K2.decode('hex'), "m/2'/", "m/2'/%d"%i)
+            account = BIP32_Account_2of2({ 'name':name, 'c':c1, 'K':K1, 'cK':cK1, 'c2':c2, 'K2':K2, 'cK2':cK2 })
+
+        elif account_type == '2of3':
+            master_c3, master_K3, _ = self.master_public_keys["m/3'/"]
+            c3, K3, cK3 = bip32_public_derivation(master_c3.decode('hex'), master_K3.decode('hex'), "m/3'/", "m/3'/%d"%i)
+            master_c4, master_K4, _ = self.master_public_keys["m/4'/"]
+            c4, K4, cK4 = bip32_public_derivation(master_c4.decode('hex'), master_K4.decode('hex'), "m/4'/", "m/4'/%d"%i)
+            master_c5, master_K5, _ = self.master_public_keys["m/5'/"]
+            c5, K5, cK5 = bip32_public_derivation(master_c5.decode('hex'), master_K5.decode('hex'), "m/5'/", "m/5'/%d"%i)
+            account = BIP32_Account_2of3({ 'name':name, 'c':c3, 'K':K3, 'cK':cK3, 'c2':c4, 'K2':K4, 'cK2':cK4, 'c3':c5, 'K3':K5, 'cK3':cK5 })
+
+        self.accounts[account_id] = account
         self.save_accounts()
 
 
