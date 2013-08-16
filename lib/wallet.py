@@ -325,26 +325,26 @@ class Wallet:
         
 
     def get_private_key(self, address, password):
+        out = []
         if address in self.imported_keys.keys():
-            return pw_decode( self.imported_keys[address], password )
+            out.append( pw_decode( self.imported_keys[address], password ) )
         else:
             account, sequence = self.get_address_index(address)
-            m = re.match("m/0'/(\d+)'", account)
-            if m:
-                num = int(m.group(1))
-                master_k = self.get_master_private_key("m/0'/", password)
-                master_c, _, _ = self.master_public_keys["m/0'/"]
-                master_k, master_c = CKD(master_k, master_c, num + BIP32_PRIME)
-                return self.accounts[account].get_private_key(sequence, master_k)
-                
-            m2 = re.match("m/1'/(\d+) & m/2'/(\d+)", account)
-            if m2:
-                num = int(m2.group(1))
-                master_k = self.get_master_private_key("m/1'/", password)
-                master_c, master_K, _ = self.master_public_keys["m/1'/"]
-                master_k, master_c = CKD(master_k.decode('hex'), master_c.decode('hex'), num)
-                return self.accounts[account].get_private_key(sequence, master_k)
-        return
+            # assert address == self.accounts[account].get_address(*sequence)
+            l = account.split("&")
+            for s in l:
+                s = s.strip()
+                m = re.match("(m/\d+'/)(\d+)", s)
+                if m:
+                    root = m.group(1)
+                    if root not in self.master_private_keys.keys(): continue
+                    num = int(m.group(2))
+                    master_k = self.get_master_private_key(root, password)
+                    master_c, _, _ = self.master_public_keys[root]
+                    pk = bip32_private_key( (num,) + sequence, master_k.decode('hex'), master_c.decode('hex'))
+                    out.append(pk)
+                    
+        return out
 
 
     def get_private_keys(self, addresses, password):
@@ -915,7 +915,7 @@ class Wallet:
 
         tx = Transaction.from_io(inputs, outputs)
 
-        pk_addresses = []
+        private_keys = {}
         for i in range(len(tx.inputs)):
             txin = tx.inputs[i]
             address = txin['address']
@@ -924,15 +924,16 @@ class Wallet:
                 continue
             account, sequence = self.get_address_index(address)
             txin['KeyID'] = (account, 'BIP32', sequence) # used by the server to find the key
-            redeemScript = self.accounts[account].redeem_script(sequence)
-            if redeemScript: txin['redeemScript'] = redeemScript
-            pk_addresses.append(address)
 
-        # get all private keys at once.
-        if self.seed:
-            private_keys = self.get_private_keys(pk_addresses, password)
-            print "private keys", private_keys
-            tx.sign(private_keys)
+            redeemScript = self.accounts[account].redeem_script(sequence)
+            if redeemScript: 
+                txin['redeemScript'] = redeemScript
+                assert address == self.accounts[account].get_address(*sequence)
+
+            private_keys[address] = self.get_private_key(address, password)
+
+        print_error( "private keys", private_keys )
+        tx.sign(private_keys)
 
         for address, x in outputs:
             if address not in self.addressbook and not self.is_mine(address):

@@ -448,6 +448,11 @@ def bip32_public_derivation(c, K, branch, sequence):
     return c.encode('hex'), K.encode('hex'), cK.encode('hex')
 
 
+def bip32_private_key(sequence, k, chain):
+    for i in sequence:
+        k, chain = CKD(k, chain, i)
+    return SecretToASecret(k, True)
+
 
 
 
@@ -588,27 +593,29 @@ class Transaction:
 
     def sign(self, private_keys):
         import deserialize
+        is_complete = True
 
         for i in range(len(self.inputs)):
             txin = self.inputs[i]
             tx_for_sig = self.serialize( self.inputs, self.outputs, for_sig = i )
 
+            txin_pk = private_keys.get( txin.get('address') )
+            if not txin_pk: 
+                continue
+
             redeem_script = txin.get('redeemScript')
             if redeem_script:
                 # 1 parse the redeem script
                 num, redeem_pubkeys = deserialize.parse_redeemScript(redeem_script)
-                self.inputs[i]["pubkeys"] = redeem_pubkeys
+                txin["pubkeys"] = redeem_pubkeys
 
                 # build list of public/private keys
                 keypairs = {}
-                for sec in private_keys.values():
+                for sec in txin_pk:
                     compressed = is_compressed(sec)
                     pkey = regenerate_key(sec)
                     pubkey = GetPubKey(pkey.pubkey, compressed)
                     keypairs[ pubkey.encode('hex') ] = sec
-
-                print "keypairs", keypairs
-                print redeem_script, redeem_pubkeys
 
                 # list of already existing signatures
                 signatures = txin.get("signatures",[])
@@ -616,33 +623,23 @@ class Transaction:
 
                 for pubkey in redeem_pubkeys:
 
-                    # here we have compressed key.. it won't work
-                    #public_key = ecdsa.VerifyingKey.from_string(pubkey[2:].decode('hex'), curve = SECP256k1)  
-                    #for s in signatures:
-                    #    try:
-                    #        public_key.verify_digest( s.decode('hex')[:-1], Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
-                    #        break
-                    #    except ecdsa.keys.BadSignatureError:
-                    #        continue
-                    #else:
-                    if 1:
-                        # check if we have a key corresponding to the redeem script
-                        if pubkey in keypairs.keys():
-                            # add signature
-                            sec = keypairs[pubkey]
-                            compressed = is_compressed(sec)
-                            pkey = regenerate_key(sec)
-                            secexp = pkey.secret
-                            private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
-                            public_key = private_key.get_verifying_key()
-                            sig = private_key.sign_digest( Hash( tx_for_sig.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
-                            assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
-                            signatures.append( sig.encode('hex') )
+                    # check if we have a key corresponding to the redeem script
+                    if pubkey in keypairs.keys():
+                        # add signature
+                        sec = keypairs[pubkey]
+                        compressed = is_compressed(sec)
+                        pkey = regenerate_key(sec)
+                        secexp = pkey.secret
+                        private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
+                        public_key = private_key.get_verifying_key()
+                        sig = private_key.sign_digest( Hash( tx_for_sig.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
+                        assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
+                        signatures.append( sig.encode('hex') )
                         
                 # for p2sh, pubkeysig is a tuple (may be incomplete)
-                self.inputs[i]["signatures"] = signatures
-                print_error("signatures",signatures)
-                self.is_complete = len(signatures) == num
+                txin["signatures"] = signatures
+                print_error("signatures", signatures)
+                is_complete = is_complete and (len(signatures) == num)
 
             else:
                 sec = private_keys[txin['address']]
@@ -656,9 +653,10 @@ class Transaction:
                 sig = private_key.sign_digest( Hash( tx_for_sig.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
                 assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
 
-                self.inputs[i]["pubkeysig"] = [(pubkey, sig)]
-                self.is_complete = True
+                txin["pubkeysig"] = [(pubkey, sig)]
+                is_complete = is_complete = True
 
+        self.is_complete = is_complete
         self.raw = self.serialize( self.inputs, self.outputs )
 
 

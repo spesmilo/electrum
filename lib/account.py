@@ -171,12 +171,6 @@ class BIP32_Account(Account):
             K, K_compressed, chain = CKD_prime(K, chain, i)
         return K_compressed.encode('hex')
 
-    def get_private_key(self, sequence, master_k):
-        chain = self.c
-        k = master_k
-        for i in sequence:
-            k, chain = CKD(k, chain, i)
-        return SecretToASecret(k, True)
 
     def get_private_keys(self, sequence_list, seed):
         return [ self.get_private_key( sequence, seed) for sequence in sequence_list]
