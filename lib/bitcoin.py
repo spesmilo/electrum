@@ -591,23 +591,31 @@ class Transaction:
     def hash(self):
         return Hash(self.raw.decode('hex') )[::-1].encode('hex')
 
+
+
     def sign(self, private_keys):
         import deserialize
+
         is_complete = True
 
-        for i in range(len(self.inputs)):
-            txin = self.inputs[i]
+        for i, txin in enumerate(self.inputs):
+
             tx_for_sig = self.serialize( self.inputs, self.outputs, for_sig = i )
-
             txin_pk = private_keys.get( txin.get('address') )
-            if not txin_pk: 
-                continue
-
             redeem_script = txin.get('redeemScript')
+
             if redeem_script:
-                # 1 parse the redeem script
+
+                # parse the redeem script
                 num, redeem_pubkeys = deserialize.parse_redeemScript(redeem_script)
                 txin["pubkeys"] = redeem_pubkeys
+
+                # list of already existing signatures
+                signatures = txin.get("signatures",[])
+
+                # continue if this txin is complete
+                if len(signatures == num):
+                    continue
 
                 # build list of public/private keys
                 keypairs = {}
@@ -616,10 +624,6 @@ class Transaction:
                     pkey = regenerate_key(sec)
                     pubkey = GetPubKey(pkey.pubkey, compressed)
                     keypairs[ pubkey.encode('hex') ] = sec
-
-                # list of already existing signatures
-                signatures = txin.get("signatures",[])
-                print_error("signatures",signatures)
 
                 for pubkey in redeem_pubkeys:
 
@@ -639,10 +643,18 @@ class Transaction:
                 # for p2sh, pubkeysig is a tuple (may be incomplete)
                 txin["signatures"] = signatures
                 print_error("signatures", signatures)
-                is_complete = is_complete and (len(signatures) == num)
+                is_complete = is_complete and len(signatures == num)
 
             else:
-                sec = private_keys[txin['address']][0]
+
+                if txin.get("pubkeysig"): 
+                    continue
+
+                if not txin_pk:
+                    is_complete = False
+                    continue
+
+                sec = txin_pk[0]
                 compressed = is_compressed(sec)
                 pkey = regenerate_key(sec)
                 secexp = pkey.secret
@@ -652,9 +664,7 @@ class Transaction:
                 pubkey = GetPubKey(pkey.pubkey, compressed)
                 sig = private_key.sign_digest( Hash( tx_for_sig.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
                 assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
-
                 txin["pubkeysig"] = [(pubkey, sig)]
-                is_complete = is_complete = True
 
         self.is_complete = is_complete
         self.raw = self.serialize( self.inputs, self.outputs )
