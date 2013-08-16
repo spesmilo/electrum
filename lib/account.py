@@ -171,19 +171,9 @@ class BIP32_Account(Account):
             K, K_compressed, chain = CKD_prime(K, chain, i)
         return K_compressed.encode('hex')
 
+    def redeem_script(self, sequence):
+        return None
 
-    def get_private_keys(self, sequence_list, seed):
-        return [ self.get_private_key( sequence, seed) for sequence in sequence_list]
-
-    def check_seed(self, seed):
-        master_secret, master_chain, master_public_key, master_public_key_compressed = bip32_init(seed)
-        assert self.mpk == (master_public_key.encode('hex'), master_chain.encode('hex'))
-
-    def get_input_info(self, sequence):
-        chain, i = sequence
-        pk_addr = self.get_address(chain, i)
-        redeemScript = None
-        return pk_addr, redeemScript
 
 
 

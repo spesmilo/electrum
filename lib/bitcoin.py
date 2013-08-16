@@ -642,7 +642,7 @@ class Transaction:
                 is_complete = is_complete and (len(signatures) == num)
 
             else:
-                sec = private_keys[txin['address']]
+                sec = private_keys[txin['address']][0]
                 compressed = is_compressed(sec)
                 pkey = regenerate_key(sec)
                 secexp = pkey.secret
