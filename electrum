@@ -66,6 +66,7 @@ def prompt_password(prompt, confirm=True):
 def arg_parser():
     usage = "%prog [options] command" 
     parser = optparse.OptionParser(prog=usage)
+    parser.add_option("-B", "--batch", action="store_true", dest="batch", default=False, help="Do not ask questions")
     parser.add_option("-g", "--gui", dest="gui", help="User interface: qt, lite, gtk or text")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
     parser.add_option("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
@@ -215,22 +216,27 @@ if __name__ == '__main__':
     if cmd in ['create', 'restore']:
         if config.wallet_file_exists:
             sys.exit("Error: Remove the existing wallet first!")
-        password = prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
+        password = None
+        fee = None
+        gap = 5
 
         server = config.get('server')
         if not server: server = pick_random_server()
         w_host, w_port, w_protocol = server.split(':')
-        host = raw_input("server (default:%s):"%w_host)
-        port = raw_input("port (default:%s):"%w_port)
-        protocol = raw_input("protocol [t=tcp;h=http] (default:%s):"%w_protocol)
-        fee = raw_input("fee (default:%s):"%( str(Decimal(wallet.fee)/100000000)) )
-        gap = raw_input("gap limit (default 5):")
-        if host: w_host = host
-        if port: w_port = port
-        if protocol: w_protocol = protocol
-        wallet.config.set_key('server', w_host + ':' + w_port + ':' +w_protocol)
+        if not options.batch:
+          password = prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
+          host = raw_input("server (default:%s):"%w_host)
+          port = raw_input("port (default:%s):"%w_port)
+          protocol = raw_input("protocol [t=tcp;h=http] (default:%s):"%w_protocol)
+          fee = raw_input("fee (default:%s):"%( str(Decimal(wallet.fee)/100000000)) )
+          gap = raw_input("gap limit (default 5):")
+          if host: w_host = host
+          if port: w_port = port
+          if protocol: w_protocol = protocol
+
         if fee: wallet.fee = float(fee)
         if gap: wallet.gap_limit = int(gap)
+        wallet.config.set_key('server', w_host + ':' + w_port + ':' +w_protocol)
 
         if cmd == 'restore':
             seed = raw_input("seed:")
