@@ -207,24 +207,30 @@ class Wallet:
         self.create_account('Main account')
 
 
-
-    def create_account(self, name, account_type = None):
-
+    def account_id(self, account_type, i):
         if account_type is None:
-            derivation = lambda i: "m/0'/%d'"%i
+            return "m/0'/%d'"%i
         elif account_type == '2of2':
-            derivation = lambda i: "m/1'/%d & m/2'/%d"%(i,i)
+            return "m/1'/%d & m/2'/%d"%(i,i)
         elif account_type == '2of3':
-            derivation = lambda i: "m/3'/%d & m/4'/%d & m/5'/%d"%(i,i,i)
+            return "m/3'/%d & m/4'/%d & m/5'/%d"%(i,i,i)
         else:
             raise BaseException('unknown account type')
 
+
+    def num_accounts(self, account_type):
         keys = self.accounts.keys()
         i = 0
         while True:
-            account_id = derivation(i)
+            account_id = self.account_id(account_type, i)
             if account_id not in keys: break
             i += 1
+        return i
+
+
+    def create_account(self, name, account_type = None):
+        i = self.num_accounts(account_type)
+        acount_id = self.account_id(account_type,i)
 
         if account_type is None:
             master_c0, master_K0, _ = self.master_public_keys["m/0'/"]

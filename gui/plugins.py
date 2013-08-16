@@ -4,6 +4,7 @@ class BasePlugin:
 
     def __init__(self, gui, name):
         self.gui = gui
+        self.wallet = self.gui.wallet
         self.name = name
         self.config = gui.config
 

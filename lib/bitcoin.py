@@ -614,7 +614,7 @@ class Transaction:
                 signatures = txin.get("signatures",[])
 
                 # continue if this txin is complete
-                if len(signatures == num):
+                if len(signatures) == num:
                     continue
 
                 # build list of public/private keys
@@ -643,7 +643,7 @@ class Transaction:
                 # for p2sh, pubkeysig is a tuple (may be incomplete)
                 txin["signatures"] = signatures
                 print_error("signatures", signatures)
-                is_complete = is_complete and len(signatures == num)
+                is_complete = is_complete and len(signatures) == num
 
             else:
 
