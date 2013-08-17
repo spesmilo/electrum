@@ -209,7 +209,7 @@ class Wallet:
 
     def account_id(self, account_type, i):
         if account_type is None:
-            return "m/0'/%d'"%i
+            return "m/0'/%d"%i
         elif account_type == '2of2':
             return "m/1'/%d & m/2'/%d"%(i,i)
         elif account_type == '2of3':
@@ -230,19 +230,19 @@ class Wallet:
 
     def create_account(self, name, account_type = None):
         i = self.num_accounts(account_type)
-        acount_id = self.account_id(account_type,i)
+        account_id = self.account_id(account_type,i)
 
         if account_type is None:
             master_c0, master_K0, _ = self.master_public_keys["m/0'/"]
             c0, K0, cK0 = bip32_public_derivation(master_c0.decode('hex'), master_K0.decode('hex'), "m/0'/", "m/0'/%d"%i)
-            account = BIP32_Account({ 'name':name, 'c':c0, 'K':K0, 'cK':cK0 })
+            account = BIP32_Account({ 'c':c0, 'K':K0, 'cK':cK0 })
 
         elif account_type == '2of2':
             master_c1, master_K1, _ = self.master_public_keys["m/1'/"]
             c1, K1, cK1 = bip32_public_derivation(master_c1.decode('hex'), master_K1.decode('hex'), "m/1'/", "m/1'/%d"%i)
             master_c2, master_K2, _ = self.master_public_keys["m/2'/"]
             c2, K2, cK2 = bip32_public_derivation(master_c2.decode('hex'), master_K2.decode('hex'), "m/2'/", "m/2'/%d"%i)
-            account = BIP32_Account_2of2({ 'name':name, 'c':c1, 'K':K1, 'cK':cK1, 'c2':c2, 'K2':K2, 'cK2':cK2 })
+            account = BIP32_Account_2of2({ 'c':c1, 'K':K1, 'cK':cK1, 'c2':c2, 'K2':K2, 'cK2':cK2 })
 
         elif account_type == '2of3':
             master_c3, master_K3, _ = self.master_public_keys["m/3'/"]
@@ -251,10 +251,12 @@ class Wallet:
             c4, K4, cK4 = bip32_public_derivation(master_c4.decode('hex'), master_K4.decode('hex'), "m/4'/", "m/4'/%d"%i)
             master_c5, master_K5, _ = self.master_public_keys["m/5'/"]
             c5, K5, cK5 = bip32_public_derivation(master_c5.decode('hex'), master_K5.decode('hex'), "m/5'/", "m/5'/%d"%i)
-            account = BIP32_Account_2of3({ 'name':name, 'c':c3, 'K':K3, 'cK':cK3, 'c2':c4, 'K2':K4, 'cK2':cK4, 'c3':c5, 'K3':K5, 'cK3':cK5 })
+            account = BIP32_Account_2of3({ 'c':c3, 'K':K3, 'cK':cK3, 'c2':c4, 'K2':K4, 'cK2':cK4, 'c3':c5, 'K3':K5, 'cK3':cK5 })
 
         self.accounts[account_id] = account
         self.save_accounts()
+        self.labels[account_id] = name
+        self.config.set_key('labels', self.labels, True)
 
 
     def save_accounts(self):
@@ -534,7 +536,7 @@ class Wallet:
         self.config.set_key('contacts', self.addressbook, True)
         if label:  
             self.labels[address] = label
-            self.config.set_key('labels', self.labels)
+            self.config.set_key('labels', self.labels, True)
 
     def delete_contact(self, addr):
         if addr in self.addressbook:
@@ -627,7 +629,7 @@ class Wallet:
     def get_accounts(self):
         accounts = {}
         for k, account in self.accounts.items():
-            accounts[k] = account.name
+            accounts[k] = self.labels.get(k, 'unnamed')
         if self.imported_keys:
             accounts[-1] = 'Imported keys'
         return accounts

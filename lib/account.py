@@ -24,13 +24,9 @@ class Account(object):
     def __init__(self, v):
         self.addresses = v.get('0', [])
         self.change = v.get('1', [])
-        self.name = v.get('name', 'unnamed')
 
     def dump(self):
-        return {'0':self.addresses, '1':self.change, 'name':self.name}
-
-    def get_name(self):
-        return self.name
+        return {'0':self.addresses, '1':self.change}
 
     def get_addresses(self, for_change):
         return self.change[:] if for_change else self.addresses[:]

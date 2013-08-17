@@ -1268,7 +1268,7 @@ class ElectrumWindow(QMainWindow):
             account_items = []
 
         for k, account in account_items:
-            name = account.get_name()
+            name = self.wallet.labels.get(k, 'unnamed account')
             c,u = self.wallet.get_account_balance(k)
             account_item = QTreeWidgetItem( [ name, '', self.format_amount(c+u), ''] )
             l.addTopLevelItem(account_item)
