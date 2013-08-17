@@ -389,6 +389,50 @@ class Wallet:
         return age > 2
 
 
+    def peek_new_addresses(self, account, for_change):
+        addresses = self.accounts[account][for_change]
+        new_addresses = []
+        n = len(addresses)
+        limit = self.gap_limit_for_change if for_change else self.gap_limit
+        for i in xrange(n, n+limit):
+            address = self.get_new_address( account, for_change, i)
+            new_addresses.append(address)
+        return new_addresses
+
+    def synchronize_sequence_offline(self, account, for_change, to_addresses):
+        addresses = self.peek_new_addresses(account, for_change)
+        sync_to = None
+        for to_address in to_addresses:
+            if not self.is_mine(to_address) and to_address in addresses:
+                sync_to = max(sync_to, addresses.index(to_address))
+                print_error("Sync to %d for %d" %(sync_to, for_change))
+        new_addresses = []
+        if sync_to is not None:
+            for i in xrange(0, sync_to + 1):
+                address = addresses[i]
+                self.accounts[account][for_change].append(address)
+                self.history[address] = []
+                print_msg(address)
+                new_addresses.append(address)
+        return new_addresses
+
+    def synchronize_account_offline(self, account, to_addresses):
+        new = []
+        new += self.synchronize_sequence_offline(account, 0, to_addresses)
+        new += self.synchronize_sequence_offline(account, 1, to_addresses)
+        return new
+
+    def synchronize_offline(self, to_addresses):
+        """ Look ahead and try to find if any of the provided addresses are ours.  If so, sync to the latest.  Useful for history-less offline wallets so that we can keep track of change. """
+        new = []
+        for account in self.accounts.keys():
+            new += self.synchronize_account_offline(account, to_addresses)
+        if new:
+            self.config.set_key('accounts', self.accounts, True)
+            self.config.set_key('addr_history', self.history, True)
+        return new
+
+
     def synchronize_sequence(self, account, for_change):
         limit = self.gap_limit_for_change if for_change else self.gap_limit
         addresses = self.accounts[account][for_change]
