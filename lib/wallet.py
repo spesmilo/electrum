@@ -934,10 +934,8 @@ class Wallet:
 
             private_keys = self.get_private_key(address, password)
             for sec in private_keys:
-                compressed = is_compressed(sec)
-                pkey = regenerate_key(sec)
-                pubkey = GetPubKey(pkey.pubkey, compressed)
-                keypairs[ pubkey.encode('hex') ] = sec
+                pubkey = public_key_from_private_key(sec)
+                keypairs[ pubkey ] = sec
 
         tx.sign(keypairs)
 
