@@ -356,6 +356,16 @@ class Wallet:
         return dd
         
 
+    def get_keyID(self, account, sequence):
+        rs = self.rebase_sequence(account, sequence)
+        dd = []
+        for root, public_sequence in rs:
+            c, K, _ = self.master_public_keys[root]
+            s = '/' + '/'.join( map(lambda x:str(x), public_sequence) )
+            dd.append( 'bip32(%s,%s,%s)'%(c,K, s) )
+        return '&'.join(dd)
+
+
     def get_public_key(self, address):
         account, sequence = self.get_address_index(address)
         return self.accounts[account].get_pubkey( *sequence )
@@ -414,27 +424,27 @@ class Wallet:
             else:
                 for item in unspent_coins:
                     if txin['tx_hash'] == item['tx_hash'] and txin['index'] == item['index']:
+                        print_error( "tx input is in unspent coins" )
                         txin['raw_output_script'] = item['raw_output_script']
+                        account, sequence = self.get_address_index(item['address'])
+                        if account != -1:
+                            txin['redeemScript'] = self.accounts[account].redeem_script(sequence)
                         break
                 else:
-                    # if neither, we might want to get it from the server..
-                    raise
+                    raise BaseException("Unknown transaction input. Please provide the 'input_info' parameter, or synchronize this wallet")
 
-            # find the address and fill private_keys
+            # if available, derive private_keys from KeyID
             keyid = txin.get('KeyID')
             if keyid:
-
                 roots = []
                 for s in keyid.split('&'):
                     m = re.match("bip32\(([0-9a-f]+),([0-9a-f]+),(/\d+/\d+/\d+)", s)
                     if not m: continue
-
                     c = m.group(1)
                     K = m.group(2)
                     sequence = m.group(3)
                     root = self.find_root_by_master_key(c,K)
                     if not root: continue
-                
                     sequence = map(lambda x:int(x), sequence.strip('/').split('/'))
                     root = root + '%d'%sequence[0]
                     sequence = sequence[1:]
@@ -451,18 +461,22 @@ class Wallet:
                     keypairs[pubkey] = sec
 
             redeem_script = txin.get("redeemScript")
+            print_error( "p2sh:", "yes" if redeem_script else "no")
             if redeem_script:
-                num, redeem_pubkeys = deserialize.parse_redeemScript(redeem_script)
                 addr = hash_160_to_bc_address(hash_160(redeem_script.decode('hex')), 5)
-                txin['address'] = addr
+            else:
+                addr = deserialize.get_address_from_output_script(txin["raw_output_script"].decode('hex'))
+            txin['address'] = addr
 
-            elif txin.get("raw_output_script"):
-                addr = deserialize.get_address_from_output_script(txin.get("raw_output_script").decode('hex'))
-                sec = self.get_private_key(addr, password)
+            # add private keys that are in the wallet
+            pk = self.get_private_key(addr, password)
+            for sec in pk:
                 pubkey = public_key_from_private_key(sec)
-                if sec:
-                    keypairs[pubkey] = sec
-                    txin['address'] = addr
+                keypairs[pubkey] = sec
+                if not redeem_script:
+                    txin['redeemPubkey'] = pubkey
+
+            print txin
 
         tx.sign( keypairs )
 
@@ -948,13 +962,6 @@ class Wallet:
 
 
     def mktx(self, outputs, password, fee=None, change_addr=None, account=None ):
-        """
-        create a transaction
-        account parameter:
-           None means use all accounts
-           -1 means imported keys
-           0, 1, etc are seed accounts
-        """
         
         for address, x in outputs:
             assert is_valid(address)
@@ -973,15 +980,7 @@ class Wallet:
             address = txin['address']
 
             account, sequence = self.get_address_index(address)
-
-            rs = self.rebase_sequence(account, sequence)
-            dd = []
-            for root, public_sequence in rs:
-                c, K, _ = self.master_public_keys[root]
-                s = '/' + '/'.join( map(lambda x:str(x), public_sequence) )
-                dd.append( 'bip32(%s,%s,%s)'%(c,K, s) )
-
-            txin['KeyID'] = '&'.join(dd)
+            txin['KeyID'] = self.get_keyID(account, sequence)
 
             redeemScript = self.accounts[account].redeem_script(sequence)
             if redeemScript: 
@@ -992,7 +991,6 @@ class Wallet:
 
             private_keys = self.get_private_key(address, password)
 
-            print "pk", address, private_keys
             for sec in private_keys:
                 pubkey = public_key_from_private_key(sec)
                 keypairs[ pubkey ] = sec

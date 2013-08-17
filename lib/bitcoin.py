@@ -604,6 +604,9 @@ class Transaction:
             redeem_script = txin.get('redeemScript')
             num, redeem_pubkeys = deserialize.parse_redeemScript(redeem_script) if redeem_script else (1, [txin.get('redeemPubkey')])
 
+            # add pubkeys
+            txin["pubkeys"] = redeem_pubkeys
+
             # get list of already existing signatures
             signatures = txin.get("signatures",[])
             # continue if this txin is complete
@@ -624,9 +627,8 @@ class Transaction:
                     sig = private_key.sign_digest( Hash( tx_for_sig.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
                     assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
                     signatures.append( sig.encode('hex') )
-                        
+            
             txin["signatures"] = signatures
-            txin["pubkeys"] = redeem_pubkeys
             print_error("signatures", signatures)
             is_complete = is_complete and len(signatures) == num
 
