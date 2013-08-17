@@ -60,7 +60,9 @@ register_command('importprivkey',        1, 1, True,  True,  'Import a private k
 register_command('listaddresses',        3, 3, False, True,  'Returns your list of addresses.', '', listaddr_options)
 register_command('listunspent',          0, 0, False, True,  'Returns a list of unspent inputs in your wallet.')
 register_command('mktx',                 5, 5, True,  True,  'Create a signed transaction', 'mktx <recipient> <amount> [label]', payto_options)
+register_command('mksendmanytx',         4, 4, True,  True,  'Create a signed transaction', 'mksendmanytx <recipient> <amount> [<recipient> <amount> ...]', payto_options)
 register_command('payto',                5, 5, True,  False, 'Create and broadcast a transaction.', "payto <recipient> <amount> [label]\n<recipient> can be a bitcoin address or a label", payto_options)
+register_command('paytomany',            4, 4, True,  False, 'Create and broadcast a transaction.', "paytomany <recipient> <amount> [<recipient> <amount> ...]\n<recipient> can be a bitcoin address or a label", payto_options)
 register_command('password',             0, 0, True,  True,  'Change your password')
 register_command('prioritize',           1, 1, False, True,  'Coins at prioritized addresses are spent first.', 'prioritize <address>')
 register_command('restore',              0, 0, False, False, 'Restore a wallet', '', restore_options)
@@ -205,10 +207,11 @@ class Commands:
         return self.wallet.verify_message(address, signature, message)
 
 
-    def _mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):
+    def _mktx(self, outputs, fee = None, change_addr = None, domain = None):
 
-        if not is_valid(to_address):
-            raise BaseException("Invalid Bitcoin address", to_address)
+        for to_address, amount in outputs:
+            if not is_valid(to_address):
+                raise BaseException("Invalid Bitcoin address", to_address)
 
         if change_addr:
             if not is_valid(change_addr):
@@ -223,25 +226,40 @@ class Commands:
                     raise BaseException("address not in wallet", addr)
 
         for k, v in self.wallet.labels.items():
-            if v == to_address:
-                to_address = k
-                print_msg("alias", to_address)
-                break
             if change_addr and v == change_addr:
                 change_addr = k
 
-        amount = int(100000000*amount)
+        final_outputs = []
+        for to_address, amount in outputs:
+            for k, v in self.wallet.labels.items():
+                if v == to_address:
+                    to_address = k
+                    print_msg("alias", to_address)
+                    break
+
+            amount = int(100000000*amount)
+            final_outputs.append((to_address, amount))
+            
         if fee: fee = int(100000000*fee)
-        return self.wallet.mktx( [(to_address, amount)], self.password, fee , change_addr, domain)
+        return self.wallet.mktx(final_outputs, self.password, fee , change_addr, domain)
 
 
     def mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):
-        tx = self._mktx(to_address, amount, fee, change_addr, domain)
+        tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
+        return tx.as_dict()
+
+    def mksendmanytx(self, outputs, fee = None, change_addr = None, domain = None):
+        tx = self._mktx(outputs, fee, change_addr, domain)
         return tx.as_dict()
 
 
     def payto(self, to_address, amount, fee = None, change_addr = None, domain = None):
-        tx = self._mktx(to_address, amount, fee, change_addr, domain)
+        tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
+        r, h = self.wallet.sendtx( tx )
+        return h
+
+    def paytomany(self, outputs, fee = None, change_addr = None, domain = None):
+        tx = self._mktx(outputs, fee, change_addr, domain)
         r, h = self.wallet.sendtx( tx )
         return h
 
