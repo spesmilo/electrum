@@ -255,7 +255,7 @@ def public_key_from_private_key(sec):
 
 def address_from_private_key(sec):
     public_key = public_key_from_private_key(sec)
-    address = public_key_to_bc_address(public_key.decode('hex'))
+    address = public_key_to_bc_address(public_key)
     return address
 
 

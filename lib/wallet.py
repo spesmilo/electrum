@@ -74,7 +74,7 @@ class Wallet:
         self.seed_version          = config.get('seed_version', SEED_VERSION)
         self.gap_limit             = config.get('gap_limit', 5)
         self.use_change            = config.get('use_change',True)
-        self.fee                   = int(config.get('fee_per_kb',50000))
+        self.fee                   = int(config.get('fee_per_kb',20000))
         self.num_zeros             = int(config.get('num_zeros',0))
         self.use_encryption        = config.get('use_encryption', False)
         self.seed                  = config.get('seed', '')               # encrypted
@@ -207,6 +207,27 @@ class Wallet:
         self.create_account('Main account')
 
 
+    def find_root_by_master_key(self, c, K):
+        for key, v in self.master_public_keys.items():
+            if key == "m/":continue
+            cc, KK, _ = v
+            if (c == cc) and (K == KK):
+                return key
+
+    def deseed_root(self, seed, password):
+        # for safety, we ask the user to enter their seed
+        assert seed == self.decode_seed(password)
+        self.seed = ''
+        self.config.set_key('seed', '', True)
+
+
+    def deseed_branch(self, k):
+        # check that parent has no seed
+        assert self.seed == ''
+        self.master_private_keys.pop(k)
+        self.config.set_key('master_private_keys', self.master_private_keys, True)
+
+
     def account_id(self, account_type, i):
         if account_type is None:
             return "m/0'/%d"%i
@@ -312,13 +333,27 @@ class Wallet:
     def get_address_index(self, address):
         if address in self.imported_keys.keys():
             return -1, None
+
         for account in self.accounts.keys():
             for for_change in [0,1]:
                 addresses = self.accounts[account].get_addresses(for_change)
                 for addr in addresses:
                     if address == addr:
                         return account, (for_change, addresses.index(addr))
+
         raise BaseException("not found")
+
+
+    def rebase_sequence(self, account, sequence):
+        c, i = sequence
+        dd = []
+        for a in account.split('&'):
+            s = a.strip()
+            m = re.match("(m/\d+'/)(\d+)", s)
+            root = m.group(1)
+            num = int(m.group(2))
+            dd.append( (root, [num,c,i] ) )
+        return dd
         
 
     def get_public_key(self, address):
@@ -339,18 +374,14 @@ class Wallet:
         else:
             account, sequence = self.get_address_index(address)
             # assert address == self.accounts[account].get_address(*sequence)
-            l = account.split("&")
-            for s in l:
-                s = s.strip()
-                m = re.match("(m/\d+'/)(\d+)", s)
-                if m:
-                    root = m.group(1)
-                    if root not in self.master_private_keys.keys(): continue
-                    num = int(m.group(2))
-                    master_k = self.get_master_private_key(root, password)
-                    master_c, _, _ = self.master_public_keys[root]
-                    pk = bip32_private_key( (num,) + sequence, master_k.decode('hex'), master_c.decode('hex'))
-                    out.append(pk)
+            rs = self.rebase_sequence( account, sequence)
+            for root, public_sequence in rs:
+
+                if root not in self.master_private_keys.keys(): continue
+                master_k = self.get_master_private_key(root, password)
+                master_c, _, _ = self.master_public_keys[root]
+                pk = bip32_private_key( public_sequence, master_k.decode('hex'), master_c.decode('hex'))
+                out.append(pk)
                     
         return out
 
@@ -390,13 +421,34 @@ class Wallet:
                     raise
 
             # find the address and fill private_keys
-            if txin.get('KeyID'):
-                account, name, sequence = txin.get('KeyID')
-                if name != 'BIP32': continue
-                sec = self.accounts[account].get_private_key(sequence, seed)
-                pubkey = self.accounts[account].get_pubkey(sequence)
+            keyid = txin.get('KeyID')
+            if keyid:
+
+                roots = []
+                for s in keyid.split('&'):
+                    m = re.match("bip32\(([0-9a-f]+),([0-9a-f]+),(/\d+/\d+/\d+)", s)
+                    if not m: continue
+
+                    c = m.group(1)
+                    K = m.group(2)
+                    sequence = m.group(3)
+                    root = self.find_root_by_master_key(c,K)
+                    if not root: continue
+                
+                    sequence = map(lambda x:int(x), sequence.strip('/').split('/'))
+                    root = root + '%d'%sequence[0]
+                    sequence = sequence[1:]
+                    roots.append((root,sequence)) 
+
+                account_id = " & ".join( map(lambda x:x[0], roots) )
+                account = self.accounts.get(account_id)
+                if not account: continue
+                addr = account.get_address(*sequence)
                 txin['address'] = addr
-                keypairs[pubkey] = [sec]
+                pk = self.get_private_key(addr, password)
+                for sec in pk:
+                    pubkey = public_key_from_private_key(sec)
+                    keypairs[pubkey] = sec
 
             redeem_script = txin.get("redeemScript")
             if redeem_script:
@@ -408,8 +460,8 @@ class Wallet:
                 addr = deserialize.get_address_from_output_script(txin.get("raw_output_script").decode('hex'))
                 sec = self.get_private_key(addr, password)
                 pubkey = public_key_from_private_key(sec)
-                if sec: 
-                    keypairs[pubkey] = [sec]
+                if sec:
+                    keypairs[pubkey] = sec
                     txin['address'] = addr
 
         tx.sign( keypairs )
@@ -914,18 +966,22 @@ class Wallet:
             raise ValueError("Not enough funds")
 
         outputs = self.add_tx_change(inputs, outputs, amount, fee, total, change_addr, account)
-
         tx = Transaction.from_io(inputs, outputs)
-
 
         keypairs = {}
         for i, txin in enumerate(tx.inputs):
             address = txin['address']
-            if address in self.imported_keys.keys():
-                pk_addresses.append(address)
-                continue
+
             account, sequence = self.get_address_index(address)
-            txin['KeyID'] = (account, 'BIP32', sequence) # used by the server to find the key
+
+            rs = self.rebase_sequence(account, sequence)
+            dd = []
+            for root, public_sequence in rs:
+                c, K, _ = self.master_public_keys[root]
+                s = '/' + '/'.join( map(lambda x:str(x), public_sequence) )
+                dd.append( 'bip32(%s,%s,%s)'%(c,K, s) )
+
+            txin['KeyID'] = '&'.join(dd)
 
             redeemScript = self.accounts[account].redeem_script(sequence)
             if redeemScript: 
@@ -935,6 +991,8 @@ class Wallet:
                 txin['redeemPubkey'] = self.accounts[account].get_pubkey(*sequence)
 
             private_keys = self.get_private_key(address, password)
+
+            print "pk", address, private_keys
             for sec in private_keys:
                 pubkey = public_key_from_private_key(sec)
                 keypairs[ pubkey ] = sec
