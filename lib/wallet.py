@@ -985,7 +985,6 @@ class Wallet:
             redeemScript = self.accounts[account].redeem_script(sequence)
             if redeemScript: 
                 txin['redeemScript'] = redeemScript
-                assert address == self.accounts[account].get_address(*sequence)
             else:
                 txin['redeemPubkey'] = self.accounts[account].get_pubkey(*sequence)
 
@@ -996,7 +995,6 @@ class Wallet:
                 keypairs[ pubkey ] = sec
 
         tx.sign(keypairs)
-
         for address, x in outputs:
             if address not in self.addressbook and not self.is_mine(address):
                 self.addressbook.append(address)
