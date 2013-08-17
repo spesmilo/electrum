@@ -363,10 +363,8 @@ class Wallet:
         # build a list of public/private keys
         keypairs = {}
         for sec in private_keys:
-            compressed = is_compressed(sec)
-            pkey = regenerate_key(sec)
-            pubkey = GetPubKey(pkey.pubkey, compressed)
-            keypairs[ pubkey.encode('hex') ] = sec
+            pubkey = public_key_from_private_key(sec)
+            keypairs[ pubkey ] = sec
 
 
         for txin in tx.inputs:
@@ -404,10 +402,10 @@ class Wallet:
                 addr = hash_160_to_bc_address(hash_160(redeem_script.decode('hex')), 5)
                 txin['address'] = addr
 
-
             elif txin.get("raw_output_script"):
                 addr = deserialize.get_address_from_output_script(txin.get("raw_output_script").decode('hex'))
                 sec = self.get_private_key(addr, password)
+                pubkey = public_key_from_private_key(sec)
                 if sec: 
                     keypairs[pubkey] = [sec]
                     txin['address'] = addr

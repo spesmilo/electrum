@@ -244,18 +244,18 @@ def is_compressed(sec):
     return len(b) == 33
 
 
-def address_from_private_key(sec):
+def public_key_from_private_key(sec):
     # rebuild public key from private key, compressed or uncompressed
     pkey = regenerate_key(sec)
     assert pkey
-
-    # figure out if private key is compressed
     compressed = is_compressed(sec)
-        
-    # rebuild private and public key from regenerated secret
-    private_key = GetPrivKey(pkey, compressed)
     public_key = GetPubKey(pkey.pubkey, compressed)
-    address = public_key_to_bc_address(public_key)
+    return public_key.encode('hex')
+
+
+def address_from_private_key(sec):
+    public_key = public_key_from_private_key(sec)
+    address = public_key_to_bc_address(public_key.decode('hex'))
     return address
 
 
