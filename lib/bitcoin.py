@@ -606,7 +606,6 @@ class Transaction:
 
             # add pubkeys
             txin["pubkeys"] = redeem_pubkeys
-
             # get list of already existing signatures
             signatures = txin.get("signatures",[])
             # continue if this txin is complete
@@ -627,9 +626,9 @@ class Transaction:
                     sig = private_key.sign_digest( Hash( tx_for_sig.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
                     assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
                     signatures.append( sig.encode('hex') )
+                    print_error("adding signature for", pubkey)
             
             txin["signatures"] = signatures
-            print_error("signatures", signatures)
             is_complete = is_complete and len(signatures) == num
 
         self.is_complete = is_complete
