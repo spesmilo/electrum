@@ -366,15 +366,20 @@ class Wallet:
 
 
     def signrawtransaction(self, tx, input_info, private_keys, password):
+        import deserialize
         unspent_coins = self.get_unspent_coins()
         seed = self.decode_seed(password)
 
-        # convert private_keys to dict 
-        pk = {}
+        # build a list of public/private keys
+        keypairs = {}
         for sec in private_keys:
-            address = address_from_private_key(sec)
-            pk[address] = sec
-        private_keys = pk
+            compressed = is_compressed(sec)
+            pkey = regenerate_key(sec)
+            pubkey = GetPubKey(pkey.pubkey, compressed)
+            keypairs[ pubkey.encode('hex') ] = sec
+
+        # will be filled for each input
+        private_keys = {}
 
         for txin in tx.inputs:
             # convert to own format
@@ -396,25 +401,33 @@ class Wallet:
                     # if neither, we might want to get it from the server..
                     raise
 
-            # find the address:
+            # find the address and fill private_keys
             if txin.get('KeyID'):
                 account, name, sequence = txin.get('KeyID')
-                if name != 'Electrum': continue
+                if name != 'BIP32': continue
                 sec = self.accounts[account].get_private_key(sequence, seed)
                 addr = self.accounts[account].get_address(sequence)
                 txin['address'] = addr
-                private_keys[addr] = sec
+                private_keys[addr] = [sec]
 
-            elif txin.get("redeemScript"):
-                txin['address'] = hash_160_to_bc_address(hash_160(txin.get("redeemScript").decode('hex')), 5)
+            redeem_script = txin.get("redeemScript")
+            if redeem_script:
+                num, redeem_pubkeys = deserialize.parse_redeemScript(redeem_script)
+                addr = hash_160_to_bc_address(hash_160(redeem_script.decode('hex')), 5)
+                txin['address'] = addr
+                private_keys[addr] = []
+                for pubkey in redeem_pubkeys:
+                    if pubkey in keypairs:
+                        private_keys[addr].append( keypairs[pubkey] )
 
             elif txin.get("raw_output_script"):
-                import deserialize
                 addr = deserialize.get_address_from_output_script(txin.get("raw_output_script").decode('hex'))
                 sec = self.get_private_key(addr, password)
                 if sec: 
-                    private_keys[addr] = sec
+                    private_keys[addr] = [sec]
                     txin['address'] = addr
+
+            print txin
 
         tx.sign( private_keys )
 
