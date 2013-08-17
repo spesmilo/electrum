@@ -593,27 +593,16 @@ class Transaction:
 
 
 
-    def sign(self, private_keys):
+    def sign(self, keypairs):
         import deserialize
         is_complete = True
+        print_error("tx.sign(), keypairs:", keypairs)
 
         for i, txin in enumerate(self.inputs):
 
-            # build list of public/private keys
-            keypairs = {}
-            for sec in private_keys.get( txin.get('address') ):
-                compressed = is_compressed(sec)
-                pkey = regenerate_key(sec)
-                pubkey = GetPubKey(pkey.pubkey, compressed)
-                keypairs[ pubkey.encode('hex') ] = sec
-
+            # if the input is multisig, parse redeem script
             redeem_script = txin.get('redeemScript')
-            if redeem_script:
-                # parse the redeem script
-                num, redeem_pubkeys = deserialize.parse_redeemScript(redeem_script)
-            else:
-                num = 1
-                redeem_pubkeys = keypairs.keys()
+            num, redeem_pubkeys = deserialize.parse_redeemScript(redeem_script) if redeem_script else (1, [txin.get('redeemPubkey')])
 
             # get list of already existing signatures
             signatures = txin.get("signatures",[])

@@ -353,16 +353,6 @@ class Wallet:
         return out
 
 
-    def get_private_keys(self, addresses, password):
-        if not self.seed: return {}
-        # decode seed in any case, in order to test the password
-        seed = self.decode_seed(password)
-        out = {}
-        for address in addresses:
-            pk = self.get_private_key(address, password)
-            if pk: out[address] = pk
-
-        return out
 
 
     def signrawtransaction(self, tx, input_info, private_keys, password):
@@ -378,8 +368,6 @@ class Wallet:
             pubkey = GetPubKey(pkey.pubkey, compressed)
             keypairs[ pubkey.encode('hex') ] = sec
 
-        # will be filled for each input
-        private_keys = {}
 
         for txin in tx.inputs:
             # convert to own format
@@ -406,30 +394,25 @@ class Wallet:
                 account, name, sequence = txin.get('KeyID')
                 if name != 'BIP32': continue
                 sec = self.accounts[account].get_private_key(sequence, seed)
-                addr = self.accounts[account].get_address(sequence)
+                pubkey = self.accounts[account].get_pubkey(sequence)
                 txin['address'] = addr
-                private_keys[addr] = [sec]
+                keypairs[pubkey] = [sec]
 
             redeem_script = txin.get("redeemScript")
             if redeem_script:
                 num, redeem_pubkeys = deserialize.parse_redeemScript(redeem_script)
                 addr = hash_160_to_bc_address(hash_160(redeem_script.decode('hex')), 5)
                 txin['address'] = addr
-                private_keys[addr] = []
-                for pubkey in redeem_pubkeys:
-                    if pubkey in keypairs:
-                        private_keys[addr].append( keypairs[pubkey] )
+
 
             elif txin.get("raw_output_script"):
                 addr = deserialize.get_address_from_output_script(txin.get("raw_output_script").decode('hex'))
                 sec = self.get_private_key(addr, password)
                 if sec: 
-                    private_keys[addr] = [sec]
+                    keypairs[pubkey] = [sec]
                     txin['address'] = addr
 
-            print txin
-
-        tx.sign( private_keys )
+        tx.sign( keypairs )
 
     def sign_message(self, address, message, password):
         sec = self.get_private_key(address, password)
@@ -934,9 +917,9 @@ class Wallet:
 
         tx = Transaction.from_io(inputs, outputs)
 
-        private_keys = {}
-        for i in range(len(tx.inputs)):
-            txin = tx.inputs[i]
+
+        keypairs = {}
+        for i, txin in enumerate(tx.inputs):
             address = txin['address']
             if address in self.imported_keys.keys():
                 pk_addresses.append(address)
@@ -948,11 +931,17 @@ class Wallet:
             if redeemScript: 
                 txin['redeemScript'] = redeemScript
                 assert address == self.accounts[account].get_address(*sequence)
+            else:
+                txin['redeemPubkey'] = self.accounts[account].get_pubkey(*sequence)
 
-            private_keys[address] = self.get_private_key(address, password)
+            private_keys = self.get_private_key(address, password)
+            for sec in private_keys:
+                compressed = is_compressed(sec)
+                pkey = regenerate_key(sec)
+                pubkey = GetPubKey(pkey.pubkey, compressed)
+                keypairs[ pubkey.encode('hex') ] = sec
 
-        print_error( "private keys", private_keys )
-        tx.sign(private_keys)
+        tx.sign(keypairs)
 
         for address, x in outputs:
             if address not in self.addressbook and not self.is_mine(address):
