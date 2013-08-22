@@ -22,6 +22,7 @@ import sys, os, time, json
 import optparse
 import platform
 from decimal import Decimal
+import traceback
 
 try:
     import ecdsa  
@@ -106,7 +107,6 @@ if __name__ == '__main__':
         util.check_windows_wallet_migration()
 
     config = SimpleConfig(config_options)
-    wallet = Wallet(config)
 
 
     if len(args)==0:
@@ -124,85 +124,21 @@ if __name__ == '__main__':
         try:
             gui = __import__('electrum_gui.gui_' + gui_name, fromlist=['electrum_gui'])
         except ImportError:
-            sys.exit("Error: Unknown GUI: " + gui_name )
+            traceback.print_exc(file=sys.stdout)
+            sys.exit()
+            #sys.exit("Error: Unknown GUI: " + gui_name )
         
-        interface = Interface(config, True)
-        wallet.interface = interface
-
-        gui = gui.ElectrumGui(wallet, config)
-
-        found = config.wallet_file_exists
-        if not found:
-            a = gui.restore_or_create()
-            if not a: exit()
-
-            if a =='create':
-                wallet.init_seed(None)
-                gui.show_seed()
-                if gui.verify_seed():
-                    wallet.save_seed()
-                else:
-                    exit()
-
-            else:
-                # ask for seed and gap.
-                sg = gui.seed_dialog()
-                if not sg: exit()
-                seed, gap = sg
-                if not seed: exit()
-                wallet.gap_limit = gap
-                if len(seed) == 128:
-                    wallet.seed = ''
-                    wallet.init_sequence(str(seed))
-                else:
-                    wallet.init_seed(str(seed))
-                    wallet.save_seed()
-            
-            # select a server.
-            s = gui.network_dialog()
-            if s is None:
-                config.set_key("server", None, True)
-                config.set_key('auto_cycle', False, True)
-            
-        interface.start(wait = False)
-        interface.send([('server.peers.subscribe',[])])
-
-        # generate the first addresses, in case we are offline
-        if not found and ( s is None or a == 'create'):
-            wallet.synchronize()
-
-        verifier = WalletVerifier(interface, config)
-        verifier.start()
-        wallet.set_verifier(verifier)
-        synchronizer = WalletSynchronizer(wallet, config)
-        synchronizer.start()
-
-        if not found and a == 'restore' and s is not None:
-            try:
-                keep_it = gui.restore_wallet()
-                wallet.fill_addressbook()
-            except:
-                import traceback
-                traceback.print_exc(file=sys.stdout)
-                exit()
-
-            if not keep_it: exit()
-
-        if not found:
-            gui.password_dialog()
-
-        #wallet.save()
+        gui = gui.ElectrumGui(config)
         gui.main(url)
-        #wallet.save()
-
-        verifier.stop()
-        synchronizer.stop()
-        interface.stop()
 
         # we use daemon threads, their termination is enforced.
         # this sleep command gives them time to terminate cleanly. 
         time.sleep(0.1)
         sys.exit(0)
+
+
+    # instanciate wallet for command-line
+    wallet = Wallet(config)
 
     if cmd not in known_commands:
         cmd = 'help'

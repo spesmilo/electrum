@@ -42,7 +42,7 @@ except:
 from electrum.wallet import format_satoshis
 from electrum.bitcoin import Transaction, is_valid
 from electrum import mnemonic
-from electrum import util, bitcoin, commands
+from electrum import util, bitcoin, commands, Interface, Wallet, WalletVerifier, WalletSynchronizer
 
 import bmp, pyqrnative
 import exchange_rate
@@ -265,6 +265,7 @@ class ElectrumWindow(QMainWindow):
         if reason == QSystemTrayIcon.DoubleClick:
             self.showNormal()
 
+
     def __init__(self, wallet, config):
         QMainWindow.__init__(self)
         self._close_electrum = False
@@ -352,10 +353,21 @@ class ElectrumWindow(QMainWindow):
         wallet_folder = self.wallet.config.path
         re.sub("(\/\w*.dat)$", "", wallet_folder)
         file_name = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder, "*.dat")
-        if not file_name:
-            return
-        else:
-          self.load_wallet(file_name)
+        return file_name
+
+    def open_wallet(self):
+        n = self.select_wallet_file()
+        if n:
+            self.load_wallet(n)
+
+    def new_wallet(self):
+        n = self.getOpenFileName("Select wallet file")
+
+        wizard = installwizard.InstallWizard(self.config, self.interface)
+        wallet = wizard.run()
+        if wallet: 
+            self.load_wallet(wallet)
+        
 
 
     def init_menubar(self):
@@ -363,7 +375,10 @@ class ElectrumWindow(QMainWindow):
 
         electrum_menu = menubar.addMenu(_("&File"))
         open_wallet_action = electrum_menu.addAction(_("Open wallet"))
-        open_wallet_action.triggered.connect(self.select_wallet_file)
+        open_wallet_action.triggered.connect(self.open_wallet)
+
+        new_wallet_action = electrum_menu.addAction(_("New wallet"))
+        new_wallet_action.triggered.connect(self.new_wallet)
 
         preferences_name = _("Preferences")
         if sys.platform == 'darwin':
@@ -429,6 +444,7 @@ class ElectrumWindow(QMainWindow):
         web_open.triggered.connect(lambda: webbrowser.open("http://electrum.org"))
 
         self.setMenuBar(menubar)
+
 
     def load_wallet(self, filename):
         import electrum
@@ -1395,7 +1411,7 @@ class ElectrumWindow(QMainWindow):
             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/switchgui.png"), _("Switch to Lite Mode"), self.go_lite ) )
         if self.wallet.seed:
             self.lock_icon = QIcon(":icons/lock.png") if self.wallet.use_encryption else QIcon(":icons/unlock.png")
-            self.password_button = StatusBarButton( self.lock_icon, _("Password"), lambda: self.change_password_dialog(self.wallet, self) )
+            self.password_button = StatusBarButton( self.lock_icon, _("Password"), self.change_password_dialog )
             sb.addPermanentWidget( self.password_button )
         sb.addPermanentWidget( StatusBarButton( QIcon(":icons/preferences.png"), _("Preferences"), self.settings_dialog ) )
         if self.wallet.seed:
@@ -1406,6 +1422,13 @@ class ElectrumWindow(QMainWindow):
         self.run_hook('create_status_bar', (sb,))
 
         self.setStatusBar(sb)
+
+
+    def change_password_dialog(self):
+        from password_dialog import PasswordDialog
+        d = PasswordDialog(self.wallet, self)
+        d.run()
+
         
     def go_lite(self):
         import gui_lite
@@ -1490,63 +1513,12 @@ class ElectrumWindow(QMainWindow):
         except:
             QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
             return
-        self.show_seed(seed, self.wallet.imported_keys, self)
+
+        from seed_dialog import SeedDialog
+        d = SeedDialog(self)
+        d.show_seed(seed, self.wallet.imported_keys)
 
 
-    @classmethod
-    def show_seed(self, seed, imported_keys, parent=None):
-        dialog = QDialog(parent)
-        dialog.setModal(1)
-        dialog.setWindowTitle('Electrum' + ' - ' + _('Seed'))
-
-        brainwallet = ' '.join(mnemonic.mn_encode(seed))
-
-        label1 = QLabel(_("Your wallet generation seed is")+ ":")
-
-        seed_text = QTextEdit(brainwallet)
-        seed_text.setReadOnly(True)
-        seed_text.setMaximumHeight(130)
-        
-        msg2 =  _("Please write down or memorize these 12 words (order is important).") + " " \
-              + _("This seed will allow you to recover your wallet in case of computer failure.") + " " \
-              + _("Your seed is also displayed as QR code, in case you want to transfer it to a mobile phone.") + "<p>" \
-              + "<b>"+_("WARNING")+":</b> " + _("Never disclose your seed. Never type it on a website.") + "</b><p>"
-        if imported_keys:
-            msg2 += "<b>"+_("WARNING")+":</b> " + _("Your wallet contains imported keys. These keys cannot be recovered from seed.") + "</b><p>"
-        label2 = QLabel(msg2)
-        label2.setWordWrap(True)
-
-        logo = QLabel()
-        logo.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(56))
-        logo.setMaximumWidth(60)
-
-        qrw = QRCodeWidget(seed)
-
-        ok_button = QPushButton(_("OK"))
-        ok_button.setDefault(True)
-        ok_button.clicked.connect(dialog.accept)
-
-        grid = QGridLayout()
-        #main_layout.addWidget(logo, 0, 0)
-
-        grid.addWidget(logo, 0, 0)
-        grid.addWidget(label1, 0, 1)
-
-        grid.addWidget(seed_text, 1, 0, 1, 2)
-
-        grid.addWidget(qrw, 0, 2, 2, 1)
-
-        vbox = QVBoxLayout()
-        vbox.addLayout(grid)
-        vbox.addWidget(label2)
-
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-        hbox.addWidget(ok_button)
-        vbox.addLayout(hbox)
-
-        dialog.setLayout(vbox)
-        dialog.exec_()
 
     def show_qrcode(self, data, title = "QR code"):
         if not data: return
@@ -1726,79 +1698,6 @@ class ElectrumWindow(QMainWindow):
 
 
 
-
-
-    @staticmethod
-    def change_password_dialog( wallet, parent=None ):
-
-        if not wallet.seed:
-            QMessageBox.information(parent, _('Error'), _('No seed'), _('OK'))
-            return
-
-        d = QDialog(parent)
-        d.setModal(1)
-
-        pw = QLineEdit()
-        pw.setEchoMode(2)
-        new_pw = QLineEdit()
-        new_pw.setEchoMode(2)
-        conf_pw = QLineEdit()
-        conf_pw.setEchoMode(2)
-
-        vbox = QVBoxLayout()
-        if parent:
-            msg = (_('Your wallet is encrypted. Use this dialog to change your password.')+'\n'\
-                   +_('To disable wallet encryption, enter an empty new password.')) \
-                   if wallet.use_encryption else _('Your wallet keys are not encrypted')
-        else:
-            msg = _("Please choose a password to encrypt your wallet keys.")+'\n'\
-                  +_("Leave these fields empty if you want to disable encryption.")
-        vbox.addWidget(QLabel(msg))
-
-        grid = QGridLayout()
-        grid.setSpacing(8)
-
-        if wallet.use_encryption:
-            grid.addWidget(QLabel(_('Password')), 1, 0)
-            grid.addWidget(pw, 1, 1)
-
-        grid.addWidget(QLabel(_('New Password')), 2, 0)
-        grid.addWidget(new_pw, 2, 1)
-
-        grid.addWidget(QLabel(_('Confirm Password')), 3, 0)
-        grid.addWidget(conf_pw, 3, 1)
-        vbox.addLayout(grid)
-
-        vbox.addLayout(ok_cancel_buttons(d))
-        d.setLayout(vbox) 
-
-        if not d.exec_(): return
-
-        password = unicode(pw.text()) if wallet.use_encryption else None
-        new_password = unicode(new_pw.text())
-        new_password2 = unicode(conf_pw.text())
-
-        try:
-            seed = wallet.decode_seed(password)
-        except:
-            QMessageBox.warning(parent, _('Error'), _('Incorrect Password'), _('OK'))
-            return
-
-        if new_password != new_password2:
-            QMessageBox.warning(parent, _('Error'), _('Passwords do not match'), _('OK'))
-            return ElectrumWindow.change_password_dialog(wallet, parent) # Retry
-
-        try:
-            wallet.update_password(seed, password, new_password)
-        except:
-            QMessageBox.warning(parent, _('Error'), _('Failed to update password'), _('OK'))
-            return
-
-        QMessageBox.information(parent, _('Success'), _('Password was updated successfully'), _('OK'))
-
-        if parent: 
-            icon = QIcon(":icons/lock.png") if wallet.use_encryption else QIcon(":icons/unlock.png")
-            parent.password_button.setIcon( icon )
 
 
 
@@ -2282,10 +2181,13 @@ class OpenFileEventFilter(QObject):
                 return True
         return False
 
+
+
+
 class ElectrumGui:
 
-    def __init__(self, wallet, config, app=None):
-        self.wallet = wallet
+    def __init__(self, config, app=None):
+        self.interface = Interface(config, True)
         self.config = config
         self.windows = []
         self.efilter = OpenFileEventFilter(self.windows)
@@ -2293,116 +2195,32 @@ class ElectrumGui:
             self.app = QApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
 
-    def restore_or_create(self):
-        msg = _("Wallet file not found.")+"\n"+_("Do you want to create a new wallet, or to restore an existing one?")
-        r = QMessageBox.question(None, _('Message'), msg, _('Create'), _('Restore'), _('Cancel'), 0, 2)
-        if r==2: return None
-        return 'restore' if r==1 else 'create'
 
-
-    def verify_seed(self):
-        r = self.seed_dialog(False)
-        if r != self.wallet.seed:
-            QMessageBox.warning(None, _('Error'), 'incorrect seed', 'OK')
-            return False
+    def main(self, url):
+            
+        found = self.config.wallet_file_exists
+        if not found:
+            import installwizard
+            wizard = installwizard.InstallWizard(self.config, self.interface)
+            wallet = wizard.run()
+            if not wallet: 
+                exit()
         else:
-            return True
-        
+            wallet = Wallet(self.config)
+
+        self.wallet = wallet
+
+        self.interface.start(wait = False)
+        self.interface.send([('server.peers.subscribe',[])])
+        wallet.interface = self.interface
+
+        verifier = WalletVerifier(self.interface, self.config)
+        verifier.start()
+        wallet.set_verifier(verifier)
+        synchronizer = WalletSynchronizer(wallet, self.config)
+        synchronizer.start()
 
 
-    def seed_dialog(self, is_restore=True):
-        d = QDialog()
-        d.setModal(1)
-
-        vbox = QVBoxLayout()
-        if is_restore:
-            msg = _("Please enter your wallet seed (or your master public key if you want to create a watching-only wallet)." + ' ')
-        else:
-            msg = _("Your seed is important! To make sure that you have properly saved your seed, please type it here." + ' ')
-
-        msg += _("Your seed can be entered as a sequence of words, or as a hexadecimal string."+ '\n')
-        
-        label=QLabel(msg)
-        label.setWordWrap(True)
-        vbox.addWidget(label)
-
-        seed_e = QTextEdit()
-        seed_e.setMaximumHeight(100)
-        vbox.addWidget(seed_e)
-
-        if is_restore:
-            grid = QGridLayout()
-            grid.setSpacing(8)
-            gap_e = AmountEdit(None, True)
-            gap_e.setText("5")
-            grid.addWidget(QLabel(_('Gap limit')), 2, 0)
-            grid.addWidget(gap_e, 2, 1)
-            grid.addWidget(HelpButton(_('Keep the default value unless you modified this parameter in your wallet.')), 2, 3)
-            vbox.addLayout(grid)
-
-        vbox.addLayout(ok_cancel_buttons(d))
-        d.setLayout(vbox) 
-
-        if not d.exec_(): return
-
-        try:
-            seed = str(seed_e.toPlainText())
-            seed.decode('hex')
-        except:
-            try:
-                seed = mnemonic.mn_decode( seed.split() )
-            except:
-                QMessageBox.warning(None, _('Error'), _('I cannot decode this'), _('OK'))
-                return
-
-        if not seed:
-            QMessageBox.warning(None, _('Error'), _('No seed'), _('OK'))
-            return
-
-        if not is_restore:
-            return seed
-        else:
-            try:
-                gap = int(unicode(gap_e.text()))
-            except:
-                QMessageBox.warning(None, _('Error'), 'error', 'OK')
-                return
-            return seed, gap
-
-
-    def network_dialog(self):
-        return NetworkDialog(self.wallet.interface, self.config, None).do_exec()
-        
-
-    def show_seed(self):
-        ElectrumWindow.show_seed(self.wallet.seed, self.wallet.imported_keys)
-
-    def password_dialog(self):
-        if self.wallet.seed:
-            ElectrumWindow.change_password_dialog(self.wallet)
-
-
-    def restore_wallet(self):
-        wallet = self.wallet
-        # wait until we are connected, because the user might have selected another server
-        if not wallet.interface.is_connected:
-            waiting = lambda: False if wallet.interface.is_connected else "%s \n" % (_("Connecting..."))
-            waiting_dialog(waiting)
-
-        waiting = lambda: False if wallet.is_up_to_date() else "%s\n%s %d\n%s %.1f"\
-            %(_("Please wait..."),_("Addresses generated:"),len(wallet.addresses(True)),_("Kilobytes received:"), wallet.interface.bytes_received/1024.)
-
-        wallet.set_up_to_date(False)
-        wallet.interface.poke('synchronizer')
-        waiting_dialog(waiting)
-        if wallet.is_found():
-            print_error( "Recovery successful" )
-        else:
-            QMessageBox.information(None, _('Error'), _("No transactions found for this seed"), _('OK'))
-
-        return True
-
-    def main(self,url):
         s = Timer()
         s.start()
         w = ElectrumWindow(self.wallet, self.config)
@@ -2414,5 +2232,9 @@ class ElectrumGui:
         w.show()
 
         self.app.exec_()
+
+        verifier.stop()
+        synchronizer.stop()
+        self.interface.stop()
 
 
