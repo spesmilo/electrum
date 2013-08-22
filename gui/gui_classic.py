@@ -273,7 +273,7 @@ class ElectrumWindow(QMainWindow):
         self.config = config
         self.current_account = self.config.get("current_account", None)
 
-        self.icon = QIcon(os.getcwd() + '/icons/electrum.png')
+        self.icon = QIcon(':/icons/electrum.png')
         self.tray = QSystemTrayIcon(self.icon, self)
         self.tray.setToolTip('Electrum')
         self.tray.activated.connect(self.tray_activated)
