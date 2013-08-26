@@ -95,6 +95,7 @@ a SimpleConfig instance then reads the wallet file.
                 out = ast.literal_eval(out)
             except:
                 print "type error for '%s': using default value"%key
+                print "type of out is '%s' and default type is '%s'" % (type(out),type(default))
                 out = default
 
         return out

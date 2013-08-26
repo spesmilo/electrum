@@ -9,6 +9,7 @@ from electrum.bitcoin import MIN_RELAY_TX_FEE, Transaction, is_valid
 from electrum_gui.qrcodewidget import QRCodeWidget
 import electrum_gui.bmp
 import json
+from decimal import Decimal
 
 try:
     import zbar
@@ -83,12 +84,12 @@ class Plugin(BasePlugin):
             return
 
         try:
-            amount = self.gui.read_amount(unicode( self.gui.amount_e.text()))
+            amount = self.gui.read_localized_cryptomoney(unicode( self.gui.amount_e.text()))
         except:
             QMessageBox.warning(self.gui, _('Error'), _('Invalid Amount'), _('OK'))
             return
         try:
-            fee = self.gui.read_amount(unicode( self.gui.fee_e.text()))
+            fee = self.gui.read_localized_cryptomoney(unicode( self.gui.fee_e.text()))
         except:
             QMessageBox.warning(self.gui, _('Error'), _('Invalid Fee'), _('OK'))
             return
@@ -229,7 +230,7 @@ class Plugin(BasePlugin):
         if 'address' in qrcode:
             self.gui.payto_e.setText(qrcode['address'])
         if 'amount' in qrcode:
-            self.gui.amount_e.setText(str(qrcode['amount']))
+            self.gui.amount_e.setValue(Decimal(str(qrcode['amount'])))
         if 'label' in qrcode:
             self.gui.message_e.setText(qrcode['label'])
         if 'message' in qrcode:

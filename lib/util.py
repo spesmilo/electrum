@@ -79,6 +79,19 @@ def local_data_dir():
     return local_data
 
 
+# create a string displaying the quantity of bitcoins out of an int value x
+# which is expressed in "satoshis".  If is_diff is true, always include a sign.
+# The string representation returned will have at least num_zeros decimal places
+# and beyond the last decimal digit spaces will pad so there will be exactly
+# decimal_point characters after the decimal point.
+# Spaces may come before the number to ensure the string is exactly 14 characters
+# long.
+#
+# Note: Locale is not considered.  There are no commas added.
+#       1,005,000,011 Satoshis are expresssed as "10.05000011"
+#
+# Note: Truncation never happens.  Even if num_zeros is 0 and x is 11, we
+# will get a string representing 0.000,000,11.
 def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8):
     from decimal import Decimal
     s = Decimal(x)

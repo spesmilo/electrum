@@ -2,6 +2,17 @@
 
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
+from comma_separated import *
+from decimal import Decimal
+
+class BangDoubleValidator(CryptoCurrencyValidator):
+    def __init__(self):
+        CryptoCurrencyValidator.__init__(self, 8, 8)
+    def validate(self, s, pos):
+    	if (str(s)).strip() == '!':
+    		return QValidator.Acceptable, pos
+    	else:
+    		return CryptoCurrencyValidator.validate(self, s, pos)
 
 
 class AmountEdit(QLineEdit):
@@ -12,6 +23,8 @@ class AmountEdit(QLineEdit):
         self.textChanged.connect(self.numbify)
         self.is_int = is_int
         self.is_shortcut = False
+        self.locale = MyQLocale(QLocale.system())
+    	self.setValidator(BangDoubleValidator())
 
 
     def paintEvent(self, event):
@@ -27,17 +40,17 @@ class AmountEdit(QLineEdit):
 
 
     def numbify(self):
-        text = unicode(self.text()).strip()
-        if text == '!':
+        if self.text == '!':
             self.is_shortcut = True
-        pos = self.cursorPosition()
-        chars = '0123456789'
-        if not self.is_int: chars +='.'
-        s = ''.join([i for i in text if i in chars])
-        if not self.is_int:
-            if '.' in s:
-                p = s.find('.')
-                s = s.replace('.','')
-                s = s[:p] + '.' + s[p:p+8]
-        self.setText(s)
-        self.setCursorPosition(pos)
+        
+    def value(self):
+    	    status, value = self.locale.toDecimal(QLineEdit.text(self, 10), 10)
+    	    if status == False:
+    	    	    raise
+    	    return value
+    	    
+    def setValue(self, d):
+    	    assert(d.__class__ == Decimal or d.__class__ == int or d.__class__ == long)
+    	    d = Decimal(d)
+    	    text = self.locale.toString(d)
+    	    QLineEdit.setText(self, text)

@@ -11,6 +11,7 @@ except ImportError:
     print "If you have pip installed try 'sudo pip install pyqt' if you are on Debian/Ubuntu try 'sudo apt-get install python-qt4'."
     sys.exit(0)
 
+from comma_separated import MyQLocale
 from decimal import Decimal as D
 from electrum.util import get_resource_path as rsrc
 from electrum.bitcoin import is_valid
@@ -244,6 +245,7 @@ class MiniWindow(QDialog):
 
     def __init__(self, actuator, expand_callback, config):
         super(MiniWindow, self).__init__()
+        from comma_separated import MyQDoubleValidator 
         tx = "e08115d0f7819aee65b9d24f81ef9d46eb62bb67ddef5318156cbc3ceb7b703e"
 
         self.actuator = actuator
@@ -286,7 +288,7 @@ class MiniWindow(QDialog):
 
         self.amount_input.setFocusPolicy(Qt.ClickFocus)
         # This is changed according to the user's displayed balance
-        self.amount_validator = QDoubleValidator(self.amount_input)
+        self.amount_validator = MyQDoubleValidator(self.amount_input)
         self.amount_validator.setNotation(QDoubleValidator.StandardNotation)
         self.amount_validator.setDecimals(8)
         self.amount_input.setValidator(self.amount_validator)
@@ -498,21 +500,26 @@ class MiniWindow(QDialog):
 
     def set_balances(self, btc_balance):
         """Set the bitcoin balance and update the amount label accordingly."""
+        # btc_balance should be in Satoshis
         self.btc_balance = btc_balance
+        loc = MyQLocale(QLocale.system());
         quote_text = self.create_quote_text(btc_balance)
         if quote_text:
             quote_text = "(%s)" % quote_text
-        btc_balance = "%.4f" % (btc_balance / bitcoin(1))
-        self.balance_label.set_balance_text(btc_balance, quote_text)
-        self.setWindowTitle("Electrum %s - %s BTC" % (electrum_version, btc_balance))
+        loc.mandatory_decimals = 3
+        loc.maximum_decimals = 4
+        amount = btc_balance / bitcoin(1)
+        btc_balance_string = loc.toString(amount)
+        self.balance_label.set_balance_text(btc_balance_string, quote_text)
+        self.setWindowTitle("Electrum %s - %s BTC" % (electrum_version, btc_balance_string))
 
     def amount_input_changed(self, amount_text):
         """Update the number of bitcoins displayed."""
         self.check_button_status()
 
-        try:
-            amount = D(str(amount_text))
-        except decimal.InvalidOperation:
+	locale = MyQLocale(QLocale.system())
+	could_convert, amount = locale.toDecimal(amount_text, 10)
+	if not could_convert:
             self.balance_label.show_balance()
         else:
             quote_text = self.create_quote_text(amount * bitcoin(1))
@@ -525,13 +532,17 @@ class MiniWindow(QDialog):
     def create_quote_text(self, btc_balance):
         """Return a string copy of the amount fiat currency the 
         user has in bitcoins."""
+        locale = MyQLocale(QLocale.system())
         quote_currency = self.quote_currencies[0]
         quote_balance = self.exchanger.exchange(btc_balance, quote_currency)
         if quote_balance is None:
             quote_text = ""
         else:
-            quote_text = "%.2f %s" % ((quote_balance / bitcoin(1)),
-                                      quote_currency)
+	    amount = (quote_balance / bitcoin(D(1)))
+	    locale.mandatory_decimals = 2
+	    locale.maximum_decimals = 2
+	    quote_text = "%s %s" % (str(locale.toString((quote_balance / bitcoin(1)))),
+			      quote_currency)
         return quote_text
 
     def send(self):
@@ -543,9 +554,10 @@ class MiniWindow(QDialog):
     def check_button_status(self):
         """Check that the bitcoin address is valid and that something
         is entered in the amount before making the send button clickable."""
-        try:
-            value = D(str(self.amount_input.text())) * 10**8
-        except decimal.InvalidOperation:
+        locale = MyQLocale(QLocale.system())
+        status, value = locale.toDecimal(self.amount_input.text(), 10)
+        value = bitcoin(value)
+        if not status:
             value = None
         # self.address_input.property(...) returns a qVariant, not a bool.
         # The == is needed to properly invoke a comparison.
@@ -818,6 +830,8 @@ class MiniActuator:
         w.destroy()
 
 
+    # amount is a localized QString like QString("123,456.789,012")
+    # the value being expressed in BTC.
     def send(self, address, amount, parent_window):
         """Send bitcoins to the target address."""
         dest_address = self.fetch_destination(address)
@@ -827,9 +841,14 @@ class MiniActuator:
                 _('Invalid Bitcoin Address') + ':\n' + address, _('OK'))
             return False
 
-        convert_amount = lambda amount: \
-            int(D(unicode(amount)) * bitcoin(1))
-        amount = convert_amount(amount)
+        locale = MyQLocale(QLocale.system())
+	convert_flag, btc_amount = locale.toDecimal(amount, 10)
+	if not convert_flag:
+	    return False
+	# amount is now a Decimal in Satoshis
+        amount = btc_amount * bitcoin(1)
+        del convert_flag
+        del btc_amount
 
         if self.wallet.use_encryption:
             password_dialog = PasswordDialog(parent_window)
@@ -843,7 +862,7 @@ class MiniActuator:
         # 0.1 BTC = 10000000
         if amount < bitcoin(1) / 10:
             # 0.001 BTC
-            fee = bitcoin(1) / 1000
+            fee = bitcoin(1, 10) / 1000
 
         try:
             tx = self.wallet.mktx([(dest_address, amount)], password, fee)

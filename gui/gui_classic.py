@@ -31,7 +31,8 @@ except:
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
-
+import comma_separated
+from comma_separated import MyQLocale as MyQLocale
 from electrum.bitcoin import MIN_RELAY_TX_FEE
 
 try:
@@ -70,6 +71,25 @@ from electrum import ELECTRUM_VERSION
 import re
 
 from qt_util import *
+
+class Max8IntegerValidator(QValidator):
+    
+    def __init__(self, decimal_count = 8):
+        QValidator.__init__(self)
+        self.decimal_count = decimal_count
+        
+    def validate(self, s, pos):
+        if s.length() > 1:
+            return QValidator.Invalid, pos
+        if s.isEmpty():
+            return QValidator.Intermediate, pos
+        locale = MyQLocale(QLocale.system())
+        zeroDigitCode = locale.zeroDigit().unicode()
+        nineDigitCode = zeroDigitCode + self.decimal_count
+        if zeroDigitCode <= QChar(s[0]).unicode() <= nineDigitCode:  
+            return QValidator.Acceptable, pos
+        else:
+            return QValidator.Invalid, pos
 
 class UpdateLabel(QLabel):
     def __init__(self, config, parent=None):
@@ -302,7 +322,7 @@ class ElectrumWindow(QMainWindow):
         # fix fee
         if self.wallet.fee < 50000:
             self.wallet.set_fee(50000)
-            self.show_message("Note: Your default fee was raised to 0.0005 BTC/kilobyte")
+            self.show_message("Note: Your default fee was raised to 0.000,5 BTC/kilobyte")
 
         # set initial message
         self.console.showMessage(self.wallet.interface.banner)
@@ -504,13 +524,69 @@ class ElectrumWindow(QMainWindow):
             self.need_update.clear()
         self.run_hook('timer_actions')
     
+    # format an amount of Satoshis as a number for displaying in BTC or mBTC
+    # returns a python string.
+    # if is_diff is True, then include a sign in the string even when
+    # non-negative. 
     def format_amount(self, x, is_diff=False):
-        return format_satoshis(x, is_diff, self.wallet.num_zeros, self.decimal_point)
+        # x is often an int.
+        # the amount of money expressed in "Satoshis"
+        y = Decimal(Decimal(x) * pow(10, -Decimal(self.decimal_point)))
+     	loc = MyQLocale(QLocale.system())
+     	loc.mandatory_decimals = self.wallet.num_zeros
+     	out_string = loc.toString(y)
+     	if is_diff and x >= 0:
+     		out_string = '+' + out_string
+     	# convert from QString to regular string
+     	out_byte_array = out_string.toUtf8()
+     	normal_string = ""
+     	for c in out_byte_array:
+     		normal_string += c
+     	# Now add spaces on the right and left here 
+     	# (The QString's methods truncate strings sometimes)
+     	p = normal_string.find('.')
+     	# decimal_point + the separators(commas) and the decimal point.
+     	normal_string = normal_string.ljust(self.decimal_point + self.decimal_point//3 + 1 + p)
+     	# maximum 21 including digits separators and decimal symbol
+     	normal_string = normal_string.rjust(16 + 1 + 4)
+     	assert(normal_string.__class__ == str)
+     	return normal_string
+     	
+        #return format_satoshis(x, is_diff, self.wallet.num_zeros, self.decimal_point)
 
+    # return the number of satoshis based on an entered string of the form
+    # '123456.789012' assuming the value is in currency string is indicated 
+    # by self.base_unit()
+    # Assumption:  x will never be more than sys.maxint.  
     def read_amount(self, x):
-        if x in['.', '']: return None
+    	if x.__class__ == str:
+    		if x in['.', '']: return None
+    		x = Decimal(x)
+    	elif x.__class__ == AmountEdit:
+    		x = x.value()
         p = pow(10, self.decimal_point)
-        return int( p * Decimal(x) )
+        return int( p * x )
+
+    # return the number of satoshis based on an entered string of the form
+    # '123,456.789,012' assuming the value is in currency string is indicated 
+    # by self.base_unit()  
+    def read_localized_cryptomoney(self, x):
+        if x in['.', '']: return None
+        x_copy = x + ''
+        if x_copy.__class__ == QString:
+            x = x_copy
+        else:
+            x = QString(x_copy.strip())
+        del x_copy
+        locale = MyQLocale(QLocale.system())
+        p = Decimal(10) ** self.decimal_point
+        status, unit_amount = locale.toDecimal(x, 10)
+        if not status:
+        	return None
+        # An amount of more than 21 BTC could overflow the
+        # size of an int when converted to Satoshis, so use long.
+        amount = p * unit_amount 
+       	return long( amount )
 
     def base_unit(self):
         assert self.decimal_point in [5,8]
@@ -549,7 +625,9 @@ class ElectrumWindow(QMainWindow):
         if quote_balance is None:
             quote_text = ""
         else:
-            quote_text = "  (%.2f %s)" % (quote_balance, quote_currency)
+            locale = MyQLocale( QLocale.system() )
+            locale.mandatory_decimals = 2  
+            quote_text = "  (%s %s)" % (str(locale.toString( quote_balance )), quote_currency)
         return quote_text
         
     def create_history_tab(self):
@@ -755,6 +833,7 @@ class ElectrumWindow(QMainWindow):
 
         grid = QGridLayout()
         grid.setSpacing(8)
+        grid.setColumnMinimumWidth(2,140)
         grid.setColumnMinimumWidth(3,300)
         grid.setColumnStretch(5,1)
 
@@ -826,8 +905,8 @@ class ElectrumWindow(QMainWindow):
                 self.fee_e.setText( self.format_amount( fee ) )
                 return
                 
-            amount = self.read_amount(str(self.amount_e.text()))
-            fee = self.read_amount(str(self.fee_e.text()))
+            amount = self.read_localized_cryptomoney(str(self.amount_e.text()))
+            fee = self.read_localized_cryptomoney(str(self.fee_e.text()))
 
             if not is_fee: fee = None
             if amount is None:
@@ -888,12 +967,12 @@ class ElectrumWindow(QMainWindow):
             return
 
         try:
-            amount = self.read_amount(unicode( self.amount_e.text()))
+            amount = self.read_localized_cryptomoney(unicode( self.amount_e.text()))
         except:
             QMessageBox.warning(self, _('Error'), _('Invalid Amount'), _('OK'))
             return
         try:
-            fee = self.read_amount(unicode( self.fee_e.text()))
+            fee = self.read_localized_cryptomoney(unicode( self.fee_e.text()))
         except:
             QMessageBox.warning(self, _('Error'), _('Invalid Fee'), _('OK'))
             return
@@ -938,7 +1017,10 @@ class ElectrumWindow(QMainWindow):
 
     def set_url(self, url):
         address, amount, label, message, signature, identity, url = util.parse_url(url)
-        if self.base_unit() == 'mBTC': amount = str( 1000* Decimal(amount))
+        if self.base_unit() == 'mBTC': 
+        	amount = 1000* Decimal(amount)
+        else:
+        	amount = Decimal(amount)
 
         if label and self.wallet.labels.get(address) != label:
             if self.question('Give label "%s" to address %s ?'%(label,address)):
@@ -954,7 +1036,7 @@ class ElectrumWindow(QMainWindow):
         self.payto_e.setText(m_addr)
 
         self.message_e.setText(message)
-        self.amount_e.setText(amount)
+        self.amount_e.setValue(amount)
         if identity:
             self.set_frozen(self.payto_e,True)
             self.set_frozen(self.amount_e,True)
@@ -1942,6 +2024,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def settings_dialog(self):
+        locale = MyQLocale(QLocale.system())
         d = QDialog(self)
         d.setWindowTitle(_('Electrum Settings'))
         d.setModal(1)
@@ -1959,7 +2042,8 @@ class ElectrumWindow(QMainWindow):
         nz_label = QLabel(_('Display zeros'))
         grid_ui.addWidget(nz_label, 0, 0)
         nz_e = AmountEdit(None,True)
-        nz_e.setText("%d"% self.wallet.num_zeros)
+        nz_e.setValidator(Max8IntegerValidator())
+        nz_e.setValue(self.wallet.num_zeros)
         grid_ui.addWidget(nz_e, 0, 1)
         msg = _('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"')
         grid_ui.addWidget(HelpButton(msg), 0, 2)
@@ -2032,7 +2116,7 @@ class ElectrumWindow(QMainWindow):
         gap_label = QLabel(_('Gap limit'))
         grid_wallet.addWidget(gap_label, 2, 0)
         gap_e = AmountEdit(None,True)
-        gap_e.setText("%d"% self.wallet.gap_limit)
+        gap_e.setValue(self.wallet.gap_limit)
         grid_wallet.addWidget(gap_e, 2, 2)
         msg =  _('The gap limit is the maximal number of contiguous unused addresses in your sequence of receiving addresses.') + '\n' \
               + _('You may increase it if you need more receiving addresses.') + '\n\n' \
@@ -2099,21 +2183,26 @@ class ElectrumWindow(QMainWindow):
         # run the dialog
         if not d.exec_(): return
 
-        fee = unicode(fee_e.text())
         try:
-            fee = self.read_amount(fee)
-        except:
-            QMessageBox.warning(self, _('Error'), _('Invalid value') +': %s'%fee, _('OK'))
+            fee = self.read_localized_cryptomoney(fee_e.text())
+        except:            
+            QMessageBox.warning(self, _('Error'), _('Invalid value') +': %s'%unicode(fee_e.text()), _('OK'))
             return
 
-        self.wallet.set_fee(fee)
+        self.wallet.set_fee(int(fee))
         
-        nz = unicode(nz_e.text())
         try:
-            nz = int( nz )
+            # decimal numbers shouldn't be used
+            # Anything with more than 8 zeros is crazy
+            # so, we do not need to use locale parsing here
+            # but its cool. ;)
+            inz, could_do_it = locale.toInt(nz_e.text(), 10)
+            if not could_do_it:
+            	    raise
+            nz = inz
             if nz>8: nz=8
         except:
-            QMessageBox.warning(self, _('Error'), _('Invalid value')+':%s'%nz, _('OK'))
+            QMessageBox.warning(self, _('Error'), _('Invalid value')+':%s'% unicode(nz_e.text()), _('OK'))
             return
 
         if self.wallet.num_zeros != nz:
@@ -2135,9 +2224,12 @@ class ElectrumWindow(QMainWindow):
             self.update_status()
         
         try:
-            n = int(gap_e.text())
+            igap, could_do_it = locale.toInt(gap_e.text(), 10)
+            if not could_do_it:
+            	    raise
+            n = igap
         except:
-            QMessageBox.warning(self, _('Error'), _('Invalid value'), _('OK'))
+            QMessageBox.warning(self, _('Error'), _('Invalid value') + ':%s' % unicode(gap_e.text()), _('OK'))
             return
 
         if self.wallet.gap_limit != n:
@@ -2146,7 +2238,7 @@ class ElectrumWindow(QMainWindow):
                 self.update_receive_tab()
                 self.config.set_key('gap_limit', self.wallet.gap_limit, True)
             else:
-                QMessageBox.warning(self, _('Error'), _('Invalid value'), _('OK'))
+                QMessageBox.warning(self, _('Error'), _('Invalid value') + ':%s' % unicode(self.wallet.gap_limit), _('OK'))
 
         need_restart = False
 
