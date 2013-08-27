@@ -346,8 +346,8 @@ def get_address_from_input_script(bytes):
 
         redeemScript = decoded[-1][1]
         num = len(match) - 2
-        signatures = map(lambda x:x[1].encode('hex'), decoded[1:-1])
-        
+        signatures = map(lambda x:x[1][:-1].encode('hex'), decoded[1:-1])
+
         dec2 = [ x for x in script_GetOp(redeemScript) ]
 
         # 2 of 2

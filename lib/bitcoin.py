@@ -244,17 +244,17 @@ def is_compressed(sec):
     return len(b) == 33
 
 
-def address_from_private_key(sec):
+def public_key_from_private_key(sec):
     # rebuild public key from private key, compressed or uncompressed
     pkey = regenerate_key(sec)
     assert pkey
-
-    # figure out if private key is compressed
     compressed = is_compressed(sec)
-        
-    # rebuild private and public key from regenerated secret
-    private_key = GetPrivKey(pkey, compressed)
     public_key = GetPubKey(pkey.pubkey, compressed)
+    return public_key.encode('hex')
+
+
+def address_from_private_key(sec):
+    public_key = public_key_from_private_key(sec)
     address = public_key_to_bc_address(public_key)
     return address
 
@@ -448,6 +448,11 @@ def bip32_public_derivation(c, K, branch, sequence):
     return c.encode('hex'), K.encode('hex'), cK.encode('hex')
 
 
+def bip32_private_key(sequence, k, chain):
+    for i in sequence:
+        k, chain = CKD(k, chain, i)
+    return SecretToASecret(k, True)
+
 
 
 
@@ -508,8 +513,7 @@ class Transaction:
             raise
         s += 'ae'
 
-        out = { "address": hash_160_to_bc_address(hash_160(s.decode('hex')), 5), "redeemScript":s }
-        return out
+        return s
 
     @classmethod
     def serialize( klass, inputs, outputs, for_sig = None ):
@@ -522,24 +526,24 @@ class Transaction:
             s += int_to_hex(txin['index'],4)                         # prev index
 
             if for_sig is None:
-                pubkeysig = txin.get('pubkeysig')
-                if pubkeysig:
-                    pubkey, sig = pubkeysig[0]
-                    sig = sig + chr(1)                               # hashtype
-                    script  = op_push( len(sig))
-                    script += sig.encode('hex')
-                    script += op_push( len(pubkey))
-                    script += pubkey.encode('hex')
+                signatures = txin['signatures']
+                pubkeys = txin['pubkeys']
+                if not txin.get('redeemScript'):
+                    pubkey = pubkeys[0]
+                    sig = signatures[0]
+                    sig = sig + '01'                                 # hashtype
+                    script  = op_push(len(sig)/2)
+                    script += sig
+                    script += op_push(len(pubkey)/2)
+                    script += pubkey
                 else:
-                    signatures = txin['signatures']
-                    pubkeys = txin['pubkeys']
                     script = '00'                                    # op_0
                     for sig in signatures:
                         sig = sig + '01'
                         script += op_push(len(sig)/2)
                         script += sig
 
-                    redeem_script = klass.multisig_script(pubkeys,2).get('redeemScript')
+                    redeem_script = klass.multisig_script(pubkeys,2)
                     script += op_push(len(redeem_script)/2)
                     script += redeem_script
 
@@ -587,79 +591,47 @@ class Transaction:
     def hash(self):
         return Hash(self.raw.decode('hex') )[::-1].encode('hex')
 
-    def sign(self, private_keys):
+
+
+    def sign(self, keypairs):
         import deserialize
+        is_complete = True
+        print_error("tx.sign(), keypairs:", keypairs)
 
-        for i in range(len(self.inputs)):
-            txin = self.inputs[i]
-            tx_for_sig = self.serialize( self.inputs, self.outputs, for_sig = i )
+        for i, txin in enumerate(self.inputs):
 
+            # if the input is multisig, parse redeem script
             redeem_script = txin.get('redeemScript')
-            if redeem_script:
-                # 1 parse the redeem script
-                num, redeem_pubkeys = deserialize.parse_redeemScript(redeem_script)
-                self.inputs[i]["pubkeys"] = redeem_pubkeys
+            num, redeem_pubkeys = deserialize.parse_redeemScript(redeem_script) if redeem_script else (1, [txin.get('redeemPubkey')])
 
-                # build list of public/private keys
-                keypairs = {}
-                for sec in private_keys.values():
+            # add pubkeys
+            txin["pubkeys"] = redeem_pubkeys
+            # get list of already existing signatures
+            signatures = txin.get("signatures",[])
+            # continue if this txin is complete
+            if len(signatures) == num:
+                continue
+
+            tx_for_sig = self.serialize( self.inputs, self.outputs, for_sig = i )
+            for pubkey in redeem_pubkeys:
+                # check if we have the corresponding private key
+                if pubkey in keypairs.keys():
+                    # add signature
+                    sec = keypairs[pubkey]
                     compressed = is_compressed(sec)
                     pkey = regenerate_key(sec)
-                    pubkey = GetPubKey(pkey.pubkey, compressed)
-                    keypairs[ pubkey.encode('hex') ] = sec
+                    secexp = pkey.secret
+                    private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
+                    public_key = private_key.get_verifying_key()
+                    sig = private_key.sign_digest( Hash( tx_for_sig.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
+                    assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
+                    signatures.append( sig.encode('hex') )
+                    print_error("adding signature for", pubkey)
+            
+            txin["signatures"] = signatures
+            is_complete = is_complete and len(signatures) == num
 
-                print "keypairs", keypairs
-                print redeem_script, redeem_pubkeys
-
-                # list of already existing signatures
-                signatures = txin.get("signatures",[])
-                print_error("signatures",signatures)
-
-                for pubkey in redeem_pubkeys:
-
-                    # here we have compressed key.. it won't work
-                    #public_key = ecdsa.VerifyingKey.from_string(pubkey[2:].decode('hex'), curve = SECP256k1)  
-                    #for s in signatures:
-                    #    try:
-                    #        public_key.verify_digest( s.decode('hex')[:-1], Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
-                    #        break
-                    #    except ecdsa.keys.BadSignatureError:
-                    #        continue
-                    #else:
-                    if 1:
-                        # check if we have a key corresponding to the redeem script
-                        if pubkey in keypairs.keys():
-                            # add signature
-                            sec = keypairs[pubkey]
-                            compressed = is_compressed(sec)
-                            pkey = regenerate_key(sec)
-                            secexp = pkey.secret
-                            private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
-                            public_key = private_key.get_verifying_key()
-                            sig = private_key.sign_digest( Hash( tx_for_sig.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
-                            assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
-                            signatures.append( sig.encode('hex') )
-                        
-                # for p2sh, pubkeysig is a tuple (may be incomplete)
-                self.inputs[i]["signatures"] = signatures
-                print_error("signatures",signatures)
-                self.is_complete = len(signatures) == num
-
-            else:
-                sec = private_keys[txin['address']]
-                compressed = is_compressed(sec)
-                pkey = regenerate_key(sec)
-                secexp = pkey.secret
-                private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
-                public_key = private_key.get_verifying_key()
-                pkey = EC_KEY(secexp)
-                pubkey = GetPubKey(pkey.pubkey, compressed)
-                sig = private_key.sign_digest( Hash( tx_for_sig.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
-                assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
-
-                self.inputs[i]["pubkeysig"] = [(pubkey, sig)]
-                self.is_complete = True
-
+        self.is_complete = is_complete
         self.raw = self.serialize( self.inputs, self.outputs )
 
 
