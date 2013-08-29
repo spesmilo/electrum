@@ -323,6 +323,7 @@ class Wallet:
         o = self.get_account_addresses(-1, include_change)
         for a in self.accounts.keys():
             o += self.get_account_addresses(a, include_change)
+        o += self.first_addresses.values()
         return o
 
 
@@ -600,7 +601,6 @@ class Wallet:
 
 
     def create_pending_accounts(self):
-
         for account_type in ['1','2of2','2of3']:
             a = self.new_account_address(account_type)
             if self.address_is_old(a):

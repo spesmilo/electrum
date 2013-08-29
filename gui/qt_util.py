@@ -2,6 +2,56 @@ from i18n import _
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import os.path
+import time
+
+
+class Timer(QThread):
+    def run(self):
+        while True:
+            self.emit(SIGNAL('timersignal'))
+            time.sleep(0.5)
+
+
+class EnterButton(QPushButton):
+    def __init__(self, text, func):
+        QPushButton.__init__(self, text)
+        self.func = func
+        self.clicked.connect(func)
+
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key_Return:
+            apply(self.func,())
+
+
+def waiting_dialog(f):
+
+    s = Timer()
+    s.start()
+    w = QDialog()
+    w.resize(200, 70)
+    w.setWindowTitle('Electrum')
+    l = QLabel('')
+    vbox = QVBoxLayout()
+    vbox.addWidget(l)
+    w.setLayout(vbox)
+    w.show()
+    def ff():
+        s = f()
+        if s: l.setText(s)
+        else: w.close()
+    w.connect(s, SIGNAL('timersignal'), ff)
+    w.exec_()
+    w.destroy()
+
+
+class HelpButton(QPushButton):
+    def __init__(self, text):
+        QPushButton.__init__(self, '?')
+        self.setFocusPolicy(Qt.NoFocus)
+        self.setFixedWidth(20)
+        self.clicked.connect(lambda: QMessageBox.information(self, 'Help', text, 'OK') )
+
+
 
 def backup_wallet(path):
     import shutil
