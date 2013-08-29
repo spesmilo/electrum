@@ -3,10 +3,14 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 from i18n import _
 
-from electrum import Wallet, mnemonic
+from electrum import Wallet, mnemonic, WalletVerifier, WalletSynchronizer
+
 from seed_dialog import SeedDialog
 from network_dialog import NetworkDialog
 from qt_util import *
+from amountedit import AmountEdit
+
+import sys
 
 class InstallWizard(QDialog):
 
@@ -107,8 +111,8 @@ class InstallWizard(QDialog):
         d.run()
 
 
-    def restore_wallet(self):
-        wallet = self.wallet
+    def restore_wallet(self, wallet):
+
         # wait until we are connected, because the user might have selected another server
         if not wallet.interface.is_connected:
             waiting = lambda: False if wallet.interface.is_connected else "%s \n" % (_("Connecting..."))
@@ -121,9 +125,9 @@ class InstallWizard(QDialog):
         wallet.interface.poke('synchronizer')
         waiting_dialog(waiting)
         if wallet.is_found():
-            print_error( "Recovery successful" )
+            QMessageBox.information(None, _('Information'), _("Recovery successful"), _('OK'))
         else:
-            QMessageBox.information(None, _('Error'), _("No transactions found for this seed"), _('OK'))
+            QMessageBox.information(None, _('Information'), _("No transactions found for this seed"), _('OK'))
 
         return True
 
@@ -145,7 +149,7 @@ class InstallWizard(QDialog):
                 exit()
         else:
             # ask for seed and gap.
-            sg = gui.seed_dialog()
+            sg = self.seed_dialog()
             if not sg: exit()
             seed, gap = sg
             if not seed: exit()
@@ -163,6 +167,16 @@ class InstallWizard(QDialog):
             self.config.set_key("server", None, True)
             self.config.set_key('auto_cycle', False, True)
 
+        self.interface.start(wait = False)
+
+        # start wallet threads
+        verifier = WalletVerifier(self.interface, self.config)
+        verifier.start()
+        wallet.set_verifier(verifier)
+        synchronizer = WalletSynchronizer(wallet, self.config)
+        synchronizer.start()
+
+
         # generate the first addresses, in case we are offline
         if s is None or a == 'create':
             wallet.synchronize()
@@ -170,7 +184,7 @@ class InstallWizard(QDialog):
 
         if a == 'restore' and s is not None:
             try:
-                keep_it = gui.restore_wallet()
+                keep_it = self.restore_wallet(wallet)
                 wallet.fill_addressbook()
             except:
                 import traceback

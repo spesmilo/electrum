@@ -147,29 +147,6 @@ class UpdateLabel(QLabel):
 
 
 
-class Timer(QtCore.QThread):
-    def run(self):
-        while True:
-            self.emit(QtCore.SIGNAL('timersignal'))
-            time.sleep(0.5)
-
-class HelpButton(QPushButton):
-    def __init__(self, text):
-        QPushButton.__init__(self, '?')
-        self.setFocusPolicy(Qt.NoFocus)
-        self.setFixedWidth(20)
-        self.clicked.connect(lambda: QMessageBox.information(self, 'Help', text, 'OK') )
-
-
-class EnterButton(QPushButton):
-    def __init__(self, text, func):
-        QPushButton.__init__(self, text)
-        self.func = func
-        self.clicked.connect(func)
-
-    def keyPressEvent(self, e):
-        if e.key() == QtCore.Qt.Key_Return:
-            apply(self.func,())
 
 class MyTreeWidget(QTreeWidget):
     def __init__(self, parent):
@@ -207,26 +184,6 @@ class StatusBarButton(QPushButton):
 
 
 
-
-def waiting_dialog(f):
-
-    s = Timer()
-    s.start()
-    w = QDialog()
-    w.resize(200, 70)
-    w.setWindowTitle('Electrum')
-    l = QLabel('')
-    vbox = QVBoxLayout()
-    vbox.addWidget(l)
-    w.setLayout(vbox)
-    w.show()
-    def ff():
-        s = f()
-        if s: l.setText(s)
-        else: w.close()
-    w.connect(s, QtCore.SIGNAL('timersignal'), ff)
-    w.exec_()
-    w.destroy()
 
 
 
@@ -1454,22 +1411,31 @@ class ElectrumWindow(QMainWindow):
 
 
     def new_account_dialog(self):
-        text, ok = QInputDialog.getText(self, _('New Account'), _('Name') + ':')
-        if not ok or not text: 
-            return
-        name = unicode(text)
-        try:
-            self.create_new_account(name)
-        except:
-            QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
+
+        dialog = QDialog(self)
+        dialog.setModal(1)
+        dialog.setWindowTitle(_("New Account"))
+
+        addr = self.wallet.new_account_address()
+        vbox = QVBoxLayout()
+        vbox.addWidget(QLabel("To add another account, please send bitcoins to the following address:"))
+        e = QLineEdit(addr)
+        e.setReadOnly(True)
+        vbox.addWidget(e)
+
+        ok_button = QPushButton(_("OK"))
+        ok_button.setDefault(True)
+        ok_button.clicked.connect(dialog.accept)
+
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+        hbox.addWidget(ok_button)
+        vbox.addLayout(hbox)
+
+        dialog.setLayout(vbox)
+        dialog.exec_()
+
             
-    @protected
-    def create_new_account(self, name, password):
-        self.wallet.create_new_account(name, password)
-        self.wallet.synchronize()
-        self.update_receive_tab()
-        self.update_history_tab()
-        self.update_completions()
 
     def show_master_public_key(self):
         dialog = QDialog(self)

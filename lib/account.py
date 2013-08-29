@@ -160,6 +160,9 @@ class BIP32_Account(Account):
         address = public_key_to_bc_address( pubkey.decode('hex') )
         return address
 
+    def first_address(self):
+        return self.get_address(0,0)
+
     def get_pubkey(self, for_change, n):
         K = self.K
         chain = self.c
