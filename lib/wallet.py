@@ -90,6 +90,8 @@ class Wallet:
         self.master_public_keys = config.get('master_public_keys',{})
         self.master_private_keys = config.get('master_private_keys', {})
 
+        self.first_addresses = config.get('first_addresses',{})
+
         self.load_accounts(config)
 
         self.transactions = {}
@@ -204,7 +206,7 @@ class Wallet:
         self.config.set_key('master_private_keys', self.master_private_keys, True)
 
         # create default account
-        self.create_account('Main account')
+        self.create_account('1','Main account')
 
 
     def find_root_by_master_key(self, c, K):
@@ -229,7 +231,7 @@ class Wallet:
 
 
     def account_id(self, account_type, i):
-        if account_type is None:
+        if account_type == '1':
             return "m/0'/%d"%i
         elif account_type == '2of2':
             return "m/1'/%d & m/2'/%d"%(i,i)
@@ -249,11 +251,26 @@ class Wallet:
         return i
 
 
-    def create_account(self, name, account_type = None):
+    def new_account_address(self, account_type = '1'):
+        i = self.num_accounts(account_type)
+        k = self.account_id(account_type,i)
+
+        addr = self.first_addresses.get(k)
+        if not addr: 
+            account_id, account = self.next_account(account_type)
+            addr = account.first_address()
+            self.first_addresses[k] = addr
+            self.config.set_key('first_addresses',self.first_addresses)
+
+        return addr
+
+
+    def next_account(self, account_type = '1'):
+
         i = self.num_accounts(account_type)
         account_id = self.account_id(account_type,i)
 
-        if account_type is None:
+        if account_type is '1':
             master_c0, master_K0, _ = self.master_public_keys["m/0'/"]
             c0, K0, cK0 = bip32_public_derivation(master_c0.decode('hex'), master_K0.decode('hex'), "m/0'/", "m/0'/%d"%i)
             account = BIP32_Account({ 'c':c0, 'K':K0, 'cK':cK0 })
@@ -274,6 +291,11 @@ class Wallet:
             c5, K5, cK5 = bip32_public_derivation(master_c5.decode('hex'), master_K5.decode('hex'), "m/5'/", "m/5'/%d"%i)
             account = BIP32_Account_2of3({ 'c':c3, 'K':K3, 'cK':cK3, 'c2':c4, 'K2':K4, 'cK2':cK4, 'c3':c5, 'K3':K5, 'cK3':cK5 })
 
+        return account_id, account
+
+
+    def create_account(self, account_type = '1', name = 'unnamed'):
+        account_id, account = self.next_account(account_type)
         self.accounts[account_id] = account
         self.save_accounts()
         self.labels[account_id] = name
@@ -297,8 +319,6 @@ class Wallet:
                 self.accounts[k] = BIP32_Account(v)
 
 
-
-
     def addresses(self, include_change = True):
         o = self.get_account_addresses(-1, include_change)
         for a in self.accounts.keys():
@@ -308,6 +328,7 @@ class Wallet:
 
     def is_mine(self, address):
         return address in self.addresses(True)
+
 
     def is_change(self, address):
         if not self.is_mine(address): return False
@@ -577,13 +598,25 @@ class Wallet:
         return new_addresses
         
 
+
+    def create_pending_accounts(self):
+
+        for account_type in ['1','2of2','2of3']:
+            a = self.new_account_address(account_type)
+            if self.address_is_old(a):
+                print "creating account", a
+                self.create_account(account_type)
+
+
     def synchronize_account(self, account):
         new = []
         new += self.synchronize_sequence(account, 0)
         new += self.synchronize_sequence(account, 1)
         return new
 
+
     def synchronize(self):
+        self.create_pending_accounts()
         new = []
         for account in self.accounts.values():
             new += self.synchronize_account(account)

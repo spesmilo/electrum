@@ -1454,22 +1454,31 @@ class ElectrumWindow(QMainWindow):
 
 
     def new_account_dialog(self):
-        text, ok = QInputDialog.getText(self, _('New Account'), _('Name') + ':')
-        if not ok or not text: 
-            return
-        name = unicode(text)
-        try:
-            self.create_new_account(name)
-        except:
-            QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
+
+        dialog = QDialog(self)
+        dialog.setModal(1)
+        dialog.setWindowTitle(_("New Account"))
+
+        addr = self.wallet.new_account_address()
+        vbox = QVBoxLayout()
+        vbox.addWidget(QLabel("To add another account, please send bitcoins to the following address:"))
+        e = QLineEdit(addr)
+        e.setReadOnly(True)
+        vbox.addWidget(e)
+
+        ok_button = QPushButton(_("OK"))
+        ok_button.setDefault(True)
+        ok_button.clicked.connect(dialog.accept)
+
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+        hbox.addWidget(ok_button)
+        vbox.addLayout(hbox)
+
+        dialog.setLayout(vbox)
+        dialog.exec_()
+
             
-    @protected
-    def create_new_account(self, name, password):
-        self.wallet.create_new_account(name, password)
-        self.wallet.synchronize()
-        self.update_receive_tab()
-        self.update_history_tab()
-        self.update_completions()
 
     def show_master_public_key(self):
         dialog = QDialog(self)
