@@ -376,22 +376,29 @@ class ElectrumWindow(QMainWindow):
     def init_menubar(self):
         menubar = QMenuBar()
 
-        electrum_menu = menubar.addMenu(_("&File"))
-        open_wallet_action = electrum_menu.addAction(_("Open wallet"))
+        file_menu = menubar.addMenu(_("&File"))
+        open_wallet_action = file_menu.addAction(_("&Open"))
         open_wallet_action.triggered.connect(self.open_wallet)
 
-        new_wallet_action = electrum_menu.addAction(_("New wallet"))
+        new_wallet_action = file_menu.addAction(_("&Create/Restore"))
         new_wallet_action.triggered.connect(self.new_wallet)
 
-        preferences_name = _("Preferences")
-        if sys.platform == 'darwin':
-            preferences_name = _("Electrum preferences") # Settings / Preferences are all reserved keywords in OSX using this as work around
+        wallet_backup = file_menu.addAction(_("&Copy"))
+        wallet_backup.triggered.connect(lambda: backup_wallet(self.config.path))
 
-        preferences_menu = electrum_menu.addAction(preferences_name)
+        quit_item = file_menu.addAction(_("&Close"))
+        quit_item.triggered.connect(self.close)
+
+        wallet_menu = menubar.addMenu(_("&Wallet"))
+
+        # Settings / Preferences are all reserved keywords in OSX using this as work around
+        preferences_name = _("Electrum preferences") if sys.platform == 'darwin' else _("Preferences")
+        preferences_menu = wallet_menu.addAction(preferences_name)
         preferences_menu.triggered.connect(self.settings_dialog)
-        electrum_menu.addSeparator()
 
-        raw_transaction_menu = electrum_menu.addMenu(_("&Load raw transaction"))
+        wallet_menu.addSeparator()
+
+        raw_transaction_menu = wallet_menu.addMenu(_("&Load raw transaction"))
 
         raw_transaction_file = raw_transaction_menu.addAction(_("&From file"))
         raw_transaction_file.triggered.connect(self.do_process_from_file)
@@ -399,13 +406,7 @@ class ElectrumWindow(QMainWindow):
         raw_transaction_text = raw_transaction_menu.addAction(_("&From text"))
         raw_transaction_text.triggered.connect(self.do_process_from_text)
 
-        electrum_menu.addSeparator()
-        quit_item = electrum_menu.addAction(_("&Close"))
-        quit_item.triggered.connect(self.close)
-
-        wallet_menu = menubar.addMenu(_("&Wallet"))
-        wallet_backup = wallet_menu.addAction(_("&Create backup"))
-        wallet_backup.triggered.connect(lambda: backup_wallet(self.config.path))
+        wallet_menu.addSeparator()
 
         show_menu = wallet_menu.addMenu(_("Show"))
 
@@ -1458,7 +1459,7 @@ class ElectrumWindow(QMainWindow):
 
         addr = self.wallet.new_account_address()
         vbox = QVBoxLayout()
-        vbox.addWidget(QLabel("To add another account, please send bitcoins to the following address:"))
+        vbox.addWidget(QLabel(_("To create a new account, please send coins to the first address of that account:")))
         e = QLineEdit(addr)
         e.setReadOnly(True)
         vbox.addWidget(e)
