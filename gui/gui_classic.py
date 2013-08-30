@@ -312,12 +312,17 @@ class ElectrumWindow(QMainWindow):
 
         # account selector
         accounts = self.wallet.get_accounts()
+        self.account_selector.clear()
         if len(accounts) > 1:
             self.account_selector.addItems([_("All accounts")] + accounts.values())
             self.account_selector.setCurrentIndex(0)
+            self.account_selector.show()
+        else:
+            self.account_selector.hide()
 
         self.update_lock_icon()
         self.update_buttons_on_seed()
+        self.update_console()
 
 
     def select_wallet_file(self):
@@ -1338,10 +1343,12 @@ class ElectrumWindow(QMainWindow):
         from qt_console import Console
         self.console = console = Console()
         return console
-    #
 
-        self.console.history = self.config.get("console-history",[])
-        self.console.history_index = len(self.console.history)
+
+    def update_console(self):
+        console = self.console
+        console.history = self.config.get("console-history",[])
+        console.history_index = len(console.history)
 
         console.updateNamespace({'wallet' : self.wallet, 'interface' : self.wallet.interface, 'gui':self})
         console.updateNamespace({'util' : util, 'bitcoin':bitcoin})
@@ -1355,7 +1362,7 @@ class ElectrumWindow(QMainWindow):
             methods[m] = mkfunc(c._run, m)
             
         console.updateNamespace(methods)
-        return console
+
 
     def change_account(self,s):
         if s == _("All accounts"):
@@ -2173,7 +2180,7 @@ class ElectrumWindow(QMainWindow):
         g = self.geometry()
         self.config.set_key("winpos-qt", [g.left(),g.top(),g.width(),g.height()], True)
         self.save_column_widths()
-        self.config.set_key("console-history",self.console.history[-50:])
+        self.config.set_key("console-history", self.console.history[-50:], True)
         event.accept()
 
 class OpenFileEventFilter(QObject):
