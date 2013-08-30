@@ -128,8 +128,15 @@ if __name__ == '__main__':
             sys.exit()
             #sys.exit("Error: Unknown GUI: " + gui_name )
         
-        gui = gui.ElectrumGui(config)
+        # network interface
+        interface = Interface(config, True)
+        interface.start(wait = False)
+        interface.send([('server.peers.subscribe',[])])
+
+        gui = gui.ElectrumGui(config,interface)
         gui.main(url)
+        
+        interface.stop()
 
         # we use daemon threads, their termination is enforced.
         # this sleep command gives them time to terminate cleanly. 

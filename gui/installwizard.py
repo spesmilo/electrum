@@ -167,7 +167,7 @@ class InstallWizard(QDialog):
             self.config.set_key("server", None, True)
             self.config.set_key('auto_cycle', False, True)
 
-        self.interface.start(wait = False)
+        #self.interface.start(wait = False)
 
         # start wallet threads
         verifier = WalletVerifier(self.interface, self.config)
