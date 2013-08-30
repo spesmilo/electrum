@@ -96,9 +96,5 @@ class PasswordDialog(QDialog):
 
         QMessageBox.information(self.parent, _('Success'), _('Password was updated successfully'), _('OK'))
 
-        if self.parent: 
-            icon = QIcon(":icons/lock.png") if wallet.use_encryption else QIcon(":icons/unlock.png")
-            self.parent.password_button.setIcon( icon )
-
 
 

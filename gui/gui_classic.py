@@ -316,6 +316,8 @@ class ElectrumWindow(QMainWindow):
             self.account_selector.addItems([_("All accounts")] + accounts.values())
             self.account_selector.setCurrentIndex(0)
 
+        self.update_lock_icon()
+        self.update_buttons_on_seed()
 
 
     def select_wallet_file(self):
@@ -850,14 +852,10 @@ class ElectrumWindow(QMainWindow):
                 _('Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
                     + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
                     + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')), 4, 3)
-        b = ''
 
-        if 1:#self.wallet.seed: 
-            b = EnterButton(_("Send"), self.do_send)
-        else:
-            b = EnterButton(_("Create unsigned transaction"), self.do_send)
 
-        grid.addWidget(b, 6, 1)
+        self.send_button = EnterButton(_("Send"), self.do_send)
+        grid.addWidget(self.send_button, 6, 1)
 
         b = EnterButton(_("Clear"),self.do_clear)
         grid.addWidget(b, 6, 2)
@@ -1389,13 +1387,14 @@ class ElectrumWindow(QMainWindow):
 
         if (int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/switchgui.png"), _("Switch to Lite Mode"), self.go_lite ) )
-        if 1:#self.wallet.seed:
-            self.lock_icon = QIcon(":icons/lock.png") #if self.wallet.use_encryption else QIcon(":icons/unlock.png")
-            self.password_button = StatusBarButton( self.lock_icon, _("Password"), self.change_password_dialog )
-            sb.addPermanentWidget( self.password_button )
+
+        self.lock_icon = QIcon()
+        self.password_button = StatusBarButton( self.lock_icon, _("Password"), self.change_password_dialog )
+        sb.addPermanentWidget( self.password_button )
+            
         sb.addPermanentWidget( StatusBarButton( QIcon(":icons/preferences.png"), _("Preferences"), self.settings_dialog ) )
-        if 1:#self.wallet.seed:
-            sb.addPermanentWidget( StatusBarButton( QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog ) )
+        self.seed_button = StatusBarButton( QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog ) 
+        sb.addPermanentWidget( self.seed_button )
         self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), _("Network"), self.run_network_dialog ) 
         sb.addPermanentWidget( self.status_button )
 
@@ -1404,10 +1403,27 @@ class ElectrumWindow(QMainWindow):
         self.setStatusBar(sb)
 
 
+    def update_lock_icon(self):
+        icon = QIcon(":icons/lock.png") if self.wallet.use_encryption else QIcon(":icons/unlock.png")
+        self.password_button.setIcon( icon )
+
+
+    def update_buttons_on_seed(self):
+        if self.wallet.seed:
+           self.seed_button.show()
+           self.password_button.show()
+           self.send_button.setText(_("Send"))
+        else:
+           self.password_button.hide()
+           self.seed_button.hide()
+           self.send_button.setText(_("Create unsigned transaction"))
+
+
     def change_password_dialog(self):
         from password_dialog import PasswordDialog
         d = PasswordDialog(self.wallet, self)
         d.run()
+        self.update_lock_icon()
 
         
     def go_lite(self):
@@ -1419,6 +1435,7 @@ class ElectrumWindow(QMainWindow):
         else:
             self.lite = gui_lite.ElectrumGui(self.wallet, self.config, self)
             self.lite.main(None)
+
 
     def new_contact_dialog(self):
         text, ok = QInputDialog.getText(self, _('New Contact'), _('Address') + ':')
