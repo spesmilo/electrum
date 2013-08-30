@@ -5,12 +5,31 @@ _ = lambda x:x
 from electrum.util import format_satoshis, set_verbosity
 from electrum.bitcoin import is_valid
 
+from electrum import Wallet, WalletVerifier, WalletSynchronizer
+
 import tty, sys
 
 
 class ElectrumGui:
 
-    def __init__(self, wallet, config, app=None):
+    def __init__(self, config, interface):
+
+        self.config = config
+        found = self.config.wallet_file_exists
+        if not found:
+            print "Wallet not found. try 'electrum create'"
+            exit()
+
+        wallet = Wallet(self.config)
+        wallet.interface = interface
+        self.wallet = wallet
+
+        verifier = WalletVerifier(interface, config)
+        verifier.start()
+        wallet.set_verifier(verifier)
+        synchronizer = WalletSynchronizer(wallet, config)
+        synchronizer.start()
+
         self.stdscr = curses.initscr()
         curses.noecho()
         curses.cbreak()
@@ -24,8 +43,6 @@ class ElectrumGui:
         self.set_cursor(0)
         self.w = curses.newwin(10, 50, 5, 5)
 
-        self.wallet = wallet
-        self.config = config
         set_verbosity(False)
         self.tab = 0
         self.pos = 0
