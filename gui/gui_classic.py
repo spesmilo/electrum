@@ -223,11 +223,10 @@ class ElectrumWindow(QMainWindow):
             self.showNormal()
 
 
-    def __init__(self, wallet, config):
+    def __init__(self, config):
         QMainWindow.__init__(self)
         self._close_electrum = False
         self.lite = None
-        self.wallet = wallet
         self.config = config
         self.current_account = self.config.get("current_account", None)
 
@@ -243,11 +242,6 @@ class ElectrumWindow(QMainWindow):
         self.create_status_bar()
 
         self.need_update = threading.Event()
-        self.wallet.interface.register_callback('updated', lambda: self.need_update.set())
-        self.wallet.interface.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')))
-        self.wallet.interface.register_callback('disconnected', lambda: self.emit(QtCore.SIGNAL('update_status')))
-        self.wallet.interface.register_callback('disconnecting', lambda: self.emit(QtCore.SIGNAL('update_status')))
-        self.wallet.interface.register_callback('new_transaction', lambda: self.emit(QtCore.SIGNAL('transaction_signal')))
 
         self.expert_mode = config.get('classic_expert_mode', False)
         self.decimal_point = config.get('decimal_point', 8)
@@ -270,9 +264,6 @@ class ElectrumWindow(QMainWindow):
 
         g = self.config.get("winpos-qt",[100, 100, 840, 400])
         self.setGeometry(g[0], g[1], g[2], g[3])
-        title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.config.path
-        if not self.wallet.seed: title += ' [%s]' % (_('seedless'))
-        self.setWindowTitle( title )
 
         self.init_menubar()
 
@@ -296,31 +287,84 @@ class ElectrumWindow(QMainWindow):
             tabs.setCurrentIndex (n)
             tabs.setCurrentIndex (0)
 
-        # set initial message
-        self.console.showMessage(self.wallet.interface.banner)
-
-        # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
-        self.notify_transactions()
 
         # plugins that need to change the GUI do it here
         self.run_hook('init')
 
 
+    def load_wallet(self, wallet):
+        import electrum
+        self.wallet = wallet
+
+        self.wallet.interface.register_callback('updated', lambda: self.need_update.set())
+        self.wallet.interface.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')))
+        self.wallet.interface.register_callback('disconnected', lambda: self.emit(QtCore.SIGNAL('update_status')))
+        self.wallet.interface.register_callback('disconnecting', lambda: self.emit(QtCore.SIGNAL('update_status')))
+        self.wallet.interface.register_callback('new_transaction', lambda: self.emit(QtCore.SIGNAL('transaction_signal')))
+        title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.config.path
+        if not self.wallet.seed: title += ' [%s]' % (_('seedless'))
+        self.setWindowTitle( title )
+        self.update_wallet()
+        # set initial message
+        self.console.showMessage(self.wallet.interface.banner)
+        # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
+        self.notify_transactions()
+
+        # account selector
+        accounts = self.wallet.get_accounts()
+        if len(accounts) > 1:
+            self.account_selector.addItems([_("All accounts")] + accounts.values())
+            self.account_selector.setCurrentIndex(0)
+
+
+
     def select_wallet_file(self):
         wallet_folder = self.wallet.config.path
         re.sub("(\/\w*.dat)$", "", wallet_folder)
-        file_name = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder, "*.dat")
+        file_name = unicode( QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder, "*.dat") )
         return file_name
 
+
     def open_wallet(self):
-        n = self.select_wallet_file()
-        if n:
-            self.load_wallet(n)
+        from electrum import SimpleConfig, Wallet, WalletSynchronizer
+
+        filename = self.select_wallet_file()
+        if not filename:
+            return
+
+        config = SimpleConfig({'wallet_path': filename})
+        if not config.wallet_file_exists:
+            self.show_message("file not found "+ filename)
+            return
+
+        interface = self.wallet.interface
+        verifier = self.wallet.verifier
+        self.wallet.synchronizer.stop()
+        
+        self.config = config
+
+        # create wallet 
+        wallet = Wallet(config)
+        wallet.interface = interface
+        wallet.verifier = verifier
+        synchronizer = WalletSynchronizer(wallet, config)
+        synchronizer.start()
+
+        self.load_wallet(wallet)
+
 
     def new_wallet(self):
-        n = self.getOpenFileName("Select wallet file")
+        from electrum import SimpleConfig, Wallet, WalletSynchronizer
+        import installwizard
 
-        wizard = installwizard.InstallWizard(self.config, self.interface)
+        wallet_folder = self.wallet.config.path
+        re.sub("(\/\w*.dat)$", "", wallet_folder)
+        filename = self.getSaveFileName("Select your wallet file", wallet_folder, "*.dat")
+
+        config = SimpleConfig({'wallet_path': filename})
+        assert not config.wallet_file_exists
+
+        wizard = installwizard.InstallWizard(config, self.wallet.interface)
         wallet = wizard.run()
         if wallet: 
             self.load_wallet(wallet)
@@ -363,9 +407,9 @@ class ElectrumWindow(QMainWindow):
 
         show_menu = wallet_menu.addMenu(_("Show"))
 
-        if self.wallet.seed:
-            show_seed = show_menu.addAction(_("&Seed"))
-            show_seed.triggered.connect(self.show_seed_dialog)
+        #if self.wallet.seed:
+        show_seed = show_menu.addAction(_("&Seed"))
+        show_seed.triggered.connect(self.show_seed_dialog)
 
         show_mpk = show_menu.addAction(_("&Master Public Key"))
         show_mpk.triggered.connect(self.show_master_public_key)
@@ -403,28 +447,6 @@ class ElectrumWindow(QMainWindow):
         self.setMenuBar(menubar)
 
 
-    def load_wallet(self, filename):
-        import electrum
-
-        config = electrum.SimpleConfig({'wallet_path': filename})
-        if not config.wallet_file_exists:
-            self.show_message("file not found "+ filename)
-            return
-
-        #self.wallet.verifier.stop()
-        interface = self.wallet.interface
-        verifier = self.wallet.verifier
-        self.wallet.synchronizer.stop()
-        
-        self.config = config
-        self.wallet = electrum.Wallet(self.config)
-        self.wallet.interface = interface
-        self.wallet.verifier = verifier
-
-        synchronizer = electrum.WalletSynchronizer(self.wallet, self.config)
-        synchronizer.start()
-
-        self.update_wallet()
 
     def notify_transactions(self):
         print_error("Notifying GUI")
@@ -829,10 +851,12 @@ class ElectrumWindow(QMainWindow):
                     + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
                     + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')), 4, 3)
         b = ''
-        if self.wallet.seed: 
+
+        if 1:#self.wallet.seed: 
             b = EnterButton(_("Send"), self.do_send)
         else:
             b = EnterButton(_("Create unsigned transaction"), self.do_send)
+
         grid.addWidget(b, 6, 1)
 
         b = EnterButton(_("Clear"),self.do_clear)
@@ -1314,6 +1338,9 @@ class ElectrumWindow(QMainWindow):
     def create_console_tab(self):
         from qt_console import Console
         self.console = console = Console()
+        return console
+    #
+
         self.console.history = self.config.get("console-history",[])
         self.console.history_index = len(self.console.history)
 
@@ -1356,22 +1383,18 @@ class ElectrumWindow(QMainWindow):
         if(update_notification.new_version):
             sb.addPermanentWidget(update_notification)
 
-        accounts = self.wallet.get_accounts()
-        if len(accounts) > 1:
-            from_combo = QComboBox()
-            from_combo.addItems([_("All accounts")] + accounts.values())
-            from_combo.setCurrentIndex(0)
-            self.connect(from_combo,SIGNAL("activated(QString)"),self.change_account) 
-            sb.addPermanentWidget(from_combo)
+        self.account_selector = QComboBox()
+        self.connect(self.account_selector,SIGNAL("activated(QString)"),self.change_account) 
+        sb.addPermanentWidget(self.account_selector)
 
         if (int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/switchgui.png"), _("Switch to Lite Mode"), self.go_lite ) )
-        if self.wallet.seed:
-            self.lock_icon = QIcon(":icons/lock.png") if self.wallet.use_encryption else QIcon(":icons/unlock.png")
+        if 1:#self.wallet.seed:
+            self.lock_icon = QIcon(":icons/lock.png") #if self.wallet.use_encryption else QIcon(":icons/unlock.png")
             self.password_button = StatusBarButton( self.lock_icon, _("Password"), self.change_password_dialog )
             sb.addPermanentWidget( self.password_button )
         sb.addPermanentWidget( StatusBarButton( QIcon(":icons/preferences.png"), _("Preferences"), self.settings_dialog ) )
-        if self.wallet.seed:
+        if 1:#self.wallet.seed:
             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/seed.png"), _("Seed"), self.show_seed_dialog ) )
         self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), _("Network"), self.run_network_dialog ) 
         sb.addPermanentWidget( self.status_button )
@@ -2152,8 +2175,8 @@ class OpenFileEventFilter(QObject):
 
 class ElectrumGui:
 
-    def __init__(self, config, app=None):
-        self.interface = Interface(config, True)
+    def __init__(self, config, interface, app=None):
+        self.interface = interface
         self.config = config
         self.windows = []
         self.efilter = OpenFileEventFilter(self.windows)
@@ -2174,10 +2197,6 @@ class ElectrumGui:
         else:
             wallet = Wallet(self.config)
 
-        self.wallet = wallet
-
-        self.interface.start(wait = False)
-        self.interface.send([('server.peers.subscribe',[])])
         wallet.interface = self.interface
 
         verifier = WalletVerifier(self.interface, self.config)
@@ -2186,10 +2205,11 @@ class ElectrumGui:
         synchronizer = WalletSynchronizer(wallet, self.config)
         synchronizer.start()
 
-
         s = Timer()
         s.start()
-        w = ElectrumWindow(self.wallet, self.config)
+        w = ElectrumWindow(self.config)
+        w.load_wallet(wallet)
+
         self.windows.append(w)
         if url: w.set_url(url)
         w.app = self.app
@@ -2201,6 +2221,5 @@ class ElectrumGui:
 
         verifier.stop()
         synchronizer.stop()
-        self.interface.stop()
 
 
