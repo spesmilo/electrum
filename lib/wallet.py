@@ -72,6 +72,7 @@ class Wallet:
 
         # saved fields
         self.seed_version          = config.get('seed_version', SEED_VERSION)
+
         self.gap_limit             = config.get('gap_limit', 5)
         self.use_change            = config.get('use_change',True)
         self.fee                   = int(config.get('fee_per_kb',20000))
@@ -91,6 +92,9 @@ class Wallet:
         self.master_private_keys = config.get('master_private_keys', {})
 
         self.first_addresses = config.get('first_addresses',{})
+
+        #if self.seed_version != SEED_VERSION:
+        #    raise ValueError("This wallet seed is deprecated. Please restore from seed.")
 
         self.load_accounts(config)
 
@@ -116,9 +120,6 @@ class Wallet:
         self.lock = threading.Lock()
         self.transaction_lock = threading.Lock()
         self.tx_event = threading.Event()
-
-        if self.seed_version != SEED_VERSION:
-            raise ValueError("This wallet seed is deprecated. Please run upgrade.py for a diagnostic.")
 
         for tx_hash, tx in self.transactions.items():
             if self.check_new_tx(tx_hash, tx):
@@ -294,12 +295,21 @@ class Wallet:
         return account_id, account
 
 
-    def create_account(self, account_type = '1', name = 'unnamed'):
+    def create_account(self, account_type = '1', name = None):
         account_id, account = self.next_account(account_type)
         self.accounts[account_id] = account
         self.save_accounts()
-        self.labels[account_id] = name
+        if name: 
+            self.labels[account_id] = name
         self.config.set_key('labels', self.labels, True)
+
+
+    def create_old_account(self):
+        print self.seed
+        mpk = OldAccount.mpk_from_seed(self.seed)
+        self.config.set_key('master_public_key', mpk, True)
+        self.accounts[0] = OldAccount({'mpk':mpk, 0:[], 1:[]})
+        self.save_accounts()
 
 
     def save_accounts(self):
@@ -308,12 +318,16 @@ class Wallet:
             d[k] = v.dump()
         self.config.set_key('accounts', d, True)
 
+    
 
     def load_accounts(self, config):
         d = config.get('accounts', {})
         self.accounts = {}
         for k, v in d.items():
-            if '&' in k:
+            if k == 0:
+                v['mpk'] = config.get('master_public_key')
+                self.accounts[k] = OldAccount(v)
+            elif '&' in k:
                 self.accounts[k] = BIP32_Account_2of2(v)
             else:
                 self.accounts[k] = BIP32_Account(v)
@@ -616,7 +630,8 @@ class Wallet:
 
 
     def synchronize(self):
-        self.create_pending_accounts()
+        if self.master_public_keys:
+            self.create_pending_accounts()
         new = []
         for account in self.accounts.values():
             new += self.synchronize_account(account)

@@ -48,10 +48,13 @@ class Account(object):
 class OldAccount(Account):
     """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
 
-    def __init__(self, mpk, mpk2 = None, mpk3 = None):
-        self.mpk = mpk
-        self.mpk2 = mpk2
-        self.mpk3 = mpk3
+    def __init__(self, v):
+        self.addresses = v.get(0, [])
+        self.change = v.get(1, [])
+        self.mpk = v['mpk'].decode('hex')
+
+    def dump(self):
+        return {0:self.addresses, 1:self.change}
 
     @classmethod
     def mpk_from_seed(klass, seed):
@@ -68,48 +71,33 @@ class OldAccount(Account):
             seed = hashlib.sha256(seed + oldseed).digest()
         return string_to_number( seed )
 
-    def get_sequence(self, sequence, mpk):
-        for_change, n = sequence
-        return string_to_number( Hash( "%d:%d:"%(n,for_change) + mpk.decode('hex') ) )
+    def get_sequence(self, for_change, n):
+        return string_to_number( Hash( "%d:%d:"%(n,for_change) + self.mpk ) )
 
-    def get_address(self, sequence):
-        if not self.mpk2:
-            pubkey = self.get_pubkey(sequence)
-            address = public_key_to_bc_address( pubkey.decode('hex') )
-        elif not self.mpk3:
-            pubkey1 = self.get_pubkey(sequence)
-            pubkey2 = self.get_pubkey(sequence, mpk = self.mpk2)
-            address = Transaction.multisig_script([pubkey1, pubkey2], 2)["address"]
-        else:
-            pubkey1 = self.get_pubkey(sequence)
-            pubkey2 = self.get_pubkey(sequence, mpk = self.mpk2)
-            pubkey3 = self.get_pubkey(sequence, mpk = self.mpk3)
-            address = Transaction.multisig_script([pubkey1, pubkey2, pubkey3], 2)["address"]
+    def get_address(self, for_change, n):
+        pubkey = self.get_pubkey(for_change, n)
+        address = public_key_to_bc_address( pubkey.decode('hex') )
         return address
 
-    def get_pubkey(self, sequence, mpk=None):
+    def get_pubkey(self, for_change, n):
         curve = SECP256k1
-        if mpk is None: mpk = self.mpk
-        z = self.get_sequence(sequence, mpk)
-        master_public_key = ecdsa.VerifyingKey.from_string( mpk.decode('hex'), curve = SECP256k1 )
+        mpk = self.mpk
+        z = self.get_sequence(for_change, n)
+        master_public_key = ecdsa.VerifyingKey.from_string( mpk, curve = SECP256k1 )
         pubkey_point = master_public_key.pubkey.point + z*curve.generator
         public_key2 = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
         return '04' + public_key2.to_string().encode('hex')
 
-    def get_private_key_from_stretched_exponent(self, sequence, secexp):
+    def get_private_key_from_stretched_exponent(self, for_change, n, secexp):
         order = generator_secp256k1.order()
-        secexp = ( secexp + self.get_sequence(sequence, self.mpk) ) % order
+        secexp = ( secexp + self.get_sequence(for_change, n) ) % order
         pk = number_to_string( secexp, generator_secp256k1.order() )
         compressed = False
         return SecretToASecret( pk, compressed )
         
-    def get_private_key(self, sequence, seed):
+    def get_private_key(self, for_change, n, seed):
         secexp = self.stretch_key(seed)
-        return self.get_private_key_from_stretched_exponent(sequence, secexp)
-
-    def get_private_keys(self, sequence_list, seed):
-        secexp = self.stretch_key(seed)
-        return [ self.get_private_key_from_stretched_exponent( sequence, secexp) for sequence in sequence_list]
+        return self.get_private_key_from_stretched_exponent(for_change, n, secexp)
 
     def check_seed(self, seed):
         curve = SECP256k1
@@ -121,23 +109,8 @@ class OldAccount(Account):
             raise BaseException('Invalid password')
         return True
 
-    def get_input_info(self, sequence):
-        if not self.mpk2:
-            pk_addr = self.get_address(sequence)
-            redeemScript = None
-        elif not self.mpk3:
-            pubkey1 = self.get_pubkey(sequence)
-            pubkey2 = self.get_pubkey(sequence,mpk=self.mpk2)
-            pk_addr = public_key_to_bc_address( pubkey1.decode('hex') ) # we need to return that address to get the right private key
-            redeemScript = Transaction.multisig_script([pubkey1, pubkey2], 2)['redeemScript']
-        else:
-            pubkey1 = self.get_pubkey(sequence)
-            pubkey2 = self.get_pubkey(sequence, mpk=self.mpk2)
-            pubkey3 = self.get_pubkey(sequence, mpk=self.mpk3)
-            pk_addr = public_key_to_bc_address( pubkey1.decode('hex') ) # we need to return that address to get the right private key
-            redeemScript = Transaction.multisig_script([pubkey1, pubkey2, pubkey3], 2)['redeemScript']
-        return pk_addr, redeemScript
-
+    def redeem_script(self, sequence):
+        return None
 
 
 class BIP32_Account(Account):

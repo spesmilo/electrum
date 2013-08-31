@@ -124,6 +124,15 @@ class InstallWizard(QDialog):
         wallet.set_up_to_date(False)
         wallet.interface.poke('synchronizer')
         waiting_dialog(waiting)
+
+        # try to restore old account
+        if not wallet.is_found():
+            print "trying old method"
+            wallet.create_old_account()
+            wallet.set_up_to_date(False)
+            wallet.interface.poke('synchronizer')
+            waiting_dialog(waiting)
+
         if wallet.is_found():
             QMessageBox.information(None, _('Information'), _("Recovery successful"), _('OK'))
         else:
