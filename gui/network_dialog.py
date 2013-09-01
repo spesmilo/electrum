@@ -44,7 +44,7 @@ class NetworkDialog(QDialog):
 
         if parent:
             if interface.is_connected:
-                status = _("Connected to")+" %s"%(interface.host) + "\n%d "%(parent.wallet.verifier.height)+_("blocks")
+                status = _("Connected to")+" %s"%(interface.host) + "\n%d "%(parent.wallet.verifier.blockchain.height)+_("blocks")
             else:
                 status = _("Not connected")
             server = interface.server

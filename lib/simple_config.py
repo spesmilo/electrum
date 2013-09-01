@@ -35,7 +35,7 @@ a SimpleConfig instance then reads the wallet file.
         # init path
         self.init_path(options)
 
-        print "user dir", self.user_dir
+        print_error( "user dir", self.user_dir)
 
 
     def init_path(self, options):
