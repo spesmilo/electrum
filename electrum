@@ -133,10 +133,14 @@ if __name__ == '__main__':
         interface.start(wait = False)
         interface.send([('server.peers.subscribe',[])])
 
-        gui = gui.ElectrumGui(config,interface)
+        blockchain = BlockchainVerifier(interface, config)
+        blockchain.start()
+
+        gui = gui.ElectrumGui(config, interface, blockchain)
         gui.main(url)
         
         interface.stop()
+        blockchain.stop()
 
         # we use daemon threads, their termination is enforced.
         # this sleep command gives them time to terminate cleanly. 

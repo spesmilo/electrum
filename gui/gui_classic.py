@@ -42,7 +42,7 @@ except:
 from electrum.wallet import format_satoshis
 from electrum.bitcoin import Transaction, is_valid
 from electrum import mnemonic
-from electrum import util, bitcoin, commands, Interface, Wallet, WalletVerifier, WalletSynchronizer
+from electrum import util, bitcoin, commands, Interface, Wallet, TxVerifier, WalletSynchronizer
 from electrum import SimpleConfig, Wallet, WalletSynchronizer, WalletStorage
 
 
@@ -307,7 +307,7 @@ class ElectrumWindow(QMainWindow):
         self.wallet.interface.register_callback('disconnected', lambda: self.emit(QtCore.SIGNAL('update_status')))
         self.wallet.interface.register_callback('disconnecting', lambda: self.emit(QtCore.SIGNAL('update_status')))
         self.wallet.interface.register_callback('new_transaction', lambda: self.emit(QtCore.SIGNAL('transaction_signal')))
-        title = 'Electrum ' + self.wallet.electrum_version + '  -  ' #+ self.config.path
+        title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.wallet.storage.path
         if not self.wallet.seed: title += ' [%s]' % (_('seedless'))
         self.setWindowTitle( title )
         self.update_wallet()
@@ -350,13 +350,19 @@ class ElectrumWindow(QMainWindow):
             return
 
         interface = self.wallet.interface
-        verifier = self.wallet.verifier
+        blockchain = self.wallet.verifier.blockchain
+
+        self.wallet.verifier.stop()
         self.wallet.synchronizer.stop()
         
         # create wallet 
         wallet = Wallet(storage)
         wallet.interface = interface
-        wallet.verifier = verifier
+
+        verifier = TxVerifier(interface, blockchain, storage)
+        verifier.start()
+        wallet.set_verifier(verifier)
+
         synchronizer = WalletSynchronizer(wallet)
         synchronizer.start()
 
@@ -2208,9 +2214,10 @@ class OpenFileEventFilter(QObject):
 
 class ElectrumGui:
 
-    def __init__(self, config, interface, app=None):
+    def __init__(self, config, interface, blockchain, app=None):
         self.interface = interface
         self.config = config
+        self.blockchain = blockchain
         self.windows = []
         self.efilter = OpenFileEventFilter(self.windows)
         if app is None:
@@ -2232,9 +2239,10 @@ class ElectrumGui:
 
         wallet.interface = self.interface
 
-        verifier = WalletVerifier(self.interface, storage)
+        verifier = TxVerifier(self.interface, self.blockchain, storage)
         verifier.start()
         wallet.set_verifier(verifier)
+
         synchronizer = WalletSynchronizer(wallet)
         synchronizer.start()
 
