@@ -249,7 +249,6 @@ class ElectrumWindow(QMainWindow):
         self.expert_mode   = config.get('classic_expert_mode', False)
         self.decimal_point = config.get('decimal_point', 8)
         self.num_zeros     = int(config.get('num_zeros',0))
-        self.fee                   = int(config.get('fee_per_kb',20000))
 
         set_language(config.get('language'))
 
@@ -522,11 +521,6 @@ class ElectrumWindow(QMainWindow):
         return
 
 
-    def set_fee(self, fee):
-        if self.fee != fee:
-            self.fee = fee
-            self.config.set_key('fee_per_kb', self.fee, True)
-        
 
     def set_label(self, name, text = None):
         changed = False
@@ -534,7 +528,7 @@ class ElectrumWindow(QMainWindow):
         if text:
             if old_text != text:
                 self.wallet.labels[name] = text
-                self.wallet.storage.set_key('labels', self.wallet.labels)
+                self.wallet.storage.put('labels', self.wallet.labels)
                 changed = True
         else:
             if old_text:
@@ -2027,7 +2021,7 @@ class ElectrumWindow(QMainWindow):
         fee_label = QLabel(_('Transaction fee'))
         grid_wallet.addWidget(fee_label, 0, 0)
         fee_e = AmountEdit(self.base_unit)
-        fee_e.setText(self.format_amount(self.fee).strip())
+        fee_e.setText(self.format_amount(self.wallet.fee).strip())
         grid_wallet.addWidget(fee_e, 0, 2)
         msg = _('Fee per kilobyte of transaction.') + ' ' \
             + _('Recommended value') + ': ' + self.format_amount(50000)
@@ -2117,7 +2111,7 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(self, _('Error'), _('Invalid value') +': %s'%fee, _('OK'))
             return
 
-        self.set_fee(fee)
+        self.wallet.set_fee(fee)
         
         nz = unicode(nz_e.text())
         try:

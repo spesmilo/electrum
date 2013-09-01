@@ -156,6 +156,7 @@ class Wallet:
         self.imported_keys         = storage.get('imported_keys',{})
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
 
+        self.fee                   = int(storage.get('fee_per_kb',20000))
 
         self.master_public_keys = storage.get('master_public_keys',{})
         self.master_private_keys = storage.get('master_private_keys', {})
@@ -921,6 +922,11 @@ class Wallet:
         return inputs, total, fee
 
 
+    def set_fee(self, fee):
+        if self.fee != fee:
+            self.fee = fee
+            self.storage.put('fee_per_kb', self.fee, True)
+        
     def estimated_fee(self, inputs):
         estimated_size =  len(inputs) * 180 + 80     # this assumes non-compressed keys
         fee = self.fee * int(round(estimated_size/1024.))
