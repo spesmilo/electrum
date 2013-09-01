@@ -43,6 +43,8 @@ from electrum.wallet import format_satoshis
 from electrum.bitcoin import Transaction, is_valid
 from electrum import mnemonic
 from electrum import util, bitcoin, commands, Interface, Wallet, WalletVerifier, WalletSynchronizer
+from electrum import SimpleConfig, Wallet, WalletSynchronizer, WalletStorage
+
 
 import bmp, pyqrnative
 import exchange_rate
@@ -225,9 +227,12 @@ class ElectrumWindow(QMainWindow):
 
     def __init__(self, config):
         QMainWindow.__init__(self)
+
+        self.config = config
+        self.init_plugins()
+
         self._close_electrum = False
         self.lite = None
-        self.config = config
         self.current_account = self.config.get("current_account", None)
 
         self.icon = QIcon(os.getcwd() + '/icons/electrum.png')
@@ -237,14 +242,14 @@ class ElectrumWindow(QMainWindow):
 
         self.build_menu()
         self.tray.show()
-
-        self.init_plugins()
         self.create_status_bar()
 
         self.need_update = threading.Event()
 
-        self.expert_mode = config.get('classic_expert_mode', False)
+        self.expert_mode   = config.get('classic_expert_mode', False)
         self.decimal_point = config.get('decimal_point', 8)
+        self.num_zeros     = int(config.get('num_zeros',0))
+        self.fee                   = int(config.get('fee_per_kb',20000))
 
         set_language(config.get('language'))
 
@@ -287,9 +292,10 @@ class ElectrumWindow(QMainWindow):
             tabs.setCurrentIndex (n)
             tabs.setCurrentIndex (0)
 
-
         # plugins that need to change the GUI do it here
         self.run_hook('init')
+
+
 
 
     def load_wallet(self, wallet):
@@ -301,7 +307,7 @@ class ElectrumWindow(QMainWindow):
         self.wallet.interface.register_callback('disconnected', lambda: self.emit(QtCore.SIGNAL('update_status')))
         self.wallet.interface.register_callback('disconnecting', lambda: self.emit(QtCore.SIGNAL('update_status')))
         self.wallet.interface.register_callback('new_transaction', lambda: self.emit(QtCore.SIGNAL('transaction_signal')))
-        title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.config.path
+        title = 'Electrum ' + self.wallet.electrum_version + '  -  ' #+ self.config.path
         if not self.wallet.seed: title += ' [%s]' % (_('seedless'))
         self.setWindowTitle( title )
         self.update_wallet()
@@ -326,21 +332,20 @@ class ElectrumWindow(QMainWindow):
 
 
     def select_wallet_file(self):
-        wallet_folder = self.wallet.config.path
+        wallet_folder = self.wallet.storage.path
         re.sub("(\/\w*.dat)$", "", wallet_folder)
         file_name = unicode( QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder, "*.dat") )
         return file_name
 
 
     def open_wallet(self):
-        from electrum import SimpleConfig, Wallet, WalletSynchronizer
 
         filename = self.select_wallet_file()
         if not filename:
             return
 
-        config = SimpleConfig({'wallet_path': filename})
-        if not config.wallet_file_exists:
+        storage = WalletStorage({'wallet_path': filename})
+        if not storage.file_exists:
             self.show_message("file not found "+ filename)
             return
 
@@ -348,30 +353,27 @@ class ElectrumWindow(QMainWindow):
         verifier = self.wallet.verifier
         self.wallet.synchronizer.stop()
         
-        self.config = config
-
         # create wallet 
-        wallet = Wallet(config)
+        wallet = Wallet(storage)
         wallet.interface = interface
         wallet.verifier = verifier
-        synchronizer = WalletSynchronizer(wallet, config)
+        synchronizer = WalletSynchronizer(wallet)
         synchronizer.start()
 
         self.load_wallet(wallet)
 
 
     def new_wallet(self):
-        from electrum import SimpleConfig, Wallet, WalletSynchronizer
         import installwizard
 
-        wallet_folder = self.wallet.config.path
+        wallet_folder = self.wallet.storage.path
         re.sub("(\/\w*.dat)$", "", wallet_folder)
         filename = self.getSaveFileName("Select your wallet file", wallet_folder, "*.dat")
 
-        config = SimpleConfig({'wallet_path': filename})
-        assert not config.wallet_file_exists
+        storage = WalletStorage({'wallet_path': filename})
+        assert not storage.file_exists
 
-        wizard = installwizard.InstallWizard(config, self.wallet.interface)
+        wizard = installwizard.InstallWizard(self.config, self.wallet.interface, storage)
         wallet = wizard.run()
         if wallet: 
             self.load_wallet(wallet)
@@ -522,14 +524,20 @@ class ElectrumWindow(QMainWindow):
                 
         return
 
+
+    def set_fee(self, fee):
+        if self.fee != fee:
+            self.fee = fee
+            self.config.set_key('fee_per_kb', self.fee, True)
         
+
     def set_label(self, name, text = None):
         changed = False
         old_text = self.wallet.labels.get(name)
         if text:
             if old_text != text:
                 self.wallet.labels[name] = text
-                self.wallet.config.set_key('labels', self.wallet.labels)
+                self.wallet.storage.set_key('labels', self.wallet.labels)
                 changed = True
         else:
             if old_text:
@@ -572,7 +580,7 @@ class ElectrumWindow(QMainWindow):
         self.run_hook('timer_actions')
     
     def format_amount(self, x, is_diff=False, whitespaces=False):
-        return format_satoshis(x, is_diff, self.wallet.num_zeros, self.decimal_point, whitespaces)
+        return format_satoshis(x, is_diff, self.num_zeros, self.decimal_point, whitespaces)
 
     def read_amount(self, x):
         if x in['.', '']: return None
@@ -1966,7 +1974,7 @@ class ElectrumWindow(QMainWindow):
         nz_label = QLabel(_('Display zeros'))
         grid_ui.addWidget(nz_label, 0, 0)
         nz_e = AmountEdit(None,True)
-        nz_e.setText("%d"% self.wallet.num_zeros)
+        nz_e.setText("%d"% self.num_zeros)
         grid_ui.addWidget(nz_e, 0, 1)
         msg = _('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"')
         grid_ui.addWidget(HelpButton(msg), 0, 2)
@@ -2022,7 +2030,7 @@ class ElectrumWindow(QMainWindow):
         fee_label = QLabel(_('Transaction fee'))
         grid_wallet.addWidget(fee_label, 0, 0)
         fee_e = AmountEdit(self.base_unit)
-        fee_e.setText(self.format_amount(self.wallet.fee).strip())
+        fee_e.setText(self.format_amount(self.fee).strip())
         grid_wallet.addWidget(fee_e, 0, 2)
         msg = _('Fee per kilobyte of transaction.') + ' ' \
             + _('Recommended value') + ': ' + self.format_amount(50000)
@@ -2112,7 +2120,7 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(self, _('Error'), _('Invalid value') +': %s'%fee, _('OK'))
             return
 
-        self.wallet.set_fee(fee)
+        self.set_fee(fee)
         
         nz = unicode(nz_e.text())
         try:
@@ -2122,8 +2130,8 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(self, _('Error'), _('Invalid value')+':%s'%nz, _('OK'))
             return
 
-        if self.wallet.num_zeros != nz:
-            self.wallet.num_zeros = nz
+        if self.num_zeros != nz:
+            self.num_zeros = nz
             self.config.set_key('num_zeros', nz, True)
             self.update_history_tab()
             self.update_receive_tab()
@@ -2211,23 +2219,23 @@ class ElectrumGui:
 
 
     def main(self, url):
-            
-        found = self.config.wallet_file_exists
-        if not found:
+
+        storage = WalletStorage(self.config)
+        if not storage.file_exists:
             import installwizard
-            wizard = installwizard.InstallWizard(self.config, self.interface)
+            wizard = installwizard.InstallWizard(self.config, self.interface, storage)
             wallet = wizard.run()
             if not wallet: 
                 exit()
         else:
-            wallet = Wallet(self.config)
+            wallet = Wallet(storage)
 
         wallet.interface = self.interface
 
-        verifier = WalletVerifier(self.interface, self.config)
+        verifier = WalletVerifier(self.interface, storage)
         verifier.start()
         wallet.set_verifier(verifier)
-        synchronizer = WalletSynchronizer(wallet, self.config)
+        synchronizer = WalletSynchronizer(wallet)
         synchronizer.start()
 
         s = Timer()

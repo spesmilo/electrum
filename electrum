@@ -107,7 +107,7 @@ if __name__ == '__main__':
         util.check_windows_wallet_migration()
 
     config = SimpleConfig(config_options)
-
+    storage = WalletStorage(config)
 
     if len(args)==0:
         url = None
@@ -145,12 +145,12 @@ if __name__ == '__main__':
 
 
     # instanciate wallet for command-line
-    wallet = Wallet(config)
+    wallet = Wallet(storage)
 
     if cmd not in known_commands:
         cmd = 'help'
 
-    if not config.wallet_file_exists and cmd not in ['help','create','restore']:
+    if not storage.file_exists and cmd not in ['help','create','restore']:
         print_msg("Error: Wallet file not found.")
         print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
@@ -203,7 +203,7 @@ if __name__ == '__main__':
                 wallet.set_verifier(verifier)
 
                 print_msg("Recovering wallet...")
-                WalletSynchronizer(wallet, config).start()
+                WalletSynchronizer(wallet).start()
                 wallet.update()
                 if wallet.is_found():
                     print_msg("Recovery successful")
@@ -317,9 +317,6 @@ if __name__ == '__main__':
             message = ' '.join(args[min_args:])
             print_msg("Warning: Final argument was reconstructed from several arguments:", repr(message))
             args = args[0:min_args] + [ message ]
-        
-
-
 
 
     # open session
@@ -333,10 +330,10 @@ if __name__ == '__main__':
         verifier = WalletVerifier(interface, config)
         verifier.start()
         wallet.set_verifier(verifier)
-        synchronizer = WalletSynchronizer(wallet, config)
+        synchronizer = WalletSynchronizer(wallet)
         synchronizer.start()
         wallet.update()
-        #wallet.save()
+
 
 
     # run the command

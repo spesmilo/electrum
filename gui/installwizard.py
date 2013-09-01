@@ -14,10 +14,11 @@ import sys
 
 class InstallWizard(QDialog):
 
-    def __init__(self, config, interface):
+    def __init__(self, config, interface, storage):
         QDialog.__init__(self)
         self.config = config
         self.interface = interface
+        self.storage = storage
 
 
     def restore_or_create(self):
@@ -146,7 +147,7 @@ class InstallWizard(QDialog):
         a = self.restore_or_create()
         if not a: exit()
 
-        wallet = Wallet(self.config)
+        wallet = Wallet(self.storage)
         wallet.interface = self.interface
 
         if a =='create':
@@ -179,10 +180,10 @@ class InstallWizard(QDialog):
         #self.interface.start(wait = False)
 
         # start wallet threads
-        verifier = WalletVerifier(self.interface, self.config)
+        verifier = WalletVerifier(self.interface, self.storage)
         verifier.start()
         wallet.set_verifier(verifier)
-        synchronizer = WalletSynchronizer(wallet, self.config)
+        synchronizer = WalletSynchronizer(wallet)
         synchronizer.start()
 
 

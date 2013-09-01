@@ -5,7 +5,7 @@ _ = lambda x:x
 from electrum.util import format_satoshis, set_verbosity
 from electrum.bitcoin import is_valid
 
-from electrum import Wallet, WalletVerifier, WalletSynchronizer
+from electrum import Wallet, WalletVerifier, WalletSynchronizer, WalletStorage
 
 import tty, sys
 
@@ -15,19 +15,19 @@ class ElectrumGui:
     def __init__(self, config, interface):
 
         self.config = config
-        found = self.config.wallet_file_exists
-        if not found:
+        storage = WalletStorage(config)
+        if not storage.file_exists:
             print "Wallet not found. try 'electrum create'"
             exit()
 
-        wallet = Wallet(self.config)
+        wallet = Wallet(storage)
         wallet.interface = interface
         self.wallet = wallet
 
         verifier = WalletVerifier(interface, config)
         verifier.start()
         wallet.set_verifier(verifier)
-        synchronizer = WalletSynchronizer(wallet, config)
+        synchronizer = WalletSynchronizer(wallet)
         synchronizer.start()
 
         self.stdscr = curses.initscr()

@@ -1,6 +1,6 @@
 from version import ELECTRUM_VERSION
 from util import format_satoshis, print_msg, print_json, print_error, set_verbosity
-from wallet import WalletSynchronizer
+from wallet import WalletSynchronizer, WalletStorage
 from wallet_factory import WalletFactory as Wallet
 from verifier import WalletVerifier
 from interface import Interface, pick_random_server, DEFAULT_SERVERS
