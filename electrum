@@ -201,13 +201,11 @@ if __name__ == '__main__':
                 if not interface.start(wait=True):
                     print_msg("Not connected, aborting. Try option -o if you want to restore offline.")
                     sys.exit(1)
-                wallet.interface = interface
-                verifier = WalletVerifier(interface, config)
-                verifier.start()
-                wallet.set_verifier(verifier)
 
+                blockchain = BlockchainVerifier(interface, config)
+                blockchain.start()
+                wallet.start_threads(interface, blockchain)
                 print_msg("Recovering wallet...")
-                WalletSynchronizer(wallet).start()
                 wallet.update()
                 if wallet.is_found():
                     print_msg("Recovery successful")
@@ -327,15 +325,13 @@ if __name__ == '__main__':
     if cmd not in offline_commands and not options.offline:
         interface = Interface(config)
         interface.register_callback('connected', lambda: sys.stderr.write("Connected to " + interface.connection_msg + "\n"))
+
         if not interface.start(wait=True):
             print_msg("Not connected, aborting.")
             sys.exit(1)
-        wallet.interface = interface
-        verifier = WalletVerifier(interface, config)
-        verifier.start()
-        wallet.set_verifier(verifier)
-        synchronizer = WalletSynchronizer(wallet)
-        synchronizer.start()
+        blockchain = BlockchainVerifier(interface, config)
+        blockchain.start()
+        wallet.start_threads(interface, blockchain)
         wallet.update()
 
 
@@ -395,8 +391,8 @@ if __name__ == '__main__':
         
 
     if cmd not in offline_commands and not options.offline:
-        verifier.stop()
-        synchronizer.stop()
+        wallet.stop_threads()
         interface.stop()
+        blockchain.stop()
         time.sleep(0.1)
         sys.exit(0)

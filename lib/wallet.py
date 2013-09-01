@@ -1296,6 +1296,19 @@ class Wallet:
         return True
 
 
+    def start_threads(self, interface, blockchain):
+        from verifier import TxVerifier
+        self.interface = interface
+        self.verifier = TxVerifier(interface, blockchain, self.storage)
+        self.verifier.start()
+        self.synchronizer = WalletSynchronizer(self)
+        self.synchronizer.start()
+
+    def stop_threads(self):
+        self.verifier.stop()
+        self.synchronizer.stop()
+
+
 
 
 class WalletSynchronizer(threading.Thread):

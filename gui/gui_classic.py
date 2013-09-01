@@ -42,8 +42,8 @@ except:
 from electrum.wallet import format_satoshis
 from electrum.bitcoin import Transaction, is_valid
 from electrum import mnemonic
-from electrum import util, bitcoin, commands, Interface, Wallet, TxVerifier, WalletSynchronizer
-from electrum import SimpleConfig, Wallet, WalletSynchronizer, WalletStorage
+from electrum import util, bitcoin, commands, Interface, Wallet
+from electrum import SimpleConfig, Wallet, WalletStorage
 
 
 import bmp, pyqrnative
@@ -351,20 +351,11 @@ class ElectrumWindow(QMainWindow):
 
         interface = self.wallet.interface
         blockchain = self.wallet.verifier.blockchain
-
-        self.wallet.verifier.stop()
-        self.wallet.synchronizer.stop()
+        self.wallet.stop_threads()
         
-        # create wallet 
+        # create new wallet 
         wallet = Wallet(storage)
-        wallet.interface = interface
-
-        verifier = TxVerifier(interface, blockchain, storage)
-        verifier.start()
-        wallet.set_verifier(verifier)
-
-        synchronizer = WalletSynchronizer(wallet)
-        synchronizer.start()
+        wallet.start_threads(interface, blockchain)
 
         self.load_wallet(wallet)
 
@@ -2237,14 +2228,7 @@ class ElectrumGui:
         else:
             wallet = Wallet(storage)
 
-        wallet.interface = self.interface
-
-        verifier = TxVerifier(self.interface, self.blockchain, storage)
-        verifier.start()
-        wallet.set_verifier(verifier)
-
-        synchronizer = WalletSynchronizer(wallet)
-        synchronizer.start()
+        wallet.start_threads(self.interface, self.blockchain)
 
         s = Timer()
         s.start()
@@ -2260,7 +2244,6 @@ class ElectrumGui:
 
         self.app.exec_()
 
-        verifier.stop()
-        synchronizer.stop()
+        wallet.stop_threads()
 
 
