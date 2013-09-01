@@ -3,7 +3,7 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 from i18n import _
 
-from electrum import Wallet, mnemonic, WalletVerifier, WalletSynchronizer
+from electrum import Wallet, mnemonic
 
 from seed_dialog import SeedDialog
 from network_dialog import NetworkDialog
@@ -14,10 +14,11 @@ import sys
 
 class InstallWizard(QDialog):
 
-    def __init__(self, config, interface, storage):
+    def __init__(self, config, interface, blockchain, storage):
         QDialog.__init__(self)
         self.config = config
         self.interface = interface
+        self.blockchain = blockchain
         self.storage = storage
 
 
@@ -148,7 +149,6 @@ class InstallWizard(QDialog):
         if not a: exit()
 
         wallet = Wallet(self.storage)
-        wallet.interface = self.interface
 
         if a =='create':
             wallet.init_seed(None)
@@ -180,11 +180,7 @@ class InstallWizard(QDialog):
         #self.interface.start(wait = False)
 
         # start wallet threads
-        verifier = WalletVerifier(self.interface, self.storage)
-        verifier.start()
-        wallet.set_verifier(verifier)
-        synchronizer = WalletSynchronizer(wallet)
-        synchronizer.start()
+        wallet.start_threads(self.interface, self.blockchain)
 
 
         # generate the first addresses, in case we are offline
