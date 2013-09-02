@@ -101,12 +101,15 @@ class Plugin(BasePlugin):
 
     def init(self):
         self.qr_window = None
-        self.requested_amounts = self.config.get('requested_amounts',{}) 
         self.merchant_name = self.config.get('merchant_name', 'Invoice')
 
         self.gui.expert_mode = True
         self.gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Request')])
         self.toggle_QR_window(True)
+        self.requested_amounts = {}
+
+    def load_wallet(self):
+        self.requested_amounts = self.gui.wallet.storage.get('requested_amounts',{}) 
 
     def close(self):
         self.gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Tx')])
@@ -195,7 +198,7 @@ class Plugin(BasePlugin):
                 currency = currency.upper()
                     
             self.requested_amounts[address] = (amount, currency)
-            self.gui.wallet.config.set_key('requested_amounts', self.requested_amounts, True)
+            self.gui.wallet.storage.put('requested_amounts', self.requested_amounts, True)
 
             label = self.gui.wallet.labels.get(address)
             if label is None:

@@ -329,6 +329,8 @@ class ElectrumWindow(QMainWindow):
         self.update_buttons_on_seed()
         self.update_console()
 
+        self.run_hook('load_wallet')
+
 
     def select_wallet_file(self):
         wallet_folder = self.wallet.storage.path
