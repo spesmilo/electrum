@@ -96,16 +96,18 @@ class TxVerifier(threading.Thread):
         with self.lock: return self.running
 
     def run(self):
+        with self.lock:
+            self.running = True
+        requested_merkle = []
 
         while self.is_running():
             # request missing tx
-            if all_chunks:
-                for tx_hash, tx_height in self.transactions.items():
-                    if tx_hash not in self.verified_tx:
-                        if self.merkle_roots.get(tx_hash) is None and tx_hash not in requested_merkle:
-                            print_error('requesting merkle', tx_hash)
-                            self.interface.send([ ('blockchain.transaction.get_merkle',[tx_hash, tx_height]) ], 'txverifier')
-                            requested_merkle.append(tx_hash)
+            for tx_hash, tx_height in self.transactions.items():
+                if tx_hash not in self.verified_tx:
+                    if self.merkle_roots.get(tx_hash) is None and tx_hash not in requested_merkle:
+                        print_error('requesting merkle', tx_hash)
+                        self.interface.send([ ('blockchain.transaction.get_merkle',[tx_hash, tx_height]) ], 'txverifier')
+                        requested_merkle.append(tx_hash)
 
             try:
                 r = self.interface.get_response('txverifier',timeout=1)
@@ -136,12 +138,11 @@ class TxVerifier(threading.Thread):
         if not header: return
         assert header.get('merkle_root') == self.merkle_roots[tx_hash]
         # we passed all the tests
-        header = self.read_header(tx_height)
         timestamp = header.get('timestamp')
         with self.lock:
             self.verified_tx[tx_hash] = (tx_height, timestamp, pos)
         print_error("verified %s"%tx_hash)
-        self.storage.set_key('verified_tx3', self.verified_tx, True)
+        self.storage.put('verified_tx3', self.verified_tx, True)
         self.interface.trigger_callback('updated')
 
 

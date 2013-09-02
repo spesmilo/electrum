@@ -1307,6 +1307,7 @@ class Wallet:
         self.interface = interface
         self.verifier = TxVerifier(interface, blockchain, self.storage)
         self.verifier.start()
+        self.set_verifier(self.verifier)
         self.synchronizer = WalletSynchronizer(self)
         self.synchronizer.start()
 

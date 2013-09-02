@@ -53,7 +53,6 @@ class BlockchainVerifier(threading.Thread):
 
         with self.lock:
             self.running = True
-        requested_merkle = []
         requested_chunks = []
         requested_headers = []
         all_chunks = False
