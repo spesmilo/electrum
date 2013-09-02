@@ -332,7 +332,8 @@ class Interface(threading.Thread):
         try:
             s.connect(( self.host.encode('ascii'), int(self.port)))
         except:
-            traceback.print_exc(file=sys.stdout)
+            #traceback.print_exc(file=sys.stdout)
+            print_error("failed to connect", host, port)
             self.is_connected = False
             self.s = None
             return

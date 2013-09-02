@@ -155,4 +155,14 @@ class TxVerifier(threading.Thread):
 
 
 
-
+    def undo_verifications(self, height):
+        with self.lock:
+            items = self.verified_tx.items()[:]
+        for tx_hash, item in items:
+            tx_height, timestamp, pos = item
+            if tx_height >= height:
+                print_error("redoing", tx_hash)
+                with self.lock:
+                    self.verified_tx.pop(tx_hash)
+                    if tx_hash in self.merkle_roots:
+                        self.merkle_roots.pop(tx_hash)
