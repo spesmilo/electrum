@@ -369,7 +369,7 @@ class ElectrumWindow(QMainWindow):
         storage = WalletStorage({'wallet_path': filename})
         assert not storage.file_exists
 
-        wizard = installwizard.InstallWizard(self.config, self.wallet.interface, storage)
+        wizard = installwizard.InstallWizard(self.config, self.wallet.interface, self.wallet.verifier.blockchain, storage)
         wallet = wizard.run()
         if wallet: 
             self.load_wallet(wallet)
@@ -387,7 +387,7 @@ class ElectrumWindow(QMainWindow):
         new_wallet_action.triggered.connect(self.new_wallet)
 
         wallet_backup = file_menu.addAction(_("&Copy"))
-        wallet_backup.triggered.connect(lambda: backup_wallet(self.config.path))
+        wallet_backup.triggered.connect(lambda: backup_wallet(self.wallet.storage.path))
 
         quit_item = file_menu.addAction(_("&Close"))
         quit_item.triggered.connect(self.close)
