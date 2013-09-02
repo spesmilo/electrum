@@ -230,9 +230,7 @@ class BlockchainVerifier(threading.Thread):
         return rev_hex(Hash(self.header_to_string(header).decode('hex')).encode('hex'))
 
     def path(self):
-        wdir = self.config.get('blockchain_headers_path', user_dir())
-        if wdir and not os.path.exists( wdir ): os.mkdir(wdir)
-        return os.path.join( wdir, 'blockchain_headers')
+        return os.path.join( self.config.path, 'blockchain_headers')
 
     def init_headers_file(self):
         filename = self.path()
@@ -326,4 +324,6 @@ class BlockchainVerifier(threading.Thread):
 
         new_bits = c + MM * i
         return new_bits, new_target
+
+
 

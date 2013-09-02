@@ -177,8 +177,6 @@ class InstallWizard(QDialog):
             self.config.set_key("server", None, True)
             self.config.set_key('auto_cycle', False, True)
 
-        #self.interface.start(wait = False)
-
         # generate the first addresses, in case we are offline
         if s is None or a == 'create':
             wallet.synchronize()

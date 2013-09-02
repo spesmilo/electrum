@@ -107,7 +107,6 @@ if __name__ == '__main__':
         util.check_windows_wallet_migration()
 
     config = SimpleConfig(config_options)
-    storage = WalletStorage(config)
 
     if len(args)==0:
         url = None
@@ -149,6 +148,7 @@ if __name__ == '__main__':
 
 
     # instanciate wallet for command-line
+    storage = WalletStorage(config)
     wallet = Wallet(storage)
 
     if cmd not in known_commands:

@@ -20,11 +20,15 @@ a SimpleConfig instance then reads the wallet file.
 
         # system conf, readonly
         self.system_config = {}
-        if options.get('portable') == False:
+        if options.get('portable') is not True:
             self.read_system_config()
 
+        # read path
+        self.path = self.system_config.get('electrum_path')
+        if self.path is None:
+            self.path = user_dir()
+
         # user conf, writeable
-        self.user_dir = user_dir()
         self.user_config = {}
         if options.get('portable') == False:
             self.read_user_config()
@@ -33,17 +37,17 @@ a SimpleConfig instance then reads the wallet file.
         self.options_config = options
 
         # init path
-        self.init_path(options)
+        self.init_path()
 
-        print_error( "user dir", self.user_dir)
+        print_error( "electrum path", self.path)
 
 
-    def init_path(self, options):
+    def init_path(self):
 
         # Look for wallet file in the default data directory.
         # Make wallet directory if it does not yet exist.
-        if not os.path.exists(self.user_dir):
-            os.mkdir(self.user_dir)
+        if not os.path.exists(self.path):
+            os.mkdir(self.path)
 
 
         # portable wallet: use the same directory for wallet and headers file
@@ -130,9 +134,9 @@ a SimpleConfig instance then reads the wallet file.
 
     def read_user_config(self):
         """Parse and store the user config settings in electrum.conf into user_config[]."""
-        if not self.user_dir: return
+        if not self.path: return
 
-        path = os.path.join(self.user_dir, "config")
+        path = os.path.join(self.path, "config")
         if os.path.exists(path):
             try:
                 with open(path, "r") as f:
@@ -148,9 +152,9 @@ a SimpleConfig instance then reads the wallet file.
 
 
     def save_user_config(self):
-        if not self.user_dir: return
+        if not self.path: return
 
-        path = os.path.join(self.user_dir, "config")
+        path = os.path.join(self.path, "config")
         s = repr(self.user_config)
         f = open(path,"w")
         f.write( s )
