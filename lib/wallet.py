@@ -30,7 +30,7 @@ import aes
 import Queue
 import time
 
-from util import print_msg, print_error, user_dir, format_satoshis
+from util import print_msg, print_error, format_satoshis
 from bitcoin import *
 from account import *
 
@@ -84,12 +84,7 @@ class WalletStorage:
             self.path = path
             return
 
-        # Look for wallet file in the default data directory.
-        # Make wallet directory if it does not yet exist.
-        if not os.path.exists(self.user_dir):
-            os.mkdir(self.user_dir)
-
-        self.path = os.path.join(self.user_dir, "electrum.dat")
+        self.path = os.path.join(config.path, "electrum.dat")
 
 
     def read(self, path):
