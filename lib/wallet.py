@@ -1353,6 +1353,10 @@ class WalletSynchronizer(threading.Thread):
 
 
     def run(self):
+        if not self.interface.is_connected:
+            print_error( "synchronizer: waiting for interface")
+            self.interface.connect_event.wait()
+
         with self.lock: self.running = True
 
         requested_tx = []

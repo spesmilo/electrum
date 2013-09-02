@@ -59,7 +59,7 @@ class BlockchainVerifier(threading.Thread):
 
     def get_new_response(self):
         # listen to interfaces, forward to verifier using the queue
-        while 1:
+        while self.is_running():
             for i in self.interfaces:
                 try:
                     r = i.get_response('verifier',timeout=0)
