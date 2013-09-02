@@ -3,7 +3,7 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 from i18n import _
 
-from electrum import Wallet, mnemonic, WalletVerifier, WalletSynchronizer
+from electrum import Wallet, mnemonic
 
 from seed_dialog import SeedDialog
 from network_dialog import NetworkDialog
@@ -14,10 +14,12 @@ import sys
 
 class InstallWizard(QDialog):
 
-    def __init__(self, config, interface):
+    def __init__(self, config, interface, blockchain, storage):
         QDialog.__init__(self)
         self.config = config
         self.interface = interface
+        self.blockchain = blockchain
+        self.storage = storage
 
 
     def restore_or_create(self):
@@ -124,6 +126,15 @@ class InstallWizard(QDialog):
         wallet.set_up_to_date(False)
         wallet.interface.poke('synchronizer')
         waiting_dialog(waiting)
+
+        # try to restore old account
+        if not wallet.is_found():
+            print "trying old method"
+            wallet.create_old_account()
+            wallet.set_up_to_date(False)
+            wallet.interface.poke('synchronizer')
+            waiting_dialog(waiting)
+
         if wallet.is_found():
             QMessageBox.information(None, _('Information'), _("Recovery successful"), _('OK'))
         else:
@@ -137,8 +148,7 @@ class InstallWizard(QDialog):
         a = self.restore_or_create()
         if not a: exit()
 
-        wallet = Wallet(self.config)
-        wallet.interface = self.interface
+        wallet = Wallet(self.storage)
 
         if a =='create':
             wallet.init_seed(None)
@@ -170,11 +180,7 @@ class InstallWizard(QDialog):
         #self.interface.start(wait = False)
 
         # start wallet threads
-        verifier = WalletVerifier(self.interface, self.config)
-        verifier.start()
-        wallet.set_verifier(verifier)
-        synchronizer = WalletSynchronizer(wallet, self.config)
-        synchronizer.start()
+        wallet.start_threads(self.interface, self.blockchain)
 
 
         # generate the first addresses, in case we are offline

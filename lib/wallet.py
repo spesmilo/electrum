@@ -63,39 +63,113 @@ def pw_decode(s, password):
 from version import ELECTRUM_VERSION, SEED_VERSION
 
 
-class Wallet:
-    def __init__(self, config={}):
+class WalletStorage:
 
-        self.config = config
+    def __init__(self, config):
+        self.data = {}
+        self.file_exists = False
+        self.init_path(config)
+        print_error( "wallet path", self.path )
+        if self.path:
+            self.read(self.path)
+
+
+    def init_path(self, config):
+        """Set the path of the wallet."""
+
+        path = config.get('wallet_path')
+        if not path:
+            path = config.get('default_wallet_path')
+        if path is not None:
+            self.path = path
+            return
+
+        # Look for wallet file in the default data directory.
+        # Make wallet directory if it does not yet exist.
+        if not os.path.exists(self.user_dir):
+            os.mkdir(self.user_dir)
+
+        self.path = os.path.join(self.user_dir, "electrum.dat")
+
+
+    def read(self, path):
+        """Read the contents of the wallet file."""
+        try:
+            with open(self.path, "r") as f:
+                data = f.read()
+        except IOError:
+            return
+        try:
+            d = ast.literal_eval( data )  #parse raw data from reading wallet file
+        except:
+            raise IOError("Cannot read wallet file.")
+
+        self.data = d
+        self.file_exists = True
+
+
+    def get(self, key, default=None):
+        return self.data.get(key, default)
+
+    def put(self, key, value, save = True):
+
+        if self.data.get(key) is not None:
+            self.data[key] = value
+        else:
+            # add key to wallet config
+            self.data[key] = value
+
+        if save: 
+            self.write()
+
+
+    def write(self):
+        s = repr(self.data)
+        f = open(self.path,"w")
+        f.write( s )
+        f.close()
+        if self.get('gui') != 'android':
+            import stat
+            os.chmod(self.path,stat.S_IREAD | stat.S_IWRITE)
+
+
+class Wallet:
+
+    def __init__(self, storage):
+
+        self.storage = storage
         self.electrum_version = ELECTRUM_VERSION
         self.gap_limit_for_change = 3 # constant
 
         # saved fields
-        self.seed_version          = config.get('seed_version', SEED_VERSION)
-        self.gap_limit             = config.get('gap_limit', 5)
-        self.use_change            = config.get('use_change',True)
-        self.fee                   = int(config.get('fee_per_kb',20000))
-        self.num_zeros             = int(config.get('num_zeros',0))
-        self.use_encryption        = config.get('use_encryption', False)
-        self.seed                  = config.get('seed', '')               # encrypted
-        self.labels                = config.get('labels', {})
-        self.frozen_addresses      = config.get('frozen_addresses',[])
-        self.prioritized_addresses = config.get('prioritized_addresses',[])
-        self.addressbook           = config.get('contacts', [])
+        self.seed_version          = storage.get('seed_version', SEED_VERSION)
 
-        self.imported_keys         = config.get('imported_keys',{})
-        self.history               = config.get('addr_history',{})        # address -> list(txid, height)
+        self.gap_limit             = storage.get('gap_limit', 5)
+        self.use_change            = storage.get('use_change',True)
+        self.use_encryption        = storage.get('use_encryption', False)
+        self.seed                  = storage.get('seed', '')               # encrypted
+        self.labels                = storage.get('labels', {})
+        self.frozen_addresses      = storage.get('frozen_addresses',[])
+        self.prioritized_addresses = storage.get('prioritized_addresses',[])
+        self.addressbook           = storage.get('contacts', [])
 
+        self.imported_keys         = storage.get('imported_keys',{})
+        self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
 
-        self.master_public_keys = config.get('master_public_keys',{})
-        self.master_private_keys = config.get('master_private_keys', {})
+        self.fee                   = int(storage.get('fee_per_kb',20000))
 
-        self.first_addresses = config.get('first_addresses',{})
+        self.master_public_keys = storage.get('master_public_keys',{})
+        self.master_private_keys = storage.get('master_private_keys', {})
 
-        self.load_accounts(config)
+        self.first_addresses = storage.get('first_addresses',{})
+
+        #if self.seed_version != SEED_VERSION:
+        #    raise ValueError("This wallet seed is deprecated. Please restore from seed.")
+
+        self.load_accounts()
 
         self.transactions = {}
-        tx = config.get('transactions',{})
+        tx = storage.get('transactions',{})
         try:
             for k,v in tx.items(): self.transactions[k] = Transaction(v)
         except:
@@ -116,9 +190,6 @@ class Wallet:
         self.lock = threading.Lock()
         self.transaction_lock = threading.Lock()
         self.tx_event = threading.Event()
-
-        if self.seed_version != SEED_VERSION:
-            raise ValueError("This wallet seed is deprecated. Please run upgrade.py for a diagnostic.")
 
         for tx_hash, tx in self.transactions.items():
             if self.check_new_tx(tx_hash, tx):
@@ -152,13 +223,13 @@ class Wallet:
         
         # store the originally requested keypair into the imported keys table
         self.imported_keys[address] = pw_encode(sec, password )
-        self.config.set_key('imported_keys', self.imported_keys, True)
+        self.storage.put('imported_keys', self.imported_keys, True)
         return address
         
     def delete_imported_key(self, addr):
         if addr in self.imported_keys:
             self.imported_keys.pop(addr)
-            self.config.set_key('imported_keys', self.imported_keys, True)
+            self.storage.put('imported_keys', self.imported_keys, True)
 
 
     def init_seed(self, seed):
@@ -169,8 +240,8 @@ class Wallet:
 
 
     def save_seed(self):
-        self.config.set_key('seed', self.seed, True)
-        self.config.set_key('seed_version', self.seed_version, True)
+        self.storage.put('seed', self.seed, True)
+        self.storage.put('seed_version', self.seed_version, True)
 
         master_k, master_c, master_K, master_cK = bip32_init(self.seed)
         
@@ -202,8 +273,8 @@ class Wallet:
             "m/5'/": k5
             }
         
-        self.config.set_key('master_public_keys', self.master_public_keys, True)
-        self.config.set_key('master_private_keys', self.master_private_keys, True)
+        self.storage.put('master_public_keys', self.master_public_keys, True)
+        self.storage.put('master_private_keys', self.master_private_keys, True)
 
         # create default account
         self.create_account('1','Main account')
@@ -220,14 +291,14 @@ class Wallet:
         # for safety, we ask the user to enter their seed
         assert seed == self.decode_seed(password)
         self.seed = ''
-        self.config.set_key('seed', '', True)
+        self.storage.put('seed', '', True)
 
 
     def deseed_branch(self, k):
         # check that parent has no seed
         assert self.seed == ''
         self.master_private_keys.pop(k)
-        self.config.set_key('master_private_keys', self.master_private_keys, True)
+        self.storage.put('master_private_keys', self.master_private_keys, True)
 
 
     def account_id(self, account_type, i):
@@ -260,7 +331,7 @@ class Wallet:
             account_id, account = self.next_account(account_type)
             addr = account.first_address()
             self.first_addresses[k] = addr
-            self.config.set_key('first_addresses',self.first_addresses)
+            self.storage.put('first_addresses',self.first_addresses)
 
         return addr
 
@@ -294,26 +365,39 @@ class Wallet:
         return account_id, account
 
 
-    def create_account(self, account_type = '1', name = 'unnamed'):
+    def create_account(self, account_type = '1', name = None):
         account_id, account = self.next_account(account_type)
         self.accounts[account_id] = account
         self.save_accounts()
-        self.labels[account_id] = name
-        self.config.set_key('labels', self.labels, True)
+        if name: 
+            self.labels[account_id] = name
+        self.storage.put('labels', self.labels, True)
+
+
+    def create_old_account(self):
+        print self.seed
+        mpk = OldAccount.mpk_from_seed(self.seed)
+        self.storage.put('master_public_key', mpk, True)
+        self.accounts[0] = OldAccount({'mpk':mpk, 0:[], 1:[]})
+        self.save_accounts()
 
 
     def save_accounts(self):
         d = {}
         for k, v in self.accounts.items():
             d[k] = v.dump()
-        self.config.set_key('accounts', d, True)
+        self.storage.put('accounts', d, True)
 
+    
 
-    def load_accounts(self, config):
-        d = config.get('accounts', {})
+    def load_accounts(self):
+        d = self.storage.get('accounts', {})
         self.accounts = {}
         for k, v in d.items():
-            if '&' in k:
+            if k == 0:
+                v['mpk'] = self.storage.get('master_public_key')
+                self.accounts[k] = OldAccount(v)
+            elif '&' in k:
                 self.accounts[k] = BIP32_Account_2of2(v)
             else:
                 self.accounts[k] = BIP32_Account(v)
@@ -339,7 +423,7 @@ class Wallet:
 
     def get_master_public_key(self):
         raise
-        return self.config.get("master_public_key")
+        return self.storage.get("master_public_key")
 
     def get_master_private_key(self, account, password):
         master_k = pw_decode( self.master_private_keys[account], password)
@@ -379,6 +463,9 @@ class Wallet:
         
 
     def get_keyID(self, account, sequence):
+        if account == 0:
+            return 'old'
+
         rs = self.rebase_sequence(account, sequence)
         dd = []
         for root, public_sequence in rs:
@@ -405,6 +492,12 @@ class Wallet:
             out.append( pw_decode( self.imported_keys[address], password ) )
         else:
             account, sequence = self.get_address_index(address)
+            if account == 0:
+                seed = self.decode_seed(password)
+                pk = self.accounts[account].get_private_key(seed, sequence)
+                out.append(pk)
+                return out
+
             # assert address == self.accounts[account].get_address(*sequence)
             rs = self.rebase_sequence( account, sequence)
             for root, public_sequence in rs:
@@ -520,7 +613,7 @@ class Wallet:
     def change_gap_limit(self, value):
         if value >= self.gap_limit:
             self.gap_limit = value
-            self.config.set_key('gap_limit', self.gap_limit, True)
+            self.storage.put('gap_limit', self.gap_limit, True)
             self.interface.poke('synchronizer')
             return True
 
@@ -533,7 +626,7 @@ class Wallet:
                 self.accounts[key][0] = addresses
 
             self.gap_limit = value
-            self.config.set_key('gap_limit', self.gap_limit, True)
+            self.storage.put('gap_limit', self.gap_limit, True)
             self.save_accounts()
             return True
         else:
@@ -616,13 +709,14 @@ class Wallet:
 
 
     def synchronize(self):
-        self.create_pending_accounts()
+        if self.master_public_keys:
+            self.create_pending_accounts()
         new = []
         for account in self.accounts.values():
             new += self.synchronize_account(account)
         if new:
             self.save_accounts()
-            self.config.set_key('addr_history', self.history, True)
+            self.storage.put('addr_history', self.history, True)
         return new
 
 
@@ -632,15 +726,15 @@ class Wallet:
 
     def add_contact(self, address, label=None):
         self.addressbook.append(address)
-        self.config.set_key('contacts', self.addressbook, True)
+        self.storage.put('contacts', self.addressbook, True)
         if label:  
             self.labels[address] = label
-            self.config.set_key('labels', self.labels, True)
+            self.storage.put('labels', self.labels, True)
 
     def delete_contact(self, addr):
         if addr in self.addressbook:
             self.addressbook.remove(addr)
-            self.config.set_key('addressbook', self.addressbook, True)
+            self.storage.put('addressbook', self.addressbook, True)
 
 
     def fill_addressbook(self):
@@ -837,6 +931,11 @@ class Wallet:
         return inputs, total, fee
 
 
+    def set_fee(self, fee):
+        if self.fee != fee:
+            self.fee = fee
+            self.storage.put('fee_per_kb', self.fee, True)
+        
     def estimated_fee(self, inputs):
         estimated_size =  len(inputs) * 180 + 80     # this assumes non-compressed keys
         fee = self.fee * int(round(estimated_size/1024.))
@@ -900,7 +999,7 @@ class Wallet:
         tx = {}
         for k,v in self.transactions.items():
             tx[k] = str(v)
-        self.config.set_key('transactions', tx, True)
+        self.storage.put('transactions', tx, True)
 
     def receive_history_callback(self, addr, hist):
 
@@ -909,7 +1008,7 @@ class Wallet:
             
         with self.lock:
             self.history[addr] = hist
-            self.config.set_key('addr_history', self.history, True)
+            self.storage.put('addr_history', self.history, True)
 
         if hist != ['*']:
             for tx_hash, tx_height in hist:
@@ -1060,28 +1159,28 @@ class Wallet:
         if new_password == '': new_password = None
         # this will throw an exception if unicode cannot be converted
         self.seed = pw_encode( seed, new_password)
-        self.config.set_key('seed', self.seed, True)
+        self.storage.put('seed', self.seed, True)
         self.use_encryption = (new_password != None)
-        self.config.set_key('use_encryption', self.use_encryption,True)
+        self.storage.put('use_encryption', self.use_encryption,True)
         for k in self.imported_keys.keys():
             a = self.imported_keys[k]
             b = pw_decode(a, old_password)
             c = pw_encode(b, new_password)
             self.imported_keys[k] = c
-        self.config.set_key('imported_keys', self.imported_keys, True)
+        self.storage.put('imported_keys', self.imported_keys, True)
 
         for k, v in self.master_private_keys.items():
             b = pw_decode(v, old_password)
             c = pw_encode(b, new_password)
             self.master_private_keys[k] = c
-        self.config.set_key('master_private_keys', self.master_private_keys, True)
+        self.storage.put('master_private_keys', self.master_private_keys, True)
 
 
     def freeze(self,addr):
         if self.is_mine(addr) and addr not in self.frozen_addresses:
             self.unprioritize(addr)
             self.frozen_addresses.append(addr)
-            self.config.set_key('frozen_addresses', self.frozen_addresses, True)
+            self.storage.put('frozen_addresses', self.frozen_addresses, True)
             return True
         else:
             return False
@@ -1089,7 +1188,7 @@ class Wallet:
     def unfreeze(self,addr):
         if self.is_mine(addr) and addr in self.frozen_addresses:
             self.frozen_addresses.remove(addr)
-            self.config.set_key('frozen_addresses', self.frozen_addresses, True)
+            self.storage.put('frozen_addresses', self.frozen_addresses, True)
             return True
         else:
             return False
@@ -1098,7 +1197,7 @@ class Wallet:
         if self.is_mine(addr) and addr not in self.prioritized_addresses:
             self.unfreeze(addr)
             self.prioritized_addresses.append(addr)
-            self.config.set_key('prioritized_addresses', self.prioritized_addresses, True)
+            self.storage.put('prioritized_addresses', self.prioritized_addresses, True)
             return True
         else:
             return False
@@ -1106,38 +1205,11 @@ class Wallet:
     def unprioritize(self,addr):
         if self.is_mine(addr) and addr in self.prioritized_addresses:
             self.prioritized_addresses.remove(addr)
-            self.config.set_key('prioritized_addresses', self.prioritized_addresses, True)
+            self.storage.put('prioritized_addresses', self.prioritized_addresses, True)
             return True
         else:
             return False
 
-    def set_fee(self, fee):
-        if self.fee != fee:
-            self.fee = fee
-            self.config.set_key('fee_per_kb', self.fee, True)
-        
-
-    def save(self):
-        print_error("Warning: wallet.save() is deprecated")
-        tx = {}
-        for k,v in self.transactions.items():
-            tx[k] = str(v)
-            
-        s = {
-            'use_change': self.use_change,
-            'fee_per_kb': self.fee,
-            'addr_history': self.history, 
-            'labels': self.labels,
-            'contacts': self.addressbook,
-            'num_zeros': self.num_zeros,
-            'frozen_addresses': self.frozen_addresses,
-            'prioritized_addresses': self.prioritized_addresses,
-            'gap_limit': self.gap_limit,
-            'transactions': tx,
-        }
-        for k, v in s.items():
-            self.config.set_key(k,v)
-        self.config.save()
 
     def set_verifier(self, verifier):
         self.verifier = verifier
@@ -1239,12 +1311,26 @@ class Wallet:
         return True
 
 
+    def start_threads(self, interface, blockchain):
+        from verifier import TxVerifier
+        self.interface = interface
+        self.verifier = TxVerifier(interface, blockchain, self.storage)
+        self.verifier.start()
+        self.set_verifier(self.verifier)
+        self.synchronizer = WalletSynchronizer(self)
+        self.synchronizer.start()
+
+    def stop_threads(self):
+        self.verifier.stop()
+        self.synchronizer.stop()
+
+
 
 
 class WalletSynchronizer(threading.Thread):
 
 
-    def __init__(self, wallet, config):
+    def __init__(self, wallet):
         threading.Thread.__init__(self)
         self.daemon = True
         self.wallet = wallet

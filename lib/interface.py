@@ -396,7 +396,7 @@ class Interface(threading.Thread):
             self.unanswered_requests[self.message_id] = method, params, channel
             ids.append(self.message_id)
             # uncomment to debug
-            # print "-->",request
+            # print "-->", request
             self.message_id += 1
             out += request + '\n'
         while out:
