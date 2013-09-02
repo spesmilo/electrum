@@ -95,7 +95,8 @@ class OldAccount(Account):
         compressed = False
         return SecretToASecret( pk, compressed )
         
-    def get_private_key(self, for_change, n, seed):
+    def get_private_key(self, seed, sequence):
+        for_change, n = sequence
         secexp = self.stretch_key(seed)
         return self.get_private_key_from_stretched_exponent(for_change, n, secexp)
 

@@ -463,6 +463,9 @@ class Wallet:
         
 
     def get_keyID(self, account, sequence):
+        if account == 0:
+            return 'old'
+
         rs = self.rebase_sequence(account, sequence)
         dd = []
         for root, public_sequence in rs:
@@ -489,6 +492,12 @@ class Wallet:
             out.append( pw_decode( self.imported_keys[address], password ) )
         else:
             account, sequence = self.get_address_index(address)
+            if account == 0:
+                seed = self.decode_seed(password)
+                pk = self.accounts[account].get_private_key(seed, sequence)
+                out.append(pk)
+                return out
+
             # assert address == self.accounts[account].get_address(*sequence)
             rs = self.rebase_sequence( account, sequence)
             for root, public_sequence in rs:
