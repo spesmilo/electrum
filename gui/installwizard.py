@@ -179,13 +179,12 @@ class InstallWizard(QDialog):
 
         #self.interface.start(wait = False)
 
-        # start wallet threads
-        wallet.start_threads(self.interface, self.blockchain)
-
-
         # generate the first addresses, in case we are offline
         if s is None or a == 'create':
             wallet.synchronize()
+
+        # start wallet threads
+        wallet.start_threads(self.interface, self.blockchain)
 
 
         if a == 'restore' and s is not None:
