@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import random, socket, ast, re, ssl
+import random, socket, ast, re, ssl, errno
 import threading, traceback, sys, time, json, Queue
 
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
@@ -404,10 +404,16 @@ class Interface(threading.Thread):
             try:
                 sent = self.s.send( out )
                 out = out[sent:]
-            except:
-                # this happens when we get disconnected
-                print_error( "Not connected, cannot send" )
-                return None
+            except socket.error,e:
+                if e[0] in (errno.EWOULDBLOCK,errno.EAGAIN):
+                    print_error( "EAGAIN: retrying")
+                    time.sleep(0.1)
+                    continue
+                else:
+                    traceback.print_exc(file=sys.stdout)
+                    # this happens when we get disconnected
+                    print_error( "Not connected, cannot send" )
+                    return None
         return ids
 
 
