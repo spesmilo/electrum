@@ -140,6 +140,46 @@ class InstallWizard(QDialog):
             return seed, gap
 
 
+    def mpk_dialog(self):
+        d = QDialog()
+        d.setModal(1)
+
+        vbox = QVBoxLayout()
+        msg = _("Please enter your master public key.")
+
+        label=QLabel(msg)
+        label.setWordWrap(True)
+        vbox.addWidget(label)
+
+        mpk_e = QTextEdit()
+        mpk_e.setMaximumHeight(100)
+        vbox.addWidget(mpk_e)
+
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        gap_e = AmountEdit(None, True)
+        gap_e.setText("5")
+        grid.addWidget(QLabel(_('Gap limit')), 2, 0)
+        grid.addWidget(gap_e, 2, 1)
+        grid.addWidget(HelpButton(_('Keep the default value unless you modified this parameter in your wallet.')), 2, 3)
+        vbox.addLayout(grid)
+
+        vbox.addLayout(ok_cancel_buttons(d, _('Next')))
+        d.setLayout(vbox) 
+
+        if not d.exec_(): return
+
+        mpk = str(mpk_e.toPlainText())
+
+        try:
+            gap = int(unicode(gap_e.text()))
+        except:
+            QMessageBox.warning(None, _('Error'), 'error', 'OK')
+            return
+
+        return mpk, gap
+
+
     def network_dialog(self):
         
         d = QDialog()
@@ -266,15 +306,23 @@ class InstallWizard(QDialog):
 
         elif action == 'watching':
             # ask for seed and gap.
-            sg = self.seed_dialog()
+            sg = self.mpk_dialog()
             if not sg:
                 return
-            seed, gap = sg
-            if not seed:
+            mpk, gap = sg
+            if not mpk:
                 return
             wallet.gap_limit = gap
             wallet.seed = ''
-            wallet.init_sequence(str(seed))
+
+            print eval(mpk)
+            try:
+                c0, K0 = eval(mpk)
+            except:
+                QMessageBox.warning(None, _('Error'), _('error'), _('OK'))
+                return
+            wallet.create_watching_only_wallet(c0,K0)
+
 
         else: raise
                 

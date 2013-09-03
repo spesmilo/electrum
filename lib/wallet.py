@@ -238,6 +238,13 @@ class Wallet:
         self.storage.put('seed', self.seed, True)
         self.storage.put('seed_version', self.seed_version, True)
 
+    def create_watching_only_wallet(self, c0, K0):
+        cK0 = ""
+        self.master_public_keys = {
+            "m/0'/": (c0, K0, cK0),
+            }
+        self.storage.put('master_public_keys', self.master_public_keys, True)
+        self.create_account('1','Main account')
 
     def create_accounts(self):
 
@@ -254,7 +261,6 @@ class Wallet:
         k5, c5, K5, cK5 = bip32_private_derivation(master_k, master_c, "m/", "m/5'/")
 
         self.master_public_keys = {
-            "m/": (master_c, master_K, master_cK),
             "m/0'/": (c0, K0, cK0),
             "m/1'/": (c1, K1, cK1),
             "m/2'/": (c2, K2, cK2),
@@ -423,7 +429,8 @@ class Wallet:
         if self.seed_version == 4:
             return self.storage.get("master_public_key")
         else:
-            return self.storage.get("master_public_keys")["m/"]
+            c, K, cK = self.storage.get("master_public_keys")["m/0'/"]
+            return repr((c, K))
 
     def get_master_private_key(self, account, password):
         master_k = pw_decode( self.master_private_keys[account], password)
@@ -697,7 +704,7 @@ class Wallet:
         for account_type in ['1','2of2','2of3']:
             a = self.new_account_address(account_type)
             if self.address_is_old(a):
-                print "creating account", a
+                print_error( "creating account", a )
                 self.create_account(account_type)
 
 
