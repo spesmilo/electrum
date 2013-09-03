@@ -166,13 +166,42 @@ class BlockchainVerifier(threading.Thread):
         return True
 
 
+    def get_chunks(self, i, header, height):
+        requested_chunks = []
+        min_index = (self.local_height + 1)/2016
+        max_index = (height + 1)/2016
+        for n in range(min_index, max_index + 1):
+            print_error( "requesting chunk", n )
+            i.send([ ('blockchain.block.get_chunk',[n])], 'get_header')
+            requested_chunks.append(n)
+            break
+
+        while requested_chunks:
+            try:
+                r = i.get_response('get_header',timeout=1)
+            except Queue.Empty:
+                continue
+            if not r: continue
+
+            if r.get('error'):
+                print_error('Verifier received an error:', r)
+                continue
+
+            # 3. handle response
+            method = r['method']
+            params = r['params']
+            result = r['result']
+
+            if method == 'blockchain.block.get_chunk':
+                index = params[0]
+                self.verify_chunk(index, result)
+                requested_chunks.remove(index)
 
 
     def verify_chunk(self, index, hexdata):
         data = hexdata.decode('hex')
         height = index*2016
         num = len(data)/80
-        print_error("validating headers %d"%height)
 
         if index == 0:  
             previous_hash = ("0"*64)
@@ -196,6 +225,7 @@ class BlockchainVerifier(threading.Thread):
             previous_hash = _hash 
 
         self.save_chunk(index, data)
+        print_error("validated chunk %d"%height)
 
 
     def verify_header(self, header):
@@ -371,7 +401,12 @@ class BlockchainVerifier(threading.Thread):
             
             height = header.get('block_height')
 
+            if height > self.local_height + 50:
+                self.get_chunks(i, header, height)
+
+
             if height > self.local_height:
+
                 # get missing parts from interface (until it connects to my chain)
                 chain = self.get_chain( i, header )
 
