@@ -238,6 +238,9 @@ class Wallet:
         self.storage.put('seed', self.seed, True)
         self.storage.put('seed_version', self.seed_version, True)
 
+
+    def create_accounts(self):
+
         master_k, master_c, master_K, master_cK = bip32_init(self.seed)
         
         # normal accounts
@@ -1327,6 +1330,7 @@ class Wallet:
     def stop_threads(self):
         self.verifier.stop()
         self.synchronizer.stop()
+
 
 
 

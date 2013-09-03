@@ -123,14 +123,18 @@ class InstallWizard(QDialog):
         waiting = lambda: False if wallet.is_up_to_date() else "%s\n%s %d\n%s %.1f"\
             %(_("Please wait..."),_("Addresses generated:"),len(wallet.addresses(True)),_("Kilobytes received:"), wallet.interface.bytes_received/1024.)
 
+        # try to restore old account
+        wallet.create_old_account()
         wallet.set_up_to_date(False)
         wallet.interface.poke('synchronizer')
         waiting_dialog(waiting)
 
-        # try to restore old account
-        if not wallet.is_found():
-            print "trying old method"
-            wallet.create_old_account()
+        if wallet.is_found():
+            wallet.seed_version = 4
+            wallet.storage.put('seed_version', wallet.seed_version, True)
+        else:
+            wallet.accounts.pop(0)
+            wallet.create_accounts()
             wallet.set_up_to_date(False)
             wallet.interface.poke('synchronizer')
             waiting_dialog(waiting)
@@ -145,31 +149,9 @@ class InstallWizard(QDialog):
 
     def run(self):
 
-        a = self.restore_or_create()
-        if not a: exit()
 
-        wallet = Wallet(self.storage)
-
-        if a =='create':
-            wallet.init_seed(None)
-            self.show_seed(wallet)
-            if self.verify_seed(wallet):
-                wallet.save_seed()
-            else:
-                exit()
-        else:
-            # ask for seed and gap.
-            sg = self.seed_dialog()
-            if not sg: exit()
-            seed, gap = sg
-            if not seed: exit()
-            wallet.gap_limit = gap
-            if len(seed) == 128:
-                wallet.seed = ''
-                wallet.init_sequence(str(seed))
-            else:
-                wallet.init_seed(str(seed))
-                wallet.save_seed()
+        action = self.restore_or_create()
+        if not action: exit()
 
         # select a server.
         s = self.network_dialog()
@@ -177,15 +159,44 @@ class InstallWizard(QDialog):
             self.config.set_key("server", None, True)
             self.config.set_key('auto_cycle', False, True)
 
-        # generate the first addresses, in case we are offline
-        if s is None or a == 'create':
-            wallet.synchronize()
+        wallet = Wallet(self.storage)
+
+        if action =='create':
+            wallet.init_seed(None)
+            self.show_seed(wallet)
+            if self.verify_seed(wallet):
+                wallet.save_seed()
+                wallet.create_accounts()
+                # generate first addresses offline
+                wallet.synchronize()
+            else:
+                return
+                
+        elif action == 'restore':
+            # ask for seed and gap.
+            sg = self.seed_dialog()
+            if not sg:
+                return
+            seed, gap = sg
+            if not seed:
+                return
+            wallet.gap_limit = gap
+
+            if len(seed) == 128:
+                wallet.seed = ''
+                wallet.init_sequence(str(seed))
+            else:
+                wallet.init_seed(str(seed))
+                wallet.save_seed()
+                
 
         # start wallet threads
         wallet.start_threads(self.interface, self.blockchain)
 
+        # if it is a creation, use 5
+        # if restore, use 4 then 5
 
-        if a == 'restore' and s is not None:
+        if action == 'restore' and s is not None:
             try:
                 keep_it = self.restore_wallet(wallet)
                 wallet.fill_addressbook()
