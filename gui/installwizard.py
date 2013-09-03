@@ -236,12 +236,8 @@ class InstallWizard(QDialog):
 
     def run(self):
 
-
         action = self.restore_or_create()
         if not action: exit()
-
-        #if not self.config.get('server'):
-        self.network_dialog()
 
         wallet = Wallet(self.storage)
 
@@ -282,6 +278,8 @@ class InstallWizard(QDialog):
 
         else: raise
                 
+        #if not self.config.get('server'):
+        self.network_dialog()
 
         # start wallet threads
         wallet.start_threads(self.interface, self.blockchain)
