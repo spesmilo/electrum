@@ -813,10 +813,20 @@ class Wallet:
         return c, u
 
 
-    def get_accounts(self):
+    def get_account_name(self, k):
+        if k == 0:
+            if self.seed_version == 4: 
+                name = 'Main account'
+            else:
+                name = 'Old account'
+        else:
+            name = self.labels.get(k, 'Unnamed account')
+        return name
+
+    def get_account_names(self):
         accounts = {}
         for k, account in self.accounts.items():
-            accounts[k] = self.labels.get(k, 'unnamed')
+            accounts[k] = self.get_account_name(k)
         if self.imported_keys:
             accounts[-1] = 'Imported keys'
         return accounts

@@ -194,7 +194,8 @@ class InstallWizard(QDialog):
                 traceback.print_exc(file=sys.stdout)
                 exit()
 
-            if not keep_it: exit()
-
+            if not keep_it: return
 
         self.password_dialog(wallet)
+        
+        return wallet

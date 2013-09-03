@@ -316,7 +316,7 @@ class ElectrumWindow(QMainWindow):
         self.notify_transactions()
 
         # account selector
-        accounts = self.wallet.get_accounts()
+        accounts = self.wallet.get_account_names()
         self.account_selector.clear()
         if len(accounts) > 1:
             self.account_selector.addItems([_("All accounts")] + accounts.values())
@@ -1272,7 +1272,7 @@ class ElectrumWindow(QMainWindow):
             account_items = []
 
         for k, account in account_items:
-            name = self.wallet.labels.get(k, 'unnamed account')
+            name = self.wallet.get_account_name(k)
             c,u = self.wallet.get_account_balance(k)
             account_item = QTreeWidgetItem( [ name, '', self.format_amount(c+u), ''] )
             l.addTopLevelItem(account_item)
@@ -1371,7 +1371,7 @@ class ElectrumWindow(QMainWindow):
         if s == _("All accounts"):
             self.current_account = None
         else:
-            accounts = self.wallet.get_accounts()
+            accounts = self.wallet.get_account_names()
             for k, v in accounts.items():
                 if v == s:
                     self.current_account = k
