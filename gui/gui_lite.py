@@ -23,7 +23,7 @@ import os.path
 import random
 import re
 import time
-from electrum import wallet
+from electrum.wallet import Wallet, WalletStorage
 import webbrowser
 import history_widget
 import receiving_widget
@@ -135,17 +135,17 @@ def csv_transaction(wallet):
 
 class ElectrumGui(QObject):
 
-    def __init__(self, wallet, config, expert=None):
+    def __init__(self, config, interface, blockchain, expert=None):
         super(QObject, self).__init__()
 
-        self.wallet = wallet
         self.config = config
         self.check_qt_version()
         self.expert = expert
-        if self.expert != None:
-            self.app = self.expert.app
-        else:
-            self.app = QApplication(sys.argv)
+        self.interface = interface
+        self.blockchain = blockchain
+
+
+
 
     def check_qt_version(self):
         qtVersion = qVersion()
@@ -157,7 +157,19 @@ class ElectrumGui(QObject):
 
 
     def main(self, url):
-        actuator = MiniActuator(self.wallet)
+
+        if self.expert is None:
+            self.app = QApplication(sys.argv)
+            storage = WalletStorage(self.config)
+            if not storage.file_exists:
+                exit()
+            self.wallet = Wallet(storage)
+            self.wallet.start_threads(self.interface, self.blockchain)
+        else:
+            self.app = self.expert.app
+            self.wallet = self.expert.wallet
+
+        actuator = MiniActuator(self.config, self.wallet)
         # Should probably not modify the current path but instead
         # change the behaviour of rsrc(...)
         old_path = QDir.currentPath()
@@ -173,14 +185,17 @@ class ElectrumGui(QObject):
         if url:
             self.set_url(url)
             
-        if self.expert == None:
+        if self.expert is None:
+            self.expert = gui_classic.ElectrumWindow(self.config)
+            self.expert.load_wallet(self.wallet)
+            self.expert.app = self.app
             timer = Timer()
             timer.start()
-            self.expert = gui_classic.ElectrumWindow(self.wallet, self.config)
-            self.expert.app = self.app
             self.expert.connect_slots(timer)
             self.expert.update_wallet()
+
             self.app.exec_()
+
 
     def expand(self):
         """Hide the lite mode window and show pro-mode."""
@@ -748,10 +763,11 @@ class MiniActuator:
     sending/receiving bitcoins."""
     
     
-    def __init__(self, wallet):
+    def __init__(self, config, wallet):
         """Retrieve the gui theme used in previous session."""
+        self.config = config
         self.wallet = wallet
-        self.theme_name = self.wallet.config.get('litegui_theme','Cleanlook')
+        self.theme_name = self.config.get('litegui_theme','Cleanlook')
         self.themes = load_theme_paths()
 
     def load_theme(self):
@@ -776,13 +792,13 @@ class MiniActuator:
     def change_theme(self, theme_name):
         """Change theme."""
         self.theme_name = theme_name
-        self.wallet.config.set_key('litegui_theme',theme_name)
+        self.config.set_key('litegui_theme',theme_name)
         self.load_theme()
     
     def set_configured_currency(self, set_quote_currency):
         """Set the inital fiat currency conversion country (USD/EUR/GBP) in 
         the GUI to what it was set to in the wallet."""
-        currency = self.wallet.config.get('currency')
+        currency = self.config.get('currency')
         # currency can be none when Electrum is used for the first
         # time and no setting has been created yet.
         if currency is not None:
@@ -790,7 +806,7 @@ class MiniActuator:
 
     def set_config_currency(self, conversion_currency):
         """Change the wallet fiat currency country."""
-        self.wallet.config.set_key('conversion_currency',conversion_currency,True)
+        self.config.set_key('conversion_currency',conversion_currency,True)
 
     def copy_address(self, receive_popup):
         """Copy the wallet addresses into the client."""

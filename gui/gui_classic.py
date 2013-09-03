@@ -1444,7 +1444,7 @@ class ElectrumWindow(QMainWindow):
         if self.lite:
             self.lite.mini.show()
         else:
-            self.lite = gui_lite.ElectrumGui(self.wallet, self.config, self)
+            self.lite = gui_lite.ElectrumGui(self.config, None, None, self)
             self.lite.main(None)
 
 
