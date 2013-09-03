@@ -23,14 +23,56 @@ class InstallWizard(QDialog):
 
 
     def restore_or_create(self):
+
+        d = QDialog()
+        d.setModal(1)
+
+        grid = QGridLayout()
+        grid.setSpacing(5)
+
         msg = _("Wallet file not found.")+"\n"+_("Do you want to create a new wallet, or to restore an existing one?")
-        r = QMessageBox.question(None, _('Message'), msg, _('Create'), _('Restore'), _('Cancel'), 0, 2)
-        if r==2: return None
-        return 'restore' if r==1 else 'create'
+        label = QLabel(msg)
+        label.setWordWrap(True)
+        grid.addWidget(label, 0, 0)
+
+        gb = QGroupBox()
+
+        b1 = QRadioButton(gb)
+        b1.setText(_("Create new wallet"))
+        b1.setChecked(True)
+
+        b2 = QRadioButton(gb)
+        b2.setText(_("Restore wallet from seed"))
+
+        b3 = QRadioButton(gb)
+        b3.setText(_("Restore wallet from master public key"))
+
+        grid.addWidget(b1,1,0)
+        grid.addWidget(b2,2,0)
+        grid.addWidget(b3,3,0)
+
+        vbox = QVBoxLayout()
+        vbox.addLayout(grid)
+        vbox.addLayout(ok_cancel_buttons(d, _('Next')))
+        d.setLayout(vbox) 
+
+        if not d.exec_():
+            return
+        
+        if b1.isChecked():
+            return 'create'
+        elif b2.isChecked():
+            return 'restore'
+        else:
+            return 'watching'
+
 
 
     def verify_seed(self, wallet):
         r = self.seed_dialog(False)
+        if not r:
+            return
+
         if r != wallet.seed:
             QMessageBox.warning(None, _('Error'), 'incorrect seed', 'OK')
             return False
@@ -68,7 +110,7 @@ class InstallWizard(QDialog):
             grid.addWidget(HelpButton(_('Keep the default value unless you modified this parameter in your wallet.')), 2, 3)
             vbox.addLayout(grid)
 
-        vbox.addLayout(ok_cancel_buttons(d))
+        vbox.addLayout(ok_cancel_buttons(d, _('Next')))
         d.setLayout(vbox) 
 
         if not d.exec_(): return
@@ -99,7 +141,52 @@ class InstallWizard(QDialog):
 
 
     def network_dialog(self):
-        return NetworkDialog(self.interface, self.config, None).do_exec()
+        
+        d = QDialog()
+        d.setModal(1)
+
+        grid = QGridLayout()
+        grid.setSpacing(5)
+
+        label = QLabel(_("Network") + ":")
+        grid.addWidget(label, 0, 0)
+
+        gb = QGroupBox()
+
+        b1 = QRadioButton(gb)
+        b1.setText(_("Auto connect"))
+        b1.setChecked(True)
+
+        b2 = QRadioButton(gb)
+        b2.setText(_("Select server manually"))
+
+        b3 = QRadioButton(gb)
+        b3.setText(_("Stay offline"))
+
+        grid.addWidget(b1,1,0)
+        grid.addWidget(b2,2,0)
+        grid.addWidget(b3,3,0)
+
+        vbox = QVBoxLayout()
+        vbox.addLayout(grid)
+        vbox.addLayout(ok_cancel_buttons(d, _('Next')))
+        d.setLayout(vbox) 
+
+        if not d.exec_():
+            return
+        
+        if b2.isChecked():
+            return NetworkDialog(self.interface, self.config, None).do_exec()
+
+        elif b1.isChecked():
+            self.config.set_key('auto_cycle', True, True)
+            return
+
+        else:
+            self.config.set_key("server", None, True)
+            self.config.set_key('auto_cycle', False, True)
+            return
+        
         
 
     def show_seed(self, wallet):
@@ -153,15 +240,12 @@ class InstallWizard(QDialog):
         action = self.restore_or_create()
         if not action: exit()
 
-        # select a server.
-        s = self.network_dialog()
-        if s is None:
-            self.config.set_key("server", None, True)
-            self.config.set_key('auto_cycle', False, True)
+        #if not self.config.get('server'):
+        self.network_dialog()
 
         wallet = Wallet(self.storage)
 
-        if action =='create':
+        if action == 'create':
             wallet.init_seed(None)
             self.show_seed(wallet)
             if self.verify_seed(wallet):
@@ -181,22 +265,28 @@ class InstallWizard(QDialog):
             if not seed:
                 return
             wallet.gap_limit = gap
+            wallet.init_seed(str(seed))
+            wallet.save_seed()
 
-            if len(seed) == 128:
-                wallet.seed = ''
-                wallet.init_sequence(str(seed))
-            else:
-                wallet.init_seed(str(seed))
-                wallet.save_seed()
+        elif action == 'watching':
+            # ask for seed and gap.
+            sg = self.seed_dialog()
+            if not sg:
+                return
+            seed, gap = sg
+            if not seed:
+                return
+            wallet.gap_limit = gap
+            wallet.seed = ''
+            wallet.init_sequence(str(seed))
+
+        else: raise
                 
 
         # start wallet threads
         wallet.start_threads(self.interface, self.blockchain)
 
-        # if it is a creation, use 5
-        # if restore, use 4 then 5
-
-        if action == 'restore' and s is not None:
+        if action == 'restore':
             try:
                 keep_it = self.restore_wallet(wallet)
                 wallet.fill_addressbook()

@@ -69,7 +69,7 @@ class PasswordDialog(QDialog):
         wallet = self.wallet
 
         if not wallet.seed:
-            QMessageBox.information(parent, _('Error'), _('No seed'), _('OK'))
+            QMessageBox.information(self.parent, _('Error'), _('No seed'), _('OK'))
             return
 
         if not self.exec_(): return

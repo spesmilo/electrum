@@ -158,8 +158,8 @@ class Wallet:
 
         self.first_addresses = storage.get('first_addresses',{})
 
-        #if self.seed_version != SEED_VERSION:
-        #    raise ValueError("This wallet seed is deprecated. Please restore from seed.")
+        if self.seed_version < 4:
+            raise ValueError("This wallet seed is deprecated.")
 
         self.load_accounts()
 
@@ -254,6 +254,7 @@ class Wallet:
         k5, c5, K5, cK5 = bip32_private_derivation(master_k, master_c, "m/", "m/5'/")
 
         self.master_public_keys = {
+            "m/": (master_c, master_K, master_cK),
             "m/0'/": (c0, K0, cK0),
             "m/1'/": (c1, K1, cK1),
             "m/2'/": (c2, K2, cK2),
@@ -419,8 +420,10 @@ class Wallet:
         return s[0] == 1
 
     def get_master_public_key(self):
-        raise
-        return self.storage.get("master_public_key")
+        if self.seed_version == 4:
+            return self.storage.get("master_public_key")
+        else:
+            return self.storage.get("master_public_keys")["m/"]
 
     def get_master_private_key(self, account, password):
         master_k = pw_decode( self.master_private_keys[account], password)
