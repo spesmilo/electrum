@@ -1,13 +1,11 @@
 
 security:
- - check that we are on the longest chain after a reorg
  - check SSL cerfificates of servers
 
 
 wallet, transactions : 
  - dust sweeping
  - transactions with multiple outputs
- - BIP 32 
 
 
 code improvements:
