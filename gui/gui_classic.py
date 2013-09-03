@@ -325,6 +325,8 @@ class ElectrumWindow(QMainWindow):
         else:
             self.account_selector.hide()
 
+        self.new_account.setEnabled(self.wallet.seed_version>4)
+
         self.update_lock_icon()
         self.update_buttons_on_seed()
         self.update_console()
@@ -426,8 +428,8 @@ class ElectrumWindow(QMainWindow):
         new_contact = wallet_menu.addAction(_("&New contact"))
         new_contact.triggered.connect(self.new_contact_dialog)
 
-        new_account = wallet_menu.addAction(_("&New account"))
-        new_account.triggered.connect(self.new_account_dialog)
+        self.new_account = wallet_menu.addAction(_("&New account"))
+        self.new_account.triggered.connect(self.new_account_dialog)
 
         import_menu = menubar.addMenu(_("&Import"))
         in_labels = import_menu.addAction(_("&Labels"))

@@ -370,7 +370,6 @@ class Wallet:
 
 
     def create_old_account(self):
-        print self.seed
         mpk = OldAccount.mpk_from_seed(self.seed)
         self.storage.put('master_public_key', mpk, True)
         self.accounts[0] = OldAccount({'mpk':mpk, 0:[], 1:[]})
