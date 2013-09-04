@@ -18,7 +18,7 @@
 
 
 from bitcoin import *
-
+from transaction import Transaction
 
 class Account(object):
     def __init__(self, v):
