@@ -167,14 +167,20 @@ class Wallet:
         self.transactions = {}
         tx_list = self.storage.get('transactions',{})
         for k,v in tx_list.items():
-            tx = Transaction(v)
             try:
                 tx = Transaction(v)
             except:
                 print_msg("Warning: Cannot deserialize transactions. skipping")
                 continue
 
-            self.add_transaction(tx)
+            self.add_extra_addresses(tx)
+            self.transactions[k] = tx
+
+        for h,tx in self.transactions.items():
+            if not self.check_new_tx(h, tx):
+                print_error("removing unreferenced tx", h)
+                self.transactions.pop(h)
+
 
         # not saved
         self.prevout_values = {}     # my own transaction outputs
@@ -196,7 +202,7 @@ class Wallet:
             self.update_tx_outputs(tx_hash)
 
 
-    def add_transaction(self, tx):
+    def add_extra_addresses(self, tx):
         h = tx.hash()
         # find the address corresponding to pay-to-pubkey inputs
         tx.add_extra_addresses(self.transactions)
@@ -205,12 +211,6 @@ class Wallet:
                 for tx2 in self.transactions.values():
                     tx2.add_extra_addresses({h:tx})
 
-        if self.check_new_tx(h, tx):
-            self.transactions[h] = tx
-            return True
-        else:
-            print_error("unreferenced tx", tx_hash)
-            return False
             
 
 
@@ -1021,11 +1021,12 @@ class Wallet:
     def receive_tx_callback(self, tx_hash, tx, tx_height):
 
         with self.transaction_lock:
-            if not self.add_transaction(tx):
+            self.add_extra_addresses(tx)
+            if not self.check_new_tx(tx_hash, tx):
                 # may happen due to pruning
                 print_error("received transaction that is no longer referenced in history", tx_hash)
                 return
-
+            self.transactions[tx_hash] = tx
             self.interface.pending_transactions_for_notifications.append(tx)
             self.save_transactions()
             if self.verifier and tx_height>0: 
@@ -1337,7 +1338,6 @@ class Wallet:
         # 2 check that referencing addresses are in the tx
         for addr in addresses:
             if not tx.has_address(addr):
-                print "z", addr, tx.inputs
                 return False
 
         return True
