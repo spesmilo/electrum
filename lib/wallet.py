@@ -1110,46 +1110,39 @@ class Wallet:
         return default_label
 
 
-    def mktx(self, outputs, password, fee=None, change_addr=None, account=None ):
-        
+    def make_unsigned_transaction(self, outputs, fee=None, change_addr=None, account=None ):
         for address, x in outputs:
             assert is_valid(address)
-
         amount = sum( map(lambda x:x[1], outputs) )
-
         inputs, total, fee = self.choose_tx_inputs( amount, fee, account )
         if not inputs:
             raise ValueError("Not enough funds")
-
         outputs = self.add_tx_change(inputs, outputs, amount, fee, total, change_addr, account)
-        tx = Transaction.from_io(inputs, outputs)
+        return Transaction.from_io(inputs, outputs)
 
+
+    def mktx(self, outputs, password, fee=None, change_addr=None, account=None ):
+        tx = self.make_unsigned_transaction(outputs, fee, change_addr, account)
+        self.sign_transaction(tx, password)
+        return tx
+
+
+    def sign_transaction(self, tx, password):
         keypairs = {}
         for i, txin in enumerate(tx.inputs):
             address = txin['address']
-
             account, sequence = self.get_address_index(address)
             txin['KeyID'] = self.get_keyID(account, sequence)
-
             redeemScript = self.accounts[account].redeem_script(sequence)
             if redeemScript: 
                 txin['redeemScript'] = redeemScript
             else:
                 txin['redeemPubkey'] = self.accounts[account].get_pubkey(*sequence)
-
             private_keys = self.get_private_key(address, password)
-
             for sec in private_keys:
                 pubkey = public_key_from_private_key(sec)
                 keypairs[ pubkey ] = sec
-
         tx.sign(keypairs)
-        for address, x in outputs:
-            if address not in self.addressbook and not self.is_mine(address):
-                self.addressbook.append(address)
-
-        return tx
-
 
 
     def sendtx(self, tx):

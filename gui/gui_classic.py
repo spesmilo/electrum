@@ -1013,6 +1013,10 @@ class ElectrumWindow(QMainWindow):
             except:
                 QMessageBox.warning(self, _('Error'), _('Could not write transaction to file'), _('OK'))
 
+        # add recipient to addressbook
+        if to_address not in self.wallet.addressbook and not self.wallet.is_mine(to_address):
+            self.wallet.addressbook.append(to_address)
+
 
 
 
