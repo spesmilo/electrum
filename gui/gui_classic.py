@@ -21,6 +21,7 @@ from i18n import _, set_language
 from electrum.util import print_error, print_msg
 import os.path, json, ast, traceback
 import shutil
+import StringIO
 
 
 try:
@@ -412,6 +413,14 @@ class ElectrumWindow(QMainWindow):
 
         raw_transaction_text = raw_transaction_menu.addAction(_("&From text"))
         raw_transaction_text.triggered.connect(self.do_process_from_text)
+
+        csv_transaction_menu = wallet_menu.addMenu(_("&Load CSV transaction"))
+
+        csv_transaction_file = csv_transaction_menu.addAction(_("&From file"))
+        csv_transaction_file.triggered.connect(self.do_process_from_csv_file)
+
+        csv_transaction_text = csv_transaction_menu.addAction(_("&From text"))
+        csv_transaction_text.triggered.connect(self.do_process_from_csv_text)
 
         wallet_menu.addSeparator()
 
@@ -1826,6 +1835,47 @@ class ElectrumWindow(QMainWindow):
         tx_dict = self.read_tx_from_file()
         if tx_dict: 
             self.create_process_transaction_window(tx_dict)
+
+    def do_process_from_csvReader(self, csvReader):
+        outputs = []
+        try:
+            for row in csvReader:
+                address = row[0]
+                amount = float(row[1])
+                amount = int(100000000*amount)
+                outputs.append((address, amount))
+        except (ValueError, IOError, os.error), reason:
+            QMessageBox.critical(None,"Unable to read file or no transaction found", _("Electrum was unable to open your transaction file") + "\n" + str(reason))
+            return
+
+        try:
+            tx = self.wallet.make_unsigned_transaction(outputs, None, None, account=self.current_account)
+        except BaseException, e:
+            self.show_message(str(e))
+            return
+
+        tx_dict = tx.as_dict()
+        self.create_process_transaction_window(tx_dict)
+
+    def do_process_from_csv_file(self):
+        fileName = self.getOpenFileName(_("Select your transaction CSV"), "*.csv")
+        if not fileName:
+            return
+        try:
+            with open(fileName, "r") as f:
+                csvReader = csv.reader(f)
+                self.do_process_from_csvReader(csvReader)
+        except (ValueError, IOError, os.error), reason:
+            QMessageBox.critical(None,"Unable to read file or no transaction found", _("Electrum was unable to open your transaction file") + "\n" + str(reason))
+            return
+
+    def do_process_from_csv_text(self):
+        text = text_dialog(self, _('Input CSV'), _("CSV:"), _("Load CSV"))
+        if not text:
+            return
+        f = StringIO.StringIO(text)
+        csvReader = csv.reader(f)
+        self.do_process_from_csvReader(csvReader)
 
     def create_process_transaction_window(self, tx_dict):
         tx = Transaction(tx_dict["hex"])
