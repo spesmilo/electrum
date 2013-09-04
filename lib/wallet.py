@@ -428,7 +428,10 @@ class Wallet:
         o = self.get_account_addresses(-1, include_change)
         for a in self.accounts.keys():
             o += self.get_account_addresses(a, include_change)
-        o += self.first_addresses.values()
+
+        for addr in self.first_addresses.values():
+            if addr not in o:
+                o += addr
         return o
 
 
