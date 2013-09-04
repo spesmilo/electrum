@@ -41,7 +41,7 @@ except:
     sys.exit("Error: Could not import icons_rc.py, please generate it with: 'pyrcc4 icons.qrc -o gui/icons_rc.py'")
 
 from electrum.wallet import format_satoshis
-from electrum.bitcoin import Transaction, is_valid
+from electrum import Transaction
 from electrum import mnemonic
 from electrum import util, bitcoin, commands, Interface, Wallet
 from electrum import SimpleConfig, Wallet, WalletStorage

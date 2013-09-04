@@ -33,6 +33,7 @@ import time
 from util import print_msg, print_error, format_satoshis
 from bitcoin import *
 from account import *
+from transaction import Transaction
 
 # AES encryption
 EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
@@ -164,12 +165,17 @@ class Wallet:
         self.load_accounts()
 
         self.transactions = {}
-        tx = storage.get('transactions',{})
-        try:
-            for k,v in tx.items(): self.transactions[k] = Transaction(v)
-        except:
-            print_msg("Warning: Cannot deserialize transactions. skipping")
-        
+        tx_list = self.storage.get('transactions',{})
+        for k,v in tx_list.items():
+            tx = Transaction(v)
+            try:
+                tx = Transaction(v)
+            except:
+                print_msg("Warning: Cannot deserialize transactions. skipping")
+                continue
+
+            self.add_transaction(tx)
+
         # not saved
         self.prevout_values = {}     # my own transaction outputs
         self.spent_outputs = []
@@ -192,6 +198,17 @@ class Wallet:
             else:
                 print_error("unreferenced tx", tx_hash)
                 self.transactions.pop(tx_hash)
+
+
+    def add_transaction(self, tx):
+        h = tx.hash()
+        self.transactions[h] = tx
+        # find the address corresponding to pay-to-pubkey inputs
+        tx.add_extra_addresses(self.transactions)
+        for o in tx.d.get('outputs'):
+            if o.get('is_pubkey'):
+                for tx2 in self.transactions.values():
+                    tx2.add_extra_addresses({h:tx})
 
 
     def set_up_to_date(self,b):
@@ -521,7 +538,7 @@ class Wallet:
 
 
     def signrawtransaction(self, tx, input_info, private_keys, password):
-        import deserialize
+
         unspent_coins = self.get_unspent_coins()
         seed = self.decode_seed(password)
 
@@ -587,7 +604,7 @@ class Wallet:
             if redeem_script:
                 addr = hash_160_to_bc_address(hash_160(redeem_script.decode('hex')), 5)
             else:
-                addr = deserialize.get_address_from_output_script(txin["raw_output_script"].decode('hex'))
+                addr = transaction.get_address_from_output_script(txin["raw_output_script"].decode('hex'))
             txin['address'] = addr
 
             # add private keys that are in the wallet
@@ -1002,10 +1019,8 @@ class Wallet:
             return
 
         with self.transaction_lock:
-            self.transactions[tx_hash] = tx
-
+            self.add_transaction(tx)
             self.interface.pending_transactions_for_notifications.append(tx)
-
             self.save_transactions()
             if self.verifier and tx_height>0: 
                 self.verifier.add(tx_hash, tx_height)

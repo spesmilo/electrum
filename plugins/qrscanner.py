@@ -5,7 +5,8 @@ from PyQt4.QtCore import Qt
 from electrum_gui.i18n import _
 
 import re
-from electrum.bitcoin import MIN_RELAY_TX_FEE, Transaction, is_valid
+from electrum import Transaction
+from electrum.bitcoin import MIN_RELAY_TX_FEE, is_valid
 from electrum_gui.qrcodewidget import QRCodeWidget
 import electrum_gui.bmp
 import json
