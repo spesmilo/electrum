@@ -33,7 +33,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
-from electrum.bitcoin import MIN_RELAY_TX_FEE
+from electrum.bitcoin import MIN_RELAY_TX_FEE, is_valid
 
 try:
     import icons_rc
