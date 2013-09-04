@@ -193,22 +193,25 @@ class Wallet:
         self.tx_event = threading.Event()
 
         for tx_hash, tx in self.transactions.items():
-            if self.check_new_tx(tx_hash, tx):
-                self.update_tx_outputs(tx_hash)
-            else:
-                print_error("unreferenced tx", tx_hash)
-                self.transactions.pop(tx_hash)
+            self.update_tx_outputs(tx_hash)
 
 
     def add_transaction(self, tx):
         h = tx.hash()
-        self.transactions[h] = tx
         # find the address corresponding to pay-to-pubkey inputs
         tx.add_extra_addresses(self.transactions)
         for o in tx.d.get('outputs'):
             if o.get('is_pubkey'):
                 for tx2 in self.transactions.values():
                     tx2.add_extra_addresses({h:tx})
+
+        if self.check_new_tx(h, tx):
+            self.transactions[h] = tx
+            return True
+        else:
+            print_error("unreferenced tx", tx_hash)
+            return False
+            
 
 
     def set_up_to_date(self,b):
@@ -1016,13 +1019,13 @@ class Wallet:
 
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
-        if not self.check_new_tx(tx_hash, tx):
-            # may happen due to pruning
-            print_error("received transaction that is no longer referenced in history", tx_hash)
-            return
 
         with self.transaction_lock:
-            self.add_transaction(tx)
+            if not self.add_transaction(tx):
+                # may happen due to pruning
+                print_error("received transaction that is no longer referenced in history", tx_hash)
+                return
+
             self.interface.pending_transactions_for_notifications.append(tx)
             self.save_transactions()
             if self.verifier and tx_height>0: 
@@ -1334,6 +1337,7 @@ class Wallet:
         # 2 check that referencing addresses are in the tx
         for addr in addresses:
             if not tx.has_address(addr):
+                print "z", addr, tx.inputs
                 return False
 
         return True
