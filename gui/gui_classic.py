@@ -179,6 +179,7 @@ class StatusBarButton(QPushButton):
         self.setMaximumWidth(25)
         self.clicked.connect(func)
         self.func = func
+        self.setIconSize(QSize(25,25))
 
     def keyPressEvent(self, e):
         if e.key() == QtCore.Qt.Key_Return:
