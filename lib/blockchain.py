@@ -403,10 +403,9 @@ class BlockchainVerifier(threading.Thread):
 
             if height > self.local_height + 50:
                 self.get_chunks(i, header, height)
-
+                self.interface.trigger_callback('updated')
 
             if height > self.local_height:
-
                 # get missing parts from interface (until it connects to my chain)
                 chain = self.get_chain( i, header )
 
@@ -423,6 +422,7 @@ class BlockchainVerifier(threading.Thread):
                     print_error("error", i.server)
                     # todo: dismiss that server
 
+                self.interface.trigger_callback('updated')
     
 
 
