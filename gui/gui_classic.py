@@ -528,7 +528,7 @@ class ElectrumWindow(QMainWindow):
     # returns a python string.
     # if is_diff is True, then include a sign in the string even when
     # non-negative. 
-    def format_amount(self, x, is_diff=False):
+    def format_amount(self, x, is_diff=False, pad=True):
         # x is often an int.
         # the amount of money expressed in "Satoshis"
         y = Decimal(Decimal(x) * pow(10, -Decimal(self.decimal_point)))
@@ -542,6 +542,8 @@ class ElectrumWindow(QMainWindow):
      	normal_string = ""
      	for c in out_byte_array:
      		normal_string += c
+     	if not pad:
+     	    return normal_string
      	# Now add spaces on the right and left here 
      	# (The QString's methods truncate strings sometimes)
      	p = normal_string.find('.')
@@ -569,12 +571,16 @@ class ElectrumWindow(QMainWindow):
 
     # return the number of satoshis based on an entered string of the form
     # '123,456.789,012' assuming the value is in currency string is indicated 
-    # by self.base_unit()  
+    # by self.base_unit().  If the string cannot be converted into a long, 
+    # None is returned.  It will also strip leading and trailing whitespace
+    # before parsing.
+    #
+    # If the string is not well formatted it returns None.
     def read_localized_cryptomoney(self, x):
         if x in['.', '']: return None
         x_copy = x + ''
         if x_copy.__class__ == QString:
-            x = x_copy
+            x = x_copy.trimmed()
         else:
             x = QString(x_copy.strip())
         del x_copy
@@ -901,19 +907,19 @@ class ElectrumWindow(QMainWindow):
                 inputs, total, fee = self.wallet.choose_tx_inputs( c + u, 0, self.current_account)
                 fee = self.wallet.estimated_fee(inputs)
                 amount = c + u - fee
-                self.amount_e.setText( self.format_amount(amount) )
-                self.fee_e.setText( self.format_amount( fee ) )
+                self.amount_e.setText( self.format_amount( amount, False, False ) )
+                self.fee_e.setText( self.format_amount( fee, False, False ) )
                 return
                 
-            amount = self.read_localized_cryptomoney(str(self.amount_e.text()))
-            fee = self.read_localized_cryptomoney(str(self.fee_e.text()))
+            amount = self.read_localized_cryptomoney(str((self.amount_e.text()).trimmed()))
+            fee = self.read_localized_cryptomoney(str((self.fee_e.text()).trimmed()))
 
             if not is_fee: fee = None
             if amount is None:
                 return
             inputs, total, fee = self.wallet.choose_tx_inputs( amount, fee, self.current_account )
             if not is_fee:
-                self.fee_e.setText( self.format_amount( fee ) )
+                self.fee_e.setText( self.format_amount( fee, False, False ) )
             if inputs:
                 palette = QPalette()
                 palette.setColor(self.amount_e.foregroundRole(), QColor('black'))
@@ -967,12 +973,12 @@ class ElectrumWindow(QMainWindow):
             return
 
         try:
-            amount = self.read_localized_cryptomoney(unicode( self.amount_e.text()))
+            amount = long(self.read_localized_cryptomoney(unicode( self.amount_e.text())))
         except:
             QMessageBox.warning(self, _('Error'), _('Invalid Amount'), _('OK'))
             return
         try:
-            fee = self.read_localized_cryptomoney(unicode( self.fee_e.text()))
+            fee = long(self.read_localized_cryptomoney(unicode( self.fee_e.text())))
         except:
             QMessageBox.warning(self, _('Error'), _('Invalid Fee'), _('OK'))
             return
@@ -2099,7 +2105,7 @@ class ElectrumWindow(QMainWindow):
         fee_label = QLabel(_('Transaction fee'))
         grid_wallet.addWidget(fee_label, 0, 0)
         fee_e = AmountEdit(self.base_unit)
-        fee_e.setText(self.format_amount(self.wallet.fee).strip())
+        fee_e.setText(self.format_amount(self.wallet.fee, False, False))
         grid_wallet.addWidget(fee_e, 0, 2)
         msg = _('Fee per kilobyte of transaction.') + ' ' \
             + _('Recommended value') + ': ' + self.format_amount(50000)
@@ -2140,7 +2146,8 @@ class ElectrumWindow(QMainWindow):
                                              + '\n1BTC=1000mBTC.\n' \
                                              + _(' This settings affects the fields in the Send tab')+' '), 3, 3)
         grid_wallet.setRowStretch(4,1)
-
+        grid_wallet.setColumnMinimumWidth(2, 180)
+        
         # plugins
         if self.plugins:
             tab5 = QScrollArea()
@@ -2184,8 +2191,8 @@ class ElectrumWindow(QMainWindow):
         if not d.exec_(): return
 
         try:
-            fee = self.read_localized_cryptomoney(fee_e.text())
-        except:            
+            fee = long(self.read_localized_cryptomoney(fee_e.text()))
+        except:
             QMessageBox.warning(self, _('Error'), _('Invalid value') +': %s'%unicode(fee_e.text()), _('OK'))
             return
 

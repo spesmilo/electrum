@@ -1,3 +1,8 @@
+# Release 1.8.1
+
+* Numeric values are accepted and displayed with thousands separators (commas).
+* Digits appropriate for your locale are accepted by the Electrum client.
+
 # Release 1.8
 
 * Menubar in classic gui

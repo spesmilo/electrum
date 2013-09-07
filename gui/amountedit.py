@@ -5,14 +5,14 @@ from PyQt4.QtGui import *
 from comma_separated import *
 from decimal import Decimal
 
-class BangDoubleValidator(CryptoCurrencyValidator):
+class BangDoubleValidator(CommaSeparatedSpacedQDoubleValidator):
     def __init__(self):
-        CryptoCurrencyValidator.__init__(self, 8, 8)
+        CommaSeparatedSpacedQDoubleValidator.__init__(self, 8, 8, True)
     def validate(self, s, pos):
     	if (str(s)).strip() == '!':
     		return QValidator.Acceptable, pos
     	else:
-    		return CryptoCurrencyValidator.validate(self, s, pos)
+    		return CommaSeparatedSpacedQDoubleValidator.validate(self, s, pos)
 
 
 class AmountEdit(QLineEdit):
