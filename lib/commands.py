@@ -286,7 +286,7 @@ class Commands:
 
 
     def setlabel(self, key, label):
-        self.wallet.set_labels(key, label)
+        self.wallet.set_label(key, label)
 
             
 
