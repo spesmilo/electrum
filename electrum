@@ -128,18 +128,14 @@ if __name__ == '__main__':
             #sys.exit("Error: Unknown GUI: " + gui_name )
         
         # network interface
-        interface = Interface(config, True)
-        interface.start(wait = False)
-        interface.send([('server.peers.subscribe',[])])
+        network = Network(config)
+        network.start()
+        #interface.send([('server.peers.subscribe',[])])
 
-        blockchain = BlockchainVerifier(interface, config)
-        blockchain.start()
-
-        gui = gui.ElectrumGui(config, interface, blockchain)
+        gui = gui.ElectrumGui(config, network)
         gui.main(url)
         
-        interface.stop()
-        blockchain.stop()
+        network.stop()
 
         # we use daemon threads, their termination is enforced.
         # this sleep command gives them time to terminate cleanly. 

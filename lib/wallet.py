@@ -1343,10 +1343,11 @@ class Wallet:
         return True
 
 
-    def start_threads(self, interface, blockchain):
+    def start_threads(self, network):
         from verifier import TxVerifier
-        self.interface = interface
-        self.verifier = TxVerifier(interface, blockchain, self.storage)
+        self.network = network
+        self.interface = network.interface
+        self.verifier = TxVerifier(self.interface, network.blockchain, self.storage)
         self.verifier.start()
         self.set_verifier(self.verifier)
         self.synchronizer = WalletSynchronizer(self)
@@ -1370,7 +1371,7 @@ class WalletSynchronizer(threading.Thread):
         wallet.synchronizer = self
         self.interface = self.wallet.interface
         self.interface.register_channel('synchronizer')
-        self.wallet.interface.register_callback('connected', lambda: self.wallet.set_up_to_date(False))
+        #self.wallet.network.register_callback('connected', lambda: self.wallet.set_up_to_date(False))
         self.was_updated = True
         self.running = False
         self.lock = threading.Lock()

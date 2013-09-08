@@ -568,8 +568,6 @@ class ElectrumWindow(QMainWindow):
             self.config.set_key('io_dir', os.path.dirname(fileName), True)
         return fileName
 
-
-
     def close(self):
         QMainWindow.close(self)
         self.run_hook('close_main_window')
@@ -1367,7 +1365,7 @@ class ElectrumWindow(QMainWindow):
         console.history = self.config.get("console-history",[])
         console.history_index = len(console.history)
 
-        console.updateNamespace({'wallet' : self.wallet, 'interface' : self.wallet.interface, 'gui':self})
+        console.updateNamespace({'wallet' : self.wallet, 'network' : self.wallet.network, 'gui':self})
         console.updateNamespace({'util' : util, 'bitcoin':bitcoin})
 
         c = commands.Commands(self.wallet, self.wallet.interface, lambda: self.console.set_json(True))
@@ -2258,10 +2256,11 @@ class OpenFileEventFilter(QObject):
 
 class ElectrumGui:
 
-    def __init__(self, config, interface, blockchain, app=None):
-        self.interface = interface
+    def __init__(self, config, network, app=None):
+        self.network = network
+        #self.interface = interface
         self.config = config
-        self.blockchain = blockchain
+        #self.blockchain = network.blockchain
         self.windows = []
         self.efilter = OpenFileEventFilter(self.windows)
         if app is None:
@@ -2281,7 +2280,7 @@ class ElectrumGui:
         else:
             wallet = Wallet(storage)
 
-        wallet.start_threads(self.interface, self.blockchain)
+        wallet.start_threads(self.network)
 
         s = Timer()
         s.start()

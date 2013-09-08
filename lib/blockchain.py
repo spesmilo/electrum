@@ -22,10 +22,9 @@ from util import user_dir, appdata_dir, print_error
 from bitcoin import *
 
 
-class BlockchainVerifier(threading.Thread):
-    """ Simple Payment Verification """
+class Blockchain(threading.Thread):
 
-    def __init__(self, interface, config):
+    def __init__(self, config):
         threading.Thread.__init__(self)
         self.daemon = True
         self.config = config
@@ -34,112 +33,62 @@ class BlockchainVerifier(threading.Thread):
         self.local_height = 0
         self.running = False
         self.headers_url = 'http://headers.electrum.org/blockchain_headers'
-        self.interface = interface
-        interface.register_channel('verifier')
         self.set_local_height()
+        self.queue = Queue.Queue()
 
-
-
-    def start_interfaces(self):
-        import interface
-        servers = interface.DEFAULT_SERVERS
-        servers = interface.filter_protocol(servers,'s')
-        print_error("using %d servers"% len(servers))
-        self.interfaces = map ( lambda server: interface.Interface({'server':server} ), servers )
-
-        for i in self.interfaces:
-            i.start()
-            # subscribe to block headers
-            i.register_channel('verifier')
-            i.register_channel('get_header')
-            i.send([ ('blockchain.headers.subscribe',[])], 'verifier')
-            # note: each interface should send its results directly to a queue, instead of channels
-            # pass the queue to the interface, so that several can share the same queue
-
-
-    def get_new_response(self):
-        # listen to interfaces, forward to verifier using the queue
-        while self.is_running():
-            for i in self.interfaces:
-                try:
-                    r = i.get_response('verifier',timeout=0)
-                except Queue.Empty:
-                    continue
-
-                result = r.get('result')
-                if result:
-                    return (i,result)
-
-            time.sleep(1)
-
-
-
-
+    
     def stop(self):
         with self.lock: self.running = False
-        #self.interface.poke('verifier')
+
 
     def is_running(self):
         with self.lock: return self.running
 
 
-    def request_header(self, i, h):
-        print_error("requesting header %d from %s"%(h, i.server))
-        i.send([ ('blockchain.block.get_header',[h])], 'get_header')
+    def run(self):
+        self.init_headers_file()
+        self.set_local_height()
+        print_error( "blocks:", self.local_height )
 
-    def retrieve_header(self, i):
-        while True:
-            try:
-                r = i.get_response('get_header',timeout=1)
-            except Queue.Empty:
-                print_error('timeout')
-                continue
+        with self.lock:
+            self.running = True
 
-            if r.get('error'):
-                print_error('Verifier received an error:', r)
-                continue
-
-            # 3. handle response
-            method = r['method']
-            params = r['params']
-            result = r['result']
-
-            if method == 'blockchain.block.get_header':
-                return result
-                
-
-    def get_chain(self, interface, final_header):
-
-        header = final_header
-        chain = [ final_header ]
-        requested_header = False
-        
         while self.is_running():
 
-            if requested_header:
-                header = self.retrieve_header(interface)
-                if not header: return
-                chain = [ header ] + chain
-                requested_header = False
+            try:
+                i, result = self.queue.get()
+            except Queue.Empty:
+                continue
 
+            header= result.get('result')
+            #print_error( i.server, header )
             height = header.get('block_height')
-            previous_header = self.read_header(height -1)
-            if not previous_header:
-                self.request_header(interface, height - 1)
-                requested_header = True
-                continue
 
-            # verify that it connects to my chain
-            prev_hash = self.hash_header(previous_header)
-            if prev_hash != header.get('prev_block_hash'):
-                print_error("reorg")
-                self.request_header(interface, height - 1)
-                requested_header = True
-                continue
+            if height > self.local_height + 50:
+                self.get_chunks(i, header, height)
+                i.trigger_callback('updated')
 
-            else:
-                # the chain is complete
-                return chain
+            if height > self.local_height:
+                # get missing parts from interface (until it connects to my chain)
+                chain = self.get_chain( i, header )
+
+                # skip that server if the result is not consistent
+                if not chain: continue
+                
+                # verify the chain
+                if self.verify_chain( chain ):
+                    print_error("height:", height, i.server)
+                    for header in chain:
+                        self.save_header(header)
+                        self.height = height
+                else:
+                    print_error("error", i.server)
+                    # todo: dismiss that server
+
+                i.trigger_callback('updated')
+
+
+
                     
             
     def verify_chain(self, chain):
@@ -165,37 +114,6 @@ class BlockchainVerifier(threading.Thread):
 
         return True
 
-
-    def get_chunks(self, i, header, height):
-        requested_chunks = []
-        min_index = (self.local_height + 1)/2016
-        max_index = (height + 1)/2016
-        for n in range(min_index, max_index + 1):
-            print_error( "requesting chunk", n )
-            i.send([ ('blockchain.block.get_chunk',[n])], 'get_header')
-            requested_chunks.append(n)
-            break
-
-        while requested_chunks:
-            try:
-                r = i.get_response('get_header',timeout=1)
-            except Queue.Empty:
-                continue
-            if not r: continue
-
-            if r.get('error'):
-                print_error('Verifier received an error:', r)
-                continue
-
-            # 3. handle response
-            method = r['method']
-            params = r['params']
-            result = r['result']
-
-            if method == 'blockchain.block.get_chunk':
-                index = params[0]
-                self.verify_chunk(index, result)
-                requested_chunks.remove(index)
 
 
     def verify_chunk(self, index, hexdata):
@@ -258,8 +176,6 @@ class BlockchainVerifier(threading.Thread):
         print_error("verify header:", _hash, height)
         return True
         
-
-            
 
     def header_to_string(self, res):
         s = int_to_hex(res.get('version'),4) \
@@ -383,65 +299,100 @@ class BlockchainVerifier(threading.Thread):
         return new_bits, new_target
 
 
+    def request_header(self, i, h):
+        print_error("requesting header %d from %s"%(h, i.server))
+        i.send([ ('blockchain.block.get_header',[h])], 'get_header')
+
+    def retrieve_header(self, i):
+        while True:
+            try:
+                r = i.get_response('get_header',timeout=1)
+            except Queue.Empty:
+                print_error('timeout')
+                continue
+
+            if r.get('error'):
+                print_error('Verifier received an error:', r)
+                continue
+
+            # 3. handle response
+            method = r['method']
+            params = r['params']
+            result = r['result']
+
+            if method == 'blockchain.block.get_header':
+                return result
+                
 
 
-    def run(self):
-        self.start_interfaces()
+    def get_chain(self, interface, final_header):
+
+        header = final_header
+        chain = [ final_header ]
+        requested_header = False
         
-        self.init_headers_file()
-        self.set_local_height()
-        print_error( "blocks:", self.local_height )
-
-        with self.lock:
-            self.running = True
-
         while self.is_running():
 
-            i, header = self.get_new_response()
-            
+            if requested_header:
+                header = self.retrieve_header(interface)
+                if not header: return
+                chain = [ header ] + chain
+                requested_header = False
+
             height = header.get('block_height')
+            previous_header = self.read_header(height -1)
+            if not previous_header:
+                self.request_header(interface, height - 1)
+                requested_header = True
+                continue
 
-            if height > self.local_height + 50:
-                self.get_chunks(i, header, height)
-                self.interface.trigger_callback('updated')
+            # verify that it connects to my chain
+            prev_hash = self.hash_header(previous_header)
+            if prev_hash != header.get('prev_block_hash'):
+                print_error("reorg")
+                self.request_header(interface, height - 1)
+                requested_header = True
+                continue
 
-            if height > self.local_height:
-                # get missing parts from interface (until it connects to my chain)
-                chain = self.get_chain( i, header )
-
-                # skip that server if the result is not consistent
-                if not chain: continue
-                
-                # verify the chain
-                if self.verify_chain( chain ):
-                    print_error("height:", height, i.server)
-                    for header in chain:
-                        self.save_header(header)
-                        self.height = height
-                else:
-                    print_error("error", i.server)
-                    # todo: dismiss that server
-
-                self.interface.trigger_callback('updated')
-    
+            else:
+                # the chain is complete
+                return chain
 
 
+    def get_chunks(self, i, header, height):
+        requested_chunks = []
+        min_index = (self.local_height + 1)/2016
+        max_index = (height + 1)/2016
+        for n in range(min_index, max_index + 1):
+            print_error( "requesting chunk", n )
+            i.send([ ('blockchain.block.get_chunk',[n])], 'get_header')
+            requested_chunks.append(n)
+            break
 
-if __name__ == "__main__":
-    import interface, simple_config
-    
-    config = simple_config.SimpleConfig({'verbose':True})
+        while requested_chunks:
+            try:
+                r = i.get_response('get_header',timeout=1)
+            except Queue.Empty:
+                continue
+            if not r: continue
 
-    i0 = interface.Interface()
-    i0.start()
+            if r.get('error'):
+                print_error('Verifier received an error:', r)
+                continue
 
-    bv = BlockchainVerifier(i0, config)
-    bv.start()
+            # 3. handle response
+            method = r['method']
+            params = r['params']
+            result = r['result']
+
+            if method == 'blockchain.block.get_chunk':
+                index = params[0]
+                self.verify_chunk(index, result)
+                requested_chunks.remove(index)
 
 
-    # listen to interfaces, forward to verifier using the queue
-    while 1:
-        time.sleep(1)
+
+
 
 
 
