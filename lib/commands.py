@@ -194,7 +194,6 @@ class Commands:
     def importprivkey(self, sec):
         try:
             addr = self.wallet.import_key(sec,self.password)
-            self.wallet.save()
             out = "Keypair imported: ", addr
         except BaseException as e:
             out = "Error: Keypair import failed: " + str(e)
@@ -286,9 +285,9 @@ class Commands:
 
 
 
-    def setlabel(self, tx, label):
-        self.wallet.labels[tx] = label
-        self.wallet.save()
+    def setlabel(self, key, label):
+        self.wallet.set_labels(key, label)
+
             
 
     def contacts(self):

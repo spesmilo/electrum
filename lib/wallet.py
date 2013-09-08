@@ -390,13 +390,17 @@ class Wallet:
         return account_id, account
 
 
+    def set_label(self, key, value):
+        self.labels[account_id] = name
+        self.storage.put('labels', self.labels, True)
+
+
     def create_account(self, account_type = '1', name = None):
         account_id, account = self.next_account(account_type)
         self.accounts[account_id] = account
         self.save_accounts()
-        if name: 
-            self.labels[account_id] = name
-        self.storage.put('labels', self.labels, True)
+        if name:
+            self.set_label(account_id, name)
 
 
     def create_old_account(self):
@@ -758,8 +762,8 @@ class Wallet:
         self.addressbook.append(address)
         self.storage.put('contacts', self.addressbook, True)
         if label:  
-            self.labels[address] = label
-            self.storage.put('labels', self.labels, True)
+            self.set_label(address, label)
+
 
     def delete_contact(self, addr):
         if addr in self.addressbook:
