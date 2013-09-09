@@ -56,17 +56,19 @@ class Blockchain(threading.Thread):
         while self.is_running():
 
             try:
-                i, result = self.queue.get()
+                result = self.queue.get()
             except Queue.Empty:
                 continue
 
+            if not result: continue
+
+            i, result = result
             header= result.get('result')
-            #print_error( i.server, header )
             height = header.get('block_height')
 
             if height > self.local_height + 50:
                 self.get_chunks(i, header, height)
-                i.trigger_callback('updated')
+                i.network.trigger_callback('updated')
 
             if height > self.local_height:
                 # get missing parts from interface (until it connects to my chain)
@@ -85,7 +87,7 @@ class Blockchain(threading.Thread):
                     print_error("error", i.server)
                     # todo: dismiss that server
 
-                i.trigger_callback('updated')
+                i.network.trigger_callback('updated')
 
 
 

@@ -1447,7 +1447,7 @@ class WalletSynchronizer(threading.Thread):
                     self.was_updated = True
 
             if self.was_updated:
-                self.interface.trigger_callback('updated')
+                self.interface.network.trigger_callback('updated')
                 self.was_updated = False
 
             # 2. get a response
@@ -1523,8 +1523,7 @@ class WalletSynchronizer(threading.Thread):
                 print_error("Error: Unknown message:" + method + ", " + repr(params) + ", " + repr(result) )
 
             if self.was_updated and not requested_tx:
-                self.interface.trigger_callback('updated')
-                self.interface.trigger_callback("new_transaction") # Updated gets called too many times from other places as well; if we use that signal we get the notification three times
-                
+                self.interface.network.trigger_callback('updated')
+                self.interface.network.trigger_callback("new_transaction") # Updated gets called too many times from other places as well; if we use that signal we get the notification three times
 
                 self.was_updated = False

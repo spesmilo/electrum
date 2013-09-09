@@ -17,7 +17,21 @@ class Network(threading.Thread):
         self.queue = Queue.Queue()
         self.default_server = self.config.get('server')
         self.servers_list = interface.filter_protocol(interface.DEFAULT_SERVERS,'s')
+        self.callbacks = {}
 
+
+    def register_callback(self, event, callback):
+        with self.lock:
+            if not self.callbacks.get(event):
+                self.callbacks[event] = []
+            self.callbacks[event].append(callback)
+
+
+    def trigger_callback(self, event):
+        with self.lock:
+            callbacks = self.callbacks.get(event,[])[:]
+        if callbacks:
+            [callback() for callback in callbacks]
 
 
     def start_interfaces(self):
@@ -26,22 +40,29 @@ class Network(threading.Thread):
             self.interfaces[server] = interface.Interface({'server':server})
 
         for i in self.interfaces.values():
+            i.network = self # fixme
             i.start(self.queue)
 
         if self.default_server:
             self.interface = interface.Interface({'server':self.default_server})
+            self.interface.network = self # fixme
             self.interface.start(self.queue)
         else:
             self.interface = self.interfaces[0]
 
 
+    def start(self, wait=False):
 
+        self.start_interfaces()
+        threading.Thread.__init__(self)
+        if wait:
+            self.interface.connect_event.wait()
+            return self.interface.is_connected
 
 
 
     def run(self):
         self.blockchain.start()
-        self.start_interfaces()
 
         with self.lock:
             self.running = True

@@ -227,10 +227,11 @@ class ElectrumWindow(QMainWindow):
             self.showNormal()
 
 
-    def __init__(self, config):
+    def __init__(self, config, network):
         QMainWindow.__init__(self)
 
         self.config = config
+        self.network = network
         self.init_plugins()
 
         self._close_electrum = False
@@ -303,11 +304,11 @@ class ElectrumWindow(QMainWindow):
         import electrum
         self.wallet = wallet
 
-        self.wallet.interface.register_callback('updated', lambda: self.need_update.set())
-        self.wallet.interface.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')))
-        self.wallet.interface.register_callback('disconnected', lambda: self.emit(QtCore.SIGNAL('update_status')))
-        self.wallet.interface.register_callback('disconnecting', lambda: self.emit(QtCore.SIGNAL('update_status')))
-        self.wallet.interface.register_callback('new_transaction', lambda: self.emit(QtCore.SIGNAL('transaction_signal')))
+        self.network.register_callback('updated', lambda: self.need_update.set())
+        self.network.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')))
+        self.network.register_callback('disconnected', lambda: self.emit(QtCore.SIGNAL('update_status')))
+        self.network.register_callback('disconnecting', lambda: self.emit(QtCore.SIGNAL('update_status')))
+        self.network.register_callback('new_transaction', lambda: self.emit(QtCore.SIGNAL('transaction_signal')))
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.wallet.storage.path
         if not self.wallet.seed: title += ' [%s]' % (_('seedless'))
         self.setWindowTitle( title )
@@ -2283,7 +2284,7 @@ class ElectrumGui:
 
         s = Timer()
         s.start()
-        w = ElectrumWindow(self.config)
+        w = ElectrumWindow(self.config, self.network)
         w.load_wallet(wallet)
 
         self.windows.append(w)

@@ -130,13 +130,11 @@ if __name__ == '__main__':
         # network interface
         network = Network(config)
         network.start()
-        #interface.send([('server.peers.subscribe',[])])
 
         gui = gui.ElectrumGui(config, network)
         gui.main(url)
         
         network.stop()
-
         # we use daemon threads, their termination is enforced.
         # this sleep command gives them time to terminate cleanly. 
         time.sleep(0.1)
@@ -319,15 +317,13 @@ if __name__ == '__main__':
 
     # open session
     if cmd not in offline_commands and not options.offline:
-        interface = Interface(config)
-        interface.register_callback('connected', lambda: sys.stderr.write("Connected to " + interface.connection_msg + "\n"))
-
-        if not interface.start(wait=True):
+        network = Network(config)
+        network.register_callback('connected', lambda: sys.stderr.write("Connected to " + network.interface.connection_msg + "\n"))
+        if not network.start(wait=True):
             print_msg("Not connected, aborting.")
             sys.exit(1)
-        blockchain = BlockchainVerifier(interface, config)
-        blockchain.start()
-        wallet.start_threads(interface, blockchain)
+
+        wallet.start_threads(network)
         wallet.update()
 
 
@@ -388,7 +384,6 @@ if __name__ == '__main__':
 
     if cmd not in offline_commands and not options.offline:
         wallet.stop_threads()
-        interface.stop()
-        blockchain.stop()
+        network.stop()
         time.sleep(0.1)
         sys.exit(0)

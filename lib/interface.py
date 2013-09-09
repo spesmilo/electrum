@@ -67,19 +67,6 @@ def pick_random_server():
 class Interface(threading.Thread):
 
 
-    def register_callback(self, event, callback):
-        with self.lock:
-            if not self.callbacks.get(event):
-                self.callbacks[event] = []
-            self.callbacks[event].append(callback)
-
-
-    def trigger_callback(self, event):
-        with self.lock:
-            callbacks = self.callbacks.get(event,[])[:]
-        if callbacks:
-            [callback() for callback in callbacks]
-
 
     def init_server(self, host, port, proxy=None, use_ssl=True):
         self.host = host
@@ -156,11 +143,11 @@ class Interface(threading.Thread):
 
             elif method == 'server.banner':
                 self.banner = result
-                self.trigger_callback('banner')
+                self.network.trigger_callback('banner')
 
             elif method == 'server.peers.subscribe':
                 self.servers = self.parse_servers(result)
-                self.trigger_callback('peers')
+                self.network.trigger_callback('peers')
 
         else:
             # notification: find the channel(s)
@@ -196,8 +183,9 @@ class Interface(threading.Thread):
 
 
     def get_response(self, channel='default', block=True, timeout=10000000000):
-        i, r = self.responses[channel].get(block, timeout)
-        return r
+        ir = self.responses[channel].get(block, timeout)
+        if ir:
+            return ir[1]
 
     def register_channel(self, channel, queue=None):
         if queue is None:
@@ -441,7 +429,6 @@ class Interface(threading.Thread):
         self.responses = {}
         self.responses['default'] = Queue.Queue()
 
-        self.callbacks = {}
         self.lock = threading.Lock()
 
         self.servers = {} # actual list from IRC

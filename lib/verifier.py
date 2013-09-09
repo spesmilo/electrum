@@ -90,7 +90,7 @@ class TxVerifier(threading.Thread):
 
     def stop(self):
         with self.lock: self.running = False
-        self.interface.poke('verifier')
+        #self.interface.poke('verifier')
 
     def is_running(self):
         with self.lock: return self.running
