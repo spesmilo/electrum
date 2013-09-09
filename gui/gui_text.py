@@ -12,16 +12,17 @@ import tty, sys
 
 class ElectrumGui:
 
-    def __init__(self, config, interface, blockchain):
+    def __init__(self, config, network):
 
         self.config = config
+        self.network = network
         storage = WalletStorage(config)
         if not storage.file_exists:
             print "Wallet not found. try 'electrum create'"
             exit()
 
         self.wallet = Wallet(storage)
-        self.wallet.start_threads(interface, blockchain)
+        self.wallet.start_threads(network)
 
         self.stdscr = curses.initscr()
         curses.noecho()
@@ -46,10 +47,10 @@ class ElectrumGui:
         self.str_amount = ""
         self.str_fee = ""
         
-        self.wallet.interface.register_callback('updated', self.refresh)
-        self.wallet.interface.register_callback('connected', self.refresh)
-        self.wallet.interface.register_callback('disconnected', self.refresh)
-        self.wallet.interface.register_callback('disconnecting', self.refresh)
+        self.network.register_callback('updated', self.refresh)
+        self.network.register_callback('connected', self.refresh)
+        self.network.register_callback('disconnected', self.refresh)
+        self.network.register_callback('disconnecting', self.refresh)
         self.tab_names = [_("History"), _("Send"), _("Receive"), _("Contacts"), _("Wall")]
         self.num_tabs = len(self.tab_names)
         
