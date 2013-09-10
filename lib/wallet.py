@@ -391,7 +391,7 @@ class Wallet:
 
 
     def set_label(self, key, value):
-        self.labels[account_id] = name
+        self.labels[key] = value
         self.storage.put('labels', self.labels, True)
 
 

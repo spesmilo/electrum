@@ -2273,7 +2273,7 @@ class ElectrumGui:
         storage = WalletStorage(self.config)
         if not storage.file_exists:
             import installwizard
-            wizard = installwizard.InstallWizard(self.config, self.interface, self.blockchain, storage)
+            wizard = installwizard.InstallWizard(self.config, self.network, storage)
             wallet = wizard.run()
             if not wallet: 
                 exit()

@@ -14,11 +14,12 @@ import sys
 
 class InstallWizard(QDialog):
 
-    def __init__(self, config, interface, blockchain, storage):
+    def __init__(self, config, network, storage):
         QDialog.__init__(self)
         self.config = config
-        self.interface = interface
-        self.blockchain = blockchain
+        self.network = network
+        self.interface = network.interface
+        self.blockchain = network.blockchain
         self.storage = storage
 
 
@@ -330,7 +331,7 @@ class InstallWizard(QDialog):
         self.network_dialog()
 
         # start wallet threads
-        wallet.start_threads(self.interface, self.blockchain)
+        wallet.start_threads(self.network)
 
         if action == 'restore':
             try:

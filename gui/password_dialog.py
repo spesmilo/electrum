@@ -94,7 +94,10 @@ class PasswordDialog(QDialog):
             QMessageBox.warning(self.parent, _('Error'), _('Failed to update password'), _('OK'))
             return
 
-        QMessageBox.information(self.parent, _('Success'), _('Password was updated successfully'), _('OK'))
+        if new_password:
+            QMessageBox.information(self.parent, _('Success'), _('Password was updated successfully'), _('OK'))
+        else:
+            QMessageBox.information(self.parent, _('Success'), _('This wallet is not encrypted'), _('OK'))
 
 
 
