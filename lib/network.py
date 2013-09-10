@@ -54,7 +54,7 @@ class Network(threading.Thread):
     def start(self, wait=False):
 
         self.start_interfaces()
-        threading.Thread.__init__(self)
+        threading.Thread.start(self)
         if wait:
             self.interface.connect_event.wait()
             return self.interface.is_connected

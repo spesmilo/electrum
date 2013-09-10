@@ -143,6 +143,7 @@ class Interface(threading.Thread):
 
             elif method == 'server.banner':
                 self.banner = result
+                print "banner"
                 self.network.trigger_callback('banner')
 
             elif method == 'server.peers.subscribe':
@@ -605,6 +606,7 @@ class Interface(threading.Thread):
         self.change_status()
         
     def change_status(self):
+        #print "change status", self.server, self.is_connected
         self.queue.put(self)
 
 
