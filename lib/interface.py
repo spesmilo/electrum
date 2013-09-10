@@ -143,7 +143,6 @@ class Interface(threading.Thread):
 
             elif method == 'server.banner':
                 self.banner = result
-                print "banner"
                 self.network.trigger_callback('banner')
 
             elif method == 'server.peers.subscribe':

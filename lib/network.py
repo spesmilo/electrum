@@ -1,8 +1,8 @@
+import threading, time, Queue, os, sys, shutil, random
+from util import user_dir, appdata_dir, print_error, print_msg
+from bitcoin import *
 import interface
 from blockchain import Blockchain
-import threading, time, Queue, os, sys, shutil
-from util import user_dir, appdata_dir, print_error
-from bitcoin import *
 
 
 class Network(threading.Thread):
@@ -34,31 +34,48 @@ class Network(threading.Thread):
             [callback() for callback in callbacks]
 
 
+    def random_server(self):
+        if len(self.servers_list) <= len(self.interfaces.keys()):
+            return
+        
+        while True:
+            server = random.choice( self.servers_list )
+            if server not in self.interfaces.keys(): break
+
+        return server
+
+
+    def start_interface(self, server):
+        if server in self.interfaces.keys():
+            return
+        i = interface.Interface({'server':server})
+        i.network = self # fixme
+        self.interfaces[server] = i
+        i.start(self.queue)
+
+    def start_random_interface(self):
+        server = self.random_server()
+        if server:
+            self.start_interface(server)
+
     def start_interfaces(self):
-
-        for server in self.servers_list:
-            self.interfaces[server] = interface.Interface({'server':server})
-
-        for i in self.interfaces.values():
-            i.network = self # fixme
-            i.start(self.queue)
-
         if self.default_server:
-            self.interface = interface.Interface({'server':self.default_server})
-            self.interface.network = self # fixme
-            self.interface.start(self.queue)
-        else:
-            self.interface = self.interfaces[0]
+            self.start_interface(self.default_server)
+            self.interface = self.interfaces[self.default_server]
+
+        for i in range(8):
+            self.start_random_interface()
+            
+        if not self.interface:
+            self.interface = self.interfaces.values()[0]
 
 
     def start(self, wait=False):
-
         self.start_interfaces()
         threading.Thread.start(self)
         if wait:
             self.interface.connect_event.wait()
             return self.interface.is_connected
-
 
 
     def run(self):
@@ -74,21 +91,25 @@ class Network(threading.Thread):
                 i.register_channel('verifier', self.blockchain.queue)
                 i.register_channel('get_header')
                 i.send([ ('blockchain.headers.subscribe',[])], 'verifier')
+
                 if i == self.interface:
                     i.send([('server.banner',[])])
                     i.send([('server.peers.subscribe',[])])
             else:
+                self.servers_list.remove(i.server)
                 self.interfaces.pop(i.server)
+                self.start_random_interface()
+                
                 if i == self.interface:
-                    if self.default_server is None:
-                        print_msg("Using random server...")
-                        server = random.choice( self.servers_list )
-                        self.interface = interface.Interface({'server':self.default_server})
+                    if self.config.get('auto_cycle'):
+                        self.interface = random.choice(self.interfaces.values())
+                        self.config.set_key('server', self.interface.server, False)
                     else:
-                        #i.trigger_callback('disconnected')
-                        pass
+                        self.trigger_callback('disconnected')
+                
 
-    def on_peers(self, resut):
+    def on_peers(self, result):
+        # populate servers list here
         pass
 
     def on_banner(self, result):
@@ -105,26 +126,6 @@ class Network(threading.Thread):
         for channel, messages in self.subscriptions.items():
             if messages:
                 self.send(messages, channel)
-
-
-    def auto_cycle(self):
-        if not self.is_connected and self.config.get('auto_cycle'):
-            print_msg("Using random server...")
-            servers = filter_protocol(DEFAULT_SERVERS, 's')
-            while servers:
-                server = random.choice( servers )
-                servers.remove(server)
-                print server
-                self.config.set_key('server', server, False)
-                self.init_with_server(self.config)
-                if self.is_connected: break
-
-            if not self.is_connected:
-                print 'no server available'
-                self.connect_event.set() # to finish start
-                self.server = 'ecdsa.org:50001:t'
-                self.proxy = None
-                return
 
 
 
