@@ -155,7 +155,7 @@ class Commands:
     def dumpprivkeys(self, addresses = None):
         if addresses is None:
             addresses = self.wallet.addresses(True)
-        return self.wallet.get_private_keys(addresses, self.password)
+        return [self.wallet.get_private_key(address, self.password) for address in addresses]
 
     def validateaddress(self,addr):
         isvalid = is_valid(addr)
