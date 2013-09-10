@@ -630,7 +630,9 @@ class Wallet:
         tx.sign( keypairs )
 
     def sign_message(self, address, message, password):
-        sec = self.get_private_key(address, password)
+        keys = self.get_private_key(address, password)
+        assert len(keys) == 1
+        sec = keys[0]
         key = regenerate_key(sec)
         compressed = is_compressed(sec)
         return key.sign_message(message, compressed, address)
