@@ -286,7 +286,10 @@ SECP256k1 = ecdsa.curves.Curve("SECP256k1", curve_secp256k1, generator_secp256k1
 from ecdsa.util import string_to_number, number_to_string
 
 def msg_magic(message):
-    return "\x18Bitcoin Signed Message:\n" + chr( len(message) ) + message
+    varint = var_int(len(message))
+    encoded_varint = "".join([chr(int(varint[i:i+2], 16)) for i in xrange(0, len(varint), 2)])
+
+    return "\x18Bitcoin Signed Message:\n" + encoded_varint + message
 
 
 class EC_KEY(object):
