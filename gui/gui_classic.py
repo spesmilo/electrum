@@ -75,101 +75,6 @@ import re
 from qt_util import *
 
 
-class VersionGetter(threading.Thread):
-
-    def __init__(self, label):
-        threading.Thread.__init__(self)
-        self.label = label
-        
-    def run(self):
-        try:
-            con = httplib.HTTPConnection('electrum.org', 80, timeout=5)
-            con.request("GET", "/version")
-            res = con.getresponse()
-        except socket.error as msg:
-            print_error("Could not retrieve version information")
-            return
-            
-        if res.status == 200:
-            latest_version = res.read()
-            latest_version = latest_version.replace("\n","")
-            if(re.match('^\d+(\.\d+)*$', latest_version)):
-                self.label.callback(latest_version)
-
-class UpdateLabel(QLabel):
-    def __init__(self, config, sb):
-        QLabel.__init__(self)
-        self.new_version = False
-        self.sb = sb
-        self.config = config
-        self.current_version = ELECTRUM_VERSION
-        self.connect(self, QtCore.SIGNAL('new_electrum_version'), self.new_electrum_version)
-        VersionGetter(self).start()
-
-    def callback(self, version):
-        self.latest_version = version
-        if(self.compare_versions(self.latest_version, self.current_version) == 1):
-            latest_seen = self.config.get("last_seen_version",ELECTRUM_VERSION)
-            if(self.compare_versions(self.latest_version, latest_seen) == 1):
-                self.new_version = True
-                self.emit(QtCore.SIGNAL('new_electrum_version'))
-
-    def new_electrum_version(self):
-        if self.new_version:
-            self.setText(_("New version available") + ": " + self.latest_version)
-            self.sb.insertPermanentWidget(1, self)
-
-    def compare_versions(self, version1, version2):
-        def normalize(v):
-            return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
-        return cmp(normalize(version1), normalize(version2))
-
-    def ignore_this_version(self):
-        self.setText("")
-        self.config.set_key("last_seen_version", self.latest_version, True)
-        QMessageBox.information(self, _("Preference saved"), _("Notifications about this update will not be shown again."))
-        self.dialog.done(0)
-
-    def ignore_all_version(self):
-        self.setText("")
-        self.config.set_key("last_seen_version", "9.9.9", True)
-        QMessageBox.information(self, _("Preference saved"), _("No more notifications about version updates will be shown."))
-        self.dialog.done(0)
-  
-    def open_website(self):
-        webbrowser.open("http://electrum.org/download.html")
-        self.dialog.done(0)
-
-    def mouseReleaseEvent(self, event):
-        dialog = QDialog(self)
-        dialog.setWindowTitle(_('Electrum update'))
-        dialog.setModal(1)
-
-        main_layout = QGridLayout()
-        main_layout.addWidget(QLabel(_("A new version of Electrum is available:")+" " + self.latest_version), 0,0,1,3)
-        
-        ignore_version = QPushButton(_("Ignore this version"))
-        ignore_version.clicked.connect(self.ignore_this_version)
-
-        ignore_all_versions = QPushButton(_("Ignore all versions"))
-        ignore_all_versions.clicked.connect(self.ignore_all_version)
-
-        open_website = QPushButton(_("Goto download page"))
-        open_website.clicked.connect(self.open_website)
-
-        main_layout.addWidget(ignore_version, 1, 0)
-        main_layout.addWidget(ignore_all_versions, 1, 1)
-        main_layout.addWidget(open_website, 1, 2)
-
-        dialog.setLayout(main_layout)
-
-        self.dialog = dialog
-        
-        if not dialog.exec_(): return
-
-
-
-
 class MyTreeWidget(QTreeWidget):
     def __init__(self, parent):
         QTreeWidget.__init__(self, parent)
@@ -1421,6 +1326,7 @@ class ElectrumWindow(QMainWindow):
         self.balance_label = QLabel("")
         sb.addWidget(self.balance_label)
 
+        from version_getter import UpdateLabel
         self.updatelabel = UpdateLabel(self.config, sb)
 
         self.account_selector = QComboBox()
