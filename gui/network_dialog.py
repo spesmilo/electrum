@@ -44,10 +44,18 @@ class NetworkDialog(QDialog):
         self.protocol = None
 
         if parent:
-            if interface.is_connected:
-                status = _("Connected to")+" %s"%(interface.host) + "\n%d "%(network.blockchain.height)+_("blocks")
+            n = len(network.interfaces)
+            if n:
+                status = _("Connected to %d servers")%n + ", %d "%(network.blockchain.height) + _("blocks")
             else:
                 status = _("Not connected")
+
+            if interface.is_connected:
+                status += "\n" + _("History server:") + " %s"%(interface.host) 
+            else:
+                status += "\n" + _("History server is disconnected")
+                
+
             server = interface.server
         else:
             import random
@@ -229,6 +237,6 @@ class NetworkDialog(QDialog):
 
         self.config.set_key("proxy", proxy, True)
         self.config.set_key("server", server, True)
-        self.interface.set_server(server, proxy)
+        self.network.set_server(server, proxy)
         self.config.set_key('auto_cycle', self.autocycle_cb.isChecked(), True)
         return True

@@ -129,7 +129,7 @@ class Interface(threading.Thread):
                 with self.lock: 
                     method, params, channel = self.unanswered_requests.pop(msg_id)
                 response_queue = self.responses[channel]
-                response_queue.put({'method':method, 'params':params, 'error':error, 'id':msg_id})
+                response_queue.put((self,{'method':method, 'params':params, 'error':error, 'id':msg_id}))
 
             return
 

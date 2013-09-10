@@ -78,6 +78,15 @@ class Network(threading.Thread):
             return self.interface.is_connected
 
 
+    def set_server(self, server, proxy):
+        subscriptions = self.interface.subscriptions
+        self.default_server = server
+        self.start_interface(server)
+        self.interface = self.interfaces[server]
+        self.resend_subscriptions(subscriptions)
+        self.trigger_callback('disconnecting') # for actively disconnecting
+
+
     def run(self):
         self.blockchain.start()
 
@@ -122,10 +131,10 @@ class Network(threading.Thread):
         with self.lock: return self.running
 
 
-    def resend_subscriptions(self):
-        for channel, messages in self.subscriptions.items():
+    def resend_subscriptions(self, subscriptions):
+        for channel, messages in subscriptions.items():
             if messages:
-                self.send(messages, channel)
+                self.interface.send(messages, channel)
 
 
 
