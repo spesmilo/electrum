@@ -438,7 +438,7 @@ class Wallet:
 
         for addr in self.first_addresses.values():
             if addr not in o:
-                o += addr
+                o += [addr]
         return o
 
 
