@@ -12,7 +12,7 @@ class Network(threading.Thread):
         self.daemon = True
         self.config = config
         self.lock = threading.Lock()
-        self.blockchain = Blockchain(config)
+        self.blockchain = Blockchain(config, self)
         self.interfaces = {}
         self.queue = Queue.Queue()
         self.default_server = self.config.get('server')

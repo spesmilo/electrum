@@ -24,10 +24,11 @@ from bitcoin import *
 
 class Blockchain(threading.Thread):
 
-    def __init__(self, config):
+    def __init__(self, config, network):
         threading.Thread.__init__(self)
         self.daemon = True
         self.config = config
+        self.network = network
         self.lock = threading.Lock()
         self.height = 0
         self.local_height = 0
@@ -35,6 +36,7 @@ class Blockchain(threading.Thread):
         self.headers_url = 'http://headers.electrum.org/blockchain_headers'
         self.set_local_height()
         self.queue = Queue.Queue()
+        self.servers_height = {}
 
     
     def stop(self):
@@ -63,12 +65,13 @@ class Blockchain(threading.Thread):
             if not result: continue
 
             i, result = result
-            header= result.get('result')
+            header = result.get('result')
             height = header.get('block_height')
+            self.servers_height[i.server] = height
 
             if height > self.local_height + 50:
                 self.get_chunks(i, header, height)
-                i.network.trigger_callback('updated')
+                self.network.trigger_callback('updated')
 
             if height > self.local_height:
                 # get missing parts from interface (until it connects to my chain)
@@ -87,8 +90,12 @@ class Blockchain(threading.Thread):
                     print_error("error", i.server)
                     # todo: dismiss that server
 
-                i.network.trigger_callback('updated')
+                self.network.trigger_callback('updated')
 
+            h = self.servers_height.get(self.network.interface.server)
+            if h is not None and h < height:
+                print "server is lagging", height - i.network.interface.height
+                self.network.interface.stop()
 
 
                     

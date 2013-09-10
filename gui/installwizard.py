@@ -18,8 +18,6 @@ class InstallWizard(QDialog):
         QDialog.__init__(self)
         self.config = config
         self.network = network
-        self.interface = network.interface
-        self.blockchain = network.blockchain
         self.storage = storage
 
 
@@ -217,7 +215,7 @@ class InstallWizard(QDialog):
             return
         
         if b2.isChecked():
-            return NetworkDialog(self.interface, self.config, None).do_exec()
+            return NetworkDialog(self.network, self.config, None).do_exec()
 
         elif b1.isChecked():
             self.config.set_key('auto_cycle', True, True)

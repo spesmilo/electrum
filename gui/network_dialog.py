@@ -31,20 +31,21 @@ protocol_names = ['TCP', 'HTTP', 'SSL', 'HTTPS']
 protocol_letters = 'thsg'
 
 class NetworkDialog(QDialog):
-    def __init__(self, interface, config, parent):
+    def __init__(self, network, config, parent):
 
         QDialog.__init__(self,parent)
         self.setModal(1)
         self.setWindowTitle(_('Server'))
         self.setMinimumSize(375, 20)
 
-        self.interface = interface
+        self.network = network
+        self.interface = interface = network.interface
         self.config = config
         self.protocol = None
 
         if parent:
             if interface.is_connected:
-                status = _("Connected to")+" %s"%(interface.host) + "\n%d "%(parent.wallet.verifier.blockchain.height)+_("blocks")
+                status = _("Connected to")+" %s"%(interface.host) + "\n%d "%(network.blockchain.height)+_("blocks")
             else:
                 status = _("Not connected")
             server = interface.server
@@ -54,6 +55,7 @@ class NetworkDialog(QDialog):
             server = interface.server
 
         self.servers = interface.get_servers()
+
 
         vbox = QVBoxLayout()
         vbox.setSpacing(30)

@@ -1366,7 +1366,7 @@ class ElectrumWindow(QMainWindow):
         console.history = self.config.get("console-history",[])
         console.history_index = len(console.history)
 
-        console.updateNamespace({'wallet' : self.wallet, 'network' : self.wallet.network, 'gui':self})
+        console.updateNamespace({'wallet' : self.wallet, 'network' : self.network, 'gui':self})
         console.updateNamespace({'util' : util, 'bitcoin':bitcoin})
 
         c = commands.Commands(self.wallet, self.wallet.interface, lambda: self.console.set_json(True))
@@ -2230,7 +2230,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_tab_set_mode(expert_cb.isChecked())
 
     def run_network_dialog(self):
-        NetworkDialog(self.wallet.interface, self.config, self).do_exec()
+        NetworkDialog(self.wallet.network, self.config, self).do_exec()
 
     def closeEvent(self, event):
         g = self.geometry()
