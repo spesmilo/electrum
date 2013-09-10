@@ -1351,7 +1351,7 @@ class Wallet:
         from verifier import TxVerifier
         self.network = network
         self.interface = network.interface
-        self.verifier = TxVerifier(self.interface, network.blockchain, self.storage)
+        self.verifier = TxVerifier(self.network, self.storage)
         self.verifier.start()
         self.set_verifier(self.verifier)
         self.synchronizer = WalletSynchronizer(self)

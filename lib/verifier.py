@@ -27,12 +27,13 @@ from bitcoin import *
 class TxVerifier(threading.Thread):
     """ Simple Payment Verification """
 
-    def __init__(self, interface, blockchain, storage):
+    def __init__(self, network, storage):
         threading.Thread.__init__(self)
         self.daemon = True
         self.storage = storage
-        self.blockchain = blockchain
-        self.interface = interface
+        self.network = network
+        self.blockchain = network.blockchain
+        self.interface = network.interface
         self.transactions    = {}                                 # requested verifications (with height sent by the requestor)
         self.interface.register_channel('txverifier')
         self.verified_tx     = storage.get('verified_tx3',{})      # height, timestamp of verified transactions
@@ -143,7 +144,7 @@ class TxVerifier(threading.Thread):
             self.verified_tx[tx_hash] = (tx_height, timestamp, pos)
         print_error("verified %s"%tx_hash)
         self.storage.put('verified_tx3', self.verified_tx, True)
-        self.interface.trigger_callback('updated')
+        self.network.trigger_callback('updated')
 
 
     def hash_merkle_root(self, merkle_s, target_hash, pos):
