@@ -1601,11 +1601,11 @@ class ElectrumWindow(QMainWindow):
     def show_private_key(self, address, password):
         if not address: return
         try:
-            pk = self.wallet.get_private_key(address, password)
+            pk_list = self.wallet.get_private_key(address, password)
         except BaseException, e:
             self.show_message(str(e))
             return
-        QMessageBox.information(self, _('Private key'), 'Address'+ ': ' + address + '\n\n' + _('Private key') + ': ' + pk, _('OK'))
+        QMessageBox.information(self, _('Private key'), 'Address'+ ': ' + address + '\n\n' + _('Private key') + ': ' + '\n'.join(pk_list), _('OK'))
 
 
     @protected
