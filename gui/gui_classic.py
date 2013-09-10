@@ -74,11 +74,14 @@ import re
 
 from qt_util import *
 
-class UpdateLabel(QLabel):
-    def __init__(self, config, parent=None):
-        QLabel.__init__(self, parent)
-        self.new_version = False
 
+class VersionGetter(threading.Thread):
+
+    def __init__(self, label):
+        threading.Thread.__init__(self)
+        self.label = label
+        
+    def run(self):
         try:
             con = httplib.HTTPConnection('electrum.org', 80, timeout=5)
             con.request("GET", "/version")
@@ -88,17 +91,33 @@ class UpdateLabel(QLabel):
             return
             
         if res.status == 200:
-            self.latest_version = res.read()
-            self.latest_version = self.latest_version.replace("\n","")
-            if(re.match('^\d+(\.\d+)*$', self.latest_version)):
-                self.config = config
-                self.current_version = ELECTRUM_VERSION
-                if(self.compare_versions(self.latest_version, self.current_version) == 1):
-                    latest_seen = self.config.get("last_seen_version",ELECTRUM_VERSION)
-                    if(self.compare_versions(self.latest_version, latest_seen) == 1):
-                        self.new_version = True
-                        self.setText(_("New version available") + ": " + self.latest_version)
+            latest_version = res.read()
+            latest_version = latest_version.replace("\n","")
+            if(re.match('^\d+(\.\d+)*$', latest_version)):
+                self.label.callback(latest_version)
 
+class UpdateLabel(QLabel):
+    def __init__(self, config, sb):
+        QLabel.__init__(self)
+        self.new_version = False
+        self.sb = sb
+        self.config = config
+        self.current_version = ELECTRUM_VERSION
+        self.connect(self, QtCore.SIGNAL('new_electrum_version'), self.new_electrum_version)
+        VersionGetter(self).start()
+
+    def callback(self, version):
+        self.latest_version = version
+        if(self.compare_versions(self.latest_version, self.current_version) == 1):
+            latest_seen = self.config.get("last_seen_version",ELECTRUM_VERSION)
+            if(self.compare_versions(self.latest_version, latest_seen) == 1):
+                self.new_version = True
+                self.emit(QtCore.SIGNAL('new_electrum_version'))
+
+    def new_electrum_version(self):
+        if self.new_version:
+            self.setText(_("New version available") + ": " + self.latest_version)
+            self.sb.insertPermanentWidget(1, self)
 
     def compare_versions(self, version1, version2):
         def normalize(v):
@@ -283,6 +302,7 @@ class ElectrumWindow(QMainWindow):
         self.connect(self, QtCore.SIGNAL('update_status'), self.update_status)
         self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.wallet.interface.banner) )
         self.connect(self, QtCore.SIGNAL('transaction_signal'), lambda: self.notify_transactions() )
+
         self.history_list.setFocus(True)
         
         self.exchanger = exchange_rate.Exchanger(self)
@@ -1401,9 +1421,7 @@ class ElectrumWindow(QMainWindow):
         self.balance_label = QLabel("")
         sb.addWidget(self.balance_label)
 
-        update_notification = UpdateLabel(self.config)
-        if(update_notification.new_version):
-            sb.addPermanentWidget(update_notification)
+        self.updatelabel = UpdateLabel(self.config, sb)
 
         self.account_selector = QComboBox()
         self.connect(self.account_selector,SIGNAL("activated(QString)"),self.change_account) 
