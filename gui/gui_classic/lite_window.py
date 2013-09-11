@@ -186,7 +186,7 @@ class MiniWindow(QDialog):
         # which needs to be sent back to this main one to update the GUI
         self.connect(self, SIGNAL("refresh_balance()"), self.refresh_balance)
 
-        self.balance_label = BalanceLabel(self.change_quote_currency)
+        self.balance_label = BalanceLabel(self.change_quote_currency, self)
         self.balance_label.setObjectName("balance_label")
 
 
@@ -288,28 +288,31 @@ class MiniWindow(QDialog):
         main_layout.addWidget(self.receiving_box,0,4,-1,3)
         self.receiving_box.hide()
 
-        # Creating the menu bar
-        menubar = QMenuBar()
-        electrum_menu = menubar.addMenu(_("&Electrum"))
+        self.main_layout = main_layout
 
-        quit_option = electrum_menu.addAction(_("&Close"))
+        quit_shortcut = QShortcut(QKeySequence("Ctrl+Q"), self)
+        quit_shortcut.activated.connect(self.close)
+        close_shortcut = QShortcut(QKeySequence("Ctrl+W"), self)
+        close_shortcut.activated.connect(self.close)
 
-        quit_option.triggered.connect(self.close)
+        g = self.config.get("winpos-lite",[4, 25, 351, 149])
+        self.setGeometry(g[0], g[1], g[2], g[3])
 
-        view_menu = menubar.addMenu(_("&View"))
-        extra_menu = menubar.addMenu(_("&Extra"))
-
-        backup_wallet_menu = extra_menu.addAction( _("&Create wallet backup"))
-        backup_wallet_menu.triggered.connect(lambda: backup_wallet(self.config.path))
-
-        export_csv = extra_menu.addAction( _("&Export transactions to CSV") )
-        export_csv.triggered.connect(lambda: csv_transaction(self.actuator.wallet))
+        show_hist = self.config.get("gui_show_history",False)
+        self.show_history(show_hist)
+        show_hist = self.config.get("gui_show_receiving",False)
+        self.toggle_receiving_layout(show_hist)
         
-        master_key = extra_menu.addAction( _("Copy master public key to clipboard") ) 
-        master_key.triggered.connect(self.actuator.copy_master_public_key)
+        self.setWindowIcon(QIcon(":icons/electrum.png"))
+        self.setWindowTitle("Electrum")
+        self.setWindowFlags(Qt.Window|Qt.MSWindowsFixedSizeDialogHint)
+        self.layout().setSizeConstraint(QLayout.SetFixedSize)
+        self.setObjectName("main_window")
 
-        expert_gui = view_menu.addAction(_("&Classic GUI"))
-        expert_gui.triggered.connect(expand_callback)
+        self.show()
+
+    def context_menu(self):
+        view_menu = QMenu()
         themes_menu = view_menu.addMenu(_("&Themes"))
         selected_theme = self.actuator.selected_theme()
         theme_group = QActionGroup(self)
@@ -333,47 +336,15 @@ class MiniWindow(QDialog):
         show_receiving = view_menu.addAction(_("Show Receiving addresses"))
         show_receiving.setCheckable(True)
         show_receiving.toggled.connect(self.toggle_receiving_layout)
-
-        show_receiving_toggle = self.config.get("gui_show_receiving",False)
-        show_receiving.setChecked(show_receiving_toggle)
-        self.show_receiving = show_receiving
-
-        self.toggle_receiving_layout(show_receiving_toggle)
-
+        show_receiving.setChecked(self.config.get("gui_show_receiving",False))
 
         show_history = view_menu.addAction(_("Show History"))
         show_history.setCheckable(True)
         show_history.toggled.connect(self.show_history)
+        show_history.setChecked(self.config.get("gui_show_history",False))
 
-        help_menu = menubar.addMenu(_("&Help"))
-        the_website = help_menu.addAction(_("&Website"))
-        the_website.triggered.connect(self.the_website)
-        help_menu.addSeparator()
-        report_bug = help_menu.addAction(_("&Report Bug"))
-        report_bug.triggered.connect(self.show_report_bug)
-        show_about = help_menu.addAction(_("&About"))
-        show_about.triggered.connect(self.show_about)
-        main_layout.setMenuBar(menubar)
-        self.main_layout = main_layout
+        return view_menu
 
-        quit_shortcut = QShortcut(QKeySequence("Ctrl+Q"), self)
-        quit_shortcut.activated.connect(self.close)
-        close_shortcut = QShortcut(QKeySequence("Ctrl+W"), self)
-        close_shortcut.activated.connect(self.close)
-
-        g = self.config.get("winpos-lite",[4, 25, 351, 149])
-        self.setGeometry(g[0], g[1], g[2], g[3])
-
-        show_hist = self.config.get("gui_show_history",False)
-        show_history.setChecked(show_hist)
-        self.show_history(show_hist)
-        
-        self.setWindowIcon(QIcon(":icons/electrum.png"))
-        self.setWindowTitle("Electrum")
-        self.setWindowFlags(Qt.Window|Qt.MSWindowsFixedSizeDialogHint)
-        self.layout().setSizeConstraint(QLayout.SetFixedSize)
-        self.setObjectName("main_window")
-        self.show()
 
 
     def toggle_theme(self, theme_name):
@@ -387,8 +358,6 @@ class MiniWindow(QDialog):
     def closeEvent(self, event):
         g = self.geometry()
         self.config.set_key("winpos-lite", [g.left(),g.top(),g.width(),g.height()],True)
-        self.config.set_key("gui_show_history", self.history_list.isVisible(),True)
-        self.config.set_key("gui_show_receiving", self.receiving_box.isVisible(),True)
         
         super(MiniWindow, self).closeEvent(event)
         qApp.quit()
@@ -539,19 +508,13 @@ class MiniWindow(QDialog):
     def the_website(self):
         webbrowser.open("http://electrum.org")
 
-    def show_about(self):
-        QMessageBox.about(self, "Electrum",
-            _("Version")+" %s" % (electrum_version) + "\n\n" + _("Electrum's focus is speed, with low resource usage and simplifying Bitcoin. You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper. Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the Bitcoin system."))
-
-    def show_report_bug(self):
-        QMessageBox.information(self, "Electrum - " + _("Reporting Bugs"),
-            _("Please report any bugs as issues on github:")+" <a href=\"https://github.com/spesmilo/electrum/issues\">https://github.com/spesmilo/electrum/issues</a>")
 
     def toggle_receiving_layout(self, toggle_state):
         if toggle_state:
-          self.receiving_box.show()
+            self.receiving_box.show()
         else:
-          self.receiving_box.hide()
+            self.receiving_box.hide()
+        self.config.set_key("gui_show_receiving", toggle_state)
 
     def show_history(self, toggle_state):
         if toggle_state:
@@ -560,6 +523,7 @@ class MiniWindow(QDialog):
         else:
             self.main_layout.setRowMinimumHeight(3,0)
             self.history_list.hide()
+        self.config.set_key("gui_show_history", toggle_state)
 
 class BalanceLabel(QLabel):
 
@@ -573,11 +537,18 @@ class BalanceLabel(QLabel):
         self.state = self.SHOW_CONNECTING
         self.balance_text = ""
         self.amount_text = ""
+        self.parent = parent
 
     def mousePressEvent(self, event):
         """Change the fiat currency selection if window background is clicked."""
         if self.state != self.SHOW_CONNECTING:
-            self.change_quote_currency(event.button() == Qt.LeftButton)
+            if event.button() == Qt.LeftButton:
+                self.change_quote_currency()
+            else:
+                position = event.globalPos()
+                menu = self.parent.context_menu()
+                menu.exec_(position)
+                
 
     def set_balance_text(self, btc_balance, quote_text):
         """Set the amount of bitcoins in the gui."""

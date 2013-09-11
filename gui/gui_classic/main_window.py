@@ -386,13 +386,26 @@ class ElectrumWindow(QMainWindow):
         ex_labels.triggered.connect(self.do_export_labels)
 
         help_menu = menubar.addMenu(_("&Help"))
-        doc_open = help_menu.addAction(_("&Documentation"))
-        doc_open.triggered.connect(lambda: webbrowser.open("http://electrum.org/documentation.html"))
+        show_about = help_menu.addAction(_("&About"))
+        show_about.triggered.connect(self.show_about)
         web_open = help_menu.addAction(_("&Official website")) 
         web_open.triggered.connect(lambda: webbrowser.open("http://electrum.org"))
 
+        help_menu.addSeparator()
+        doc_open = help_menu.addAction(_("&Documentation"))
+        doc_open.triggered.connect(lambda: webbrowser.open("http://electrum.org/documentation.html"))
+        report_bug = help_menu.addAction(_("&Report Bug"))
+        report_bug.triggered.connect(self.show_report_bug)
+
         self.setMenuBar(menubar)
 
+    def show_about(self):
+        QMessageBox.about(self, "Electrum",
+            _("Version")+" %s" % (self.wallet.electrum_version) + "\n\n" + _("Electrum's focus is speed, with low resource usage and simplifying Bitcoin. You do not need to perform regular backups, because your wallet can be recovered from a secret phrase that you can memorize or write on paper. Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the Bitcoin system."))
+
+    def show_report_bug(self):
+        QMessageBox.information(self, "Electrum - " + _("Reporting Bugs"),
+            _("Please report any bugs as issues on github:")+" <a href=\"https://github.com/spesmilo/electrum/issues\">https://github.com/spesmilo/electrum/issues</a>")
 
 
     def notify_transactions(self):
