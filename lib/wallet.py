@@ -157,7 +157,7 @@ class Wallet:
         self.master_public_keys = storage.get('master_public_keys',{})
         self.master_private_keys = storage.get('master_private_keys', {})
 
-        self.first_addresses = storage.get('first_addresses',{})
+        self.next_addresses = storage.get('next_addresses',{})
 
         if self.seed_version < 4:
             raise ValueError("This wallet seed is deprecated.")
@@ -351,12 +351,12 @@ class Wallet:
         i = self.num_accounts(account_type)
         k = self.account_id(account_type,i)
 
-        addr = self.first_addresses.get(k)
+        addr = self.next_addresses.get(k)
         if not addr: 
             account_id, account = self.next_account(account_type)
             addr = account.first_address()
-            self.first_addresses[k] = addr
-            self.storage.put('first_addresses',self.first_addresses)
+            self.next_addresses[k] = addr
+            self.storage.put('next_addresses',self.next_addresses)
 
         return addr
 
@@ -431,14 +431,15 @@ class Wallet:
                 self.accounts[k] = BIP32_Account(v)
 
 
-    def addresses(self, include_change = True):
+    def addresses(self, include_change = True, next=False):
         o = self.get_account_addresses(-1, include_change)
         for a in self.accounts.keys():
             o += self.get_account_addresses(a, include_change)
 
-        for addr in self.first_addresses.values():
-            if addr not in o:
-                o += [addr]
+        if next:
+            for addr in self.next_addresses.values():
+                if addr not in o:
+                    o += [addr]
         return o
 
 
@@ -473,9 +474,6 @@ class Wallet:
 
     def get_address_index(self, address):
         if address in self.imported_keys.keys():
-            return -1, None
-
-        if address in self.first_addresses.values():
             return -1, None
 
         for account in self.accounts.keys():
@@ -1425,7 +1423,7 @@ class WalletSynchronizer(threading.Thread):
             time.sleep(1)
         
         # subscriptions
-        self.subscribe_to_addresses(self.wallet.addresses(True))
+        self.subscribe_to_addresses(self.wallet.addresses(True, next=True))
 
         while self.is_running():
             # 1. create new addresses
