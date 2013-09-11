@@ -151,11 +151,12 @@ class ElectrumWindow(QMainWindow):
             self.showNormal()
 
 
-    def __init__(self, config, network):
+    def __init__(self, config, network, go_lite):
         QMainWindow.__init__(self)
 
         self.config = config
         self.network = network
+        self.go_lite = go_lite
         self.init_plugins()
 
         self._close_electrum = False
@@ -1372,17 +1373,6 @@ class ElectrumWindow(QMainWindow):
         d = PasswordDialog(self.wallet, self)
         d.run()
         self.update_lock_icon()
-
-        
-    def go_lite(self):
-        import lite_window
-        self.config.set_key('lite_mode', True, True)
-        self.hide()
-        if self.lite:
-            self.lite.mini.show()
-        else:
-            self.lite = lite_window.ElectrumGui(self.config, None, None, self)
-            self.lite.main(None)
 
 
     def new_contact_dialog(self):
