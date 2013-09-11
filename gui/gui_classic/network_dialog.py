@@ -75,6 +75,7 @@ class NetworkDialog(QDialog):
         hbox.addWidget(l)
         hbox.addWidget(QLabel(status))
         hbox.addStretch(50)
+        hbox.addWidget(HelpButton(_("As of version 1.9, Electrum connects to several servers in order to download block headers and find out the longest blockchain. However, your wallet addresses are sent to a single server, in order to receive your transaction history.")))
         vbox.addLayout(hbox)
 
         # grid layout
