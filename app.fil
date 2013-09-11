@@ -1,7 +1,7 @@
 gui/gui_gtk.py
-gui/gui_classic.py
-gui/gui_lite.py
-gui/history_widget.py
+gui/gui_classic/main_window.py
+gui/gui_classic/lite_window.py
+gui/gui_classic/history_widget.py
 plugins/aliases.py
 plugins/pointofsale.py
 plugins/labels.py
