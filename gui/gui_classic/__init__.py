@@ -18,7 +18,7 @@
 
 import sys, time, datetime, re, threading
 from electrum.i18n import _, set_language
-from electrum.util import print_error, print_msg
+from electrum.util import print_error, print_msg, parse_url
 import os.path, json, ast, traceback
 import shutil
 
@@ -75,6 +75,40 @@ class ElectrumGui:
             self.app = QApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
 
+    def expand(self):
+        """Hide the lite mode window and show pro-mode."""
+        self.config.set_key('lite_mode', False, True)
+        self.mini.hide()
+        self.expert.show()
+
+    def minimize(self, wallet, expert, url):
+        import lite_window
+        actuator = lite_window.MiniActuator(self.config, wallet)
+        # Should probably not modify the current path but instead
+        # change the behaviour of rsrc(...)
+        old_path = QDir.currentPath()
+        actuator.load_theme()
+
+        self.mini = lite_window.MiniWindow(actuator, self.expand, self.config)
+        driver = lite_window.MiniDriver(wallet, self.mini)
+
+        # Reset path back to original value now that loading the GUI
+        # is completed.
+        QDir.setCurrent(old_path)
+        
+        if url:
+            payto, amount, label, message, signature, identity, url = parse_url(url)
+            self.mini.set_payment_fields(payto, amount)
+
+        self.expert = expert
+
+    def check_qt_version(self):
+        qtVersion = qVersion()
+        if not(int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
+            app = QApplication(sys.argv)
+            QMessageBox.warning(None,"Could not start Lite GUI.", "Electrum was unable to load the 'Lite GUI' because it needs Qt version >= 4.7.\nChanging your config to use the 'Classic' GUI")
+            self.config.set_key('lite_mode', False, True)
+            sys.exit(0)
 
     def main(self, url):
 
@@ -92,6 +126,7 @@ class ElectrumGui:
 
         s = Timer()
         s.start()
+            
         w = ElectrumWindow(self.config, self.network)
         w.load_wallet(wallet)
 
@@ -100,7 +135,12 @@ class ElectrumGui:
         w.app = self.app
         w.connect_slots(s)
         w.update_wallet()
-        w.show()
+
+        if self.config.get('lite_mode'):
+            self.check_qt_version()
+            self.minimize(wallet, w, url)
+        else:
+            w.show()
 
         self.app.exec_()
 

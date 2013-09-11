@@ -1376,7 +1376,7 @@ class ElectrumWindow(QMainWindow):
         
     def go_lite(self):
         import lite_window
-        self.config.set_key('gui', 'lite', True)
+        self.config.set_key('lite_mode', True, True)
         self.hide()
         if self.lite:
             self.lite.mini.show()
@@ -1958,7 +1958,7 @@ class ElectrumWindow(QMainWindow):
         lang_label=QLabel(_('Language') + ':')
         grid_ui.addWidget(lang_label, 1, 0)
         lang_combo = QComboBox()
-        from i18n import languages
+        from electrum.i18n import languages
         lang_combo.addItems(languages.values())
         try:
             index = languages.keys().index(self.config.get("language",''))
