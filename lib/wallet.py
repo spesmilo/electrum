@@ -450,6 +450,7 @@ class Wallet:
         if not self.is_mine(address): return False
         if address in self.imported_keys.keys(): return False
         acct, s = self.get_address_index(address)
+        if s is None: return False
         return s[0] == 1
 
     def get_master_public_key(self):
@@ -474,6 +475,9 @@ class Wallet:
         if address in self.imported_keys.keys():
             return -1, None
 
+        if address in self.first_addresses.values():
+            return -1, None
+
         for account in self.accounts.keys():
             for for_change in [0,1]:
                 addresses = self.accounts[account].get_addresses(for_change)
@@ -481,7 +485,7 @@ class Wallet:
                     if address == addr:
                         return account, (for_change, addresses.index(addr))
 
-        raise BaseException("not found")
+        raise BaseException("Address not found", address)
 
 
     def rebase_sequence(self, account, sequence):

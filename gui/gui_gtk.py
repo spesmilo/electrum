@@ -24,9 +24,8 @@ pygtk.require('2.0')
 import gtk, gobject
 from decimal import Decimal
 from electrum.util import print_error
-from electrum import is_valid
-from electrum import mnemonic
-import pyqrnative
+from electrum.bitcoin import is_valid
+from electrum import mnemonic, pyqrnative, WalletStorage, Wallet
 
 gtk.gdk.threads_init()
 APP_NAME = "Electrum"
@@ -515,6 +514,7 @@ class ElectrumWindow:
         self.config = config
         self.wallet = wallet
         self.funds_error = False # True if not enough funds
+        self.num_zeros     = int(self.config.get('num_zeros',0))
 
         self.window = MyWindow(gtk.WINDOW_TOPLEVEL)
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.config.path
@@ -601,7 +601,7 @@ class ElectrumWindow:
         self.context_id = self.status_bar.get_context_id("statusbar")
         self.update_status_bar()
 
-        self.wallet.interface.register_callback('updated', self.update_callback)
+        self.wallet.network.register_callback('updated', self.update_callback)
 
 
         def update_status_bar_thread():
@@ -1111,16 +1111,16 @@ class ElectrumWindow:
         if self.funds_error:
             text = "Not enough funds"
         elif interface and interface.is_connected:
-            self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(interface.host, interface.port, self.wallet.verifier.height))
+            self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(interface.host, interface.port, self.wallet.network.blockchain.height))
             if not self.wallet.up_to_date:
                 self.status_image.set_from_stock(gtk.STOCK_REFRESH, gtk.ICON_SIZE_MENU)
                 text = "Synchronizing..."
             else:
                 self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
-                self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(interface.host, interface.port, self.wallet.verifier.height))
+                self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(interface.host, interface.port, self.wallet.network.blockchain.height))
                 c, u = self.wallet.get_balance()
-                text =  "Balance: %s "%( format_satoshis(c,False,self.wallet.num_zeros) )
-                if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True,self.wallet.num_zeros).strip() )
+                text =  "Balance: %s "%( format_satoshis(c,False,self.num_zeros) )
+                if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True,self.num_zeros).strip() )
         else:
             self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
             self.network_button.set_tooltip_text("Not connected.")
@@ -1183,8 +1183,8 @@ class ElectrumWindow:
             details = self.get_tx_details(tx_hash)
 
             self.history_list.prepend( [tx_hash, conf_icon, time_str, label, is_default_label,
-                                        format_satoshis(value,True,self.wallet.num_zeros, whitespaces=True),
-                                        format_satoshis(balance,False,self.wallet.num_zeros, whitespaces=True), tooltip, details] )
+                                        format_satoshis(value,True,self.num_zeros, whitespaces=True),
+                                        format_satoshis(balance,False,self.num_zeros, whitespaces=True), tooltip, details] )
         if cursor: self.history_treeview.set_cursor( cursor )
 
 
@@ -1276,9 +1276,17 @@ class ElectrumWindow:
 
 class ElectrumGui():
 
-    def __init__(self, wallet, config):
-        self.wallet = wallet
+    def __init__(self, config, network):
+        self.network = network
         self.config = config
+        storage = WalletStorage(config)
+        if not storage.file_exists:
+            print "Wallet not found. try 'electrum create'"
+            exit()
+
+        self.wallet = Wallet(storage)
+        self.wallet.start_threads(network)
+
 
     def main(self, url=None):
         ew = ElectrumWindow(self.wallet, self.config)
