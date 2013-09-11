@@ -154,7 +154,7 @@ if __name__ == '__main__':
         sys.exit(0)
     
     if cmd in ['create', 'restore']:
-        if config.wallet_file_exists:
+        if wallet.storage.file_exists:
             sys.exit("Error: Remove the existing wallet first!")
         password = prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
 
@@ -169,9 +169,13 @@ if __name__ == '__main__':
         if host: w_host = host
         if port: w_port = port
         if protocol: w_protocol = protocol
-        wallet.config.set_key('server', w_host + ':' + w_port + ':' +w_protocol)
+        config.set_key('server', w_host + ':' + w_port + ':' +w_protocol)
         if fee: wallet.fee = float(fee)
         if gap: wallet.gap_limit = int(gap)
+
+        network = Network(config)
+        network.start()
+        wallet.start_threads(network)
 
         if cmd == 'restore':
             seed = raw_input("seed:")
@@ -183,43 +187,29 @@ if __name__ == '__main__':
             if not seed:
                 sys.exit("Error: No seed")
 
-            if len(seed) == 128:
-                wallet.seed = None
-                wallet.init_sequence(str(seed))
-            else:
-                wallet.init_seed( str(seed) )
-                wallet.save_seed()
+            wallet.init_seed( str(seed) )
+            wallet.save_seed()
+            wallet.create_accounts()
+            wallet.synchronize()
 
-            interface = Interface(config)
-            if not options.offline:
-                if not interface.start(wait=True):
-                    print_msg("Not connected, aborting. Try option -o if you want to restore offline.")
-                    sys.exit(1)
-
-                blockchain = BlockchainVerifier(interface, config)
-                blockchain.start()
-                wallet.start_threads(interface, blockchain)
-                print_msg("Recovering wallet...")
-                wallet.update()
-                if wallet.is_found():
-                    print_msg("Recovery successful")
-                else:
-                    print_msg("Warning: Found no history for this wallet")
+            print_msg("Recovering wallet...")
+            wallet.update()
+            if wallet.is_found():
+                print_msg("Recovery successful")
             else:
-                interface.start(wait=False)
-                wallet.synchronize()
-            wallet.fill_addressbook()
-            #wallet.save()
-            print_msg("Wallet saved in '%s'"%wallet.config.path)
+                print_msg("Warning: Found no history for this wallet")
+
+            print_msg("Wallet saved in '%s'"%config.path)
         else:
             wallet.init_seed(None)
             wallet.save_seed()
-            wallet.synchronize() # there is no wallet thread 
+            wallet.create_accounts()
+            wallet.synchronize()
             print_msg("Your wallet generation seed is: " + wallet.seed)
             print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
             print_msg("Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:")
             print_msg("\""+' '.join(mnemonic_encode(wallet.seed))+"\"")
-            print_msg("Wallet saved in '%s'"%wallet.config.path)
+            print_msg("Wallet saved in '%s'"%config.path)
             
         if password:
             wallet.update_password(wallet.seed, None, password)
