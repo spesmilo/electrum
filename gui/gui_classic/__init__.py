@@ -152,7 +152,8 @@ class ElectrumGui:
                 self.minimize()
         else:
             w.show()
-            self.mini.hide()
+            if self.mini:
+                self.mini.hide()
 
         self.app.exec_()
 
