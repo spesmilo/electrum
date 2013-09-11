@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import sys, time, datetime, re, threading
-from i18n import _, set_language
+from electrum.i18n import _, set_language
 from electrum.util import print_error, print_msg
 import os.path, json, ast, traceback
 import shutil
@@ -47,7 +47,7 @@ from electrum import util, bitcoin, commands, Interface, Wallet
 from electrum import SimpleConfig, Wallet, WalletStorage
 
 
-import bmp, pyqrnative
+from electrum import bmp, pyqrnative
 import exchange_rate
 
 from amountedit import AmountEdit

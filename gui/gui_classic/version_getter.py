@@ -22,7 +22,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
-from i18n import _
+from electrum.i18n import _
 from electrum import ELECTRUM_VERSION
 
 class VersionGetter(threading.Thread):

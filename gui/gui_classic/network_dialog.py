@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import sys, time, datetime, re, threading
-from i18n import _
+from electrum.i18n import _
 from electrum.util import print_error, print_msg
 import os.path, json, ast, traceback
 
