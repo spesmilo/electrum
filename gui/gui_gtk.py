@@ -271,7 +271,7 @@ def run_network_dialog( wallet, parent ):
     interface = wallet.interface
     if parent:
         if interface.is_connected:
-            status = "Connected to %s:%d\n%d blocks"%(interface.host, interface.port, wallet.verifier.height)
+            status = "Connected to %s:%d\n%d blocks"%(interface.host, interface.port, wallet.network.blockchain.height)
         else:
             status = "Not connected"
     else:
