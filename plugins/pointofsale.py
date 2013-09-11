@@ -7,9 +7,10 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
-from electrum_gui.qrcodewidget import QRCodeWidget
-from electrum_gui import bmp, pyqrnative, BasePlugin
-from electrum_gui.i18n import _
+from electrum_gui.gui_classic.qrcodewidget import QRCodeWidget
+
+from electrum import bmp, pyqrnative, BasePlugin
+from electrum.i18n import _
 
 
 if platform.system() == 'Windows':
@@ -105,8 +106,8 @@ class Plugin(BasePlugin):
 
         self.gui.expert_mode = True
         self.gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Request')])
-        self.toggle_QR_window(True)
         self.requested_amounts = {}
+        self.toggle_QR_window(True)
 
     def load_wallet(self):
         self.requested_amounts = self.gui.wallet.storage.get('requested_amounts',{}) 

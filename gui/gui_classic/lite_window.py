@@ -33,7 +33,8 @@ import datetime
 
 from electrum.version import ELECTRUM_VERSION as electrum_version
 from electrum.util import format_satoshis, age
-import gui_classic
+
+from main_window import ElectrumWindow
 import shutil
 
 from qt_util import *
@@ -186,7 +187,7 @@ class ElectrumGui(QObject):
             self.set_url(url)
             
         if self.expert is None:
-            self.expert = gui_classic.ElectrumWindow(self.config)
+            self.expert = ElectrumWindow(self.config)
             self.expert.load_wallet(self.wallet)
             self.expert.app = self.app
             timer = Timer()
@@ -218,7 +219,7 @@ class ElectrumGui(QObject):
         return choice == QMessageBox.Yes
 
     def restore_or_create(self):
-        qt_gui_object = gui_classic.ElectrumGui(self.wallet, self.app)
+        qt_gui_object = ElectrumGui(self.wallet, self.app)
         return qt_gui_object.restore_or_create()
 
 class TransactionWindow(QDialog):
@@ -934,7 +935,7 @@ class MiniActuator:
         webbrowser.open(url)
 
     def show_seed_dialog(self):
-        gui_classic.ElectrumWindow.show_seed_dialog(self.wallet)
+        ElectrumWindow.show_seed_dialog(self.wallet)
 
 class MiniDriver(QObject):
 
@@ -949,9 +950,9 @@ class MiniDriver(QObject):
         self.wallet = wallet
         self.window = window
 
-        self.wallet.interface.register_callback('updated',self.update_callback)
-        self.wallet.interface.register_callback('connected', self.update_callback)
-        self.wallet.interface.register_callback('disconnected', self.update_callback)
+        self.wallet.network.register_callback('updated',self.update_callback)
+        self.wallet.network.register_callback('connected', self.update_callback)
+        self.wallet.network.register_callback('disconnected', self.update_callback)
 
         self.state = None
 

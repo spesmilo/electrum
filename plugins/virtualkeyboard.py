@@ -1,6 +1,6 @@
 from PyQt4.QtGui import *
-from electrum_gui import BasePlugin
-from electrum_gui.i18n import _
+from electrum import BasePlugin
+from electrum.i18n import _
 
 class Plugin(BasePlugin):
 

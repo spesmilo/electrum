@@ -1375,13 +1375,13 @@ class ElectrumWindow(QMainWindow):
 
         
     def go_lite(self):
-        import gui_lite
+        import lite_window
         self.config.set_key('gui', 'lite', True)
         self.hide()
         if self.lite:
             self.lite.mini.show()
         else:
-            self.lite = gui_lite.ElectrumGui(self.config, None, None, self)
+            self.lite = lite_window.ElectrumGui(self.config, None, None, self)
             self.lite.main(None)
 
 
@@ -1894,7 +1894,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def do_export_history(self):
-        from gui_lite import csv_transaction
+        from lite_window import csv_transaction
         csv_transaction(self.wallet)
 
 
@@ -2164,64 +2164,4 @@ class ElectrumWindow(QMainWindow):
         self.save_column_widths()
         self.config.set_key("console-history", self.console.history[-50:], True)
         event.accept()
-
-class OpenFileEventFilter(QObject):
-    def __init__(self, windows):
-        self.windows = windows
-        super(OpenFileEventFilter, self).__init__()
-
-    def eventFilter(self, obj, event):
-        if event.type() == QtCore.QEvent.FileOpen:
-            if len(self.windows) >= 1:
-                self.windows[0].set_url(event.url().toString())
-                return True
-        return False
-
-
-
-
-class ElectrumGui:
-
-    def __init__(self, config, network, app=None):
-        self.network = network
-        #self.interface = interface
-        self.config = config
-        #self.blockchain = network.blockchain
-        self.windows = []
-        self.efilter = OpenFileEventFilter(self.windows)
-        if app is None:
-            self.app = QApplication(sys.argv)
-        self.app.installEventFilter(self.efilter)
-
-
-    def main(self, url):
-
-        storage = WalletStorage(self.config)
-        if not storage.file_exists:
-            import installwizard
-            wizard = installwizard.InstallWizard(self.config, self.network, storage)
-            wallet = wizard.run()
-            if not wallet: 
-                exit()
-        else:
-            wallet = Wallet(storage)
-
-        wallet.start_threads(self.network)
-
-        s = Timer()
-        s.start()
-        w = ElectrumWindow(self.config, self.network)
-        w.load_wallet(wallet)
-
-        self.windows.append(w)
-        if url: w.set_url(url)
-        w.app = self.app
-        w.connect_slots(s)
-        w.update_wallet()
-        w.show()
-
-        self.app.exec_()
-
-        wallet.stop_threads()
-
 

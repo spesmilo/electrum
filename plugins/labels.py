@@ -1,5 +1,5 @@
 from electrum.util import print_error
-from electrum_gui.i18n import _
+
 import httplib, urllib
 import socket
 import hashlib
@@ -16,8 +16,10 @@ import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 import aes
 import base64
-from electrum_gui import bmp, pyqrnative, BasePlugin
-from electrum_gui.i18n import _
+from electrum import bmp, pyqrnative
+from electrum.plugins import BasePlugin
+from electrum.i18n import _
+
 from electrum_gui.gui_classic import HelpButton
 
 class Plugin(BasePlugin):

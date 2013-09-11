@@ -7,9 +7,8 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
-from electrum_gui.qrcodewidget import QRCodeWidget
-from electrum_gui import bmp, pyqrnative
-from electrum_gui.i18n import _
+from electrum import bmp, pyqrnative
+from electrum.i18n import _
 
 from electrum import util
 
@@ -17,7 +16,8 @@ ALIAS_REGEXP = '^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$'
 
 
 
-from electrum_gui import BasePlugin
+from electrum.plugins import BasePlugin
+
 class Plugin(BasePlugin):
 
     def fullname(self): return 'Aliases'
