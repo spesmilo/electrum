@@ -51,9 +51,9 @@ class NetworkDialog(QDialog):
                 status = _("Not connected")
 
             if interface.is_connected:
-                status += "\n" + _("History server:") + " %s"%(interface.host) 
+                status += "\n" + _("Main server:") + " %s"%(interface.host) 
             else:
-                status += "\n" + _("History server is disconnected")
+                status += "\n" + _("Disconnected from main server")
                 
 
             server = interface.server
