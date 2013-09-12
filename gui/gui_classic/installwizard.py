@@ -99,16 +99,6 @@ class InstallWizard(QDialog):
         seed_e.setMaximumHeight(100)
         vbox.addWidget(seed_e)
 
-        if is_restore:
-            grid = QGridLayout()
-            grid.setSpacing(8)
-            gap_e = AmountEdit(None, True)
-            gap_e.setText("5")
-            grid.addWidget(QLabel(_('Gap limit')), 2, 0)
-            grid.addWidget(gap_e, 2, 1)
-            grid.addWidget(HelpButton(_('Keep the default value unless you modified this parameter in your wallet.')), 2, 3)
-            vbox.addLayout(grid)
-
         vbox.addLayout(ok_cancel_buttons(d, _('Next')))
         d.setLayout(vbox) 
 
@@ -128,15 +118,8 @@ class InstallWizard(QDialog):
             QMessageBox.warning(None, _('Error'), _('No seed'), _('OK'))
             return
 
-        if not is_restore:
-            return seed
-        else:
-            try:
-                gap = int(unicode(gap_e.text()))
-            except:
-                QMessageBox.warning(None, _('Error'), 'error', 'OK')
-                return
-            return seed, gap
+        return seed
+
 
 
     def mpk_dialog(self):
@@ -156,11 +139,6 @@ class InstallWizard(QDialog):
 
         grid = QGridLayout()
         grid.setSpacing(8)
-        gap_e = AmountEdit(None, True)
-        gap_e.setText("5")
-        grid.addWidget(QLabel(_('Gap limit')), 2, 0)
-        grid.addWidget(gap_e, 2, 1)
-        grid.addWidget(HelpButton(_('Keep the default value unless you modified this parameter in your wallet.')), 2, 3)
         vbox.addLayout(grid)
 
         vbox.addLayout(ok_cancel_buttons(d, _('Next')))
@@ -169,14 +147,7 @@ class InstallWizard(QDialog):
         if not d.exec_(): return
 
         mpk = str(mpk_e.toPlainText())
-
-        try:
-            gap = int(unicode(gap_e.text()))
-        except:
-            QMessageBox.warning(None, _('Error'), 'error', 'OK')
-            return
-
-        return mpk, gap
+        return mpk
 
 
     def network_dialog(self):
@@ -277,6 +248,10 @@ class InstallWizard(QDialog):
         if not action: exit()
 
         wallet = Wallet(self.storage)
+        gap = self.config.get('gap_limit',5)
+        if gap !=5:
+            wallet.gap_limit = gap
+            wallet.storage.put('gap_limit', gap,True)
 
         if action == 'create':
             wallet.init_seed(None)
@@ -291,25 +266,17 @@ class InstallWizard(QDialog):
                 
         elif action == 'restore':
             # ask for seed and gap.
-            sg = self.seed_dialog()
-            if not sg:
-                return
-            seed, gap = sg
+            seed = self.seed_dialog()
             if not seed:
                 return
-            wallet.gap_limit = gap
             wallet.init_seed(str(seed))
             wallet.save_seed()
 
         elif action == 'watching':
             # ask for seed and gap.
-            sg = self.mpk_dialog()
-            if not sg:
-                return
-            mpk, gap = sg
+            mpk = self.mpk_dialog()
             if not mpk:
                 return
-            wallet.gap_limit = gap
             wallet.seed = ''
 
             print eval(mpk)

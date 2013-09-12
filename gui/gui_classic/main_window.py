@@ -2019,22 +2019,6 @@ class ElectrumWindow(QMainWindow):
         grid_wallet.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions.')+' '), 1, 3)
         if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
 
-        gap_label = QLabel(_('Gap limit'))
-        grid_wallet.addWidget(gap_label, 2, 0)
-        gap_e = AmountEdit(None,True)
-        gap_e.setText("%d"% self.wallet.gap_limit)
-        grid_wallet.addWidget(gap_e, 2, 2)
-        msg =  _('The gap limit is the maximal number of contiguous unused addresses in your sequence of receiving addresses.') + '\n' \
-              + _('You may increase it if you need more receiving addresses.') + '\n\n' \
-              + _('Your current gap limit is') + ': %d'%self.wallet.gap_limit + '\n' \
-              + _('Given the current status of your address sequence, the minimum gap limit you can use is:')+' ' + '%d'%self.wallet.min_acceptable_gap() + '\n\n' \
-              + _('Warning') + ': ' \
-              + _('The gap limit parameter must be provided in order to recover your wallet from seed.') + ' ' \
-              + _('Do not modify it if you do not understand what you are doing, or if you expect to recover your wallet without knowing it!') + '\n\n' 
-        grid_wallet.addWidget(HelpButton(msg), 2, 3)
-        if not self.config.is_modifiable('gap_limit'):
-            for w in [gap_e, gap_label]: w.setEnabled(False)
-
         units = ['BTC', 'mBTC']
         unit_label = QLabel(_('Base unit'))
         grid_wallet.addWidget(unit_label, 3, 0)
