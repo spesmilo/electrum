@@ -11,6 +11,7 @@ from qt_util import *
 from amountedit import AmountEdit
 
 import sys
+import threading
 
 class InstallWizard(QDialog):
 
@@ -19,12 +20,12 @@ class InstallWizard(QDialog):
         self.config = config
         self.network = network
         self.storage = storage
+        self.setMinimumSize(575, 400)
+        self.setWindowTitle('Electrum')
+        self.connect(self, QtCore.SIGNAL('accept'), self.accept)
 
 
     def restore_or_create(self):
-
-        d = QDialog()
-        d.setModal(1)
 
         grid = QGridLayout()
         grid.setSpacing(5)
@@ -50,21 +51,23 @@ class InstallWizard(QDialog):
         grid.addWidget(b2,2,0)
         grid.addWidget(b3,3,0)
 
-        vbox = QVBoxLayout()
+        vbox = QVBoxLayout(self)
         vbox.addLayout(grid)
-        vbox.addLayout(ok_cancel_buttons(d, _('Next')))
-        d.setLayout(vbox) 
 
-        if not d.exec_():
+        vbox.addStretch(1)
+        vbox.addLayout(ok_cancel_buttons(self, _('Next')))
+
+        if not self.exec_():
             return
         
         if b1.isChecked():
-            return 'create'
+            answer = 'create'
         elif b2.isChecked():
-            return 'restore'
+            answer = 'restore'
         else:
-            return 'watching'
+            answer = 'watching'
 
+        return answer
 
 
     def verify_seed(self, wallet):
@@ -80,29 +83,37 @@ class InstallWizard(QDialog):
 
 
     def seed_dialog(self, is_restore=True):
-        d = QDialog()
-        d.setModal(1)
 
-        vbox = QVBoxLayout()
+        if self.layout(): QWidget().setLayout(self.layout())
+
+        vbox = QVBoxLayout(self)
         if is_restore:
-            msg = _("Please enter your wallet seed (or your master public key if you want to create a watching-only wallet)." + ' ')
+            msg = _("Please enter your wallet seed." + ' ')
+            msg += _("Your seed can be entered as a sequence of words, or as a hexadecimal string."+ '\n')
         else:
             msg = _("Your seed is important! To make sure that you have properly saved your seed, please type it here." + ' ')
-
-        msg += _("Your seed can be entered as a sequence of words, or as a hexadecimal string."+ '\n')
         
-        label=QLabel(msg)
+        logo = QLabel()
+        logo.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(56))
+        logo.setMaximumWidth(60)
+        label = QLabel(msg)
         label.setWordWrap(True)
-        vbox.addWidget(label)
+
+        grid = QGridLayout()
+        grid.addWidget(logo, 0, 0)
+        grid.addWidget(label, 0, 1)
+
+        vbox.addLayout(grid)
 
         seed_e = QTextEdit()
         seed_e.setMaximumHeight(100)
         vbox.addWidget(seed_e)
 
-        vbox.addLayout(ok_cancel_buttons(d, _('Next')))
-        d.setLayout(vbox) 
+        vbox.addStretch(1)
+        vbox.addLayout(ok_cancel_buttons(self, _('Next')))
 
-        if not d.exec_(): return
+        if not self.exec_():
+            return
 
         try:
             seed = str(seed_e.toPlainText())
@@ -122,11 +133,27 @@ class InstallWizard(QDialog):
 
 
 
-    def mpk_dialog(self):
-        d = QDialog()
-        d.setModal(1)
+    def waiting_dialog(self, task, msg= _("Please wait...")):
+        def target():
+            task()
+            self.emit(QtCore.SIGNAL('accept'))
 
-        vbox = QVBoxLayout()
+        if self.layout(): QWidget().setLayout(self.layout())
+        vbox = QVBoxLayout(self)
+        self.waiting_label = QLabel(msg)
+        vbox.addWidget(self.waiting_label)
+        self.show()
+        t = threading.Thread(target = target)
+        t.start()
+        self.exec_()
+
+
+
+    def mpk_dialog(self):
+
+        if self.layout(): QWidget().setLayout(self.layout())
+
+        vbox = QVBoxLayout(self)
         msg = _("Please enter your master public key.")
 
         label=QLabel(msg)
@@ -141,10 +168,10 @@ class InstallWizard(QDialog):
         grid.setSpacing(8)
         vbox.addLayout(grid)
 
-        vbox.addLayout(ok_cancel_buttons(d, _('Next')))
-        d.setLayout(vbox) 
+        vbox.addStretch(1)
+        vbox.addLayout(ok_cancel_buttons(self, _('Next')))
 
-        if not d.exec_(): return
+        if not self.exec_(): return
 
         mpk = str(mpk_e.toPlainText())
         return mpk
@@ -152,8 +179,7 @@ class InstallWizard(QDialog):
 
     def network_dialog(self):
         
-        d = QDialog()
-        d.setModal(1)
+        if self.layout(): QWidget().setLayout(self.layout())
 
         grid = QGridLayout()
         grid.setSpacing(5)
@@ -177,12 +203,13 @@ class InstallWizard(QDialog):
         grid.addWidget(b2,2,0)
         grid.addWidget(b3,3,0)
 
-        vbox = QVBoxLayout()
+        vbox = QVBoxLayout(self)
         vbox.addLayout(grid)
-        vbox.addLayout(ok_cancel_buttons(d, _('Next')))
-        d.setLayout(vbox) 
 
-        if not d.exec_():
+        vbox.addStretch(1)
+        vbox.addLayout(ok_cancel_buttons(self, _('Next')))
+
+        if not self.exec_():
             return
         
         if b2.isChecked():
@@ -200,46 +227,19 @@ class InstallWizard(QDialog):
         
 
     def show_seed(self, wallet):
-        d = SeedDialog()
-        d.show_seed(wallet.seed, wallet.imported_keys)
+        from seed_dialog import make_seed_dialog
+        if self.layout(): QWidget().setLayout(self.layout())
+        make_seed_dialog(self, wallet.seed, wallet.imported_keys)
+        self.exec_()
 
 
     def password_dialog(self, wallet):
-        from password_dialog import PasswordDialog
-        d = PasswordDialog(wallet)
-        d.run()
-
-
-    def restore_wallet(self, wallet):
-
-        # wait until we are connected, because the user might have selected another server
-        if not self.network.interface.is_connected:
-            waiting = lambda: False if self.network.interface.is_connected else "%s \n" % (_("Connecting..."))
-            waiting_dialog(waiting)
-
-        waiting = lambda: False if wallet.is_up_to_date() else "%s\n%s %d\n%s %.1f"\
-            %(_("Please wait..."),_("Addresses generated:"),len(wallet.addresses(True)),_("Kilobytes received:"), self.network.interface.bytes_received/1024.)
-
-        # try to restore old account
-        wallet.create_old_account()
-        wallet.set_up_to_date(False)
-        waiting_dialog(waiting)
-
-        if wallet.is_found():
-            wallet.seed_version = 4
-            wallet.storage.put('seed_version', wallet.seed_version, True)
-        else:
-            wallet.accounts.pop(0)
-            wallet.create_accounts()
-            wallet.set_up_to_date(False)
-            waiting_dialog(waiting)
-
-        if wallet.is_found():
-            QMessageBox.information(None, _('Information'), _("Recovery successful"), _('OK'))
-        else:
-            QMessageBox.information(None, _('Information'), _("No transactions found for this seed"), _('OK'))
-
-        return True
+        msg = _("Please choose a password to encrypt your wallet keys.")+'\n'\
+              +_("Leave these fields empty if you want to disable encryption.")
+        from password_dialog import make_password_dialog, run_password_dialog
+        if self.layout(): QWidget().setLayout(self.layout())
+        make_password_dialog(self, wallet, msg)
+        run_password_dialog(self, wallet, self)
 
 
     def run(self):
@@ -248,19 +248,20 @@ class InstallWizard(QDialog):
         if not action: exit()
 
         wallet = Wallet(self.storage)
-        gap = self.config.get('gap_limit',5)
-        if gap !=5:
+        gap = self.config.get('gap_limit', 5)
+        if gap != 5:
             wallet.gap_limit = gap
-            wallet.storage.put('gap_limit', gap,True)
+            wallet.storage.put('gap_limit', gap, True)
 
         if action == 'create':
             wallet.init_seed(None)
             self.show_seed(wallet)
             if self.verify_seed(wallet):
-                wallet.save_seed()
-                wallet.create_accounts()
-                # generate first addresses offline
-                wallet.synchronize()
+                def create():
+                    wallet.save_seed()
+                    wallet.create_accounts()
+                    wallet.synchronize()  # generate first addresses offline
+                self.waiting_dialog(create)
             else:
                 return
                 
@@ -297,16 +298,45 @@ class InstallWizard(QDialog):
         wallet.start_threads(self.network)
 
         if action == 'restore':
-            try:
-                keep_it = self.restore_wallet(wallet)
-                wallet.fill_addressbook()
-            except:
-                import traceback
-                traceback.print_exc(file=sys.stdout)
-                exit()
 
-            if not keep_it: return
+            def wait_for_wallet():
+                wallet.set_up_to_date(False)
+                while not wallet.is_up_to_date():
+                    msg = "%s\n%s %d\n%s %.1f"%(_("Please wait..."),_("Addresses generated:"),len(wallet.addresses(True)),_("Kilobytes received:"), self.network.interface.bytes_received/1024.)
+                    self.waiting_label.setText(msg)
+                    time.sleep(0.1)
+
+            def wait_for_network():
+                while not self.network.interface.is_connected:
+                    msg = "%s \n" % (_("Connecting..."))
+                    self.waiting_label.setText(msg)
+                    time.sleep(0.1)
+
+            def restore():
+                # wait until we are connected, because the user might have selected another server
+                wait_for_network()
+                
+                # try to restore old account
+                wallet.create_old_account()
+                wait_for_wallet()
+
+                if wallet.is_found():
+                    wallet.seed_version = 4
+                    wallet.storage.put('seed_version', wallet.seed_version, True)
+                else:
+                    wallet.accounts.pop(0)
+                    wallet.create_accounts()
+                    wait_for_wallet()
+
+            self.waiting_dialog(restore)
+
+            if wallet.is_found():
+                QMessageBox.information(None, _('Information'), _("Recovery successful"), _('OK'))
+            else:
+                QMessageBox.information(None, _('Information'), _("No transactions found for this seed"), _('OK'))
+            
+            wallet.fill_addressbook()
 
         self.password_dialog(wallet)
-        
+
         return wallet

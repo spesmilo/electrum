@@ -24,13 +24,18 @@ from electrum import mnemonic
 from qrcodewidget import QRCodeWidget
 
 class SeedDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent):
         QDialog.__init__(self, parent)
         self.setModal(1)
         self.setWindowTitle('Electrum' + ' - ' + _('Seed'))
+        self.parent = parent
+
+    def show_seed(self, seed, imported_keys):
+        make_seed_dialog(self, seed, imported_keys)
+        self.exec_()
 
 
-    def show_seed(self, seed, imported_keys, parent=None):
+def make_seed_dialog(self, seed, imported_keys):
 
         brainwallet = ' '.join(mnemonic.mn_encode(seed))
 
@@ -79,4 +84,3 @@ class SeedDialog(QDialog):
         vbox.addLayout(hbox)
 
         self.setLayout(vbox)
-        self.exec_()
