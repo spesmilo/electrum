@@ -2107,20 +2107,6 @@ class ElectrumWindow(QMainWindow):
             self.update_history_tab()
             self.update_status()
         
-        try:
-            n = int(gap_e.text())
-        except:
-            QMessageBox.warning(self, _('Error'), _('Invalid value'), _('OK'))
-            return
-
-        if self.wallet.gap_limit != n:
-            r = self.wallet.change_gap_limit(n)
-            if r:
-                self.update_receive_tab()
-                self.config.set_key('gap_limit', self.wallet.gap_limit, True)
-            else:
-                QMessageBox.warning(self, _('Error'), _('Invalid value'), _('OK'))
-
         need_restart = False
 
         lang_request = languages.keys()[lang_combo.currentIndex()]
