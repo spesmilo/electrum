@@ -82,7 +82,10 @@ def run_password_dialog(self, wallet, parent):
         QMessageBox.warning(parent, _('Error'), _('Failed to update password'), _('OK'))
         return
 
-    return new_password
+    if new_password:
+        QMessageBox.information(parent, _('Success'), _('Password was updated successfully'), _('OK'))
+    else:
+        QMessageBox.information(parent, _('Success'), _('This wallet is not encrypted'), _('OK'))
 
 
 
@@ -101,11 +104,7 @@ class PasswordDialog(QDialog):
 
 
     def run(self):
-        new_password = run_password_dialog(self, self.wallet, self.parent)
-        if new_password:
-            QMessageBox.information(self.parent, _('Success'), _('Password was updated successfully'), _('OK'))
-        else:
-            QMessageBox.information(self.parent, _('Success'), _('This wallet is not encrypted'), _('OK'))
+        run_password_dialog(self, self.wallet, self.parent)
 
 
 
