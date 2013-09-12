@@ -832,6 +832,7 @@ class MiniDriver(QObject):
         super(QObject, self).__init__()
 
         self.wallet = wallet
+        self.network = wallet.network
         self.window = window
 
         self.wallet.network.register_callback('updated',self.update_callback)
@@ -851,9 +852,9 @@ class MiniDriver(QObject):
         self.emit(SIGNAL("updatesignal()"))
 
     def update(self):
-        if not self.wallet.interface:
+        if not self.network.interface:
             self.initializing()
-        elif not self.wallet.interface.is_connected:
+        elif not self.network.interface.is_connected:
             self.connecting()
         elif not self.wallet.up_to_date:
             self.synchronizing()

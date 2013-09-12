@@ -242,17 +242,16 @@ class InstallWizard(QDialog):
     def restore_wallet(self, wallet):
 
         # wait until we are connected, because the user might have selected another server
-        if not wallet.interface.is_connected:
-            waiting = lambda: False if wallet.interface.is_connected else "%s \n" % (_("Connecting..."))
+        if not self.network.interface.is_connected:
+            waiting = lambda: False if self.network.interface.is_connected else "%s \n" % (_("Connecting..."))
             waiting_dialog(waiting)
 
         waiting = lambda: False if wallet.is_up_to_date() else "%s\n%s %d\n%s %.1f"\
-            %(_("Please wait..."),_("Addresses generated:"),len(wallet.addresses(True)),_("Kilobytes received:"), wallet.interface.bytes_received/1024.)
+            %(_("Please wait..."),_("Addresses generated:"),len(wallet.addresses(True)),_("Kilobytes received:"), self.network.interface.bytes_received/1024.)
 
         # try to restore old account
         wallet.create_old_account()
         wallet.set_up_to_date(False)
-        wallet.interface.poke('synchronizer')
         waiting_dialog(waiting)
 
         if wallet.is_found():
@@ -262,7 +261,6 @@ class InstallWizard(QDialog):
             wallet.accounts.pop(0)
             wallet.create_accounts()
             wallet.set_up_to_date(False)
-            wallet.interface.poke('synchronizer')
             waiting_dialog(waiting)
 
         if wallet.is_found():

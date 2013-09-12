@@ -45,9 +45,9 @@ class Network(threading.Thread):
         self.interfaces = {}
         self.queue = Queue.Queue()
         self.default_server = self.config.get('server')
-        self.servers_list = filter_protocol(DEFAULT_SERVERS,'s')
+        self.disconnected_servers = []
         self.callbacks = {}
-        #banner
+        self.servers = []
         self.banner = ''
 
 
@@ -66,13 +66,17 @@ class Network(threading.Thread):
 
 
     def random_server(self):
-        if len(self.servers_list) <= len(self.interfaces.keys()):
-            return
+        choice_list = []
+        l = filter_protocol(self.get_servers(), 's')
+        for s in l:
+            if s in self.disconnected_servers or s in self.interfaces.keys():
+                continue
+            else:
+                choice_list.append(s)
         
-        while True:
-            server = random.choice( self.servers_list )
-            if server not in self.interfaces.keys(): break
-
+        if not choice_list: return
+        
+        server = random.choice( choice_list )
         return server
 
 
@@ -116,11 +120,11 @@ class Network(threading.Thread):
 
 
     def set_server(self, server, proxy):
-        subscriptions = self.interface.subscriptions
+        i = self.interface
         self.default_server = server
         self.start_interface(server)
         self.interface = self.interfaces[server]
-        self.resend_subscriptions(subscriptions)
+        i.stop_subscriptions() # fixme: it should not stop all subscriptions, and send 'unsubscribe'
         self.trigger_callback('disconnecting') # for actively disconnecting
 
 
@@ -138,8 +142,9 @@ class Network(threading.Thread):
                 if i == self.interface:
                     i.send([('server.banner',[])], self.on_banner)
                     i.send([('server.peers.subscribe',[])], self.on_peers)
+                    self.trigger_callback('connected')
             else:
-                self.servers_list.remove(i.server)
+                self.disconnected_servers.append(i.server)
                 self.interfaces.pop(i.server)
                 self.start_random_interface()
                 
@@ -154,6 +159,7 @@ class Network(threading.Thread):
         self.blockchain.queue.put((i,result))
 
     def on_peers(self, i, r):
+        if not r: return
         self.servers = self.parse_servers(r.get('result'))
         self.trigger_callback('peers')
 
@@ -198,12 +204,6 @@ class Network(threading.Thread):
                 servers[host] = out
 
         return servers
-
-
-    def resend_subscriptions(self, subscriptions):
-        for channel, messages in subscriptions.items():
-            if messages:
-                self.interface.send(messages, channel)
 
 
 

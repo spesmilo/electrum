@@ -224,7 +224,6 @@ class Wallet:
 
     def update(self):
         self.up_to_date = False
-        #self.interface.poke('synchronizer')
         while not self.is_up_to_date(): 
             time.sleep(0.1)
 
@@ -1039,7 +1038,7 @@ class Wallet:
                 print_error("received transaction that is no longer referenced in history", tx_hash)
                 return
             self.transactions[tx_hash] = tx
-            self.interface.pending_transactions_for_notifications.append(tx)
+            self.network.interface.pending_transactions_for_notifications.append(tx)
             self.save_transactions()
             if self.verifier and tx_height>0: 
                 self.verifier.add(tx_hash, tx_height)
@@ -1188,7 +1187,7 @@ class Wallet:
     def send_tx(self, tx):
         # asynchronous
         self.tx_event.clear()
-        self.interface.send([('blockchain.transaction.broadcast', [str(tx)])], self.on_broadcast)
+        self.network.interface.send([('blockchain.transaction.broadcast', [str(tx)])], self.on_broadcast)
         return tx.hash()
 
     def on_broadcast(self, i, result):
@@ -1320,7 +1319,7 @@ class Wallet:
                     # assert not self.is_mine(_addr)
                     ext_requests.append( ('blockchain.address.get_history', [_addr]) )
 
-                ext_h = self.interface.synchronous_get(ext_requests)
+                ext_h = self.network.interface.synchronous_get(ext_requests)
                 print_error("sync:", ext_requests, ext_h)
                 height = None
                 for h in ext_h:
@@ -1362,7 +1361,6 @@ class Wallet:
     def start_threads(self, network):
         from verifier import TxVerifier
         self.network = network
-        self.interface = network.interface
         self.verifier = TxVerifier(self.network, self.storage)
         self.verifier.start()
         self.set_verifier(self.verifier)
@@ -1385,7 +1383,7 @@ class WalletSynchronizer(threading.Thread):
         self.daemon = True
         self.wallet = wallet
         wallet.synchronizer = self
-        self.interface = self.wallet.interface
+        self.network = self.wallet.network
         #self.wallet.network.register_callback('connected', lambda: self.wallet.set_up_to_date(False))
         self.was_updated = True
         self.running = False
@@ -1403,15 +1401,25 @@ class WalletSynchronizer(threading.Thread):
         messages = []
         for addr in addresses:
             messages.append(('blockchain.address.subscribe', [addr]))
-        self.interface.send( messages, lambda i,r: self.queue.put(r))
+        self.network.interface.send( messages, lambda i,r: self.queue.put(r))
 
 
     def run(self):
-        if not self.interface.is_connected:
-            print_error( "synchronizer: waiting for interface")
-            self.interface.connect_event.wait()
+        with self.lock:
+            self.running = True
 
-        with self.lock: self.running = True
+        while self.is_running():
+            interface = self.network.interface
+            if not interface.is_connected:
+                print_error("synchronizer: waiting for interface")
+                interface.connect_event.wait()
+                
+            self.run_interface(interface)
+
+
+    def run_interface(self, interface):
+
+        print_error("synchronizer: connected to", interface.server)
 
         requested_tx = []
         missing_tx = []
@@ -1423,12 +1431,10 @@ class WalletSynchronizer(threading.Thread):
             for tx_hash, tx_height in history:
                 if self.wallet.transactions.get(tx_hash) is None and (tx_hash, tx_height) not in missing_tx:
                     missing_tx.append( (tx_hash, tx_height) )
-        print_error("missing tx", missing_tx)
 
-        # wait until we are connected, in case the user is not connected
-        while not self.interface.is_connected:
-            time.sleep(1)
-        
+        if missing_tx:
+            print_error("missing tx", missing_tx)
+
         # subscriptions
         self.subscribe_to_addresses(self.wallet.addresses(True, next=True))
 
@@ -1443,12 +1449,12 @@ class WalletSynchronizer(threading.Thread):
             # request missing transactions
             for tx_hash, tx_height in missing_tx:
                 if (tx_hash, tx_height) not in requested_tx:
-                    self.interface.send([ ('blockchain.transaction.get',[tx_hash, tx_height]) ], lambda i,r: self.queue.put(r))
+                    interface.send([ ('blockchain.transaction.get',[tx_hash, tx_height]) ], lambda i,r: self.queue.put(r))
                     requested_tx.append( (tx_hash, tx_height) )
             missing_tx = []
 
             # detect if situation has changed
-            if self.interface.is_up_to_date() and self.queue.empty():
+            if interface.is_up_to_date() and self.queue.empty():
                 if not self.wallet.is_up_to_date():
                     self.wallet.set_up_to_date(True)
                     self.was_updated = True
@@ -1462,10 +1468,16 @@ class WalletSynchronizer(threading.Thread):
                 self.was_updated = False
 
             # 2. get a response
-            r = self.queue.get(block=True, timeout=10000000000)
+            try:
+                r = self.queue.get(block=True, timeout=1)
+            except Queue.Empty:
+                continue
 
-            # poke sends None. (needed during stop)
-            if not r: continue
+            if interface != self.network.interface:
+                break
+            
+            if not r:
+                continue
 
             # 3. handle response
             method = r['method']
@@ -1480,7 +1492,7 @@ class WalletSynchronizer(threading.Thread):
                 addr = params[0]
                 if self.wallet.get_status(self.wallet.get_history(addr)) != result:
                     if requested_histories.get(addr) is None:
-                        self.interface.send([('blockchain.address.get_history', [addr])], lambda i,r:self.queue.put(r))
+                        interface.send([('blockchain.address.get_history', [addr])], lambda i,r:self.queue.put(r))
                         requested_histories[addr] = result
 
             elif method == 'blockchain.address.get_history':

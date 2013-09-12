@@ -381,6 +381,12 @@ class Interface(threading.Thread):
             raise BaseException('Unknown protocol: %s'%protocol)
 
 
+    def stop_subscriptions(self):
+        for callback in self.subscriptions.keys():
+            callback(self, None)
+        self.subscriptions = {}
+
+
     def send(self, messages, callback):
 
         sub = []
@@ -429,23 +435,6 @@ class Interface(threading.Thread):
             proxy["port"] = "8080" if proxy["mode"] == "http" else "1080"
         return proxy
 
-
-    def set_server(self, server, proxy=None):
-        "todo: remove this"
-        # raise an error if the format isnt correct
-        a,b,c = server.split(':')
-        b = int(b)
-        assert c in 'stgh'
-        # set the server
-        if server != self.server or proxy != self.proxy:
-            print "changing server:", server, proxy
-            self.server = server
-            self.proxy = proxy
-            if self.is_connected and self.protocol in 'st' and self.s:
-                self.s.shutdown(socket.SHUT_RDWR)
-                self.s.close()
-            self.is_connected = False  # this exits the polling loop
-            self.trigger_callback('disconnecting') # for actively disconnecting
 
 
     def stop(self):

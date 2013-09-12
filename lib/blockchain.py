@@ -65,6 +65,8 @@ class Blockchain(threading.Thread):
             if not result: continue
 
             i, result = result
+            if not result: continue
+            
             header = result.get('result')
             height = header.get('block_height')
             self.servers_height[i.server] = height

@@ -102,7 +102,7 @@ class ElectrumGui:
 
 
     def print_balance(self):
-        if self.wallet.interface and self.wallet.interface.is_connected:
+        if self.network.interface and self.network.interface.is_connected:
             if not self.wallet.up_to_date:
                 msg = _( "Synchronizing..." )
             else: 
@@ -143,7 +143,7 @@ class ElectrumGui:
         self.stdscr.addstr( 12, 25, _("[Clear]"), curses.A_REVERSE if self.pos%6==5 else curses.color_pair(2))
 
     def print_banner(self):
-        for i, x in enumerate( self.wallet.interface.banner.split('\n') ):
+        for i, x in enumerate( self.network.banner.split('\n') ):
             self.stdscr.addstr( 1+i, 1, x )
 
     def print_list(self, list, firstline):
@@ -318,7 +318,7 @@ class ElectrumGui:
 
     def network_dialog(self):
         out = self.run_dialog('Network', [
-            {'label':'server', 'type':'str', 'value':self.wallet.interface.server},
+            {'label':'server', 'type':'str', 'value':self.network.interface.server},
             {'label':'proxy', 'type':'str', 'value':self.config.get('proxy', '')},
             ], buttons = 1)
         if out:
@@ -331,7 +331,7 @@ class ElectrumGui:
 
                 self.wallet.config.set_key("proxy", proxy, True)
                 self.wallet.config.set_key("server", server, True)
-                self.wallet.interface.set_server(server, proxy)
+                self.network.interface.set_server(server, proxy)
                 
 
 

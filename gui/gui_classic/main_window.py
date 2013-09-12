@@ -281,13 +281,11 @@ class ElectrumWindow(QMainWindow):
             self.show_message("file not found "+ filename)
             return
 
-        interface = self.wallet.interface
-        blockchain = self.wallet.verifier.blockchain
         self.wallet.stop_threads()
         
         # create new wallet 
         wallet = Wallet(storage)
-        wallet.start_threads(interface, blockchain)
+        wallet.start_threads(network)
 
         self.load_wallet(wallet)
 
@@ -302,7 +300,7 @@ class ElectrumWindow(QMainWindow):
         storage = WalletStorage({'wallet_path': filename})
         assert not storage.file_exists
 
-        wizard = installwizard.InstallWizard(self.config, self.wallet.interface, self.wallet.verifier.blockchain, storage)
+        wizard = installwizard.InstallWizard(self.config, self.network, storage)
         wallet = wizard.run()
         if wallet: 
             self.load_wallet(wallet)
@@ -410,12 +408,12 @@ class ElectrumWindow(QMainWindow):
 
     def notify_transactions(self):
         print_error("Notifying GUI")
-        if len(self.wallet.interface.pending_transactions_for_notifications) > 0:
+        if len(self.network.interface.pending_transactions_for_notifications) > 0:
             # Combine the transactions if there are more then three
-            tx_amount = len(self.wallet.interface.pending_transactions_for_notifications)
+            tx_amount = len(self.network.interface.pending_transactions_for_notifications)
             if(tx_amount >= 3):
                 total_amount = 0
-                for tx in self.wallet.interface.pending_transactions_for_notifications:
+                for tx in self.network.interface.pending_transactions_for_notifications:
                     is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
                     if(v > 0):
                         total_amount += v
@@ -423,11 +421,11 @@ class ElectrumWindow(QMainWindow):
                 self.notify("%s new transactions received. Total amount received in the new transactions %s %s" \
                                 % (tx_amount, self.format_amount(total_amount), self.base_unit()))
 
-                self.wallet.interface.pending_transactions_for_notifications = []
+                self.network.interface.pending_transactions_for_notifications = []
             else:
-              for tx in self.wallet.interface.pending_transactions_for_notifications:
+              for tx in self.network.interface.pending_transactions_for_notifications:
                   if tx:
-                      self.wallet.interface.pending_transactions_for_notifications.remove(tx)
+                      self.network.interface.pending_transactions_for_notifications.remove(tx)
                       is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
                       if(v > 0):
                           self.notify("New transaction received. %s %s" % (self.format_amount(v), self.base_unit()))
@@ -535,7 +533,7 @@ class ElectrumWindow(QMainWindow):
         return "BTC" if self.decimal_point == 8 else "mBTC"
 
     def update_status(self):
-        if self.wallet.interface and self.wallet.interface.is_connected:
+        if self.network.interface and self.network.interface.is_connected:
             if not self.wallet.up_to_date:
                 text = _("Synchronizing...")
                 icon = QIcon(":icons/status_waiting.png")
@@ -555,7 +553,7 @@ class ElectrumWindow(QMainWindow):
 
     def update_wallet(self):
         self.update_status()
-        if self.wallet.up_to_date or not self.wallet.interface.is_connected:
+        if self.wallet.up_to_date or not self.network.interface.is_connected:
             self.update_history_tab()
             self.update_receive_tab()
             self.update_contacts_tab()
@@ -1308,7 +1306,7 @@ class ElectrumWindow(QMainWindow):
         console.updateNamespace({'wallet' : self.wallet, 'network' : self.network, 'gui':self})
         console.updateNamespace({'util' : util, 'bitcoin':bitcoin})
 
-        c = commands.Commands(self.wallet, self.wallet.interface, lambda: self.console.set_json(True))
+        c = commands.Commands(self.wallet, self.network.interface, lambda: self.console.set_json(True))
         methods = {}
         def mkfunc(f, method):
             return lambda *args: apply( f, (method, args, self.password_dialog ))

@@ -33,7 +33,7 @@ import platform
 MONOSPACE_FONT = 'Lucida Console' if platform.system() == 'Windows' else 'monospace'
 
 from electrum.util import format_satoshis
-from electrum.interface import DEFAULT_SERVERS
+from electrum.network import DEFAULT_SERVERS
 from electrum.bitcoin import MIN_RELAY_TX_FEE
 
 def numbify(entry, is_int = False):
@@ -268,7 +268,7 @@ def run_settings_dialog(wallet, parent):
 def run_network_dialog( wallet, parent ):
     image = gtk.Image()
     image.set_from_stock(gtk.STOCK_NETWORK, gtk.ICON_SIZE_DIALOG)
-    interface = wallet.interface
+    interface = wallet.network.interface
     if parent:
         if interface.is_connected:
             status = "Connected to %s:%d\n%d blocks"%(interface.host, interface.port, wallet.network.blockchain.height)
@@ -279,7 +279,7 @@ def run_network_dialog( wallet, parent ):
         status = "Please choose a server.\nSelect cancel if you are offline."
 
     server = interface.server
-    servers = interface.get_servers()
+    servers = wallet.network.get_servers()
 
     dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                                     gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, status)
@@ -345,7 +345,7 @@ def run_network_dialog( wallet, parent ):
     treeview = gtk.TreeView(model=server_list)
     treeview.show()
 
-    if wallet.interface.servers:
+    if interface.servers:
         label = 'Active Servers'
     else:
         label = 'Default Servers'
@@ -1107,7 +1107,7 @@ class ElectrumWindow:
         return vbox
 
     def update_status_bar(self):
-        interface = self.wallet.interface
+        interface = self.wallet.network.interface
         if self.funds_error:
             text = "Not enough funds"
         elif interface and interface.is_connected:
@@ -1133,7 +1133,7 @@ class ElectrumWindow:
             self.update_history_tab()
             self.update_receiving_tab()
             # addressbook too...
-            self.info.set_text( self.wallet.interface.banner )
+            self.info.set_text( self.wallet.network.banner )
             self.wallet_updated = False
 
     def update_receiving_tab(self):
