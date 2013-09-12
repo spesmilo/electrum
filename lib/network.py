@@ -4,6 +4,35 @@ from bitcoin import *
 import interface
 from blockchain import Blockchain
 
+DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
+
+DEFAULT_SERVERS = {
+    'the9ull.homelinux.org': {'h': '8082', 't': '50001'},
+    'electrum.coinwallet.me': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.dynaloop.net': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.koh.ms': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.novit.ro': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.stepkrav.pw': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'ecdsa.org': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.mooo.com': {'h': '8081', 't': '50001'},
+    'electrum.bitcoins.sk': {'h': '8081', 's': '50002', 't': '50001', 'g': '8'},
+    'electrum.no-ip.org': {'h': '80', 's': '50002', 't': '50001', 'g': '443'},
+    'electrum.drollette.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'btc.it-zone.org': {'h': '80', 's': '110', 't': '50001', 'g': '443'},
+    'electrum.yacoin.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.be': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'}
+}
+
+
+
+def filter_protocol(servers, p):
+    l = []
+    for k, protocols in servers.items():
+        if p in protocols:
+            l.append( ':'.join([k, protocols[p], p]) )
+    return l
+    
+
 
 class Network(threading.Thread):
 
@@ -16,8 +45,10 @@ class Network(threading.Thread):
         self.interfaces = {}
         self.queue = Queue.Queue()
         self.default_server = self.config.get('server')
-        self.servers_list = interface.filter_protocol(interface.DEFAULT_SERVERS,'s')
+        self.servers_list = filter_protocol(DEFAULT_SERVERS,'s')
         self.callbacks = {}
+        #banner
+        self.banner = ''
 
 
     def register_callback(self, event, callback):
@@ -45,11 +76,17 @@ class Network(threading.Thread):
         return server
 
 
+    def get_servers(self):
+        if not self.servers:
+            return DEFAULT_SERVERS
+        else:
+            return self.servers
+
+
     def start_interface(self, server):
         if server in self.interfaces.keys():
             return
         i = interface.Interface({'server':server})
-        i.network = self # fixme
         self.interfaces[server] = i
         i.start(self.queue)
 
@@ -97,13 +134,10 @@ class Network(threading.Thread):
             i = self.queue.get()
 
             if i.is_connected:
-                i.register_channel('verifier', self.blockchain.queue)
-                i.register_channel('get_header')
-                i.send([ ('blockchain.headers.subscribe',[])], 'verifier')
-
+                i.send([ ('blockchain.headers.subscribe',[])], self.on_header)
                 if i == self.interface:
-                    i.send([('server.banner',[])])
-                    i.send([('server.peers.subscribe',[])])
+                    i.send([('server.banner',[])], self.on_banner)
+                    i.send([('server.peers.subscribe',[])], self.on_peers)
             else:
                 self.servers_list.remove(i.server)
                 self.interfaces.pop(i.server)
@@ -116,19 +150,54 @@ class Network(threading.Thread):
                     else:
                         self.trigger_callback('disconnected')
                 
+    def on_header(self, i, result):
+        self.blockchain.queue.put((i,result))
 
-    def on_peers(self, result):
-        # populate servers list here
-        pass
+    def on_peers(self, i, r):
+        self.servers = self.parse_servers(r.get('result'))
+        self.trigger_callback('peers')
 
-    def on_banner(self, result):
-        pass
+    def on_banner(self, i, r):
+        self.banner = r.get('result')
+        self.trigger_callback('banner')
 
     def stop(self):
         with self.lock: self.running = False
 
     def is_running(self):
         with self.lock: return self.running
+
+
+    def parse_servers(self, result):
+        """ parse servers list into dict format"""
+        from version import PROTOCOL_VERSION
+        servers = {}
+        for item in result:
+            host = item[1]
+            out = {}
+            version = None
+            pruning_level = '-'
+            if len(item) > 2:
+                for v in item[2]:
+                    if re.match("[stgh]\d*", v):
+                        protocol, port = v[0], v[1:]
+                        if port == '': port = DEFAULT_PORTS[protocol]
+                        out[protocol] = port
+                    elif re.match("v(.?)+", v):
+                        version = v[1:]
+                    elif re.match("p\d*", v):
+                        pruning_level = v[1:]
+                    if pruning_level == '': pruning_level = '0'
+            try: 
+                is_recent = float(version)>=float(PROTOCOL_VERSION)
+            except:
+                is_recent = False
+
+            if out and is_recent:
+                out['pruning'] = pruning_level
+                servers[host] = out
+
+        return servers
 
 
     def resend_subscriptions(self, subscriptions):
@@ -141,7 +210,7 @@ class Network(threading.Thread):
 
 if __name__ == "__main__":
     import simple_config
-    config = simple_config.SimpleConfig({'verbose':True})
+    config = simple_config.SimpleConfig({'verbose':True, 'server':'ecdsa.org:50002:s'})
     network = Network(config)
     network.start()
 

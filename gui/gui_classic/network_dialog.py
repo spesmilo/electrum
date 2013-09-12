@@ -23,7 +23,7 @@ import os.path, json, ast, traceback
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-from electrum.interface import DEFAULT_SERVERS, DEFAULT_PORTS
+from electrum import DEFAULT_SERVERS, DEFAULT_PORTS
 
 from qt_util import *
 
@@ -62,7 +62,7 @@ class NetworkDialog(QDialog):
             status = _("Please choose a server.") + "\n" + _("Select 'Cancel' if you are offline.")
             server = interface.server
 
-        self.servers = interface.get_servers()
+        self.servers = network.get_servers()
 
 
         vbox = QVBoxLayout()

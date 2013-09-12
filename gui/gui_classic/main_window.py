@@ -206,7 +206,7 @@ class ElectrumWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() + 1 )%tabs.count() ))
         
         self.connect(self, QtCore.SIGNAL('update_status'), self.update_status)
-        self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.wallet.interface.banner) )
+        self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.network.banner) )
         self.connect(self, QtCore.SIGNAL('transaction_signal'), lambda: self.notify_transactions() )
 
         self.history_list.setFocus(True)
@@ -240,7 +240,7 @@ class ElectrumWindow(QMainWindow):
         self.setWindowTitle( title )
         self.update_wallet()
         # set initial message
-        self.console.showMessage(self.wallet.interface.banner)
+        self.console.showMessage(self.network.banner)
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         self.notify_transactions()
 

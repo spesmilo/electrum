@@ -308,17 +308,22 @@ class Blockchain(threading.Thread):
         return new_bits, new_target
 
 
-    def request_header(self, i, h):
+    def request_header(self, i, h, queue):
         print_error("requesting header %d from %s"%(h, i.server))
-        i.send([ ('blockchain.block.get_header',[h])], 'get_header')
+        i.send([ ('blockchain.block.get_header',[h])], lambda i,r: queue.put((i,r)))
 
-    def retrieve_header(self, i):
+    def retrieve_header(self, i, queue):
         while True:
             try:
-                r = i.get_response('get_header',timeout=1)
+                ir = queue.get(timeout=1)
             except Queue.Empty:
                 print_error('timeout')
                 continue
+
+            if not ir: 
+                continue
+
+            i, r = ir
 
             if r.get('error'):
                 print_error('Verifier received an error:', r)
@@ -339,11 +344,12 @@ class Blockchain(threading.Thread):
         header = final_header
         chain = [ final_header ]
         requested_header = False
-        
+        queue = Queue.Queue()
+
         while self.is_running():
 
             if requested_header:
-                header = self.retrieve_header(interface)
+                header = self.retrieve_header(interface, queue)
                 if not header: return
                 chain = [ header ] + chain
                 requested_header = False
@@ -351,7 +357,7 @@ class Blockchain(threading.Thread):
             height = header.get('block_height')
             previous_header = self.read_header(height -1)
             if not previous_header:
-                self.request_header(interface, height - 1)
+                self.request_header(interface, height - 1, queue)
                 requested_header = True
                 continue
 
@@ -359,7 +365,7 @@ class Blockchain(threading.Thread):
             prev_hash = self.hash_header(previous_header)
             if prev_hash != header.get('prev_block_hash'):
                 print_error("reorg")
-                self.request_header(interface, height - 1)
+                self.request_header(interface, height - 1, queue)
                 requested_header = True
                 continue
 
@@ -370,17 +376,18 @@ class Blockchain(threading.Thread):
 
     def get_chunks(self, i, header, height):
         requested_chunks = []
+        queue = Queue.Queue()
         min_index = (self.local_height + 1)/2016
         max_index = (height + 1)/2016
         for n in range(min_index, max_index + 1):
             print_error( "requesting chunk", n )
-            i.send([ ('blockchain.block.get_chunk',[n])], 'get_header')
+            i.send([ ('blockchain.block.get_chunk',[n])], lambda i,r:queue.put(r))
             requested_chunks.append(n)
             break
 
         while requested_chunks:
             try:
-                r = i.get_response('get_header',timeout=1)
+                r = queue.get(timeout=1)
             except Queue.Empty:
                 continue
             if not r: continue
@@ -390,14 +397,12 @@ class Blockchain(threading.Thread):
                 continue
 
             # 3. handle response
-            method = r['method']
             params = r['params']
             result = r['result']
 
-            if method == 'blockchain.block.get_chunk':
-                index = params[0]
-                self.verify_chunk(index, result)
-                requested_chunks.remove(index)
+            index = params[0]
+            self.verify_chunk(index, result)
+            requested_chunks.remove(index)
 
 
 

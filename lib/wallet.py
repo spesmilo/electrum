@@ -217,13 +217,17 @@ class Wallet:
     def set_up_to_date(self,b):
         with self.lock: self.up_to_date = b
 
+
     def is_up_to_date(self):
         with self.lock: return self.up_to_date
 
+
     def update(self):
         self.up_to_date = False
-        self.interface.poke('synchronizer')
-        while not self.is_up_to_date(): time.sleep(0.1)
+        #self.interface.poke('synchronizer')
+        while not self.is_up_to_date(): 
+            time.sleep(0.1)
+
 
     def import_key(self, sec, password):
         # check password
@@ -652,7 +656,7 @@ class Wallet:
         if value >= self.gap_limit:
             self.gap_limit = value
             self.storage.put('gap_limit', self.gap_limit, True)
-            self.interface.poke('synchronizer')
+            #self.interface.poke('synchronizer')
             return True
 
         elif value >= self.min_acceptable_gap():
@@ -1184,8 +1188,12 @@ class Wallet:
     def send_tx(self, tx):
         # asynchronous
         self.tx_event.clear()
-        self.interface.send([('blockchain.transaction.broadcast', [str(tx)])], 'synchronizer')
+        self.interface.send([('blockchain.transaction.broadcast', [str(tx)])], self.on_broadcast)
         return tx.hash()
+
+    def on_broadcast(self, i, result):
+        self.tx_result = result
+        self.tx_event.set()
 
     def receive_tx(self,tx_hash):
         out = self.tx_result 
@@ -1378,15 +1386,14 @@ class WalletSynchronizer(threading.Thread):
         self.wallet = wallet
         wallet.synchronizer = self
         self.interface = self.wallet.interface
-        self.interface.register_channel('synchronizer')
         #self.wallet.network.register_callback('connected', lambda: self.wallet.set_up_to_date(False))
         self.was_updated = True
         self.running = False
         self.lock = threading.Lock()
+        self.queue = Queue.Queue()
 
     def stop(self):
         with self.lock: self.running = False
-        self.interface.poke('synchronizer')
 
     def is_running(self):
         with self.lock: return self.running
@@ -1396,7 +1403,7 @@ class WalletSynchronizer(threading.Thread):
         messages = []
         for addr in addresses:
             messages.append(('blockchain.address.subscribe', [addr]))
-        self.interface.send( messages, 'synchronizer')
+        self.interface.send( messages, lambda i,r: self.queue.put(r))
 
 
     def run(self):
@@ -1436,26 +1443,26 @@ class WalletSynchronizer(threading.Thread):
             # request missing transactions
             for tx_hash, tx_height in missing_tx:
                 if (tx_hash, tx_height) not in requested_tx:
-                    self.interface.send([ ('blockchain.transaction.get',[tx_hash, tx_height]) ], 'synchronizer')
+                    self.interface.send([ ('blockchain.transaction.get',[tx_hash, tx_height]) ], lambda i,r: self.queue.put(r))
                     requested_tx.append( (tx_hash, tx_height) )
             missing_tx = []
 
             # detect if situation has changed
-            if not self.interface.is_up_to_date('synchronizer'):
-                if self.wallet.is_up_to_date():
-                    self.wallet.set_up_to_date(False)
-                    self.was_updated = True
-            else:
+            if self.interface.is_up_to_date() and self.queue.empty():
                 if not self.wallet.is_up_to_date():
                     self.wallet.set_up_to_date(True)
                     self.was_updated = True
+            else:
+                if self.wallet.is_up_to_date():
+                    self.wallet.set_up_to_date(False)
+                    self.was_updated = True
 
             if self.was_updated:
-                self.interface.network.trigger_callback('updated')
+                self.wallet.network.trigger_callback('updated')
                 self.was_updated = False
 
             # 2. get a response
-            r = self.interface.get_response('synchronizer')
+            r = self.queue.get(block=True, timeout=10000000000)
 
             # poke sends None. (needed during stop)
             if not r: continue
@@ -1473,7 +1480,7 @@ class WalletSynchronizer(threading.Thread):
                 addr = params[0]
                 if self.wallet.get_status(self.wallet.get_history(addr)) != result:
                     if requested_histories.get(addr) is None:
-                        self.interface.send([('blockchain.address.get_history', [addr])], 'synchronizer')
+                        self.interface.send([('blockchain.address.get_history', [addr])], lambda i,r:self.queue.put(r))
                         requested_histories[addr] = result
 
             elif method == 'blockchain.address.get_history':
@@ -1519,15 +1526,11 @@ class WalletSynchronizer(threading.Thread):
                 requested_tx.remove( (tx_hash, tx_height) )
                 print_error("received tx:", tx_hash, len(tx.raw))
 
-            elif method == 'blockchain.transaction.broadcast':
-                self.wallet.tx_result = result
-                self.wallet.tx_event.set()
-
             else:
                 print_error("Error: Unknown message:" + method + ", " + repr(params) + ", " + repr(result) )
 
             if self.was_updated and not requested_tx:
-                self.interface.network.trigger_callback('updated')
-                self.interface.network.trigger_callback("new_transaction") # Updated gets called too many times from other places as well; if we use that signal we get the notification three times
+                self.wallet.network.trigger_callback('updated')
+                self.wallet.network.trigger_callback("new_transaction") # Updated gets called too many times from other places as well; if we use that signal we get the notification three times
 
                 self.was_updated = False
