@@ -91,23 +91,27 @@ class InstallWizard(QDialog):
             msg = _("Please enter your wallet seed." + ' ')
             msg += _("Your seed can be entered as a sequence of words, or as a hexadecimal string."+ '\n')
         else:
-            msg = _("Your seed is important! To make sure that you have properly saved your seed, please type it here." + ' ')
+            msg = _("Your seed is important!") \
+                  + "\n" + _("To make sure that you have properly saved your seed, please retype it here." + ' ')
         
         logo = QLabel()
         logo.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(56))
         logo.setMaximumWidth(60)
+
         label = QLabel(msg)
         label.setWordWrap(True)
 
+        seed_e = QTextEdit()
+        seed_e.setMaximumHeight(100)
+
+        vbox.addWidget(label)
+
         grid = QGridLayout()
         grid.addWidget(logo, 0, 0)
-        grid.addWidget(label, 0, 1)
+        grid.addWidget(seed_e, 0, 1)
 
         vbox.addLayout(grid)
 
-        seed_e = QTextEdit()
-        seed_e.setMaximumHeight(100)
-        vbox.addWidget(seed_e)
 
         vbox.addStretch(1)
         vbox.addLayout(ok_cancel_buttons(self, _('Next')))
