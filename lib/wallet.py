@@ -1190,8 +1190,8 @@ class Wallet:
         self.network.interface.send([('blockchain.transaction.broadcast', [str(tx)])], self.on_broadcast)
         return tx.hash()
 
-    def on_broadcast(self, i, result):
-        self.tx_result = result
+    def on_broadcast(self, i, r):
+        self.tx_result = r.get('result')
         self.tx_event.set()
 
     def receive_tx(self,tx_hash):
