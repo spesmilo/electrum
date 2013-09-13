@@ -266,7 +266,7 @@ class ElectrumWindow(QMainWindow):
     def select_wallet_file(self):
         wallet_folder = self.wallet.storage.path
         re.sub("(\/\w*.dat)$", "", wallet_folder)
-        file_name = unicode( QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder, "*.dat") )
+        file_name = unicode( QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder) )
         return file_name
 
 
@@ -295,7 +295,7 @@ class ElectrumWindow(QMainWindow):
 
         wallet_folder = self.wallet.storage.path
         re.sub("(\/\w*.dat)$", "", wallet_folder)
-        filename = self.getSaveFileName("Select your wallet file", wallet_folder, "*.dat")
+        filename = self.getSaveFileName("Select your wallet file", wallet_folder)
 
         storage = WalletStorage({'wallet_path': filename})
         assert not storage.file_exists
