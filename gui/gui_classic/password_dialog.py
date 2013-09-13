@@ -37,6 +37,8 @@ def make_password_dialog(self, wallet, msg):
 
     grid = QGridLayout()
     grid.setSpacing(8)
+    grid.setColumnMinimumWidth(0,300)
+    grid.setColumnStretch(1,1)
 
     if wallet.use_encryption:
         grid.addWidget(QLabel(_('Password')), 1, 0)

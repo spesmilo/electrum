@@ -49,6 +49,7 @@ class Network(threading.Thread):
         self.callbacks = {}
         self.servers = []
         self.banner = ''
+        self.interface = None
 
 
     def register_callback(self, event, callback):
