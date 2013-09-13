@@ -56,16 +56,6 @@ class HelpButton(QPushButton):
 
 
 
-def backup_wallet(path):
-    import shutil
-    directory, fileName = os.path.split(path)
-    try:
-        otherpath = unicode( QFileDialog.getOpenFileName(QWidget(), _('Enter a filename for the copy of your wallet'), directory) )
-        if otherpath and path!=otherpath:
-            shutil.copy2(path, otherpath)
-            QMessageBox.information(None,"Wallet backup created", _("A copy of your wallet file was created in")+" '%s'" % str(otherpath))
-    except (IOError, os.error), reason:
-        QMessageBox.critical(None,"Unable to create backup", _("Electrum was unable to copy your wallet file to the specified location.")+"\n" + str(reason))
 
 def ok_cancel_buttons(dialog, ok_label=_("OK") ):
     hbox = QHBoxLayout()

@@ -290,12 +290,34 @@ class ElectrumWindow(QMainWindow):
         self.load_wallet(wallet)
 
 
+
+    def backup_wallet(self):
+        import shutil
+        path = self.wallet.storage.path
+        wallet_folder = os.path.dirname(path)
+        new_filename, ok = QInputDialog.getText(self, _('Filename'), _('Current directory') + ': ' + wallet_folder + '\n' + _('Enter a filename for the copy of your wallet') + ':')
+        new_filename = unicode(new_filename)
+        if not ok or not new_filename:
+            return
+
+        new_path = os.path.join(wallet_folder, new_filename)
+        if new_path != path:
+            try:
+                shutil.copy2(path, new_path)
+                QMessageBox.information(None,"Wallet backup created", _("A copy of your wallet file was created in")+" '%s'" % str(new_path))
+            except (IOError, os.error), reason:
+                QMessageBox.critical(None,"Unable to create backup", _("Electrum was unable to copy your wallet file to the specified location.")+"\n" + str(reason))
+
+
     def new_wallet(self):
         import installwizard
 
-        wallet_folder = self.wallet.storage.path
-        re.sub("(\/\w*.dat)$", "", wallet_folder)
-        filename = self.getSaveFileName("Select your wallet file", wallet_folder)
+        wallet_folder = os.path.dirname(self.wallet.storage.path)
+        filename, ok = QInputDialog.getText(self, _('Filename'), _('Current directory') + ': ' + wallet_folder + '\n'+_('Enter a new file name') + ':')
+        filename = unicode(filename)
+        if not ok or not filename:
+            return
+        filename = os.path.join(wallet_folder, filename)
 
         storage = WalletStorage({'wallet_path': filename})
         assert not storage.file_exists
@@ -318,7 +340,7 @@ class ElectrumWindow(QMainWindow):
         new_wallet_action.triggered.connect(self.new_wallet)
 
         wallet_backup = file_menu.addAction(_("&Copy"))
-        wallet_backup.triggered.connect(lambda: backup_wallet(self.wallet.storage.path))
+        wallet_backup.triggered.connect(self.backup_wallet)
 
         quit_item = file_menu.addAction(_("&Close"))
         quit_item.triggered.connect(self.close)
@@ -491,14 +513,14 @@ class ElectrumWindow(QMainWindow):
 
 
     # custom wrappers for getOpenFileName and getSaveFileName, that remember the path selected by the user
-    def getOpenFileName(self, title, filter = None):
+    def getOpenFileName(self, title, filter = ""):
         directory = self.config.get('io_dir', os.path.expanduser('~'))
         fileName = unicode( QFileDialog.getOpenFileName(self, title, directory, filter) )
         if fileName and directory != os.path.dirname(fileName):
             self.config.set_key('io_dir', os.path.dirname(fileName), True)
         return fileName
 
-    def getSaveFileName(self, title, filename, filter = None):
+    def getSaveFileName(self, title, filename, filter = ""):
         directory = self.config.get('io_dir', os.path.expanduser('~'))
         path = os.path.join( directory, filename )
         fileName = unicode( QFileDialog.getSaveFileName(self, title, path, filter) )
