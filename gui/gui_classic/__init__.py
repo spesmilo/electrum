@@ -105,7 +105,7 @@ class ElectrumGui:
         QDir.setCurrent(old_path)
         if url:
             payto, amount, label, message, signature, identity, url = parse_url(url)
-            self.mini.set_payment_fields(payto, amount)
+            mini.set_payment_fields(payto, amount)
 
         return mini
 
