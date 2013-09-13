@@ -285,7 +285,7 @@ class ElectrumWindow(QMainWindow):
         
         # create new wallet 
         wallet = Wallet(storage)
-        wallet.start_threads(network)
+        wallet.start_threads(self.network)
 
         self.load_wallet(wallet)
 
