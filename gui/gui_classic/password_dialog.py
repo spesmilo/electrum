@@ -33,22 +33,37 @@ def make_password_dialog(self, wallet, msg):
     self.conf_pw.setEchoMode(2)
     
     vbox = QVBoxLayout()
-    vbox.addWidget(QLabel(msg))
+    label = QLabel(msg)
+    label.setWordWrap(True)
 
     grid = QGridLayout()
     grid.setSpacing(8)
-    grid.setColumnMinimumWidth(0,300)
+    grid.setColumnMinimumWidth(0, 70)
     grid.setColumnStretch(1,1)
 
-    if wallet.use_encryption:
-        grid.addWidget(QLabel(_('Password')), 1, 0)
-        grid.addWidget(self.pw, 1, 1)
-        
-    grid.addWidget(QLabel(_('New Password')), 2, 0)
-    grid.addWidget(self.new_pw, 2, 1)
+    logo = QLabel()
+    lockfile = ":icons/lock.png" if wallet.use_encryption else ":icons/unlock.png"
+    logo.setPixmap(QPixmap(lockfile).scaledToWidth(36))
+    logo.setAlignment(Qt.AlignCenter)
 
-    grid.addWidget(QLabel(_('Confirm Password')), 3, 0)
-    grid.addWidget(self.conf_pw, 3, 1)
+    grid.addWidget(logo,  0, 0)
+    grid.addWidget(label, 0, 1, 1, 2)
+    vbox.addLayout(grid)
+
+    grid = QGridLayout()
+    grid.setSpacing(8)
+    grid.setColumnMinimumWidth(0, 250)
+    grid.setColumnStretch(1,1)
+    
+    if wallet.use_encryption:
+        grid.addWidget(QLabel(_('Password')), 0, 0)
+        grid.addWidget(self.pw, 0, 1)
+        
+    grid.addWidget(QLabel(_('New Password')), 1, 0)
+    grid.addWidget(self.new_pw, 1, 1)
+
+    grid.addWidget(QLabel(_('Confirm Password')), 2, 0)
+    grid.addWidget(self.conf_pw, 2, 1)
     vbox.addLayout(grid)
 
     vbox.addStretch(1)
@@ -99,7 +114,7 @@ class PasswordDialog(QDialog):
         self.setModal(1)
         self.wallet = wallet
         self.parent = parent
-        msg = (_('Your wallet is encrypted. Use this dialog to change your password.')+'\n'\
+        msg = (_('Your wallet is encrypted. Use this dialog to change your password.') + ' '\
                +_('To disable wallet encryption, enter an empty new password.')) \
                if wallet.use_encryption else _('Your wallet keys are not encrypted')
         make_password_dialog(self, wallet, msg)
