@@ -619,7 +619,8 @@ class Wallet:
             if redeem_script:
                 addr = hash_160_to_bc_address(hash_160(redeem_script.decode('hex')), 5)
             else:
-                addr = transaction.get_address_from_output_script(txin["raw_output_script"].decode('hex'))
+                import transaction
+                _, addr = transaction.get_address_from_output_script(txin["raw_output_script"].decode('hex'))
             txin['address'] = addr
 
             # add private keys that are in the wallet
