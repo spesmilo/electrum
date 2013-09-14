@@ -379,6 +379,13 @@ class Transaction:
         self.input_info = None
         self.is_complete = True
         
+
+    def __repr__(self):
+        return "Transaction('"+self.raw+"')"
+
+    def __str__(self):
+        return self.raw
+
     @classmethod
     def from_io(klass, inputs, outputs):
         raw = klass.serialize(inputs, outputs, for_sig = -1) # for_sig=-1 means do not sign
@@ -390,11 +397,12 @@ class Transaction:
         for i in self.inputs:
             e = { 'txid':i['tx_hash'], 'vout':i['index'], 'scriptPubKey':i.get('raw_output_script') }
             extras.append(e)
+            # fixme: simplify this
+            i['prevout_hash'] = i['tx_hash']
+            i['prevout_n'] = i['index']
+
         self.input_info = extras
         return self
-
-    def __str__(self):
-        return self.raw
 
     @classmethod
     def multisig_script(klass, public_keys, num=None):

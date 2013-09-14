@@ -174,6 +174,12 @@ class Network(threading.Thread):
     def is_running(self):
         with self.lock: return self.running
 
+    
+    def retrieve_transaction(self, tx_hash, tx_height=0):
+        import transaction
+        r = self.interface.synchronous_get([ ('blockchain.transaction.get',[tx_hash, tx_height]) ])[0]
+        return transaction.Transaction(r)
+
 
     def parse_servers(self, result):
         """ parse servers list into dict format"""

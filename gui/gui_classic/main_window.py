@@ -612,59 +612,16 @@ class ElectrumWindow(QMainWindow):
         tx_hash = str(item.data(0, Qt.UserRole).toString())
         if not tx_hash: return
         menu = QMenu()
-        #menu.addAction(_("Copy ID to Clipboard"), lambda: self.app.clipboard().setText(tx_hash))
-        menu.addAction(_("Details"), lambda: self.show_tx_details(self.wallet.transactions.get(tx_hash)))
+        menu.addAction(_("Copy ID to Clipboard"), lambda: self.app.clipboard().setText(tx_hash))
+        menu.addAction(_("Details"), lambda: self.show_transaction(self.wallet.transactions.get(tx_hash)))
         menu.addAction(_("Edit description"), lambda: self.tx_label_clicked(item,2))
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
 
-    def show_tx_details(self, tx):
-        dialog = QDialog(self)
-        dialog.setModal(1)
-        dialog.setWindowTitle(_("Transaction Details"))
-        vbox = QVBoxLayout()
-        dialog.setLayout(vbox)
-        dialog.setMinimumSize(600,300)
-
-        tx_hash = tx.hash()
-        if tx_hash in self.wallet.transactions.keys():
-            is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
-            conf, timestamp = self.wallet.verifier.get_confirmations(tx_hash)
-            if timestamp:
-                time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
-            else:
-                time_str = 'pending'
-        else:
-            is_mine = False
-
-        vbox.addWidget(QLabel("Transaction ID:"))
-        e  = QLineEdit(tx_hash)
-        e.setReadOnly(True)
-        vbox.addWidget(e)
-
-        vbox.addWidget(QLabel("Date: %s"%time_str))
-        vbox.addWidget(QLabel("Status: %d confirmations"%conf))
-        if is_mine:
-            if fee is not None: 
-                vbox.addWidget(QLabel("Amount sent: %s"% self.format_amount(v-fee)))
-                vbox.addWidget(QLabel("Transaction fee: %s"% self.format_amount(fee)))
-            else:
-                vbox.addWidget(QLabel("Amount sent: %s"% self.format_amount(v)))
-                vbox.addWidget(QLabel("Transaction fee: unknown"))
-        else:
-            vbox.addWidget(QLabel("Amount received: %s"% self.format_amount(v)))
-
-        vbox.addWidget( self.generate_transaction_information_widget(tx) )
-
-        ok_button = QPushButton(_("Close"))
-        ok_button.setDefault(True)
-        ok_button.clicked.connect(dialog.accept)
-        
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-        hbox.addWidget(ok_button)
-        vbox.addLayout(hbox)
-        dialog.exec_()
+    def show_transaction(self, tx):
+        import transaction_dialog
+        d = transaction_dialog.TxDialog(tx, self)
+        d.exec_()
 
     def tx_label_clicked(self, item, column):
         if column==2 and item.isSelected():
@@ -1678,45 +1635,6 @@ class ElectrumWindow(QMainWindow):
 
 
 
-    def generate_transaction_information_widget(self, tx):
-        tabs = QTabWidget(self)
-
-        tab1 = QWidget()
-        grid_ui = QGridLayout(tab1)
-        grid_ui.setColumnStretch(0,1)
-        tabs.addTab(tab1, _('Outputs') )
-
-        tree_widget = MyTreeWidget(self)
-        tree_widget.setColumnCount(2)
-        tree_widget.setHeaderLabels( [_('Address'), _('Amount')] )
-        tree_widget.setColumnWidth(0, 300)
-        tree_widget.setColumnWidth(1, 50)
-
-        for address, value in tx.outputs:
-            item = QTreeWidgetItem( [address, "%s" % ( self.format_amount(value))] )
-            tree_widget.addTopLevelItem(item)
-
-        tree_widget.setMaximumHeight(100)
-
-        grid_ui.addWidget(tree_widget)
-
-        tab2 = QWidget()
-        grid_ui = QGridLayout(tab2)
-        grid_ui.setColumnStretch(0,1)
-        tabs.addTab(tab2, _('Inputs') )
-        
-        tree_widget = MyTreeWidget(self)
-        tree_widget.setColumnCount(2)
-        tree_widget.setHeaderLabels( [ _('Address'), _('Previous output')] )
-
-        for input_line in tx.inputs:
-            item = QTreeWidgetItem( [ str(input_line["address"]), str(input_line["prevout_hash"])] )
-            tree_widget.addTopLevelItem(item)
-
-        tree_widget.setMaximumHeight(100)
-
-        grid_ui.addWidget(tree_widget)
-        return tabs
 
 
     def tx_dict_from_text(self, txt):
@@ -1747,28 +1665,9 @@ class ElectrumWindow(QMainWindow):
 
     @protected
     def sign_raw_transaction(self, tx, input_info, dialog ="", password = ""):
-        try:
-            self.wallet.signrawtransaction(tx, input_info, [], password)
-            
-            fileName = self.getSaveFileName(_("Select where to save your signed transaction"), 'signed_%s.txn' % (tx.hash()[0:8]), "*.txn")
-            if fileName:
-                with open(fileName, "w+") as f:
-                    f.write(json.dumps(tx.as_dict(),indent=4) + '\n')
-                self.show_message(_("Transaction saved successfully"))
-                if dialog:
-                    dialog.done(0)
-        except BaseException, e:
-            self.show_message(str(e))
+        self.wallet.signrawtransaction(tx, input_info, [], password)
     
 
-    def send_raw_transaction(self, raw_tx, dialog = ""):
-        result, result_message = self.wallet.sendtx( raw_tx )
-        if result:
-            self.show_message("Transaction successfully sent: %s" % (result_message))
-            if dialog:
-                dialog.done(0)
-        else:
-            self.show_message("There was a problem sending your transaction:\n %s" % (result_message))
 
     def do_process_from_text(self):
         text = text_dialog(self, _('Input raw transaction'), _("Transaction:"), _("Load transaction"))
@@ -1801,8 +1700,9 @@ class ElectrumWindow(QMainWindow):
             self.show_message(str(e))
             return
 
-        tx_dict = tx.as_dict()
-        self.create_process_transaction_window(tx_dict)
+        self.show_transaction(tx)
+        #tx_dict = tx.as_dict()
+        #self.create_process_transaction_window(tx_dict)
 
     def do_process_from_csv_file(self):
         fileName = self.getOpenFileName(_("Select your transaction CSV"), "*.csv")
@@ -1824,41 +1724,10 @@ class ElectrumWindow(QMainWindow):
         csvReader = csv.reader(f)
         self.do_process_from_csvReader(csvReader)
 
+
     def create_process_transaction_window(self, tx_dict):
         tx = Transaction(tx_dict["hex"])
-            
-        dialog = QDialog(self)
-        dialog.setMinimumWidth(500)
-        dialog.setWindowTitle(_('Process raw transaction'))
-        dialog.setModal(1)
-
-        l = QGridLayout()
-        dialog.setLayout(l)
-
-        l.addWidget(QLabel(_("Transaction status:")), 3,0)
-        l.addWidget(QLabel(_("Actions")), 4,0)
-
-        if tx_dict["complete"] == False:
-            l.addWidget(QLabel(_("Unsigned")), 3,1)
-            if self.wallet.seed :
-                b = QPushButton("Sign transaction")
-                input_info = json.loads(tx_dict["input_info"])
-                b.clicked.connect(lambda: self.sign_raw_transaction(tx, input_info, dialog))
-                l.addWidget(b, 4, 1)
-            else:
-                l.addWidget(QLabel(_("Wallet is de-seeded, can't sign.")), 4,1)
-        else:
-            l.addWidget(QLabel(_("Signed")), 3,1)
-            b = QPushButton("Broadcast transaction")
-            b.clicked.connect(lambda: self.send_raw_transaction(tx, dialog))
-            l.addWidget(b,4,1)
-
-        l.addWidget( self.generate_transaction_information_widget(tx), 0,0,2,3)
-        cancelButton = QPushButton(_("Cancel"))
-        cancelButton.clicked.connect(lambda: dialog.done(0))
-        l.addWidget(cancelButton, 4,2)
-
-        dialog.exec_()
+        self.show_transaction(tx)
 
 
     @protected

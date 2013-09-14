@@ -247,7 +247,7 @@ class Commands:
 
     def mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):
         tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
-        return tx.as_dict()
+        return tx
 
     def mksendmanytx(self, outputs, fee = None, change_addr = None, domain = None):
         tx = self._mktx(outputs, fee, change_addr, domain)

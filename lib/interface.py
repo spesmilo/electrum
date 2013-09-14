@@ -449,7 +449,7 @@ class Interface(threading.Thread):
 
     def synchronous_get(self, requests, timeout=100000000):
         # todo: use generators, unanswered_requests should be a list of arrays...
-        q = Queue.Queue()
+        queue = Queue.Queue()
         ids = self.send(requests, lambda i,r: queue.put(r))
         id2 = ids[:]
         res = {}

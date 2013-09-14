@@ -24,7 +24,10 @@ def print_msg(*args):
 
 def print_json(obj):
     import json
-    s = json.dumps(obj,sort_keys = True, indent = 4)
+    try:
+        s = json.dumps(obj,sort_keys = True, indent = 4)
+    except TypeError:
+        s = repr(obj)
     sys.stdout.write(s + "\n")
     sys.stdout.flush()
 

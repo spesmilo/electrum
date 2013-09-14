@@ -8,6 +8,7 @@ from interface import Interface
 from simple_config import SimpleConfig
 import bitcoin
 import account
+import transaction
 from transaction import Transaction
 from plugins import BasePlugin
 from mnemonic import mn_encode as mnemonic_encode
