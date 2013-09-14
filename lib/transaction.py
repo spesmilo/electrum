@@ -379,10 +379,6 @@ class Transaction:
         self.input_info = None
         self.is_complete = True
         
-
-    def __repr__(self):
-        return "Transaction('"+self.raw+"')"
-
     def __str__(self):
         return self.raw
 

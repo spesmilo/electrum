@@ -1,9 +1,17 @@
-import os, sys, re
+import os, sys, re, json
 import platform
 import shutil
 from datetime import datetime
 is_verbose = True
 
+
+
+class MyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        from transaction import Transaction
+        if isinstance(obj, Transaction): 
+            return obj.as_dict()
+        return super(MyEncoder, self).default(obj)
 
 
 def set_verbosity(b):
@@ -23,9 +31,8 @@ def print_msg(*args):
     sys.stdout.flush()
 
 def print_json(obj):
-    import json
     try:
-        s = json.dumps(obj,sort_keys = True, indent = 4)
+        s = json.dumps(obj, sort_keys = True, indent = 4, cls=MyEncoder)
     except TypeError:
         s = repr(obj)
     sys.stdout.write(s + "\n")

@@ -115,12 +115,12 @@ class Commands:
             i['index'] = i['vout']
         outputs = map(lambda x: (x[0],int(1e8*x[1])), outputs.items())
         tx = Transaction.from_io(inputs, outputs)
-        return tx.as_dict()
+        return tx
 
     def signrawtransaction(self, raw_tx, input_info, private_keys):
         tx = Transaction(raw_tx)
         self.wallet.signrawtransaction(tx, input_info, private_keys, self.password)
-        return tx.as_dict()
+        return tx
 
     def decoderawtransaction(self, raw):
         tx = Transaction(raw)
@@ -251,7 +251,7 @@ class Commands:
 
     def mksendmanytx(self, outputs, fee = None, change_addr = None, domain = None):
         tx = self._mktx(outputs, fee, change_addr, domain)
-        return tx.as_dict()
+        return tx
 
 
     def payto(self, to_address, amount, fee = None, change_addr = None, domain = None):
