@@ -99,7 +99,7 @@ class TxDialog(QDialog):
     def sign(self):
         tx_dict = self.tx.as_dict()
         input_info = json.loads(tx_dict["input_info"])
-        self.parent.sign_raw_transaction(self.tx, input_info, self)
+        self.parent.sign_raw_transaction(self.tx, input_info)
         self.update()
 
 

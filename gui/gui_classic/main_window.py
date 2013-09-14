@@ -1664,10 +1664,8 @@ class ElectrumWindow(QMainWindow):
 
 
     @protected
-    def sign_raw_transaction(self, tx, input_info, dialog ="", password = ""):
+    def sign_raw_transaction(self, tx, input_info, password):
         self.wallet.signrawtransaction(tx, input_info, [], password)
-    
-
 
     def do_process_from_text(self):
         text = text_dialog(self, _('Input raw transaction'), _("Transaction:"), _("Load transaction"))
