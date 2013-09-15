@@ -362,12 +362,12 @@ class ElectrumWindow(QMainWindow):
         raw_transaction_text = raw_transaction_menu.addAction(_("&From text"))
         raw_transaction_text.triggered.connect(self.do_process_from_text)
 
-        csv_transaction_menu = wallet_menu.addMenu(_("&Load CSV transaction"))
+        csv_transaction_menu = wallet_menu.addMenu(_("&Create transaction"))
 
-        csv_transaction_file = csv_transaction_menu.addAction(_("&From file"))
+        csv_transaction_file = csv_transaction_menu.addAction(_("&From CSV file"))
         csv_transaction_file.triggered.connect(self.do_process_from_csv_file)
 
-        csv_transaction_text = csv_transaction_menu.addAction(_("&From text"))
+        csv_transaction_text = csv_transaction_menu.addAction(_("&From CSV text"))
         csv_transaction_text.triggered.connect(self.do_process_from_csv_text)
 
         wallet_menu.addSeparator()

@@ -50,6 +50,7 @@ class Network(threading.Thread):
         self.servers = []
         self.banner = ''
         self.interface = None
+        self.heights = {}
 
 
     def register_callback(self, event, callback):
@@ -156,7 +157,10 @@ class Network(threading.Thread):
                     else:
                         self.trigger_callback('disconnected')
                 
-    def on_header(self, i, result):
+    def on_header(self, i, r):
+        result = r.get('result')
+        if not result: return
+        self.heights[i.server] = result.get('block_height')
         self.blockchain.queue.put((i,result))
 
     def on_peers(self, i, r):
