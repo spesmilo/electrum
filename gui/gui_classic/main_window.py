@@ -1495,8 +1495,10 @@ class ElectrumWindow(QMainWindow):
 
     @protected
     def do_sign(self, address, message, signature, password):
+        message = unicode(message.toPlainText())
+        message = message.encode('utf-8')
         try:
-            sig = self.wallet.sign_message(str(address.text()), unicode(message.toPlainText()), password)
+            sig = self.wallet.sign_message(str(address.text()), message, password)
             signature.setText(sig)
         except BaseException, e:
             self.show_message(str(e))
@@ -1558,7 +1560,9 @@ class ElectrumWindow(QMainWindow):
         layout.setRowStretch(3,1)
 
         def do_verify():
-            if self.wallet.verify_message(verify_address.text(), str(verify_signature.toPlainText()), unicode(verify_message.toPlainText())):
+            message = unicode(verify_message.toPlainText()
+            message = message.encode('utf-8')
+            if self.wallet.verify_message(verify_address.text(), str(verify_signature.toPlainText()), message)):
                 self.show_message(_("Signature verified"))
             else:
                 self.show_message(_("Error: wrong signature"))
