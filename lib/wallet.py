@@ -242,6 +242,8 @@ class Wallet:
         # store the originally requested keypair into the imported keys table
         self.imported_keys[address] = pw_encode(sec, password )
         self.storage.put('imported_keys', self.imported_keys, True)
+        if self.synchronizer:
+            self.synchronizer.subscribe_to_addresses([address])
         return address
         
     def delete_imported_key(self, addr):
