@@ -959,16 +959,18 @@ class Wallet:
         fee = self.fee if fixed_fee is None else fixed_fee
         if domain is None:
             domain = self.addresses()
-        coins = []
-        prioritized_coins = []
+
         for i in self.frozen_addresses:
             if i in domain: domain.remove(i)
 
+        prioritized = []
         for i in self.prioritized_addresses:
-            if i in domain: domain.remove(i)
+            if i in domain:
+                domain.remove(i)
+                prioritized.append(i)
 
         coins = self.get_unspent_coins(domain)
-        prioritized_coins = self.get_unspent_coins(self.prioritized_addresses)
+        prioritized_coins = self.get_unspent_coins(prioritized)
 
         inputs = []
         coins = prioritized_coins + coins
