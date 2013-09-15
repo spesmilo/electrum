@@ -958,7 +958,7 @@ class Wallet:
         total = 0
         fee = self.fee if fixed_fee is None else fixed_fee
         if domain is None:
-            domain.self.addresses()
+            domain = self.addresses()
         coins = []
         prioritized_coins = []
         for i in self.frozen_addresses:
