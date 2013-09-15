@@ -1560,9 +1560,9 @@ class ElectrumWindow(QMainWindow):
         layout.setRowStretch(3,1)
 
         def do_verify():
-            message = unicode(verify_message.toPlainText()
+            message = unicode(verify_message.toPlainText())
             message = message.encode('utf-8')
-            if self.wallet.verify_message(verify_address.text(), str(verify_signature.toPlainText()), message)):
+            if self.wallet.verify_message(verify_address.text(), str(verify_signature.toPlainText()), message):
                 self.show_message(_("Signature verified"))
             else:
                 self.show_message(_("Error: wrong signature"))
