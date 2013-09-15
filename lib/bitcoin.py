@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 #!/usr/bin/env python
 #
 # Electrum - lightweight Bitcoin client
@@ -286,6 +287,8 @@ SECP256k1 = ecdsa.curves.Curve("SECP256k1", curve_secp256k1, generator_secp256k1
 from ecdsa.util import string_to_number, number_to_string
 
 def msg_magic(message):
+    message = message.encode('utf-8')
+    print_error(("message", message))
     varint = var_int(len(message))
     encoded_varint = "".join([chr(int(varint[i:i+2], 16)) for i in xrange(0, len(varint), 2)])
 
