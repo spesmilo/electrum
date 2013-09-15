@@ -951,11 +951,12 @@ class Wallet:
 
 
 
-    def choose_tx_inputs( self, amount, fixed_fee, account = None ):
+    def choose_tx_inputs( self, amount, fixed_fee, domain = None ):
         """ todo: minimize tx size """
         total = 0
         fee = self.fee if fixed_fee is None else fixed_fee
-        domain = self.get_account_addresses(account)
+        if domain is None:
+            domain.self.addresses()
         coins = []
         prioritized_coins = []
         for i in self.frozen_addresses:
@@ -995,15 +996,15 @@ class Wallet:
         return fee
 
 
-    def add_tx_change( self, inputs, outputs, amount, fee, total, change_addr=None, account=0 ):
+    def add_tx_change( self, inputs, outputs, amount, fee, total, change_addr=None):
         "add change to a transaction"
         change_amount = total - ( amount + fee )
         if change_amount != 0:
             if not change_addr:
-                if account is None: 
-                    # send change to one of the accounts involved in the tx
-                    address = inputs[0].get('address')
-                    account, _ = self.get_address_index(address)
+
+                # send change to one of the accounts involved in the tx
+                address = inputs[0].get('address')
+                account, _ = self.get_address_index(address)
 
                 if not self.use_change or account == -1:
                     change_addr = inputs[-1]['address']
@@ -1144,19 +1145,25 @@ class Wallet:
         return default_label
 
 
-    def make_unsigned_transaction(self, outputs, fee=None, change_addr=None, account=None ):
+    def make_unsigned_transaction(self, outputs, fee=None, change_addr=None, domain=None ):
         for address, x in outputs:
             assert is_valid(address)
         amount = sum( map(lambda x:x[1], outputs) )
-        inputs, total, fee = self.choose_tx_inputs( amount, fee, account )
+        inputs, total, fee = self.choose_tx_inputs( amount, fee, domain )
         if not inputs:
             raise ValueError("Not enough funds")
-        outputs = self.add_tx_change(inputs, outputs, amount, fee, total, change_addr, account)
+        outputs = self.add_tx_change(inputs, outputs, amount, fee, total, change_addr)
         return Transaction.from_io(inputs, outputs)
 
 
-    def mktx(self, outputs, password, fee=None, change_addr=None, account=None ):
-        tx = self.make_unsigned_transaction(outputs, fee, change_addr, account)
+    def mktx_from_account(self, outputs, password, fee=None, change_addr=None, account=None):
+        if account:
+            domain = self.get_account_addresses(account)
+        self.mktx(outputs, password, fee, change_addr, domain)
+
+
+    def mktx(self, outputs, password, fee=None, change_addr=None, domain= None ):
+        tx = self.make_unsigned_transaction(outputs, fee, change_addr, domain)
         self.sign_transaction(tx, password)
         return tx
 

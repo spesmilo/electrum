@@ -886,7 +886,7 @@ class ElectrumWindow(QMainWindow):
     def send_tx(self, to_address, amount, fee, label, password):
 
         try:
-            tx = self.wallet.mktx( [(to_address, amount)], password, fee, account=self.current_account)
+            tx = self.wallet.mktx_from_account( [(to_address, amount)], password, fee, self.current_account)
         except BaseException, e:
             traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
