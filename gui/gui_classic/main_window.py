@@ -1374,17 +1374,11 @@ class ElectrumWindow(QMainWindow):
         e.setReadOnly(True)
         vbox.addWidget(e)
 
-        ok_button = QPushButton(_("OK"))
-        ok_button.setDefault(True)
-        ok_button.clicked.connect(dialog.accept)
-
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-        hbox.addWidget(ok_button)
-        vbox.addLayout(hbox)
-
+        vbox.addLayout(ok_cancel_buttons(dialog))
         dialog.setLayout(vbox)
-        dialog.exec_()
+        r = dialog.exec_()
+        if r:
+            self.payto(addr)
 
             
 
