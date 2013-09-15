@@ -166,8 +166,9 @@ class Commands:
             out['address'] = addr
             out['ismine'] = is_mine
             if is_mine:
-                out['pubkey'] = self.wallet.get_public_key(addr)
-            
+                account, sequence = self.wallet.get_address_index(addr)
+                if account != -1:
+                    out['pubkey'] = self.wallet.get_public_key(addr)
         return out
 
     def getbalance(self, account= None):
