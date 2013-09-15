@@ -66,8 +66,8 @@ class TxDialog(QDialog):
         self.fee_label = QLabel()
         vbox.addWidget(self.fee_label)
 
-        self.io = self.io_widget(tx)
-        vbox.addWidget( self.io )
+        self.add_io(vbox)
+
         vbox.addStretch(1)
 
         buttons = QHBoxLayout()
@@ -112,6 +112,7 @@ class TxDialog(QDialog):
             self.show_message(_("Transaction saved successfully"))
 
 
+
     def update(self):
         tx_hash = self.tx.hash()
 
@@ -151,13 +152,13 @@ class TxDialog(QDialog):
         if is_relevant:    
             if is_mine:
                 if fee is not None: 
-                    self.amount_label.setText("Amount sent: %s"% self.parent.format_amount(v-fee))
-                    self.fee_label.setText("Transaction fee: %s"% self.parent.format_amount(fee))
+                    self.amount_label.setText("Amount sent: %s"% self.parent.format_amount(v-fee) + ' ' + self.parent.base_unit())
+                    self.fee_label.setText("Transaction fee: %s"% self.parent.format_amount(fee) + ' ' + self.parent.base_unit())
                 else:
-                    self.amount_label.setText("Amount sent: %s"% self.parent.format_amount(v))
+                    self.amount_label.setText("Amount sent: %s"% self.parent.format_amount(v) + ' ' + self.parent.base_unit())
                     self.fee_label.setText("Transaction fee: unknown")
             else:
-                self.amount_label.setText("Amount received: %s"% self.parent.format_amount(v))
+                self.amount_label.setText("Amount received: %s"% self.parent.format_amount(v) + ' ' + self.parent.base_unit())
         else:
             self.amount_label.setText("Transaction unrelated to your wallet")
 
@@ -171,47 +172,26 @@ class TxDialog(QDialog):
         menu.exec_(l.viewport().mapToGlobal(position))
 
 
-    def io_widget(self, tx):
-        tabs = QTabWidget(self)
+    def add_io(self, vbox):
 
-        tab1 = QWidget()
-        grid_ui = QGridLayout(tab1)
-        grid_ui.setColumnStretch(0,1)
-        tabs.addTab(tab1, _('Outputs') )
+        vbox.addWidget(QLabel(_("Inputs")))
+        lines = map(lambda x: x.get('address') , self.tx.inputs )
 
-        self.output_list = l = MyTreeWidget(self)
-        l.setMaximumHeight(100)
-        l.setColumnCount(2)
-        l.setHeaderLabels( [_('Address'), _('Amount')] )
-        l.setColumnWidth(0, 350)
-        l.setColumnWidth(1, 50)
-        l.customContextMenuRequested.connect(lambda pos: self.exec_menu(pos, self.output_list))
+        i_text = QTextEdit('\n'.join(lines))
+        i_text.setReadOnly(True)
+        i_text.setMaximumHeight(100)
+        vbox.addWidget(i_text)
 
-        for address, value in tx.outputs:
-            item = QTreeWidgetItem( [address, "%s" % ( self.parent.format_amount(value))] )
-            l.addTopLevelItem(item)
+        vbox.addWidget(QLabel(_("Outputs")))
+        lines = map(lambda x: x[0] + u'\t\t' + self.parent.format_amount(x[1]), self.tx.outputs)
 
-        grid_ui.addWidget(l)
+        o_text = QTextEdit()
+        o_text.setText('\n'.join(lines))
+        o_text.setReadOnly(True)
+        o_text.setMaximumHeight(100)
+        vbox.addWidget(o_text)
 
-        tab2 = QWidget()
-        grid_ui = QGridLayout(tab2)
-        grid_ui.setColumnStretch(0,1)
-        tabs.addTab(tab2, _('Inputs') )
         
-        self.input_list = l = MyTreeWidget(self)
-        l.setMaximumHeight(100)
-        l.setColumnCount(2)
-        l.setColumnWidth(0, 350)
-        l.setColumnWidth(1, 50)
-        l.setHeaderLabels( [ _('Address'), _('Previous output')] )
-        l.customContextMenuRequested.connect(lambda pos: self.exec_menu(pos, self.input_list))
-
-        for input_line in tx.inputs:
-            item = QTreeWidgetItem( [ str(input_line["address"]), str(input_line.get("prevout_hash"))] )
-            l.addTopLevelItem(item)
-
-        grid_ui.addWidget(l)
-        return tabs
 
 
     def broadcast(self):
