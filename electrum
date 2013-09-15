@@ -121,6 +121,7 @@ if __name__ == '__main__':
 
     if cmd == 'gui':
         gui_name = config.get('gui','classic')
+        if gui_name in ['lite', 'qt']: gui_name = 'classic'
         try:
             gui = __import__('electrum_gui.gui_' + gui_name, fromlist=['electrum_gui'])
         except ImportError:
