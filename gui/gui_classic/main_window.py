@@ -1637,17 +1637,28 @@ class ElectrumWindow(QMainWindow):
 
 
 
-    def tx_dict_from_text(self, txt):
+    def tx_from_text(self, txt):
+        "json or raw hexadecimal"
+        try:
+            txt.decode('hex')
+            tx = Transaction(txt)
+            return tx
+        except:
+            pass
+
         try:
             tx_dict = json.loads(str(txt))
             assert "hex" in tx_dict.keys()
             assert "complete" in tx_dict.keys()
             if not tx_dict["complete"]:
                 assert "input_info" in tx_dict.keys()
+            tx = Transaction(tx_dict["hex"])
+            return tx
         except:
-            QMessageBox.critical(None, "Unable to parse transaction", _("Electrum was unable to parse your transaction"))
-            return None
-        return tx_dict
+            pass
+        
+        QMessageBox.critical(None, "Unable to parse transaction", _("Electrum was unable to parse your transaction"))
+
 
 
     def read_tx_from_file(self):
@@ -1660,7 +1671,7 @@ class ElectrumWindow(QMainWindow):
         except (ValueError, IOError, os.error), reason:
             QMessageBox.critical(None,"Unable to read file or no transaction found", _("Electrum was unable to open your transaction file") + "\n" + str(reason))
 
-        return self.tx_dict_from_text(file_content)
+        return self.tx_from_text(file_content)
 
 
     @protected
@@ -1671,14 +1682,14 @@ class ElectrumWindow(QMainWindow):
         text = text_dialog(self, _('Input raw transaction'), _("Transaction:"), _("Load transaction"))
         if not text:
             return
-        tx_dict = self.tx_dict_from_text(text)
-        if tx_dict:
-            self.create_process_transaction_window(tx_dict)
+        tx = self.tx_from_text(text)
+        if tx:
+            self.show_transaction(tx)
 
     def do_process_from_file(self):
-        tx_dict = self.read_tx_from_file()
-        if tx_dict: 
-            self.create_process_transaction_window(tx_dict)
+        tx = self.read_tx_from_file()
+        if tx:
+            self.show_transaction(tx)
 
     def do_process_from_csvReader(self, csvReader):
         outputs = []
@@ -1699,8 +1710,6 @@ class ElectrumWindow(QMainWindow):
             return
 
         self.show_transaction(tx)
-        #tx_dict = tx.as_dict()
-        #self.create_process_transaction_window(tx_dict)
 
     def do_process_from_csv_file(self):
         fileName = self.getOpenFileName(_("Select your transaction CSV"), "*.csv")
@@ -1722,10 +1731,6 @@ class ElectrumWindow(QMainWindow):
         csvReader = csv.reader(f)
         self.do_process_from_csvReader(csvReader)
 
-
-    def create_process_transaction_window(self, tx_dict):
-        tx = Transaction(tx_dict["hex"])
-        self.show_transaction(tx)
 
 
     @protected
