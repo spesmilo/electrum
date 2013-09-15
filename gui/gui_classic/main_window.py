@@ -1369,7 +1369,11 @@ class ElectrumWindow(QMainWindow):
 
         addr = self.wallet.new_account_address()
         vbox = QVBoxLayout()
-        vbox.addWidget(QLabel(_("Electrum considers that an account exists only if it contains bitcoins.") + '\n' + _("To create a new account, please send coins to the first address of that account:")))
+        msg = _("Electrum considers that an account exists only if it contains bitcoins.") + '\n' \
+              + _("To create a new account, please send coins to the first address of that account.") + '\n' \
+              + _("Note: you will need to wait for 2 confirmations before the account is created.")
+        vbox.addWidget(QLabel(msg))
+        vbox.addWidget(QLabel(_('Address')+':'))
         e = QLineEdit(addr)
         e.setReadOnly(True)
         vbox.addWidget(e)
