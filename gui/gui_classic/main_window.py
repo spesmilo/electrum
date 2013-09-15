@@ -75,22 +75,6 @@ import re
 from qt_util import *
 
 
-class MyTreeWidget(QTreeWidget):
-    def __init__(self, parent):
-        QTreeWidget.__init__(self, parent)
-        def ddfr(item):
-            if not item: return
-            for i in range(0,self.viewport().height()/5):
-                if self.itemAt(QPoint(0,i*5)) == item:
-                    break
-            else:
-                return
-            for j in range(0,30):
-                if self.itemAt(QPoint(0,i*5 + j)) != item:
-                    break
-            self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), QPoint(50, i*5 + j - 1))
-
-        self.connect(self, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), ddfr)
         
 
 
@@ -600,7 +584,6 @@ class ElectrumWindow(QMainWindow):
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), self.tx_label_clicked)
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), self.tx_label_changed)
 
-        l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_history_menu)
         return l
 

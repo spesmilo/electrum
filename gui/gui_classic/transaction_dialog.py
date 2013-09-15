@@ -34,7 +34,7 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
 from electrum import transaction
-
+from qt_util import MyTreeWidget
 
 class TxDialog(QDialog):
 
@@ -162,6 +162,14 @@ class TxDialog(QDialog):
             self.amount_label.setText("Transaction unrelated to your wallet")
 
 
+    def exec_menu(self, position,l):
+        item = l.itemAt(position)
+        if not item: return
+        addr = unicode(item.text(0))
+        menu = QMenu()
+        menu.addAction(_("Copy to clipboard"), lambda: self.parent.app.clipboard().setText(addr))
+        menu.exec_(l.viewport().mapToGlobal(position))
+
 
     def io_widget(self, tx):
         tabs = QTabWidget(self)
@@ -171,36 +179,38 @@ class TxDialog(QDialog):
         grid_ui.setColumnStretch(0,1)
         tabs.addTab(tab1, _('Outputs') )
 
-        tree_widget = QTreeWidget(self)
-        tree_widget.setColumnCount(2)
-        tree_widget.setHeaderLabels( [_('Address'), _('Amount')] )
-        tree_widget.setColumnWidth(0, 300)
-        tree_widget.setColumnWidth(1, 50)
+        self.output_list = l = MyTreeWidget(self)
+        l.setMaximumHeight(100)
+        l.setColumnCount(2)
+        l.setHeaderLabels( [_('Address'), _('Amount')] )
+        l.setColumnWidth(0, 350)
+        l.setColumnWidth(1, 50)
+        l.customContextMenuRequested.connect(lambda pos: self.exec_menu(pos, self.output_list))
 
         for address, value in tx.outputs:
             item = QTreeWidgetItem( [address, "%s" % ( self.parent.format_amount(value))] )
-            tree_widget.addTopLevelItem(item)
+            l.addTopLevelItem(item)
 
-        tree_widget.setMaximumHeight(100)
-
-        grid_ui.addWidget(tree_widget)
+        grid_ui.addWidget(l)
 
         tab2 = QWidget()
         grid_ui = QGridLayout(tab2)
         grid_ui.setColumnStretch(0,1)
         tabs.addTab(tab2, _('Inputs') )
         
-        tree_widget = QTreeWidget(self)
-        tree_widget.setColumnCount(2)
-        tree_widget.setHeaderLabels( [ _('Address'), _('Previous output')] )
+        self.input_list = l = MyTreeWidget(self)
+        l.setMaximumHeight(100)
+        l.setColumnCount(2)
+        l.setColumnWidth(0, 350)
+        l.setColumnWidth(1, 50)
+        l.setHeaderLabels( [ _('Address'), _('Previous output')] )
+        l.customContextMenuRequested.connect(lambda pos: self.exec_menu(pos, self.input_list))
 
         for input_line in tx.inputs:
             item = QTreeWidgetItem( [ str(input_line["address"]), str(input_line.get("prevout_hash"))] )
-            tree_widget.addTopLevelItem(item)
+            l.addTopLevelItem(item)
 
-        tree_widget.setMaximumHeight(100)
-
-        grid_ui.addWidget(tree_widget)
+        grid_ui.addWidget(l)
         return tabs
 
 

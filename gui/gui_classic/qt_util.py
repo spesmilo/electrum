@@ -83,3 +83,22 @@ def text_dialog(parent, title, label, ok_label):
     if dialog.exec_():
         return unicode(txt.toPlainText())
 
+
+class MyTreeWidget(QTreeWidget):
+    def __init__(self, parent):
+        QTreeWidget.__init__(self, parent)
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.connect(self, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.itemactivated)
+
+    def itemactivated(self, item):
+        if not item: return
+        for i in range(0,self.viewport().height()/5):
+            if self.itemAt(QPoint(0,i*5)) == item:
+                break
+        else:
+            return
+        for j in range(0,30):
+            if self.itemAt(QPoint(0,i*5 + j)) != item:
+                break
+        self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), QPoint(50, i*5 + j - 1))
+
