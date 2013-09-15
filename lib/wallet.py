@@ -948,8 +948,16 @@ class Wallet:
                     key = tx_hash + ":%d" % output.get('index')
                     if key in self.spent_outputs: continue
                     output['tx_hash'] = tx_hash
-                    coins.append(output)
-        return coins
+                    output['height'] = tx_height
+                    coins.append((tx_height, output))
+
+        # sort by age
+        if coins:
+            coins = sorted(coins)
+            if coins[-1][0] != 0:
+                while coins[0][0] == 0: 
+                    coins = coins[1:] + [ coins[0] ]
+        return [x[1] for x in coins]
 
 
 
