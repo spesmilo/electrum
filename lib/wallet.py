@@ -1162,7 +1162,7 @@ class Wallet:
 
     def mktx_from_account(self, outputs, password, fee=None, change_addr=None, account=None):
         domain = self.get_account_addresses(account) if account else None
-        self.mktx(outputs, password, fee, change_addr, domain)
+        return self.mktx(outputs, password, fee, change_addr, domain)
 
 
     def mktx(self, outputs, password, fee=None, change_addr=None, domain= None ):
