@@ -326,6 +326,9 @@ class Commands:
         return None
 
     def getrawtransaction(self, tx_hash, height = 0):
+        tx = self.wallet.transactions.get(tx_hash)
+        if tx:
+            return tx
         height = int(height)
         return self.network.retrieve_transaction(tx_hash, height)
 
