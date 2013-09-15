@@ -35,7 +35,6 @@ class TxVerifier(threading.Thread):
         self.blockchain = network.blockchain
         self.interface = network.interface
         self.transactions    = {}                                 # requested verifications (with height sent by the requestor)
-        #self.interface.register_channel('txverifier')
         self.verified_tx     = storage.get('verified_tx3',{})      # height, timestamp of verified transactions
         self.merkle_roots    = storage.get('merkle_roots',{})      # hashed by me
         self.lock = threading.Lock()
@@ -92,7 +91,6 @@ class TxVerifier(threading.Thread):
 
     def stop(self):
         with self.lock: self.running = False
-        #self.interface.poke('verifier')
 
     def is_running(self):
         with self.lock: return self.running

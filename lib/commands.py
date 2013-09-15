@@ -53,6 +53,7 @@ register_command('getbalance',           0, 1, False, False, 'Return the balance
 register_command('getaddressbalance',    1, 1, False, False, 'Return the balance of an address', 'getbalance <address>')
 register_command('getaddresshistory',    1, 1, False, False, 'Return the transaction history of an address', 'getaddresshistory <address>')
 register_command('getconfig',            1, 1, False, True,  'Return a configuration variable', 'getconfig <name>', config_options)
+register_command('getrawtransaction',    1, 2, False, False, 'Retrieve a transaction', 'getrawtransaction <txhash> <height>')
 register_command('getseed',              0, 0, True,  True,  'Print the generation seed of your wallet.')
 register_command('help',                 0, 1, False, True,  'Prints this help')
 register_command('history',              0, 0, False, False, 'Returns the transaction history of your wallet')
@@ -81,9 +82,9 @@ register_command('verifymessage',        3,-1, False, True,  'Verifies a signatu
 
 class Commands:
 
-    def __init__(self, wallet, interface, callback = None):
+    def __init__(self, wallet, network, callback = None):
         self.wallet = wallet
-        self.interface = interface
+        self.network = network
         self._callback = callback
         self.password = None
 
@@ -323,5 +324,9 @@ class Commands:
             if syntax: print_msg("Syntax: " + syntax)
             if options_syntax: print_msg("options:\n" + options_syntax)
         return None
+
+    def getrawtransaction(self, tx_hash, height = 0):
+        height = int(height)
+        return self.network.retrieve_transaction(tx_hash, height)
 
 

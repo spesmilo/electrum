@@ -356,7 +356,7 @@ if __name__ == '__main__':
         wallet.update_password(seed, password, new_password)
 
     else:
-        cmd_runner = Commands(wallet, interface)
+        cmd_runner = Commands(wallet, network)
         func = eval('cmd_runner.' + cmd)
         cmd_runner.password = password
         try:
