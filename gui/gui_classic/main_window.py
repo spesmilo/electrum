@@ -1685,7 +1685,7 @@ class ElectrumWindow(QMainWindow):
             return
 
         try:
-            tx = self.wallet.make_unsigned_transaction(outputs, None, None, account=self.current_account)
+            tx = self.wallet.make_unsigned_transaction(outputs, None, None)
         except BaseException, e:
             self.show_message(str(e))
             return
