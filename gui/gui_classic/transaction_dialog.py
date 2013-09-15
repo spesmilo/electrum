@@ -68,6 +68,7 @@ class TxDialog(QDialog):
 
         self.io = self.io_widget(tx)
         vbox.addWidget( self.io )
+        vbox.addStretch(1)
 
         buttons = QHBoxLayout()
         vbox.addLayout( buttons )
