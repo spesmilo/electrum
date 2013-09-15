@@ -1159,8 +1159,7 @@ class Wallet:
 
 
     def mktx_from_account(self, outputs, password, fee=None, change_addr=None, account=None):
-        if account:
-            domain = self.get_account_addresses(account)
+        domain = self.get_account_addresses(account) if account else None
         self.mktx(outputs, password, fee, change_addr, domain)
 
 
