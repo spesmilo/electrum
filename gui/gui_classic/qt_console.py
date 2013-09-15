@@ -142,6 +142,9 @@ class Console(QtGui.QPlainTextEdit):
         self.history = history
 
     def addToHistory(self, command):
+        if command.find("importprivkey") > -1:
+            return
+        
         if command and (not self.history or self.history[-1] != command):
             self.history.append(command)
         self.history_index = len(self.history)
