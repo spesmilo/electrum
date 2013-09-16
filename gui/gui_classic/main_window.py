@@ -472,7 +472,7 @@ class ElectrumWindow(QMainWindow):
                 return
 
             try:
-                apply(f, args)
+                f(*args)
             except:
                 print_error("Plugin error")
                 traceback.print_exc(file=sys.stdout)
