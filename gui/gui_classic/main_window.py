@@ -466,12 +466,13 @@ class ElectrumWindow(QMainWindow):
         for p in self.plugins:
             if not p.is_enabled():
                 continue
+
+            f = getattr(p, name, None)
+            if not callable(f):
+                return
+
             try:
-                f = eval('p.'+name)
-            except:
-                continue
-            try:
-                apply(f, args)
+                f(*args)
             except:
                 print_error("Plugin error")
                 traceback.print_exc(file=sys.stdout)
