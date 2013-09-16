@@ -175,10 +175,6 @@ if __name__ == '__main__':
         if fee: wallet.fee = float(fee)
         if gap: wallet.gap_limit = int(gap)
 
-        network = Network(config)
-        network.start()
-        wallet.start_threads(network)
-
         if cmd == 'restore':
             seed = raw_input("seed:")
             try:
@@ -192,9 +188,10 @@ if __name__ == '__main__':
             wallet.init_seed( str(seed) )
             wallet.save_seed()
             wallet.create_accounts()
-            wallet.synchronize()
-
             print_msg("Recovering wallet...")
+            network = Network(config)
+            network.start()
+            wallet.start_threads(network)
             wallet.update()
             if wallet.is_found():
                 print_msg("Recovery successful")
