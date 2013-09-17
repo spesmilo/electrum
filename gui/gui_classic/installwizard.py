@@ -30,7 +30,7 @@ class InstallWizard(QDialog):
         grid = QGridLayout()
         grid.setSpacing(5)
 
-        msg = _("Wallet file not found.")+"\n"+_("Do you want to create a new wallet, or to restore an existing one?")
+        msg = _("Wallet file not found.")+"\n\n"+_("Do you want to create a new wallet, or to restore an existing one?"+"\n")
         label = QLabel(msg)
         label.setWordWrap(True)
         grid.addWidget(label, 0, 0)
@@ -76,7 +76,7 @@ class InstallWizard(QDialog):
             return
 
         if r != wallet.seed:
-            QMessageBox.warning(None, _('Error'), 'incorrect seed', 'OK')
+            QMessageBox.warning(None, _('Error'), _('Incorrect seed'), _('OK'))
             return False
         else:
             return True
@@ -89,7 +89,7 @@ class InstallWizard(QDialog):
         vbox = QVBoxLayout(self)
         if is_restore:
             msg = _("Please enter your wallet seed." + ' ')
-            msg += _("Your seed can be entered as a sequence of words, or as a hexadecimal string."+ '\n')
+            msg += _("Your seed can be entered as a sequence of words, or as a hexadecimal string."+ ' \n')
         else:
             msg = _("Your seed is important!") \
                   + "\n" + _("To make sure that you have properly saved your seed, please retype it here." + ' ')

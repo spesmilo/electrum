@@ -131,7 +131,7 @@ def csv_transaction(wallet):
                 QMessageBox.information(None,"CSV Export created", "Your CSV export has been successfully created.")
     except (IOError, os.error), reason:
         export_error_label = _("Electrum was unable to produce a transaction export.")
-        QMessageBox.critical(None,"Unable to create csv", export_error_label + "\n" + str(reason))
+        QMessageBox.critical(None,_("Unable to create csv"), export_error_label + "\n" + str(reason))
 
 
 
@@ -710,7 +710,7 @@ class MiniActuator:
         w = QDialog()
         w.resize(200, 70)
         w.setWindowTitle('Electrum')
-        l = QLabel('Sending transaction, please wait.')
+        l = QLabel(_('Sending transaction, please wait.'))
         vbox = QVBoxLayout()
         vbox.addWidget(l)
         w.setLayout(vbox)
