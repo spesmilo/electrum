@@ -424,8 +424,8 @@ class ElectrumWindow(QMainWindow):
                     if(v > 0):
                         total_amount += v
 
-                self.notify("%s new transactions received. Total amount received in the new transactions %s %s" \
-                                % (tx_amount, self.format_amount(total_amount), self.base_unit()))
+                self.notify(_("%(txs)s new transactions received. Total amount received in the new transactions %(amount)s %(unit)s") \
+                                % { 'txs' : tx_amount, 'amount' : self.format_amount(total_amount), 'unit' : self.base_unit()})
 
                 self.network.interface.pending_transactions_for_notifications = []
             else:
@@ -434,7 +434,7 @@ class ElectrumWindow(QMainWindow):
                       self.network.interface.pending_transactions_for_notifications.remove(tx)
                       is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
                       if(v > 0):
-                          self.notify("New transaction received. %s %s" % (self.format_amount(v), self.base_unit()))
+                          self.notify(_("New transaction received. %(amount)s %(unit)s") % { 'amount' : self.format_amount(v), 'unit' : self.base_unit()})
 
     def notify(self, message):
         self.tray.showMessage("Electrum", message, QSystemTrayIcon.Information, 20000)
@@ -458,7 +458,7 @@ class ElectrumWindow(QMainWindow):
             try:
                 self.plugins.append( p.Plugin(self, name) )
             except:
-                print_msg("Error:cannot initialize plugin",p)
+                print_msg(_("Error: cannot initialize plugin"),p)
                 traceback.print_exc(file=sys.stdout)
 
 
@@ -684,7 +684,7 @@ class ElectrumWindow(QMainWindow):
                 try:
                     time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
                 except:
-                    time_str = "unknown"
+                    time_str = _("unknown")
 
             if conf == -1:
                 time_str = 'unverified'
@@ -876,7 +876,7 @@ class ElectrumWindow(QMainWindow):
 
         confirm_amount = self.config.get('confirm_amount', 100000000)
         if amount >= confirm_amount:
-            if not self.question("send %s to %s?"%(self.format_amount(amount) + ' '+ self.base_unit(), to_address)):
+            if not self.question(_("send %(amount)s to %(address)s?")%{ 'amount' : self.format_amount(amount) + ' '+ self.base_unit(), 'address' : to_address}):
                 return
 
         self.send_tx(to_address, amount, fee, label)
@@ -951,7 +951,7 @@ class ElectrumWindow(QMainWindow):
             self.set_frozen(self.payto_e,True)
             self.set_frozen(self.amount_e,True)
             self.set_frozen(self.message_e,True)
-            self.payto_sig.setText( '      The bitcoin URI was signed by ' + identity )
+            self.payto_sig.setText( '      '+_('The bitcoin URI was signed by')+' ' + identity )
         else:
             self.payto_sig.setVisible(False)
 
@@ -1192,7 +1192,7 @@ class ElectrumWindow(QMainWindow):
             
             for is_change in ([0,1] if self.expert_mode else [0]):
                 if self.expert_mode:
-                    name = "Receiving" if not is_change else "Change"
+                    name = _("Receiving") if not is_change else _("Change")
                     seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
                     account_item.addChild(seq_item)
                     if not is_change: seq_item.setExpanded(True)
@@ -1435,7 +1435,7 @@ class ElectrumWindow(QMainWindow):
 
 
 
-    def show_qrcode(self, data, title = "QR code"):
+    def show_qrcode(self, data, title = _("QR code")):
         if not data: return
         d = QDialog(self)
         d.setModal(1)
@@ -1490,7 +1490,7 @@ class ElectrumWindow(QMainWindow):
         except BaseException, e:
             self.show_message(str(e))
             return
-        QMessageBox.information(self, _('Private key'), 'Address'+ ': ' + address + '\n\n' + _('Private key') + ': ' + '\n'.join(pk_list), _('OK'))
+        QMessageBox.information(self, _('Private key'), _('Address')+ ': ' + address + '\n\n' + _('Private key') + ': ' + '\n'.join(pk_list), _('OK'))
 
 
     @protected
@@ -1642,7 +1642,7 @@ class ElectrumWindow(QMainWindow):
         except:
             pass
         
-        QMessageBox.critical(None, "Unable to parse transaction", _("Electrum was unable to parse your transaction"))
+        QMessageBox.critical(None, _("Unable to parse transaction"), _("Electrum was unable to parse your transaction"))
 
 
 
@@ -1654,7 +1654,7 @@ class ElectrumWindow(QMainWindow):
             with open(fileName, "r") as f:
                 file_content = f.read()
         except (ValueError, IOError, os.error), reason:
-            QMessageBox.critical(None,"Unable to read file or no transaction found", _("Electrum was unable to open your transaction file") + "\n" + str(reason))
+            QMessageBox.critical(None, _("Unable to read file or no transaction found"), _("Electrum was unable to open your transaction file") + "\n" + str(reason))
 
         return self.tx_from_text(file_content)
 
@@ -1685,7 +1685,7 @@ class ElectrumWindow(QMainWindow):
                 amount = int(100000000*amount)
                 outputs.append((address, amount))
         except (ValueError, IOError, os.error), reason:
-            QMessageBox.critical(None,"Unable to read file or no transaction found", _("Electrum was unable to open your transaction file") + "\n" + str(reason))
+            QMessageBox.critical(None, _("Unable to read file or no transaction found"), _("Electrum was unable to open your transaction file") + "\n" + str(reason))
             return
 
         try:
@@ -1705,7 +1705,7 @@ class ElectrumWindow(QMainWindow):
                 csvReader = csv.reader(f)
                 self.do_process_from_csvReader(csvReader)
         except (ValueError, IOError, os.error), reason:
-            QMessageBox.critical(None,"Unable to read file or no transaction found", _("Electrum was unable to open your transaction file") + "\n" + str(reason))
+            QMessageBox.critical(None, _("Unable to read file or no transaction found"), _("Electrum was unable to open your transaction file") + "\n" + str(reason))
             return
 
     def do_process_from_csv_text(self):
@@ -1740,7 +1740,7 @@ class ElectrumWindow(QMainWindow):
 
         except (IOError, os.error), reason:
             export_error_label = _("Electrum was unable to produce a private key-export.")
-            QMessageBox.critical(None,"Unable to create csv", export_error_label + "\n" + str(reason))
+            QMessageBox.critical(None, _("Unable to create csv"), export_error_label + "\n" + str(reason))
 
         except BaseException, e:
           self.show_message(str(e))
@@ -1768,9 +1768,9 @@ class ElectrumWindow(QMainWindow):
             if fileName:
                 with open(fileName, 'w+') as f:
                     json.dump(labels, f)
-                QMessageBox.information(None, "Labels exported", _("Your labels where exported to")+" '%s'" % str(fileName))
+                QMessageBox.information(None, _("Labels exported"), _("Your labels where exported to")+" '%s'" % str(fileName))
         except (IOError, os.error), reason:
-            QMessageBox.critical(None, "Unable to export labels", _("Electrum was unable to export your labels.")+"\n" + str(reason))
+            QMessageBox.critical(None, _("Unable to export labels"), _("Electrum was unable to export your labels.")+"\n" + str(reason))
 
 
     def do_export_history(self):
@@ -1939,7 +1939,7 @@ class ElectrumWindow(QMainWindow):
                         grid_plugins.addWidget(EnterButton(_('Settings'), p.settings_dialog), i, 1)
                     grid_plugins.addWidget(HelpButton(p.description()), i, 2)
                 except:
-                    print_msg("Error: cannot display plugin", p)
+                    print_msg(_("Error: cannot display plugin"), p)
                     traceback.print_exc(file=sys.stdout)
             grid_plugins.setRowStretch(i+1,1)
 

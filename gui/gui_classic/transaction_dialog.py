@@ -46,13 +46,13 @@ class TxDialog(QDialog):
             
         QDialog.__init__(self)
         self.setMinimumWidth(600)
-        self.setWindowTitle(_('Transaction'))
+        self.setWindowTitle(_("Transaction"))
         self.setModal(1)
 
         vbox = QVBoxLayout()
         self.setLayout(vbox)
 
-        vbox.addWidget(QLabel("Transaction ID:"))
+        vbox.addWidget(QLabel(_("Transaction ID:")))
         self.tx_hash_e  = QLineEdit()
         self.tx_hash_e.setReadOnly(True)
         vbox.addWidget(self.tx_hash_e)
@@ -119,7 +119,7 @@ class TxDialog(QDialog):
         is_relevant, is_mine, v, fee = self.wallet.get_tx_value(self.tx)
 
         if self.tx.is_complete:
-            status = "Status: Signed"
+            status = _("Status: Signed")
             self.sign_button.hide()
 
             if tx_hash in self.wallet.transactions.keys():
@@ -128,14 +128,14 @@ class TxDialog(QDialog):
                     time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                 else:
                     time_str = 'pending'
-                status = "Status: %d confirmations"%conf
+                status = _("Status: %d confirmations")%conf
                 self.broadcast_button.hide()
             else:
                 time_str = None
                 conf = 0
                 self.broadcast_button.show()
         else:
-            status = "Status: Unsigned"
+            status = _("Status: Unsigned")
             time_str = None
             self.sign_button.show()
             self.broadcast_button.hide()
@@ -144,7 +144,7 @@ class TxDialog(QDialog):
         self.status_label.setText(status)
 
         if time_str is not None:
-            self.date_label.setText("Date: %s"%time_str)
+            self.date_label.setText(_("Date: %s")%time_str)
             self.date_label.show()
         else:
             self.date_label.hide()
@@ -152,15 +152,15 @@ class TxDialog(QDialog):
         if is_relevant:    
             if is_mine:
                 if fee is not None: 
-                    self.amount_label.setText("Amount sent: %s"% self.parent.format_amount(v-fee) + ' ' + self.parent.base_unit())
-                    self.fee_label.setText("Transaction fee: %s"% self.parent.format_amount(fee) + ' ' + self.parent.base_unit())
+                    self.amount_label.setText(_("Amount sent:")+' %s'% self.parent.format_amount(v-fee) + ' ' + self.parent.base_unit())
+                    self.fee_label.setText(_("Transaction fee:")+' %s'% self.parent.format_amount(fee) + ' ' + self.parent.base_unit())
                 else:
-                    self.amount_label.setText("Amount sent: %s"% self.parent.format_amount(v) + ' ' + self.parent.base_unit())
-                    self.fee_label.setText("Transaction fee: unknown")
+                    self.amount_label.setText(_("Amount sent:")+' %s'% self.parent.format_amount(v) + ' ' + self.parent.base_unit())
+                    self.fee_label.setText(_("Transaction fee: unknown"))
             else:
-                self.amount_label.setText("Amount received: %s"% self.parent.format_amount(v) + ' ' + self.parent.base_unit())
+                self.amount_label.setText(_("Amount received:")+' %s'% self.parent.format_amount(v) + ' ' + self.parent.base_unit())
         else:
-            self.amount_label.setText("Transaction unrelated to your wallet")
+            self.amount_label.setText(_("Transaction unrelated to your wallet"))
 
 
     def exec_menu(self, position,l):
@@ -197,11 +197,11 @@ class TxDialog(QDialog):
     def broadcast(self):
         result, result_message = self.wallet.sendtx( self.tx )
         if result:
-            self.show_message("Transaction successfully sent: %s" % (result_message))
+            self.show_message(_("Transaction successfully sent:")+' %s' % (result_message))
             if dialog:
                 dialog.done(0)
         else:
-            self.show_message("There was a problem sending your transaction:\n %s" % (result_message))
+            self.show_message(_("There was a problem sending your transaction:") + '\n %s' % (result_message))
 
     def show_message(self, msg):
         QMessageBox.information(self, _('Message'), msg, _('OK'))
