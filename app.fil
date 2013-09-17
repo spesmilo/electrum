@@ -2,6 +2,14 @@ gui/gui_gtk.py
 gui/gui_classic/main_window.py
 gui/gui_classic/lite_window.py
 gui/gui_classic/history_widget.py
+gui/gui_classic/installwizard.py
+gui/gui_classic/network_dialog.py
+gui/gui_classic/password_dialog.py
+gui/gui_classic/qt_util.py
+gui/gui_classic/receiving_widget.py
+gui/gui_classic/seed_dialog.py
+gui/gui_classic/transaction_dialog.py
+gui/gui_classic/version_getter.py
 plugins/aliases.py
 plugins/pointofsale.py
 plugins/labels.py
