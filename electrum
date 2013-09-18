@@ -96,12 +96,9 @@ def print_help(parser):
 def print_help_cb(self, opt, value, parser):
     print_help(parser)
 
-def run_command(cmd):
+def run_command(cmd, password = None, args = []):
     cmd_runner = Commands(wallet, network)
     func = eval('cmd_runner.' + cmd)
-    if cmd == 'help':
-        password = None
-        args = []
     cmd_runner.password = password
     try:
         result = func(*args[1:])
@@ -381,7 +378,7 @@ if __name__ == '__main__':
         wallet.update_password(seed, password, new_password)
 
     else:
-        run_command(cmd)
+        run_command(cmd, password, args)
         
 
     if cmd not in offline_commands and not options.offline:
