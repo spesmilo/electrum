@@ -66,7 +66,8 @@ def prompt_password(prompt, confirm=True):
 
 def arg_parser():
     usage = "%prog [options] command" 
-    parser = optparse.OptionParser(prog=usage)
+    parser = optparse.OptionParser(prog=usage, add_help_option = False)
+    parser.add_option("-h", "--help", action="callback", callback=print_help_cb, help="show this help text")
     parser.add_option("-g", "--gui", dest="gui", help="User interface: qt, lite, gtk or text")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
     parser.add_option("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
@@ -84,6 +85,32 @@ def arg_parser():
     parser.add_option("-u", "--usb", dest="bitkey", action="store_true", help="Turn on support for hardware wallets (EXPERIMENTAL)")
     parser.add_option("-G", "--gap", dest="gap_limit", default=None, help="gap limit")
     return parser
+
+def print_help(parser):
+    parser.print_help()
+    print_msg("Type 'electrum help <command>' to see the help for a specific command")
+    print_msg("Type 'electrum --help' to see the list of options")
+    run_command('help')
+    exit(1)
+
+def print_help_cb(self, opt, value, parser):
+    print_help(parser)
+
+def run_command(cmd, password = None, args = []):
+    cmd_runner = Commands(wallet, network)
+    func = eval('cmd_runner.' + cmd)
+    cmd_runner.password = password
+    try:
+        result = func(*args[1:])
+    except BaseException, e:
+        import traceback
+        traceback.print_exc(file=sys.stdout)
+        sys.exit(1)
+
+    if type(result) == str:
+        util.print_msg(result)
+    elif result is not None:
+        util.print_json(result)
 
 
 if __name__ == '__main__':
@@ -278,10 +305,7 @@ if __name__ == '__main__':
 
     elif cmd == 'help':
         if len(args) < 2:
-            parser.print_help()
-            print_msg("Type 'electrum help <command>' to see the help for a specific command")
-            print_msg("Type 'electrum --help' to see the list of options")
-
+            print_help(parser)
 
                 
 
@@ -354,21 +378,7 @@ if __name__ == '__main__':
         wallet.update_password(seed, password, new_password)
 
     else:
-        cmd_runner = Commands(wallet, network)
-        func = eval('cmd_runner.' + cmd)
-        cmd_runner.password = password
-        try:
-            result = func(*args[1:])
-        except BaseException, e:
-            import traceback
-            traceback.print_exc(file=sys.stdout)
-            sys.exit(1)
-            
-        if type(result) == str:
-            util.print_msg(result)
-        elif result is not None:
-            util.print_json(result)
-            
+        run_command(cmd, password, args)
         
 
     if cmd not in offline_commands and not options.offline:
