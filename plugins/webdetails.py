@@ -28,8 +28,10 @@ from electrum.plugins import BasePlugin
 
 class Plugin(BasePlugin):
 
-    DEFAULT_ENDPOINT = "http://blockchain.info/tx/{}"
-    TMPL_LABEL = '''<a href="{0}">{1}</a>'''
+    DEFAULT_ENDPOINT = u"http://blockchain.info/tx/{}"
+    DEFAULT_SHOW_IN_HISTORY = True
+    TMPL_LABEL = u'''<a href="{0}">{1}</a>'''
+
 
     def fullname(self):
         return 'Web transaction details'
@@ -39,14 +41,6 @@ class Plugin(BasePlugin):
 
     def requires_settings(self):
         return True
-
-    def create_history_menu(self, menu, item):
-        tx_hash = str(item.data(0, Qt.UserRole).toString())
-
-        menu.addSeparator()
-
-        menu.addAction(self.format_label(tx_hash),
-            lambda: webbrowser.open_new_tab(self.web_endpoint(tx_hash)))
 
     def format_label(self, tx_hash):
         url = self.web_endpoint(tx_hash)
@@ -62,18 +56,21 @@ class Plugin(BasePlugin):
 
         return url
 
+    def show_in_history(self):
+        return self.config.get("plugin_webdetails_show_in_history",
+            self.DEFAULT_SHOW_IN_HISTORY)
+
     def settings_dialog(self):
-
-        def save_endpoint(value):
-            self.config.set_key("plugin_webdetails_endpoint", str(value))
-
         d = QDialog(self.gui)
         layout = QGridLayout(d)
         layout.addWidget(QLabel("Endpoint: "), 0, 0)
 
         self.text_endpoint = QLineEdit(self.web_endpoint())
-        self.text_endpoint.textChanged.connect(save_endpoint)
         layout.addWidget(self.text_endpoint, 0, 1, 1, 2)
+
+        self.check_show_in_history = QCheckBox(_('Show in history menu'))
+        self.check_show_in_history.setChecked(self.show_in_history())
+        layout.addWidget(self.check_show_in_history, 1, 1, 1, 2)
 
         c = QPushButton(_("Cancel"))
         c.clicked.connect(d.reject)
@@ -89,15 +86,32 @@ class Plugin(BasePlugin):
         layout.addWidget(c,3,1)
         layout.addWidget(self.accept,3,2)
 
-        if d.exec_():
-          return True
-        else:
-          return False
+        # run the dialog
+        if not d.exec_(): return
+
+        self.config.set_key("plugin_webdetails_endpoint",
+            unicode(self.text_endpoint.text()))
+        self.config.set_key("plugin_webdetails_show_in_history",
+            self.check_show_in_history.isChecked())
+
+
+    def create_history_menu(self, menu, item):
+        if not self.show_in_history(): return
+
+        tx_hash = str(item.data(0, Qt.UserRole).toString())
+
+        menu.addSeparator()
+
+        menu.addAction(self.format_label(tx_hash),
+            lambda: webbrowser.open_new_tab(self.web_endpoint(tx_hash)))
+
 
     def transaction_dialog_init(self, dialog, main_box, tx):
         tx_hash = tx.hash()
 
-        label = self.TMPL_LABEL.format(self.web_endpoint(tx_hash), self.format_label(tx_hash))
+        label = self.TMPL_LABEL.format(
+            self.web_endpoint(tx_hash),
+            self.format_label(tx_hash))
 
         status_label = QLabel(label)
         status_label.setOpenExternalLinks(True)
