@@ -226,7 +226,6 @@ if __name__ == '__main__':
             else:
                 print_msg("Warning: Found no history for this wallet")
 
-            print_msg("Wallet saved in '%s'"%config.path)
         else:
             wallet.init_seed(None)
             wallet.save_seed()
@@ -236,7 +235,8 @@ if __name__ == '__main__':
             print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
             print_msg("Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:")
             print_msg("\""+' '.join(mnemonic_encode(wallet.seed))+"\"")
-            print_msg("Wallet saved in '%s'"%config.path)
+
+        print_msg("Wallet saved in '%s'"%wallet.storage.path)
             
         if password:
             wallet.update_password(wallet.seed, None, password)
