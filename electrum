@@ -85,7 +85,6 @@ def arg_parser():
     parser.add_option("-u", "--usb", dest="bitkey", action="store_true", help="Turn on support for hardware wallets (EXPERIMENTAL)")
     parser.add_option("-G", "--gap", dest="gap_limit", default=None, help="gap limit")
     parser.add_option("-W", "--password", dest="password", default=None, help="set password for usage with commands (currently only implemented for create command, do not use it for longrunning gui session since the password is visible in /proc)")
-    parser.add_option("-I", "--non-interactive", action="store_true", dest="non_interactive", default=False, help="run command non-interactively with all values set to default (currently only used for create command)")
     return parser
 
 def print_help(parser):
@@ -192,22 +191,17 @@ if __name__ == '__main__':
         else:
             password = prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
 
-        server = config.get('server')
-        if not server: server = pick_random_server()
-        w_host, w_port, w_protocol = server.split(':')
-        if not options.non_interactive:
-            host = raw_input("server (default:%s):"%w_host)
-            port = raw_input("port (default:%s):"%w_port)
-            protocol = raw_input("protocol [t=tcp;h=http] (default:%s):"%w_protocol)
-            fee = raw_input("fee (default:%s):"%( str(Decimal(wallet.fee)/100000000)) )
-            gap = raw_input("gap limit (default 5):")
-            if host: w_host = host
-            if port: w_port = port
-            if protocol: w_protocol = protocol
-            if fee: wallet.set_fee(float(fee)*100000000)
-            if gap: wallet.change_gap_limit(int(gap))
+        # if config.server is set, the user either passed the server on command line
+        # or chose it previously already. if he didn't pass a server on the command line,
+        # we just pick up a random one.
+        if not config.get('server'):
+            config.set_key('server', pick_random_server())
 
-        config.set_key('server', w_host + ':' + w_port + ':' +w_protocol)
+        fee = options.tx_fee if options.tx_fee else raw_input("fee (default:%s):"%( str(Decimal(wallet.fee)/100000000)) )
+        gap = options.gap_limit if options.gap_limit else raw_input("gap limit (default 5):")
+
+        if fee: wallet.set_fee(float(fee)*100000000)
+        if gap: wallet.change_gap_limit(int(gap))
 
         if cmd == 'restore':
             seed = raw_input("seed:")
