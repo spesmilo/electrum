@@ -28,10 +28,6 @@ DEFAULT_TIMEOUT = 5
 proxy_modes = ['socks4', 'socks5', 'http']
 
 
-def pick_random_server():
-    return random.choice( filter_protocol(DEFAULT_SERVERS,'s') )
-
-
 class Interface(threading.Thread):
 
 
