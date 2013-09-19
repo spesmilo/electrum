@@ -33,6 +33,9 @@ def filter_protocol(servers, p):
     return l
     
 
+def pick_random_server():
+    return random.choice( filter_protocol(DEFAULT_SERVERS,'s') )
+
 
 class Network(threading.Thread):
 
