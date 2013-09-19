@@ -49,9 +49,10 @@ class TxDialog(QDialog):
         self.setWindowTitle(_('Transaction'))
         self.setModal(1)
 
-        vbox = QVBoxLayout()
-        self.setLayout(vbox)
+        container = QVBoxLayout()
+        self.setLayout(container)
 
+        vbox = QVBoxLayout()
         vbox.addWidget(QLabel("Transaction ID:"))
         self.tx_hash_e  = QLineEdit()
         self.tx_hash_e.setReadOnly(True)
@@ -70,8 +71,10 @@ class TxDialog(QDialog):
 
         vbox.addStretch(1)
 
+        container.addLayout(vbox)
+
         buttons = QHBoxLayout()
-        vbox.addLayout( buttons )
+        container.addLayout( buttons )
 
         buttons.addStretch(1)
 
@@ -91,6 +94,8 @@ class TxDialog(QDialog):
         cancelButton = QPushButton(_("Close"))
         cancelButton.clicked.connect(lambda: self.done(0))
         buttons.addWidget(cancelButton)
+
+        self.parent.run_hook('transaction_dialog_init', self, vbox, tx)
 
         self.update()
 

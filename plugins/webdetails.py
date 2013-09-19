@@ -29,6 +29,7 @@ from electrum.plugins import BasePlugin
 class Plugin(BasePlugin):
 
     DEFAULT_ENDPOINT = "http://blockchain.info/tx/{}"
+    TMPL_LABEL = '''<a href="{0}">{1}</a>'''
 
     def fullname(self):
         return 'Web transaction details'
@@ -41,17 +42,25 @@ class Plugin(BasePlugin):
 
     def create_history_menu(self, menu, item):
         tx_hash = str(item.data(0, Qt.UserRole).toString())
-        url = self.web_endpoint().replace("{}", "{0}").format(tx_hash)
-        netloc = urlparse(url).netloc
 
         menu.addSeparator()
 
-        menu.addAction(
-            _("Open details on {0}".format(netloc)),
-            lambda: webbrowser.open_new_tab(self.web_endpoint().format(tx_hash)))
+        menu.addAction(self.format_label(tx_hash),
+            lambda: webbrowser.open_new_tab(self.web_endpoint(tx_hash)))
 
-    def web_endpoint(self):
-        return self.config.get("plugin_webdetails_endpoint", self.DEFAULT_ENDPOINT)
+    def format_label(self, tx_hash):
+        url = self.web_endpoint(tx_hash)
+        netloc = urlparse(url).netloc
+        return _("Open details on {0}".format(netloc))
+
+    def web_endpoint(self, tx_hash=None):
+        url = self.config.get("plugin_webdetails_endpoint", self.DEFAULT_ENDPOINT)
+
+        if tx_hash:
+            # be compatible w/ Python 2.6
+            url = url.replace("{}", "{0}").format(tx_hash)
+
+        return url
 
     def settings_dialog(self):
 
@@ -84,4 +93,14 @@ class Plugin(BasePlugin):
           return True
         else:
           return False
+
+    def transaction_dialog_init(self, dialog, main_box, tx):
+        tx_hash = tx.hash()
+
+        label = self.TMPL_LABEL.format(self.web_endpoint(tx_hash), self.format_label(tx_hash))
+
+        status_label = QLabel(label)
+        status_label.setOpenExternalLinks(True)
+
+        main_box.addWidget(status_label)
 
