@@ -28,6 +28,8 @@ from electrum.plugins import BasePlugin
 
 class Plugin(BasePlugin):
 
+    DEFAULT_ENDPOINT = "http://blockchain.info/tx/{}"
+
     def fullname(self):
         return 'Web transaction details'
 
@@ -39,17 +41,17 @@ class Plugin(BasePlugin):
 
     def create_history_menu(self, menu, item):
         tx_hash = str(item.data(0, Qt.UserRole).toString())
-        url = self.web_endpoint().format(tx_hash)
+        url = self.web_endpoint().replace("{}", "{0}").format(tx_hash)
         netloc = urlparse(url).netloc
 
         menu.addSeparator()
 
         menu.addAction(
-            _("Open details on {}".format(netloc)),
+            _("Open details on {0}".format(netloc)),
             lambda: webbrowser.open_new_tab(self.web_endpoint().format(tx_hash)))
 
     def web_endpoint(self):
-        return self.config.get("plugin_webdetails_endpoint", "http://blockchain.info/tx/{}")
+        return self.config.get("plugin_webdetails_endpoint", self.DEFAULT_ENDPOINT)
 
     def settings_dialog(self):
 
