@@ -60,10 +60,10 @@ class ElectrumGui:
         elif c == "s" : self.send_order()
         elif c == "r" : self.print_addresses()
         elif c == "c" : self.print_contacts()
-	elif c == "b" : self.print_banner()
-	elif c == "n" : self.network_dialog()
-	elif c == "e" : self.settings_dialog()
-	elif c == "q" : self.done = 1
+        elif c == "b" : self.print_banner()
+        elif c == "n" : self.network_dialog()
+        elif c == "e" : self.settings_dialog()
+        elif c == "q" : self.done = 1
         else: self.print_commands()
 
     def peers(self):
@@ -73,13 +73,13 @@ class ElectrumGui:
             print (s)
 
     def connected(self):
-	print ("connected")
+        print ("connected")
 
     def disconnected(self):
-	print ("disconnected")
+        print ("disconnected")
 
     def disconnecting(self):
-	print ("disconnecting")
+        print ("disconnecting")
 
     def updated(self):
         s = self.get_balance()
@@ -100,12 +100,12 @@ class ElectrumGui:
         messages = []
 
         for item in self.wallet.get_tx_history():
-            tx_hash, conf, is_mine, value, fee, balance, timestamp = item
-            if conf:
+            tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
+            if confirmations:
                 try:
                     time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
                 except:
-                    time_str = "------"
+                    time_str = "unknown"
             else:
                 time_str = 'pending'
 
@@ -116,7 +116,7 @@ class ElectrumGui:
 
 
     def print_balance(self):
-	print(self.get_balance())
+        print(self.get_balance())
 
     def get_balance(self):
         if self.wallet.network.interface and self.wallet.network.interface.is_connected:
@@ -141,7 +141,7 @@ class ElectrumGui:
         self.print_list(messages, "%19s  %25s "%("Address", "Label"))
 
     def print_order(self):
-	print("send order to " + self.str_recipient + ", amount: " + self.str_amount \
+        print("send order to " + self.str_recipient + ", amount: " + self.str_amount \
               + "\nfee: " + self.str_fee + ", desc: " + self.str_description)
 
     def enter_order(self):
@@ -151,7 +151,7 @@ class ElectrumGui:
         self.str_fee = raw_input("Fee: ")
 
     def send_order(self):
-	self.do_send()
+        self.do_send()
 
     def print_banner(self):
         for i, x in enumerate( self.wallet.network.banner.split('\n') ):
@@ -160,7 +160,7 @@ class ElectrumGui:
     def print_list(self, list, firstline):
         self.maxpos = len(list)
         if not self.maxpos: return
-	print(firstline)
+        print(firstline)
         for i in range(self.maxpos):
             msg = list[i] if i < len(list) else ""
             print(msg)
