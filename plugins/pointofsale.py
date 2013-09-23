@@ -101,19 +101,21 @@ class Plugin(BasePlugin):
         return _('Show QR code window and amounts requested for each address. Add menu item to request amount.')
 
     def init(self):
+        self.window = self.gui.main_window
+
         self.qr_window = None
         self.merchant_name = self.config.get('merchant_name', 'Invoice')
 
-        self.gui.expert_mode = True
-        self.gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Request')])
+        self.window.expert_mode = True
+        self.window.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Request')])
         self.requested_amounts = {}
         self.toggle_QR_window(True)
 
     def load_wallet(self):
-        self.requested_amounts = self.gui.wallet.storage.get('requested_amounts',{}) 
+        self.requested_amounts = self.window.wallet.storage.get('requested_amounts',{}) 
 
     def close(self):
-        self.gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Tx')])
+        self.window.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Tx')])
         self.toggle_QR_window(False)
     
 
@@ -133,10 +135,10 @@ class Plugin(BasePlugin):
             self.qr_window = QR_Window(self.gui.exchanger)
             self.qr_window.setVisible(True)
             self.qr_window_geometry = self.qr_window.geometry()
-            item = self.gui.receive_list.currentItem()
+            item = self.window.receive_list.currentItem()
             if item:
                 address = str(item.text(1))
-                label = self.gui.wallet.labels.get(address)
+                label = self.window.wallet.labels.get(address)
                 amount, currency = self.requested_amounts.get(address, (None, None))
                 self.qr_window.set_content( address, label, amount, currency )
 
@@ -166,7 +168,7 @@ class Plugin(BasePlugin):
     def current_item_changed(self, a):
         if a is not None and self.qr_window and self.qr_window.isVisible():
             address = str(a.text(0))
-            label = self.gui.wallet.labels.get(address)
+            label = self.window.wallet.labels.get(address)
             try:
                 amount, currency = self.requested_amounts.get(address, (None, None))
             except:
@@ -181,7 +183,7 @@ class Plugin(BasePlugin):
         address = str( item.text(0) )
         text = str( item.text(column) )
         try:
-            seq = self.gui.wallet.get_address_index(address)
+            seq = self.window.wallet.get_address_index(address)
             index = seq[1][1]
         except:
             print "cannot get index"
@@ -199,12 +201,12 @@ class Plugin(BasePlugin):
                 currency = currency.upper()
                     
             self.requested_amounts[address] = (amount, currency)
-            self.gui.wallet.storage.put('requested_amounts', self.requested_amounts, True)
+            self.window.wallet.storage.put('requested_amounts', self.requested_amounts, True)
 
-            label = self.gui.wallet.labels.get(address)
+            label = self.window.wallet.labels.get(address)
             if label is None:
                 label = self.merchant_name + ' - %04d'%(index+1)
-                self.gui.wallet.labels[address] = label
+                self.window.wallet.labels[address] = label
 
             if self.qr_window:
                 self.qr_window.set_content( address, label, amount, currency )
@@ -214,13 +216,13 @@ class Plugin(BasePlugin):
             if address in self.requested_amounts:
                 self.requested_amounts.pop(address)
             
-        self.gui.update_receive_item(self.gui.receive_list.currentItem())
+        self.window.update_receive_item(self.window.receive_list.currentItem())
 
 
 
 
     def edit_amount(self):
-        l = self.gui.receive_list
+        l = self.window.receive_list
         item = l.currentItem()
         item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
         l.editItem( item, column_index )

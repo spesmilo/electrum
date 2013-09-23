@@ -29,7 +29,8 @@ class Plugin(BasePlugin):
         self.authorities  = self.config.get('authorities', {})        # trusted addresses
         self.receipts     = self.config.get('receipts',{})            # signed URIs
 
-
+    def is_available(self):
+        return False
 
     def timer_actions(self):
         if self.gui.payto_e.hasFocus():

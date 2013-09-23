@@ -47,7 +47,8 @@ class Plugin(BasePlugin):
 
     def init(self):
         self.target_host = 'labelectrum.herokuapp.com'
-        self.wallet = self.gui.wallet
+        self.window = self.gui.main_window
+        self.wallet = self.window.wallet
         self.labels = self.wallet.labels
         self.transactions = self.wallet.transactions
         mpk = self.wallet.master_public_keys["m/0'/"][1]
@@ -103,7 +104,7 @@ class Plugin(BasePlugin):
               self.download.setEnabled(False)
               self.accept.setEnabled(False)
 
-        d = QDialog(self.gui)
+        d = QDialog(self.window)
         layout = QGridLayout(d)
         layout.addWidget(QLabel("API Key: "),0,0)
 
@@ -161,10 +162,10 @@ class Plugin(BasePlugin):
     def full_pull(self, force = False):
         if self.do_full_pull(force) and force:
             QMessageBox.information(None, _("Labels synchronized"), _("Your labels have been synchronized."))
-            self.gui.update_history_tab()
-            self.gui.update_completions()
-            self.gui.update_receive_tab()
-            self.gui.update_contacts_tab()
+            self.window.update_history_tab()
+            self.window.update_completions()
+            self.window.update_receive_tab()
+            self.window.update_contacts_tab()
 
     def do_full_push(self):
         try:

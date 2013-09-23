@@ -19,6 +19,7 @@
 import sys, time, datetime, re, threading
 from electrum.i18n import _, set_language
 from electrum.util import print_error, print_msg, parse_url
+from electrum.plugins import run_hook
 import os.path, json, ast, traceback
 import shutil
 
@@ -43,7 +44,7 @@ except:
 
 from qt_util import *
 from main_window import ElectrumWindow
-
+from electrum.plugins import init_plugins
 
 class Timer(QtCore.QThread):
     def run(self):
@@ -74,6 +75,10 @@ class ElectrumGui:
         if app is None:
             self.app = QApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
+
+        init_plugins(self)
+
+
 
     def expand(self):
         """Hide the lite mode window and show pro-mode."""
@@ -128,11 +133,16 @@ class ElectrumGui:
 
         wallet.start_threads(self.network)
 
+            
+        self.main_window = w = ElectrumWindow(self.config, self.network, self.minimize)
+
+        # plugins that need to change the GUI do it here
+        run_hook('init')
+
+        w.load_wallet(wallet)
+
         s = Timer()
         s.start()
-            
-        w = ElectrumWindow(self.config, self.network, self.minimize)
-        w.load_wallet(wallet)
 
         self.windows.append(w)
         if url: w.set_url(url)

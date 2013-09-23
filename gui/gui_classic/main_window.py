@@ -34,6 +34,7 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
 from electrum.bitcoin import MIN_RELAY_TX_FEE, is_valid
+from electrum.plugins import run_hook
 
 try:
     import icons_rc
@@ -48,7 +49,6 @@ from electrum import SimpleConfig, Wallet, WalletStorage
 
 
 from electrum import bmp, pyqrnative
-import exchange_rate
 
 from amountedit import AmountEdit
 from network_dialog import NetworkDialog
@@ -141,7 +141,6 @@ class ElectrumWindow(QMainWindow):
         self.config = config
         self.network = network
         self.go_lite = go_lite
-        self.init_plugins()
 
         self._close_electrum = False
         self.lite = None
@@ -195,19 +194,14 @@ class ElectrumWindow(QMainWindow):
 
         self.history_list.setFocus(True)
         
-        self.exchanger = exchange_rate.Exchanger(self)
-        self.connect(self, SIGNAL("refresh_balance()"), self.update_wallet)
-
         # dark magic fix by flatfly; https://bitcointalk.org/index.php?topic=73651.msg959913#msg959913
         if platform.system() == 'Windows':
             n = 3 if self.wallet.seed else 2
             tabs.setCurrentIndex (n)
             tabs.setCurrentIndex (0)
 
-        # plugins that need to change the GUI do it here
-        self.run_hook('init')
 
-
+    
 
 
     def load_wallet(self, wallet):
@@ -244,7 +238,7 @@ class ElectrumWindow(QMainWindow):
         self.update_buttons_on_seed()
         self.update_console()
 
-        self.run_hook('load_wallet')
+        run_hook('load_wallet')
 
 
     def select_wallet_file(self):
@@ -443,46 +437,6 @@ class ElectrumWindow(QMainWindow):
     def notify(self, message):
         self.tray.showMessage("Electrum", message, QSystemTrayIcon.Information, 20000)
 
-    # plugins
-    def init_plugins(self):
-        import imp, pkgutil, __builtin__
-        if __builtin__.use_local_modules:
-            fp, pathname, description = imp.find_module('plugins')
-            plugin_names = [name for a, name, b in pkgutil.iter_modules([pathname])]
-            plugin_names = filter( lambda name: os.path.exists(os.path.join(pathname,name+'.py')), plugin_names)
-            imp.load_module('electrum_plugins', fp, pathname, description)
-            plugins = map(lambda name: imp.load_source('electrum_plugins.'+name, os.path.join(pathname,name+'.py')), plugin_names)
-        else:
-            import electrum_plugins
-            plugin_names = [name for a, name, b in pkgutil.iter_modules(electrum_plugins.__path__)]
-            plugins = [ __import__('electrum_plugins.'+name, fromlist=['electrum_plugins']) for name in plugin_names]
-
-        self.plugins = []
-        for name, p in zip(plugin_names, plugins):
-            try:
-                self.plugins.append( p.Plugin(self, name) )
-            except:
-                print_msg(_("Error: cannot initialize plugin"),p)
-                traceback.print_exc(file=sys.stdout)
-
-
-    def run_hook(self, name, *args):
-        for p in self.plugins:
-            if not p.is_enabled():
-                continue
-
-            f = getattr(p, name, None)
-            if not callable(f):
-                return
-
-            try:
-                f(*args)
-            except:
-                print_error("Plugin error")
-                traceback.print_exc(file=sys.stdout)
-                
-        return
-
 
 
     def set_label(self, name, text = None):
@@ -497,7 +451,7 @@ class ElectrumWindow(QMainWindow):
             if old_text:
                 self.wallet.labels.pop(name)
                 changed = True
-        self.run_hook('set_label', name, text, changed)
+        run_hook('set_label', name, text, changed)
         return changed
 
 
@@ -519,7 +473,7 @@ class ElectrumWindow(QMainWindow):
 
     def close(self):
         QMainWindow.close(self)
-        self.run_hook('close_main_window')
+        run_hook('close_main_window')
 
     def connect_slots(self, sender):
         self.connect(sender, QtCore.SIGNAL('timersignal'), self.timer_actions)
@@ -529,7 +483,7 @@ class ElectrumWindow(QMainWindow):
         if self.need_update.is_set():
             self.update_wallet()
             self.need_update.clear()
-        self.run_hook('timer_actions')
+        run_hook('timer_actions')
     
     def format_amount(self, x, is_diff=False, whitespaces=False):
         return format_satoshis(x, is_diff, self.num_zeros, self.decimal_point, whitespaces)
@@ -543,6 +497,11 @@ class ElectrumWindow(QMainWindow):
         assert self.decimal_point in [5,8]
         return "BTC" if self.decimal_point == 8 else "mBTC"
 
+    def set_status_text(self, text):
+        self.balance_label.setText(text)
+        run_hook('set_status_text', text)
+
+
     def update_status(self):
         if self.network.interface and self.network.interface.is_connected:
             if not self.wallet.up_to_date:
@@ -552,14 +511,13 @@ class ElectrumWindow(QMainWindow):
                 c, u = self.wallet.get_account_balance(self.current_account)
                 text =  _( "Balance" ) + ": %s "%( self.format_amount(c) ) + self.base_unit()
                 if u: text +=  " [%s unconfirmed]"%( self.format_amount(u,True).strip() )
-                text += self.create_quote_text(Decimal(c+u)/100000000)
                 self.tray.setToolTip(text)
                 icon = QIcon(":icons/status_connected.png")
         else:
             text = _("Not connected")
             icon = QIcon(":icons/status_disconnected.png")
 
-        self.balance_label.setText(text)
+        self.set_status_text(text)
         self.status_button.setIcon( icon )
 
     def update_wallet(self):
@@ -571,14 +529,6 @@ class ElectrumWindow(QMainWindow):
             self.update_completions()
 
 
-    def create_quote_text(self, btc_balance):
-        quote_currency = self.config.get("currency", "None")
-        quote_balance = self.exchanger.exchange(btc_balance, quote_currency)
-        if quote_balance is None:
-            quote_text = ""
-        else:
-            quote_text = "  (%.2f %s)" % (quote_balance, quote_currency)
-        return quote_text
         
     def create_history_tab(self):
         self.history_list = l = MyTreeWidget(self)
@@ -672,11 +622,11 @@ class ElectrumWindow(QMainWindow):
                 
             self.current_item_changed(item)
 
-        self.run_hook('item_changed', item, column)
+        run_hook('item_changed', item, column)
 
 
     def current_item_changed(self, a):
-        self.run_hook('current_item_changed', a)
+        run_hook('current_item_changed', a)
 
 
 
@@ -836,7 +786,7 @@ class ElectrumWindow(QMainWindow):
         self.amount_e.textChanged.connect(lambda: entry_changed(False) )
         self.fee_e.textChanged.connect(lambda: entry_changed(True) )
 
-        self.run_hook('create_send_tab', grid)
+        run_hook('create_send_tab', grid)
         return w2
 
 
@@ -846,7 +796,7 @@ class ElectrumWindow(QMainWindow):
             if addr in self.wallet.addressbook:
                 l.append( label + '  <' + addr + '>')
 
-        self.run_hook('update_completions', l)
+        run_hook('update_completions', l)
         self.completions.setStringList(l)
 
 
@@ -901,7 +851,7 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
             return
 
-        self.run_hook('send_tx', tx)
+        run_hook('send_tx', tx)
 
         if label: 
             self.set_label(tx.hash(), label)
@@ -943,7 +893,7 @@ class ElectrumWindow(QMainWindow):
                     self.wallet.addressbook.append(address)
                 self.set_label(address, label)
 
-        self.run_hook('set_url', url, self.show_message, self.question)
+        run_hook('set_url', url, self.show_message, self.question)
 
         self.tabs.setCurrentIndex(1)
         label = self.wallet.labels.get(address)
@@ -1111,7 +1061,7 @@ class ElectrumWindow(QMainWindow):
             t = _("Unprioritize") if addr in self.wallet.prioritized_addresses else _("Prioritize")
             menu.addAction(t, lambda: self.toggle_priority(addr))
             
-        self.run_hook('receive_menu', menu)
+        run_hook('receive_menu', menu)
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
 
@@ -1148,7 +1098,7 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Edit label"), lambda: self.edit_label(False))
             menu.addAction(_("Delete"), lambda: self.delete_contact(addr))
 
-        self.run_hook('create_contact_menu', menu, item)
+        run_hook('create_contact_menu', menu, item)
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
 
@@ -1159,7 +1109,7 @@ class ElectrumWindow(QMainWindow):
         item.setData(1,0,label)
         item.setData(0,32, True) # is editable
 
-        self.run_hook('update_receive_item', address, item)
+        run_hook('update_receive_item', address, item)
                 
         c, u = self.wallet.get_addr_balance(address)
         balance = self.format_amount(c + u)
@@ -1254,7 +1204,7 @@ class ElectrumWindow(QMainWindow):
             item.setData(0,33, address)
             l.addTopLevelItem(item)
 
-        self.run_hook('update_contacts_tab', l)
+        run_hook('update_contacts_tab', l)
         l.setCurrentItem(l.topLevelItem(0))
 
 
@@ -1325,7 +1275,7 @@ class ElectrumWindow(QMainWindow):
         self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), _("Network"), self.run_network_dialog ) 
         sb.addPermanentWidget( self.status_button )
 
-        self.run_hook('create_status_bar', (sb,))
+        run_hook('create_status_bar', (sb,))
 
         self.setStatusBar(sb)
 
@@ -1616,7 +1566,7 @@ class ElectrumWindow(QMainWindow):
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox)
 
-        self.run_hook('password_dialog', pw, grid, 1)
+        run_hook('password_dialog', pw, grid, 1)
         if not d.exec_(): return
         return unicode(pw.text())
 
@@ -1855,21 +1805,6 @@ class ElectrumWindow(QMainWindow):
         if not self.config.is_modifiable('language'):
             for w in [lang_combo, lang_label]: w.setEnabled(False)
 
-        currencies = self.exchanger.get_currencies()
-        currencies.insert(0, "None")
-
-        cur_label=QLabel(_('Currency') + ':')
-        grid_ui.addWidget(cur_label , 2, 0)
-        cur_combo = QComboBox()
-        cur_combo.addItems(currencies)
-        try:
-            index = currencies.index(self.config.get('currency', "None"))
-        except:
-            index = 0
-        cur_combo.setCurrentIndex(index)
-        grid_ui.addWidget(cur_combo, 2, 1)
-        grid_ui.addWidget(HelpButton(_('Select which currency is used for quotes.')+' '), 2, 2)
-        
         expert_cb = QCheckBox(_('Expert mode'))
         expert_cb.setChecked(self.expert_mode)
         grid_ui.addWidget(expert_cb, 3, 0)
@@ -1916,7 +1851,7 @@ class ElectrumWindow(QMainWindow):
         grid_wallet.setRowStretch(4,1)
 
 
-        self.run_hook('create_settings_tab', tabs)
+        run_hook('create_settings_tab', tabs)
 
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
@@ -1966,12 +1901,8 @@ class ElectrumWindow(QMainWindow):
             self.config.set_key("language", lang_request, True)
             need_restart = True
             
-        cur_request = str(currencies[cur_combo.currentIndex()])
-        if cur_request != self.config.get('currency', "None"):
-            self.config.set_key('currency', cur_request, True)
-            self.update_wallet()
 
-        self.run_hook('close_settings_dialog')
+        run_hook('close_settings_dialog')
 
         if need_restart:
             QMessageBox.warning(self, _('Success'), _('Please restart Electrum to activate the new GUI settings'), _('OK'))
@@ -1991,40 +1922,46 @@ class ElectrumWindow(QMainWindow):
 
 
     def plugins_dialog(self):
+        from electrum.plugins import plugins
+
         d = QDialog(self)
         d.setWindowTitle(_('Electrum Plugins'))
-        d.setMinimumSize(450,300)
         d.setModal(1)
 
-        # plugins
-        tab5 = QScrollArea(d)
-        tab5.setEnabled(True)
-        tab5.setWidgetResizable(True)
+        vbox = QVBoxLayout(d)
 
-        grid_plugins = QGridLayout()
-        grid_plugins.setColumnStretch(0,1)
+        # plugins
+        scroll = QScrollArea()
+        scroll.setEnabled(True)
+        scroll.setWidgetResizable(True)
+        scroll.setMinimumSize(400,250)
+        vbox.addWidget(scroll)
 
         w = QWidget()
-        w.setLayout(grid_plugins)
-        tab5.setWidget(w)
+        scroll.setWidget(w)
+        w.setMinimumHeight(len(plugins)*35)
 
-        w.setMinimumHeight(len(self.plugins)*35)
+        grid = QGridLayout()
+        grid.setColumnStretch(0,1)
+        w.setLayout(grid)
 
         def mk_toggle(cb, p):
             return lambda: cb.setChecked(p.toggle())
-        for i, p in enumerate(self.plugins):
+        for i, p in enumerate(plugins):
             try:
                 cb = QCheckBox(p.fullname())
                 cb.setDisabled(not p.is_available())
                 cb.setChecked(p.is_enabled())
                 cb.clicked.connect(mk_toggle(cb,p))
-                grid_plugins.addWidget(cb, i, 0)
+                grid.addWidget(cb, i, 0)
                 if p.requires_settings():
-                    grid_plugins.addWidget(EnterButton(_('Settings'), p.settings_dialog), i, 1)
-                grid_plugins.addWidget(HelpButton(p.description()), i, 2)
+                    grid.addWidget(EnterButton(_('Settings'), p.settings_dialog), i, 1)
+                grid.addWidget(HelpButton(p.description()), i, 2)
             except:
                 print_msg(_("Error: cannot display plugin"), p)
                 traceback.print_exc(file=sys.stdout)
-        grid_plugins.setRowStretch(i+1,1)
+        grid.setRowStretch(i+1,1)
+
+        vbox.addLayout(close_button(d))
 
         d.exec_()

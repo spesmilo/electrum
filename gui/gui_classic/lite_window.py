@@ -17,7 +17,6 @@ from electrum.util import get_resource_path as rsrc
 from electrum.bitcoin import is_valid
 from electrum.i18n import _
 import decimal
-import exchange_rate
 import json
 import os.path
 import random
@@ -181,7 +180,7 @@ class MiniWindow(QDialog):
         self.btc_balance = None
         self.quote_currencies = ["BRL", "CNY", "EUR", "GBP", "RUB", "USD"]
         self.actuator.set_configured_currency(self.set_quote_currency)
-        self.exchanger = exchange_rate.Exchanger(self)
+        #self.exchanger = exchange_rate.Exchanger(self)
         # Needed because price discovery is done in a different thread
         # which needs to be sent back to this main one to update the GUI
         self.connect(self, SIGNAL("refresh_balance()"), self.refresh_balance)
@@ -429,7 +428,7 @@ class MiniWindow(QDialog):
         """Return a string copy of the amount fiat currency the 
         user has in bitcoins."""
         quote_currency = self.quote_currencies[0]
-        quote_balance = self.exchanger.exchange(btc_balance, quote_currency)
+        quote_balance = None #self.exchanger.exchange(btc_balance, quote_currency)
         if quote_balance is None:
             quote_text = ""
         else:

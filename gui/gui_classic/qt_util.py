@@ -57,6 +57,15 @@ class HelpButton(QPushButton):
 
 
 
+def close_button(dialog, label=_("Close") ):
+    hbox = QHBoxLayout()
+    hbox.addStretch(1)
+    b = QPushButton(label)
+    hbox.addWidget(b)
+    b.clicked.connect(dialog.close)
+    b.setDefault(True)
+    return hbox
+
 def ok_cancel_buttons(dialog, ok_label=_("OK") ):
     hbox = QHBoxLayout()
     hbox.addStretch(1)
