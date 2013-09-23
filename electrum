@@ -77,7 +77,7 @@ def arg_parser():
     parser.add_option("-f", "--fee", dest="tx_fee", default=None, help="set tx fee")
     parser.add_option("-F", "--fromaddr", dest="from_addr", default=None, help="set source address for payto/mktx. if it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet.")
     parser.add_option("-c", "--changeaddr", dest="change_addr", default=None, help="set the change address for payto/mktx. default is a spare address, or the source address if it's not in the wallet")
-    parser.add_option("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is t or h")
+    parser.add_option("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is either t (tcp), h (http), s (tcp+ssl), or g (https)")
     parser.add_option("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
     parser.add_option("-v", "--verbose", action="store_true", dest="verbose", default=False, help="show debugging information")
     parser.add_option("-P", "--portable", action="store_true", dest="portable", default=False, help="portable wallet")
