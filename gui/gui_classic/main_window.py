@@ -331,20 +331,22 @@ class ElectrumWindow(QMainWindow):
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
 
-        # Settings / Preferences are all reserved keywords in OSX using this as work around
-        preferences_name = _("Electrum preferences") if sys.platform == 'darwin' else _("Preferences")
-        preferences_menu = wallet_menu.addAction(preferences_name)
-        preferences_menu.triggered.connect(self.settings_dialog)
+        new_contact = wallet_menu.addAction(_("&New contact"))
+        new_contact.triggered.connect(self.new_contact_dialog)
+
+        self.new_account = wallet_menu.addAction(_("&New account"))
+        self.new_account.triggered.connect(self.new_account_dialog)
 
         wallet_menu.addSeparator()
 
-        raw_transaction_menu = wallet_menu.addMenu(_("&Load raw transaction"))
+        #if self.wallet.seed:
+        show_seed = wallet_menu.addAction(_("&Seed"))
+        show_seed.triggered.connect(self.show_seed_dialog)
 
-        raw_transaction_file = raw_transaction_menu.addAction(_("&From file"))
-        raw_transaction_file.triggered.connect(self.do_process_from_file)
+        show_mpk = wallet_menu.addAction(_("&Master Public Key"))
+        show_mpk.triggered.connect(self.show_master_public_key)
 
-        raw_transaction_text = raw_transaction_menu.addAction(_("&From text"))
-        raw_transaction_text.triggered.connect(self.do_process_from_text)
+        wallet_menu.addSeparator()
 
         csv_transaction_menu = wallet_menu.addMenu(_("&Create transaction"))
 
@@ -354,40 +356,42 @@ class ElectrumWindow(QMainWindow):
         csv_transaction_text = csv_transaction_menu.addAction(_("&From CSV text"))
         csv_transaction_text.triggered.connect(self.do_process_from_csv_text)
 
+        raw_transaction_menu = wallet_menu.addMenu(_("&Load transaction"))
+
+        raw_transaction_file = raw_transaction_menu.addAction(_("&From file"))
+        raw_transaction_file.triggered.connect(self.do_process_from_file)
+
+        raw_transaction_text = raw_transaction_menu.addAction(_("&From text"))
+        raw_transaction_text.triggered.connect(self.do_process_from_text)
+
+
+        tools_menu = menubar.addMenu(_("&Tools"))
+
+        # Settings / Preferences are all reserved keywords in OSX using this as work around
+        preferences_name = _("Electrum preferences") if sys.platform == 'darwin' else _("Preferences")
+        preferences_menu = tools_menu.addAction(preferences_name)
+        preferences_menu.triggered.connect(self.settings_dialog)
+
+        plugins_labels = tools_menu.addAction(_("&Plugins"))
+        plugins_labels.triggered.connect(self.plugins_dialog)
+
         wallet_menu.addSeparator()
 
-        show_menu = wallet_menu.addMenu(_("Show"))
+        labels_menu = tools_menu.addMenu(_("&Labels"))
+        import_labels = labels_menu.addAction(_("&Import"))
+        import_labels.triggered.connect(self.do_import_labels)
+        export_labels = labels_menu.addAction(_("&Export"))
+        export_labels.triggered.connect(self.do_export_labels)
 
-        #if self.wallet.seed:
-        show_seed = show_menu.addAction(_("&Seed"))
-        show_seed.triggered.connect(self.show_seed_dialog)
+        keys_menu = tools_menu.addMenu(_("&Private keys"))
+        import_keys = keys_menu.addAction(_("&Import"))
+        import_keys.triggered.connect(self.do_import_privkey)
+        export_keys = keys_menu.addAction(_("&Export"))
+        export_keys.triggered.connect(self.do_export_privkeys)
 
-        show_mpk = show_menu.addAction(_("&Master Public Key"))
-        show_mpk.triggered.connect(self.show_master_public_key)
-
-        wallet_menu.addSeparator()
-        new_contact = wallet_menu.addAction(_("&New contact"))
-        new_contact.triggered.connect(self.new_contact_dialog)
-
-        self.new_account = wallet_menu.addAction(_("&New account"))
-        self.new_account.triggered.connect(self.new_account_dialog)
-
-        import_menu = menubar.addMenu(_("&Import"))
-        in_labels = import_menu.addAction(_("&Labels"))
-        in_labels.triggered.connect(self.do_import_labels)
-
-        in_private_keys = import_menu.addAction(_("&Private keys"))
-        in_private_keys.triggered.connect(self.do_import_privkey)
-
-        export_menu = menubar.addMenu(_("&Export"))
-        ex_private_keys = export_menu.addAction(_("&Private keys"))
-        ex_private_keys.triggered.connect(self.do_export_privkeys)
-
-        ex_history = export_menu.addAction(_("&History"))
+        ex_history = tools_menu.addAction(_("&Export History"))
         ex_history.triggered.connect(self.do_export_history)
 
-        ex_labels = export_menu.addAction(_("&Labels"))
-        ex_labels.triggered.connect(self.do_export_labels)
 
         help_menu = menubar.addMenu(_("&Help"))
         show_about = help_menu.addAction(_("&About"))
@@ -1911,38 +1915,6 @@ class ElectrumWindow(QMainWindow):
                                              + _(' This settings affects the fields in the Send tab')+' '), 3, 3)
         grid_wallet.setRowStretch(4,1)
 
-        # plugins
-        if self.plugins:
-            tab5 = QScrollArea()
-            tab5.setEnabled(True)
-            tab5.setWidgetResizable(True)
-
-            grid_plugins = QGridLayout()
-            grid_plugins.setColumnStretch(0,1)
-
-            w = QWidget()
-            w.setLayout(grid_plugins)
-            tab5.setWidget(w)
-
-            w.setMinimumHeight(len(self.plugins)*35)
-
-            tabs.addTab(tab5, _('Plugins') )
-            def mk_toggle(cb, p):
-                return lambda: cb.setChecked(p.toggle())
-            for i, p in enumerate(self.plugins):
-                try:
-                    cb = QCheckBox(p.fullname())
-                    cb.setDisabled(not p.is_available())
-                    cb.setChecked(p.is_enabled())
-                    cb.clicked.connect(mk_toggle(cb,p))
-                    grid_plugins.addWidget(cb, i, 0)
-                    if p.requires_settings():
-                        grid_plugins.addWidget(EnterButton(_('Settings'), p.settings_dialog), i, 1)
-                    grid_plugins.addWidget(HelpButton(p.description()), i, 2)
-                except:
-                    print_msg(_("Error: cannot display plugin"), p)
-                    traceback.print_exc(file=sys.stdout)
-            grid_plugins.setRowStretch(i+1,1)
 
         self.run_hook('create_settings_tab', tabs)
 
@@ -2016,3 +1988,43 @@ class ElectrumWindow(QMainWindow):
         self.config.set_key("console-history", self.console.history[-50:], True)
         event.accept()
 
+
+
+    def plugins_dialog(self):
+        d = QDialog(self)
+        d.setWindowTitle(_('Electrum Plugins'))
+        d.setMinimumSize(450,300)
+        d.setModal(1)
+
+        # plugins
+        tab5 = QScrollArea(d)
+        tab5.setEnabled(True)
+        tab5.setWidgetResizable(True)
+
+        grid_plugins = QGridLayout()
+        grid_plugins.setColumnStretch(0,1)
+
+        w = QWidget()
+        w.setLayout(grid_plugins)
+        tab5.setWidget(w)
+
+        w.setMinimumHeight(len(self.plugins)*35)
+
+        def mk_toggle(cb, p):
+            return lambda: cb.setChecked(p.toggle())
+        for i, p in enumerate(self.plugins):
+            try:
+                cb = QCheckBox(p.fullname())
+                cb.setDisabled(not p.is_available())
+                cb.setChecked(p.is_enabled())
+                cb.clicked.connect(mk_toggle(cb,p))
+                grid_plugins.addWidget(cb, i, 0)
+                if p.requires_settings():
+                    grid_plugins.addWidget(EnterButton(_('Settings'), p.settings_dialog), i, 1)
+                grid_plugins.addWidget(HelpButton(p.description()), i, 2)
+            except:
+                print_msg(_("Error: cannot display plugin"), p)
+                traceback.print_exc(file=sys.stdout)
+        grid_plugins.setRowStretch(i+1,1)
+
+        d.exec_()
