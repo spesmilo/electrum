@@ -1034,6 +1034,22 @@ class ElectrumWindow(QMainWindow):
             self.update_receive_tab()
             self.update_history_tab()
 
+    def edit_account_label(self, k):
+        text, ok = QInputDialog.getText(self, _('Rename account'), _('Name') + ':')
+        if ok:
+            label = unicode(text)
+            self.set_label(k,label)
+            self.update_receive_tab()
+
+    def create_account_menu(self, position, k, item):
+        menu = QMenu()
+        if item.isExpanded():
+            menu.addAction(_("Reduce"), lambda: item.setExpanded(False))
+        else:
+            menu.addAction(_("Expand"), lambda: item.setExpanded(True))
+        menu.addAction(_("Rename"), lambda: self.edit_account_label(k))
+        menu.addAction(_("View details"), lambda: self.show_account_details(k))
+        menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
     def create_receive_menu(self, position):
         # fixme: this function apparently has a side effect.
@@ -1042,10 +1058,16 @@ class ElectrumWindow(QMainWindow):
 
         item = self.receive_list.itemAt(position)
         if not item: return
+
         addr = unicode(item.text(0))
         if not is_valid(addr): 
-            item.setExpanded(not item.isExpanded())
+            k = str(item.data(0,32).toString())
+            if k:
+                self.create_account_menu(position, k, item)
+            else:
+                item.setExpanded(not item.isExpanded())
             return 
+
         menu = QMenu()
         menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")) )
@@ -1144,6 +1166,11 @@ class ElectrumWindow(QMainWindow):
             account_item = QTreeWidgetItem( [ name, '', self.format_amount(c+u), ''] )
             l.addTopLevelItem(account_item)
             account_item.setExpanded(True)
+            account_item.setData(0, 32, k)
+
+            if not self.wallet.is_seeded(k):
+                icon = QIcon(":icons/key.png")
+                account_item.setIcon(0, icon)
             
             for is_change in ([0,1] if self.expert_mode else [0]):
                 if self.expert_mode:
@@ -1964,4 +1991,34 @@ class ElectrumWindow(QMainWindow):
 
         vbox.addLayout(close_button(d))
 
+        d.exec_()
+
+
+    def show_account_details(self, k):
+        d = QDialog(self)
+        d.setWindowTitle(_('Account Details'))
+        d.setModal(1)
+
+        vbox = QVBoxLayout(d)
+        roots = self.wallet.get_roots(k)
+
+        name = self.wallet.get_account_name(k)
+        label = QLabel('Name: ' + name)
+        vbox.addWidget(label)
+
+        acctype = '2 of 2' if len(roots) == 2 else '2 of 3' if len(roots) == 3 else 'Single key'
+        vbox.addWidget(QLabel('Type: ' + acctype))
+
+        label = QLabel('Derivation: ' + k)
+        vbox.addWidget(label)
+
+        #for root in roots:
+        #    mpk = self.wallet.master_public_keys[root]
+        #    text = QTextEdit()
+        #    text.setReadOnly(True)
+        #    text.setMaximumHeight(120)
+        #    text.setText(repr(mpk))
+        #    vbox.addWidget(text)
+
+        vbox.addLayout(close_button(d))
         d.exec_()

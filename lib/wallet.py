@@ -491,6 +491,20 @@ class Wallet:
         raise BaseException("Address not found", address)
 
 
+    def get_roots(self, account):
+        roots = []
+        for a in account.split('&'):
+            s = a.strip()
+            m = re.match("(m/\d+'/)(\d+)", s)
+            roots.append( m.group(1) )
+        return roots
+
+    def is_seeded(self, account):
+        for root in self.get_roots(account):
+            if root not in self.master_private_keys.keys(): 
+                return False
+        return True
+
     def rebase_sequence(self, account, sequence):
         c, i = sequence
         dd = []
