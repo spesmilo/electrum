@@ -7,7 +7,7 @@ from electrum import Wallet, mnemonic
 
 from seed_dialog import SeedDialog
 from network_dialog import NetworkDialog
-from qt_util import *
+from util import *
 from amountedit import AmountEdit
 
 import sys
