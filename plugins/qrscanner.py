@@ -7,7 +7,7 @@ from electrum.i18n import _
 import re
 from electrum import Transaction
 from electrum.bitcoin import MIN_RELAY_TX_FEE, is_valid
-from electrum_gui.gui_classic.qrcodewidget import QRCodeWidget
+from electrum_gui.qt.qrcodewidget import QRCodeWidget
 from electrum import bmp
 import json
 

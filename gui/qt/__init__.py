@@ -42,7 +42,7 @@ try:
 except:
     sys.exit("Error: Could not import icons_rc.py, please generate it with: 'pyrcc4 icons.qrc -o gui/gui_classic/icons_rc.py'")
 
-from qt_util import *
+from util import *
 from main_window import ElectrumWindow
 from electrum.plugins import init_plugins
 

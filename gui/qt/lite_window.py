@@ -36,7 +36,7 @@ from electrum.util import format_satoshis, age
 from main_window import ElectrumWindow
 import shutil
 
-from qt_util import *
+from util import *
 
 bitcoin = lambda v: v * 100000000
 

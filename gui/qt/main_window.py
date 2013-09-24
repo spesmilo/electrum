@@ -72,7 +72,7 @@ else:
 from electrum import ELECTRUM_VERSION
 import re
 
-from qt_util import *
+from util import *
 
 
         
@@ -1210,7 +1210,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def create_console_tab(self):
-        from qt_console import Console
+        from console import Console
         self.console = console = Console()
         return console
 

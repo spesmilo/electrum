@@ -9,7 +9,7 @@ import re
 from decimal import Decimal
 from electrum.plugins import BasePlugin
 from electrum.i18n import _
-from electrum_gui.gui_classic.qt_util import *
+from electrum_gui.qt.util import *
 
 
 class Exchanger(threading.Thread):

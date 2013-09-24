@@ -25,7 +25,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 from electrum import DEFAULT_SERVERS, DEFAULT_PORTS
 
-from qt_util import *
+from util import *
 
 protocol_names = ['TCP', 'HTTP', 'SSL', 'HTTPS']
 protocol_letters = 'thsg'
