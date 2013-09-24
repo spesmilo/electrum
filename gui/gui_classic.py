@@ -274,6 +274,11 @@ class ElectrumWindow(QMainWindow):
         self.wallet.interface.register_callback('disconnecting', lambda: self.emit(QtCore.SIGNAL('update_status')))
 
         self.expert_mode = config.get('classic_expert_mode', False)
+        
+        # How many far to shift the decimal point over to convert our indivisible unit to 
+        # the crypto currency we want to use (BTC, or mBTC)
+        # For Bitcoin it should be 8 unless you use mBTC.  In this case it should be 5.
+        # Sometime in the future people might be asking for uBTC for that you need to have 2.
         self.decimal_point = config.get('decimal_point', 8)
 
         set_language(config.get('language'))
