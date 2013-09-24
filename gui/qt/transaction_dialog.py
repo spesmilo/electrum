@@ -91,7 +91,8 @@ class TxDialog(QDialog):
         cancelButton = QPushButton(_("Close"))
         cancelButton.clicked.connect(lambda: self.done(0))
         buttons.addWidget(cancelButton)
-
+        cancelButton.setDefault(True)
+        
         self.update()
 
 
