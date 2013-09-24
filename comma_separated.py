@@ -93,6 +93,8 @@ class MyQLocale(QLocale) :
 					return (False,v / base**shift)
 			
 		v /= base ** shift
+		if digit_count is None:
+		    return (False,v)
 		return (True,v)
 			
 			

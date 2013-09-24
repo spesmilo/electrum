@@ -12,6 +12,7 @@ except ImportError:
     sys.exit(0)
 
 from comma_separated import MyQLocale
+from comma_separated import CommaSeparatedSpacedQDoubleValidator
 from decimal import Decimal as D
 from electrum.util import get_resource_path as rsrc
 from electrum.bitcoin import is_valid
@@ -248,6 +249,10 @@ class MiniWindow(QDialog):
         from comma_separated import MyQDoubleValidator 
         tx = "e08115d0f7819aee65b9d24f81ef9d46eb62bb67ddef5318156cbc3ceb7b703e"
 
+	self.locale = MyQLocale(QLocale.system())
+        num_zeros = config.get('num_zeros', 5)
+	self.locale.mandatory_decimals = num_zeros
+	self.locale.maximum_decimals = num_zeros
         self.actuator = actuator
         self.config = config
         self.btc_balance = None
@@ -288,9 +293,8 @@ class MiniWindow(QDialog):
 
         self.amount_input.setFocusPolicy(Qt.ClickFocus)
         # This is changed according to the user's displayed balance
-        self.amount_validator = MyQDoubleValidator(self.amount_input)
+        self.amount_validator = CommaSeparatedSpacedQDoubleValidator(8, 8, False, self.amount_input)
         self.amount_validator.setNotation(QDoubleValidator.StandardNotation)
-        self.amount_validator.setDecimals(8)
         self.amount_input.setValidator(self.amount_validator)
 
         # This removes the very ugly OSX highlighting, please leave this in :D
@@ -495,6 +499,9 @@ class MiniWindow(QDialog):
             # Price has been discovered before wallet has been loaded
             # and server connect... so bail.
             return
+        num_zeros = self.config.get('num_zeros', 5)
+	self.locale.mandatory_decimals = num_zeros
+	self.locale.maximum_decimals = num_zeros
         self.set_balances(self.btc_balance)
         self.amount_input_changed(self.amount_input.text())
 
@@ -502,14 +509,11 @@ class MiniWindow(QDialog):
         """Set the bitcoin balance and update the amount label accordingly."""
         # btc_balance should be in Satoshis
         self.btc_balance = btc_balance
-        loc = MyQLocale(QLocale.system());
         quote_text = self.create_quote_text(btc_balance)
         if quote_text:
             quote_text = "(%s)" % quote_text
-        loc.mandatory_decimals = 3
-        loc.maximum_decimals = 4
-        amount = btc_balance / bitcoin(1)
-        btc_balance_string = loc.toString(amount)
+        amount = D(btc_balance) / bitcoin(1)
+        btc_balance_string = self.locale.toString(amount)
         self.balance_label.set_balance_text(btc_balance_string, quote_text)
         self.setWindowTitle("Electrum %s - %s BTC" % (electrum_version, btc_balance_string))
 
@@ -528,6 +532,18 @@ class MiniWindow(QDialog):
                 self.balance_label.show_amount()
             else:
                 self.balance_label.show_balance()
+                
+    def set_mandatory_decimals(self, decimals):
+    	if decimals.__class__ == QString:
+    	    could_convert, decimals = long(self.locale.toDecimal(decimals))
+    	count_not_convert = not could_convert
+    	if could_not_convert:
+    	    return
+    	# mustn't use more decimals than is allowed for this crypto currency.
+    	# assuming the original, Bitcoin, the upper bound is 8.
+    	assert(0 <= decimals <= self.amount_validator.maximum_decimals)
+    	self.mandatory_decimals = int(decimals)
+    	
 
     def create_quote_text(self, btc_balance):
         """Return a string copy of the amount fiat currency the 
@@ -541,7 +557,7 @@ class MiniWindow(QDialog):
 	    amount = (quote_balance / bitcoin(D(1)))
 	    locale.mandatory_decimals = 2
 	    locale.maximum_decimals = 2
-	    quote_text = "%s %s" % (str(locale.toString((quote_balance / bitcoin(1)))),
+	    quote_text = "%s %s" % (str(locale.toString((quote_balance / bitcoin(D(1))))),
 			      quote_currency)
         return quote_text
 
@@ -554,7 +570,7 @@ class MiniWindow(QDialog):
     def check_button_status(self):
         """Check that the bitcoin address is valid and that something
         is entered in the amount before making the send button clickable."""
-        locale = MyQLocale(QLocale.system())
+        locale = self.locale
         status, value = locale.toDecimal(self.amount_input.text(), 10)
         value = bitcoin(value)
         if not status:
