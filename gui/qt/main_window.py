@@ -193,13 +193,21 @@ class ElectrumWindow(QMainWindow):
         self.connect(self, QtCore.SIGNAL('transaction_signal'), lambda: self.notify_transactions() )
 
         self.history_list.setFocus(True)
-        
+
+        # network callbacks
+        self.network.register_callback('updated', lambda: self.need_update.set())
+        self.network.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')))
+        self.network.register_callback('disconnected', lambda: self.emit(QtCore.SIGNAL('update_status')))
+        self.network.register_callback('disconnecting', lambda: self.emit(QtCore.SIGNAL('update_status')))
+        self.network.register_callback('new_transaction', lambda: self.emit(QtCore.SIGNAL('transaction_signal')))
+        # set initial message
+        self.console.showMessage(self.network.banner)
+
         # dark magic fix by flatfly; https://bitcointalk.org/index.php?topic=73651.msg959913#msg959913
         if platform.system() == 'Windows':
             n = 3 if self.wallet.seed else 2
             tabs.setCurrentIndex (n)
             tabs.setCurrentIndex (0)
-
 
     
 
@@ -208,17 +216,10 @@ class ElectrumWindow(QMainWindow):
         import electrum
         self.wallet = wallet
 
-        self.network.register_callback('updated', lambda: self.need_update.set())
-        self.network.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')))
-        self.network.register_callback('disconnected', lambda: self.emit(QtCore.SIGNAL('update_status')))
-        self.network.register_callback('disconnecting', lambda: self.emit(QtCore.SIGNAL('update_status')))
-        self.network.register_callback('new_transaction', lambda: self.emit(QtCore.SIGNAL('transaction_signal')))
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.wallet.storage.path
         if not self.wallet.seed: title += ' [%s]' % (_('seedless'))
         self.setWindowTitle( title )
         self.update_wallet()
-        # set initial message
-        self.console.showMessage(self.network.banner)
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         self.notify_transactions()
 
