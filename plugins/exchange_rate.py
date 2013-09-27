@@ -68,7 +68,7 @@ class Plugin(BasePlugin):
         return "Exchange rates"
 
     def description(self):
-        return """exchange rates"""
+        return """exchange rates, retrieved from blockchain.info"""
 
     def init(self):
         self.win = self.gui.main_window
@@ -82,6 +82,7 @@ class Plugin(BasePlugin):
         m = re.match( _( "Balance" ) + ": (\d.+) " + self.win.base_unit(), str(text))
         if m:
             amount = Decimal(m.group(1))
+            if self.win.base_unit() == 'mBTC': amount = amount / 1000
             text += self.create_quote_text(amount)
             self.win.balance_label.setText(text)
 
