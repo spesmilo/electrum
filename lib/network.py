@@ -125,6 +125,9 @@ class Network(threading.Thread):
 
 
     def set_server(self, server, proxy):
+        if self.default_server == server:
+            return
+
         i = self.interface
         self.default_server = server
         self.start_interface(server)
