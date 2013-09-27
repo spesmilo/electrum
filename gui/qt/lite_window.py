@@ -173,7 +173,6 @@ class MiniWindow(QDialog):
 
     def __init__(self, actuator, expand_callback, config):
         super(MiniWindow, self).__init__()
-        tx = "e08115d0f7819aee65b9d24f81ef9d46eb62bb67ddef5318156cbc3ceb7b703e"
 
         self.actuator = actuator
         self.config = config
@@ -501,8 +500,6 @@ class MiniWindow(QDialog):
             v_str = format_satoshis(value, True)
             self.history_list.append(label, v_str, age(timestamp))
 
-    def acceptbit(self):
-        self.actuator.acceptbit(self.quote_currencies[0])
 
     def the_website(self):
         webbrowser.open("http://electrum.org")
@@ -806,19 +803,8 @@ class MiniActuator:
             return recipient
 
 
-    def copy_master_public_key(self):
-        master_pubkey = self.wallet.get_master_public_key()
-        qApp.clipboard().setText(master_pubkey)
-        QMessageBox.information(None, _("Copy successful"), _("Your master public key has been copied to your clipboard."))
         
 
-    def acceptbit(self, currency):
-        master_pubkey = self.wallet.master_public_key
-        url = "http://acceptbit.com/mpk/%s/%s" % (master_pubkey, currency)
-        webbrowser.open(url)
-
-    def show_seed_dialog(self):
-        ElectrumWindow.show_seed_dialog(self.wallet)
 
 class MiniDriver(QObject):
 
