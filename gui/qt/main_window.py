@@ -938,6 +938,9 @@ class ElectrumWindow(QMainWindow):
 
     def set_url(self, url):
         address, amount, label, message, signature, identity, url = util.parse_url(url)
+
+        if amount and self.base_unit() == 'mBTC': amount = str( 1000* Decimal(amount))
+
         if self.mini:
             self.mini.set_payment_fields(address, amount)
 
@@ -956,7 +959,6 @@ class ElectrumWindow(QMainWindow):
 
         self.message_e.setText(message)
         if amount:
-            if self.base_unit() == 'mBTC': amount = str( 1000* Decimal(amount))
             self.amount_e.setText(amount)
 
         if identity:

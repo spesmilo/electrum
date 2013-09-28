@@ -209,7 +209,7 @@ class MiniWindow(QDialog):
         address_layout.addWidget(self.address_input)
 
         self.amount_input = QLineEdit()
-        self.amount_input.setPlaceholderText(_("... and amount"))
+        self.amount_input.setPlaceholderText(_("... and amount") + " (%s)"%self.actuator.g.base_unit())
         self.amount_input.setObjectName("amount_input")
 
         self.amount_input.setFocusPolicy(Qt.ClickFocus)
@@ -415,11 +415,11 @@ class MiniWindow(QDialog):
         self.check_button_status()
 
         try:
-            amount = D(str(amount_text))
+            amount = D(str(amount_text)) * (10**self.actuator.g.decimal_point)
         except decimal.InvalidOperation:
             self.balance_label.show_balance()
         else:
-            quote_text = self.create_quote_text(amount * bitcoin(1))
+            quote_text = self.create_quote_text(amount)
             if quote_text:
                 self.balance_label.set_amount_text(quote_text)
                 self.balance_label.show_amount()
@@ -444,7 +444,7 @@ class MiniWindow(QDialog):
         """Check that the bitcoin address is valid and that something
         is entered in the amount before making the send button clickable."""
         try:
-            value = D(str(self.amount_input.text())) * 10**8
+            value = D(str(self.amount_input.text())) * (10**self.actuator.g.decimal_point)
         except decimal.InvalidOperation:
             value = None
         # self.address_input.property(...) returns a qVariant, not a bool.
@@ -495,8 +495,7 @@ class MiniWindow(QDialog):
         for item in tx_history[-10:]:
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
             label = self.actuator.g.wallet.get_label(tx_hash)[0]
-            #amount = D(value) / 10**8
-            v_str = format_satoshis(value, True)
+            v_str = self.actuator.g.format_amount(value, True)
             self.history_list.append(label, v_str, age(timestamp))
 
 
@@ -731,9 +730,9 @@ class MiniActuator:
                 _('Invalid Bitcoin Address') + ':\n' + address, _('OK'))
             return False
 
-        convert_amount = lambda amount: \
-            int(D(unicode(amount)) * bitcoin(1))
-        amount = convert_amount(amount)
+        amount = D(unicode(amount)) * (10*self.g.decimal_point)
+        print "amount", amount
+        return
 
         if self.g.wallet.use_encryption:
             password_dialog = PasswordDialog(parent_window)
