@@ -135,12 +135,11 @@ class ElectrumWindow(QMainWindow):
             self.showNormal()
 
 
-    def __init__(self, config, network, go_lite):
+    def __init__(self, config, network):
         QMainWindow.__init__(self)
 
         self.config = config
         self.network = network
-        self.go_lite = go_lite
 
         self._close_electrum = False
         self.lite = None
@@ -209,6 +208,56 @@ class ElectrumWindow(QMainWindow):
             tabs.setCurrentIndex (n)
             tabs.setCurrentIndex (0)
 
+        self.wallet = None
+        self.init_lite()
+
+
+    def go_full(self):
+        self.config.set_key('lite_mode', False, True)
+        self.mini.hide()
+        self.show()
+
+    def go_lite(self):
+        self.config.set_key('lite_mode', True, True)
+        self.hide()
+        self.mini.show()
+
+
+    def init_lite(self):
+        import lite_window
+        if not self.check_qt_version():
+            if self.config.get('lite_mode') is True:
+                msg = "Electrum was unable to load the 'Lite GUI' because it needs Qt version >= 4.7.\nChanging your config to use the 'Classic' GUI"
+                QMessageBox.warning(None, "Could not start Lite GUI.", msg)
+                self.config.set_key('lite_mode', False, True)
+                sys.exit(0)
+            self.mini = None
+            return
+
+        actuator = lite_window.MiniActuator(self)
+
+        # Should probably not modify the current path but instead
+        # change the behaviour of rsrc(...)
+        old_path = QDir.currentPath()
+        actuator.load_theme()
+
+        self.mini = lite_window.MiniWindow(actuator, self.go_full, self.config)
+
+        driver = lite_window.MiniDriver(self, self.mini)
+
+        # Reset path back to original value now that loading the GUI
+        # is completed.
+        QDir.setCurrent(old_path)
+
+        if self.config.get('lite_mode') is True:
+            self.go_lite()
+        else:
+            self.go_full()
+
+
+    def check_qt_version(self):
+        qtVersion = qVersion()
+        return int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7
     
 
 
@@ -498,10 +547,6 @@ class ElectrumWindow(QMainWindow):
         assert self.decimal_point in [5,8]
         return "BTC" if self.decimal_point == 8 else "mBTC"
 
-    def set_status_text(self, text):
-        self.balance_label.setText(text)
-        run_hook('set_status_text', text)
-
 
     def update_status(self):
         if self.network.interface and self.network.interface.is_connected:
@@ -512,14 +557,22 @@ class ElectrumWindow(QMainWindow):
                 c, u = self.wallet.get_account_balance(self.current_account)
                 text =  _( "Balance" ) + ": %s "%( self.format_amount(c) ) + self.base_unit()
                 if u: text +=  " [%s unconfirmed]"%( self.format_amount(u,True).strip() )
+
+                r = {}
+                run_hook('set_quote_text', c+u, r)
+                quote = r.get(0)
+                if quote:
+                    text += "  (%s)"%quote
+
                 self.tray.setToolTip(text)
                 icon = QIcon(":icons/status_connected.png")
         else:
             text = _("Not connected")
             icon = QIcon(":icons/status_disconnected.png")
 
-        self.set_status_text(text)
+        self.balance_label.setText(text)
         self.status_button.setIcon( icon )
+
 
     def update_wallet(self):
         self.update_status()
@@ -528,7 +581,6 @@ class ElectrumWindow(QMainWindow):
             self.update_receive_tab()
             self.update_contacts_tab()
             self.update_completions()
-
 
         
     def create_history_tab(self):
@@ -886,7 +938,8 @@ class ElectrumWindow(QMainWindow):
 
     def set_url(self, url):
         address, amount, label, message, signature, identity, url = util.parse_url(url)
-        if self.base_unit() == 'mBTC': amount = str( 1000* Decimal(amount))
+        if self.mini:
+            self.mini.set_payment_fields(address, amount)
 
         if label and self.wallet.labels.get(address) != label:
             if self.question('Give label "%s" to address %s ?'%(label,address)):
@@ -902,7 +955,10 @@ class ElectrumWindow(QMainWindow):
         self.payto_e.setText(m_addr)
 
         self.message_e.setText(message)
-        self.amount_e.setText(amount)
+        if amount:
+            if self.base_unit() == 'mBTC': amount = str( 1000* Decimal(amount))
+            self.amount_e.setText(amount)
+
         if identity:
             self.set_frozen(self.payto_e,True)
             self.set_frozen(self.amount_e,True)

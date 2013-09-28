@@ -179,7 +179,7 @@ class MiniWindow(QDialog):
         self.btc_balance = None
         self.quote_currencies = ["BRL", "CNY", "EUR", "GBP", "RUB", "USD"]
         self.actuator.set_configured_currency(self.set_quote_currency)
-        #self.exchanger = exchange_rate.Exchanger(self)
+
         # Needed because price discovery is done in a different thread
         # which needs to be sent back to this main one to update the GUI
         self.connect(self, SIGNAL("refresh_balance()"), self.refresh_balance)
@@ -224,10 +224,10 @@ class MiniWindow(QDialog):
         self.amount_input.setAttribute(Qt.WA_MacShowFocusRect, 0)
         self.amount_input.textChanged.connect(self.amount_input_changed)
 
-        if self.actuator.wallet.seed:
-            self.send_button = QPushButton(_("&Send"))
-        else:
-            self.send_button = QPushButton(_("&Create"))
+        #if self.actuator.g.wallet.seed:
+        self.send_button = QPushButton(_("&Send"))
+        #else:
+        #    self.send_button = QPushButton(_("&Create"))
 
         self.send_button.setObjectName("send_button")
         self.send_button.setDisabled(True);
@@ -403,9 +403,12 @@ class MiniWindow(QDialog):
         quote_text = self.create_quote_text(btc_balance)
         if quote_text:
             quote_text = "(%s)" % quote_text
-        btc_balance = "%.4f" % (btc_balance / bitcoin(1))
-        self.balance_label.set_balance_text(btc_balance, quote_text)
-        self.setWindowTitle("Electrum %s - %s BTC" % (electrum_version, btc_balance))
+
+        amount = self.actuator.g.format_amount(btc_balance)
+        unit = self.actuator.g.base_unit()
+
+        self.balance_label.set_balance_text(amount, unit, quote_text)
+        self.setWindowTitle("Electrum %s - %s %s" % (electrum_version, amount, unit))
 
     def amount_input_changed(self, amount_text):
         """Update the number of bitcoins displayed."""
@@ -426,14 +429,10 @@ class MiniWindow(QDialog):
     def create_quote_text(self, btc_balance):
         """Return a string copy of the amount fiat currency the 
         user has in bitcoins."""
-        quote_currency = self.quote_currencies[0]
-        quote_balance = None #self.exchanger.exchange(btc_balance, quote_currency)
-        if quote_balance is None:
-            quote_text = ""
-        else:
-            quote_text = "%.2f %s" % ((quote_balance / bitcoin(1)),
-                                      quote_currency)
-        return quote_text
+        from electrum.plugins import run_hook
+        r = {}
+        run_hook('set_quote_text', btc_balance, r)
+        return r.get(0,'')
 
     def send(self):
         if self.actuator.send(self.address_input.text(),
@@ -495,7 +494,7 @@ class MiniWindow(QDialog):
 
         for item in tx_history[-10:]:
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
-            label = self.actuator.wallet.get_label(tx_hash)[0]
+            label = self.actuator.g.wallet.get_label(tx_hash)[0]
             #amount = D(value) / 10**8
             v_str = format_satoshis(value, True)
             self.history_list.append(label, v_str, age(timestamp))
@@ -546,11 +545,15 @@ class BalanceLabel(QLabel):
                 menu.exec_(position)
                 
 
-    def set_balance_text(self, btc_balance, quote_text):
+    def set_balance_text(self, amount, unit, quote_text):
         """Set the amount of bitcoins in the gui."""
         if self.state == self.SHOW_CONNECTING:
             self.state = self.SHOW_BALANCE
-        self.balance_text = "<span style='font-size: 18pt'>%s</span> <span style='font-size: 10pt'>BTC</span> <span style='font-size: 10pt'>%s</span>" % (btc_balance, quote_text)
+
+        self.balance_text = "<span style='font-size: 18pt'>%s</span>"%amount\
+            + " <span style='font-size: 10pt'>%s</span>" % unit \
+            + " <span style='font-size: 10pt'>%s</span>" % quote_text
+
         if self.state == self.SHOW_BALANCE:
             self.setText(self.balance_text)
 
@@ -644,11 +647,10 @@ class MiniActuator:
     sending/receiving bitcoins."""
     
     
-    def __init__(self, config, wallet):
+    def __init__(self, main_window):
         """Retrieve the gui theme used in previous session."""
-        self.config = config
-        self.wallet = wallet
-        self.theme_name = self.config.get('litegui_theme','Cleanlook')
+        self.g = main_window
+        self.theme_name = self.g.config.get('litegui_theme','Cleanlook')
         self.themes = load_theme_paths()
 
     def load_theme(self):
@@ -679,7 +681,7 @@ class MiniActuator:
     def set_configured_currency(self, set_quote_currency):
         """Set the inital fiat currency conversion country (USD/EUR/GBP) in 
         the GUI to what it was set to in the wallet."""
-        currency = self.config.get('currency')
+        currency = self.g.config.get('currency')
         # currency can be none when Electrum is used for the first
         # time and no setting has been created yet.
         if currency is not None:
@@ -687,14 +689,14 @@ class MiniActuator:
 
     def set_config_currency(self, conversion_currency):
         """Change the wallet fiat currency country."""
-        self.config.set_key('conversion_currency',conversion_currency,True)
+        self.g.config.set_key('conversion_currency',conversion_currency,True)
 
     def copy_address(self, receive_popup):
         """Copy the wallet addresses into the client."""
-        addrs = [addr for addr in self.wallet.addresses(True)
-                 if not self.wallet.is_change(addr)]
+        addrs = [addr for addr in self.g.wallet.addresses(True)
+                 if not self.g.wallet.is_change(addr)]
         # Select most recent addresses from gap limit
-        addrs = addrs[-self.wallet.gap_limit:]
+        addrs = addrs[-self.g.wallet.gap_limit:]
         copied_address = random.choice(addrs)
         qApp.clipboard().setText(copied_address)
         receive_popup.setup(copied_address)
@@ -733,7 +735,7 @@ class MiniActuator:
             int(D(unicode(amount)) * bitcoin(1))
         amount = convert_amount(amount)
 
-        if self.wallet.use_encryption:
+        if self.g.wallet.use_encryption:
             password_dialog = PasswordDialog(parent_window)
             password = password_dialog.run()
             if not password:
@@ -748,17 +750,17 @@ class MiniActuator:
             fee = bitcoin(1) / 1000
 
         try:
-            tx = self.wallet.mktx([(dest_address, amount)], password, fee)
+            tx = self.g.wallet.mktx([(dest_address, amount)], password, fee)
         except BaseException as error:
             QMessageBox.warning(parent_window, _('Error'), str(error), _('OK'))
             return False
 
         if tx.is_complete:
-            h = self.wallet.send_tx(tx)
+            h = self.g.wallet.send_tx(tx)
 
-            self.waiting_dialog(lambda: False if self.wallet.tx_event.isSet() else _("Sending transaction, please wait..."))
+            self.waiting_dialog(lambda: False if self.g.wallet.tx_event.isSet() else _("Sending transaction, please wait..."))
               
-            status, message = self.wallet.receive_tx(h)
+            status, message = self.g.wallet.receive_tx(h)
 
             if not status:
                 import tempfile
@@ -794,7 +796,7 @@ class MiniActuator:
         
         if match1:
             dest_address = \
-                self.wallet.get_alias(recipient, True, 
+                self.g.wallet.get_alias(recipient, True, 
                                       self.show_message, self.question)
             return dest_address
         elif match2:
@@ -813,16 +815,16 @@ class MiniDriver(QObject):
     SYNCHRONIZING = 2
     READY = 3
 
-    def __init__(self, wallet, window):
+    def __init__(self, main_window, mini_window):
         super(QObject, self).__init__()
 
-        self.wallet = wallet
-        self.network = wallet.network
-        self.window = window
+        self.g = main_window
+        self.network = main_window.network
+        self.window = mini_window
 
-        self.wallet.network.register_callback('updated',self.update_callback)
-        self.wallet.network.register_callback('connected', self.update_callback)
-        self.wallet.network.register_callback('disconnected', self.update_callback)
+        self.network.register_callback('updated',self.update_callback)
+        self.network.register_callback('connected', self.update_callback)
+        self.network.register_callback('disconnected', self.update_callback)
 
         self.state = None
 
@@ -841,12 +843,13 @@ class MiniDriver(QObject):
             self.initializing()
         elif not self.network.interface.is_connected:
             self.connecting()
-        elif not self.wallet.up_to_date:
+
+        if self.g.wallet is None:
+            self.ready()
+        elif not self.g.wallet.up_to_date:
             self.synchronizing()
         else:
             self.ready()
-
-        if self.wallet.up_to_date:
             self.update_balance()
             self.update_completions()
             self.update_history()
@@ -876,19 +879,19 @@ class MiniDriver(QObject):
         self.window.activate()
 
     def update_balance(self):
-        conf_balance, unconf_balance = self.wallet.get_balance()
+        conf_balance, unconf_balance = self.g.wallet.get_balance()
         balance = D(conf_balance + unconf_balance)
         self.window.set_balances(balance)
 
     def update_completions(self):
         completions = []
-        for addr, label in self.wallet.labels.items():
-            if addr in self.wallet.addressbook:
+        for addr, label in self.g.wallet.labels.items():
+            if addr in self.g.wallet.addressbook:
                 completions.append("%s <%s>" % (label, addr))
         self.window.update_completions(completions)
 
     def update_history(self):
-        tx_history = self.wallet.get_tx_history()
+        tx_history = self.g.wallet.get_tx_history()
         self.window.update_history(tx_history)
 
 

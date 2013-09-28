@@ -78,13 +78,9 @@ class Plugin(BasePlugin):
         self.exchanger.start()
         self.gui.exchanger = self.exchanger
 
-    def set_status_text(self, text):
-        m = re.match( _( "Balance" ) + ": (\d.+) " + self.win.base_unit(), str(text))
-        if m:
-            amount = Decimal(m.group(1))
-            if self.win.base_unit() == 'mBTC': amount = amount / 1000
-            text += self.create_quote_text(amount)
-            self.win.balance_label.setText(text)
+
+    def set_quote_text(self, btc_balance, r):
+        r[0] = self.create_quote_text(Decimal(btc_balance) / 100000000)
 
     def create_quote_text(self, btc_balance):
         quote_currency = self.config.get("currency", "None")
@@ -92,7 +88,7 @@ class Plugin(BasePlugin):
         if quote_balance is None:
             quote_text = ""
         else:
-            quote_text = "  (%.2f %s)" % (quote_balance, quote_currency)
+            quote_text = "%.2f %s" % (quote_balance, quote_currency)
         return quote_text
 
 

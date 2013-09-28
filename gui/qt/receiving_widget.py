@@ -27,7 +27,7 @@ class ReceivingWidget(QTreeWidget):
       else:
           address = str(item.text(0))
           label = unicode( item.text(1) )
-          self.owner.actuator.wallet.labels[address] = label
+          self.owner.actuator.g.wallet.labels[address] = label
 
     def copy_address(self):
         address = self.currentItem().text(0)
@@ -36,9 +36,9 @@ class ReceivingWidget(QTreeWidget):
 
     def update_list(self):
         self.clear()
-        addresses = self.owner.actuator.wallet.addresses(False)
+        addresses = self.owner.actuator.g.wallet.addresses(False)
         for address in addresses:
-            history = self.owner.actuator.wallet.history.get(address,[])
+            history = self.owner.actuator.g.wallet.history.get(address,[])
 
             used = "No"
             # It appears that at this moment history can either be an array with tx and block height
@@ -49,17 +49,17 @@ class ReceivingWidget(QTreeWidget):
                     used = "Yes"
                 else:
                     for tx_hash in history:
-                        tx = self.owner.actuator.wallet.transactions.get(tx_hash)
+                        tx = self.owner.actuator.g.wallet.transactions.get(tx_hash)
                         if tx:
                             used = "Yes"
             else:
                 for tx_hash, height in history:
-                    tx = self.owner.actuator.wallet.transactions.get(tx_hash)
+                    tx = self.owner.actuator.g.wallet.transactions.get(tx_hash)
                     if tx:
                         used = "Yes"
 
             if(self.hide_used == True and used == "No") or self.hide_used == False:
-                label = self.owner.actuator.wallet.labels.get(address,'')
+                label = self.owner.actuator.g.wallet.labels.get(address,'')
                 item = QTreeWidgetItem([address, label, used])
                 self.insertTopLevelItem(0, item)
 
@@ -74,4 +74,4 @@ class ReceivingWidget(QTreeWidget):
 
         self.hide_used = True
         self.setColumnHidden(2, True)
-        self.update_list()
+        #self.update_list()
