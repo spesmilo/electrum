@@ -1103,9 +1103,9 @@ class ElectrumWindow(QMainWindow):
     def create_account_menu(self, position, k, item):
         menu = QMenu()
         if item.isExpanded():
-            menu.addAction(_("Reduce"), lambda: item.setExpanded(False))
+            menu.addAction(_("Minimize"), lambda: item.setExpanded(False))
         else:
-            menu.addAction(_("Expand"), lambda: item.setExpanded(True))
+            menu.addAction(_("Maximize"), lambda: item.setExpanded(True))
         menu.addAction(_("Rename"), lambda: self.edit_account_label(k))
         menu.addAction(_("View details"), lambda: self.show_account_details(k))
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))

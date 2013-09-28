@@ -500,6 +500,9 @@ class Wallet:
         return roots
 
     def is_seeded(self, account):
+        if type(account) is int:
+            return self.seed is not None
+
         for root in self.get_roots(account):
             if root not in self.master_private_keys.keys(): 
                 return False
