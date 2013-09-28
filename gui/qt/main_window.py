@@ -1750,7 +1750,8 @@ class ElectrumWindow(QMainWindow):
             return
 
     def do_process_from_csv_text(self):
-        text = text_dialog(self, _('Input CSV'), _("CSV:"), _("Load CSV"))
+        text = text_dialog(self, _('Input CSV'), _("Please enter a list of outputs.") + '\n' \
+                               + _("Format: address, amount. One output per line"), _("Load CSV"))
         if not text:
             return
         f = StringIO.StringIO(text)
