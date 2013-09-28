@@ -1409,6 +1409,42 @@ class Wallet:
 
 
 
+    def restore(self, callback):
+        from i18n import _
+        def wait_for_wallet():
+            self.set_up_to_date(False)
+            while not self.is_up_to_date():
+                msg = "%s\n%s %d\n%s %.1f"%(
+                    _("Please wait..."),
+                    _("Addresses generated:"),
+                    len(self.addresses(True)),_("Kilobytes received:"), 
+                    self.network.interface.bytes_received/1024.)
+
+                apply(callback, (msg,))
+                time.sleep(0.1)
+
+        def wait_for_network():
+            while not self.network.interface.is_connected:
+                msg = "%s \n" % (_("Connecting..."))
+                apply(callback, (msg,))
+                time.sleep(0.1)
+
+        # wait until we are connected, because the user might have selected another server
+        wait_for_network()
+
+        # try to restore old account
+        self.create_old_account()
+        wait_for_wallet()
+
+        if self.is_found():
+            self.seed_version = 4
+            self.storage.put('seed_version', wallet.seed_version, True)
+        else:
+            self.accounts.pop(0)
+            self.create_accounts()
+            wait_for_wallet()
+
+
 
 
 class WalletSynchronizer(threading.Thread):

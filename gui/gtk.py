@@ -82,7 +82,7 @@ def show_seed_dialog(wallet, password, parent):
     dialog.run()
     dialog.destroy()
 
-def restore_create_dialog(wallet):
+def restore_create_dialog():
 
     # ask if the user wants to create a new wallet, or recover from a seed. 
     # if he wants to recover, and nothing is found, do not create wallet
@@ -102,7 +102,7 @@ def restore_create_dialog(wallet):
 
 
 
-def run_recovery_dialog(wallet):
+def run_recovery_dialog():
     message = "Please enter your wallet seed or the corresponding mnemonic list of words, and the gap limit of your wallet."
     dialog = gtk.MessageDialog(
         parent = None,
@@ -127,33 +127,12 @@ def run_recovery_dialog(wallet):
     seed_box.show()
     vbox.pack_start(seed_box, False, False, 5)    
 
-    gap = gtk.HBox()
-    gap_label = gtk.Label('Gap limit:')
-    gap_label.set_size_request(150,10)
-    gap_label.show()
-    gap.pack_start(gap_label,False, False, 10)
-    gap_entry = gtk.Entry()
-    gap_entry.set_text("%d"%wallet.gap_limit)
-    gap_entry.connect('changed', numbify, True)
-    gap_entry.show()
-    gap.pack_start(gap_entry,False,False, 10)
-    add_help_button(gap, 'The maximum gap that is allowed between unused addresses in your wallet. During wallet recovery, this parameter is used to decide when to stop the recovery process. If you increase this value, you will need to remember it in order to be able to recover your wallet from seed.')
-    gap.show()
-    vbox.pack_start(gap, False,False, 5)
-
     dialog.show()
     r = dialog.run()
-    gap = gap_entry.get_text()        
     seed = seed_entry.get_text()
     dialog.destroy()
 
     if r==gtk.RESPONSE_CANCEL:
-        return False
-
-    try:
-        gap = int(gap)
-    except:
-        show_message("error")
         return False
 
     try:
@@ -165,7 +144,7 @@ def run_recovery_dialog(wallet):
         show_message("no seed")
         return False
         
-    return seed, gap
+    return seed
 
 
 
@@ -265,13 +244,13 @@ def run_settings_dialog(wallet, parent):
 
 
 
-def run_network_dialog( wallet, parent ):
+def run_network_dialog( network, parent ):
     image = gtk.Image()
     image.set_from_stock(gtk.STOCK_NETWORK, gtk.ICON_SIZE_DIALOG)
-    interface = wallet.network.interface
+    interface = network.interface
     if parent:
         if interface.is_connected:
-            status = "Connected to %s:%d\n%d blocks"%(interface.host, interface.port, wallet.network.blockchain.height)
+            status = "Connected to %s:%d\n%d blocks"%(interface.host, interface.port, network.blockchain.height)
         else:
             status = "Not connected"
     else:
@@ -279,7 +258,7 @@ def run_network_dialog( wallet, parent ):
         status = "Please choose a server.\nSelect cancel if you are offline."
 
     server = interface.server
-    servers = wallet.network.get_servers()
+    servers = network.get_servers()
 
     dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                                     gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, status)
@@ -510,9 +489,10 @@ class ElectrumWindow:
     def show_message(self, msg):
         show_message(msg, self.window)
 
-    def __init__(self, wallet, config):
+    def __init__(self, wallet, config, network):
         self.config = config
         self.wallet = wallet
+        self.network = network
         self.funds_error = False # True if not enough funds
         self.num_zeros     = int(self.config.get('num_zeros',0))
 
@@ -547,7 +527,7 @@ class ElectrumWindow:
         self.status_image.show()
 
         self.network_button = gtk.Button()
-        self.network_button.connect("clicked", lambda x: run_network_dialog(self.wallet, self.window) )
+        self.network_button.connect("clicked", lambda x: run_network_dialog(self.network, self.window) )
         self.network_button.add(self.status_image)
         self.network_button.set_relief(gtk.RELIEF_NONE)
         self.network_button.show()
@@ -601,7 +581,7 @@ class ElectrumWindow:
         self.context_id = self.status_bar.get_context_id("statusbar")
         self.update_status_bar()
 
-        self.wallet.network.register_callback('updated', self.update_callback)
+        self.network.register_callback('updated', self.update_callback)
 
 
         def update_status_bar_thread():
@@ -1107,17 +1087,17 @@ class ElectrumWindow:
         return vbox
 
     def update_status_bar(self):
-        interface = self.wallet.network.interface
+        interface = self.network.interface
         if self.funds_error:
             text = "Not enough funds"
         elif interface and interface.is_connected:
-            self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(interface.host, interface.port, self.wallet.network.blockchain.height))
+            self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(interface.host, interface.port, self.network.blockchain.height))
             if not self.wallet.up_to_date:
                 self.status_image.set_from_stock(gtk.STOCK_REFRESH, gtk.ICON_SIZE_MENU)
                 text = "Synchronizing..."
             else:
                 self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
-                self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(interface.host, interface.port, self.wallet.network.blockchain.height))
+                self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(interface.host, interface.port, self.network.blockchain.height))
                 c, u = self.wallet.get_balance()
                 text =  "Balance: %s "%( format_satoshis(c,False,self.num_zeros) )
                 if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True,self.num_zeros).strip() )
@@ -1133,7 +1113,7 @@ class ElectrumWindow:
             self.update_history_tab()
             self.update_receiving_tab()
             # addressbook too...
-            self.info.set_text( self.wallet.network.banner )
+            self.info.set_text( self.network.banner )
             self.wallet_updated = False
 
     def update_receiving_tab(self):
@@ -1279,32 +1259,56 @@ class ElectrumGui():
     def __init__(self, config, network):
         self.network = network
         self.config = config
-        storage = WalletStorage(config)
-        if not storage.file_exists:
-            print "Wallet not found. try 'electrum create'"
-            exit()
-
-        self.wallet = Wallet(storage)
-        self.wallet.start_threads(network)
 
 
     def main(self, url=None):
-        ew = ElectrumWindow(self.wallet, self.config)
-        if url: ew.set_url(url)
+
+        storage = WalletStorage(self.config)
+        if not storage.file_exists:
+            action = self.restore_or_create()
+            if not action:
+                exit()
+            self.wallet = wallet = Wallet(storage)
+            gap = self.config.get('gap_limit', 5)
+            if gap != 5:
+                wallet.gap_limit = gap
+                wallet.storage.put('gap_limit', gap, True)
+
+            self.wallet.start_threads(self.network)
+
+            if action == 'create':
+                wallet.init_seed(None)
+                wallet.save_seed()
+                wallet.create_accounts()
+                wallet.synchronize()  # generate first addresses offline
+            elif action == 'restore':
+                seed = self.seed_dialog()
+                wallet.init_seed(seed)
+                wallet.save_seed()
+                self.restore_wallet(wallet)
+                
+            else:
+                exit()
+        else:
+            self.wallet = Wallet(storage)
+            self.wallet.start_threads(self.network)
+
+        w = ElectrumWindow(self.wallet, self.config, self.network)
+        if url: w.set_url(url)
         gtk.main()
 
     def restore_or_create(self):
-        return restore_create_dialog(self.wallet)
+        return restore_create_dialog()
 
     def seed_dialog(self):
-        return run_recovery_dialog( self.wallet )
+        return run_recovery_dialog()
 
     def verify_seed(self):
         self.wallet.save_seed()
         return True
 
     def network_dialog(self):
-        return run_network_dialog( self.wallet, parent=None )
+        return run_network_dialog( self.network, parent=None )
 
     def show_seed(self):
         show_seed_dialog(self.wallet, None, None)
@@ -1312,8 +1316,7 @@ class ElectrumGui():
     def password_dialog(self):
         change_password_dialog(self.wallet, None, None)
 
-    def restore_wallet(self):
-        wallet = self.wallet
+    def restore_wallet(self, wallet):
 
         dialog = gtk.MessageDialog(
             parent = None,
@@ -1323,8 +1326,7 @@ class ElectrumGui():
         dialog.show()
 
         def recover_thread( wallet, dialog ):
-            while not wallet.is_up_to_date(): 
-                time.sleep(0.1)
+            wallet.restore(lambda x:x)
             gobject.idle_add( dialog.destroy )
 
         thread.start_new_thread( recover_thread, ( wallet, dialog ) )
@@ -1334,5 +1336,4 @@ class ElectrumGui():
         if not wallet.is_found():
             show_message("No transactions found for this seed")
 
-        wallet.save()
         return True

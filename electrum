@@ -215,12 +215,13 @@ if __name__ == '__main__':
 
             wallet.init_seed( str(seed) )
             wallet.save_seed()
-            wallet.create_accounts()
-            print_msg("Recovering wallet...")
             network = Network(config)
             network.start()
             wallet.start_threads(network)
-            wallet.update()
+
+            print_msg("Recovering wallet...")
+            wallet.restore(lambda x: x)
+
             if wallet.is_found():
                 print_msg("Recovery successful")
             else:

@@ -303,36 +303,7 @@ class InstallWizard(QDialog):
 
         if action == 'restore':
 
-            def wait_for_wallet():
-                wallet.set_up_to_date(False)
-                while not wallet.is_up_to_date():
-                    msg = "%s\n%s %d\n%s %.1f"%(_("Please wait..."),_("Addresses generated:"),len(wallet.addresses(True)),_("Kilobytes received:"), self.network.interface.bytes_received/1024.)
-                    self.waiting_label.setText(msg)
-                    time.sleep(0.1)
-
-            def wait_for_network():
-                while not self.network.interface.is_connected:
-                    msg = "%s \n" % (_("Connecting..."))
-                    self.waiting_label.setText(msg)
-                    time.sleep(0.1)
-
-            def restore():
-                # wait until we are connected, because the user might have selected another server
-                wait_for_network()
-                
-                # try to restore old account
-                wallet.create_old_account()
-                wait_for_wallet()
-
-                if wallet.is_found():
-                    wallet.seed_version = 4
-                    wallet.storage.put('seed_version', wallet.seed_version, True)
-                else:
-                    wallet.accounts.pop(0)
-                    wallet.create_accounts()
-                    wait_for_wallet()
-
-            self.waiting_dialog(restore)
+            self.waiting_dialog(lambda: wallet.restore(self.waiting_label.setText))
 
             if wallet.is_found():
                 QMessageBox.information(None, _('Information'), _("Recovery successful"), _('OK'))

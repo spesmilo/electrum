@@ -90,8 +90,7 @@ class ElectrumGui:
                 exit()
         else:
             wallet = Wallet(storage)
-
-        wallet.start_threads(self.network)
+            wallet.start_threads(self.network)
             
         self.main_window = w = ElectrumWindow(self.config, self.network)
 
