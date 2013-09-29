@@ -48,9 +48,9 @@ class Plugin(BasePlugin):
     def init(self):
         self.target_host = 'labelectrum.herokuapp.com'
         self.window = self.gui.main_window
-        self.wallet = self.window.wallet
-        self.labels = self.wallet.labels
-        self.transactions = self.wallet.transactions
+
+    def load_wallet(self, wallet):
+        self.wallet = wallet
         mpk = self.wallet.master_public_keys["m/0'/"][1]
         self.encode_password = hashlib.sha1(mpk).digest().encode('hex')[:32]
         self.wallet_id = hashlib.sha256(mpk).digest().encode('hex')
@@ -170,7 +170,7 @@ class Plugin(BasePlugin):
     def do_full_push(self):
         try:
             bundle = {"labels": {}}
-            for key, value in self.labels.iteritems():
+            for key, value in self.wallet.labels.iteritems():
                 encoded = self.encode(key)
                 bundle["labels"][encoded] = self.encode(value)
 
@@ -214,8 +214,8 @@ class Plugin(BasePlugin):
             for label in response:
                  decoded_key = self.decode(label["external_id"]) 
                  decoded_label = self.decode(label["text"]) 
-                 if force or not self.labels.get(decoded_key):
-                     self.labels[decoded_key] = decoded_label 
+                 if force or not self.wallet.labels.get(decoded_key):
+                     self.wallet.labels[decoded_key] = decoded_label 
             return True
         except socket.gaierror as e:
             print_error('Error connecting to service: %s ' %  e)

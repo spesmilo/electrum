@@ -102,6 +102,7 @@ class Plugin(BasePlugin):
 
     def init(self):
         self.window = self.gui.main_window
+        self.wallet = self.window.wallet
 
         self.qr_window = None
         self.merchant_name = self.config.get('merchant_name', 'Invoice')
@@ -111,8 +112,9 @@ class Plugin(BasePlugin):
         self.requested_amounts = {}
         self.toggle_QR_window(True)
 
-    def load_wallet(self):
-        self.requested_amounts = self.window.wallet.storage.get('requested_amounts',{}) 
+    def load_wallet(self, wallet):
+        self.wallet = wallet
+        self.requested_amounts = self.wallet.storage.get('requested_amounts',{}) 
 
     def close(self):
         self.window.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Tx')])
@@ -138,7 +140,7 @@ class Plugin(BasePlugin):
             item = self.window.receive_list.currentItem()
             if item:
                 address = str(item.text(1))
-                label = self.window.wallet.labels.get(address)
+                label = self.wallet.labels.get(address)
                 amount, currency = self.requested_amounts.get(address, (None, None))
                 self.qr_window.set_content( address, label, amount, currency )
 
@@ -166,9 +168,11 @@ class Plugin(BasePlugin):
 
     
     def current_item_changed(self, a):
+        if not self.wallet: 
+            return
         if a is not None and self.qr_window and self.qr_window.isVisible():
             address = str(a.text(0))
-            label = self.window.wallet.labels.get(address)
+            label = self.wallet.labels.get(address)
             try:
                 amount, currency = self.requested_amounts.get(address, (None, None))
             except:
@@ -183,7 +187,7 @@ class Plugin(BasePlugin):
         address = str( item.text(0) )
         text = str( item.text(column) )
         try:
-            seq = self.window.wallet.get_address_index(address)
+            seq = self.wallet.get_address_index(address)
             index = seq[1][1]
         except:
             print "cannot get index"
@@ -201,12 +205,12 @@ class Plugin(BasePlugin):
                 currency = currency.upper()
                     
             self.requested_amounts[address] = (amount, currency)
-            self.window.wallet.storage.put('requested_amounts', self.requested_amounts, True)
+            self.wallet.storage.put('requested_amounts', self.requested_amounts, True)
 
-            label = self.window.wallet.labels.get(address)
+            label = self.wallet.labels.get(address)
             if label is None:
                 label = self.merchant_name + ' - %04d'%(index+1)
-                self.window.wallet.labels[address] = label
+                self.wallet.labels[address] = label
 
             if self.qr_window:
                 self.qr_window.set_content( address, label, amount, currency )

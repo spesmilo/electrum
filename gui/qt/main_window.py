@@ -288,7 +288,7 @@ class ElectrumWindow(QMainWindow):
         self.update_buttons_on_seed()
         self.update_console()
 
-        run_hook('load_wallet')
+        run_hook('load_wallet', wallet)
 
 
     def select_wallet_file(self):
