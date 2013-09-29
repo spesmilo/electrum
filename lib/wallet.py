@@ -1181,6 +1181,7 @@ class Wallet:
         inputs, total, fee = self.choose_tx_inputs( amount, fee, domain )
         if not inputs:
             raise ValueError("Not enough funds")
+        self.add_input_info(inputs)
         outputs = self.add_tx_change(inputs, outputs, amount, fee, total, change_addr)
         return Transaction.from_io(inputs, outputs)
 
@@ -1196,9 +1197,8 @@ class Wallet:
         return tx
 
 
-    def sign_transaction(self, tx, password):
-        keypairs = {}
-        for i, txin in enumerate(tx.inputs):
+    def add_input_info(self, inputs):
+        for txin in inputs:
             address = txin['address']
             account, sequence = self.get_address_index(address)
             txin['KeyID'] = self.get_keyID(account, sequence)
@@ -1207,6 +1207,12 @@ class Wallet:
                 txin['redeemScript'] = redeemScript
             else:
                 txin['redeemPubkey'] = self.accounts[account].get_pubkey(*sequence)
+
+
+    def sign_transaction(self, tx, password):
+        keypairs = {}
+        for i, txin in enumerate(tx.inputs):
+            address = txin['address']
             private_keys = self.get_private_key(address, password)
             for sec in private_keys:
                 pubkey = public_key_from_private_key(sec)
