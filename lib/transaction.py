@@ -376,8 +376,7 @@ class Transaction:
         self.inputs = self.d['inputs']
         self.outputs = self.d['outputs']
         self.outputs = map(lambda x: (x['address'],x['value']), self.outputs)
-        self.input_info = None
-        self.is_complete = True
+        self.is_complete = False
         
     def __str__(self):
         return self.raw
@@ -389,22 +388,6 @@ class Transaction:
         self.is_complete = False
         self.inputs = inputs
         self.outputs = outputs
-        extras = []
-        for i in self.inputs:
-            
-            e = { 'txid':i['tx_hash'],
-                  'vout':i['index'],
-                  'scriptPubKey':i.get('raw_output_script'),
-                  'KeyID':i['KeyID'],
-                  'redeemScript':i.get('redeemScript'),
-                  'redeemPubkey':i.get('redeemPubkey')
-                  }
-            extras.append(e)
-            # fixme: simplify this
-            i['prevout_hash'] = i['tx_hash']
-            i['prevout_n'] = i['index']
-
-        self.input_info = extras
         return self
 
     @classmethod
@@ -441,8 +424,8 @@ class Transaction:
         s += var_int( len(inputs) )                                  # number of inputs
         for i in range(len(inputs)):
             txin = inputs[i]
-            s += txin['tx_hash'].decode('hex')[::-1].encode('hex')   # prev hash
-            s += int_to_hex(txin['index'],4)                         # prev index
+            s += txin['prevout_hash'].decode('hex')[::-1].encode('hex')   # prev hash
+            s += int_to_hex(txin['prevout_n'],4)                          # prev index
 
             if for_sig is None:
                 signatures = txin['signatures']
@@ -470,7 +453,7 @@ class Transaction:
                 if txin.get('redeemScript'):
                     script = txin['redeemScript']                    # p2sh uses the inner script
                 else:
-                    script = txin['raw_output_script']               # scriptsig
+                    script = txin['scriptPubKey']                    # scriptsig
             else:
                 script=''
             s += var_int( len(script)/2 )                            # script length
@@ -598,8 +581,8 @@ class Transaction:
         is_pubkey, address = get_address_from_output_script(scriptPubKey)
         d['is_pubkey'] = is_pubkey
         d['address'] = address
-        d['raw_output_script'] = scriptPubKey.encode('hex')
-        d['index'] = i
+        d['scriptPubKey'] = scriptPubKey.encode('hex')
+        d['prevout_n'] = i
         return d
 
 
@@ -679,27 +662,36 @@ class Transaction:
 
         return is_relevant, is_send, v, fee
 
+
+    def get_input_info(self):
+        info = []
+        for i in self.inputs:
+            print len(i)
+            item = { 
+                'prevout_hash':i['prevout_hash'], 
+                'prevout_n':i['prevout_n'],
+                'address':i['address'],
+                'KeyID':i.get('KeyID'),
+                'scriptPubKey':i.get('scriptPubKey'),
+                'redeemScript':i.get('redeemScript'),
+                'redeemPubkey':i.get('redeemPubkey'),
+                'pubkeys':i.get('pubkeys'),
+                'signatures':i.get('signatures'),
+                }
+            info.append(item)
+        return info
+
+
     def as_dict(self):
         import json
         out = {
             "hex":self.raw,
             "complete":self.is_complete
             }
-        if not self.is_complete:
-            extras = []
-            for i in self.inputs:
-                e = { 'txid':i['tx_hash'], 'vout':i['index'],
-                      'scriptPubKey':i.get('raw_output_script'),
-                      'KeyID':i.get('KeyID'),
-                      'redeemScript':i.get('redeemScript'),
-                      'signatures':i.get('signatures'),
-                      'pubkeys':i.get('pubkeys'),
-                      }
-                extras.append(e)
-            self.input_info = extras
 
-            if self.input_info:
-                out['input_info'] = json.dumps(self.input_info).replace(' ','')
+        if not self.is_complete:
+            input_info = self.get_input_info()
+            out['input_info'] = json.dumps(input_info).replace(' ','')
 
         return out
 
@@ -724,3 +716,11 @@ class Transaction:
         return priority < threshold 
 
 
+
+    def add_input_info(self, input_info):
+        for i, txin in enumerate(self.inputs):
+            item = input_info[i]
+            txin['address'] = item['address']
+            txin['scriptPubKey'] = item['scriptPubKey']
+            txin['redeemScript'] = item.get('redeemScript')
+            txin['KeyID'] = item.get('KeyID')

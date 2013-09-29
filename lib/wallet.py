@@ -585,44 +585,17 @@ class Wallet:
         return out
 
 
-
-
-    def signrawtransaction(self, tx, input_info, private_keys, password):
-
-        unspent_coins = self.get_unspent_coins()
-        seed = self.decode_seed(password)
-
-        # build a list of public/private keys
-        keypairs = {}
-        for sec in private_keys:
-            pubkey = public_key_from_private_key(sec)
-            keypairs[ pubkey ] = sec
-
-
+    def add_keypairs_from_wallet(self, tx, keypairs, password):
         for txin in tx.inputs:
-            # convert to own format
-            txin['tx_hash'] = txin['prevout_hash']
-            txin['index'] = txin['prevout_n']
+            address = txin['address']
+            private_keys = self.get_private_key(address, password)
+            for sec in private_keys:
+                pubkey = public_key_from_private_key(sec)
+                keypairs[ pubkey ] = sec
 
-            for item in input_info:
-                if item.get('txid') == txin['tx_hash'] and item.get('vout') == txin['index']:
-                    txin['raw_output_script'] = item['scriptPubKey']
-                    txin['redeemScript'] = item.get('redeemScript')
-                    txin['KeyID'] = item.get('KeyID')
-                    break
-            else:
-                for item in unspent_coins:
-                    if txin['tx_hash'] == item['tx_hash'] and txin['index'] == item['index']:
-                        print_error( "tx input is in unspent coins" )
-                        txin['raw_output_script'] = item['raw_output_script']
-                        account, sequence = self.get_address_index(item['address'])
-                        if account != -1:
-                            txin['redeemScript'] = self.accounts[account].redeem_script(sequence)
-                        break
-                else:
-                    raise BaseException("Unknown transaction input. Please provide the 'input_info' parameter, or synchronize this wallet")
 
-            # if available, derive private_keys from KeyID
+    def add_keypairs_from_KeyID(self, tx, keypairs, password):
+        for txin in tx.inputs:
             keyid = txin.get('KeyID')
             if keyid:
                 roots = []
@@ -643,32 +616,51 @@ class Wallet:
                 account = self.accounts.get(account_id)
                 if not account: continue
                 addr = account.get_address(*sequence)
-                txin['address'] = addr
+                txin['address'] = addr # fixme: side effect
                 pk = self.get_private_key(addr, password)
                 for sec in pk:
                     pubkey = public_key_from_private_key(sec)
                     keypairs[pubkey] = sec
 
-            redeem_script = txin.get("redeemScript")
-            print_error( "p2sh:", "yes" if redeem_script else "no")
-            if redeem_script:
-                addr = hash_160_to_bc_address(hash_160(redeem_script.decode('hex')), 5)
-            else:
-                import transaction
-                _, addr = transaction.get_address_from_output_script(txin["raw_output_script"].decode('hex'))
-            txin['address'] = addr
 
-            # add private keys that are in the wallet
-            pk = self.get_private_key(addr, password)
-            for sec in pk:
-                pubkey = public_key_from_private_key(sec)
-                keypairs[pubkey] = sec
-                if not redeem_script:
-                    txin['redeemPubkey'] = pubkey
 
-            print txin
+    def signrawtransaction(self, tx, input_info, private_keys, password):
 
-        self.sign_tx(tx, keypairs)
+        # check that the password is correct
+        seed = self.decode_seed(password)
+
+        # add input info
+        tx.add_input_info(input_info)
+
+        # add redeem script for coins that are in the wallet
+        # FIXME: add redeemPubkey too!
+        unspent_coins = self.get_unspent_coins()
+        for txin in tx.inputs:
+            for item in unspent_coins:
+                if txin['prevout_hash'] == item['prevout_hash'] and txin['prevout_n'] == item['prevout_n']:
+                    print_error( "tx input is in unspent coins" )
+                    txin['scriptPubKey'] = item['scriptPubKey']
+                    account, sequence = self.get_address_index(item['address'])
+                    if account != -1:
+                        txin['redeemScript'] = self.accounts[account].redeem_script(sequence)
+                        print_error("added redeemScript", txin['redeemScript'])
+                    break
+
+
+        # build a list of public/private keys
+        keypairs = {}
+
+        # add private keys from parameter
+        for sec in private_keys:
+            pubkey = public_key_from_private_key(sec)
+            keypairs[ pubkey ] = sec
+
+        # add private_keys from KeyID
+        self.add_keypairs_from_KeyID(tx, keypairs, password)
+
+        # add private keys from wallet
+        self.add_keypairs_from_wallet(tx, keypairs, password)
+        self.sign_transaction(tx, keypairs)
 
 
     def sign_message(self, address, message, password):
@@ -979,9 +971,9 @@ class Wallet:
                 if tx is None: raise BaseException("Wallet not synchronized")
                 for output in tx.d.get('outputs'):
                     if output.get('address') != addr: continue
-                    key = tx_hash + ":%d" % output.get('index')
+                    key = tx_hash + ":%d" % output.get('prevout_n')
                     if key in self.spent_outputs: continue
-                    output['tx_hash'] = tx_hash
+                    output['prevout_hash'] = tx_hash
                     output['height'] = tx_height
                     coins.append((tx_height, output))
 
@@ -1021,7 +1013,7 @@ class Wallet:
             addr = item.get('address')
             v = item.get('value')
             total += v
-            inputs.append( item )
+            inputs.append(item)
             fee = self.estimated_fee(inputs) if fixed_fee is None else fixed_fee
             if total >= amount + fee: break
         else:
@@ -1210,7 +1202,9 @@ class Wallet:
 
     def mktx(self, outputs, password, fee=None, change_addr=None, domain= None ):
         tx = self.make_unsigned_transaction(outputs, fee, change_addr, domain)
-        self.sign_transaction(tx, password)
+        keypairs = {}
+        self.add_keypairs_from_wallet(tx, keypairs, password)
+        self.sign_transaction(tx, keypairs)
         return tx
 
 
@@ -1226,21 +1220,9 @@ class Wallet:
                 txin['redeemPubkey'] = self.accounts[account].get_pubkey(*sequence)
 
 
-    def sign_transaction(self, tx, password):
-        keypairs = {}
-        for i, txin in enumerate(tx.inputs):
-            address = txin['address']
-            private_keys = self.get_private_key(address, password)
-            for sec in private_keys:
-                pubkey = public_key_from_private_key(sec)
-                keypairs[ pubkey ] = sec
-
-        self.sign_tx(tx, keypairs)
-
-
-    def sign_tx(self, tx, keypairs):
+    def sign_transaction(self, tx, keypairs):
         tx.sign(keypairs)
-        run_hook('sign_tx', tx)
+        run_hook('sign_transaction', tx)
 
 
     def sendtx(self, tx):
