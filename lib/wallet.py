@@ -396,9 +396,24 @@ class Wallet:
         return account_id, account
 
 
-    def set_label(self, key, value):
-        self.labels[key] = value
-        self.storage.put('labels', self.labels, True)
+    def set_label(self, name, text = None):
+        changed = False
+        old_text = self.labels.get(name)
+        if text:
+            if old_text != text:
+                self.labels[name] = text
+                changed = True
+        else:
+            if old_text:
+                self.labels.pop(name)
+                changed = True
+
+        if changed:
+            self.storage.put('labels', self.labels, True)
+
+        run_hook('set_label', name, text, changed)
+        return changed
+
 
 
     def create_account(self, account_type = '1', name = None):

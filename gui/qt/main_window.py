@@ -489,22 +489,6 @@ class ElectrumWindow(QMainWindow):
 
 
 
-    def set_label(self, name, text = None):
-        changed = False
-        old_text = self.wallet.labels.get(name)
-        if text:
-            if old_text != text:
-                self.wallet.labels[name] = text
-                self.wallet.storage.put('labels', self.wallet.labels)
-                changed = True
-        else:
-            if old_text:
-                self.wallet.labels.pop(name)
-                changed = True
-        run_hook('set_label', name, text, changed)
-        return changed
-
-
     # custom wrappers for getOpenFileName and getSaveFileName, that remember the path selected by the user
     def getOpenFileName(self, title, filter = ""):
         directory = self.config.get('io_dir', os.path.expanduser('~'))
@@ -629,7 +613,7 @@ class ElectrumWindow(QMainWindow):
         tx_hash = str(item.data(0, Qt.UserRole).toString())
         tx = self.wallet.transactions.get(tx_hash)
         text = unicode( item.text(2) )
-        self.set_label(tx_hash, text) 
+        self.wallet.set_label(tx_hash, text) 
         if text: 
             item.setForeground(2, QBrush(QColor('black')))
         else:
@@ -668,7 +652,7 @@ class ElectrumWindow(QMainWindow):
             if not is_editable:
                 return
 
-            changed = self.set_label(addr, text)
+            changed = self.wallet.set_label(addr, text)
             if changed:
                 self.update_history_tab()
                 self.update_completions()
@@ -905,7 +889,7 @@ class ElectrumWindow(QMainWindow):
             return
 
         if label: 
-            self.set_label(tx.hash(), label)
+            self.wallet.set_label(tx.hash(), label)
 
         if tx.is_complete:
             h = self.wallet.send_tx(tx)
@@ -946,7 +930,7 @@ class ElectrumWindow(QMainWindow):
             if self.question('Give label "%s" to address %s ?'%(label,address)):
                 if address not in self.wallet.addressbook and not self.wallet.is_mine(address):
                     self.wallet.addressbook.append(address)
-                self.set_label(address, label)
+                self.wallet.set_label(address, label)
 
         run_hook('set_url', url, self.show_message, self.question)
 
@@ -1095,7 +1079,7 @@ class ElectrumWindow(QMainWindow):
         text, ok = QInputDialog.getText(self, _('Rename account'), _('Name') + ':')
         if ok:
             label = unicode(text)
-            self.set_label(k,label)
+            self.wallet.set_label(k,label)
             self.update_receive_tab()
 
     def create_account_menu(self, position, k, item):
@@ -1156,7 +1140,7 @@ class ElectrumWindow(QMainWindow):
     def delete_contact(self, x):
         if self.question(_("Do you want to remove")+" %s "%x +_("from your list of contacts?")):
             self.wallet.delete_contact(x)
-            self.set_label(x, None)
+            self.wallet.set_label(x, None)
             self.update_history_tab()
             self.update_contacts_tab()
             self.update_completions()

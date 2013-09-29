@@ -153,7 +153,10 @@ class Plugin(BasePlugin):
             else:
                 self.set_enabled(False)
                 return False
-        return enabled
+
+        self.set_enabled(True)
+        return True
+
 
     def full_push(self):
         if self.do_full_push():
