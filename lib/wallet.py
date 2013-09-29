@@ -68,6 +68,7 @@ from version import ELECTRUM_VERSION, SEED_VERSION
 class WalletStorage:
 
     def __init__(self, config):
+        self.lock = threading.Lock()
         self.data = {}
         self.file_exists = False
         self.init_path(config)
@@ -110,15 +111,13 @@ class WalletStorage:
 
     def put(self, key, value, save = True):
 
-        if self.data.get(key) is not None:
-            self.data[key] = value
-        else:
-            # add key to wallet config
-            self.data[key] = value
-
-        if save: 
-            self.write()
-
+        with self.lock:
+            if value is not None:
+                self.data[key] = value
+            else:
+                self.data.pop[key]
+            if save: 
+                self.write()
 
     def write(self):
         s = repr(self.data)

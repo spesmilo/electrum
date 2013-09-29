@@ -1,11 +1,9 @@
-import json, ast
-import os, ast
+import json
+import ast
+import threading
+import os
+
 from util import user_dir, print_error
-
-from version import ELECTRUM_VERSION, SEED_VERSION
-
-
-
 
 
 
@@ -17,6 +15,7 @@ user configurations from electrum.conf into separate dictionaries within
 a SimpleConfig instance then reads the wallet file.
 """
     def __init__(self, options={}):
+        self.lock = threading.Lock()
 
         # system conf, readonly
         self.system_config = {}
@@ -65,8 +64,11 @@ a SimpleConfig instance then reads the wallet file.
                 print "Warning: not changing '%s' because it was set in the system configuration"%key
 
         else:
-            self.user_config[key] = value
-            if save: self.save_user_config()
+
+            with self.lock:
+                self.user_config[key] = value
+                if save: 
+                    self.save_user_config()
 
 
 
