@@ -904,8 +904,6 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
             return
 
-        run_hook('send_tx', tx)
-
         if label: 
             self.set_label(tx.hash(), label)
 

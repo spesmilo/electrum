@@ -34,6 +34,7 @@ from util import print_msg, print_error, format_satoshis
 from bitcoin import *
 from account import *
 from transaction import Transaction
+from plugins import run_hook
 
 # AES encryption
 EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
@@ -652,7 +653,8 @@ class Wallet:
 
             print txin
 
-        tx.sign( keypairs )
+        self.sign_tx(tx, keypairs)
+
 
     def sign_message(self, address, message, password):
         keys = self.get_private_key(address, password)
@@ -1217,7 +1219,13 @@ class Wallet:
             for sec in private_keys:
                 pubkey = public_key_from_private_key(sec)
                 keypairs[ pubkey ] = sec
+
+        self.sign_tx(tx, keypairs)
+
+
+    def sign_tx(self, tx, keypairs):
         tx.sign(keypairs)
+        run_hook('sign_tx', tx)
 
 
     def sendtx(self, tx):
