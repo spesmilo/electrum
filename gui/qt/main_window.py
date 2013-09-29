@@ -1658,7 +1658,7 @@ class ElectrumWindow(QMainWindow):
             tx_dict = json.loads(str(txt))
             assert "hex" in tx_dict.keys()
             assert "complete" in tx_dict.keys()
-            tx = Transaction(tx_dict["hex"])
+            tx = Transaction(tx_dict["hex"], tx_dict["complete"])
             if not tx_dict["complete"]:
                 assert "input_info" in tx_dict.keys()
                 input_info = json.loads(tx_dict['input_info'])

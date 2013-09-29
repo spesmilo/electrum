@@ -370,13 +370,13 @@ def get_address_from_output_script(bytes):
 
 class Transaction:
     
-    def __init__(self, raw):
+    def __init__(self, raw, is_complete = True):
         self.raw = raw
         self.deserialize()
         self.inputs = self.d['inputs']
         self.outputs = self.d['outputs']
         self.outputs = map(lambda x: (x['address'],x['value']), self.outputs)
-        self.is_complete = False
+        self.is_complete = is_complete
         
     def __str__(self):
         return self.raw
@@ -666,7 +666,6 @@ class Transaction:
     def get_input_info(self):
         info = []
         for i in self.inputs:
-            print len(i)
             item = { 
                 'prevout_hash':i['prevout_hash'], 
                 'prevout_n':i['prevout_n'],
