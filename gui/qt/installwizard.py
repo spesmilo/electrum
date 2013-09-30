@@ -146,7 +146,6 @@ class InstallWizard(QDialog):
         vbox = QVBoxLayout(self)
         self.waiting_label = QLabel(msg)
         vbox.addWidget(self.waiting_label)
-        self.show()
         t = threading.Thread(target = target)
         t.start()
         self.exec_()
