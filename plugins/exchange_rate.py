@@ -52,8 +52,6 @@ class Exchanger(threading.Thread):
             self.parent.emit(SIGNAL("refresh_balance()"))
         except KeyError:
             pass
-
-        print self.quote_currencies
             
     def get_currencies(self):
         return [] if self.quote_currencies == None else sorted(self.quote_currencies.keys())
