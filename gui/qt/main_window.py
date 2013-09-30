@@ -2019,7 +2019,9 @@ class ElectrumWindow(QMainWindow):
                 cb.clicked.connect(mk_toggle(cb,p))
                 grid.addWidget(cb, i, 0)
                 if p.requires_settings():
-                    grid.addWidget(EnterButton(_('Settings'), p.settings_dialog), i, 1)
+                    b = EnterButton(_('Settings'), p.settings_dialog)
+                    b.setEnabled( p.is_enabled() )
+                    grid.addWidget(b, i, 1)
                 grid.addWidget(HelpButton(p.description()), i, 2)
             except:
                 print_msg(_("Error: cannot display plugin"), p)
