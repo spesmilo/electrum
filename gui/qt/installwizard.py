@@ -88,7 +88,7 @@ class InstallWizard(QDialog):
 
         vbox = QVBoxLayout(self)
         if is_restore:
-            msg = _("Please enter your wallet seed.\n" + ' ')
+            msg = _("Please enter your wallet seed.") + "\n"
             msg += _("Your seed can be entered as a sequence of words, or as a hexadecimal string."+ ' \n')
         else:
             msg = _("Your seed is important!") \
