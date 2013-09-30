@@ -95,7 +95,7 @@ class Network(threading.Thread):
     def start_interface(self, server):
         if server in self.interfaces.keys():
             return
-        i = interface.Interface({'server':server})
+        i = interface.Interface({'server':server, 'path':self.config.path})
         self.interfaces[server] = i
         i.start(self.queue)
 

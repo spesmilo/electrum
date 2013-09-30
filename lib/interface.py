@@ -17,8 +17,9 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import random, socket, ast, re, ssl, errno
+import random, socket, ast, re, ssl, errno, os
 import threading, traceback, sys, time, json, Queue
+import socks
 
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from util import print_error, print_msg
@@ -147,7 +148,6 @@ class Interface(threading.Thread):
         print_error( "send_http", messages )
         
         if self.proxy:
-            import socks
             socks.setdefaultproxy(proxy_modes.index(self.proxy["mode"]) + 1, self.proxy["host"], int(self.proxy["port"]) )
             socks.wrapmodule(urllib2)
 
@@ -210,36 +210,74 @@ class Interface(threading.Thread):
 
 
     def init_tcp(self, host, port, proxy=None, use_ssl=True):
+
+        if self.use_ssl:
+            cert_path = os.path.join( self.config.get('path'), 'certs', host)
+            if not os.path.exists(cert_path):
+                dir_path = os.path.join( self.config.get('path'), 'certs')
+                if not os.path.exists(dir_path):
+                    os.mkdir(dir_path)
+                try:
+                    cert = ssl.get_server_certificate((host, port))
+                except:
+                    print_error("failed to connect", host, port)
+                    return
+                    
+                with open(cert_path,"w") as f:
+                    f.write(cert)
+
         self.init_server(host, port, proxy, use_ssl)
 
         global proxy_modes
         self.connection_msg = "%s:%d"%(self.host,self.port)
+
         if self.proxy is None:
             s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
         else:
             self.connection_msg += " using proxy %s:%s:%s"%(self.proxy.get('mode'), self.proxy.get('host'), self.proxy.get('port'))
-            import socks
             s = socks.socksocket()
             s.setproxy(proxy_modes.index(self.proxy["mode"]) + 1, self.proxy["host"], int(self.proxy["port"]) )
 
+
         if self.use_ssl:
-            s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23, do_handshake_on_connect=True)
-            
+            try:
+                s = ssl.wrap_socket(s,
+                                    ssl_version=ssl.PROTOCOL_SSLv3,
+                                    cert_reqs=ssl.CERT_REQUIRED,
+                                    ca_certs=cert_path,
+                                    do_handshake_on_connect=True)
+            except:
+                print_error("wrap_socket failed", host)
+                return
+
         s.settimeout(2)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
         try:
             s.connect(( self.host.encode('ascii'), int(self.port)))
+        except ssl.SSLError, e:
+            print_error("SSL error:", host, e)
+            return
         except:
             #traceback.print_exc(file=sys.stdout)
             print_error("failed to connect", host, port)
-            self.is_connected = False
-            self.s = None
             return
+
+        # hostname verification (disabled)
+        if self.use_ssl and False:
+            from backports.ssl_match_hostname import match_hostname, CertificateError
+            try:
+                match_hostname(s.getpeercert(), host)
+                print_error("hostname matches", host)
+            except CertificateError, ce:
+                print_error("hostname does not match", host, s.getpeercert())
+                return
 
         s.settimeout(60)
         self.s = s
         self.is_connected = True
+        print_error("connected to", host, port)
+
 
     def run_tcp(self):
         try:
@@ -479,3 +517,14 @@ class Interface(threading.Thread):
         #print "change status", self.server, self.is_connected
         self.queue.put(self)
 
+
+
+if __name__ == "__main__":
+    
+    q = Queue.Queue()
+    i = Interface({'server':'btc.it-zone.org:50002:s', 'path':'/extra/key/wallet', 'verbose':True})
+    i.start(q)
+    time.sleep(1)
+    exit()
+
+    
