@@ -30,7 +30,7 @@ class InstallWizard(QDialog):
         grid = QGridLayout()
         grid.setSpacing(5)
 
-        msg = _("Wallet file not found.")+"\n\n"+_("Do you want to create a new wallet, or to restore an existing one?"+"\n")
+        msg = _("Electrum could not find an existing wallet.")+"\n\n"+_("Did you use Electrum before and want to restore a previous wallet or is this your first time and do you want to create a new wallet?"+"\n")
         label = QLabel(msg)
         label.setWordWrap(True)
         grid.addWidget(label, 0, 0)
@@ -88,7 +88,7 @@ class InstallWizard(QDialog):
 
         vbox = QVBoxLayout(self)
         if is_restore:
-            msg = _("Please enter your wallet seed." + ' ')
+            msg = _("Please enter your wallet seed.\n" + ' ')
             msg += _("Your seed can be entered as a sequence of words, or as a hexadecimal string."+ ' \n')
         else:
             msg = _("Your seed is important!") \
@@ -137,7 +137,7 @@ class InstallWizard(QDialog):
 
 
 
-    def waiting_dialog(self, task, msg= _("Please wait...")):
+    def waiting_dialog(self, task, msg= _("Electrum is generating your addresses, please wait.")):
         def target():
             task()
             self.emit(QtCore.SIGNAL('accept'))
@@ -188,7 +188,9 @@ class InstallWizard(QDialog):
         grid = QGridLayout()
         grid.setSpacing(5)
 
-        label = QLabel(_("Network") + ":")
+        label = QLabel(_("Electrum communicates with Electrum servers to get information about your transactions and addresses. The servers all fulfil the same purpose only differing in hardware. In most cases you simply want to let Electrum pick one at random if you have a preference though feel free to select a server manually or stay offline.") + "\n\n" \
+                      + _("How do you want to connect to a server: "))
+        label.setWordWrap(True)
         grid.addWidget(label, 0, 0)
 
         gb = QGroupBox()
