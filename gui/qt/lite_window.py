@@ -307,7 +307,6 @@ class MiniWindow(QDialog):
         self.layout().setSizeConstraint(QLayout.SetFixedSize)
         self.setObjectName("main_window")
 
-        self.show()
 
     def context_menu(self):
         view_menu = QMenu()
