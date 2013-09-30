@@ -1402,7 +1402,7 @@ class ElectrumWindow(QMainWindow):
 
             
 
-    def show_master_public_key(self):
+    def show_master_public_key_old(self):
         dialog = QDialog(self)
         dialog.setModal(1)
         dialog.setWindowTitle(_("Master Public Key"))
@@ -1423,12 +1423,62 @@ class ElectrumWindow(QMainWindow):
         main_layout.addWidget(main_text, 1, 0)
         main_layout.addWidget(qrw, 1, 1 )
 
+        vbox.addLayout(close_button(dialog))
+        dialog.setLayout(vbox)
+        dialog.exec_()
+        
+
+    def show_master_public_key(self):
+
+        if self.wallet.seed_version == 4:
+            self.show_master_public_keys_old()
+            return
+
+        dialog = QDialog(self)
+        dialog.setModal(1)
+        dialog.setWindowTitle(_("Master Public Keys"))
+
+        chain_text = QTextEdit()
+        chain_text.setReadOnly(True)
+        chain_text.setMaximumHeight(170)
+        chain_qrw = QRCodeWidget()
+
+        mpk_text = QTextEdit()
+        mpk_text.setReadOnly(True)
+        mpk_text.setMaximumHeight(170)
+        mpk_qrw = QRCodeWidget()
+
+        main_layout = QGridLayout()
+
+        main_layout.addWidget(QLabel(_('chain')), 1, 0)
+        main_layout.addWidget(chain_text, 1, 1)
+        main_layout.addWidget(chain_qrw, 1, 2)
+        main_layout.addWidget(QLabel(_('public key')), 2, 0)
+        main_layout.addWidget(mpk_text, 2, 1)
+        main_layout.addWidget(mpk_qrw, 2, 2)
+
+        def update(key):
+            c, K, cK = self.wallet.master_public_keys[str(key)]
+            chain_text.setText(c)
+            chain_qrw.set_addr(c)
+            chain_qrw.update_qr()
+            mpk_text.setText(K)
+            mpk_qrw.set_addr(c)
+            mpk_qrw.update_qr()
+            
+        key_selector = QComboBox()
+        keys = sorted(self.wallet.master_public_keys.keys())
+        key_selector.addItems(keys)
+
+        main_layout.addWidget(QLabel(_('Derivation:')), 0, 0)
+        main_layout.addWidget(key_selector, 0, 1)
+        dialog.connect(key_selector,SIGNAL("activated(QString)"),update) 
+
+        update(keys[0])
+
         vbox = QVBoxLayout()
         vbox.addLayout(main_layout)
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-        hbox.addWidget(ok_button)
-        vbox.addLayout(hbox)
+        vbox.addLayout(close_button(dialog))
 
         dialog.setLayout(vbox)
         dialog.exec_()
