@@ -51,7 +51,10 @@ class Plugin(BasePlugin):
 
     def load_wallet(self, wallet):
         self.wallet = wallet
-        mpk = self.wallet.master_public_keys["m/0'/"][1]
+        if self.wallet.get_master_public_key():
+            mpk = self.wallet.get_master_public_key()
+        else:
+            mpk = self.wallet.master_public_keys["m/0'/"][1]
         self.encode_password = hashlib.sha1(mpk).digest().encode('hex')[:32]
         self.wallet_id = hashlib.sha256(mpk).digest().encode('hex')
 
@@ -104,7 +107,7 @@ class Plugin(BasePlugin):
               self.download.setEnabled(False)
               self.accept.setEnabled(False)
 
-        d = QDialog(self.window)
+        d = QDialog()
         layout = QGridLayout(d)
         layout.addWidget(QLabel("API Key: "),0,0)
 
@@ -147,6 +150,7 @@ class Plugin(BasePlugin):
     def enable(self):
         if not self.auth_token(): # First run, throw plugin settings in your face
             self.init()
+            self.load_wallet(self.gui.main_window.wallet)
             if self.settings_dialog():
                 self.set_enabled(True)
                 return True
