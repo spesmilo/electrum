@@ -40,7 +40,7 @@ from electrum.bitcoin import MIN_RELAY_TX_FEE
 try:
     import icons_rc
 except:
-    sys.exit("Error: Could not import icons_rc.py, please generate it with: 'pyrcc4 icons.qrc -o gui/gui_classic/icons_rc.py'")
+    sys.exit("Error: Could not import icons_rc.py, please generate it with: 'pyrcc4 icons.qrc -o gui/qt/icons_rc.py'")
 
 from util import *
 from main_window import ElectrumWindow
