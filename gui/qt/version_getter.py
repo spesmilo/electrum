@@ -54,6 +54,9 @@ class UpdateLabel(QLabel):
         self.config = config
         self.current_version = ELECTRUM_VERSION
         self.connect(self, QtCore.SIGNAL('new_electrum_version'), self.new_electrum_version)
+        # prevent HTTP leaks if a proxy is set
+        if self.config.get('proxy'):
+            return
         VersionGetter(self).start()
 
     def callback(self, version):
