@@ -17,9 +17,11 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import random, socket, ast, re, ssl, errno, os
+import random, ast, re, errno, os
 import threading, traceback, sys, time, json, Queue
 import socks
+import socket
+import ssl
 
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from util import print_error, print_msg
@@ -60,6 +62,7 @@ class Interface(threading.Thread):
         s = config.get('server')
         host, port, protocol = s.split(':')
         port = int(port)
+            
         if protocol not in 'ghst':
             raise BaseException('Unknown protocol: %s'%protocol)
 
@@ -68,6 +71,8 @@ class Interface(threading.Thread):
         self.protocol = protocol
         self.use_ssl = ( protocol in 'sg' )
         self.proxy = self.parse_proxy_options(config.get('proxy'))
+        if self.proxy:
+            self.proxy_mode = proxy_modes.index(self.proxy["mode"]) + 1
         self.server = host + ':%d:%s'%(port, protocol)
 
 
@@ -174,7 +179,7 @@ class Interface(threading.Thread):
         print_error( "send_http", messages )
         
         if self.proxy:
-            socks.setdefaultproxy(proxy_modes.index(self.proxy["mode"]) + 1, self.proxy["host"], int(self.proxy["port"]) )
+            socks.setdefaultproxy(self.proxy_mode, self.proxy["host"], int(self.proxy["port"]) )
             socks.wrapmodule(urllib2)
 
         cj = cookielib.CookieJar()
@@ -237,31 +242,37 @@ class Interface(threading.Thread):
 
     def start_tcp(self):
 
+        if self.proxy is not None:
+
+            socks.setdefaultproxy(self.proxy_mode, self.proxy["host"], int(self.proxy["port"]))
+            socket.socket = socks.socksocket
+            # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
+            def getaddrinfo(*args):
+                return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
+            socket.getaddrinfo = getaddrinfo
+
         if self.use_ssl:
             cert_path = os.path.join( self.config.get('path'), 'certs', self.host)
             if not os.path.exists(cert_path):
-                dir_path = os.path.join( self.config.get('path'), 'certs')
-                if not os.path.exists(dir_path):
-                    os.mkdir(dir_path)
+                # get server certificate.
+                # Do not use ssl.get_server_certificate because it does not work with proxy
+                s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
                 try:
-                    cert = ssl.get_server_certificate((self.host, self.port))
+                    s.connect((self.host, self.port))
                 except:
                     print_error("failed to connect", self.host, self.port)
                     return
+
+                s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv3, cert_reqs=ssl.CERT_NONE, ca_certs=None)
+                dercert = s.getpeercert(True)
+                s.close()
+                cert = ssl.DER_cert_to_PEM_cert(dercert)
                     
                 with open(cert_path,"w") as f:
                     f.write(cert)
 
-        self.connection_msg = "%s:%d"%(self.host, self.port)
 
-
-        if self.proxy is None:
-            s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
-        else:
-            self.connection_msg += " using proxy %s:%s:%s"%(self.proxy.get('mode'), self.proxy.get('host'), self.proxy.get('port'))
-            s = socks.socksocket()
-            s.setproxy(proxy_modes.index(self.proxy["mode"]) + 1, self.proxy["host"], int(self.proxy["port"]) )
-
+        s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
         s.settimeout(2)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 

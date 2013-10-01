@@ -56,6 +56,10 @@ class Network(threading.Thread):
         self.proxy = self.config.get('proxy')
         self.heights = {}
 
+        dir_path = os.path.join( self.config.path, 'certs')
+        if not os.path.exists(dir_path):
+            os.mkdir(dir_path)
+
 
     def register_callback(self, event, callback):
         with self.lock:
