@@ -157,27 +157,34 @@ class InstallWizard(QDialog):
         if self.layout(): QWidget().setLayout(self.layout())
 
         vbox = QVBoxLayout(self)
-        msg = _("Please enter your master public key.")
 
-        label=QLabel(msg)
-        label.setWordWrap(True)
-        vbox.addWidget(label)
-
-        mpk_e = QTextEdit()
-        mpk_e.setMaximumHeight(100)
-        vbox.addWidget(mpk_e)
+        vbox.addWidget(QLabel(_("Please enter your master public key.")))
 
         grid = QGridLayout()
         grid.setSpacing(8)
+
+        label = QLabel(_("Key")) 
+        grid.addWidget(label, 0, 0)
+        mpk_e = QTextEdit()
+        mpk_e.setMaximumHeight(100)
+        grid.addWidget(mpk_e, 0, 1)
+
+        label = QLabel(_("Chain")) 
+        grid.addWidget(label, 1, 0)
+        chain_e = QTextEdit()
+        chain_e.setMaximumHeight(100)
+        grid.addWidget(chain_e, 1, 1)
+
         vbox.addLayout(grid)
 
         vbox.addStretch(1)
         vbox.addLayout(ok_cancel_buttons(self, _('Next')))
 
-        if not self.exec_(): return
+        if not self.exec_(): return None, None
 
-        mpk = str(mpk_e.toPlainText())
-        return mpk
+        mpk = str(mpk_e.toPlainText()).strip()
+        chain = str(chain_e.toPlainText()).strip()
+        return mpk, chain
 
 
     def network_dialog(self):
@@ -280,18 +287,11 @@ class InstallWizard(QDialog):
 
         elif action == 'watching':
             # ask for seed and gap.
-            mpk = self.mpk_dialog()
-            if not mpk:
+            K, chain = self.mpk_dialog()
+            if not K:
                 return
             wallet.seed = ''
-
-            print eval(mpk)
-            try:
-                c0, K0 = eval(mpk)
-            except:
-                QMessageBox.warning(None, _('Error'), _('error'), _('OK'))
-                return
-            wallet.create_watching_only_wallet(c0,K0)
+            wallet.create_watching_only_wallet(chain,K)
 
 
         else: raise

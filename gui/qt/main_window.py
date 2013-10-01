@@ -1450,12 +1450,13 @@ class ElectrumWindow(QMainWindow):
 
         main_layout = QGridLayout()
 
-        main_layout.addWidget(QLabel(_('chain')), 1, 0)
-        main_layout.addWidget(chain_text, 1, 1)
-        main_layout.addWidget(chain_qrw, 1, 2)
-        main_layout.addWidget(QLabel(_('public key')), 2, 0)
-        main_layout.addWidget(mpk_text, 2, 1)
-        main_layout.addWidget(mpk_qrw, 2, 2)
+        main_layout.addWidget(QLabel(_('Key')), 1, 0)
+        main_layout.addWidget(mpk_text, 1, 1)
+        main_layout.addWidget(mpk_qrw, 1, 2)
+
+        main_layout.addWidget(QLabel(_('Chain')), 2, 0)
+        main_layout.addWidget(chain_text, 2, 1)
+        main_layout.addWidget(chain_qrw, 2, 2)
 
         def update(key):
             c, K, cK = self.wallet.master_public_keys[str(key)]
