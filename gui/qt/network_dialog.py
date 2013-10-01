@@ -99,7 +99,7 @@ class NetworkDialog(QDialog):
 
         self.server_protocol.connect(self.server_protocol, SIGNAL('currentIndexChanged(int)'), self.change_protocol)
 
-        label = _('Active Servers') if interface.servers else _('Default Servers')
+        label = _('Active Servers') #if interface.servers else _('Default Servers')
         self.servers_list_widget = QTreeWidget(parent)
         self.servers_list_widget.setHeaderLabels( [ label, _('Limit') ] )
         self.servers_list_widget.setMaximumHeight(150)

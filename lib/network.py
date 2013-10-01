@@ -53,6 +53,7 @@ class Network(threading.Thread):
         self.servers = []
         self.banner = ''
         self.interface = None
+        self.proxy = self.config.get('proxy')
         self.heights = {}
 
 
@@ -95,7 +96,7 @@ class Network(threading.Thread):
     def start_interface(self, server):
         if server in self.interfaces.keys():
             return
-        i = interface.Interface({'server':server, 'path':self.config.path})
+        i = interface.Interface({'server':server, 'path':self.config.path, 'proxy':self.proxy})
         self.interfaces[server] = i
         i.start(self.queue)
 
@@ -130,6 +131,7 @@ class Network(threading.Thread):
 
         i = self.interface
         self.default_server = server
+        self.proxy = proxy
         self.start_interface(server)
         self.interface = self.interfaces[server]
         i.stop_subscriptions() # fixme: it should not stop all subscriptions, and send 'unsubscribe'
