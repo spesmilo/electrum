@@ -271,44 +271,47 @@ class Wallet:
         self.storage.put('master_public_keys', self.master_public_keys, True)
         self.create_account('1','Main account')
 
-    def create_accounts(self):
 
+    def create_accounts(self): 
+        # create default account
+        self.create_master_keys('1', self.seed)
+        self.create_account('1','Main account')
+
+
+    def create_master_keys(self, account_type, seed):
         master_k, master_c, master_K, master_cK = bip32_init(self.seed)
-        
-        # normal accounts
-        k0, c0, K0, cK0 = bip32_private_derivation(master_k, master_c, "m/", "m/0'/")
-        # p2sh 2of2
-        k1, c1, K1, cK1 = bip32_private_derivation(master_k, master_c, "m/", "m/1'/")
-        k2, c2, K2, cK2 = bip32_private_derivation(master_k, master_c, "m/", "m/2'/")
-        # p2sh 2of3
-        k3, c3, K3, cK3 = bip32_private_derivation(master_k, master_c, "m/", "m/3'/")
-        k4, c4, K4, cK4 = bip32_private_derivation(master_k, master_c, "m/", "m/4'/")
-        k5, c5, K5, cK5 = bip32_private_derivation(master_k, master_c, "m/", "m/5'/")
+        if account_type == '1':
+            k0, c0, K0, cK0 = bip32_private_derivation(master_k, master_c, "m/", "m/0'/")
+            self.master_public_keys["m/0'/"] = (c0, K0, cK0)
+            self.master_private_keys["m/0'/"] = k0
+        elif account_type == '2of2':
+            k1, c1, K1, cK1 = bip32_private_derivation(master_k, master_c, "m/", "m/1'/")
+            k2, c2, K2, cK2 = bip32_private_derivation(master_k, master_c, "m/", "m/2'/")
+            self.master_public_keys["m/1'/"] = (c1, K1, cK1)
+            self.master_public_keys["m/2'/"] = (c2, K2, cK2)
+            self.master_private_keys["m/1'/"] = k1
+            self.master_private_keys["m/2'/"] = k2
+        elif account_type == '2of3':
+            k3, c3, K3, cK3 = bip32_private_derivation(master_k, master_c, "m/", "m/3'/")
+            k4, c4, K4, cK4 = bip32_private_derivation(master_k, master_c, "m/", "m/4'/")
+            k5, c5, K5, cK5 = bip32_private_derivation(master_k, master_c, "m/", "m/5'/")
+            self.master_public_keys["m/3'/"] = (c3, K3, cK3)
+            self.master_public_keys["m/4'/"] = (c4, K4, cK4)
+            self.master_public_keys["m/5'/"] = (c5, K5, cK5)
+            self.master_private_keys["m/3'/"] = k3
+            self.master_private_keys["m/4'/"] = k4
+            self.master_private_keys["m/5'/"] = k5
 
-        self.master_public_keys = {
-            "m/0'/": (c0, K0, cK0),
-            "m/1'/": (c1, K1, cK1),
-            "m/2'/": (c2, K2, cK2),
-            "m/3'/": (c3, K3, cK3),
-            "m/4'/": (c4, K4, cK4),
-            "m/5'/": (c5, K5, cK5)
-            }
-        
-        self.master_private_keys = {
-            "m/0'/": k0,
-            "m/1'/": k1,
-            "m/2'/": k2,
-            "m/3'/": k3,
-            "m/4'/": k4,
-            "m/5'/": k5
-            }
-        
         self.storage.put('master_public_keys', self.master_public_keys, True)
         self.storage.put('master_private_keys', self.master_private_keys, True)
 
-        # create default account
-        self.create_account('1','Main account')
-
+    def has_master_public_keys(self, account_type):
+        if account_type == '1':
+            return "m/0'/" in self.master_public_keys
+        elif account_type == '2of2':
+            return set(["m/1'/", "m/2'/"]) <= set(self.master_public_keys.keys())
+        elif account_type == '2of3':
+            return set(["m/3'/", "m/4'/", "m/5'/"]) <= set(self.master_public_keys.keys())
 
     def find_root_by_master_key(self, c, K):
         for key, v in self.master_public_keys.items():
@@ -764,6 +767,8 @@ class Wallet:
 
     def create_pending_accounts(self):
         for account_type in ['1','2of2','2of3']:
+            if not self.has_master_public_keys(account_type):
+                continue
             a = self.new_account_address(account_type)
             if self.address_is_old(a):
                 print_error( "creating account", a )
