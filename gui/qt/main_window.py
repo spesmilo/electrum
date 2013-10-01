@@ -1488,7 +1488,7 @@ class ElectrumWindow(QMainWindow):
     @protected
     def show_seed_dialog(self, password):
         if not self.wallet.seed:
-            QMessageBox.information(parent, _('Message'), _('No seed'), _('OK'))
+            QMessageBox.information(self, _('Message'), _('No seed'), _('OK'))
             return
         try:
             seed = self.wallet.decode_seed(password)
