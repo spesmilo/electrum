@@ -22,6 +22,7 @@ import PyQt4.QtCore as QtCore
 from electrum.i18n import _
 from electrum import mnemonic
 from qrcodewidget import QRCodeWidget
+from util import close_button
 
 class SeedDialog(QDialog):
     def __init__(self, parent):
@@ -33,6 +34,24 @@ class SeedDialog(QDialog):
     def show_seed(self, seed, imported_keys):
         make_seed_dialog(self, seed, imported_keys)
         self.exec_()
+
+
+class PrivateKeysDialog(QDialog):
+    def __init__(self, parent, private_keys):
+        QDialog.__init__(self, parent)
+        self.setModal(1)
+        self.setWindowTitle('Electrum' + ' - ' + _('Master Private Keys'))
+        self.parent = parent
+        vbox = QVBoxLayout(self)
+        vbox.addWidget(QLabel(_("The seed has been removed from the wallet. It contains the following master private keys")+ ":"))
+        for k,v in sorted(private_keys.items()):
+            vbox.addWidget(QLabel(k))
+            vbox.addWidget(QLineEdit(v))
+
+        vbox.addLayout(close_button(self))
+
+
+
 
 
 def make_seed_dialog(self, seed, imported_keys):
@@ -60,12 +79,7 @@ def make_seed_dialog(self, seed, imported_keys):
 
         qrw = QRCodeWidget(seed)
 
-        ok_button = QPushButton(_("OK"))
-        ok_button.setDefault(True)
-        ok_button.clicked.connect(self.accept)
-
         grid = QGridLayout()
-        #main_layout.addWidget(logo, 0, 0)
 
         grid.addWidget(logo, 0, 0)
         grid.addWidget(label1, 0, 1)
@@ -78,9 +92,6 @@ def make_seed_dialog(self, seed, imported_keys):
         vbox.addLayout(grid)
         vbox.addWidget(label2)
 
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-        hbox.addWidget(ok_button)
-        vbox.addLayout(hbox)
+        vbox.addLayout(close_button(self))
 
         self.setLayout(vbox)

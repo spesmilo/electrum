@@ -333,6 +333,10 @@ class Wallet:
         self.master_private_keys.pop(k)
         self.storage.put('master_private_keys', self.master_private_keys, True)
 
+    def is_watching_only(self):
+        return (self.seed == '') and (self.master_private_keys == {})
+
+
 
     def account_id(self, account_type, i):
         if account_type == '1':

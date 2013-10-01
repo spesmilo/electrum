@@ -259,7 +259,7 @@ class ElectrumWindow(QMainWindow):
         self.wallet = wallet
 
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.wallet.storage.path
-        if not self.wallet.seed: title += ' [%s]' % (_('seedless'))
+        if self.wallet.is_watching_only(): title += ' [%s]' % (_('watching only'))
         self.setWindowTitle( title )
         self.update_wallet()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
@@ -376,7 +376,6 @@ class ElectrumWindow(QMainWindow):
 
         wallet_menu.addSeparator()
 
-        #if self.wallet.seed:
         show_seed = wallet_menu.addAction(_("&Seed"))
         show_seed.triggered.connect(self.show_seed_dialog)
 
@@ -1347,7 +1346,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def update_buttons_on_seed(self):
-        if self.wallet.seed:
+        if not self.wallet.is_watching_only():
            self.seed_button.show()
            self.password_button.show()
            self.send_button.setText(_("Send"))
@@ -1487,18 +1486,29 @@ class ElectrumWindow(QMainWindow):
 
     @protected
     def show_seed_dialog(self, password):
-        if not self.wallet.seed:
-            QMessageBox.information(self, _('Message'), _('No seed'), _('OK'))
-            return
-        try:
-            seed = self.wallet.decode_seed(password)
-        except:
-            QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
+        if self.wallet.is_watching_only():
+            QMessageBox.information(self, _('Message'), _('This is a watching-only wallet'), _('OK'))
             return
 
-        from seed_dialog import SeedDialog
-        d = SeedDialog(self)
-        d.show_seed(seed, self.wallet.imported_keys)
+        if self.wallet.seed:
+            try:
+                seed = self.wallet.decode_seed(password)
+            except:
+                QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
+                return
+            from seed_dialog import SeedDialog
+            d = SeedDialog(self)
+            d.show_seed(seed, self.wallet.imported_keys)
+        else:
+            l = {}
+            for k in self.wallet.master_private_keys.keys():
+                pk = self.wallet.get_master_private_key(k, password)
+                l[k] = pk
+            from seed_dialog import PrivateKeysDialog
+            d = PrivateKeysDialog(self,l)
+            d.exec_()
+
+
 
 
 
