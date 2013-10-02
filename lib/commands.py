@@ -50,6 +50,7 @@ register_command('dumpprivkey',          1, 1, True,  True,  'Dumps a specified 
 register_command('dumpprivkeys',         0, 0, True,  True,  'dump all private keys')
 register_command('freeze',               1, 1, False, True,  'Freeze the funds at one of your wallet\'s addresses', 'freeze <address>')
 register_command('getbalance',           0, 1, False, False, 'Return the balance of your wallet, or of one account in your wallet', 'getbalance [<account>]')
+register_command('getservers',           0, 0, False, False, 'Return the list of available servers')
 register_command('getaddressbalance',    1, 1, False, False, 'Return the balance of an address', 'getbalance <address>')
 register_command('getaddresshistory',    1, 1, False, False, 'Return the transaction history of an address', 'getaddresshistory <address>')
 register_command('getconfig',            1, 1, False, True,  'Return a configuration variable', 'getconfig <name>', config_options)
@@ -187,6 +188,8 @@ class Commands:
         if u: out["unconfirmed"] = str(Decimal(u)/100000000)
         return out
 
+    def getservers(self):
+        return self.network.get_servers()
 
     def getseed(self):
         import mnemonic
