@@ -482,6 +482,7 @@ class Interface(threading.Thread):
                         self.subscriptions[callback].append(message)
 
         if not self.is_connected: 
+            print_error("interface: trying to send while not connected")
             return
 
         if self.protocol in 'st':

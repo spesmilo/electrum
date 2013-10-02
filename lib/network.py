@@ -61,6 +61,29 @@ class Network(threading.Thread):
             os.mkdir(dir_path)
 
 
+        # default subscriptions
+        self.subscriptions = {}
+        self.subscriptions[self.on_banner] = [('server.banner',[])]
+        self.subscriptions[self.on_peers] = [('server.peers.subscribe',[])]
+
+
+    def send_subscriptions(self):
+        for cb, sub in self.subscriptions.items():
+            self.interface.send(sub, cb)
+
+
+    def subscribe(self, messages, callback):
+        with self.lock:
+            if self.subscriptions.get(callback) is None: 
+                self.subscriptions[callback] = []
+            for message in messages:
+                if message not in self.subscriptions[callback]:
+                    self.subscriptions[callback].append(message)
+
+        if self.interface and self.interface.is_connected:
+            self.interface.send( messages, callback )
+
+
     def register_callback(self, event, callback):
         with self.lock:
             if not self.callbacks.get(event):
@@ -138,17 +161,21 @@ class Network(threading.Thread):
             return
 
         # stop the interface in order to terminate subscriptions
-        subscriptions = self.interface.subscriptions
         self.interface.stop() 
         # notify gui
         self.trigger_callback('disconnecting')
         # start interface
         self.default_server = server
-        self.start_interface(server)
-        self.interface = self.interfaces[server]
-        # send subscriptions
-        for cb, sub in subscriptions.items():
-            self.interface.send(sub, cb)
+
+        if server in self.interfaces.keys():
+            self.interface = self.interfaces[server]
+            self.send_subscriptions()
+        else:
+            self.start_interface(server)
+            self.interface = self.interfaces[server]
+        
+
+
 
 
     def run(self):
@@ -163,8 +190,7 @@ class Network(threading.Thread):
             if i.is_connected:
                 i.send([ ('blockchain.headers.subscribe',[])], self.on_header)
                 if i == self.interface:
-                    i.send([('server.banner',[])], self.on_banner)
-                    i.send([('server.peers.subscribe',[])], self.on_peers)
+                    self.send_subscriptions()
                     self.trigger_callback('connected')
             else:
                 self.disconnected_servers.append(i.server)
