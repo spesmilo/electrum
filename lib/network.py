@@ -9,7 +9,7 @@ DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 DEFAULT_SERVERS = {
     'the9ull.homelinux.org': {'h': '8082', 't': '50001'},
     'electrum.coinwallet.me': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.dynaloop.net': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.hachre.de': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
     'electrum.koh.ms': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
     'electrum.novit.ro': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
     'electrum.stepkrav.pw': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
