@@ -376,6 +376,9 @@ class ElectrumWindow(QMainWindow):
 
         wallet_menu.addSeparator()
 
+        pw = wallet_menu.addAction(_("&Password"))
+        pw.triggered.connect(self.change_password_dialog)
+
         show_seed = wallet_menu.addAction(_("&Seed"))
         show_seed.triggered.connect(self.show_seed_dialog)
 
@@ -384,21 +387,21 @@ class ElectrumWindow(QMainWindow):
 
         wallet_menu.addSeparator()
 
-        csv_transaction_menu = wallet_menu.addMenu(_("&Create transaction"))
+        labels_menu = wallet_menu.addMenu(_("&Labels"))
+        import_labels = labels_menu.addAction(_("&Import"))
+        import_labels.triggered.connect(self.do_import_labels)
+        export_labels = labels_menu.addAction(_("&Export"))
+        export_labels.triggered.connect(self.do_export_labels)
 
-        csv_transaction_file = csv_transaction_menu.addAction(_("&From CSV file"))
-        csv_transaction_file.triggered.connect(self.do_process_from_csv_file)
+        keys_menu = wallet_menu.addMenu(_("&Private keys"))
+        import_keys = keys_menu.addAction(_("&Import"))
+        import_keys.triggered.connect(self.do_import_privkey)
+        export_keys = keys_menu.addAction(_("&Export"))
+        export_keys.triggered.connect(self.do_export_privkeys)
 
-        csv_transaction_text = csv_transaction_menu.addAction(_("&From CSV text"))
-        csv_transaction_text.triggered.connect(self.do_process_from_csv_text)
+        ex_history = wallet_menu.addAction(_("&Export History"))
+        ex_history.triggered.connect(self.do_export_history)
 
-        raw_transaction_menu = wallet_menu.addMenu(_("&Load transaction"))
-
-        raw_transaction_file = raw_transaction_menu.addAction(_("&From file"))
-        raw_transaction_file.triggered.connect(self.do_process_from_file)
-
-        raw_transaction_text = raw_transaction_menu.addAction(_("&From text"))
-        raw_transaction_text.triggered.connect(self.do_process_from_text)
 
 
         tools_menu = menubar.addMenu(_("&Tools"))
@@ -408,25 +411,29 @@ class ElectrumWindow(QMainWindow):
         preferences_menu = tools_menu.addAction(preferences_name)
         preferences_menu.triggered.connect(self.settings_dialog)
 
+        network = tools_menu.addAction(_("&Network"))
+        network.triggered.connect(self.run_network_dialog)
+
         plugins_labels = tools_menu.addAction(_("&Plugins"))
         plugins_labels.triggered.connect(self.plugins_dialog)
 
-        wallet_menu.addSeparator()
+        tools_menu.addSeparator()
 
-        labels_menu = tools_menu.addMenu(_("&Labels"))
-        import_labels = labels_menu.addAction(_("&Import"))
-        import_labels.triggered.connect(self.do_import_labels)
-        export_labels = labels_menu.addAction(_("&Export"))
-        export_labels.triggered.connect(self.do_export_labels)
+        csv_transaction_menu = tools_menu.addMenu(_("&Create transaction"))
 
-        keys_menu = tools_menu.addMenu(_("&Private keys"))
-        import_keys = keys_menu.addAction(_("&Import"))
-        import_keys.triggered.connect(self.do_import_privkey)
-        export_keys = keys_menu.addAction(_("&Export"))
-        export_keys.triggered.connect(self.do_export_privkeys)
+        csv_transaction_file = csv_transaction_menu.addAction(_("&From CSV file"))
+        csv_transaction_file.triggered.connect(self.do_process_from_csv_file)
 
-        ex_history = tools_menu.addAction(_("&Export History"))
-        ex_history.triggered.connect(self.do_export_history)
+        csv_transaction_text = csv_transaction_menu.addAction(_("&From CSV text"))
+        csv_transaction_text.triggered.connect(self.do_process_from_csv_text)
+
+        raw_transaction_menu = tools_menu.addMenu(_("&Load transaction"))
+
+        raw_transaction_file = raw_transaction_menu.addAction(_("&From file"))
+        raw_transaction_file.triggered.connect(self.do_process_from_file)
+
+        raw_transaction_text = raw_transaction_menu.addAction(_("&From text"))
+        raw_transaction_text.triggered.connect(self.do_process_from_text)
 
 
         help_menu = menubar.addMenu(_("&Help"))
