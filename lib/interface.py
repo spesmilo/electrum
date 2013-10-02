@@ -308,9 +308,8 @@ class Interface(threading.Thread):
                                     do_handshake_on_connect=True)
             except ssl.SSLError, e:
                 print_error("SSL error:", self.host, e)
-
                 # delete the certificate so we will download a new one
-                if is_new and e.errno == 1:
+                if is_new:
                     os.unlink(cert_path)
                 return
             except:
