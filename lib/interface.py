@@ -338,6 +338,8 @@ class Interface(threading.Thread):
                                     do_handshake_on_connect=True)
             except ssl.SSLError, e:
                 print_error("SSL error:", self.host, e)
+                if e.errno != 1:
+                    return
                 if is_new:
                     os.rename(temporary_path, cert_path + '.rej')
                 else:
