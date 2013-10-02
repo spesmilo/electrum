@@ -238,7 +238,8 @@ class NetworkDialog(QDialog):
 
         self.config.set_key("proxy", proxy, True)
         self.config.set_key("server", server, True)
-        self.network.set_server(server, proxy)
+        self.network.set_proxy(proxy)
+        self.network.set_server(server)
 
         self.config.set_key('auto_cycle', self.autocycle_cb.isChecked(), True)
         return True

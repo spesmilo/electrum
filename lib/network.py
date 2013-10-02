@@ -129,17 +129,26 @@ class Network(threading.Thread):
             return self.interface.is_connected
 
 
-    def set_server(self, server, proxy):
+    def set_proxy(self, proxy):
+        self.proxy = proxy
+
+
+    def set_server(self, server):
         if self.default_server == server:
             return
 
-        i = self.interface
+        # stop the interface in order to terminate subscriptions
+        subscriptions = self.interface.subscriptions
+        self.interface.stop() 
+        # notify gui
+        self.trigger_callback('disconnecting')
+        # start interface
         self.default_server = server
-        self.proxy = proxy
         self.start_interface(server)
         self.interface = self.interfaces[server]
-        i.stop_subscriptions() # fixme: it should not stop all subscriptions, and send 'unsubscribe'
-        self.trigger_callback('disconnecting') # for actively disconnecting
+        # send subscriptions
+        for cb, sub in subscriptions.items():
+            self.interface.send(sub, cb)
 
 
     def run(self):
