@@ -77,6 +77,8 @@ class Interface(threading.Thread):
 
 
 
+
+
     def queue_json_response(self, c):
 
         # uncomment to debug
@@ -135,7 +137,7 @@ class Interface(threading.Thread):
         self.server_version = result
 
 
-    def init_http(self, host, port, proxy=None, use_ssl=True):
+    def start_http(self):
         self.session_id = None
         self.is_connected = True
         self.connection_msg = ('https' if self.use_ssl else 'http') + '://%s:%d'%( self.host, self.port )
@@ -242,6 +244,8 @@ class Interface(threading.Thread):
 
     def start_tcp(self):
 
+        self.connection_msg = self.host + ':%d' % self.port
+
         if self.proxy is not None:
 
             socks.setdefaultproxy(self.proxy_mode, self.proxy["host"], int(self.proxy["port"]))
@@ -270,17 +274,17 @@ class Interface(threading.Thread):
                 s.close()
                 cert = ssl.DER_cert_to_PEM_cert(dercert)
 
-                #from OpenSSL import crypto as c
-                #_cert = c.load_certificate(c.FILETYPE_PEM, cert)
-                #notAfter = _cert.get_notAfter() 
-                #notBefore = _cert.get_notBefore() 
-                #now = time.time()
-                #if now > time.mktime( time.strptime(notAfter[:-1] + "GMT", "%Y%m%d%H%M%S%Z") ):
-                #    print "deprecated cert", host, notAfter
-                #    return
-                #if now < time.mktime( time.strptime(notBefore[:-1] + "GMT", "%Y%m%d%H%M%S%Z") ):
-                #    print "notbefore", host, notBefore
-                #    return
+                from OpenSSL import crypto as c
+                _cert = c.load_certificate(c.FILETYPE_PEM, cert)
+                notAfter = _cert.get_notAfter() 
+                notBefore = _cert.get_notBefore() 
+                now = time.time()
+                if now > time.mktime( time.strptime(notAfter[:-1] + "GMT", "%Y%m%d%H%M%S%Z") ):
+                    print "deprecated cert", self.host, notAfter
+                    return
+                if now < time.mktime( time.strptime(notBefore[:-1] + "GMT", "%Y%m%d%H%M%S%Z") ):
+                    print "notbefore", self.host, notBefore
+                    return
 
                 with open(cert_path,"w") as f:
                     print_error("saving certificate for",self.host)
