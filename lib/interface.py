@@ -255,6 +255,7 @@ class Interface(threading.Thread):
             cert_path = os.path.join( self.config.get('path'), 'certs', self.host)
 
             if not os.path.exists(cert_path):
+                is_new = True
                 # get server certificate.
                 # Do not use ssl.get_server_certificate because it does not work with proxy
                 s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
@@ -284,6 +285,8 @@ class Interface(threading.Thread):
                 with open(cert_path,"w") as f:
                     print_error("saving certificate for",self.host)
                     f.write(cert)
+            else:
+                is_new = False
 
 
         s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
@@ -305,8 +308,9 @@ class Interface(threading.Thread):
                                     do_handshake_on_connect=True)
             except ssl.SSLError, e:
                 print_error("SSL error:", self.host, e)
-                if e.errno == 1:
-                    # delete the certificate so we will download a new one
+
+                # delete the certificate so we will download a new one
+                if is_new and e.errno == 1:
                     os.unlink(cert_path)
                 return
             except:
