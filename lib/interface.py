@@ -339,8 +339,18 @@ class Interface(threading.Thread):
             except ssl.SSLError, e:
                 print_error("SSL error:", self.host, e)
                 if is_new:
-                    check_cert(self.host, cert)
                     os.rename(temporary_path, cert_path + '.rej')
+                else:
+                    from OpenSSL import crypto as c
+                    with open(cert_path) as f:
+                        cert = f.read()
+                    _cert = c.load_certificate(c.FILETYPE_PEM, cert)
+                    if _cert.has_expired():
+                        print_error("certificate has expired:", cert_path)
+                        os.unlink(cert_path)
+                    else:
+                        print_msg("wrong certificate", self.host)
+
                 return
             except:
                 print_error("wrap_socket failed", self.host)
