@@ -25,25 +25,49 @@ import ssl
 
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from util import print_error, print_msg
+from simple_config import SimpleConfig
 
 
 DEFAULT_TIMEOUT = 5
 proxy_modes = ['socks4', 'socks5', 'http']
 
 
-def is_expired(cert):
+def check_cert(host, cert):
     from OpenSSL import crypto as c
     _cert = c.load_certificate(c.FILETYPE_PEM, cert)
-    notAfter = _cert.get_notAfter() 
-    notBefore = _cert.get_notBefore() 
-    now = time.time()
-    if now > time.mktime( time.strptime(notAfter[:-1] + "GMT", "%Y%m%d%H%M%S%Z") ):
-        print "deprecated cert", self.host, notAfter
-        return True
-    if now < time.mktime( time.strptime(notBefore[:-1] + "GMT", "%Y%m%d%H%M%S%Z") ):
-        print "notbefore", self.host, notBefore
-        return True
-    return False
+
+    m = "host: %s\n"%host
+    m += "has_expired: %s\n"% _cert.has_expired()
+    m += "pubkey: %s bits\n" % _cert.get_pubkey().bits()
+    m += "serial number: %s\n"% _cert.get_serial_number() 
+    #m += "issuer: %s\n"% _cert.get_issuer()
+    #m += "algo: %s\n"% _cert.get_signature_algorithm() 
+    m += "version: %s\n"% _cert.get_version()
+    print_msg(m)
+
+
+
+def check_certificates():
+    config = SimpleConfig()
+    mydir = os.path.join(config.path, "certs")
+    certs = os.listdir(mydir)
+    for c in certs:
+        print c
+        p = os.path.join(mydir,c)
+        with open(p) as f:
+            cert = f.read()
+        check_cert(c, cert)
+    
+
+def cert_verify_hostname(s):
+    # hostname verification (disabled)
+    from backports.ssl_match_hostname import match_hostname, CertificateError
+    try:
+        match_hostname(s.getpeercert(True), host)
+        print_error("hostname matches", host)
+    except CertificateError, ce:
+        print_error("hostname did not match", host)
+
 
 
 class Interface(threading.Thread):
@@ -52,7 +76,6 @@ class Interface(threading.Thread):
     def __init__(self, config=None):
 
         if config is None:
-            from simple_config import SimpleConfig
             config = SimpleConfig()
 
         threading.Thread.__init__(self)
@@ -288,10 +311,10 @@ class Interface(threading.Thread):
                 dercert = s.getpeercert(True)
                 s.close()
                 cert = ssl.DER_cert_to_PEM_cert(dercert)
-
                 temporary_path = cert_path + '.temp'
                 with open(temporary_path,"w") as f:
                     f.write(cert)
+
             else:
                 is_new = False
 
@@ -316,27 +339,18 @@ class Interface(threading.Thread):
             except ssl.SSLError, e:
                 print_error("SSL error:", self.host, e)
                 if is_new:
-                    os.unlink(temporary_path)
+                    check_cert(self.host, cert)
+                    os.rename(temporary_path, cert_path + '.rej')
                 return
             except:
                 print_error("wrap_socket failed", self.host)
                 traceback.print_exc(file=sys.stdout)
-                if is_new:
-                    os.unlink(temporary_path)
                 return
 
             if is_new:
                 print_error("saving certificate for", self.host)
                 os.rename(temporary_path, cert_path)
 
-            # hostname verification (disabled)
-            #from backports.ssl_match_hostname import match_hostname, CertificateError
-            #try:
-            #    match_hostname(s.getpeercert(), self.host)
-            #    print_error("hostname matches", self.host)
-            #except CertificateError, ce:
-            #    print_error("hostname does not match", self.host, s.getpeercert())
-            #    return
 
         s.settimeout(60)
         self.s = s
@@ -538,11 +552,5 @@ class Interface(threading.Thread):
 
 
 if __name__ == "__main__":
-    
-    q = Queue.Queue()
-    i = Interface({'server':'btc.it-zone.org:50002:s', 'path':'/extra/key/wallet', 'verbose':True})
-    i.start(q)
-    time.sleep(1)
-    exit()
 
-    
+    check_certificates()
