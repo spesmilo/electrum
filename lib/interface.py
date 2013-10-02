@@ -253,6 +253,7 @@ class Interface(threading.Thread):
 
         if self.use_ssl:
             cert_path = os.path.join( self.config.get('path'), 'certs', self.host)
+
             if not os.path.exists(cert_path):
                 # get server certificate.
                 # Do not use ssl.get_server_certificate because it does not work with proxy
@@ -267,8 +268,21 @@ class Interface(threading.Thread):
                 dercert = s.getpeercert(True)
                 s.close()
                 cert = ssl.DER_cert_to_PEM_cert(dercert)
-                    
+
+                #from OpenSSL import crypto as c
+                #_cert = c.load_certificate(c.FILETYPE_PEM, cert)
+                #notAfter = _cert.get_notAfter() 
+                #notBefore = _cert.get_notBefore() 
+                #now = time.time()
+                #if now > time.mktime( time.strptime(notAfter[:-1] + "GMT", "%Y%m%d%H%M%S%Z") ):
+                #    print "deprecated cert", host, notAfter
+                #    return
+                #if now < time.mktime( time.strptime(notBefore[:-1] + "GMT", "%Y%m%d%H%M%S%Z") ):
+                #    print "notbefore", host, notBefore
+                #    return
+
                 with open(cert_path,"w") as f:
+                    print_error("saving certificate for",self.host)
                     f.write(cert)
 
 
@@ -291,21 +305,23 @@ class Interface(threading.Thread):
                                     do_handshake_on_connect=True)
             except ssl.SSLError, e:
                 print_error("SSL error:", self.host, e)
+                if e.errno == 1:
+                    # delete the certificate so we will download a new one
+                    os.unlink(cert_path)
                 return
             except:
                 traceback.print_exc(file=sys.stdout)
                 print_error("wrap_socket failed", self.host)
                 return
 
-        # hostname verification (disabled)
-        if self.use_ssl and False:
-            from backports.ssl_match_hostname import match_hostname, CertificateError
-            try:
-                match_hostname(s.getpeercert(), self.host)
-                print_error("hostname matches", self.host)
-            except CertificateError, ce:
-                print_error("hostname does not match", self.host, s.getpeercert())
-                return
+            # hostname verification (disabled)
+            #from backports.ssl_match_hostname import match_hostname, CertificateError
+            #try:
+            #    match_hostname(s.getpeercert(), self.host)
+            #    print_error("hostname matches", self.host)
+            #except CertificateError, ce:
+            #    print_error("hostname does not match", self.host, s.getpeercert())
+            #    return
 
         s.settimeout(60)
         self.s = s
