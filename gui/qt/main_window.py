@@ -149,7 +149,6 @@ class ElectrumWindow(QMainWindow):
 
         self.need_update = threading.Event()
 
-        self.expert_mode   = config.get('classic_expert_mode', False)
         self.decimal_point = config.get('decimal_point', 8)
         self.num_zeros     = int(config.get('num_zeros',0))
 
@@ -1026,21 +1025,13 @@ class ElectrumWindow(QMainWindow):
         return w
 
 
-    def receive_tab_set_mode(self, i):
-        self.save_column_widths()
-        self.expert_mode = (i == 1)
-        self.config.set_key('classic_expert_mode', self.expert_mode, True)
-        self.update_receive_tab()
 
 
     def save_column_widths(self):
-        if not self.expert_mode:
-            widths = [ self.receive_list.columnWidth(0) ]
-        else:
-            widths = []
-            for i in range(self.receive_list.columnCount() -1):
-                widths.append(self.receive_list.columnWidth(i))
-        self.column_widths["receive"][self.expert_mode] = widths
+        widths = []
+        for i in range(self.receive_list.columnCount() -1):
+            widths.append(self.receive_list.columnWidth(i))
+        self.column_widths["receive"][1] = widths
         
         self.column_widths["history"] = []
         for i in range(self.history_list.columnCount() - 1):
@@ -1117,11 +1108,10 @@ class ElectrumWindow(QMainWindow):
         if addr in self.wallet.imported_keys:
             menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
 
-        if self.expert_mode:
-            t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
-            menu.addAction(t, lambda: self.toggle_freeze(addr))
-            t = _("Unprioritize") if addr in self.wallet.prioritized_addresses else _("Prioritize")
-            menu.addAction(t, lambda: self.toggle_priority(addr))
+        t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
+        menu.addAction(t, lambda: self.toggle_freeze(addr))
+        t = _("Unprioritize") if addr in self.wallet.prioritized_addresses else _("Prioritize")
+        menu.addAction(t, lambda: self.toggle_priority(addr))
             
         run_hook('receive_menu', menu)
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
@@ -1177,20 +1167,19 @@ class ElectrumWindow(QMainWindow):
         balance = self.format_amount(c + u)
         item.setData(2,0,balance)
 
-        if self.expert_mode:
-            if address in self.wallet.frozen_addresses: 
-                item.setBackgroundColor(0, QColor('lightblue'))
-            elif address in self.wallet.prioritized_addresses: 
-                item.setBackgroundColor(0, QColor('lightgreen'))
+        if address in self.wallet.frozen_addresses: 
+            item.setBackgroundColor(0, QColor('lightblue'))
+        elif address in self.wallet.prioritized_addresses: 
+            item.setBackgroundColor(0, QColor('lightgreen'))
         
 
     def update_receive_tab(self):
         l = self.receive_list
         
         l.clear()
-        l.setColumnHidden(2, not self.expert_mode)
-        l.setColumnHidden(3, not self.expert_mode)
-        for i,width in enumerate(self.column_widths['receive'][self.expert_mode]):
+        l.setColumnHidden(2, False)
+        l.setColumnHidden(3, False)
+        for i,width in enumerate(self.column_widths['receive'][1]):
             l.setColumnWidth(i, width)
 
         if self.current_account is None:
@@ -1212,14 +1201,12 @@ class ElectrumWindow(QMainWindow):
                 icon = QIcon(":icons/key.png")
                 account_item.setIcon(0, icon)
             
-            for is_change in ([0,1] if self.expert_mode else [0]):
-                if self.expert_mode:
-                    name = _("Receiving") if not is_change else _("Change")
-                    seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
-                    account_item.addChild(seq_item)
-                    if not is_change: seq_item.setExpanded(True)
-                else:
-                    seq_item = account_item
+            for is_change in ([0,1]):
+                name = _("Receiving") if not is_change else _("Change")
+                seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
+                account_item.addChild(seq_item)
+                if not is_change: seq_item.setExpanded(True)
+
                 is_red = False
                 gap = 0
 
@@ -1902,28 +1889,21 @@ class ElectrumWindow(QMainWindow):
         d.setWindowTitle(_('Electrum Settings'))
         d.setModal(1)
         vbox = QVBoxLayout()
+        grid = QGridLayout()
+        grid.setColumnStretch(0,1)
 
-        tabs = QTabWidget(self)
-        self.settings_tab = tabs
-        vbox.addWidget(tabs)
-
-        tab1 = QWidget()
-        grid_ui = QGridLayout(tab1)
-        grid_ui.setColumnStretch(0,1)
-        tabs.addTab(tab1, _('Display') )
-
-        nz_label = QLabel(_('Display zeros'))
-        grid_ui.addWidget(nz_label, 0, 0)
+        nz_label = QLabel(_('Display zeros') + ':')
+        grid.addWidget(nz_label, 0, 0)
         nz_e = AmountEdit(None,True)
         nz_e.setText("%d"% self.num_zeros)
-        grid_ui.addWidget(nz_e, 0, 1)
+        grid.addWidget(nz_e, 0, 1)
         msg = _('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"')
-        grid_ui.addWidget(HelpButton(msg), 0, 2)
+        grid.addWidget(HelpButton(msg), 0, 2)
         if not self.config.is_modifiable('num_zeros'):
             for w in [nz_e, nz_label]: w.setEnabled(False)
         
         lang_label=QLabel(_('Language') + ':')
-        grid_ui.addWidget(lang_label, 1, 0)
+        grid.addWidget(lang_label, 1, 0)
         lang_combo = QComboBox()
         from electrum.i18n import languages
         lang_combo.addItems(languages.values())
@@ -1932,59 +1912,43 @@ class ElectrumWindow(QMainWindow):
         except:
             index = 0
         lang_combo.setCurrentIndex(index)
-        grid_ui.addWidget(lang_combo, 1, 1)
-        grid_ui.addWidget(HelpButton(_('Select which language is used in the GUI (after restart).')+' '), 1, 2)
+        grid.addWidget(lang_combo, 1, 1)
+        grid.addWidget(HelpButton(_('Select which language is used in the GUI (after restart).')+' '), 1, 2)
         if not self.config.is_modifiable('language'):
             for w in [lang_combo, lang_label]: w.setEnabled(False)
 
-        expert_cb = QCheckBox(_('Expert mode'))
-        expert_cb.setChecked(self.expert_mode)
-        grid_ui.addWidget(expert_cb, 3, 0)
-        hh =  _('In expert mode, your client will:') + '\n'  \
-            + _(' - Show change addresses in the Receive tab') + '\n'  \
-            + _(' - Display the balance of each address') + '\n'  \
-            + _(' - Add freeze/prioritize actions to addresses.') 
-        grid_ui.addWidget(HelpButton(hh), 3, 2)
-        grid_ui.setRowStretch(4,1)
-
-        # wallet tab
-        tab2 = QWidget()
-        grid_wallet = QGridLayout(tab2)
-        grid_wallet.setColumnStretch(0,1)
-        tabs.addTab(tab2, _('Wallet') )
         
-        fee_label = QLabel(_('Transaction fee'))
-        grid_wallet.addWidget(fee_label, 0, 0)
+        fee_label = QLabel(_('Transaction fee') + ':')
+        grid.addWidget(fee_label, 2, 0)
         fee_e = AmountEdit(self.base_unit)
         fee_e.setText(self.format_amount(self.wallet.fee).strip())
-        grid_wallet.addWidget(fee_e, 0, 2)
+        grid.addWidget(fee_e, 2, 1)
         msg = _('Fee per kilobyte of transaction.') + ' ' \
             + _('Recommended value') + ': ' + self.format_amount(50000)
-        grid_wallet.addWidget(HelpButton(msg), 0, 3)
+        grid.addWidget(HelpButton(msg), 2, 2)
         if not self.config.is_modifiable('fee_per_kb'):
             for w in [fee_e, fee_label]: w.setEnabled(False)
 
-        usechange_cb = QCheckBox(_('Use change addresses'))
-        usechange_cb.setChecked(self.wallet.use_change)
-        grid_wallet.addWidget(usechange_cb, 1, 0)
-        grid_wallet.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions.')+' '), 1, 3)
-        if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
-
         units = ['BTC', 'mBTC']
-        unit_label = QLabel(_('Base unit'))
-        grid_wallet.addWidget(unit_label, 3, 0)
+        unit_label = QLabel(_('Base unit') + ':')
+        grid.addWidget(unit_label, 3, 0)
         unit_combo = QComboBox()
         unit_combo.addItems(units)
         unit_combo.setCurrentIndex(units.index(self.base_unit()))
-        grid_wallet.addWidget(unit_combo, 3, 2)
-        grid_wallet.addWidget(HelpButton(_('Base unit of your wallet.')\
+        grid.addWidget(unit_combo, 3, 1)
+        grid.addWidget(HelpButton(_('Base unit of your wallet.')\
                                              + '\n1BTC=1000mBTC.\n' \
-                                             + _(' This settings affects the fields in the Send tab')+' '), 3, 3)
-        grid_wallet.setRowStretch(4,1)
+                                             + _(' This settings affects the fields in the Send tab')+' '), 3, 2)
 
+        usechange_cb = QCheckBox(_('Use change addresses'))
+        usechange_cb.setChecked(self.wallet.use_change)
+        grid.addWidget(usechange_cb, 4, 0)
+        grid.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions.')+' '), 4, 2)
+        if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
 
-        run_hook('create_settings_tab', tabs)
+        grid.setRowStretch(5,1)
 
+        vbox.addLayout(grid)
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox) 
 
@@ -2033,13 +1997,11 @@ class ElectrumWindow(QMainWindow):
             self.config.set_key("language", lang_request, True)
             need_restart = True
             
-
         run_hook('close_settings_dialog')
 
         if need_restart:
             QMessageBox.warning(self, _('Success'), _('Please restart Electrum to activate the new GUI settings'), _('OK'))
 
-        self.receive_tab_set_mode(expert_cb.isChecked())
 
     def run_network_dialog(self):
         NetworkDialog(self.wallet.network, self.config, self).do_exec()
