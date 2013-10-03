@@ -13,4 +13,4 @@ from transaction import Transaction
 from plugins import BasePlugin
 from mnemonic import mn_encode as mnemonic_encode
 from mnemonic import mn_decode as mnemonic_decode
-from commands import protected_commands, known_commands, offline_commands, Commands
+from commands import Commands, known_commands

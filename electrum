@@ -171,20 +171,26 @@ if __name__ == '__main__':
         sys.exit(0)
 
 
-    # instanciate wallet for command-line
-    storage = WalletStorage(config)
-    wallet = Wallet(storage)
-
     if cmd not in known_commands:
         cmd = 'help'
 
-    if not storage.file_exists and cmd not in ['help','create','restore']:
+    cmd = known_commands[cmd]
+
+    # instanciate wallet for command-line
+    storage = WalletStorage(config)
+
+    if cmd.requires_wallet:
+        wallet = Wallet(storage)
+    else:
+        wallet = None
+
+    if cmd.name not in ['create', 'restore'] and cmd.requires_wallet and not storage.file_exists:
         print_msg("Error: Wallet file not found.")
         print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
     
-    if cmd in ['create', 'restore']:
-        if wallet.storage.file_exists:
+    if cmd.name in ['create', 'restore']:
+        if storage.file_exists:
             sys.exit("Error: Remove the existing wallet first!")
         if options.password != None:
             password = options.password
@@ -203,7 +209,7 @@ if __name__ == '__main__':
         if fee: wallet.set_fee(float(fee)*100000000)
         if gap: wallet.change_gap_limit(int(gap))
 
-        if cmd == 'restore':
+        if cmd.name == 'restore':
             seed = raw_input("seed:")
             try:
                 seed.decode('hex')
@@ -248,13 +254,13 @@ if __name__ == '__main__':
 
 
     # important warning
-    if cmd in ['dumpprivkey', 'dumpprivkeys']:
+    if cmd.name in ['dumpprivkey', 'dumpprivkeys']:
         print_msg("WARNING: ALL your private keys are secret.")
         print_msg("Exposing a single private key can compromise your entire wallet!")
         print_msg("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
 
     # commands needing password
-    if cmd in protected_commands:
+    if cmd.requires_password:
         if wallet.use_encryption:
             password = prompt_password('Password:', False)
             if not password:
@@ -274,28 +280,28 @@ if __name__ == '__main__':
 
 
     # add missing arguments, do type conversions
-    if cmd == 'importprivkey':
+    if cmd.name == 'importprivkey':
         # See if they specificed a key on the cmd line, if not prompt
         if len(args) == 1:
             args[1] = prompt_password('Enter PrivateKey (will not echo):', False)
 
-    elif cmd == 'signrawtransaction':
+    elif cmd.name == 'signrawtransaction':
         args = [ cmd, args[1], json.loads(args[2]) if len(args)>2 else [], json.loads(args[3]) if len(args)>3 else []]
 
-    elif cmd == 'createmultisig':
+    elif cmd.name == 'createmultisig':
         args = [ cmd, int(args[1]), json.loads(args[2])]
 
-    elif cmd == 'createrawtransaction':
+    elif cmd.name == 'createrawtransaction':
         args = [ cmd, json.loads(args[1]), json.loads(args[2])]
 
-    elif cmd == 'listaddresses':
+    elif cmd.name == 'listaddresses':
         args = [cmd, options.show_all, options.show_balance, options.show_labels]
 
-    elif cmd in ['payto', 'mktx']:
+    elif cmd.name in ['payto', 'mktx']:
         domain = [options.from_addr] if options.from_addr else None
         args = [ 'mktx', args[1], Decimal(args[2]), Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, domain ]
         
-    elif cmd in ['paytomany', 'mksendmanytx']:
+    elif cmd.name in ['paytomany', 'mksendmanytx']:
         domain = [options.from_addr] if options.from_addr else None
         outputs = []
         for i in range(1, len(args), 2):
@@ -305,47 +311,49 @@ if __name__ == '__main__':
             outputs.append((args[i], Decimal(args[i+1])))
         args = [ 'mksendmanytx', outputs, Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, domain ]        
 
-    elif cmd == 'help':
+    elif cmd.name == 'help':
         if len(args) < 2:
             print_help(parser)
 
                 
 
     # check the number of arguments
-    min_args, max_args, description, syntax, options_syntax = known_commands[cmd]
-    if len(args) - 1 < min_args:
+    if len(args) - 1 < cmd.min_args:
         print_msg("Not enough arguments")
         print_msg("Syntax:", syntax)
         sys.exit(1)
 
-    if max_args >= 0 and len(args) - 1 > max_args:
+    if cmd.max_args >= 0 and len(args) - 1 > cmd.max_args:
         print_msg("too many arguments", args)
         print_msg("Syntax:", syntax)
         sys.exit(1)
 
-    if max_args < 0:
-        if len(args) > min_args + 1:
-            message = ' '.join(args[min_args:])
+    if cmd.max_args < 0:
+        if len(args) > cmd.min_args + 1:
+            message = ' '.join(args[cmd.min_args:])
             print_msg("Warning: Final argument was reconstructed from several arguments:", repr(message))
-            args = args[0:min_args] + [ message ]
+            args = args[0:cmd.min_args] + [ message ]
 
 
     # open session
-    if cmd not in offline_commands and not options.offline:
+    if cmd.requires_network and not options.offline:
         network = Network(config)
         network.register_callback('connected', lambda: sys.stderr.write("Connected to " + network.interface.connection_msg + "\n"))
         if not network.start(wait=True):
             print_msg("Not connected, aborting.")
             sys.exit(1)
 
-        wallet.start_threads(network)
-        wallet.update()
+        if wallet:
+            wallet.start_threads(network)
+            wallet.update()
+    else:
+        network = None
 
 
 
     # run the command
 
-    if cmd == 'deseed':
+    if cmd.name == 'deseed':
         if not wallet.seed:
             print_msg("Error: This wallet has no seed")
         else:
@@ -363,11 +371,11 @@ if __name__ == '__main__':
             else:
                 print_msg("Action canceled.")
 
-    elif cmd == 'getconfig':
+    elif cmd.name == 'getconfig':
         key = args[1]
         print_msg(config.get(key))
 
-    elif cmd == 'setconfig':
+    elif cmd.name == 'setconfig':
         key, value = args[1:3]
         if key not in ['seed', 'seed_version', 'master_public_key', 'use_encryption']:
             config.set_key(key, value, True)
@@ -375,16 +383,17 @@ if __name__ == '__main__':
         else:
             print_msg(False)
 
-    elif cmd == 'password':
+    elif cmd.name == 'password':
         new_password = prompt_password('New password:')
         wallet.update_password(seed, password, new_password)
 
     else:
-        run_command(cmd, password, args)
+        run_command(cmd.name, password, args)
         
 
-    if cmd not in offline_commands and not options.offline:
-        wallet.stop_threads()
+    if network:
+        if wallet:
+            wallet.stop_threads()
         network.stop()
         time.sleep(0.1)
         sys.exit(0)
