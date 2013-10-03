@@ -338,10 +338,10 @@ if __name__ == '__main__':
     # open session
     if cmd.requires_network and not options.offline:
         network = Network(config)
-        network.register_callback('connected', lambda: sys.stderr.write("Connected to " + network.interface.connection_msg + "\n"))
         if not network.start(wait=True):
             print_msg("Not connected, aborting.")
             sys.exit(1)
+        print_msg("Connected to " + network.interface.connection_msg)
 
         if wallet:
             wallet.start_threads(network)
