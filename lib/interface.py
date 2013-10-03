@@ -532,23 +532,6 @@ class Interface(threading.Thread):
         return self.unanswered_requests == {}
 
 
-    def synchronous_get(self, requests, timeout=100000000):
-        # todo: use generators, unanswered_requests should be a list of arrays...
-        queue = Queue.Queue()
-        ids = self.send(requests, lambda i,r: queue.put(r))
-        id2 = ids[:]
-        res = {}
-        while ids:
-            r = queue.get(True, timeout)
-            _id = r.get('id')
-            if _id in ids:
-                ids.remove(_id)
-                res[_id] = r.get('result')
-        out = []
-        for _id in id2:
-            out.append(res[_id])
-        return out
-
 
     def start(self, queue):
         self.queue = queue

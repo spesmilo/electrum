@@ -1374,7 +1374,7 @@ class Wallet:
                     # assert not self.is_mine(_addr)
                     ext_requests.append( ('blockchain.address.get_history', [_addr]) )
 
-                ext_h = self.network.interface.synchronous_get(ext_requests)
+                ext_h = self.network.synchronous_get(ext_requests)
                 print_error("sync:", ext_requests, ext_h)
                 height = None
                 for h in ext_h:

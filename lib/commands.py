@@ -101,7 +101,7 @@ class Commands:
 
     def getaddresshistory(self, addr):
         h = self.wallet.get_history(addr)
-        if h is None: h = self.wallet.interface.synchronous_get([ ('blockchain.address.get_history',[addr]) ])[0]
+        if h is None: h = self.network.synchronous_get([ ('blockchain.address.get_history',[addr]) ])[0]
         return h
 
     def listunspent(self):

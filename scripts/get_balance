@@ -3,25 +3,26 @@
 import sys
 from electrum import Interface
 from electrum import bitcoin, Transaction
+from electrum import Network, SimpleConfig
 
 
-def get_transaction(interface, tx_hash, tx_height):
-    raw_tx = interface.synchronous_get([(
+def get_transaction(network, tx_hash, tx_height):
+    raw_tx = network.synchronous_get([(
         'blockchain.transaction.get', [tx_hash, tx_height])])[0]
     tx = Transaction(raw_tx)
     return tx
 
 
-def get_history(interface, addr):
-    transactions = interface.synchronous_get([(
+def get_history(network, addr):
+    transactions = network.synchronous_get([(
         'blockchain.address.get_history', [addr])])[0]
     transactions.sort(key=lambda x: x["height"])
     return [(i["tx_hash"], i["height"]) for i in transactions]
 
 
-def get_addr_balance(interface, address):
+def get_addr_balance(network, address):
     prevout_values = {}
-    h = get_history(interface, address)
+    h = get_history(network, address)
     if h == ['*']:
         return 0, 0
     c = u = 0
@@ -31,7 +32,7 @@ def get_addr_balance(interface, address):
     # fetch transactions
     for tx_hash, tx_height in h:
         transactions[(tx_hash, tx_height)] = get_transaction(
-            interface, tx_hash, tx_height)
+            network, tx_hash, tx_height)
 
     for tx_hash, tx_height in h:
         tx = transactions[(tx_hash, tx_height)]
@@ -74,9 +75,9 @@ def update_tx_outputs(tx, prevout_values):
 
 
 def main(address):
-    interface = Interface()
-    interface.start()
-    c, u = get_addr_balance(interface, address)
+    network = Network(SimpleConfig({'server':'btc.it-zone.org:110:s','verbose':False}))
+    network.start(wait=True)
+    c, u = get_addr_balance(network, address)
 
     print("Balance - confirmed: %d (%.8f BTC), unconfirmed: %d (%.8f BTC)" %
           (c, c / 100000000., u, u / 100000000.))

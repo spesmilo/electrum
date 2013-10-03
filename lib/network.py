@@ -226,9 +226,26 @@ class Network(threading.Thread):
         with self.lock: return self.running
 
     
+    def synchronous_get(self, requests, timeout=100000000):
+        queue = Queue.Queue()
+        ids = self.interface.send(requests, lambda i,r: queue.put(r))
+        id2 = ids[:]
+        res = {}
+        while ids:
+            r = queue.get(True, timeout)
+            _id = r.get('id')
+            if _id in ids:
+                ids.remove(_id)
+                res[_id] = r.get('result')
+        out = []
+        for _id in id2:
+            out.append(res[_id])
+        return out
+
+
     def retrieve_transaction(self, tx_hash, tx_height=0):
         import transaction
-        r = self.interface.synchronous_get([ ('blockchain.transaction.get',[tx_hash, tx_height]) ])[0]
+        r = self.synchronous_get([ ('blockchain.transaction.get',[tx_hash, tx_height]) ])[0]
         if r:
             return transaction.Transaction(r)
 
