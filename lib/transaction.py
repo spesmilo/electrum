@@ -708,7 +708,7 @@ class Transaction:
                 return True
         sum = 0
         for i in self.inputs:
-            age = verifier.get_confirmations(i["tx_hash"])[0]
+            age = verifier.get_confirmations(i["prevout_hash"])[0]
             sum += i["value"] * age
         priority = sum / size
         print_error(priority, threshold)
