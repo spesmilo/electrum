@@ -240,9 +240,15 @@ class InstallWizard(QDialog):
 
     def show_seed(self, wallet):
         from seed_dialog import make_seed_dialog
+
+        vbox = make_seed_dialog(wallet.seed, wallet.imported_keys)
+        vbox.addLayout(ok_cancel_buttons(self, _("Next")))
+
         if self.layout(): QWidget().setLayout(self.layout())
-        make_seed_dialog(self, wallet.seed, wallet.imported_keys)
-        self.exec_()
+        self.setLayout(vbox)
+
+        if not self.exec_():
+            exit()
 
 
     def password_dialog(self, wallet):

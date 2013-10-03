@@ -1491,8 +1491,8 @@ class ElectrumWindow(QMainWindow):
                 QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
                 return
             from seed_dialog import SeedDialog
-            d = SeedDialog(self)
-            d.show_seed(seed, self.wallet.imported_keys)
+            d = SeedDialog(self, seed, self.wallet.imported_keys)
+            d.exec_()
         else:
             l = {}
             for k in self.wallet.master_private_keys.keys():

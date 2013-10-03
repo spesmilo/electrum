@@ -25,15 +25,16 @@ from qrcodewidget import QRCodeWidget
 from util import close_button
 
 class SeedDialog(QDialog):
-    def __init__(self, parent):
+    def __init__(self, parent, seed, imported_keys):
         QDialog.__init__(self, parent)
         self.setModal(1)
         self.setWindowTitle('Electrum' + ' - ' + _('Seed'))
         self.parent = parent
 
-    def show_seed(self, seed, imported_keys):
-        make_seed_dialog(self, seed, imported_keys)
-        self.exec_()
+        vbox = make_seed_dialog(seed, imported_keys)
+        vbox.addLayout(close_button(self))
+        self.setLayout(vbox)
+
 
 
 class PrivateKeysDialog(QDialog):
@@ -54,7 +55,7 @@ class PrivateKeysDialog(QDialog):
 
 
 
-def make_seed_dialog(self, seed, imported_keys):
+def make_seed_dialog(seed, imported_keys):
 
         brainwallet = ' '.join(mnemonic.mn_encode(seed))
 
@@ -92,6 +93,4 @@ def make_seed_dialog(self, seed, imported_keys):
         vbox.addLayout(grid)
         vbox.addWidget(label2)
 
-        vbox.addLayout(close_button(self))
-
-        self.setLayout(vbox)
+        return vbox
