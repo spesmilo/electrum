@@ -130,10 +130,6 @@ if __name__ == '__main__':
         for k, v in config_options.items():
             if v is None: config_options.pop(k)
 
-    # Wallet migration on Electrum 1.7
-    # Todo: In time we could remove this again
-    if platform.system() == "Windows":
-        util.check_windows_wallet_migration()
 
     config = SimpleConfig(config_options)
 
