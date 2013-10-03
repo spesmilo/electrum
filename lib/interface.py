@@ -46,6 +46,18 @@ def check_cert(host, cert):
     print_msg(m)
 
 
+def cert_has_expired(cert_path):
+    try:
+        import OpenSSL
+    except:
+        print_error("Warning: cannot import OpenSSL")
+        return False
+    from OpenSSL import crypto as c
+    with open(cert_path) as f:
+        cert = f.read()
+    _cert = c.load_certificate(c.FILETYPE_PEM, cert)
+    return _cert.has_expired()
+
 
 def check_certificates():
     config = SimpleConfig()
@@ -343,16 +355,11 @@ class Interface(threading.Thread):
                 if is_new:
                     os.rename(temporary_path, cert_path + '.rej')
                 else:
-                    from OpenSSL import crypto as c
-                    with open(cert_path) as f:
-                        cert = f.read()
-                    _cert = c.load_certificate(c.FILETYPE_PEM, cert)
-                    if _cert.has_expired():
+                    if cert_has_expired(cert_path):
                         print_error("certificate has expired:", cert_path)
                         os.unlink(cert_path)
                     else:
                         print_msg("wrong certificate", self.host)
-
                 return
             except:
                 print_error("wrap_socket failed", self.host)
@@ -362,7 +369,6 @@ class Interface(threading.Thread):
             if is_new:
                 print_error("saving certificate for", self.host)
                 os.rename(temporary_path, cert_path)
-
 
         s.settimeout(60)
         self.s = s
