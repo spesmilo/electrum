@@ -94,9 +94,12 @@ class Blockchain(threading.Thread):
                 self.network.trigger_callback('updated')
 
             h = self.servers_height.get(self.network.interface.server)
-            if h is not None and h < height - 1:
-                print "server is lagging", height, h
-                self.network.interface.stop()
+            if h is not None and h < height :
+                print_error( "Server is lagging", height, h)
+                if self.config.get('auto_cycle'):
+                    self.network.set_server(i.server)
+                else:
+                    self.network.interface.stop()
 
 
                     

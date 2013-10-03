@@ -109,8 +109,8 @@ class Interface(threading.Thread):
         self.pending_transactions_for_notifications= []
 
         # parse server
-        s = config.get('server')
-        host, port, protocol = s.split(':')
+        self.server = config.get('server')
+        host, port, protocol = self.server.split(':')
         port = int(port)
             
         if protocol not in 'ghst':
@@ -123,7 +123,6 @@ class Interface(threading.Thread):
         self.proxy = self.parse_proxy_options(config.get('proxy'))
         if self.proxy:
             self.proxy_mode = proxy_modes.index(self.proxy["mode"]) + 1
-        self.server = host + ':%d:%s'%(port, protocol)
 
 
 
