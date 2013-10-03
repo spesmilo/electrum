@@ -319,7 +319,11 @@ class Interface(threading.Thread):
                     # print_error("failed to connect", self.host, self.port)
                     return
 
-                s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv3, cert_reqs=ssl.CERT_NONE, ca_certs=None)
+                try:
+                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv3, cert_reqs=ssl.CERT_NONE, ca_certs=None)
+                except ssl.SSLError, e:
+                    print_error("SSL error:", self.host, e)
+                    return
                 dercert = s.getpeercert(True)
                 s.close()
                 cert = ssl.DER_cert_to_PEM_cert(dercert)
