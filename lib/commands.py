@@ -69,8 +69,9 @@ register_command('freeze',               1, 1, False, True,  True,  'Freeze the 
 register_command('getbalance',           0, 1, True,  True,  False, 'Return the balance of your wallet, or of one account in your wallet', 'getbalance [<account>]')
 register_command('getservers',           0, 0, True,  False, False, 'Return the list of available servers')
 register_command('getaddressbalance',    1, 1, True,  True,  False, 'Return the balance of an address', 'getbalance <address>')
-register_command('getaddresshistory',    1, 1, True,  False, False, 'Return the transaction history of an address', 'getaddresshistory <address>')
+register_command('getaddresshistory',    1, 1, True,  True,  False, 'Return the transaction history of a wallet address', 'getaddresshistory <address>')
 register_command('getconfig',            1, 1, False, False, False, 'Return a configuration variable', 'getconfig <name>', config_options)
+register_command('getpubkeys',           1, 1, False, True,  False, 'Return the public keys for a wallet address', 'getpubkeys <bitcoin address>')
 register_command('getrawtransaction',    1, 2, True,  False, False, 'Retrieve a transaction', 'getrawtransaction <txhash> <height>')
 register_command('getseed',              0, 0, False, True,  True,  'Print the generation seed of your wallet.')
 register_command('help',                 0, 1, False, False, False, 'Prints this help')
@@ -118,6 +119,7 @@ class Commands:
         return result
 
     def getaddresshistory(self, addr):
+        assert self.wallet.is_mine(addr)
         h = self.wallet.get_history(addr)
         if h is None: h = self.network.synchronous_get([ ('blockchain.address.get_history',[addr]) ])[0]
         return h
@@ -177,17 +179,20 @@ class Commands:
             addresses = self.wallet.addresses(True)
         return [self.wallet.get_private_key(address, self.password) for address in addresses]
 
-    def validateaddress(self,addr):
+    def validateaddress(self, addr):
         isvalid = is_valid(addr)
         out = { 'isvalid':isvalid }
         if isvalid:
-            is_mine = self.wallet.is_mine(addr)
             out['address'] = addr
-            out['ismine'] = is_mine
-            if is_mine:
-                account, sequence = self.wallet.get_address_index(addr)
-                if account != -1:
-                    out['pubkey'] = self.wallet.get_public_key(addr)
+
+    def getpubkeys(self, addr):
+        assert is_valid(addr) and self.wallet.is_mine(addr)
+        out = { 'address':addr }
+        account, sequence = self.wallet.get_address_index(addr)
+        if account != -1:
+            a = self.wallet.accounts[account]
+            out['pubkeys'] = a.get_pubkeys( sequence )
+
         return out
 
     def getbalance(self, account= None):
@@ -337,14 +342,14 @@ class Commands:
                 out.append( item )
         return out
                          
-    def help(self, cmd2=None):
-        if cmd2 not in known_commands:
+    def help(self, cmd=None):
+        if cmd not in known_commands:
             print_msg("\nList of commands:", ', '.join(sorted(known_commands)))
         else:
-            _, _, description, syntax, options_syntax = known_commands[cmd2]
-            print_msg(description)
-            if syntax: print_msg("Syntax: " + syntax)
-            if options_syntax: print_msg("options:\n" + options_syntax)
+            cmd = known_commands[cmd]
+            print_msg(cmd.description)
+            if cmd.syntax: print_msg("Syntax: " + cmd.syntax)
+            if cmd.options: print_msg("options:\n" + cmd.options)
         return None
 
     def getrawtransaction(self, tx_hash, height = 0):

@@ -555,10 +555,6 @@ class Wallet:
         return '&'.join(dd)
 
 
-    def get_public_key(self, address):
-        account, sequence = self.get_address_index(address)
-        return self.accounts[account].get_pubkey( *sequence )
-
 
     def decode_seed(self, password):
         seed = pw_decode(self.seed, password)
