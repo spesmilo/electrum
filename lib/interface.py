@@ -103,6 +103,8 @@ class Interface(threading.Thread):
         self.is_connected = False
         self.poll_interval = 1
 
+        self.debug = False # dump network messages. can be changed at runtime using the console
+
         #json
         self.message_id = 0
         self.unanswered_requests = {}
@@ -131,7 +133,8 @@ class Interface(threading.Thread):
     def queue_json_response(self, c):
 
         # uncomment to debug
-        # print_error( "<--",c )
+        if self.debug:
+            print_error( "<--",c )
 
         msg_id = c.get('id')
         error = c.get('error')
@@ -433,8 +436,8 @@ class Interface(threading.Thread):
             request = json.dumps( { 'id':self.message_id, 'method':method, 'params':params } )
             self.unanswered_requests[self.message_id] = method, params, callback
             ids.append(self.message_id)
-            # uncomment to debug
-            # print "-->", request
+            if self.debug:
+                print "-->", request
             self.message_id += 1
             out += request + '\n'
         while out:
