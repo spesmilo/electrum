@@ -196,6 +196,7 @@ class Network(threading.Thread):
             if i.is_connected:
                 i.send([ ('blockchain.headers.subscribe',[])], self.on_header)
                 if i == self.interface:
+                    print_error('sending subscriptions to', self.interface.server)
                     self.send_subscriptions()
                     self.trigger_callback('connected')
             else:
@@ -208,6 +209,8 @@ class Network(threading.Thread):
             if self.interface is None and self.config.get('auto_cycle') and self.interfaces:
                 self.interface = random.choice(self.interfaces.values())
                 self.config.set_key('server', self.interface.server, False)
+                print_error("resending subscriptions after disconnect")
+                self.send_subscriptions()
                 self.trigger_callback('connected')
 
 
