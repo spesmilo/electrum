@@ -1071,7 +1071,7 @@ class ElectrumWindow(QMainWindow):
             self.update_history_tab()
 
     def edit_account_label(self, k):
-        text, ok = QInputDialog.getText(self, _('Rename account'), _('Name') + ':')
+        text, ok = QInputDialog.getText(self, _('Rename account'), _('Name') + ':', text = self.wallet.labels.get(k,''))
         if ok:
             label = unicode(text)
             self.wallet.set_label(k,label)

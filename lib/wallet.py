@@ -900,7 +900,21 @@ class Wallet:
             else:
                 name = 'Old account'
         else:
-            name = self.labels.get(k, 'Unnamed account')
+            default = "Unnamed account"
+            m = re.match("m/0'/(\d+)", k)
+            if m:
+                num = m.group(1)
+                if num == '0':
+                    default = "Main account"
+                else:
+                    default = "Account %s"%num
+                    
+            m = re.match("m/1'/(\d+) & m/2'/(\d+)", k)
+            if m:
+                num = m.group(1)
+                default = "2of2 account %s"%num
+            name = self.labels.get(k, default)
+
         return name
 
     def get_account_names(self):
