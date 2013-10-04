@@ -50,9 +50,13 @@ class Network(threading.Thread):
         self.interfaces = {}
         self.queue = Queue.Queue()
         self.default_server = self.config.get('server')
-        self.disconnected_servers = []
         self.callbacks = {}
-        self.servers = []
+
+        self.protocol = 's'
+        self.irc_servers = []                                      # returned by interface (list from irc)
+        self.disconnected_servers = []
+        self.recent_servers = self.config.get('recent_servers',[]) # successful connections
+
         self.banner = ''
         self.interface = None
         self.proxy = self.config.get('proxy')
@@ -105,7 +109,7 @@ class Network(threading.Thread):
 
     def random_server(self):
         choice_list = []
-        l = filter_protocol(self.get_servers(), 's')
+        l = filter_protocol(self.get_servers(), self.protocol)
         for s in l:
             if s in self.disconnected_servers or s in self.interfaces.keys():
                 continue
@@ -123,11 +127,12 @@ class Network(threading.Thread):
 
 
     def get_servers(self):
-        if not self.servers:
-            return DEFAULT_SERVERS
-        else:
-            return self.servers
-
+        out = self.irc_servers if self.irc_servers else DEFAULT_SERVERS
+        for s in self.recent_servers:
+            host, port, protocol = s.split(':')
+            if host not in out:
+                out[host] = { protocol:port }
+        return out
 
     def start_interface(self, server):
         if server in self.interfaces.keys():
@@ -184,6 +189,14 @@ class Network(threading.Thread):
             self.interface = self.interfaces[server]
         
 
+    def add_recent_server(self, i):
+        # list is ordered
+        s = i.server
+        if s in self.recent_servers:
+            self.recent_servers.remove(s)
+        self.recent_servers.insert(0,s)
+        self.recent_servers = self.recent_servers[0:20]
+        self.config.set_key('recent_servers', self.recent_servers)
 
 
 
@@ -202,6 +215,7 @@ class Network(threading.Thread):
                 continue
 
             if i.is_connected:
+                self.add_recent_server(i)
                 i.send([ ('blockchain.headers.subscribe',[])], self.on_header)
                 if i == self.interface:
                     print_error('sending subscriptions to', self.interface.server)
@@ -230,7 +244,7 @@ class Network(threading.Thread):
 
     def on_peers(self, i, r):
         if not r: return
-        self.servers = self.parse_servers(r.get('result'))
+        self.irc_servers = self.parse_servers(r.get('result'))
         self.trigger_callback('peers')
 
     def on_banner(self, i, r):
