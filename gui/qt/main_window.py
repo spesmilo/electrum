@@ -538,8 +538,8 @@ class ElectrumWindow(QMainWindow):
             if not self.wallet.up_to_date:
                 text = _("Synchronizing...")
                 icon = QIcon(":icons/status_waiting.png")
-            elif self.network.is_lagging:
-                text = _("Server is lagging")
+            elif self.network.server_lag > 1:
+                text = _("Server is lagging (%d blocks)"%self.network.server_lag)
                 icon = QIcon(":icons/status_lagging.png")
             else:
                 c, u = self.wallet.get_account_balance(self.current_account)

@@ -36,8 +36,6 @@ class Blockchain(threading.Thread):
         self.headers_url = 'http://headers.electrum.org/blockchain_headers'
         self.set_local_height()
         self.queue = Queue.Queue()
-        self.servers_height = {}
-        self.is_lagging = False
 
     
     def stop(self):
@@ -69,11 +67,13 @@ class Blockchain(threading.Thread):
             if not header: continue
             
             height = header.get('block_height')
-            self.servers_height[i.server] = height
+
+            if height <= self.local_height:
+                continue
 
             if height > self.local_height + 50:
-                self.get_chunks(i, header, height)
-                self.network.trigger_callback('updated')
+                if not self.get_and_verify_chunks(i, header, height):
+                    continue
 
             if height > self.local_height:
                 # get missing parts from interface (until it connects to my chain)
@@ -91,22 +91,9 @@ class Blockchain(threading.Thread):
                 else:
                     print_error("error", i.server)
                     # todo: dismiss that server
+                    continue
 
-            if self.network.is_connected():
-                h = self.servers_height.get(self.network.interface.server)
-            else:
-                h = None
-
-            if h is not None and h < height - 1:
-                print_error( "Server is lagging", height, h)
-                if self.config.get('auto_cycle'):
-                    self.network.set_server(i.server)
-                else:
-                    self.network.is_lagging = True
-            else:
-                self.network.is_lagging = False
-                
-            self.network.trigger_callback('updated')
+            self.network.new_blockchain_height(height, i)
 
 
                     
@@ -385,7 +372,7 @@ class Blockchain(threading.Thread):
                 return chain
 
 
-    def get_chunks(self, i, header, height):
+    def get_and_verify_chunks(self, i, header, height):
         requested_chunks = []
         queue = Queue.Queue()
         min_index = (self.local_height + 1)/2016
@@ -412,8 +399,13 @@ class Blockchain(threading.Thread):
             result = r['result']
 
             index = params[0]
-            self.verify_chunk(index, result)
+            try:
+                self.verify_chunk(index, result)
+            except:
+                return False
             requested_chunks.remove(index)
+
+        return True
 
 
 

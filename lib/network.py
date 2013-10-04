@@ -61,6 +61,7 @@ class Network(threading.Thread):
         self.interface = None
         self.proxy = self.config.get('proxy')
         self.heights = {}
+        self.server_lag = 0
 
         dir_path = os.path.join( self.config.path, 'certs')
         if not os.path.exists(dir_path):
@@ -206,6 +207,18 @@ class Network(threading.Thread):
         self.config.set_key('recent_servers', self.recent_servers)
 
 
+    def new_blockchain_height(self, blockchain_height, i):
+        if self.is_connected():
+            h = self.heights.get(self.interface.server)
+            if h:
+                self.server_lag = blockchain_height - h
+                if self.server_lag > 1:
+                    print_error( "Server is lagging", blockchain_height, h)
+                    if self.config.get('auto_cycle'):
+                        self.set_server(i.server)
+        
+        self.trigger_callback('updated')
+
 
     def run(self):
         self.blockchain.start()
@@ -231,6 +244,8 @@ class Network(threading.Thread):
             else:
                 self.disconnected_servers.append(i.server)
                 self.interfaces.pop(i.server)
+                if i.server in self.heights:
+                    self.heights.pop(i.server)
                 if i == self.interface:
                     self.interface = None
                     self.trigger_callback('disconnected')
