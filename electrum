@@ -18,7 +18,7 @@
 
 import re
 import pkgutil
-import sys, os, time, json
+import sys, os, time, json, readline
 import optparse
 import platform
 from decimal import Decimal
