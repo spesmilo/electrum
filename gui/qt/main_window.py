@@ -95,7 +95,7 @@ class StatusBarButton(QPushButton):
 
 
 
-default_column_widths = { "history":[40,140,350,140], "contacts":[350,330], "receive":[[370], [370,200,130]] }
+default_column_widths = { "history":[40,140,350,140], "contacts":[350,330], "receive": [370,200,130] }
 
 class ElectrumWindow(QMainWindow):
     def changeEvent(self, event):
@@ -1031,10 +1031,9 @@ class ElectrumWindow(QMainWindow):
 
 
     def save_column_widths(self):
-        widths = []
+        self.column_widths["receive"] = []
         for i in range(self.receive_list.columnCount() -1):
-            widths.append(self.receive_list.columnWidth(i))
-        self.column_widths["receive"][1] = widths
+            self.column_widths["receive"].append(self.receive_list.columnWidth(i))
         
         self.column_widths["history"] = []
         for i in range(self.history_list.columnCount() - 1):
@@ -1182,7 +1181,7 @@ class ElectrumWindow(QMainWindow):
         l.clear()
         l.setColumnHidden(2, False)
         l.setColumnHidden(3, False)
-        for i,width in enumerate(self.column_widths['receive'][1]):
+        for i,width in enumerate(self.column_widths['receive']):
             l.setColumnWidth(i, width)
 
         if self.current_account is None:
