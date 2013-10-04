@@ -24,6 +24,8 @@ DEFAULT_SERVERS = {
 }
 
 
+NUM_SERVERS = 8
+
 
 def filter_protocol(servers, p):
     l = []
@@ -59,7 +61,6 @@ class Network(threading.Thread):
         dir_path = os.path.join( self.config.path, 'certs')
         if not os.path.exists(dir_path):
             os.mkdir(dir_path)
-
 
         # default subscriptions
         self.subscriptions = {}
@@ -137,7 +138,7 @@ class Network(threading.Thread):
             self.start_interface(self.default_server)
             self.interface = self.interfaces[self.default_server]
 
-        for i in range(8):
+        for i in range(NUM_SERVERS):
             self.start_random_interface()
             
         if not self.interface:
@@ -185,7 +186,12 @@ class Network(threading.Thread):
             self.running = True
 
         while self.is_running():
-            i = self.queue.get()
+            try:
+                i = self.queue.get(timeout = 30)
+            except Queue.Empty:
+                if len(self.interfaces) < NUM_SERVERS:
+                    self.start_random_interface()
+                continue
 
             if i.is_connected:
                 i.send([ ('blockchain.headers.subscribe',[])], self.on_header)
@@ -195,15 +201,16 @@ class Network(threading.Thread):
             else:
                 self.disconnected_servers.append(i.server)
                 self.interfaces.pop(i.server)
-                self.start_random_interface()
-                
                 if i == self.interface:
-                    if self.config.get('auto_cycle'):
-                        self.interface = random.choice(self.interfaces.values())
-                        self.config.set_key('server', self.interface.server, False)
-                    else:
-                        self.trigger_callback('disconnected')
-                
+                    self.interface = None
+                    self.trigger_callback('disconnected')
+
+            if self.interface is None and self.config.get('auto_cycle') and self.interfaces:
+                self.interface = random.choice(self.interfaces.values())
+                self.config.set_key('server', self.interface.server, False)
+                self.trigger_callback('connected')
+
+
     def on_header(self, i, r):
         result = r.get('result')
         if not result: return
