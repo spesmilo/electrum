@@ -459,6 +459,9 @@ class ElectrumWindow(QMainWindow):
 
 
     def notify_transactions(self):
+        if not self.network.is_connected(): 
+            return
+
         print_error("Notifying GUI")
         if len(self.network.interface.pending_transactions_for_notifications) > 0:
             # Combine the transactions if there are more then three
