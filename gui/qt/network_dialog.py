@@ -50,18 +50,16 @@ class NetworkDialog(QDialog):
             else:
                 status = _("Not connected")
 
-            if interface.is_connected:
+            if network.is_connected():
                 status += "\n" + _("Main server:") + " %s"%(interface.host) 
             else:
                 status += "\n" + _("Disconnected from main server")
                 
-
-            server = interface.server
         else:
             import random
             status = _("Please choose a server.") + "\n" + _("Select 'Cancel' if you are offline.")
-            server = interface.server
 
+        server = network.default_server
         self.servers = network.get_servers()
 
 
@@ -148,7 +146,7 @@ class NetworkDialog(QDialog):
         if not self.config.is_modifiable('proxy'):
             for w in [self.proxy_host, self.proxy_port, self.proxy_mode]: w.setEnabled(False)
 
-        proxy_config = interface.proxy if interface.proxy else { "mode":"none", "host":"localhost", "port":"8080"}
+        proxy_config = network.proxy if network.proxy else { "mode":"none", "host":"localhost", "port":"8080"}
         self.proxy_mode.setCurrentIndex(self.proxy_mode.findText(str(proxy_config.get("mode").upper())))
         self.proxy_host.setText(proxy_config.get("host"))
         self.proxy_port.setText(proxy_config.get("port"))

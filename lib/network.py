@@ -166,6 +166,11 @@ class Network(threading.Thread):
             return self.interface.is_connected
 
 
+    def wait_until_connected(self):
+        while not self.interface:
+            time.sleep(1)
+        self.interface.connect_event.wait()
+
     def set_proxy(self, proxy):
         self.proxy = proxy
 
@@ -175,7 +180,9 @@ class Network(threading.Thread):
             return
 
         # stop the interface in order to terminate subscriptions
-        self.interface.stop() 
+        if self.interface:
+            self.interface.stop() 
+
         # notify gui
         self.trigger_callback('disconnecting')
         # start interface

@@ -92,7 +92,11 @@ class Blockchain(threading.Thread):
                     print_error("error", i.server)
                     # todo: dismiss that server
 
-            h = self.servers_height.get(self.network.interface.server)
+            if self.network.is_connected():
+                h = self.servers_height.get(self.network.interface.server)
+            else:
+                h = None
+
             if h is not None and h < height - 1:
                 print_error( "Server is lagging", height, h)
                 if self.config.get('auto_cycle'):
