@@ -531,7 +531,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def update_status(self):
-        if self.network.interface and self.network.interface.is_connected:
+        if self.network.is_connected():
             if not self.wallet.up_to_date:
                 text = _("Synchronizing...")
                 icon = QIcon(":icons/status_waiting.png")
@@ -561,7 +561,7 @@ class ElectrumWindow(QMainWindow):
 
     def update_wallet(self):
         self.update_status()
-        if self.wallet.up_to_date or not self.network.interface.is_connected:
+        if self.wallet.up_to_date or not self.network.is_connected():
             self.update_history_tab()
             self.update_receive_tab()
             self.update_contacts_tab()

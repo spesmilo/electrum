@@ -68,6 +68,10 @@ class Network(threading.Thread):
         self.subscriptions[self.on_peers] = [('server.peers.subscribe',[])]
 
 
+    def is_connected(self):
+        return self.interface and self.interface.is_connected
+
+
     def send_subscriptions(self):
         for cb, sub in self.subscriptions.items():
             self.interface.send(sub, cb)
@@ -108,7 +112,11 @@ class Network(threading.Thread):
             else:
                 choice_list.append(s)
         
-        if not choice_list: return
+        if not choice_list: 
+            if not self.interfaces:
+                # we are probably offline, retry later
+                self.disconnected_servers = []
+            return
         
         server = random.choice( choice_list )
         return server
