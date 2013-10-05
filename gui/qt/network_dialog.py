@@ -121,10 +121,9 @@ class NetworkDialog(QDialog):
 
         if server:
             host, port, protocol = server.split(':')
-            self.set_protocol(protocol)
             self.change_server(host, protocol)
-        else:
-            self.set_protocol('s')
+
+        self.set_protocol(self.network.protocol)
 
         self.servers_list_widget.connect(self.servers_list_widget, 
                                          SIGNAL('currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)'), 

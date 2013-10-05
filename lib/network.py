@@ -35,8 +35,8 @@ def filter_protocol(servers, p):
     return l
     
 
-def pick_random_server():
-    return random.choice( filter_protocol(DEFAULT_SERVERS,'s') )
+#def pick_random_server():
+#    return random.choice( filter_protocol(DEFAULT_SERVERS,'s') )
 
 
 class Network(threading.Thread):
@@ -175,17 +175,20 @@ class Network(threading.Thread):
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
 
-
-        self.config.set_key("proxy", proxy, True)
-        self.proxy = proxy
-
-        self.config.set_key("protocol", protocol, True)
-        self.protocol = protocol
-
         self.config.set_key('auto_cycle', auto_connect, True)
-
+        self.config.set_key("proxy", proxy, True)
+        self.config.set_key("protocol", protocol, True)
         server = ':'.join([ host, port, protocol ])
         self.config.set_key("server", server, True)
+
+        if self.proxy != proxy or self.protocol != protocol:
+            self.proxy = proxy
+            self.protocol = protocol
+            for i in self.interfaces.values(): i.stop()
+            if auto_connect:
+                self.interface = None
+                self.default_server = None
+                return
 
         if auto_connect:
             if not self.interface:
@@ -202,12 +205,14 @@ class Network(threading.Thread):
             self.switch_to_interface(random.choice(self.interfaces.values()))
 
     def switch_to_interface(self, interface):
-        print_error("switching to", interface.server)
+        server = interface.server
+        print_error("switching to", server)
         self.interface = interface
-        h =  self.heights.get(self.interface.server)
+        h =  self.heights.get(server)
         if h:
             self.server_lag = self.blockchain.height - h
-        self.config.set_key('server', self.interface.server, False)
+        self.config.set_key('server', server, False)
+        self.default_server = server
         self.send_subscriptions()
         self.trigger_callback('connected')
 
@@ -298,8 +303,6 @@ class Network(threading.Thread):
 
         if i == self.interface:
             self.server_lag = self.blockchain.height - self.heights[i.server]
-            if self.server_lag:
-                print "on_header: lag", self.server_lag
             self.trigger_callback('updated')
 
 
