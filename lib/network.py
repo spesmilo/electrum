@@ -199,7 +199,9 @@ class Network(threading.Thread):
     def switch_to_interface(self, interface):
         print_error("switching to", interface.server)
         self.interface = interface
-        self.server_lag = self.blockchain.height - self.heights[self.interface.server]
+        h =  self.heights.get(self.interface.server)
+        if h:
+            self.server_lag = self.blockchain.height - h
         self.config.set_key('server', self.interface.server, False)
         self.send_subscriptions()
         self.trigger_callback('connected')
