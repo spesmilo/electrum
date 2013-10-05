@@ -81,6 +81,13 @@ class NetworkDialog(QDialog):
         grid.setSpacing(8)
         vbox.addLayout(grid)
 
+
+        # auto cycle
+        self.autocycle_cb = QCheckBox(_('Auto-connect'))
+        self.autocycle_cb.setChecked(self.config.get('auto_cycle', True))
+        grid.addWidget(self.autocycle_cb, 0, 1, 1, 2)
+        if not self.config.is_modifiable('auto_cycle'): self.autocycle_cb.setEnabled(False)
+
         # server
         self.server_protocol = QComboBox()
         self.server_host = QLineEdit()
@@ -90,10 +97,10 @@ class NetworkDialog(QDialog):
 
         self.server_protocol.addItems(protocol_names)
 
-        grid.addWidget(QLabel(_('Server') + ':'), 0, 0)
-        grid.addWidget(self.server_protocol, 0, 1)
-        grid.addWidget(self.server_host, 0, 2)
-        grid.addWidget(self.server_port, 0, 3)
+        grid.addWidget(QLabel(_('Server') + ':'), 1, 0)
+        grid.addWidget(self.server_protocol, 1, 1)
+        grid.addWidget(self.server_host, 1, 2)
+        grid.addWidget(self.server_port, 1, 3)
 
         self.server_protocol.connect(self.server_protocol, SIGNAL('currentIndexChanged(int)'), self.change_protocol)
 
@@ -113,16 +120,21 @@ class NetworkDialog(QDialog):
         self.servers_list_widget.connect(self.servers_list_widget, 
                                          SIGNAL('currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)'), 
                                          lambda x,y: self.server_changed(x))
-        grid.addWidget(self.servers_list_widget, 1, 1, 1, 3)
+        grid.addWidget(self.servers_list_widget, 2, 1, 1, 3)
 
         if not config.is_modifiable('server'):
             for w in [self.server_host, self.server_port, self.server_protocol, self.servers_list_widget]: w.setEnabled(False)
 
-        # auto cycle
-        self.autocycle_cb = QCheckBox(_('Try random servers if disconnected'))
-        self.autocycle_cb.setChecked(self.config.get('auto_cycle', True))
-        grid.addWidget(self.autocycle_cb, 3, 1, 3, 2)
-        if not self.config.is_modifiable('auto_cycle'): self.autocycle_cb.setEnabled(False)
+
+        
+        def enable_set_server():
+            enabled = not self.autocycle_cb.isChecked()
+            self.server_host.setEnabled(enabled)
+            self.server_port.setEnabled(enabled)
+            self.servers_list_widget.setEnabled(enabled)
+
+        self.autocycle_cb.clicked.connect(enable_set_server)
+        enable_set_server()
 
         # proxy setting
         self.proxy_mode = QComboBox()
@@ -151,10 +163,10 @@ class NetworkDialog(QDialog):
         self.proxy_host.setText(proxy_config.get("host"))
         self.proxy_port.setText(proxy_config.get("port"))
 
-        grid.addWidget(QLabel(_('Proxy') + ':'), 2, 0)
-        grid.addWidget(self.proxy_mode, 2, 1)
-        grid.addWidget(self.proxy_host, 2, 2)
-        grid.addWidget(self.proxy_port, 2, 3)
+        grid.addWidget(QLabel(_('Proxy') + ':'), 3, 0)
+        grid.addWidget(self.proxy_mode, 3, 1)
+        grid.addWidget(self.proxy_host, 3, 2)
+        grid.addWidget(self.proxy_port, 3, 3)
 
         # buttons
         vbox.addLayout(ok_cancel_buttons(self))
