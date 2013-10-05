@@ -1,6 +1,20 @@
+# Release 1.9
+
+* The client connects to multiple servers in order to retrieve block headers and find the longest chain
+* SSL certificate validation (to prevent MITM)
+* Implements BIP32 (hierarchical deterministic wallet)
+* Deterministic signatures (RFC 6979)
+* Can create multiple accounts in the same wallet
+* Menu to create/restore/open wallets
+* Create transactions with multiple outputs from CSV (comma separated values)
+* New text gui: stdio
+* Plugins are no longer tied to the qt GUI, they can reach all GUIs
+* Proxy bugs have been fixed
+
+
 # Release 1.8.1
 
-* Notifcation option when receiving new tranactions 
+* Notification option when receiving new tranactions 
 * Confirm dialogue before sending large amounts 
 * Alternative datafile location for non-windows systems
 * Fix offline wallet creation
