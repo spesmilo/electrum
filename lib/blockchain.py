@@ -87,13 +87,15 @@ class Blockchain(threading.Thread):
                     print_error("height:", height, i.server)
                     for header in chain:
                         self.save_header(header)
-                        self.height = height
                 else:
                     print_error("error", i.server)
                     # todo: dismiss that server
                     continue
 
-            self.network.new_blockchain_height(height, i)
+
+            if self.height != height:
+                self.height = height
+                self.network.new_blockchain_height(height, i)
 
 
                     

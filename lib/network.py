@@ -172,12 +172,41 @@ class Network(threading.Thread):
             time.sleep(1)
         self.interface.connect_event.wait()
 
-    def set_proxy(self, proxy):
+
+    def set_parameters(self, server, proxy, auto_connect):
+
+        self.config.set_key("proxy", proxy, True)
         self.proxy = proxy
+
+        self.config.set_key('auto_cycle', auto_connect, True)
+
+        self.config.set_key("server", server, True)
+
+        if auto_connect:
+            if not self.interface:
+                self.switch_to_random_interface()
+            else:
+                if self.server_lag > 0:
+                    self.interface.stop()
+        else:
+            self.set_server(server)
+
+
+    def switch_to_random_interface(self):
+        if self.interfaces:
+            self.switch_to_interface(random.choice(self.interfaces.values()))
+
+    def switch_to_interface(self, interface):
+        print_error("switching to", interface.server)
+        self.interface = interface
+        self.server_lag = self.blockchain.height - self.heights[self.interface.server]
+        self.config.set_key('server', self.interface.server, False)
+        self.send_subscriptions()
+        self.trigger_callback('connected')
 
 
     def set_server(self, server):
-        if self.default_server == server:
+        if self.default_server == server and self.interface:
             return
 
         # stop the interface in order to terminate subscriptions
@@ -188,10 +217,10 @@ class Network(threading.Thread):
         self.trigger_callback('disconnecting')
         # start interface
         self.default_server = server
+        self.config.set_key("server", server, True)
 
         if server in self.interfaces.keys():
-            self.interface = self.interfaces[server]
-            self.send_subscriptions()
+            self.switch_to_interface( self.interfaces[server] )
         else:
             self.start_interface(server)
             self.interface = self.interfaces[server]
@@ -250,12 +279,8 @@ class Network(threading.Thread):
                     self.interface = None
                     self.trigger_callback('disconnected')
 
-            if self.interface is None and self.config.get('auto_cycle') and self.interfaces:
-                self.interface = random.choice(self.interfaces.values())
-                self.config.set_key('server', self.interface.server, False)
-                print_error("resending subscriptions after disconnect")
-                self.send_subscriptions()
-                self.trigger_callback('connected')
+            if self.interface is None and self.config.get('auto_cycle'):
+                self.switch_to_random_interface()
 
 
     def on_header(self, i, r):
@@ -263,6 +288,13 @@ class Network(threading.Thread):
         if not result: return
         self.heights[i.server] = result.get('block_height')
         self.blockchain.queue.put((i,result))
+
+        if i == self.interface:
+            self.server_lag = self.blockchain.height - self.heights[i.server]
+            if self.server_lag:
+                print "on_header: lag", self.server_lag
+            self.trigger_callback('updated')
+
 
     def on_peers(self, i, r):
         if not r: return
