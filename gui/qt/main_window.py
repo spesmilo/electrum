@@ -256,6 +256,7 @@ class ElectrumWindow(QMainWindow):
     def load_wallet(self, wallet):
         import electrum
         self.wallet = wallet
+        self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
 
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.wallet.storage.path
         if self.wallet.is_watching_only(): title += ' [%s]' % (_('watching only'))
@@ -1077,12 +1078,16 @@ class ElectrumWindow(QMainWindow):
             self.wallet.set_label(k,label)
             self.update_receive_tab()
 
+    def account_set_expanded(self, item, k, b):
+        item.setExpanded(b)
+        self.accounts_expanded[k] = b
+
     def create_account_menu(self, position, k, item):
         menu = QMenu()
         if item.isExpanded():
-            menu.addAction(_("Minimize"), lambda: item.setExpanded(False))
+            menu.addAction(_("Minimize"), lambda: self.account_set_expanded(item, k, False))
         else:
-            menu.addAction(_("Maximize"), lambda: item.setExpanded(True))
+            menu.addAction(_("Maximize"), lambda: self.account_set_expanded(item, k, True))
         menu.addAction(_("Rename"), lambda: self.edit_account_label(k))
         menu.addAction(_("View details"), lambda: self.show_account_details(k))
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
@@ -1199,7 +1204,7 @@ class ElectrumWindow(QMainWindow):
             c,u = self.wallet.get_account_balance(k)
             account_item = QTreeWidgetItem( [ name, '', self.format_amount(c+u), ''] )
             l.addTopLevelItem(account_item)
-            account_item.setExpanded(True)
+            account_item.setExpanded(self.accounts_expanded.get(k, True))
             account_item.setData(0, 32, k)
 
             if not self.wallet.is_seeded(k):
@@ -2016,6 +2021,7 @@ class ElectrumWindow(QMainWindow):
         self.config.set_key("winpos-qt", [g.left(),g.top(),g.width(),g.height()], True)
         self.save_column_widths()
         self.config.set_key("console-history", self.console.history[-50:], True)
+        self.wallet.storage.put('accounts_expanded', self.accounts_expanded)
         event.accept()
 
 
