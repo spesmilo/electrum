@@ -235,9 +235,9 @@ class NetworkDialog(QDialog):
         if not self.exec_():
             return
 
-        server = ':'.join([str( self.server_host.text() ),
-                           str( self.server_port.text() ),
-                           (protocol_letters[self.server_protocol.currentIndex()]) ])
+        host = str( self.server_host.text() )
+        port = str( self.server_port.text() )
+        protocol = protocol_letters[self.server_protocol.currentIndex()]
 
         if self.proxy_mode.currentText() != 'NONE':
             proxy = { 'mode':str(self.proxy_mode.currentText()).lower(), 
@@ -248,5 +248,5 @@ class NetworkDialog(QDialog):
 
         auto_connect = self.autocycle_cb.isChecked()
 
-        self.network.set_parameters(server, proxy, auto_connect)
+        self.network.set_parameters(host, port, protocol, proxy, auto_connect)
         return True

@@ -52,7 +52,7 @@ class Network(threading.Thread):
         self.default_server = self.config.get('server')
         self.callbacks = {}
 
-        self.protocol = 's'
+        self.protocol = self.config.get('protocol','s')
         self.irc_servers = []                                      # returned by interface (list from irc)
         self.disconnected_servers = []
         self.recent_servers = self.config.get('recent_servers',[]) # successful connections
@@ -173,13 +173,18 @@ class Network(threading.Thread):
         self.interface.connect_event.wait()
 
 
-    def set_parameters(self, server, proxy, auto_connect):
+    def set_parameters(self, host, port, protocol, proxy, auto_connect):
+
 
         self.config.set_key("proxy", proxy, True)
         self.proxy = proxy
 
+        self.config.set_key("protocol", protocol, True)
+        self.protocol = protocol
+
         self.config.set_key('auto_cycle', auto_connect, True)
 
+        server = ':'.join([ host, port, protocol ])
         self.config.set_key("server", server, True)
 
         if auto_connect:

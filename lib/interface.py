@@ -225,7 +225,7 @@ class Interface(threading.Thread):
 
                 
     def poll(self):
-        self.send([])
+        self.send([], None)
 
 
     def send_http(self, messages, callback):
