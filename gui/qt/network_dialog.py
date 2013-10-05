@@ -177,7 +177,7 @@ class NetworkDialog(QDialog):
     def change_protocol(self, index):
         p = protocol_letters[index]
         host = unicode(self.server_host.text())
-        pp = self.servers.get(host)
+        pp = self.servers.get(host, DEFAULT_PORTS)
         if p not in pp.keys():
             p = pp.keys()[0]
         port = pp[p]
