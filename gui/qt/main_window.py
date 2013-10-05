@@ -794,7 +794,7 @@ class ElectrumWindow(QMainWindow):
             if self.amount_e.is_shortcut:
                 self.amount_e.is_shortcut = False
                 c, u = self.wallet.get_account_balance(self.current_account)
-                inputs, total, fee = self.wallet.choose_tx_inputs( c + u, 0, self.current_account)
+                inputs, total, fee = self.wallet.choose_tx_inputs_from_account( c + u, 0, self.current_account)
                 fee = self.wallet.estimated_fee(inputs)
                 amount = c + u - fee
                 self.amount_e.setText( self.format_amount(amount) )
@@ -807,7 +807,7 @@ class ElectrumWindow(QMainWindow):
             if not is_fee: fee = None
             if amount is None:
                 return
-            inputs, total, fee = self.wallet.choose_tx_inputs( amount, fee, self.current_account )
+            inputs, total, fee = self.wallet.choose_tx_inputs_from_account( amount, fee, self.current_account )
             if not is_fee:
                 self.fee_e.setText( self.format_amount( fee ) )
             if inputs:
@@ -1676,7 +1676,7 @@ class ElectrumWindow(QMainWindow):
         def do_verify():
             message = unicode(verify_message.toPlainText())
             message = message.encode('utf-8')
-            if self.wallet.verify_message(verify_address.text(), str(verify_signature.toPlainText()), message):
+            if bitcoin.verify_message(verify_address.text(), str(verify_signature.toPlainText()), message):
                 self.show_message(_("Signature verified"))
             else:
                 self.show_message(_("Error: wrong signature"))

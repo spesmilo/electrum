@@ -233,7 +233,7 @@ class Commands:
 
 
     def verifymessage(self, address, signature, message):
-        return self.wallet.verify_message(address, signature, message)
+        return bitcoin.verify_message(address, signature, message)
 
 
     def _mktx(self, outputs, fee = None, change_addr = None, domain = None):

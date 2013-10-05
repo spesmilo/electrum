@@ -673,14 +673,6 @@ class Wallet:
         compressed = is_compressed(sec)
         return key.sign_message(message, compressed, address)
 
-    def verify_message(self, address, signature, message):
-        try:
-            EC_KEY.verify_message(address, signature, message)
-            return True
-        except BaseException as e:
-            print_error("Verification error: {0}".format(e))
-            return False
-
 
     def change_gap_limit(self, value):
         if value >= self.gap_limit:
@@ -1003,6 +995,11 @@ class Wallet:
                     coins = coins[1:] + [ coins[0] ]
         return [x[1] for x in coins]
 
+
+
+    def choose_tx_inputs_from_account( self, amount, fixed_fee, account ):
+        domain = self.get_account_addresses(account) if account else None
+        return self.choose_tx_inputs( amount, fixed_fee, domain )
 
 
     def choose_tx_inputs( self, amount, fixed_fee, domain = None ):
