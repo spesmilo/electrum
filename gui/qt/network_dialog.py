@@ -51,9 +51,9 @@ class NetworkDialog(QDialog):
                 status = _("Not connected")
 
             if network.is_connected():
-                status += "\n" + _("Electrum server:") + " %s"%(interface.host) 
+                status += "\n" + _("Server:") + " %s"%(interface.host) 
             else:
-                status += "\n" + _("Disconnected from history server")
+                status += "\n" + _("Disconnected from server")
                 
         else:
             import random
@@ -73,7 +73,10 @@ class NetworkDialog(QDialog):
         hbox.addWidget(l)
         hbox.addWidget(QLabel(status))
         hbox.addStretch(50)
-        hbox.addWidget(HelpButton(_("Electrum connects to several servers in order to download block headers and find out the longest blockchain. However, your wallet addresses are sent to a single server, in order to receive your transaction history.")))
+        msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.") + "\n\n" \
+            + _("In addition, Electrum connects to several nodes in order to download block headers and find out the longest blockchain.") + " " \
+            + _("This blockchain is used to verify your transactions.")
+        hbox.addWidget(HelpButton(msg))
         vbox.addLayout(hbox)
 
         # grid layout
@@ -102,8 +105,9 @@ class NetworkDialog(QDialog):
         self.autocycle_cb.setChecked(self.config.get('auto_cycle', True))
         grid.addWidget(self.autocycle_cb, 1, 1, 1, 2)
         if not self.config.is_modifiable('auto_cycle'): self.autocycle_cb.setEnabled(False)
-        grid.addWidget(HelpButton(_("If this is enabled, Electrum will always use a server that is on the the longest blockchain.")), 1, 3)
-
+        msg = _("If this option is enabled, Electrum will always use a server that is on the the longest blockchain.") + " " \
+            + _("If it is disabled, Electrum will warn you if your server is lagging.")
+        grid.addWidget(HelpButton(msg), 1, 3)
 
         grid.addWidget(self.server_host, 2, 1, 1, 2)
         grid.addWidget(self.server_port, 2, 3)
