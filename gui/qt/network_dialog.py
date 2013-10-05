@@ -75,7 +75,7 @@ class NetworkDialog(QDialog):
         hbox.addStretch(50)
         msg = _("Electrum sends your wallet addresses to a single server, in order to receive your transaction history.") + "\n\n" \
             + _("In addition, Electrum connects to several nodes in order to download block headers and find out the longest blockchain.") + " " \
-            + _("This blockchain is used to verify your transactions.")
+            + _("This blockchain is used to verify the transactions sent by the address server.")
         hbox.addWidget(HelpButton(msg))
         vbox.addLayout(hbox)
 
@@ -93,24 +93,24 @@ class NetworkDialog(QDialog):
         self.server_protocol.addItems(protocol_names)
         self.server_protocol.connect(self.server_protocol, SIGNAL('currentIndexChanged(int)'), self.change_protocol)
 
-        grid.addWidget(QLabel(_('Protocol') + ':'), 0, 0)
-        grid.addWidget(self.server_protocol, 0, 1)
+        grid.addWidget(QLabel(_('Protocol') + ':'), 3, 0)
+        grid.addWidget(self.server_protocol, 3, 1)
 
 
         # server
-        grid.addWidget(QLabel(_('Server') + ':'), 1, 0)
+        grid.addWidget(QLabel(_('Server') + ':'), 0, 0)
 
         # auto connect
         self.autocycle_cb = QCheckBox(_('Auto-connect'))
         self.autocycle_cb.setChecked(self.config.get('auto_cycle', True))
-        grid.addWidget(self.autocycle_cb, 1, 1, 1, 2)
+        grid.addWidget(self.autocycle_cb, 0, 1)
         if not self.config.is_modifiable('auto_cycle'): self.autocycle_cb.setEnabled(False)
-        msg = _("If this option is enabled, Electrum will always use a server that is on the the longest blockchain.") + " " \
+        msg = _("If auto-connect is enabled, Electrum will always use a server that is on the the longest blockchain.") + " " \
             + _("If it is disabled, Electrum will warn you if your server is lagging.")
-        grid.addWidget(HelpButton(msg), 1, 3)
+        grid.addWidget(HelpButton(msg), 0, 4)
 
-        grid.addWidget(self.server_host, 2, 1, 1, 2)
-        grid.addWidget(self.server_port, 2, 3)
+        grid.addWidget(self.server_host, 0, 2, 1, 2)
+        grid.addWidget(self.server_port, 0, 3)
 
 
         label = _('Active Servers') if network.irc_servers else _('Default Servers')
@@ -129,7 +129,7 @@ class NetworkDialog(QDialog):
         self.servers_list_widget.connect(self.servers_list_widget, 
                                          SIGNAL('currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)'), 
                                          lambda x,y: self.server_changed(x))
-        grid.addWidget(self.servers_list_widget, 3, 1, 1, 3)
+        grid.addWidget(self.servers_list_widget, 1, 1, 1, 3)
 
         if not config.is_modifiable('server'):
             for w in [self.server_host, self.server_port, self.server_protocol, self.servers_list_widget]: w.setEnabled(False)
