@@ -221,6 +221,9 @@ class Network(threading.Thread):
         if self.default_server == server and self.interface:
             return
 
+        if self.protocol != server.split(':')[2]:
+            return
+
         # stop the interface in order to terminate subscriptions
         if self.interface:
             self.interface.stop() 
@@ -269,7 +272,7 @@ class Network(threading.Thread):
 
         while self.is_running():
             try:
-                i = self.queue.get(timeout = 30)
+                i = self.queue.get(timeout = 30 if self.interfaces else 3)
             except Queue.Empty:
                 if len(self.interfaces) < NUM_SERVERS:
                     self.start_random_interface()
