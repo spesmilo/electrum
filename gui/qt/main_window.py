@@ -136,8 +136,7 @@ class ElectrumWindow(QMainWindow):
 
         self._close_electrum = False
         self.lite = None
-        self.current_account = self.config.get("current_account", None)
-
+            
         self.icon = QIcon(':icons/electrum.png')
         self.tray = QSystemTrayIcon(self.icon, self)
         self.tray.setToolTip('Electrum')
@@ -257,6 +256,8 @@ class ElectrumWindow(QMainWindow):
         import electrum
         self.wallet = wallet
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
+        self.current_account = self.wallet.storage.get("current_account", None)
+        self.pending_accounts = self.wallet.storage.get('pending_accounts',{})
 
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.wallet.storage.path
         if self.wallet.is_watching_only(): title += ' [%s]' % (_('watching only'))
@@ -1090,7 +1091,14 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Maximize"), lambda: self.account_set_expanded(item, k, True))
         menu.addAction(_("Rename"), lambda: self.edit_account_label(k))
         menu.addAction(_("View details"), lambda: self.show_account_details(k))
+        if k in self.pending_accounts:
+            menu.addAction(_("Delete"), lambda: self.delete_pending_account(k))
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
+
+    def delete_pending_account(self, k):
+        self.pending_accounts.pop(k)
+        self.wallet.storage.put('pending_accounts', self.pending_accounts)
+        self.update_receive_tab()
 
     def create_receive_menu(self, position):
         # fixme: this function apparently has a side effect.
@@ -1172,7 +1180,9 @@ class ElectrumWindow(QMainWindow):
         item.setData(0,32, True) # is editable
 
         run_hook('update_receive_item', address, item)
-                
+
+        if not self.wallet.is_mine(address): return
+
         c, u = self.wallet.get_addr_balance(address)
         balance = self.format_amount(c + u)
         item.setData(2,0,balance)
@@ -1236,6 +1246,21 @@ class ElectrumWindow(QMainWindow):
                     if is_red:
                         item.setBackgroundColor(1, QColor('red'))
                     seq_item.addChild(item)
+
+
+        for k, addr in self.pending_accounts.items():
+            if k in self.wallet.accounts:
+                self.pending_accounts.pop(k)
+                self.wallet.storage.put('pending_accounts', self.pending_accounts)
+            name = self.wallet.labels.get(k,'')
+            account_item = QTreeWidgetItem( [ name + "  [ "+_('pending account')+" ]", '', '', ''] )
+            self.update_receive_item(item)
+            l.addTopLevelItem(account_item)
+            account_item.setExpanded(True)
+            account_item.setData(0, 32, k)
+            item = QTreeWidgetItem( [ addr, '', '', '', ''] )
+            account_item.addChild(item)
+            self.update_receive_item(item)
 
 
         if self.wallet.imported_keys and (self.current_account is None or self.current_account == -1):
@@ -1386,23 +1411,31 @@ class ElectrumWindow(QMainWindow):
         dialog.setModal(1)
         dialog.setWindowTitle(_("New Account"))
 
-        addr = self.wallet.new_account_address()
         vbox = QVBoxLayout()
-        msg = _("Electrum considers that an account exists only if it contains bitcoins.") + '\n' \
-              + _("To create a new account, please send coins to the first address of that account.") + '\n' \
-              + _("Note: you will need to wait for 2 confirmations before the account is created.")
-        vbox.addWidget(QLabel(msg))
-        vbox.addWidget(QLabel(_('Address')+':'))
-        e = QLineEdit(addr)
-        e.setReadOnly(True)
+        vbox.addWidget(QLabel(_('Account name')+':'))
+        e = QLineEdit()
         vbox.addWidget(e)
+        msg = _("Note: Newly created accounts are 'pending' until they receive bitcoins.") + " " \
+            + _("You will need to wait for 2 confirmations until the correct balance is displayed and more addresses are created for that account.")
+        l = QLabel(msg)
+        l.setWordWrap(True)
+        vbox.addWidget(l)
 
         vbox.addLayout(ok_cancel_buttons(dialog))
         dialog.setLayout(vbox)
         r = dialog.exec_()
-        if r:
-            self.payto(addr)
+        if not r: return
 
+        name = str(e.text())
+        if not name: return
+
+        k, addr = self.wallet.new_account_address()
+        self.wallet.set_label(k, name)
+        self.pending_accounts[k] = addr
+        self.wallet.storage.put('pending_accounts', self.pending_accounts)
+        self.update_receive_tab()
+        self.tabs.setCurrentIndex(2)
+        
             
 
     def show_master_public_key_old(self):

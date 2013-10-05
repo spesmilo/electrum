@@ -370,7 +370,7 @@ class Wallet:
             self.next_addresses[k] = addr
             self.storage.put('next_addresses',self.next_addresses)
 
-        return addr
+        return k, addr
 
 
     def next_account(self, account_type = '1'):
@@ -769,7 +769,7 @@ class Wallet:
         for account_type in ['1','2of2','2of3']:
             if not self.has_master_public_keys(account_type):
                 continue
-            a = self.new_account_address(account_type)
+            k, a = self.new_account_address(account_type)
             if self.address_is_old(a):
                 print_error( "creating account", a )
                 self.create_account(account_type)
