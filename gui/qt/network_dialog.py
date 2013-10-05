@@ -35,7 +35,7 @@ class NetworkDialog(QDialog):
 
         QDialog.__init__(self,parent)
         self.setModal(1)
-        self.setWindowTitle(_('Server'))
+        self.setWindowTitle(_('Network'))
         self.setMinimumSize(375, 20)
 
         self.network = network
@@ -46,14 +46,14 @@ class NetworkDialog(QDialog):
         if parent:
             n = len(network.interfaces)
             if n:
-                status = _("Connected to %d servers")%n + ", %d "%(network.blockchain.height) + _("blocks")
+                status = _("Blockchain") + ": " + "%d "%(network.blockchain.height) + _("blocks") +  ".\n" + _("Getting block headers from %d nodes.")%n
             else:
                 status = _("Not connected")
 
             if network.is_connected():
-                status += "\n" + _("Main server:") + " %s"%(interface.host) 
+                status += "\n" + _("Electrum server:") + " %s"%(interface.host) 
             else:
-                status += "\n" + _("Disconnected from main server")
+                status += "\n" + _("Disconnected from history server")
                 
         else:
             import random
@@ -73,7 +73,7 @@ class NetworkDialog(QDialog):
         hbox.addWidget(l)
         hbox.addWidget(QLabel(status))
         hbox.addStretch(50)
-        hbox.addWidget(HelpButton(_("As of version 1.9, Electrum connects to several servers in order to download block headers and find out the longest blockchain. However, your wallet addresses are sent to a single server, in order to receive your transaction history.")))
+        hbox.addWidget(HelpButton(_("Electrum connects to several servers in order to download block headers and find out the longest blockchain. However, your wallet addresses are sent to a single server, in order to receive your transaction history.")))
         vbox.addLayout(hbox)
 
         # grid layout
@@ -81,28 +81,33 @@ class NetworkDialog(QDialog):
         grid.setSpacing(8)
         vbox.addLayout(grid)
 
-
-        # auto cycle
-        self.autocycle_cb = QCheckBox(_('Auto-connect'))
-        self.autocycle_cb.setChecked(self.config.get('auto_cycle', True))
-        grid.addWidget(self.autocycle_cb, 0, 1, 1, 2)
-        if not self.config.is_modifiable('auto_cycle'): self.autocycle_cb.setEnabled(False)
-
-        # server
+        # protocol
         self.server_protocol = QComboBox()
         self.server_host = QLineEdit()
         self.server_host.setFixedWidth(200)
         self.server_port = QLineEdit()
         self.server_port.setFixedWidth(60)
-
         self.server_protocol.addItems(protocol_names)
-
-        grid.addWidget(QLabel(_('Server') + ':'), 1, 0)
-        grid.addWidget(self.server_protocol, 1, 1)
-        grid.addWidget(self.server_host, 1, 2)
-        grid.addWidget(self.server_port, 1, 3)
-
         self.server_protocol.connect(self.server_protocol, SIGNAL('currentIndexChanged(int)'), self.change_protocol)
+
+        grid.addWidget(QLabel(_('Protocol') + ':'), 0, 0)
+        grid.addWidget(self.server_protocol, 0, 1)
+
+
+        # server
+        grid.addWidget(QLabel(_('Server') + ':'), 1, 0)
+
+        # auto connect
+        self.autocycle_cb = QCheckBox(_('Auto-connect'))
+        self.autocycle_cb.setChecked(self.config.get('auto_cycle', True))
+        grid.addWidget(self.autocycle_cb, 1, 1, 1, 2)
+        if not self.config.is_modifiable('auto_cycle'): self.autocycle_cb.setEnabled(False)
+        grid.addWidget(HelpButton(_("If this is enabled, Electrum will always use a server that is on the the longest blockchain.")), 1, 3)
+
+
+        grid.addWidget(self.server_host, 2, 1, 1, 2)
+        grid.addWidget(self.server_port, 2, 3)
+
 
         label = _('Active Servers') if network.irc_servers else _('Default Servers')
         self.servers_list_widget = QTreeWidget(parent)
@@ -120,7 +125,7 @@ class NetworkDialog(QDialog):
         self.servers_list_widget.connect(self.servers_list_widget, 
                                          SIGNAL('currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)'), 
                                          lambda x,y: self.server_changed(x))
-        grid.addWidget(self.servers_list_widget, 2, 1, 1, 3)
+        grid.addWidget(self.servers_list_widget, 3, 1, 1, 3)
 
         if not config.is_modifiable('server'):
             for w in [self.server_host, self.server_port, self.server_protocol, self.servers_list_widget]: w.setEnabled(False)
@@ -163,10 +168,10 @@ class NetworkDialog(QDialog):
         self.proxy_host.setText(proxy_config.get("host"))
         self.proxy_port.setText(proxy_config.get("port"))
 
-        grid.addWidget(QLabel(_('Proxy') + ':'), 3, 0)
-        grid.addWidget(self.proxy_mode, 3, 1)
-        grid.addWidget(self.proxy_host, 3, 2)
-        grid.addWidget(self.proxy_port, 3, 3)
+        grid.addWidget(QLabel(_('Proxy') + ':'), 4, 0)
+        grid.addWidget(self.proxy_mode, 4, 1)
+        grid.addWidget(self.proxy_host, 4, 2)
+        grid.addWidget(self.proxy_port, 4, 3)
 
         # buttons
         vbox.addLayout(ok_cancel_buttons(self))
