@@ -104,7 +104,7 @@ setup(name = "Electrum",
     author = "ecdsa",
     author_email = "ecdsa@github",
     license = "GNU GPLv3",
-    url = "http://electrum-desktop.com",
+    url = "http://electrum.org",
     long_description = """Lightweight Bitcoin Wallet""" 
 )
 
