@@ -1,46 +1,49 @@
 #!/usr/bin/env python
 
-from electrum import interface, Interface, DEFAULT_SERVERS
+from electrum import Interface, SimpleConfig, set_verbosity
+from electrum.network import DEFAULT_SERVERS, filter_protocol
 import time, Queue
+from collections import defaultdict
 
-servers = interface.filter_protocol(DEFAULT_SERVERS,'s')
-interfaces = map ( lambda server: Interface({'server':server} ), servers )
-for i in interfaces: i.start()
+set_verbosity(False)
 
-for i in interfaces:
+config = SimpleConfig()
+servers = filter_protocol(DEFAULT_SERVERS,'t')
+interfaces = map ( lambda server: Interface(server, config), servers )
+
+q = Queue.Queue()
+results_queue = Queue.Queue()
+
+for i in interfaces: i.start(q)
+
+reached_servers = []
+
+while servers:
+    i = q.get(timeout=1000)
+    servers.remove(i.server)
     if i.is_connected:
-        i.send([('blockchain.numblocks.subscribe',[])])
-        i.status = "timed out"
+        i.send([('blockchain.numblocks.subscribe',[])], lambda i,x: results_queue.put((i,x)))
+        reached_servers.append(i.server)
+        i.status = "ok"
     else:
-        servers.remove(i.server)
         i.status = "unreachable"
 
-for i in interfaces:
-    while True:
-        try:
-            r = i.get_response(timeout=1)
-        except Queue.Empty:
-            break
-
-        if r.get('method') == 'blockchain.numblocks.subscribe':
-            servers.remove(i.server)
-            i.status = "ok"
-            i.blocks = r.get('result')
-            break
-
-
-from collections import defaultdict
 d = defaultdict(int)
-for i in interfaces:
-    if i.status == 'ok':
-        d[i.blocks] += 1
+
+while reached_servers:
+    i, r = results_queue.get(timeout=1000)
+    i.blocks = r.get('result')
+    d[i.blocks] += 1
+    reached_servers.remove(i.server)
+
 v = d.values()
 numblocks = d.keys()[v.index(max(v))]
 
 for i in interfaces:
-    if i.status == 'ok':
+    if i.status == "ok":
         if abs(i.blocks-numblocks)>1: i.status = "lagging" 
     else:
         i.blocks = 0
+
     print "%30s   %d   %s   "%(i.host, i.blocks, i.status)
 
