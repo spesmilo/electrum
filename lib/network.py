@@ -38,15 +38,16 @@ def filter_protocol(servers, p):
 #def pick_random_server():
 #    return random.choice( filter_protocol(DEFAULT_SERVERS,'s') )
 
+from simple_config import SimpleConfig
 
 class Network(threading.Thread):
 
-    def __init__(self, config):
+    def __init__(self, config = {}):
         threading.Thread.__init__(self)
         self.daemon = True
-        self.config = config
+        self.config = SimpleConfig(config) if type(config) == type({}) else config
         self.lock = threading.Lock()
-        self.blockchain = Blockchain(config, self)
+        self.blockchain = Blockchain(self.config, self)
         self.interfaces = {}
         self.queue = Queue.Queue()
         self.default_server = self.config.get('server')
@@ -138,7 +139,7 @@ class Network(threading.Thread):
     def start_interface(self, server):
         if server in self.interfaces.keys():
             return
-        i = interface.Interface({'server':server, 'path':self.config.path, 'proxy':self.proxy})
+        i = interface.Interface(server, self.config)
         self.interfaces[server] = i
         i.start(self.queue)
 

@@ -85,14 +85,11 @@ def cert_verify_hostname(s):
 class Interface(threading.Thread):
 
 
-    def __init__(self, config=None):
-
-        if config is None:
-            config = SimpleConfig()
+    def __init__(self, server, config = None):
 
         threading.Thread.__init__(self)
         self.daemon = True
-        self.config = config
+        self.config = config if config is not None else SimpleConfig()
         self.connect_event = threading.Event()
 
         self.subscriptions = {}
@@ -111,7 +108,7 @@ class Interface(threading.Thread):
         self.pending_transactions_for_notifications= []
 
         # parse server
-        self.server = config.get('server')
+        self.server = server
         host, port, protocol = self.server.split(':')
         port = int(port)
             
@@ -122,7 +119,7 @@ class Interface(threading.Thread):
         self.port = port
         self.protocol = protocol
         self.use_ssl = ( protocol in 'sg' )
-        self.proxy = self.parse_proxy_options(config.get('proxy'))
+        self.proxy = self.parse_proxy_options(self.config.get('proxy'))
         if self.proxy:
             self.proxy_mode = proxy_modes.index(self.proxy["mode"]) + 1
 
@@ -308,7 +305,7 @@ class Interface(threading.Thread):
             socket.getaddrinfo = getaddrinfo
 
         if self.use_ssl:
-            cert_path = os.path.join( self.config.get('path'), 'certs', self.host)
+            cert_path = os.path.join( self.config.path, 'certs', self.host)
 
             if not os.path.exists(cert_path):
                 is_new = True
@@ -539,9 +536,11 @@ class Interface(threading.Thread):
 
 
 
-    def start(self, queue):
-        self.queue = queue
+    def start(self, queue = None, wait = False):
+        self.queue = queue if queue else Queue.Queue()
         threading.Thread.start(self)
+        if wait:
+            self.connect_event.wait()
 
 
     def run(self):

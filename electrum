@@ -120,6 +120,7 @@ if __name__ == '__main__':
     options, args = parser.parse_args()
     if options.portable and options.wallet_path is None:
         options.wallet_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum.dat')
+
     set_verbosity(options.verbose)
 
     # config is an object passed to the various constructors (wallet, interface, gui)
@@ -129,7 +130,6 @@ if __name__ == '__main__':
         config_options = eval(str(options))
         for k, v in config_options.items():
             if v is None: config_options.pop(k)
-
 
     config = SimpleConfig(config_options)
 

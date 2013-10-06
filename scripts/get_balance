@@ -2,8 +2,8 @@
 
 import sys
 from electrum import Interface
-from electrum import bitcoin, Transaction
-from electrum import Network, SimpleConfig
+from electrum import bitcoin, Transaction, Network
+
 
 
 def get_transaction(network, tx_hash, tx_height):
@@ -75,7 +75,7 @@ def update_tx_outputs(tx, prevout_values):
 
 
 def main(address):
-    network = Network(SimpleConfig({'server':'btc.it-zone.org:110:s','verbose':False}))
+    network = Network()
     network.start(wait=True)
     c, u = get_addr_balance(network, address)
 
