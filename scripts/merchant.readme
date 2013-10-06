@@ -6,13 +6,14 @@ received and notifies your web application.
 The workflow goes like this:
 
  - the server sends a request to the daemon via POST. the request
-   contains an ID, an amount to be paid, an expiration period.
+   contains an amount to be paid, a number of confirmations, and an
+   expiration period in hours.
 
  - the daemon answers with a Bitcoin address, where the customer needs
    to send the coins.
 
  - later, the daemon will send a POST to the webserver, to notify that
-   payment has been received OR that the request has expired
+   the payment has been received OR that the request has expired
 
 
 Since addresses are generated using an Electrum master public key, it

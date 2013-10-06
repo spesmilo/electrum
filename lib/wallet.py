@@ -1426,7 +1426,7 @@ class Wallet:
         self.verifier = TxVerifier(self.network, self.storage)
         self.verifier.start()
         self.set_verifier(self.verifier)
-        self.synchronizer = WalletSynchronizer(self)
+        self.synchronizer = WalletSynchronizer(self, network)
         self.synchronizer.start()
 
     def stop_threads(self):
@@ -1476,13 +1476,11 @@ class Wallet:
 class WalletSynchronizer(threading.Thread):
 
 
-    def __init__(self, wallet):
+    def __init__(self, wallet, network):
         threading.Thread.__init__(self)
         self.daemon = True
         self.wallet = wallet
-        wallet.synchronizer = self
-        self.network = self.wallet.network
-        #self.wallet.network.register_callback('connected', lambda: self.wallet.set_up_to_date(False))
+        self.network = network
         self.was_updated = True
         self.running = False
         self.lock = threading.Lock()
