@@ -673,7 +673,7 @@ class MiniActuator:
     def change_theme(self, theme_name):
         """Change theme."""
         self.theme_name = theme_name
-        self.config.set_key('litegui_theme',theme_name)
+        self.g.config.set_key('litegui_theme',theme_name)
         self.load_theme()
     
     def set_configured_currency(self, set_quote_currency):
@@ -687,7 +687,8 @@ class MiniActuator:
 
     def set_config_currency(self, conversion_currency):
         """Change the wallet fiat currency country."""
-        self.g.config.set_key('conversion_currency',conversion_currency,True)
+        self.g.config.set_key('currency',conversion_currency,True)
+        self.g.update_status()
 
     def copy_address(self, receive_popup):
         """Copy the wallet addresses into the client."""
@@ -851,6 +852,8 @@ class MiniDriver(QObject):
             self.update_balance()
             self.update_completions()
             self.update_history()
+            self.window.receiving.update_list()
+
 
     def initializing(self):
         if self.state == self.INITIALIZING:

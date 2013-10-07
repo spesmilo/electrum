@@ -27,7 +27,7 @@ class ReceivingWidget(QTreeWidget):
       else:
           address = str(item.text(0))
           label = unicode( item.text(1) )
-          self.owner.actuator.g.wallet.labels[address] = label
+          self.owner.actuator.g.wallet.set_label(address, label)
 
     def copy_address(self):
         address = self.currentItem().text(0)
@@ -74,4 +74,3 @@ class ReceivingWidget(QTreeWidget):
 
         self.hide_used = True
         self.setColumnHidden(2, True)
-        #self.update_list()
