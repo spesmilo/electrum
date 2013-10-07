@@ -143,14 +143,15 @@ class ElectrumGui:
         self.stdscr.addstr( 12, 25, _("[Clear]"), curses.A_REVERSE if self.pos%6==5 else curses.color_pair(2))
 
     def print_banner(self):
-        for i, x in enumerate( self.network.banner.split('\n') ):
-            self.stdscr.addstr( 1+i, 1, x )
+        self.print_list( self.network.banner.split('\n'))
 
-    def print_list(self, list, firstline):
+
+    def print_list(self, list, firstline = None):
         self.maxpos = len(list)
         if not self.maxpos: return
-        firstline += " "*(self.maxx -2 - len(firstline))
-        self.stdscr.addstr( 1, 1, firstline )
+        if firstline:
+            firstline += " "*(self.maxx -2 - len(firstline))
+            self.stdscr.addstr( 1, 1, firstline )
         for i in range(self.maxy-4):
             msg = list[i] if i < len(list) else ""
             msg += " "*(self.maxx - 2 - len(msg))
@@ -318,7 +319,7 @@ class ElectrumGui:
 
     def network_dialog(self):
         out = self.run_dialog('Network', [
-            {'label':'server', 'type':'str', 'value':self.network.interface.server},
+            {'label':'server', 'type':'str', 'value':self.network.default_server},
             {'label':'proxy', 'type':'str', 'value':self.config.get('proxy', '')},
             ], buttons = 1)
         if out:
@@ -329,9 +330,14 @@ class ElectrumGui:
                 else:
                     proxy = None
 
-                self.wallet.config.set_key("proxy", proxy, True)
-                self.wallet.config.set_key("server", server, True)
-                self.network.interface.set_server(server, proxy)
+                try:
+                    host, port, protocol = server.split(':')
+                except:
+                    self.show_message("Error:" + server)
+                    return False
+
+                auto_connect = network.config.get('auto_cycle')
+                self.network.set_parameters(host, post, protocol, proxy, auto_connect)
                 
 
 
