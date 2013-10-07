@@ -151,12 +151,12 @@ def run_recovery_dialog():
 
 
 
-def run_settings_dialog(wallet, parent):
+def run_settings_dialog(self):
 
     message = "Here are the settings of your wallet. For more explanations, click on the question mark buttons next to each input field."
         
     dialog = gtk.MessageDialog(
-        parent = parent,
+        parent = self.window,
         flags = gtk.DIALOG_MODAL, 
         buttons = gtk.BUTTONS_OK_CANCEL,
         message_format = message)
@@ -176,7 +176,7 @@ def run_settings_dialog(wallet, parent):
     fee_label.set_size_request(150,10)
     fee_label.show()
     fee.pack_start(fee_label,False, False, 10)
-    fee_entry.set_text( str( Decimal(wallet.fee) /100000000 ) )
+    fee_entry.set_text( str( Decimal(self.wallet.fee) /100000000 ) )
     fee_entry.connect('changed', numbify, False)
     fee_entry.show()
     fee.pack_start(fee_entry,False,False, 10)
@@ -190,7 +190,7 @@ def run_settings_dialog(wallet, parent):
     nz_label.set_size_request(150,10)
     nz_label.show()
     nz.pack_start(nz_label,False, False, 10)
-    nz_entry.set_text( str( wallet.num_zeros ))
+    nz_entry.set_text( str( self.num_zeros ))
     nz_entry.connect('changed', numbify, True)
     nz_entry.show()
     nz.pack_start(nz_entry,False,False, 10)
@@ -198,28 +198,10 @@ def run_settings_dialog(wallet, parent):
     nz.show()
     vbox.pack_start(nz, False,False, 5)
             
-    # gui setting
-    gui_box = gtk.HBox()
-    gui_label = gtk.Label('Default GUI:')
-    gui_label.set_size_request(150,10)
-    gui_label.show()
-    gui_box.pack_start(gui_label,False, False, 10)
-    gui_combo = gtk.combo_box_new_text()
-    gui_names = ['lite', 'classic', 'gtk', 'text']
-    for name in gui_names: gui_combo.append_text(name.capitalize())
-    gui_combo.show()
-    gui_box.pack_start(gui_combo,False, False, 10)
-    gui_combo.set_active( gui_names.index( wallet.config.get("gui","lite")) )
-    gui_box.show()
-    add_help_button(gui_box, "Select which GUI mode to use at start up.")
-
-    vbox.pack_start(gui_box, False,False, 5)
-
     dialog.show()
     r = dialog.run()
     fee = fee_entry.get_text()
     nz = nz_entry.get_text()
-    gui = gui_names[ gui_combo.get_active()]
         
     dialog.destroy()
     if r==gtk.RESPONSE_CANCEL:
@@ -230,7 +212,7 @@ def run_settings_dialog(wallet, parent):
     except:
         show_message("error")
         return
-    wallet.set_fee(fee)
+    self.wallet.set_fee(fee)
 
     try:
         nz = int( nz )
@@ -238,11 +220,11 @@ def run_settings_dialog(wallet, parent):
     except:
         show_message("error")
         return
-    if wallet.num_zeros != nz:
-        wallet.num_zeros = nz
-        wallet.save()
 
-    wallet.config.set_key('gui',gui,True)
+    if self.num_zeros != nz:
+        self.num_zeros = nz
+        self.config.set_key('num_zeros',nz,True)
+        self.update_history_tab()
 
 
 
@@ -250,9 +232,9 @@ def run_settings_dialog(wallet, parent):
 def run_network_dialog( network, parent ):
     image = gtk.Image()
     image.set_from_stock(gtk.STOCK_NETWORK, gtk.ICON_SIZE_DIALOG)
-    interface = network.interface
     if parent:
-        if interface.is_connected:
+        if network.is_connected():
+            interface = network.interface
             status = "Connected to %s:%d\n%d blocks"%(interface.host, interface.port, network.blockchain.height)
         else:
             status = "Not connected"
@@ -261,6 +243,8 @@ def run_network_dialog( network, parent ):
         status = "Please choose a server.\nSelect cancel if you are offline."
 
     server = interface.server
+    host, port, protocol = server.split(':')
+
     servers = network.get_servers()
 
     dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
@@ -280,9 +264,8 @@ def run_network_dialog( network, parent ):
     host_entry.set_text(server)
     host_entry.show()
     host_box.pack_start(host_entry, False, False, 10)
-    add_help_button(host_box, 'The name and port number of your Electrum server, separated by a colon. Example: "ecdsa.org:50000". If no port number is provided, port 50000 will be tried. Some servers allow you to connect through http (port 80) or https (port 443)')
+    add_help_button(host_box, 'The name, port number and protocol of your Electrum server, separated by a colon. Example: "ecdsa.org:50002:s". Some servers allow you to connect through http (port 80) or https (port 443)')
     host_box.show()
-
 
     p_box = gtk.HBox(False, 10)
     p_box.show()
@@ -292,33 +275,32 @@ def run_network_dialog( network, parent ):
     p_label.show()
     p_box.pack_start(p_label, False, False, 10)
 
-    radio1 = gtk.RadioButton(None, "tcp")
-    p_box.pack_start(radio1, True, True, 0)
-    radio1.show()
-    radio2 = gtk.RadioButton(radio1, "http")
-    p_box.pack_start(radio2, True, True, 0)
-    radio2.show()
+    combobox = gtk.combo_box_new_text()
+    combobox.show()
+    combobox.append_text("TCP")
+    combobox.append_text("SSL")
+    combobox.append_text("HTTP")
+    combobox.append_text("HTTPS")
+
+    p_box.pack_start(combobox, True, True, 0)
 
     def current_line():
         return unicode(host_entry.get_text()).split(':')
     
-    def set_button(protocol):
-        if protocol == 't':
-            radio1.set_active(1)
-        elif protocol == 'h':
-            radio2.set_active(1)
+    def set_combobox(protocol):
+        combobox.set_active('tshg'.index(protocol))
 
     def set_protocol(protocol):
         host = current_line()[0]
         pp = servers[host]
         if protocol not in pp.keys():
             protocol = pp.keys()[0]
-            set_button(protocol)
+            set_combobox(protocol)
         port = pp[protocol]
         host_entry.set_text( host + ':' + port + ':' + protocol)
 
-    radio1.connect("toggled", lambda x,y:set_protocol('t'), "radio button 1")
-    radio2.connect("toggled", lambda x,y:set_protocol('h'), "radio button 1")
+    combobox.connect("changed", lambda x:set_protocol('tshg'[combobox.get_active()]))
+    set_combobox(protocol)
         
     server_list = gtk.ListStore(str)
     for host in servers.keys():
@@ -327,25 +309,22 @@ def run_network_dialog( network, parent ):
     treeview = gtk.TreeView(model=server_list)
     treeview.show()
 
-    if interface.servers:
-        label = 'Active Servers'
-    else:
-        label = 'Default Servers'
-        
+    label = 'Active Servers' if network.irc_servers else 'Default Servers'
     tvcolumn = gtk.TreeViewColumn(label)
     treeview.append_column(tvcolumn)
     cell = gtk.CellRendererText()
     tvcolumn.pack_start(cell, False)
     tvcolumn.add_attribute(cell, 'text', 0)
 
-    scroll = gtk.ScrolledWindow()
-    scroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-    scroll.add(treeview)
-    scroll.show()
-
     vbox.pack_start(host_box, False,False, 5)
     vbox.pack_start(p_box, True, True, 0)
-    vbox.pack_start(scroll)
+
+    #scroll = gtk.ScrolledWindow()
+    #scroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_ALWAYS)
+    #scroll.add_with_viewport(treeview)
+    #scroll.show()
+    #vbox.pack_start(scroll, True)
+    vbox.pack_start(treeview, True)
 
     def my_treeview_cb(treeview):
         path, view_column = treeview.get_cursor()
@@ -358,11 +337,11 @@ def run_network_dialog( network, parent ):
             protocol = pp.keys()[0]
         port = pp[protocol]
         host_entry.set_text( host + ':' + port + ':' + protocol)
-        set_button(protocol)
+        set_combobox(protocol)
 
     treeview.connect('cursor-changed', my_treeview_cb)
 
-    dialog.show()
+    dialog.show_all()
     r = dialog.run()
     server = host_entry.get_text()
     dialog.destroy()
@@ -371,14 +350,15 @@ def run_network_dialog( network, parent ):
         return False
 
     try:
-        interface.set_server(server)
+        host, port, protocol = server.split(':')
+        proxy = network.config.get('proxy')
+        auto_connect = network.config.get('auto_cycle')
+        network.set_parameters(host, port, protocol, proxy, auto_connect)
     except:
         show_message("error:" + server)
         return False
 
-    if parent:
-        wallet.config.set_key("server", server, True)
-    return True
+
 
 
 
@@ -497,7 +477,7 @@ class ElectrumWindow:
         self.wallet = wallet
         self.network = network
         self.funds_error = False # True if not enough funds
-        self.num_zeros     = int(self.config.get('num_zeros',0))
+        self.num_zeros = int(self.config.get('num_zeros',0))
 
         self.window = MyWindow(gtk.WINDOW_TOPLEVEL)
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.config.path
@@ -556,7 +536,7 @@ class ElectrumWindow:
         settings_icon.show()
 
         prefs_button = gtk.Button()
-        prefs_button.connect("clicked", lambda x: run_settings_dialog(self.wallet, self.window) )
+        prefs_button.connect("clicked", lambda x: run_settings_dialog(self) )
         prefs_button.add(settings_icon)
         prefs_button.set_tooltip_text("Settings")
         prefs_button.set_relief(gtk.RELIEF_NONE)

@@ -39,7 +39,6 @@ class NetworkDialog(QDialog):
         self.setMinimumSize(375, 20)
 
         self.network = network
-        self.interface = interface = network.interface
         self.config = config
         self.protocol = None
 
@@ -51,7 +50,7 @@ class NetworkDialog(QDialog):
                 status = _("Not connected")
 
             if network.is_connected():
-                status += "\n" + _("Server:") + " %s"%(interface.host) 
+                status += "\n" + _("Server:") + " %s"%(network.interface.host) 
             else:
                 status += "\n" + _("Disconnected from server")
                 
