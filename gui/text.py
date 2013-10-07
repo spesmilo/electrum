@@ -46,8 +46,9 @@ class ElectrumGui:
         self.str_description = ""
         self.str_amount = ""
         self.str_fee = ""
+        self.history = None
         
-        self.network.register_callback('updated', self.refresh)
+        self.network.register_callback('updated', self.update)
         self.network.register_callback('connected', self.refresh)
         self.network.register_callback('disconnected', self.refresh)
         self.network.register_callback('disconnecting', self.refresh)
@@ -76,14 +77,30 @@ class ElectrumGui:
         self.set_cursor(0)
         return s
 
+    def update(self):
+        self.update_history()
+        if self.tab == 0: 
+            self.print_history()
+        self.refresh()
 
     def print_history(self):
+
+        width = [20, 40, 14, 14]
+        delta = (self.maxx - sum(width) - 4)/3
+        format_str = "%"+"%d"%width[0]+"s"+"%"+"%d"%(width[1]+delta)+"s"+"%"+"%d"%(width[2]+delta)+"s"+"%"+"%d"%(width[3]+delta)+"s"
+
+        if self.history is None:
+            self.update_history()
+
+        self.print_list(self.history[::-1], format_str%( _("Date"), _("Description"), _("Amount"), _("Balance")))
+
+    def update_history(self):
         width = [20, 40, 14, 14]
         delta = (self.maxx - sum(width) - 4)/3
         format_str = "%"+"%d"%width[0]+"s"+"%"+"%d"%(width[1]+delta)+"s"+"%"+"%d"%(width[2]+delta)+"s"+"%"+"%d"%(width[3]+delta)+"s"
 
         b = 0 
-        messages = []
+        self.history = []
 
         for item in self.wallet.get_tx_history():
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
@@ -96,9 +113,7 @@ class ElectrumGui:
                 time_str = 'pending'
 
             label, is_default_label = self.wallet.get_label(tx_hash)
-            messages.append( format_str%( time_str, label, format_satoshis(value, whitespaces=True), format_satoshis(balance, whitespaces=True) ) )
-
-        self.print_list(messages[::-1], format_str%( _("Date"), _("Description"), _("Amount"), _("Balance")))
+            self.history.append( format_str%( time_str, label, format_satoshis(value, whitespaces=True), format_satoshis(balance, whitespaces=True) ) )
 
 
     def print_balance(self):
