@@ -931,44 +931,21 @@ class Wallet:
         return o
 
     def get_imported_balance(self):
-        cc = uu = 0
-        for addr in self.imported_keys.keys():
-            c, u = self.get_addr_balance(addr)
-            cc += c
-            uu += u
-        return cc, uu
+        return self.get_balance(self.imported_keys.keys())
 
     def get_account_balance(self, account):
-        if account is None:
-            return self.get_balance()
-        elif account == -1:
-            return self.get_imported_balance()
-        
-        conf = unconf = 0
-        for addr in self.get_account_addresses(account): 
-            c, u = self.get_addr_balance(addr)
-            conf += c
-            unconf += u
-        return conf, unconf
+        return self.get_balance(self.get_account_addresses(account))
 
     def get_frozen_balance(self):
-        conf = unconf = 0
-        for addr in self.frozen_addresses:
-            c, u = self.get_addr_balance(addr)
-            conf += c
-            unconf += u
-        return conf, unconf
-
+        return self.get_balance(self.frozen_addresses)
         
-    def get_balance(self):
+    def get_balance(self, domain=None):
+        if domain is None: domain = self.addresses(True)
         cc = uu = 0
-        for a in self.accounts.keys():
-            c, u = self.get_account_balance(a)
+        for addr in domain:
+            c, u = self.get_addr_balance(addr)
             cc += c
             uu += u
-        c, u = self.get_imported_balance()
-        cc += c
-        uu += u
         return cc, uu
 
 
