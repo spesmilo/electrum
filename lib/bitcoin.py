@@ -272,8 +272,11 @@ def is_valid(addr):
 
 ########### end pywallet functions #######################
 
-
-from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
+try:
+    from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
+except:
+    print "cannot import ecdsa.curve_secp256k1. You probably need to upgrade ecdsa.\nTry: sudo pip install --upgrade ecdsa"
+    exit()
 from ecdsa.curves import SECP256k1
 from ecdsa.util import string_to_number, number_to_string
 
