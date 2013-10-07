@@ -157,7 +157,7 @@ class ElectrumWindow(QMainWindow):
         self.completions = QStringListModel()
 
         self.tabs = tabs = QTabWidget(self)
-        self.column_widths = self.config.get("column_widths", default_column_widths )
+        self.column_widths = self.config.get("column_widths_2", default_column_widths )
         tabs.addTab(self.create_history_tab(), _('History') )
         tabs.addTab(self.create_send_tab(), _('Send') )
         tabs.addTab(self.create_receive_tab(), _('Receive') )
@@ -1048,7 +1048,7 @@ class ElectrumWindow(QMainWindow):
         for i in range(self.contacts_list.columnCount() - 1):
             self.column_widths["contacts"].append(self.contacts_list.columnWidth(i))
 
-        self.config.set_key("column_widths", self.column_widths, True)
+        self.config.set_key("column_widths_2", self.column_widths, True)
 
 
     def create_contacts_tab(self):
