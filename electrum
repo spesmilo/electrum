@@ -166,11 +166,6 @@ if __name__ == '__main__':
         time.sleep(0.1)
         sys.exit(0)
 
-    # Python bug (http://bugs.python.org/issue1927) causes raw_input
-    # to be redirected improperly between stdin/stderr on Unix systems
-    # if readline is not initialised first.
-    import readline
-    
     if cmd not in known_commands:
         cmd = 'help'
 
