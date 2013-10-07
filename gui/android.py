@@ -21,7 +21,7 @@
 
 import android
 
-from electrum import SimpleConfig, Interface, WalletSynchronizer, Wallet, format_satoshis, mnemonic_encode, mnemonic_decode, is_valid
+from electrum import SimpleConfig, Wallet, WalletStorage, format_satoshis, mnemonic_encode, mnemonic_decode, is_valid
 from electrum import util
 from decimal import Decimal
 import datetime, re
@@ -144,9 +144,7 @@ def protocol_dialog(host, protocol, z):
     if not response: return
     if not selected_item: return
     if response.get('which') == 'positive':
-        p = protocols[selected_item[0]]
-        port = z[p]
-        return host + ':' + port + ':' + p
+        return protocols[selected_item[0]]
 
 
 
@@ -417,7 +415,7 @@ def set_history_layout(n):
 status_text = ''
 def update_layout():
     global status_text
-    if not wallet.interface.is_connected:
+    if not network.is_connected():
         text = "Not connected..."
     elif not wallet.up_to_date:
         text = "Synchronizing..."
@@ -429,7 +427,7 @@ def update_layout():
 
     # vibrate if status changed
     if text != status_text:
-        if status_text and wallet.interface.is_connected and wallet.up_to_date:
+        if status_text and network.is_connected() and wallet.up_to_date:
             droid.vibrate()
         status_text = text
 
@@ -500,7 +498,7 @@ do_refresh = False
 
 def update_callback():
     global do_refresh
-    print "gui callback", wallet.interface.is_connected, wallet.up_to_date
+    print "gui callback", network.is_connected(), wallet.up_to_date
     do_refresh = True
     droid.eventPost("refresh",'z')
 
@@ -756,7 +754,7 @@ def settings_loop():
 
 
     def set_listview():
-        server, port, p = interface.server.split(':')
+        server, port, p = network.default_server.split(':')
         fee = str( Decimal( wallet.fee)/100000000 )
         is_encrypted = 'yes' if wallet.use_encryption else 'no'
         protocol = protocol_name(p)
@@ -773,49 +771,34 @@ def settings_loop():
         if event == 'OK': continue
         if not event: continue
 
-        servers = interface.get_servers()
+        servers = network.get_servers()
         name = event.get("name")
         if not name: continue
 
         if name == "itemclick":
             pos = event["data"]["position"]
-            host, port, protocol = interface.server.split(':')
+            host, port, protocol = network.default_server.split(':')
+            network_changed = False
 
             if pos == "0": #server
                 host = server_dialog(servers)
                 if host:
                     p = servers[host]
-                    port = p['t']
-                    srv = host + ':' + port + ':t'
-                    wallet.config.set_key("server", srv, True)
-                    try:
-                        wallet.interface.set_server(srv)
-                    except:
-                        modal_dialog('error','invalid server')
-                    set_listview()
+                    port = p[protocol]
+                    network_changed = True
 
             elif pos == "1": #protocol
                 if host in servers:
-                    srv = protocol_dialog(host, protocol, servers[host])
-                    if srv:
-                        wallet.config.set_key("server", srv, True)
-                        try:
-                            wallet.interface.set_server(srv)
-                        except:
-                            modal_dialog('error','invalid server')
-                        set_listview()
+                    protocol = protocol_dialog(host, protocol, servers[host])
+                    z = servers[host]
+                    port = z[p]
+                    network_changed = True
 
             elif pos == "2": #port
                 a_port = modal_input('Port number', 'If you use a public server, this field is set automatically when you set the protocol', port, "number")
-                if a_port:
-                    if a_port != port:
-                        srv = host + ':' + a_port + ':'+ protocol
-                        wallet.config.set_key("server", srv, True)
-                        try:
-                            wallet.interface.set_server(srv)
-                        except:
-                            modal_dialog('error','invalid port number')
-                        set_listview()
+                if a_port != port:
+                    port = a_port
+                    network_changed = True
 
             elif pos == "3": #fee
                 fee = modal_input('Transaction fee', 'The fee will be this amount multiplied by the number of inputs in your transaction. ', str( Decimal( wallet.fee)/100000000 ), "numberDecimal")
@@ -834,6 +817,14 @@ def settings_loop():
             elif pos == "5":
                 seed_dialog()
 
+            if network_changed:
+                proxy = None
+                auto_connect = False
+                try:
+                    network.set_parameters(host, port, protocol, proxy, auto_connect)
+                except:
+                    modal_dialog('error','invalid server')
+                set_listview()
 
         elif name in menu_commands:
             out = event["name"]
@@ -885,18 +876,26 @@ def make_bitmap(addr):
 droid = android.Android()
 menu_commands = ["send", "receive", "settings", "contacts", "main"]
 wallet = None
-interface = None
+network = None
 
 class ElectrumGui:
 
-    def __init__(self, w, config, app=None):
-        global wallet, interface
+    def __init__(self, config, _network):
+        global wallet, network
         wallet = w
-        interface = wallet.interface
-        interface.register_callback('updated',update_callback)
-        interface.register_callback('connected', update_callback)
-        interface.register_callback('disconnected', update_callback)
-        interface.register_callback('disconnecting', update_callback)
+        network = _network
+        network.register_callback('updated', update_callback)
+        network.register_callback('connected', update_callback)
+        network.register_callback('disconnected', update_callback)
+        network.register_callback('disconnecting', update_callback)
+        
+        storage = WalletStorage(config)
+        if not storage.file_exists:
+            print "Wallet not found. try 'electrum create'"
+            exit()
+
+        self.wallet = Wallet(storage)
+        self.wallet.start_threads(network)
 
 
     def main(self, url):
@@ -929,6 +928,7 @@ class ElectrumGui:
 
         droid.makeToast("Bye!")
 
+
     def restore_or_create(self):
         droid.dialogCreateAlert("Wallet not found","Do you want to create a new wallet, or restore an existing one?")
         droid.dialogSetPositiveButtonText('Create')
@@ -942,6 +942,7 @@ class ElectrumGui:
             return
 
         return 'restore' if response.get('which') == 'neutral' else 'create'
+
 
     def seed_dialog(self):
         if modal_question("Input method",None,'QR Code', 'mnemonic'):

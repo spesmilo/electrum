@@ -46,6 +46,8 @@ def user_dir():
         return os.path.join(os.environ["APPDATA"], "Electrum")
     elif "LOCALAPPDATA" in os.environ:
         return os.path.join(os.environ["LOCALAPPDATA"], "Electrum")
+    elif 'ANDROID_DATA' in os.environ:
+        return "/sdcard/electrum/"
     else:
         #raise BaseException("No home directory found in environment variables.")
         return 
