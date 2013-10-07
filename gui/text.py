@@ -308,7 +308,8 @@ class ElectrumGui:
         w = self.w
         w.clear()
         w.border(0)
-        w.addstr(2,2,message)
+        for i, line in enumerate(message.split('\n')):
+            w.addstr(2+i,2,line)
         w.refresh()
         if getchar: c = self.stdscr.getch()
 
@@ -318,26 +319,31 @@ class ElectrumGui:
 
 
     def network_dialog(self):
+        auto_connect = self.network.config.get('auto_cycle')
+        host, port, protocol = self.network.default_server.split(':')
+        srv = 'auto-connect' if auto_connect else self.network.default_server
+
         out = self.run_dialog('Network', [
-            {'label':'server', 'type':'str', 'value':self.network.default_server},
+            {'label':'server', 'type':'str', 'value':srv},
             {'label':'proxy', 'type':'str', 'value':self.config.get('proxy', '')},
             ], buttons = 1)
         if out:
             if out.get('server'):
                 server = out.get('server')
+                auto_connect = server == 'auto-connect'
+                if not auto_connect:
+                    try:
+                        host, port, protocol = server.split(':')
+                    except:
+                        self.show_message("Error:" + server + "\nIn doubt, type \"auto-connect\"")
+                        return False
+
                 if out.get('proxy'):
                     proxy = self.parse_proxy_options(out.get('proxy'))
                 else:
                     proxy = None
 
-                try:
-                    host, port, protocol = server.split(':')
-                except:
-                    self.show_message("Error:" + server)
-                    return False
-
-                auto_connect = network.config.get('auto_cycle')
-                self.network.set_parameters(host, post, protocol, proxy, auto_connect)
+                self.network.set_parameters(host, port, protocol, proxy, auto_connect)
                 
 
 
