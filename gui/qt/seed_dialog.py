@@ -57,7 +57,8 @@ class PrivateKeysDialog(QDialog):
 
 def make_seed_dialog(seed, imported_keys):
 
-        brainwallet = ' '.join(mnemonic.mn_encode(seed))
+        words = mnemonic.mn_encode(seed)
+        brainwallet = ' '.join(words)
 
         label1 = QLabel(_("Your wallet generation seed is")+ ":")
 
@@ -65,7 +66,7 @@ def make_seed_dialog(seed, imported_keys):
         seed_text.setReadOnly(True)
         seed_text.setMaximumHeight(130)
         
-        msg2 =  _("Please write down or memorize these 12 words (order is important).") + " " \
+        msg2 =  _("Please write down or memorize these %d words (order is important).")%len(words) + " " \
               + _("This seed will allow you to recover your wallet in case of computer failure.") + " " \
               + _("Your seed is also displayed as QR code, in case you want to transfer it to a mobile phone.") + "<p>" \
               + "<b>"+_("WARNING")+":</b> " + _("Never disclose your seed. Never type it on a website.") + "</b><p>"
