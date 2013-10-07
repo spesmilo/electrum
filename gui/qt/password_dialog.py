@@ -91,7 +91,9 @@ def run_password_dialog(self, wallet, parent):
 
     if new_password != new_password2:
         QMessageBox.warning(parent, _('Error'), _('Passwords do not match'), _('OK'))
-        self.run() # Retry
+        # Retry
+        run_password_dialog(self, wallet, parent) 
+        return
 
     try:
         wallet.update_password(seed, password, new_password)
