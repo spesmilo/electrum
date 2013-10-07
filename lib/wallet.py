@@ -460,12 +460,12 @@ class Wallet:
                 self.accounts[k] = BIP32_Account(v)
 
 
-    def addresses(self, include_change = True, next=False):
+    def addresses(self, include_change = True, _next=True):
         o = self.get_account_addresses(-1, include_change)
         for a in self.accounts.keys():
             o += self.get_account_addresses(a, include_change)
 
-        if next:
+        if _next:
             for addr in self.next_addresses.values():
                 if addr not in o:
                     o += [addr]
@@ -511,6 +511,10 @@ class Wallet:
                 for addr in addresses:
                     if address == addr:
                         return account, (for_change, addresses.index(addr))
+
+        for k,v in self.next_addresses.items():
+            if v == address:
+                return k, (0,0)
 
         raise BaseException("Address not found", address)
 
@@ -767,6 +771,7 @@ class Wallet:
             if self.address_is_old(a):
                 print_error( "creating account", a )
                 self.create_account(account_type)
+                self.next_addresses.pop(k)
 
 
     def synchronize_account(self, account):
@@ -988,7 +993,7 @@ class Wallet:
         total = 0
         fee = self.fee if fixed_fee is None else fixed_fee
         if domain is None:
-            domain = self.addresses()
+            domain = self.addresses(True)
 
         for i in self.frozen_addresses:
             if i in domain: domain.remove(i)
@@ -1515,7 +1520,7 @@ class WalletSynchronizer(threading.Thread):
             print_error("missing tx", missing_tx)
 
         # subscriptions
-        self.subscribe_to_addresses(self.wallet.addresses(True, next=True))
+        self.subscribe_to_addresses(self.wallet.addresses(True))
 
         while self.is_running():
             # 1. create new addresses
