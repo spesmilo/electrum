@@ -36,6 +36,8 @@ from account import *
 from transaction import Transaction
 from plugins import run_hook
 
+COINBASE_MATURITY = 100
+
 # AES encryption
 EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
 DecodeAES = lambda secret, e: aes.decryptData(secret, base64.b64decode(e))
@@ -979,12 +981,14 @@ class Wallet:
             for tx_hash, tx_height in h:
                 tx = self.transactions.get(tx_hash)
                 if tx is None: raise BaseException("Wallet not synchronized")
+                is_coinbase = tx.inputs[0].get('prevout_hash') == '0'*64
                 for output in tx.d.get('outputs'):
                     if output.get('address') != addr: continue
                     key = tx_hash + ":%d" % output.get('prevout_n')
                     if key in self.spent_outputs: continue
                     output['prevout_hash'] = tx_hash
                     output['height'] = tx_height
+                    output['coinbase'] = is_coinbase
                     coins.append((tx_height, output))
 
         # sort by age
@@ -1024,7 +1028,9 @@ class Wallet:
         inputs = []
         coins = prioritized_coins + coins
 
-        for item in coins: 
+        for item in coins:
+            if item.get('coinbase') and item.get('height') + COINBASE_MATURITY > self.network.blockchain.height:
+                continue
             addr = item.get('address')
             v = item.get('value')
             total += v
