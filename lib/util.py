@@ -179,4 +179,12 @@ def parse_url(url):
     return address, amount, label, message, signature, identity, url
 
 
-
+# Python bug (http://bugs.python.org/issue1927) causes raw_input
+# to be redirected improperly between stdin/stderr on Unix systems
+def raw_input(prompt=None):
+    if prompt:
+        sys.stdout.write(prompt)
+    return builtin_raw_input()
+import __builtin__
+builtin_raw_input = __builtin__.raw_input
+__builtin__.raw_input = raw_input
