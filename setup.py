@@ -2,7 +2,7 @@
 
 # python setup.py sdist --format=zip,gztar
 
-from distutils.core import setup
+from setuptools import setup
 import os, sys, platform, imp
 
 version = imp.load_source('version', 'lib/version.py')
@@ -49,7 +49,7 @@ data_files += [
 
 setup(name = "Electrum",
     version = version.ELECTRUM_VERSION,
-    install_requires = ['slowaes','ecdsa'],
+    install_requires = ['slowaes','ecdsa>=0.9'],
     package_dir = {'electrum': 'lib', 'electrum_gui': 'gui', 'electrum_plugins':'plugins'},
     scripts= ['electrum'],
     data_files = data_files,
