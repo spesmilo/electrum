@@ -7,6 +7,14 @@ from electrum.bitcoin import is_valid
 from electrum.network import filter_protocol
 import sys, getpass, datetime
 
+# Python bug (http://bugs.python.org/issue1927) causes raw_input
+# to be redirected improperly between stdin/stderr on Unix systems
+# if readline is not initialised first.
+try:
+    import readline
+except ImportError:
+    pass
+
 # minimal fdisk like gui for console usage
 # written by rofl0r, with some bits stolen from the text gui (ncurses)
 
