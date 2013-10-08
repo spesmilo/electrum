@@ -126,7 +126,7 @@ class WalletStorage:
         f = open(self.path,"w")
         f.write( s )
         f.close()
-        if self.get('gui') != 'android':
+        if 'ANDROID_DATA' not in os.environ:
             import stat
             os.chmod(self.path,stat.S_IREAD | stat.S_IWRITE)
 

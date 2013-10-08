@@ -705,7 +705,7 @@ def server_dialog(servers):
         return response
 
 
-def seed_dialog():
+def show_seed():
     if wallet.use_encryption:
         password  = droid.dialogGetPassword('Seed').result
         if not password: return
@@ -817,7 +817,7 @@ def settings_loop():
                     set_listview()
 
             elif pos == "5":
-                seed_dialog()
+                show_seed()
 
             if network_changed:
                 proxy = None
@@ -892,11 +892,37 @@ class ElectrumGui:
         
         storage = WalletStorage(config)
         if not storage.file_exists:
-            print "Wallet not found. try 'electrum create'"
-            exit()
+            action = self.restore_or_create()
+            if not action: exit()
 
-        wallet = Wallet(storage)
-        wallet.start_threads(network)
+            wallet = Wallet(storage)
+            if action == 'create':
+                wallet.init_seed(None)
+                self.show_seed()
+                wallet.save_seed()
+                wallet.create_accounts()
+                wallet.synchronize()  # generate first addresses offline
+                
+            elif action == 'restore':
+                seed = self.seed_dialog()
+                if not seed:
+                    exit()
+                wallet.init_seed(str(seed))
+                wallet.save_seed()
+            else:
+                exit()
+
+            wallet.start_threads(network)
+
+            if action == 'restore':
+                if not self.restore_wallet():
+                    exit()
+
+            self.password_dialog(wallet)
+
+        else:
+            wallet = Wallet(storage)
+            wallet.start_threads(network)
 
 
     def main(self, url):
@@ -946,7 +972,7 @@ class ElectrumGui:
 
 
     def seed_dialog(self):
-        if modal_question("Input method",None,'QR Code', 'mnemonic'):
+        if modal_question("Enter your seed","Input method",'QR Code', 'mnemonic'):
             code = droid.scanBarcode()
             r = code.result
             if r:
@@ -961,9 +987,7 @@ class ElectrumGui:
                 modal_dialog('error: could not decode this seed')
                 return
 
-        gap = 5   # default
-
-        return str(seed), gap
+        return str(seed)
 
 
     def network_dialog(self):
@@ -988,7 +1012,7 @@ class ElectrumGui:
         droid.dialogCreateSpinnerProgress("Electrum", msg)
         droid.dialogShow()
 
-        wallet.update()
+        wallet.restore(lambda x: None)
 
         droid.dialogDismiss()
         droid.vibrate()
@@ -1000,6 +1024,5 @@ class ElectrumGui:
             if not modal_question("no transactions found for this seed","do you want to keep this wallet?"):
                 return False
 
-        wallet.save()
         return True
 
