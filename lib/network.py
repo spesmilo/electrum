@@ -35,8 +35,8 @@ def filter_protocol(servers, p):
     return l
     
 
-def pick_random_server():
-    return random.choice( filter_protocol(DEFAULT_SERVERS,'s') )
+def pick_random_server(p='s'):
+    return random.choice( filter_protocol(DEFAULT_SERVERS,p) )
 
 from simple_config import SimpleConfig
 
@@ -50,11 +50,15 @@ class Network(threading.Thread):
         self.blockchain = Blockchain(self.config, self)
         self.interfaces = {}
         self.queue = Queue.Queue()
-        self.default_server = self.config.get('server')
         self.callbacks = {}
-
         self.protocol = self.config.get('protocol','s')
-        self.irc_servers = []                                      # returned by interface (list from irc)
+
+        # Server for addresses and transactions
+        self.default_server = self.config.get('server')
+        if not self.default_server:
+            self.default_server = pick_random_server(self.protocol)
+
+        self.irc_servers = [] # returned by interface (list from irc)
         self.disconnected_servers = []
         self.recent_servers = self.config.get('recent_servers',[]) # successful connections
 
@@ -149,9 +153,8 @@ class Network(threading.Thread):
             self.start_interface(server)
 
     def start_interfaces(self):
-        if self.default_server:
-            self.start_interface(self.default_server)
-            self.interface = self.interfaces[self.default_server]
+        self.start_interface(self.default_server)
+        self.interface = self.interfaces[self.default_server]
 
         for i in range(NUM_SERVERS):
             self.start_random_interface()
@@ -188,7 +191,6 @@ class Network(threading.Thread):
             for i in self.interfaces.values(): i.stop()
             if auto_connect:
                 self.interface = None
-                self.default_server = None
                 return
 
         if auto_connect:
