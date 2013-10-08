@@ -19,9 +19,11 @@
 
 
 
+from __future__ import absolute_import
 import android
 
-from electrum import SimpleConfig, Wallet, WalletStorage, format_satoshis, mnemonic_encode, mnemonic_decode, is_valid
+from electrum import SimpleConfig, Wallet, WalletStorage, format_satoshis, mnemonic_encode, mnemonic_decode
+from electrum.bitcoin import is_valid
 from electrum import util
 from decimal import Decimal
 import datetime, re
@@ -119,7 +121,7 @@ def select_from_addresses():
 def protocol_name(p):
     if p == 't': return 'TCP'
     if p == 'h': return 'HTTP'
-    if p == 's': return 'TCP/SSL'
+    if p == 's': return 'SSL'
     if p == 'g': return 'HTTPS'
 
 
@@ -498,7 +500,7 @@ do_refresh = False
 
 def update_callback():
     global do_refresh
-    print "gui callback", network.is_connected(), wallet.up_to_date
+    print "gui callback", network.is_connected()
     do_refresh = True
     droid.eventPost("refresh",'z')
 
@@ -791,7 +793,7 @@ def settings_loop():
                 if host in servers:
                     protocol = protocol_dialog(host, protocol, servers[host])
                     z = servers[host]
-                    port = z[p]
+                    port = z[protocol]
                     network_changed = True
 
             elif pos == "2": #port
@@ -882,7 +884,6 @@ class ElectrumGui:
 
     def __init__(self, config, _network):
         global wallet, network
-        wallet = w
         network = _network
         network.register_callback('updated', update_callback)
         network.register_callback('connected', update_callback)
@@ -894,8 +895,8 @@ class ElectrumGui:
             print "Wallet not found. try 'electrum create'"
             exit()
 
-        self.wallet = Wallet(storage)
-        self.wallet.start_threads(network)
+        wallet = Wallet(storage)
+        wallet.start_threads(network)
 
 
     def main(self, url):

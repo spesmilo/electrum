@@ -22,10 +22,8 @@ a SimpleConfig instance then reads the wallet file.
         if options.get('portable') is not True:
             self.read_system_config()
 
-        # read path
-        self.path = self.system_config.get('electrum_path')
-        if self.path is None:
-            self.path = user_dir()
+        # init path
+        self.init_path()
 
         # user conf, writeable
         self.user_config = {}
@@ -35,19 +33,23 @@ a SimpleConfig instance then reads the wallet file.
         # command-line options
         self.options_config = options
 
-        # init path
-        self.init_path()
 
-        print_error( "electrum path", self.path)
 
 
     def init_path(self):
 
-        # Look for wallet file in the default data directory.
-        # Make wallet directory if it does not yet exist.
+        # Read electrum path in the system configuration
+        self.path = self.system_config.get('electrum_path')
+
+        # If not set, use the user's default data directory.
+        if self.path is None:
+            self.path = user_dir()
+
+        # Make directory if it does not yet exist.
         if not os.path.exists(self.path):
             os.mkdir(self.path)
 
+        print_error( "electrum directory", self.path)
 
         # portable wallet: use the same directory for wallet and headers file
         #if options.get('portable'):
