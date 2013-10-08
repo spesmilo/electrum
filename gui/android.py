@@ -44,10 +44,12 @@ def modal_input(title, msg, value = None, etype=None):
     droid.dialogShow()
     response = droid.dialogGetResponse()
     result = response.result
+    droid.dialogDismiss()
+
     if result is None:
         print "modal input: result is none"
-        return False
-    droid.dialogDismiss()
+        return modal_input(title, msg, value, etype)
+
     if result.get('which') == 'positive':
         return result.get('value')
 
@@ -58,10 +60,12 @@ def modal_question(q, msg, pos_text = 'OK', neg_text = 'Cancel'):
     droid.dialogShow()
     response = droid.dialogGetResponse()
     result = response.result
+    droid.dialogDismiss()
+
     if result is None:
         print "modal question: result is none"
-        return False
-    droid.dialogDismiss()
+        return modal_question(q,msg, pos_text, neg_text)
+
     return result.get('which') == 'positive'
 
 def edit_label(addr):
@@ -756,12 +760,12 @@ def settings_loop():
 
 
     def set_listview():
-        server, port, p = network.default_server.split(':')
+        host, port, p = network.default_server.split(':')
         fee = str( Decimal( wallet.fee)/100000000 )
         is_encrypted = 'yes' if wallet.use_encryption else 'no'
         protocol = protocol_name(p)
         droid.fullShow(settings_layout)
-        droid.fullSetList("myListView",['Server: ' + server, 'Protocol: '+ protocol, 'Port: '+port, 'Transaction fee: '+fee, 'Password: '+is_encrypted, 'Seed'])
+        droid.fullSetList("myListView",['Server: ' + host, 'Protocol: '+ protocol, 'Port: '+port, 'Transaction fee: '+fee, 'Password: '+is_encrypted, 'Seed'])
 
     set_listview()
 
@@ -918,7 +922,7 @@ class ElectrumGui:
                 if not self.restore_wallet():
                     exit()
 
-            self.password_dialog(wallet)
+            self.password_dialog()
 
         else:
             wallet = Wallet(storage)
