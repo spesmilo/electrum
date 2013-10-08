@@ -722,4 +722,5 @@ class Transaction:
             txin['address'] = item['address']
             txin['scriptPubKey'] = item['scriptPubKey']
             txin['redeemScript'] = item.get('redeemScript')
+            txin['redeemPubkey'] = item.get('redeemPubkey')
             txin['KeyID'] = item.get('KeyID')

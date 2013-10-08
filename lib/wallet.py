@@ -1207,7 +1207,8 @@ class Wallet:
         tx = self.make_unsigned_transaction(outputs, fee, change_addr, domain)
         keypairs = {}
         self.add_keypairs_from_wallet(tx, keypairs, password)
-        self.sign_transaction(tx, keypairs)
+        if keypairs:
+            self.sign_transaction(tx, keypairs)
         return tx
 
 
