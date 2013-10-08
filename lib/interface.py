@@ -327,7 +327,7 @@ class Interface(threading.Thread):
                 s.close()
                 cert = ssl.DER_cert_to_PEM_cert(dercert)
                 # workaround android bug
-                cert = cert.replace("==-----END CERTIFICATE-----", "==\n-----END CERTIFICATE-----")
+                cert = re.sub("([^\n])-----END CERTIFICATE-----","\\1\n-----END CERTIFICATE-----",cert)
                 temporary_path = cert_path + '.temp'
                 with open(temporary_path,"w") as f:
                     f.write(cert)
