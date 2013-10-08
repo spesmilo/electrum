@@ -49,9 +49,10 @@ class Exchanger(threading.Thread):
                 quote_currencies[r] = self._lookup_rate(response, r)
             with self.lock:
                 self.quote_currencies = quote_currencies
-            self.parent.emit(SIGNAL("refresh_balance()"))
+            self.parent.set_currencies(quote_currencies)
         except KeyError:
             pass
+
             
     def get_currencies(self):
         return [] if self.quote_currencies == None else sorted(self.quote_currencies.keys())
@@ -68,20 +69,28 @@ class Plugin(BasePlugin):
     def description(self):
         return """exchange rates, retrieved from blockchain.info"""
 
+
+    def __init__(self,a,b):
+        BasePlugin.__init__(self,a,b)
+        self.currencies = [self.config.get('currency', "EUR")]
+
     def init(self):
         self.win = self.gui.main_window
-        self.exchanger = Exchanger(self.win)
-        self.win.connect(self.win, SIGNAL("refresh_balance()"), self.win.update_wallet)
+        self.win.connect(self.win, SIGNAL("refresh_currencies()"), self.win.update_status)
         # Do price discovery
+        self.exchanger = Exchanger(self)
         self.exchanger.start()
-        self.gui.exchanger = self.exchanger
 
+    def set_currencies(self, quote_currencies):
+        self.currencies = sorted(quote_currencies.keys())
+        self.win.emit(SIGNAL("refresh_currencies()"))
+        self.win.emit(SIGNAL("refresh_currencies_combo()"))
 
     def set_quote_text(self, btc_balance, r):
         r[0] = self.create_quote_text(Decimal(btc_balance) / 100000000)
 
     def create_quote_text(self, btc_balance):
-        quote_currency = self.config.get("currency", "None")
+        quote_currency = self.config.get("currency", "EUR")
         quote_balance = self.exchanger.exchange(btc_balance, quote_currency)
         if quote_balance is None:
             quote_text = ""
@@ -94,37 +103,37 @@ class Plugin(BasePlugin):
         return True
 
 
-    def settings_dialog(self):
-        d = QDialog(self.win)
+    def toggle(self):
+        out = BasePlugin.toggle(self)
+        self.win.update_status()
+        return out
 
-        vbox = QVBoxLayout(d)
 
-        grid = QGridLayout()
-        vbox.addLayout(grid)
+    def settings_widget(self, window):
+        combo = QComboBox()
 
-        currencies = self.exchanger.get_currencies()
-        currencies.insert(0, "None")
-
-        cur_label=QLabel(_('Currency') + ':')
-        grid.addWidget(cur_label , 2, 0)
-        cur_combo = QComboBox()
-        cur_combo.addItems(currencies)
-        try:
-            index = currencies.index(self.config.get('currency', "None"))
-        except:
-            index = 0
-        cur_combo.setCurrentIndex(index)
-        grid.addWidget(cur_combo, 2, 1)
-        grid.addWidget(HelpButton(_('Select which currency is used for quotes.') + ' '), 2, 2)
-
-        vbox.addLayout(ok_cancel_buttons(d))
-
-        if d.exec_():
-
-            cur_request = str(currencies[cur_combo.currentIndex()])
-            if cur_request != self.config.get('currency', "None"):
+        def on_change(x):
+            cur_request = str(self.currencies[x])
+            if cur_request != self.config.get('currency', "EUR"):
                 self.config.set_key('currency', cur_request, True)
-                self.win.update_wallet()
+                self.win.update_status()
+
+        def set_currencies(combo):
+            try:
+                combo.clear()
+            except:
+                return
+            combo.addItems(self.currencies)
+            try:
+                index = self.currencies.index(self.config.get('currency', "EUR"))
+            except:
+                index = 0
+            combo.setCurrentIndex(index)
+
+        set_currencies(combo)
+        combo.currentIndexChanged.connect(on_change)
+        combo.connect(window, SIGNAL('refresh_currencies_combo()'), lambda: set_currencies(combo))
+        return combo
 
 
         

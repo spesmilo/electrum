@@ -2083,19 +2083,27 @@ class ElectrumWindow(QMainWindow):
         grid.setColumnStretch(0,1)
         w.setLayout(grid)
 
-        def mk_toggle(cb, p):
-            return lambda: cb.setChecked(p.toggle())
+        def do_toggle(cb, p, w):
+            r = p.toggle()
+            cb.setChecked(r)
+            if w: w.setEnabled(r)
+
+        def mk_toggle(cb, p, w):
+            return lambda: do_toggle(cb,p,w)
+
         for i, p in enumerate(plugins):
             try:
                 cb = QCheckBox(p.fullname())
                 cb.setDisabled(not p.is_available())
                 cb.setChecked(p.is_enabled())
-                cb.clicked.connect(mk_toggle(cb,p))
                 grid.addWidget(cb, i, 0)
                 if p.requires_settings():
-                    b = EnterButton(_('Settings'), p.settings_dialog)
-                    b.setEnabled( p.is_enabled() )
-                    grid.addWidget(b, i, 1)
+                    w = p.settings_widget(self)
+                    w.setEnabled( p.is_enabled() )
+                    grid.addWidget(w, i, 1)
+                else: 
+                    w = None
+                cb.clicked.connect(mk_toggle(cb,p,w))
                 grid.addWidget(HelpButton(p.description()), i, 2)
             except:
                 print_msg(_("Error: cannot display plugin"), p)

@@ -20,7 +20,7 @@ from electrum import bmp, pyqrnative
 from electrum.plugins import BasePlugin
 from electrum.i18n import _
 
-from electrum_gui.qt import HelpButton
+from electrum_gui.qt import HelpButton, EnterButton
 
 class Plugin(BasePlugin):
 
@@ -94,6 +94,9 @@ class Plugin(BasePlugin):
         except socket.gaierror as e:
             print_error('Error connecting to service: %s ' %  e)
             return False
+
+    def settings_widget(self, window):
+        return EnterButton(_('Settings'), self.settings_dialog)
 
     def settings_dialog(self):
         def check_for_api_key(api_key):
