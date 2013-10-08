@@ -109,9 +109,13 @@ class Interface(threading.Thread):
 
         # parse server
         self.server = server
-        host, port, protocol = self.server.split(':')
-        port = int(port)
-            
+        try:
+            host, port, protocol = self.server.split(':')
+            port = int(port)
+        except:
+            self.server = None
+            return
+
         if protocol not in 'ghst':
             raise BaseException('Unknown protocol: %s'%protocol)
 
@@ -539,6 +543,8 @@ class Interface(threading.Thread):
 
 
     def start(self, queue = None, wait = False):
+        if not self.server:
+            return
         self.queue = queue if queue else Queue.Queue()
         threading.Thread.start(self)
         if wait:
