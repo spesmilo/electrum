@@ -45,7 +45,7 @@ class NetworkDialog(QDialog):
         if parent:
             n = len(network.interfaces)
             if n:
-                status = _("Blockchain") + ": " + "%d "%(network.blockchain.height) + _("blocks") +  ".\n" + _("Getting block headers from %d nodes.")%n
+                status = _("Blockchain") + ": " + "%d "%(network.blockchain.height()) + _("blocks") +  ".\n" + _("Getting block headers from %d nodes.")%n
             else:
                 status = _("Not connected")
 

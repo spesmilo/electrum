@@ -198,7 +198,7 @@ class Network(threading.Thread):
                 self.switch_to_random_interface()
             else:
                 if self.server_lag > 0:
-                    self.interface.stop()
+                    self.stop_interface()
         else:
             self.set_server(server)
 
@@ -208,17 +208,22 @@ class Network(threading.Thread):
             self.switch_to_interface(random.choice(self.interfaces.values()))
 
     def switch_to_interface(self, interface):
+        assert self.interface is None
         server = interface.server
         print_error("switching to", server)
         self.interface = interface
         h =  self.heights.get(server)
         if h:
-            self.server_lag = self.blockchain.height - h
+            self.server_lag = self.blockchain.height() - h
         self.config.set_key('server', server, False)
         self.default_server = server
         self.send_subscriptions()
         self.trigger_callback('connected')
 
+
+    def stop_interface(self):
+        self.interface.stop() 
+        self.interface = None
 
     def set_server(self, server):
         if self.default_server == server and self.interface:
@@ -229,7 +234,7 @@ class Network(threading.Thread):
 
         # stop the interface in order to terminate subscriptions
         if self.interface:
-            self.interface.stop() 
+            self.stop_interface()
 
         # notify gui
         self.trigger_callback('disconnecting')
@@ -255,6 +260,7 @@ class Network(threading.Thread):
 
 
     def new_blockchain_height(self, blockchain_height, i):
+        print_error('new_blockchain_height')
         if self.is_connected():
             h = self.heights.get(self.interface.server)
             if h:
@@ -263,6 +269,8 @@ class Network(threading.Thread):
                     print_error( "Server is lagging", blockchain_height, h)
                     if self.config.get('auto_cycle'):
                         self.set_server(i.server)
+            else:
+                print_error('no height for main interface')
         
         self.trigger_callback('updated')
 
@@ -304,11 +312,17 @@ class Network(threading.Thread):
     def on_header(self, i, r):
         result = r.get('result')
         if not result: return
-        self.heights[i.server] = result.get('block_height')
+        height = result.get('block_height')
+        self.heights[i.server] = height
+        # notify blockchain about the new height
         self.blockchain.queue.put((i,result))
 
         if i == self.interface:
-            self.server_lag = self.blockchain.height - self.heights[i.server]
+            self.server_lag = self.blockchain.height() - height
+            if self.server_lag > 1 and self.config.get('auto_cycle'):
+                print_error( "Server lagging, stopping interface")
+                self.stop_interface()
+
             self.trigger_callback('updated')
 
 

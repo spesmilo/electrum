@@ -30,7 +30,6 @@ class Blockchain(threading.Thread):
         self.config = config
         self.network = network
         self.lock = threading.Lock()
-        self.height = 0
         self.local_height = 0
         self.running = False
         self.headers_url = 'http://headers.electrum.org/blockchain_headers'
@@ -38,6 +37,10 @@ class Blockchain(threading.Thread):
         self.queue = Queue.Queue()
 
     
+    def height(self):
+        return self.local_height
+
+
     def stop(self):
         with self.lock: self.running = False
 
@@ -80,7 +83,9 @@ class Blockchain(threading.Thread):
                 chain = self.get_chain( i, header )
 
                 # skip that server if the result is not consistent
-                if not chain: continue
+                if not chain: 
+                    print_error('e')
+                    continue
                 
                 # verify the chain
                 if self.verify_chain( chain ):
@@ -93,9 +98,7 @@ class Blockchain(threading.Thread):
                     continue
 
 
-            if self.height != height:
-                self.height = height
-                self.network.new_blockchain_height(height, i)
+            self.network.new_blockchain_height(height, i)
 
 
                     
@@ -253,7 +256,6 @@ class Blockchain(threading.Thread):
             h = os.path.getsize(name)/80 - 1
             if self.local_height != h:
                 self.local_height = h
-                self.height = self.local_height
 
 
     def read_header(self, block_height):
