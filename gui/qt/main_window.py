@@ -1393,16 +1393,40 @@ class ElectrumWindow(QMainWindow):
 
 
     def new_contact_dialog(self):
-        text, ok = QInputDialog.getText(self, _('New Contact'), _('Address') + ':')
-        address = unicode(text)
-        if ok:
-            if is_valid(address):
-                self.wallet.add_contact(address)
-                self.update_contacts_tab()
-                self.update_history_tab()
-                self.update_completions()
-            else:
-                QMessageBox.warning(self, _('Error'), _('Invalid Address'), _('OK'))
+
+        d = QDialog(self)
+        vbox = QVBoxLayout(d)
+        vbox.addWidget(QLabel(_('New Contact')+':'))
+        
+        grid = QGridLayout()
+        line1 = QLineEdit()
+        line2 = QLineEdit()
+        grid.addWidget(QLabel(_("Address")), 1, 0)
+        grid.addWidget(line1, 1, 1)
+        grid.addWidget(QLabel(_("Name")), 2, 0)
+        grid.addWidget(line2, 2, 1)
+
+        vbox.addLayout(grid)
+        vbox.addLayout(ok_cancel_buttons(d))
+    
+        if not d.exec_():
+            return
+        
+        address = str(line1.text())
+        label = unicode(line2.text())
+        
+        if not is_valid(address):
+            QMessageBox.warning(self, _('Error'), _('Invalid Address'), _('OK'))
+            return
+        
+        self.wallet.add_contact(address)
+        if label:
+            self.wallet.set_label(address, label)
+
+        self.update_contacts_tab()
+        self.update_history_tab()
+        self.update_completions()
+        self.tabs.setCurrentIndex(3)
 
 
     def new_account_dialog(self):
