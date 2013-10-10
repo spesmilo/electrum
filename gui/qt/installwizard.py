@@ -30,7 +30,7 @@ class InstallWizard(QDialog):
         grid = QGridLayout()
         grid.setSpacing(5)
 
-        msg = _("Electrum could not find an existing wallet.")+"\n\n"+_("Did you use Electrum before and want to restore a previous wallet or is this your first time and do you want to create a new wallet?"+"\n")
+        msg = _("Electrum could not find an existing wallet.")+"\n\n"+_("Did you use Electrum before and want to restore a previous wallet or is this your first time and do you want to create a new wallet?")+"\n"
         label = QLabel(msg)
         label.setWordWrap(True)
         grid.addWidget(label, 0, 0)
@@ -89,10 +89,10 @@ class InstallWizard(QDialog):
         vbox = QVBoxLayout(self)
         if is_restore:
             msg = _("Please enter your wallet seed.") + "\n"
-            msg += _("Your seed can be entered as a sequence of words, or as a hexadecimal string."+ ' \n')
+            msg += _("Your seed can be entered as a sequence of words, or as a hexadecimal string.")+ ' \n'
         else:
             msg = _("Your seed is important!") \
-                  + "\n" + _("To make sure that you have properly saved your seed, please retype it here." + ' ')
+                  + "\n" + _("To make sure that you have properly saved your seed, please retype it here.") + ' '
         
         logo = QLabel()
         logo.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(56))
@@ -195,7 +195,7 @@ class InstallWizard(QDialog):
         grid.setSpacing(5)
 
         label = QLabel(_("Electrum communicates with remote servers to get information about your transactions and addresses. The servers all fulfil the same purpose only differing in hardware. In most cases you simply want to let Electrum pick one at random if you have a preference though feel free to select a server manually.") + "\n\n" \
-                      + _("How do you want to connect to a server: "))
+                      + _("How do you want to connect to a server:")+" ")
         label.setWordWrap(True)
         grid.addWidget(label, 0, 0)
 
