@@ -251,6 +251,17 @@ class ElectrumWindow(QMainWindow):
         return int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7
     
 
+    def update_account_selector(self):
+        # account selector
+        accounts = self.wallet.get_account_names()
+        self.account_selector.clear()
+        if len(accounts) > 1:
+            self.account_selector.addItems([_("All accounts")] + accounts.values())
+            self.account_selector.setCurrentIndex(0)
+            self.account_selector.show()
+        else:
+            self.account_selector.hide()
+
 
     def load_wallet(self, wallet):
         import electrum
@@ -265,19 +276,8 @@ class ElectrumWindow(QMainWindow):
         self.update_wallet()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         self.notify_transactions()
-
-        # account selector
-        accounts = self.wallet.get_account_names()
-        self.account_selector.clear()
-        if len(accounts) > 1:
-            self.account_selector.addItems([_("All accounts")] + accounts.values())
-            self.account_selector.setCurrentIndex(0)
-            self.account_selector.show()
-        else:
-            self.account_selector.hide()
-
+        self.update_account_selector()
         self.new_account.setEnabled(self.wallet.seed_version>4)
-
         self.update_lock_icon()
         self.update_buttons_on_seed()
         self.update_console()
