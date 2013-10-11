@@ -127,6 +127,8 @@ class ElectrumWindow(QMainWindow):
         if reason == QSystemTrayIcon.DoubleClick:
             self.showNormal()
 
+    def showNormal(self):
+        self.setWindowState(self.windowState() & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
 
     def __init__(self, config, network):
         QMainWindow.__init__(self)
@@ -137,7 +139,7 @@ class ElectrumWindow(QMainWindow):
         self._close_electrum = False
         self.lite = None
             
-        self.icon = QIcon(':icons/electrum.png')
+        self.icon = QIcon(':icons/electrum_light_icon.png')
         self.tray = QSystemTrayIcon(self.icon, self)
         self.tray.setToolTip('Electrum')
         self.tray.activated.connect(self.tray_activated)
