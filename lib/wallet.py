@@ -425,11 +425,15 @@ class Wallet:
 
 
     def create_account(self, account_type = '1', name = None):
-        account_id, account = self.next_account(account_type)
-        self.accounts[account_id] = account
+        k, account = self.next_account(account_type)
+        if k in self.pending_accounts:
+            self.pending_accounts.pop(k)
+            self.storage.put('pending_accounts', self.pending_accounts)
+
+        self.accounts[k] = account
         self.save_accounts()
         if name:
-            self.set_label(account_id, name)
+            self.set_label(k, name)
 
 
     def create_old_account(self):
@@ -458,6 +462,25 @@ class Wallet:
                 self.accounts[k] = BIP32_Account_2of2(v)
             else:
                 self.accounts[k] = BIP32_Account(v)
+
+        self.pending_accounts = self.storage.get('pending_accounts',{})
+
+
+    def delete_pending_account(self, k):
+        self.pending_accounts.pop(k)
+        self.storage.put('pending_accounts', self.pending_accounts)
+
+    def account_is_pending(self, k):
+        return k in self.pending_accounts
+
+    def create_pending_account(self, acct_type, name):
+        k, addr = self.new_account_address(acct_type)
+        self.set_label(k, name)
+        self.pending_accounts[k] = addr
+        self.storage.put('pending_accounts', self.pending_accounts)
+
+    def get_pending_accounts(self):
+        return self.pending_accounts.items()
 
 
     def addresses(self, include_change = True, _next=True):

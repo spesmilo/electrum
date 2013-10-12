@@ -270,7 +270,6 @@ class ElectrumWindow(QMainWindow):
         self.wallet = wallet
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
-        self.pending_accounts = self.wallet.storage.get('pending_accounts',{})
 
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.wallet.storage.path
         if self.wallet.is_watching_only(): title += ' [%s]' % (_('watching only'))
@@ -1093,13 +1092,12 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Maximize"), lambda: self.account_set_expanded(item, k, True))
         menu.addAction(_("Rename"), lambda: self.edit_account_label(k))
         menu.addAction(_("View details"), lambda: self.show_account_details(k))
-        if k in self.pending_accounts:
+        if self.wallet.account_is_pending(k):
             menu.addAction(_("Delete"), lambda: self.delete_pending_account(k))
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
     def delete_pending_account(self, k):
-        self.pending_accounts.pop(k)
-        self.wallet.storage.put('pending_accounts', self.pending_accounts)
+        self.wallet.delete_pending_account(k)
         self.update_receive_tab()
 
     def create_receive_menu(self, position):
@@ -1250,10 +1248,7 @@ class ElectrumWindow(QMainWindow):
                     seq_item.addChild(item)
 
 
-        for k, addr in self.pending_accounts.items():
-            if k in self.wallet.accounts:
-                self.pending_accounts.pop(k)
-                self.wallet.storage.put('pending_accounts', self.pending_accounts)
+        for k, addr in self.wallet.get_pending_accounts():
             name = self.wallet.labels.get(k,'')
             account_item = QTreeWidgetItem( [ name + "  [ "+_('pending account')+" ]", '', '', ''] )
             self.update_receive_item(item)
@@ -1455,10 +1450,7 @@ class ElectrumWindow(QMainWindow):
         name = str(e.text())
         if not name: return
 
-        k, addr = self.wallet.new_account_address()
-        self.wallet.set_label(k, name)
-        self.pending_accounts[k] = addr
-        self.wallet.storage.put('pending_accounts', self.pending_accounts)
+        self.wallet.create_pending_account('1', name)
         self.update_receive_tab()
         self.tabs.setCurrentIndex(2)
         
