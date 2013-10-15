@@ -226,6 +226,7 @@ class Blockchain(threading.Thread):
             socket.setdefaulttimeout(30)
             print_error("downloading ", self.headers_url )
             urllib.urlretrieve(self.headers_url, filename)
+            print_error("done.")
         except:
             print_error( "download failed. creating file", filename )
             open(filename,'wb+').close()
@@ -381,11 +382,12 @@ class Blockchain(threading.Thread):
         queue = Queue.Queue()
         min_index = (self.local_height + 1)/2016
         max_index = (height + 1)/2016
+
         for n in range(min_index, max_index + 1):
-            print_error( "requesting chunk", n )
             i.send([ ('blockchain.block.get_chunk',[n])], lambda i,r:queue.put(r))
             requested_chunks.append(n)
-            break
+
+        print_error( "requested chunks:", requested_chunks )
 
         while requested_chunks:
             try:
@@ -406,6 +408,7 @@ class Blockchain(threading.Thread):
             try:
                 self.verify_chunk(index, result)
             except:
+                print_error('Verify chunk failed!!')
                 return False
             requested_chunks.remove(index)
 

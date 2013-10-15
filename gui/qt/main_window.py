@@ -679,11 +679,12 @@ class ElectrumWindow(QMainWindow):
         self.history_list.clear()
         for item in self.wallet.get_tx_history(self.current_account):
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
+            time_str = _("unknown")
             if conf > 0:
                 try:
                     time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
                 except:
-                    time_str = _("unknown")
+                    time_str = _("error")
 
             if conf == -1:
                 time_str = 'unverified'
