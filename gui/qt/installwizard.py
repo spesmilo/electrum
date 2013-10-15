@@ -294,7 +294,7 @@ class InstallWizard(QDialog):
         elif action == 'watching':
             # ask for seed and gap.
             K, chain = self.mpk_dialog()
-            if not K:
+            if not K or not chain:
                 return
             wallet.seed = ''
             wallet.create_watching_only_wallet(chain,K)
