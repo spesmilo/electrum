@@ -1476,7 +1476,7 @@ class Wallet:
 
         if self.is_found():
             self.seed_version = 4
-            self.storage.put('seed_version', wallet.seed_version, True)
+            self.storage.put('seed_version', self.seed_version, True)
         else:
             self.accounts.pop(0)
             self.create_accounts()
