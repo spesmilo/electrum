@@ -127,7 +127,7 @@ def csv_transaction(wallet):
 
                     balance_string = format_satoshis(balance, False)
                     transaction.writerow([tx_hash, label, confirmations, value_string, fee_string, balance_string, time_string])
-                QMessageBox.information(None,"CSV Export created", "Your CSV export has been successfully created.")
+                QMessageBox.information(None,_("CSV Export created"), _("Your CSV export has been successfully created."))
     except (IOError, os.error), reason:
         export_error_label = _("Electrum was unable to produce a transaction export.")
         QMessageBox.critical(None,_("Unable to create csv"), export_error_label + "\n" + str(reason))
