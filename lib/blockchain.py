@@ -113,7 +113,7 @@ class Blockchain(threading.Thread):
             height = header.get('block_height')
 
             prev_hash = self.hash_header(prev_header)
-            bits, target = self.get_target(height/2016)
+            bits, target = self.get_target(height/2016, chain)
             _hash = self.hash_header(header)
             try:
                 assert prev_hash == header.get('prev_block_hash')
@@ -271,14 +271,18 @@ class Blockchain(threading.Thread):
                 return h 
 
 
-    def get_target(self, index):
+    def get_target(self, index, chain=[]):
 
         max_target = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
         if index == 0: return 0x1d00ffff, max_target
 
         first = self.read_header((index-1)*2016)
         last = self.read_header(index*2016-1)
-        
+        if last is None:
+            for h in chain:
+                if h.get('block_height') == index*2016-1:
+                    last = h
+ 
         nActualTimespan = last.get('timestamp') - first.get('timestamp')
         nTargetTimespan = 14*24*60*60
         nActualTimespan = max(nActualTimespan, nTargetTimespan/4)
