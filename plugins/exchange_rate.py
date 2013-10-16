@@ -80,6 +80,7 @@ class Plugin(BasePlugin):
         # Do price discovery
         self.exchanger = Exchanger(self)
         self.exchanger.start()
+        self.gui.exchanger = self.exchanger #
 
     def set_currencies(self, quote_currencies):
         self.currencies = sorted(quote_currencies.keys())

@@ -98,7 +98,7 @@ class Plugin(BasePlugin):
         return 'Point of Sale'
 
     def description(self):
-        return _('Show QR code window and amounts requested for each address. Add menu item to request amount.')
+        return _('Show QR code window and amounts requested for each address. Add menu item to request amount. Note: This requires the exchange rate plugin to be installed.')
 
     def init(self):
         self.window = self.gui.main_window
@@ -111,6 +111,14 @@ class Plugin(BasePlugin):
         self.window.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Request')])
         self.requested_amounts = {}
         self.toggle_QR_window(True)
+
+    def enable(self):
+        if not self.config.get('use_exchange_rate'):
+            self.gui.main_window.show_message("Please enable exchange rates first!")
+            return False
+
+        return BasePlugin.enable(self)
+
 
     def load_wallet(self, wallet):
         self.wallet = wallet
