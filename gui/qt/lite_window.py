@@ -111,12 +111,12 @@ def csv_transaction(wallet):
                         time_string = "pending"
 
                     if value is not None:
-                        value_string = format_satoshis(value, True, wallet.num_zeros)
+                        value_string = format_satoshis(value, True)
                     else:
                         value_string = '--'
 
                     if fee is not None:
-                        fee_string = format_satoshis(fee, True, wallet.num_zeros)
+                        fee_string = format_satoshis(fee, True)
                     else:
                         fee_string = '0'
 
@@ -125,7 +125,7 @@ def csv_transaction(wallet):
                     else:
                       label = ""
 
-                    balance_string = format_satoshis(balance, False, wallet.num_zeros)
+                    balance_string = format_satoshis(balance, False)
                     transaction.writerow([tx_hash, label, confirmations, value_string, fee_string, balance_string, time_string])
                 QMessageBox.information(None,"CSV Export created", "Your CSV export has been successfully created.")
     except (IOError, os.error), reason:
