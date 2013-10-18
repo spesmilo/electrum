@@ -1581,10 +1581,20 @@ class ElectrumWindow(QMainWindow):
         hbox = QHBoxLayout()
         hbox.addStretch(1)
 
-        def print_qr(self):
-            filename = "qrcode.bmp"
+        filename = os.path.join(self.config.path, "qrcode.bmp")
+
+        def print_qr():
             bmp.save_qrcode(qrw.qr, filename)
             QMessageBox.information(None, _('Message'), _("QR code saved to file") + " " + filename, _('OK'))
+
+        def copy_to_clipboard():
+            bmp.save_qrcode(qrw.qr, filename)
+            self.app.clipboard().setImage(QImage(filename))
+            QMessageBox.information(None, _('Message'), _("QR code saved to clipboard"), _('OK'))
+
+        b = QPushButton(_("Copy"))
+        hbox.addWidget(b)
+        b.clicked.connect(copy_to_clipboard)
 
         b = QPushButton(_("Save"))
         hbox.addWidget(b)
