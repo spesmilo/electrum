@@ -336,7 +336,7 @@ if __name__ == '__main__':
         if not network.start(wait=True):
             print_msg("Not connected, aborting.")
             sys.exit(1)
-        print_msg("Connected to " + network.interface.connection_msg)
+        print_error("Connected to " + network.interface.connection_msg)
 
         if wallet:
             wallet.start_threads(network)
