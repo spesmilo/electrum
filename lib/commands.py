@@ -42,7 +42,7 @@ def register_command(*args):
 
 
 
-payto_options = ' --fee, -f: set transaction fee\n --fromaddr, -s: send from address -\n --changeaddr, -c: send change to address'
+payto_options = ' --fee, -f: set transaction fee\n --fromaddr, -F: send from address -\n --changeaddr, -c: send change to address'
 listaddr_options = " -a: show all addresses, including change addresses\n -b: include balance in results\n -l: include labels in results"
 restore_options = " accepts a seed or master public key."
 config_options = " accounts, addr_history, auto_cycle, column_widths, console-history, contacts,\n fee_per_kb, frozen_addresses, gap_limit, imported_keys, labels,\n master_public_key, num_zeros, prioritized_addresses, proxy, seed,\n seed_version, server, transactions, use_change, use_encryption, winpos-qt"
