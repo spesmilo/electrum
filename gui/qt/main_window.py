@@ -1519,7 +1519,7 @@ class ElectrumWindow(QMainWindow):
             chain_qrw.set_addr(c)
             chain_qrw.update_qr()
             mpk_text.setText(K)
-            mpk_qrw.set_addr(c)
+            mpk_qrw.set_addr(K)
             mpk_qrw.update_qr()
             
         key_selector = QComboBox()
