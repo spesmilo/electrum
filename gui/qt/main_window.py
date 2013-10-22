@@ -195,12 +195,6 @@ class ElectrumWindow(QMainWindow):
         # set initial message
         self.console.showMessage(self.network.banner)
 
-        # dark magic fix by flatfly; https://bitcointalk.org/index.php?topic=73651.msg959913#msg959913
-        if platform.system() == 'Windows':
-            n = 3 if self.wallet.seed else 2
-            tabs.setCurrentIndex (n)
-            tabs.setCurrentIndex (0)
-
         self.wallet = None
         self.init_lite()
 
