@@ -1478,6 +1478,8 @@ class ElectrumWindow(QMainWindow):
         main_layout.addWidget(main_text, 1, 0)
         main_layout.addWidget(qrw, 1, 1 )
 
+        vbox = QVBoxLayout()
+        vbox.addLayout(main_layout)
         vbox.addLayout(close_button(dialog))
         dialog.setLayout(vbox)
         dialog.exec_()
