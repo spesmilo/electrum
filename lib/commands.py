@@ -20,7 +20,7 @@ from util import *
 from bitcoin import *
 from decimal import Decimal
 import bitcoin
-
+from transaction import Transaction
 
 class Command:
     def __init__(self, name, min_args, max_args, requires_network, requires_wallet, requires_password, description, syntax = '', options_syntax = ''):
