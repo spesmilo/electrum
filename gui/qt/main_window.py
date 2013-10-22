@@ -1486,7 +1486,7 @@ class ElectrumWindow(QMainWindow):
     def show_master_public_key(self):
 
         if self.wallet.seed_version == 4:
-            self.show_master_public_keys_old()
+            self.show_master_public_key_old()
             return
 
         dialog = QDialog(self)
