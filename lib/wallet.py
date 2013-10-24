@@ -92,17 +92,19 @@ class WalletStorage:
         if path:
             return path
 
-        # default path in pre 1.9 versions
-        old_path = os.path.join(config.path, "electrum.dat")
-        if os.path.exists(old_path):
-            return old_path
-
         # default path
         dirpath = os.path.join(config.path, "wallets")
         if not os.path.exists(dirpath):
             os.mkdir(dirpath)
 
-        return os.path.join(config.path, "wallets", "default_wallet")
+        new_path = os.path.join(config.path, "wallets", "default_wallet")
+
+        # default path in pre 1.9 versions
+        old_path = os.path.join(config.path, "electrum.dat")
+        if os.path.exists(old_path) and not os.path.exists(new_path):
+            os.rename(old_path, new_path)
+
+        return new_path
 
 
     def read(self, path):
