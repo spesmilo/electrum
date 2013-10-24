@@ -73,7 +73,7 @@ class WalletStorage:
         self.lock = threading.Lock()
         self.data = {}
         self.file_exists = False
-        self.init_path(config)
+        self.path = self.init_path(config)
         print_error( "wallet path", self.path )
         if self.path:
             self.read(self.path)
@@ -82,14 +82,27 @@ class WalletStorage:
     def init_path(self, config):
         """Set the path of the wallet."""
 
+        # command line -w option
         path = config.get('wallet_path')
-        if not path:
-            path = config.get('default_wallet_path')
-        if path is not None:
-            self.path = path
-            return
+        if path:
+            return path
 
-        self.path = os.path.join(config.path, "electrum.dat")
+        # path in config file
+        path = config.get('default_wallet_path')
+        if path:
+            return path
+
+        # default path in pre 1.9 versions
+        old_path = os.path.join(config.path, "electrum.dat")
+        if os.path.exists(old_path):
+            return old_path
+
+        # default path
+        dirpath = os.path.join(config.path, "wallets")
+        if not os.path.exists(dirpath):
+            os.mkdir(dirpath)
+
+        return os.path.join(config.path, "wallets", "default_wallet")
 
 
     def read(self, path):
