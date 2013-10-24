@@ -43,7 +43,7 @@ def register_command(*args):
 
 
 payto_options = ' --fee, -f: set transaction fee\n --fromaddr, -F: send from address -\n --changeaddr, -c: send change to address'
-listaddr_options = " -a: show all addresses, including change addresses\n -b: include balance in results\n -l: include labels in results"
+listaddr_options = " -a: show all addresses, including change addresses\n -l: include labels in results"
 restore_options = " accepts a seed or master public key."
 config_options = " accounts, addr_history, auto_cycle, column_widths, console-history, contacts,\n fee_per_kb, frozen_addresses, gap_limit, imported_keys, labels,\n master_public_key, num_zeros, prioritized_addresses, proxy, seed,\n seed_version, server, transactions, use_change, use_encryption, winpos-qt"
 mksendmany_syntax = 'mksendmanytx <recipient> <amount> [<recipient> <amount> ...]'
@@ -77,7 +77,7 @@ register_command('getseed',              0, 0, False, True,  True,  'Print the g
 register_command('help',                 0, 1, False, False, False, 'Prints this help')
 register_command('history',              0, 0, True,  True,  False, 'Returns the transaction history of your wallet')
 register_command('importprivkey',        1, 1, False, True,  True,  'Import a private key', 'importprivkey <privatekey>')
-register_command('listaddresses',        3, 3, False, True,  False, 'Returns your list of addresses.', '', listaddr_options)
+register_command('listaddresses',        2, 2, False, True,  False, 'Returns your list of addresses.', '', listaddr_options)
 register_command('listunspent',          0, 0, True,  True,  False, 'Returns the list of unspent inputs in your wallet.')
 register_command('mktx',                 5, 5, False, True,  True,  'Create a signed transaction', 'mktx <recipient> <amount> [label]', payto_options)
 register_command('mksendmanytx',         4, 4, False, True,  True,  'Create a signed transaction', mksendmany_syntax, payto_options)
@@ -325,14 +325,12 @@ class Commands:
         return c
 
 
-    def listaddresses(self, show_all = False, show_balance = False, show_label = False):
+    def listaddresses(self, show_all = False, show_label = False):
         out = []
         for addr in self.wallet.addresses(True):
             if show_all or not self.wallet.is_change(addr):
-                if show_balance or show_label:
+                if show_label:
                     item = { 'address': addr }
-                    if show_balance:
-                        item['balance'] = str(Decimal(self.wallet.get_addr_balance(addr)[0])/100000000)
                     if show_label:
                         label = self.wallet.labels.get(addr,'')
                         if label:

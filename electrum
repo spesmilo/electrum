@@ -72,7 +72,6 @@ def arg_parser():
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
     parser.add_option("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
-    parser.add_option("-b", "--balance", action="store_true", dest="show_balance", default=False, help="show the balance of listed addresses")
     parser.add_option("-l", "--labels", action="store_true", dest="show_labels", default=False, help="show the labels of listed addresses")
     parser.add_option("-f", "--fee", dest="tx_fee", default=None, help="set tx fee")
     parser.add_option("-F", "--fromaddr", dest="from_addr", default=None, help="set source address for payto/mktx. if it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet.")
@@ -290,7 +289,7 @@ if __name__ == '__main__':
         args = [ cmd, json.loads(args[1]), json.loads(args[2])]
 
     elif cmd.name == 'listaddresses':
-        args = [cmd, options.show_all, options.show_balance, options.show_labels]
+        args = [cmd, options.show_all, options.show_labels]
 
     elif cmd.name in ['payto', 'mktx']:
         domain = [options.from_addr] if options.from_addr else None
