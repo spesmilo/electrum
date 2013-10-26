@@ -89,10 +89,9 @@ class InstallWizard(QDialog):
         vbox = QVBoxLayout(self)
         if is_restore:
             msg = _("Please enter your wallet seed.") + "\n"
-            msg += _("Your seed can be entered as a sequence of words, or as a hexadecimal string.")+ ' \n'
         else:
             msg = _("Your seed is important!") \
-                  + "\n" + _("To make sure that you have properly saved your seed, please retype it here.") + ' '
+                + "\n" + _("To make sure that you have properly saved your seed, please retype it here.")
         
         logo = QLabel()
         logo.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(56))
@@ -119,15 +118,7 @@ class InstallWizard(QDialog):
         if not self.exec_():
             return
 
-        try:
-            seed = str(seed_e.toPlainText())
-            seed.decode('hex')
-        except:
-            try:
-                seed = mnemonic.mn_decode( seed.split() )
-            except:
-                QMessageBox.warning(None, _('Error'), _('I cannot decode this'), _('OK'))
-                return
+        seed = unicode(seed_e.toPlainText())
 
         if not seed:
             QMessageBox.warning(None, _('Error'), _('No seed'), _('OK'))
@@ -288,7 +279,12 @@ class InstallWizard(QDialog):
             seed = self.seed_dialog()
             if not seed:
                 return
-            wallet.init_seed(str(seed))
+            try:
+                wallet.init_seed(seed)
+            except:
+                QMessageBox.warning(None, _('Error'), _('Incorrect seed'), _('OK'))
+                return
+
             wallet.save_seed()
 
         elif action == 'watching':

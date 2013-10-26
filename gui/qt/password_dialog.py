@@ -84,7 +84,7 @@ def run_password_dialog(self, wallet, parent):
     new_password2 = unicode(self.conf_pw.text())
 
     try:
-        seed = wallet.decode_seed(password)
+        wallet.get_seed(password)
     except:
         QMessageBox.warning(parent, _('Error'), _('Incorrect Password'), _('OK'))
         return
@@ -96,7 +96,7 @@ def run_password_dialog(self, wallet, parent):
         return
 
     try:
-        wallet.update_password(seed, password, new_password)
+        wallet.update_password(password, new_password)
     except:
         QMessageBox.warning(parent, _('Error'), _('Failed to update password'), _('OK'))
         return

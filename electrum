@@ -262,7 +262,7 @@ if __name__ == '__main__':
                 exit(1)
             # check password
             try:
-                seed = wallet.decode_seed(password)
+                seed = wallet.get_seed(password)
             except:
                 print_msg("Error: This password does not decode this wallet.")
                 exit(1)

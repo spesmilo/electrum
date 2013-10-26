@@ -64,7 +64,7 @@ def pw_decode(s, password):
 
 
 
-from version import ELECTRUM_VERSION, SEED_VERSION
+from version import *
 
 
 class WalletStorage:
@@ -176,8 +176,10 @@ class Wallet:
 
         self.next_addresses = storage.get('next_addresses',{})
 
-        if self.seed_version < 4:
-            raise ValueError("This wallet seed is deprecated.")
+        if self.seed_version not in [4, 6]:
+            msg = "This wallet seed is not supported."
+            if self.seed_version in [5]: msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%self.seed_version
+            raise ValueError(msg)
 
         self.load_accounts()
 
@@ -247,7 +249,7 @@ class Wallet:
 
     def import_key(self, sec, password):
         # check password
-        seed = self.decode_seed(password)
+        seed = self.get_seed(password)
         try:
             address = address_from_private_key(sec)
         except:
@@ -269,12 +271,55 @@ class Wallet:
             self.storage.put('imported_keys', self.imported_keys, True)
 
 
-    def init_seed(self, seed):
-        if self.seed: raise BaseException("a seed exists")
-        if not seed: 
-            seed = random_seed(128)
-        self.seed = seed
+    def make_seed(self):
+        import mnemonic, ecdsa
+        entropy = ecdsa.util.randrange( pow(2,160) )
+        nonce = 0
+        while True:
+            ss = "%040x"%(entropy+nonce)
+            s = hashlib.sha256(ss.decode('hex')).digest().encode('hex')
+            # we keep only 13 words, that's approximately 139 bits of entropy
+            words = mnemonic.mn_encode(s)[0:13] 
+            seed = ' '.join(words)
+            if mnemonic_hash(seed)[0:3] == SEED_PREFIX: 
+                break  # this removes 12 bits of entropy 
+            nonce += 1
 
+        return seed
+
+
+    def init_seed(self, seed):
+        if self.seed: 
+            raise BaseException("a seed exists")
+
+        if not seed:
+            self.seed = self.make_seed()
+            self.seed_version = SEED_VERSION
+            return
+
+        # find out what kind of wallet we are
+        try:
+            seed.decode('hex')
+            self.seed_version = 4
+            return
+        except:
+            pass
+
+        words = seed.split()
+        try:
+            mnemonic.mn_decode(words)
+            uses_electrum_words = True
+        except:
+            uses_electrum_words = False
+
+        if uses_electrum_words and len(words) != 13:
+            self.seed_version = 4
+            self.seed = mnemonic.mn_encode(seed)
+        else:
+            assert mnemonic_hash(seed)[0:3] == SEED_PREFIX
+            self.seed_version = SEED_VERSION
+            self.seed = seed
+            
 
     def save_seed(self):
         self.storage.put('seed', self.seed, True)
@@ -291,12 +336,12 @@ class Wallet:
 
     def create_accounts(self): 
         # create default account
-        self.create_master_keys('1', self.seed)
+        self.create_master_keys('1')
         self.create_account('1','Main account')
 
 
-    def create_master_keys(self, account_type, seed):
-        master_k, master_c, master_K, master_cK = bip32_init(self.seed)
+    def create_master_keys(self, account_type):
+        master_k, master_c, master_K, master_cK = bip32_init(self.get_seed(None))
         if account_type == '1':
             k0, c0, K0, cK0 = bip32_private_derivation(master_k, master_c, "m/", "m/0'/")
             self.master_public_keys["m/0'/"] = (c0, K0, cK0)
@@ -339,7 +384,7 @@ class Wallet:
 
     def deseed_root(self, seed, password):
         # for safety, we ask the user to enter their seed
-        assert seed == self.decode_seed(password)
+        assert seed == self.get_seed(password)
         self.seed = ''
         self.storage.put('seed', '', True)
 
@@ -600,10 +645,24 @@ class Wallet:
 
 
 
-    def decode_seed(self, password):
-        seed = pw_decode(self.seed, password)
+    def get_seed(self, password):
+        s = pw_decode(self.seed, password)
+        if self.seed_version == 4:
+            seed = s
+        else:
+            seed = mnemonic_hash(s)
         #todo:  #self.sequences[0].check_seed(seed)
         return seed
+        
+
+    def get_mnemonic(self, password):
+        import mnemonic
+        s = pw_decode(self.seed, password)
+        if self.seed_version == 4:
+            return ' '.join(mnemonic.mn_encode(s))
+        else:
+            return s
+
         
 
     def get_private_key(self, address, password):
@@ -613,7 +672,7 @@ class Wallet:
         else:
             account, sequence = self.get_address_index(address)
             if account == 0:
-                seed = self.decode_seed(password)
+                seed = self.get_seed(password)
                 pk = self.accounts[account].get_private_key(seed, sequence)
                 out.append(pk)
                 return out
@@ -673,7 +732,7 @@ class Wallet:
     def signrawtransaction(self, tx, input_info, private_keys, password):
 
         # check that the password is correct
-        seed = self.decode_seed(password)
+        seed = self.get_seed(password)
 
         # add input info
         tx.add_input_info(input_info)
@@ -1291,10 +1350,11 @@ class Wallet:
 
 
 
-    def update_password(self, seed, old_password, new_password):
+    def update_password(self, old_password, new_password):
         if new_password == '': new_password = None
         # this will throw an exception if unicode cannot be converted
-        self.seed = pw_encode( seed, new_password)
+        decoded = pw_decode(self.seed, old_password)
+        self.seed = pw_encode( decoded, new_password)
         self.storage.put('seed', self.seed, True)
         self.use_encryption = (new_password != None)
         self.storage.put('use_encryption', self.use_encryption,True)
@@ -1485,17 +1545,12 @@ class Wallet:
         # wait until we are connected, because the user might have selected another server
         wait_for_network()
 
-        # try to restore old account
-        self.create_old_account()
-        wait_for_wallet()
 
-        if self.is_found():
-            self.seed_version = 4
-            self.storage.put('seed_version', self.seed_version, True)
+        if self.seed_version == 4:
+            self.create_old_account()
         else:
-            self.accounts.pop(0)
             self.create_accounts()
-            wait_for_wallet()
+        wait_for_wallet()
 
 
 

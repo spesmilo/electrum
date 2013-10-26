@@ -215,9 +215,9 @@ class Commands:
         return self.network.get_servers()
 
     def getseed(self):
-        import mnemonic
-        seed = self.wallet.decode_seed(self.password)
-        return { "hex":seed, "mnemonic": ' '.join(mnemonic.mn_encode(seed)) }
+        mnemonic = self.wallet.get_mnemonic(self.password)
+        seed = self.wallet.get_seed(self.password)
+        return { 'mnemonic':mnemonic, 'seed':seed, 'version':self.wallet.seed_version }
 
     def importprivkey(self, sec):
         try:

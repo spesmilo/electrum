@@ -717,7 +717,7 @@ def show_seed():
         password = None
     
     try:
-        seed = wallet.decode_seed(password)
+        seed = wallet.get_seed(password)
     except:
         modal_dialog('error','incorrect password')
         return
@@ -733,7 +733,7 @@ def change_password_dialog():
         password = None
 
     try:
-        seed = wallet.decode_seed(password)
+        wallet.get_seed(password)
     except:
         modal_dialog('error','incorrect password')
         return
@@ -748,7 +748,7 @@ def change_password_dialog():
             modal_dialog('error','passwords do not match')
             return
 
-    wallet.update_password(seed, password, new_password)
+    wallet.update_password(password, new_password)
     if new_password:
         modal_dialog('Password updated','your wallet is encrypted')
     else:

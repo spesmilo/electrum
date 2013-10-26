@@ -19,6 +19,7 @@
 
 
 import hashlib, base64, ecdsa, re
+import hmac
 from util import print_error
 
 def rev_hex(s):
@@ -56,6 +57,8 @@ Hash = lambda x: hashlib.sha256(hashlib.sha256(x).digest()).digest()
 hash_encode = lambda x: x[::-1].encode('hex')
 hash_decode = lambda x: x.decode('hex')[::-1]
 
+hmac_sha_512 = lambda x,y: hmac.new(x, y, hashlib.sha512).digest()
+mnemonic_hash = lambda x: hmac_sha_512("Bitcoin mnemonic", x).encode('hex')
 
 # pywallet openssl private key implementation
 

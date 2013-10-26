@@ -1544,12 +1544,12 @@ class ElectrumWindow(QMainWindow):
 
         if self.wallet.seed:
             try:
-                seed = self.wallet.decode_seed(password)
+                mnemonic = self.wallet.get_mnemonic(password)
             except:
                 QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
                 return
             from seed_dialog import SeedDialog
-            d = SeedDialog(self, seed, self.wallet.imported_keys)
+            d = SeedDialog(self, mnemonic, self.wallet.imported_keys)
             d.exec_()
         else:
             l = {}

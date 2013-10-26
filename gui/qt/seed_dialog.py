@@ -57,12 +57,11 @@ class PrivateKeysDialog(QDialog):
 
 def make_seed_dialog(seed, imported_keys):
 
-        words = mnemonic.mn_encode(seed)
-        brainwallet = ' '.join(words)
+        words = seed.split()
 
         label1 = QLabel(_("Your wallet generation seed is")+ ":")
 
-        seed_text = QTextEdit(brainwallet)
+        seed_text = QTextEdit(seed)
         seed_text.setReadOnly(True)
         seed_text.setMaximumHeight(130)
         
