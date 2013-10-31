@@ -2,9 +2,7 @@
 
 * The client connects to multiple servers in order to retrieve block headers and find the longest chain
 * SSL certificate validation (to prevent MITM)
-* Implements BIP32 (hierarchical deterministic wallet)
 * Deterministic signatures (RFC 6979)
-* Can create multiple accounts in the same wallet
 * Menu to create/restore/open wallets
 * Create transactions with multiple outputs from CSV (comma separated values)
 * New text gui: stdio
