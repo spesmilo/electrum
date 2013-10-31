@@ -289,6 +289,8 @@ class Wallet:
 
 
     def init_seed(self, seed):
+        import mnemonic
+        
         if self.seed: 
             raise BaseException("a seed exists")
 
@@ -311,19 +313,22 @@ class Wallet:
             pass
 
         words = seed.split()
-        try:
-            mnemonic.mn_decode(words)
-            uses_electrum_words = True
-        except:
-            uses_electrum_words = False
-
-        if uses_electrum_words and len(words) != 13:
-            self.seed_version = 4
-            self.seed = mnemonic.mn_encode(seed)
-        else:
-            assert mnemonic_hash(seed).startswith(SEED_PREFIX)
-            self.seed_version = SEED_VERSION
-            self.seed = seed
+        self.seed_version = 4
+        self.seed = mnemonic.mn_decode(words)
+        
+        #try:
+        #    mnemonic.mn_decode(words)
+        #    uses_electrum_words = True
+        #except:
+        #    uses_electrum_words = False
+        #
+        #if uses_electrum_words and len(words) != 13:
+        #    self.seed_version = 4
+        #    self.seed = mnemonic.mn_decode(words)
+        #else:
+        #    assert mnemonic_hash(seed).startswith(SEED_PREFIX)
+        #    self.seed_version = SEED_VERSION
+        #    self.seed = seed
             
 
     def save_seed(self):
