@@ -178,8 +178,11 @@ class Wallet:
 
         if self.seed_version not in [4, 6]:
             msg = "This wallet seed is not supported."
-            if self.seed_version in [5]: msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%self.seed_version
-            raise ValueError(msg)
+            if self.seed_version in [5]:
+                msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%self.seed_version
+                print msg
+                sys.exit(1)
+
 
         self.load_accounts()
 
