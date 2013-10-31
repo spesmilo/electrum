@@ -293,9 +293,14 @@ class Wallet:
             raise BaseException("a seed exists")
 
         if not seed:
-            self.seed = self.make_seed()
-            self.seed_version = SEED_VERSION
+            self.seed = random_seed(128)
+            self.seed_version = 4
             return
+
+        #if not seed:
+        #    self.seed = self.make_seed()
+        #    self.seed_version = SEED_VERSION
+        #    return
 
         # find out what kind of wallet we are
         try:
@@ -335,9 +340,12 @@ class Wallet:
 
 
     def create_accounts(self): 
-        # create default account
-        self.create_master_keys('1')
-        self.create_account('1','Main account')
+        if self.seed_version == 4:
+            self.create_old_account()
+        else:
+            # create default account
+            self.create_master_keys('1')
+            self.create_account('1','Main account')
 
 
     def create_master_keys(self, account_type):
@@ -1546,10 +1554,7 @@ class Wallet:
         wait_for_network()
 
 
-        if self.seed_version == 4:
-            self.create_old_account()
-        else:
-            self.create_accounts()
+        self.create_accounts()
         wait_for_wallet()
 
 

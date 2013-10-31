@@ -75,7 +75,7 @@ class InstallWizard(QDialog):
         if not r:
             return
 
-        if r != wallet.seed:
+        if r != wallet.get_mnemonic(None):
             QMessageBox.warning(None, _('Error'), _('Incorrect seed'), _('OK'))
             return False
         else:
@@ -232,7 +232,7 @@ class InstallWizard(QDialog):
     def show_seed(self, wallet):
         from seed_dialog import make_seed_dialog
 
-        vbox = make_seed_dialog(wallet.seed, wallet.imported_keys)
+        vbox = make_seed_dialog(wallet.get_mnemonic(None), wallet.imported_keys)
         vbox.addLayout(ok_cancel_buttons(self, _("Next")))
 
         if self.layout(): QWidget().setLayout(self.layout())
