@@ -281,7 +281,7 @@ class Wallet:
             # we keep only 13 words, that's approximately 139 bits of entropy
             words = mnemonic.mn_encode(s)[0:13] 
             seed = ' '.join(words)
-            if mnemonic_hash(seed)[0:3] == SEED_PREFIX: 
+            if mnemonic_hash(seed).startswith(SEED_PREFIX): 
                 break  # this removes 12 bits of entropy 
             nonce += 1
 
@@ -316,7 +316,7 @@ class Wallet:
             self.seed_version = 4
             self.seed = mnemonic.mn_encode(seed)
         else:
-            assert mnemonic_hash(seed)[0:3] == SEED_PREFIX
+            assert mnemonic_hash(seed).startswith(SEED_PREFIX)
             self.seed_version = SEED_VERSION
             self.seed = seed
             
