@@ -232,15 +232,13 @@ if __name__ == '__main__':
             wallet.save_seed()
             wallet.create_accounts()
             wallet.synchronize()
-            print_msg("Your wallet generation seed is: " + wallet.seed)
+            print_msg("Your wallet generation seed is:\n\"%s\""% wallet.get_mnemonic(None))
             print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
-            print_msg("Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:")
-            print_msg("\""+' '.join(mnemonic_encode(wallet.seed))+"\"")
 
         print_msg("Wallet saved in '%s'"%wallet.storage.path)
             
         if password:
-            wallet.update_password(wallet.seed, None, password)
+            wallet.update_password(None, password)
 
         # terminate
         sys.exit(0)
@@ -268,7 +266,7 @@ if __name__ == '__main__':
                 exit(1)
         else:
             password = None
-            seed = wallet.seed
+            seed = wallet.get_seed(None)
     else:
         password = None
 
