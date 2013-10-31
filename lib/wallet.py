@@ -1328,6 +1328,8 @@ class Wallet:
     def add_input_info(self, inputs):
         for txin in inputs:
             address = txin['address']
+            if address in self.imported_keys.keys():
+                continue
             account, sequence = self.get_address_index(address)
             txin['KeyID'] = self.get_keyID(account, sequence)
             redeemScript = self.accounts[account].redeem_script(sequence)
