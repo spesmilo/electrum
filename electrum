@@ -349,16 +349,16 @@ if __name__ == '__main__':
         if not wallet.seed:
             print_msg("Error: This wallet has no seed")
         else:
-            ns = wallet.config.path + '.seedless'
+            ns = wallet.storage.path + '.seedless'
             print_msg("Warning: you are going to create a seedless wallet'\nIt will be saved in '%s'"%ns)
             if raw_input("Are you sure you want to continue? (y/n) ") in ['y','Y','yes']:
-                wallet.config.path = ns
+                wallet.storage.path = ns
                 wallet.seed = ''
                 wallet.storage.put('seed', '', True)
                 wallet.use_encryption = False
                 wallet.storage.put('use_encryption', wallet.use_encryption, True)
                 for k in wallet.imported_keys.keys(): wallet.imported_keys[k] = ''
-                wallet.config.set_key('imported_keys',wallet.imported_keys, True)
+                wallet.storage.put('imported_keys',wallet.imported_keys, True)
                 print_msg("Done.")
             else:
                 print_msg("Action canceled.")
