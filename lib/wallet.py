@@ -650,7 +650,9 @@ class Wallet:
 
     def get_keyID(self, account, sequence):
         if account == 0:
-            return 'old'
+            a, b = sequence
+            mpk = self.storage.get('master_public_key')
+            return 'old(%s,%d,%d)'%(mpk,a,b)
 
         rs = self.rebase_sequence(account, sequence)
         dd = []
@@ -720,6 +722,24 @@ class Wallet:
         for txin in tx.inputs:
             keyid = txin.get('KeyID')
             if keyid:
+
+                if self.seed_version==4:
+                    m = re.match("old\(([0-9a-f]+),(\d+),(\d+)", keyid)
+                    if not m: continue
+                    mpk = m.group(1)
+                    if mpk != self.storage.get('master_public_key'): continue 
+                    index = int(m.group(2))
+                    num = int(m.group(3))
+                    account = self.accounts[0]
+                    addr = account.get_address(index, num)
+                    txin['address'] = addr # fixme: side effect
+                    pk = self.get_private_key(addr, password)
+                    for sec in pk:
+                        pubkey = public_key_from_private_key(sec)
+                        keypairs[pubkey] = sec
+                    continue
+
+
                 roots = []
                 for s in keyid.split('&'):
                     m = re.match("bip32\(([0-9a-f]+),([0-9a-f]+),(/\d+/\d+/\d+)", s)
