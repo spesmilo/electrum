@@ -311,6 +311,7 @@ class Wallet:
         try:
             seed.decode('hex')
             self.seed_version = 4
+            self.seed = str(seed)
             return
         except:
             pass
