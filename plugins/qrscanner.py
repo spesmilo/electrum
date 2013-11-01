@@ -39,24 +39,26 @@ class Plugin(BasePlugin):
 
         return True
 
+    def load_wallet(self, wallet):
+        b = QPushButton(_("Scan QR code"))
+        b.clicked.connect(self.fill_from_qr)
+        self.send_tab_grid.addWidget(b, 1, 5)
+        b2 = QPushButton(_("Scan TxQR"))
+        b2.clicked.connect(self.read_raw_qr)
+        
+        if not wallet.seed:
+            b3 = QPushButton(_("Show unsigned TxQR"))
+            b3.clicked.connect(self.show_raw_qr)
+            self.send_tab_grid.addWidget(b3, 7, 1)
+            self.send_tab_grid.addWidget(b2, 7, 2)
+        else:
+            self.send_tab_grid.addWidget(b2, 7, 1)
+
     def is_available(self):
         return self._is_available
 
     def create_send_tab(self, grid):
-        b = QPushButton(_("Scan QR code"))
-        b.clicked.connect(self.fill_from_qr)
-        grid.addWidget(b, 1, 5)
-        b2 = QPushButton(_("Scan TxQR"))
-        b2.clicked.connect(self.read_raw_qr)
-        
-        if not self.gui.wallet.seed:
-            b3 = QPushButton(_("Show unsigned TxQR"))
-            b3.clicked.connect(self.show_raw_qr)
-            grid.addWidget(b3, 7, 1)
-            grid.addWidget(b2, 7, 2)
-        else:
-            grid.addWidget(b2, 7, 1)
-
+        self.send_tab_grid = grid
 
     def scan_qr(self):
         proc = zbar.Processor()
@@ -76,7 +78,7 @@ class Plugin(BasePlugin):
                 return r.data
         
     def show_raw_qr(self):
-        r = unicode( self.gui.payto_e.text() )
+        r = unicode( self.gui.main_window.payto_e.text() )
         r = r.strip()
 
         # label or alias, with address in brackets
@@ -84,28 +86,28 @@ class Plugin(BasePlugin):
         to_address = m.group(2) if m else r
 
         if not is_valid(to_address):
-            QMessageBox.warning(self.gui, _('Error'), _('Invalid Bitcoin Address') + ':\n' + to_address, _('OK'))
+            QMessageBox.warning(self.gui.main_window, _('Error'), _('Invalid Bitcoin Address') + ':\n' + to_address, _('OK'))
             return
 
         try:
-            amount = self.gui.read_amount(unicode( self.gui.amount_e.text()))
+            amount = self.gui.main_window.read_amount(unicode( self.gui.main_window.amount_e.text()))
         except:
-            QMessageBox.warning(self.gui, _('Error'), _('Invalid Amount'), _('OK'))
+            QMessageBox.warning(self.gui.main_window, _('Error'), _('Invalid Amount'), _('OK'))
             return
         try:
-            fee = self.gui.read_amount(unicode( self.gui.fee_e.text()))
+            fee = self.gui.main_window.read_amount(unicode( self.gui.main_window.fee_e.text()))
         except:
-            QMessageBox.warning(self.gui, _('Error'), _('Invalid Fee'), _('OK'))
+            QMessageBox.warning(self.gui.main_window, _('Error'), _('Invalid Fee'), _('OK'))
             return
 
         try:
-            tx = self.gui.wallet.mktx( [(to_address, amount)], None, fee, account=self.gui.current_account)
+            tx = self.gui.main_window.wallet.mktx( [(to_address, amount)], None, fee)
         except BaseException, e:
-            self.gui.show_message(str(e))
+            self.gui.main_window.show_message(str(e))
             return
 
-        if tx.requires_fee(self.gui.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
-            QMessageBox.warning(self.gui, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
+        if tx.requires_fee(self.gui.main_window.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
+            QMessageBox.warning(self.gui.main_window, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
             return
 
         try:
@@ -117,17 +119,17 @@ class Plugin(BasePlugin):
             input_info = []
 
         except BaseException, e:
-            self.gui.show_message(str(e))
+            self.gui.main_window.show_message(str(e))
 
         try:
             json_text = json.dumps(tx.as_dict()).replace(' ', '')
             self.show_tx_qrcode(json_text, 'Unsigned Transaction')
         except BaseException, e:
-            self.gui.show_message(str(e))
+            self.gui.main_window.show_message(str(e))
 
     def show_tx_qrcode(self, data, title):
         if not data: return
-        d = QDialog(self.gui)
+        d = QDialog(self.gui.main_window)
         d.setModal(1)
         d.setWindowTitle(title)
         d.setMinimumSize(250, 525)
@@ -158,7 +160,7 @@ class Plugin(BasePlugin):
     def read_raw_qr(self):
         qrcode = self.scan_qr()
         if qrcode:
-            tx_dict = self.gui.tx_dict_from_text(qrcode)
+            tx_dict = self.gui.main_window.tx_dict_from_text(qrcode)
             if tx_dict:
                 self.create_transaction_details_window(tx_dict)
 
@@ -166,7 +168,7 @@ class Plugin(BasePlugin):
     def create_transaction_details_window(self, tx_dict):
         tx = Transaction(tx_dict["hex"])
             
-        dialog = QDialog(self.gui)
+        dialog = QDialog(self.gui.main_window)
         dialog.setMinimumWidth(500)
         dialog.setWindowTitle(_('Process Offline transaction'))
         dialog.setModal(1)
@@ -179,7 +181,7 @@ class Plugin(BasePlugin):
 
         if tx_dict["complete"] == False:
             l.addWidget(QLabel(_("Unsigned")), 3,1)
-            if self.gui.wallet.seed :
+            if self.gui.main_window.wallet.seed :
                 b = QPushButton("Sign transaction")
                 input_info = json.loads(tx_dict["input_info"])
                 b.clicked.connect(lambda: self.sign_raw_transaction(tx, input_info, dialog))
@@ -189,10 +191,10 @@ class Plugin(BasePlugin):
         else:
             l.addWidget(QLabel(_("Signed")), 3,1)
             b = QPushButton("Broadcast transaction")
-            b.clicked.connect(lambda: self.gui.send_raw_transaction(tx, dialog))
+            b.clicked.connect(lambda: self.gui.main_window.send_raw_transaction(tx, dialog))
             l.addWidget(b,4,1)
     
-        l.addWidget( self.gui.generate_transaction_information_widget(tx), 0,0,2,3)
+        l.addWidget( self.gui.main_window.generate_transaction_information_widget(tx), 0,0,2,3)
         closeButton = QPushButton(_("Close"))
         closeButton.clicked.connect(lambda: dialog.done(0))
         l.addWidget(closeButton, 4,2)
@@ -200,8 +202,8 @@ class Plugin(BasePlugin):
         dialog.exec_()
 
     def do_protect(self, func, args):
-        if self.gui.wallet.use_encryption:
-            password = self.gui.password_dialog()
+        if self.gui.main_window.wallet.use_encryption:
+            password = self.gui.main_window.password_dialog()
             if not password:
                 return
         else:
@@ -219,11 +221,11 @@ class Plugin(BasePlugin):
     @protected
     def sign_raw_transaction(self, tx, input_info, dialog ="", password = ""):
         try:
-            self.gui.wallet.signrawtransaction(tx, input_info, [], password)
+            self.gui.main_window.wallet.signrawtransaction(tx, input_info, [], password)
             txtext = json.dumps(tx.as_dict()).replace(' ', '')
             self.show_tx_qrcode(txtext, 'Signed Transaction')
         except BaseException, e:
-            self.gui.show_message(str(e))
+            self.gui.main_window.show_message(str(e))
 
 
     def fill_from_qr(self):
@@ -232,13 +234,13 @@ class Plugin(BasePlugin):
             return
 
         if 'address' in qrcode:
-            self.gui.payto_e.setText(qrcode['address'])
+            self.gui.main_window.payto_e.setText(qrcode['address'])
         if 'amount' in qrcode:
-            self.gui.amount_e.setText(str(qrcode['amount']))
+            self.gui.main_window.amount_e.setText(str(qrcode['amount']))
         if 'label' in qrcode:
-            self.gui.message_e.setText(qrcode['label'])
+            self.gui.main_window.message_e.setText(qrcode['label'])
         if 'message' in qrcode:
-            self.gui.message_e.setText("%s (%s)" % (self.gui.message_e.text(), qrcode['message']))
+            self.gui.main_window.message_e.setText("%s (%s)" % (self.gui.main_window.message_e.text(), qrcode['message']))
                 
 
 
