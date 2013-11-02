@@ -716,6 +716,8 @@ class Wallet:
             for sec in private_keys:
                 pubkey = public_key_from_private_key(sec)
                 keypairs[ pubkey ] = sec
+                if address in self.imported_keys.keys():
+                    txin['redeemPubkey'] = pubkey
 
 
     def add_keypairs_from_KeyID(self, tx, keypairs, password):
