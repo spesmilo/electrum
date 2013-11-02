@@ -1578,7 +1578,7 @@ class Wallet:
                 time.sleep(0.1)
 
         def wait_for_network():
-            while not self.network.interface.is_connected:
+            while not self.network.is_connected():
                 msg = "%s \n" % (_("Connecting..."))
                 apply(callback, (msg,))
                 time.sleep(0.1)
