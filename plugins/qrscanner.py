@@ -168,14 +168,11 @@ class Plugin(BasePlugin):
     def read_raw_qr(self):
         qrcode = self.scan_qr()
         if qrcode:
-            tx_dict = self.gui.main_window.tx_dict_from_text(qrcode)
-            if tx_dict:
-                self.create_transaction_details_window(tx_dict)
+            tx = self.gui.main_window.tx_from_text(qrcode)
+            if tx:
+                self.create_transaction_details_window(tx)
 
-
-    def create_transaction_details_window(self, tx_dict):
-        tx = Transaction(tx_dict["hex"])
-            
+    def create_transaction_details_window(self, tx):            
         dialog = QDialog(self.gui.main_window)
         dialog.setMinimumWidth(500)
         dialog.setWindowTitle(_('Process Offline transaction'))
@@ -187,22 +184,28 @@ class Plugin(BasePlugin):
         l.addWidget(QLabel(_("Transaction status:")), 3,0)
         l.addWidget(QLabel(_("Actions")), 4,0)
 
-        if tx_dict["complete"] == False:
+        if tx.is_complete == False:
             l.addWidget(QLabel(_("Unsigned")), 3,1)
             if self.gui.main_window.wallet.seed :
                 b = QPushButton("Sign transaction")
-                input_info = json.loads(tx_dict["input_info"])
-                b.clicked.connect(lambda: self.sign_raw_transaction(tx, input_info, dialog))
+                b.clicked.connect(lambda: self.sign_raw_transaction(tx, tx.inputs, dialog))
                 l.addWidget(b, 4, 1)
             else:
                 l.addWidget(QLabel(_("Wallet is de-seeded, can't sign.")), 4,1)
         else:
             l.addWidget(QLabel(_("Signed")), 3,1)
             b = QPushButton("Broadcast transaction")
-            b.clicked.connect(lambda: self.gui.main_window.send_raw_transaction(tx, dialog))
+            def broadcast(tx):
+                result, result_message = self.gui.main_window.wallet.sendtx( tx )
+                if result:
+                    self.gui.main_window.show_message(_("Transaction successfully sent:")+' %s' % (result_message))
+                    if dialog:
+                        dialog.done(0)
+                else:
+                    self.gui.main_window.show_message(_("There was a problem sending your transaction:") + '\n %s' % (result_message))
+            b.clicked.connect(lambda: broadcast( tx ))
             l.addWidget(b,4,1)
     
-        l.addWidget( self.gui.main_window.generate_transaction_information_widget(tx), 0,0,2,3)
         closeButton = QPushButton(_("Close"))
         closeButton.clicked.connect(lambda: dialog.done(0))
         l.addWidget(closeButton, 4,2)
