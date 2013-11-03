@@ -339,7 +339,16 @@ class Wallet:
         self.storage.put('seed', self.seed, True)
         self.storage.put('seed_version', self.seed_version, True)
 
-    def create_watching_only_wallet(self, c0, K0):
+    def create_watching_only_wallet(self, params):
+        K0, c0 = params
+        if not K0:
+            return
+
+        if not c0:
+            self.seed_version = 4
+            self.create_old_account(K0)
+            return
+
         cK0 = ""
         self.master_public_keys = {
             "m/0'/": (c0, K0, cK0),
@@ -350,7 +359,8 @@ class Wallet:
 
     def create_accounts(self): 
         if self.seed_version == 4:
-            self.create_old_account()
+            mpk = OldAccount.mpk_from_seed(self.seed)
+            self.create_old_account(mpk)
         else:
             # create default account
             self.create_master_keys('1')
@@ -513,8 +523,7 @@ class Wallet:
             self.set_label(k, name)
 
 
-    def create_old_account(self):
-        mpk = OldAccount.mpk_from_seed(self.seed)
+    def create_old_account(self, mpk):
         self.storage.put('master_public_key', mpk, True)
         self.accounts[0] = OldAccount({'mpk':mpk, 0:[], 1:[]})
         self.save_accounts()

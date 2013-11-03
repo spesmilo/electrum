@@ -166,10 +166,10 @@ class InstallWizard(QDialog):
         grid.addWidget(mpk_e, 0, 1)
 
         label = QLabel(_("Chain")) 
-        grid.addWidget(label, 1, 0)
+        #grid.addWidget(label, 1, 0)
         chain_e = QTextEdit()
         chain_e.setMaximumHeight(100)
-        grid.addWidget(chain_e, 1, 1)
+        #grid.addWidget(chain_e, 1, 1)
 
         vbox.addLayout(grid)
 
@@ -294,11 +294,11 @@ class InstallWizard(QDialog):
 
         elif action == 'watching':
             # ask for seed and gap.
-            K, chain = self.mpk_dialog()
-            if not K or not chain:
+            mpk = self.mpk_dialog()
+            if not mpk:
                 return
             wallet.seed = ''
-            wallet.create_watching_only_wallet(chain,K)
+            wallet.create_watching_only_wallet(mpk)
 
 
         else: raise

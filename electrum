@@ -365,15 +365,13 @@ if __name__ == '__main__':
 
     elif cmd.name == 'getconfig':
         key = args[1]
-        print_msg(config.get(key))
+        out = config.get(key)
+        print_msg(out)
 
     elif cmd.name == 'setconfig':
         key, value = args[1:3]
-        if key not in ['seed', 'seed_version', 'master_public_key', 'use_encryption']:
-            config.set_key(key, value, True)
-            print_msg(True)
-        else:
-            print_msg(False)
+        config.set_key(key, value, True)
+        print_msg(True)
 
     elif cmd.name == 'password':
         new_password = prompt_password('New password:')
