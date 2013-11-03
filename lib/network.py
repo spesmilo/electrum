@@ -258,7 +258,6 @@ class Network(threading.Thread):
 
 
     def new_blockchain_height(self, blockchain_height, i):
-        print_error('new_blockchain_height')
         if self.is_connected():
             h = self.heights.get(self.interface.server)
             if h:
