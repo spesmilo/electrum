@@ -74,6 +74,7 @@ register_command('getconfig',            1, 1, False, False, False, 'Return a co
 register_command('getpubkeys',           1, 1, False, True,  False, 'Return the public keys for a wallet address', 'getpubkeys <bitcoin address>')
 register_command('getrawtransaction',    1, 2, True,  False, False, 'Retrieve a transaction', 'getrawtransaction <txhash> <height>')
 register_command('getseed',              0, 0, False, True,  True,  'Print the generation seed of your wallet.')
+register_command('getmpk',               0, 0, False, True,  False, 'Return your wallet\'s master public key', 'getmpk')
 register_command('help',                 0, 1, False, False, False, 'Prints this help')
 register_command('history',              0, 0, True,  True,  False, 'Returns the transaction history of your wallet')
 register_command('importprivkey',        1, 1, False, True,  True,  'Import a private key', 'importprivkey <privatekey>')
@@ -213,6 +214,9 @@ class Commands:
 
     def getservers(self):
         return self.network.get_servers()
+
+    def getmpk(self):
+        return self.wallet.get_master_public_key()
 
     def getseed(self):
         mnemonic = self.wallet.get_mnemonic(self.password)

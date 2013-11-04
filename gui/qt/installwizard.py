@@ -24,6 +24,15 @@ class InstallWizard(QDialog):
         self.setWindowTitle('Electrum')
         self.connect(self, QtCore.SIGNAL('accept'), self.accept)
 
+        self.stack = QStackedLayout()
+        self.setLayout(self.stack)
+
+
+    def set_layout(self, layout):
+        w = QWidget()
+        w.setLayout(layout)
+        self.stack.setCurrentIndex(self.stack.addWidget(w))
+
 
     def restore_or_create(self):
 
@@ -51,9 +60,10 @@ class InstallWizard(QDialog):
         grid.addWidget(b2,2,0)
         grid.addWidget(b3,3,0)
 
-        vbox = QVBoxLayout(self)
-        vbox.addLayout(grid)
+        vbox = QVBoxLayout()
+        self.set_layout(vbox)
 
+        vbox.addLayout(grid)
         vbox.addStretch(1)
         vbox.addLayout(ok_cancel_buttons(self, _('Next')))
 
@@ -84,9 +94,7 @@ class InstallWizard(QDialog):
 
     def seed_dialog(self, is_restore=True):
 
-        if self.layout(): QWidget().setLayout(self.layout())
-
-        vbox = QVBoxLayout(self)
+        vbox = QVBoxLayout()
         if is_restore:
             msg = _("Please enter your wallet seed.") + "\n"
         else:
@@ -111,10 +119,10 @@ class InstallWizard(QDialog):
 
         vbox.addLayout(grid)
 
-
         vbox.addStretch(1)
         vbox.addLayout(ok_cancel_buttons(self, _('Next')))
 
+        self.set_layout(vbox)
         if not self.exec_():
             return
 
@@ -133,10 +141,10 @@ class InstallWizard(QDialog):
             task()
             self.emit(QtCore.SIGNAL('accept'))
 
-        if self.layout(): QWidget().setLayout(self.layout())
-        vbox = QVBoxLayout(self)
+        vbox = QVBoxLayout()
         self.waiting_label = QLabel(msg)
         vbox.addWidget(self.waiting_label)
+        self.set_layout(vbox)
         t = threading.Thread(target = target)
         t.start()
         self.exec_()
@@ -145,10 +153,7 @@ class InstallWizard(QDialog):
 
     def mpk_dialog(self):
 
-        if self.layout(): QWidget().setLayout(self.layout())
-
-        vbox = QVBoxLayout(self)
-
+        vbox = QVBoxLayout()
         vbox.addWidget(QLabel(_("Please enter your master public key.")))
 
         grid = QGridLayout()
@@ -161,16 +166,17 @@ class InstallWizard(QDialog):
         grid.addWidget(mpk_e, 0, 1)
 
         label = QLabel(_("Chain")) 
-        grid.addWidget(label, 1, 0)
+        #grid.addWidget(label, 1, 0)
         chain_e = QTextEdit()
         chain_e.setMaximumHeight(100)
-        grid.addWidget(chain_e, 1, 1)
+        #grid.addWidget(chain_e, 1, 1)
 
         vbox.addLayout(grid)
 
         vbox.addStretch(1)
         vbox.addLayout(ok_cancel_buttons(self, _('Next')))
 
+        self.set_layout(vbox)
         if not self.exec_(): return None, None
 
         mpk = str(mpk_e.toPlainText()).strip()
@@ -180,8 +186,6 @@ class InstallWizard(QDialog):
 
     def network_dialog(self):
         
-        if self.layout(): QWidget().setLayout(self.layout())
-
         grid = QGridLayout()
         grid.setSpacing(5)
 
@@ -206,12 +210,13 @@ class InstallWizard(QDialog):
         grid.addWidget(b2,2,0)
         #grid.addWidget(b3,3,0)
 
-        vbox = QVBoxLayout(self)
+        vbox = QVBoxLayout()
         vbox.addLayout(grid)
 
         vbox.addStretch(1)
         vbox.addLayout(ok_cancel_buttons(self, _('Next')))
 
+        self.set_layout(vbox)
         if not self.exec_():
             return
         
@@ -227,7 +232,7 @@ class InstallWizard(QDialog):
             self.config.set_key('auto_cycle', False, True)
             return
         
-        
+
 
     def show_seed(self, wallet):
         from seed_dialog import make_seed_dialog
@@ -235,9 +240,7 @@ class InstallWizard(QDialog):
         vbox = make_seed_dialog(wallet.get_mnemonic(None), wallet.imported_keys)
         vbox.addLayout(ok_cancel_buttons(self, _("Next")))
 
-        if self.layout(): QWidget().setLayout(self.layout())
-        self.setLayout(vbox)
-
+        self.set_layout(vbox)
         if not self.exec_():
             exit()
 
@@ -246,8 +249,8 @@ class InstallWizard(QDialog):
         msg = _("Please choose a password to encrypt your wallet keys.")+'\n'\
               +_("Leave these fields empty if you want to disable encryption.")
         from password_dialog import make_password_dialog, run_password_dialog
-        if self.layout(): QWidget().setLayout(self.layout())
-        make_password_dialog(self, wallet, msg)
+        self.set_layout( make_password_dialog(self, wallet, msg) )
+
         run_password_dialog(self, wallet, self)
 
 
@@ -291,11 +294,11 @@ class InstallWizard(QDialog):
 
         elif action == 'watching':
             # ask for seed and gap.
-            K, chain = self.mpk_dialog()
-            if not K or not chain:
+            mpk = self.mpk_dialog()
+            if not mpk:
                 return
             wallet.seed = ''
-            wallet.create_watching_only_wallet(chain,K)
+            wallet.create_watching_only_wallet(mpk)
 
 
         else: raise

@@ -311,6 +311,7 @@ class Wallet:
         try:
             seed.decode('hex')
             self.seed_version = 4
+            self.seed = str(seed)
             return
         except:
             pass
@@ -338,7 +339,16 @@ class Wallet:
         self.storage.put('seed', self.seed, True)
         self.storage.put('seed_version', self.seed_version, True)
 
-    def create_watching_only_wallet(self, c0, K0):
+    def create_watching_only_wallet(self, params):
+        K0, c0 = params
+        if not K0:
+            return
+
+        if not c0:
+            self.seed_version = 4
+            self.create_old_account(K0)
+            return
+
         cK0 = ""
         self.master_public_keys = {
             "m/0'/": (c0, K0, cK0),
@@ -349,7 +359,8 @@ class Wallet:
 
     def create_accounts(self): 
         if self.seed_version == 4:
-            self.create_old_account()
+            mpk = OldAccount.mpk_from_seed(self.seed)
+            self.create_old_account(mpk)
         else:
             # create default account
             self.create_master_keys('1')
@@ -512,8 +523,7 @@ class Wallet:
             self.set_label(k, name)
 
 
-    def create_old_account(self):
-        mpk = OldAccount.mpk_from_seed(self.seed)
+    def create_old_account(self, mpk):
         self.storage.put('master_public_key', mpk, True)
         self.accounts[0] = OldAccount({'mpk':mpk, 0:[], 1:[]})
         self.save_accounts()
@@ -649,7 +659,9 @@ class Wallet:
 
     def get_keyID(self, account, sequence):
         if account == 0:
-            return 'old'
+            a, b = sequence
+            mpk = self.storage.get('master_public_key')
+            return 'old(%s,%d,%d)'%(mpk,a,b)
 
         rs = self.rebase_sequence(account, sequence)
         dd = []
@@ -713,12 +725,32 @@ class Wallet:
             for sec in private_keys:
                 pubkey = public_key_from_private_key(sec)
                 keypairs[ pubkey ] = sec
+                if address in self.imported_keys.keys():
+                    txin['redeemPubkey'] = pubkey
 
 
     def add_keypairs_from_KeyID(self, tx, keypairs, password):
         for txin in tx.inputs:
             keyid = txin.get('KeyID')
             if keyid:
+
+                if self.seed_version==4:
+                    m = re.match("old\(([0-9a-f]+),(\d+),(\d+)", keyid)
+                    if not m: continue
+                    mpk = m.group(1)
+                    if mpk != self.storage.get('master_public_key'): continue 
+                    index = int(m.group(2))
+                    num = int(m.group(3))
+                    account = self.accounts[0]
+                    addr = account.get_address(index, num)
+                    txin['address'] = addr # fixme: side effect
+                    pk = self.get_private_key(addr, password)
+                    for sec in pk:
+                        pubkey = public_key_from_private_key(sec)
+                        keypairs[pubkey] = sec
+                    continue
+
+
                 roots = []
                 for s in keyid.split('&'):
                     m = re.match("bip32\(([0-9a-f]+),([0-9a-f]+),(/\d+/\d+/\d+)", s)
@@ -1328,6 +1360,8 @@ class Wallet:
     def add_input_info(self, inputs):
         for txin in inputs:
             address = txin['address']
+            if address in self.imported_keys.keys():
+                continue
             account, sequence = self.get_address_index(address)
             txin['KeyID'] = self.get_keyID(account, sequence)
             redeemScript = self.accounts[account].redeem_script(sequence)
@@ -1553,7 +1587,7 @@ class Wallet:
                 time.sleep(0.1)
 
         def wait_for_network():
-            while not self.network.interface.is_connected:
+            while not self.network.is_connected():
                 msg = "%s \n" % (_("Connecting..."))
                 apply(callback, (msg,))
                 time.sleep(0.1)

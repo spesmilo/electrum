@@ -68,7 +68,7 @@ def make_password_dialog(self, wallet, msg):
 
     vbox.addStretch(1)
     vbox.addLayout(ok_cancel_buttons(self))
-    self.setLayout(vbox) 
+    return vbox
 
 
 def run_password_dialog(self, wallet, parent):
@@ -119,7 +119,7 @@ class PasswordDialog(QDialog):
         msg = (_('Your wallet is encrypted. Use this dialog to change your password.') + ' '\
                +_('To disable wallet encryption, enter an empty new password.')) \
                if wallet.use_encryption else _('Your wallet keys are not encrypted')
-        make_password_dialog(self, wallet, msg)
+        self.setLayout(make_password_dialog(self, wallet, msg))
 
 
     def run(self):

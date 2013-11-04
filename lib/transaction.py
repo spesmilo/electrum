@@ -432,10 +432,12 @@ class Transaction:
                 pubkeys = txin['pubkeys']
                 if not txin.get('redeemScript'):
                     pubkey = pubkeys[0]
-                    sig = signatures[0]
-                    sig = sig + '01'                                 # hashtype
-                    script  = op_push(len(sig)/2)
-                    script += sig
+                    script = ''
+                    if signatures:
+                        sig = signatures[0]
+                        sig = sig + '01'                                 # hashtype
+                        script += op_push(len(sig)/2)
+                        script += sig
                     script += op_push(len(pubkey)/2)
                     script += pubkey
                 else:
@@ -720,6 +722,7 @@ class Transaction:
         for i, txin in enumerate(self.inputs):
             item = input_info[i]
             txin['address'] = item['address']
+            txin['signatures'] = item['signatures']
             txin['scriptPubKey'] = item['scriptPubKey']
             txin['redeemScript'] = item.get('redeemScript')
             txin['redeemPubkey'] = item.get('redeemPubkey')

@@ -1,14 +1,16 @@
 from electrum.util import print_error
 from urlparse import urlparse, parse_qs
-from PyQt4.QtGui import QPushButton, QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel
+from PyQt4.QtGui import QPushButton, QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QLineEdit, QComboBox
 from PyQt4.QtCore import Qt
 
 from electrum.i18n import _
 import re
+import os
 from electrum import Transaction
 from electrum.bitcoin import MIN_RELAY_TX_FEE, is_valid
 from electrum_gui.qt.qrcodewidget import QRCodeWidget
 from electrum import bmp
+from electrum_gui.qt import HelpButton, EnterButton
 import json
 
 try:
@@ -32,35 +34,43 @@ class Plugin(BasePlugin):
             return False
         try:
             proc = zbar.Processor()
-            proc.init()
+            proc.init(video_device=self.video_device())
         except zbar.SystemError:
             # Cannot open video device
-            return False
+            pass
+            #return False
 
         return True
+
+    def load_wallet(self, wallet):
+        b = QPushButton(_("Scan QR code"))
+        b.clicked.connect(self.fill_from_qr)
+        self.send_tab_grid.addWidget(b, 1, 5)
+        b2 = QPushButton(_("Scan TxQR"))
+        b2.clicked.connect(self.read_raw_qr)
+        
+        if not wallet.seed:
+            b3 = QPushButton(_("Show unsigned TxQR"))
+            b3.clicked.connect(self.show_raw_qr)
+            self.send_tab_grid.addWidget(b3, 7, 1)
+            self.send_tab_grid.addWidget(b2, 7, 2)
+        else:
+            self.send_tab_grid.addWidget(b2, 7, 1)
 
     def is_available(self):
         return self._is_available
 
     def create_send_tab(self, grid):
-        b = QPushButton(_("Scan QR code"))
-        b.clicked.connect(self.fill_from_qr)
-        grid.addWidget(b, 1, 5)
-        b2 = QPushButton(_("Scan TxQR"))
-        b2.clicked.connect(self.read_raw_qr)
-        
-        if not self.gui.wallet.seed:
-            b3 = QPushButton(_("Show unsigned TxQR"))
-            b3.clicked.connect(self.show_raw_qr)
-            grid.addWidget(b3, 7, 1)
-            grid.addWidget(b2, 7, 2)
-        else:
-            grid.addWidget(b2, 7, 1)
-
+        self.send_tab_grid = grid
 
     def scan_qr(self):
         proc = zbar.Processor()
-        proc.init()
+        try:
+            proc.init(video_device=self.video_device())
+        except zbar.SystemError, e:
+            QMessageBox.warning(self.gui.main_window, _('Error'), _(e), _('OK'))
+            return
+
         proc.visible = True
 
         while True:
@@ -76,7 +86,7 @@ class Plugin(BasePlugin):
                 return r.data
         
     def show_raw_qr(self):
-        r = unicode( self.gui.payto_e.text() )
+        r = unicode( self.gui.main_window.payto_e.text() )
         r = r.strip()
 
         # label or alias, with address in brackets
@@ -84,28 +94,28 @@ class Plugin(BasePlugin):
         to_address = m.group(2) if m else r
 
         if not is_valid(to_address):
-            QMessageBox.warning(self.gui, _('Error'), _('Invalid Bitcoin Address') + ':\n' + to_address, _('OK'))
+            QMessageBox.warning(self.gui.main_window, _('Error'), _('Invalid Bitcoin Address') + ':\n' + to_address, _('OK'))
             return
 
         try:
-            amount = self.gui.read_amount(unicode( self.gui.amount_e.text()))
+            amount = self.gui.main_window.read_amount(unicode( self.gui.main_window.amount_e.text()))
         except:
-            QMessageBox.warning(self.gui, _('Error'), _('Invalid Amount'), _('OK'))
+            QMessageBox.warning(self.gui.main_window, _('Error'), _('Invalid Amount'), _('OK'))
             return
         try:
-            fee = self.gui.read_amount(unicode( self.gui.fee_e.text()))
+            fee = self.gui.main_window.read_amount(unicode( self.gui.main_window.fee_e.text()))
         except:
-            QMessageBox.warning(self.gui, _('Error'), _('Invalid Fee'), _('OK'))
+            QMessageBox.warning(self.gui.main_window, _('Error'), _('Invalid Fee'), _('OK'))
             return
 
         try:
-            tx = self.gui.wallet.mktx( [(to_address, amount)], None, fee, account=self.gui.current_account)
+            tx = self.gui.main_window.wallet.mktx( [(to_address, amount)], None, fee)
         except BaseException, e:
-            self.gui.show_message(str(e))
+            self.gui.main_window.show_message(str(e))
             return
 
-        if tx.requires_fee(self.gui.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
-            QMessageBox.warning(self.gui, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
+        if tx.requires_fee(self.gui.main_window.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
+            QMessageBox.warning(self.gui.main_window, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
             return
 
         try:
@@ -117,17 +127,17 @@ class Plugin(BasePlugin):
             input_info = []
 
         except BaseException, e:
-            self.gui.show_message(str(e))
+            self.gui.main_window.show_message(str(e))
 
         try:
             json_text = json.dumps(tx.as_dict()).replace(' ', '')
             self.show_tx_qrcode(json_text, 'Unsigned Transaction')
         except BaseException, e:
-            self.gui.show_message(str(e))
+            self.gui.main_window.show_message(str(e))
 
     def show_tx_qrcode(self, data, title):
         if not data: return
-        d = QDialog(self.gui)
+        d = QDialog(self.gui.main_window)
         d.setModal(1)
         d.setWindowTitle(title)
         d.setMinimumSize(250, 525)
@@ -158,15 +168,12 @@ class Plugin(BasePlugin):
     def read_raw_qr(self):
         qrcode = self.scan_qr()
         if qrcode:
-            tx_dict = self.gui.tx_dict_from_text(qrcode)
-            if tx_dict:
-                self.create_transaction_details_window(tx_dict)
+            tx = self.gui.main_window.tx_from_text(qrcode)
+            if tx:
+                self.create_transaction_details_window(tx)
 
-
-    def create_transaction_details_window(self, tx_dict):
-        tx = Transaction(tx_dict["hex"])
-            
-        dialog = QDialog(self.gui)
+    def create_transaction_details_window(self, tx):            
+        dialog = QDialog(self.gui.main_window)
         dialog.setMinimumWidth(500)
         dialog.setWindowTitle(_('Process Offline transaction'))
         dialog.setModal(1)
@@ -177,22 +184,28 @@ class Plugin(BasePlugin):
         l.addWidget(QLabel(_("Transaction status:")), 3,0)
         l.addWidget(QLabel(_("Actions")), 4,0)
 
-        if tx_dict["complete"] == False:
+        if tx.is_complete == False:
             l.addWidget(QLabel(_("Unsigned")), 3,1)
-            if self.gui.wallet.seed :
+            if self.gui.main_window.wallet.seed :
                 b = QPushButton("Sign transaction")
-                input_info = json.loads(tx_dict["input_info"])
-                b.clicked.connect(lambda: self.sign_raw_transaction(tx, input_info, dialog))
+                b.clicked.connect(lambda: self.sign_raw_transaction(tx, tx.inputs, dialog))
                 l.addWidget(b, 4, 1)
             else:
                 l.addWidget(QLabel(_("Wallet is de-seeded, can't sign.")), 4,1)
         else:
             l.addWidget(QLabel(_("Signed")), 3,1)
             b = QPushButton("Broadcast transaction")
-            b.clicked.connect(lambda: self.gui.send_raw_transaction(tx, dialog))
+            def broadcast(tx):
+                result, result_message = self.gui.main_window.wallet.sendtx( tx )
+                if result:
+                    self.gui.main_window.show_message(_("Transaction successfully sent:")+' %s' % (result_message))
+                    if dialog:
+                        dialog.done(0)
+                else:
+                    self.gui.main_window.show_message(_("There was a problem sending your transaction:") + '\n %s' % (result_message))
+            b.clicked.connect(lambda: broadcast( tx ))
             l.addWidget(b,4,1)
     
-        l.addWidget( self.gui.generate_transaction_information_widget(tx), 0,0,2,3)
         closeButton = QPushButton(_("Close"))
         closeButton.clicked.connect(lambda: dialog.done(0))
         l.addWidget(closeButton, 4,2)
@@ -200,8 +213,8 @@ class Plugin(BasePlugin):
         dialog.exec_()
 
     def do_protect(self, func, args):
-        if self.gui.wallet.use_encryption:
-            password = self.gui.password_dialog()
+        if self.gui.main_window.wallet.use_encryption:
+            password = self.gui.main_window.password_dialog()
             if not password:
                 return
         else:
@@ -219,11 +232,11 @@ class Plugin(BasePlugin):
     @protected
     def sign_raw_transaction(self, tx, input_info, dialog ="", password = ""):
         try:
-            self.gui.wallet.signrawtransaction(tx, input_info, [], password)
+            self.gui.main_window.wallet.signrawtransaction(tx, input_info, [], password)
             txtext = json.dumps(tx.as_dict()).replace(' ', '')
             self.show_tx_qrcode(txtext, 'Signed Transaction')
         except BaseException, e:
-            self.gui.show_message(str(e))
+            self.gui.main_window.show_message(str(e))
 
 
     def fill_from_qr(self):
@@ -232,14 +245,96 @@ class Plugin(BasePlugin):
             return
 
         if 'address' in qrcode:
-            self.gui.payto_e.setText(qrcode['address'])
+            self.gui.main_window.payto_e.setText(qrcode['address'])
         if 'amount' in qrcode:
-            self.gui.amount_e.setText(str(qrcode['amount']))
+            self.gui.main_window.amount_e.setText(str(qrcode['amount']))
         if 'label' in qrcode:
-            self.gui.message_e.setText(qrcode['label'])
+            self.gui.main_window.message_e.setText(qrcode['label'])
         if 'message' in qrcode:
-            self.gui.message_e.setText("%s (%s)" % (self.gui.message_e.text(), qrcode['message']))
+            self.gui.main_window.message_e.setText("%s (%s)" % (self.gui.main_window.message_e.text(), qrcode['message']))
                 
+    def video_device(self):
+        device = self.config.get("video_device", "default")
+        if device == 'default':
+            device = ''
+        return device
+
+    def requires_settings(self):
+        return True
+
+    def settings_widget(self, window):
+        return EnterButton(_('Settings'), self.settings_dialog)
+    
+    def _find_system_cameras(self):
+        device_root = "/sys/class/video4linux"
+        devices = {} # Name -> device
+        if os.path.exists(device_root):
+            for device in os.listdir(device_root):
+                name = open(os.path.join(device_root, device, 'name')).read()
+                devices[name] = os.path.join("/dev",device)
+        return devices
+
+    def settings_dialog(self):
+        system_cameras = self._find_system_cameras()
+
+        d = QDialog()
+        layout = QGridLayout(d)
+        layout.addWidget(QLabel("Choose a video device:"),0,0)
+
+        # Create a combo box with the available video devices:
+        combo = QComboBox()
+
+        # on change trigger for video device selection, makes the
+        # manual device selection only appear when needed:
+        def on_change(x):
+            combo_text = str(combo.itemText(x))
+            combo_data = combo.itemData(x)
+            if combo_text == "Manually specify a device":
+                custom_device_label.setVisible(True)
+                self.video_device_edit.setVisible(True)
+                if self.config.get("video_device") == "default":
+                    self.video_device_edit.setText("")
+                else:
+                    self.video_device_edit.setText(self.config.get("video_device"))
+            else:
+                custom_device_label.setVisible(False)
+                self.video_device_edit.setVisible(False)
+                self.video_device_edit.setText(combo_data.toString())
+
+        # on save trigger for the video device selection window,
+        # stores the chosen video device on close.
+        def on_save():
+            device = str(self.video_device_edit.text())
+            self.config.set_key("video_device", device)
+            d.accept()
+
+        custom_device_label = QLabel("Video device: ")
+        custom_device_label.setVisible(False)
+        layout.addWidget(custom_device_label,1,0)
+        self.video_device_edit = QLineEdit()
+        self.video_device_edit.setVisible(False)
+        layout.addWidget(self.video_device_edit, 1,1,2,2)
+        combo.currentIndexChanged.connect(on_change)
+
+        combo.addItem("Default","default")
+        for camera, device in system_cameras.items():
+            combo.addItem(camera, device)
+        combo.addItem("Manually specify a device",self.config.get("video_device"))
+
+        # Populate the previously chosen device:
+        index = combo.findData(self.config.get("video_device"))
+        combo.setCurrentIndex(index)
+
+        layout.addWidget(combo,0,1)
+
+        self.accept = QPushButton(_("Done"))
+        self.accept.clicked.connect(on_save)
+        layout.addWidget(self.accept,4,2)
+
+        if d.exec_():
+          return True
+        else:
+          return False
 
 
 
