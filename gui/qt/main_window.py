@@ -219,6 +219,7 @@ class ElectrumWindow(QMainWindow):
                 self.config.set_key('lite_mode', False, True)
                 sys.exit(0)
             self.mini = None
+            self.show()
             return
 
         actuator = lite_window.MiniActuator(self)
