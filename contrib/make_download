@@ -4,17 +4,17 @@ string = sys.stdin.read()
 
 
 import hashlib, os
-version = "1.7.3"
-version_win = "1.7.3"
-version_mac = "1.7.3"
+version = "1.9"
+version_win = "1.9"
+version_mac = "1.9"
 
 _tgz="Electrum-%s.tar.gz"%version
 _zip="Electrum-%s.zip"%version
 
-_mac="electrum-v%s.dmg"%version_mac
-_win="Electrum-%s.exe"%version_win
-_win_setup="Electrum-%s-setup.exe"%version_win
-_win_portable="Electrum-%s-portable.exe"%version_win
+_mac="electrum-%s.dmg"%version_mac
+_win="electrum-%s.exe"%version_win
+_win_setup="electrum-%s-setup.exe"%version_win
+_win_portable="electrum-%s-portable.exe"%version_win
 
 md5_tgz = hashlib.md5(file('dist/'+_tgz, 'r').read()).digest().encode('hex')
 md5_zip = hashlib.md5(file('dist/'+_zip, 'r').read()).digest().encode('hex')

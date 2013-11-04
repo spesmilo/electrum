@@ -185,6 +185,7 @@ class Commands:
         out = { 'isvalid':isvalid }
         if isvalid:
             out['address'] = addr
+        return out
 
     def getpubkeys(self, addr):
         assert is_valid(addr) and self.wallet.is_mine(addr)
