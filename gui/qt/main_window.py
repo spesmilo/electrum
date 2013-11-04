@@ -793,7 +793,7 @@ class ElectrumWindow(QMainWindow):
                 c, u = self.wallet.get_account_balance(self.current_account)
                 inputs, total, fee = self.wallet.choose_tx_inputs_from_account( c + u, 0, self.current_account)
                 fee = self.wallet.estimated_fee(inputs)
-                amount = c + u - fee
+                amount = total - fee
                 self.amount_e.setText( self.format_amount(amount) )
                 self.fee_e.setText( self.format_amount( fee ) )
                 return
