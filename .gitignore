@@ -10,3 +10,4 @@ contrib/pyinstaller/
 Electrum.egg-info/
 gui/qt/icons_rc.py
 locale/
+.devlocaltmp/
