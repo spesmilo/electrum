@@ -2056,7 +2056,7 @@ class ElectrumWindow(QMainWindow):
         usechange_result = usechange_cb.isChecked()
         if self.wallet.use_change != usechange_result:
             self.wallet.use_change = usechange_result
-            self.config.set_key('use_change', self.wallet.use_change, True)
+            self.wallet.storage.put('use_change', self.wallet.use_change)
         
         unit_result = units[unit_combo.currentIndex()]
         if self.base_unit() != unit_result:
