@@ -1,4 +1,4 @@
-import curses, datetime
+import curses, datetime, locale
 from decimal import Decimal
 _ = lambda x:x
 #from i18n import _
@@ -23,6 +23,9 @@ class ElectrumGui:
 
         self.wallet = Wallet(storage)
         self.wallet.start_threads(network)
+
+        locale.setlocale(locale.LC_ALL, '')
+        self.encoding = locale.getpreferredencoding()
 
         self.stdscr = curses.initscr()
         curses.noecho()
@@ -54,7 +57,7 @@ class ElectrumGui:
         self.network.register_callback('disconnecting', self.refresh)
         self.tab_names = [_("History"), _("Send"), _("Receive"), _("Contacts"), _("Wall")]
         self.num_tabs = len(self.tab_names)
-        
+
 
     def set_cursor(self, x):
         try:
@@ -140,8 +143,9 @@ class ElectrumGui:
         self.print_list(messages, "%19s  %25s "%("Address", "Label"))
 
     def print_receive(self):
-        messages = map(lambda addr: "%30s    %30s       "%(addr, self.wallet.labels.get(addr,"")), self.wallet.addresses())
-        self.print_list(messages, "%19s  %25s "%("Address", "Label"))
+        fmt = "%-35s  %-30s"
+        messages = map(lambda addr: fmt % (addr, self.wallet.labels.get(addr,"")), self.wallet.addresses())
+        self.print_list(messages,   fmt % ("Address", "Label"))
 
     def print_edit_line(self, y, label, text, index, size):
         text += " "*(size - len(text) )
@@ -160,7 +164,6 @@ class ElectrumGui:
     def print_banner(self):
         self.print_list( self.network.banner.split('\n'))
 
-
     def print_list(self, list, firstline = None):
         self.maxpos = len(list)
         if not self.maxpos: return
@@ -170,7 +173,9 @@ class ElectrumGui:
         for i in range(self.maxy-4):
             msg = list[i] if i < len(list) else ""
             msg += " "*(self.maxx - 2 - len(msg))
-            self.stdscr.addstr( i+2, 1, msg[0:self.maxx - 2], curses.A_REVERSE if i == (self.pos % self.maxpos) else 0)
+            m = msg[0:self.maxx - 2]
+            m = m.encode(self.encoding)
+            self.stdscr.addstr( i+2, 1, m, curses.A_REVERSE if i == (self.pos % self.maxpos) else 0)
 
     def refresh(self):
         if self.tab == -1: return
