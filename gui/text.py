@@ -122,15 +122,17 @@ class ElectrumGui:
 
 
     def print_balance(self):
-        if self.network and self.network.interface and self.network.interface.is_connected:
+        if not self.network:
+            msg = _("Offline")
+        elif self.network.interface and self.network.interface.is_connected:
             if not self.wallet.up_to_date:
-                msg = _( "Synchronizing..." )
+                msg = _("Synchronizing...")
             else: 
                 c, u =  self.wallet.get_balance()
                 msg = _("Balance")+": %f  "%(Decimal( c ) / 100000000)
                 if u: msg += "  [%f unconfirmed]"%(Decimal( u ) / 100000000)
         else:
-                msg = _( "Not connected" )
+            msg = _("Not connected")
             
         self.stdscr.addstr( self.maxy -1, 3, msg)
 
