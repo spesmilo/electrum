@@ -157,7 +157,7 @@ class TxDialog(QDialog):
                     self.fee_label.setText(_("Transaction fee")+': %s'% self.parent.format_amount(fee) + ' ' + self.parent.base_unit())
                 else:
                     self.amount_label.setText(_("Amount sent:")+' %s'% self.parent.format_amount(v) + ' ' + self.parent.base_unit())
-                    self.fee_label.setText(_("Transaction fee")+': ' _("unknown"))
+                    self.fee_label.setText(_("Transaction fee")+': '+ _("unknown"))
             else:
                 self.amount_label.setText(_("Amount received:")+' %s'% self.parent.format_amount(v) + ' ' + self.parent.base_unit())
         else:
