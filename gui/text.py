@@ -22,8 +22,7 @@ class ElectrumGui:
             exit()
 
         self.wallet = Wallet(storage)
-        if self.network:
-            self.wallet.start_threads(network)
+        self.wallet.start_threads(self.network)
 
         locale.setlocale(locale.LC_ALL, '')
         self.encoding = locale.getpreferredencoding()
