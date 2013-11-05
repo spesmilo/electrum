@@ -50,7 +50,7 @@ class NetworkDialog(QDialog):
                 status = _("Not connected")
 
             if network.is_connected():
-                status += "\n" + _("Server:") + " %s"%(network.interface.host) 
+                status += "\n" + _("Server") + ": %s"%(network.interface.host) 
             else:
                 status += "\n" + _("Disconnected from server")
                 
