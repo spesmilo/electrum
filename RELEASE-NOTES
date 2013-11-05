@@ -1,3 +1,7 @@
+# Release 1.9.1
+* fix regression with --offline mode
+* fix regression with --portable mode: use a dedicated directory
+
 # Release 1.9
 
 * The client connects to multiple servers in order to retrieve block headers and find the longest chain
