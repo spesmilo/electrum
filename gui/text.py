@@ -24,6 +24,9 @@ class ElectrumGui:
         self.wallet = Wallet(storage)
         self.wallet.start_threads(network)
 
+        locale.setlocale(locale.LC_ALL, '')
+        self.encoding = locale.getpreferredencoding()
+
         self.stdscr = curses.initscr()
         curses.noecho()
         curses.cbreak()
@@ -36,9 +39,6 @@ class ElectrumGui:
         self.maxy, self.maxx = self.stdscr.getmaxyx()
         self.set_cursor(0)
         self.w = curses.newwin(10, 50, 5, 5)
-
-        locale.setlocale(locale.LC_ALL, '')
-        self.encoding = locale.getpreferredencoding()
 
         set_verbosity(False)
         self.tab = 0
@@ -57,7 +57,7 @@ class ElectrumGui:
         self.network.register_callback('disconnecting', self.refresh)
         self.tab_names = [_("History"), _("Send"), _("Receive"), _("Contacts"), _("Wall")]
         self.num_tabs = len(self.tab_names)
-        
+
 
     def set_cursor(self, x):
         try:
