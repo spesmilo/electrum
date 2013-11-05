@@ -132,7 +132,7 @@ class WalletStorage:
             if value is not None:
                 self.data[key] = value
             else:
-                self.data.pop[key]
+                self.data.pop(key)
             if save: 
                 self.write()
 
