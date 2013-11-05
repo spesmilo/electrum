@@ -1,7 +1,17 @@
-# Release 1.8.1
+# Release 1.8.2
 
 * Numeric values are accepted and displayed with thousands separators (commas).
 * Digits appropriate for your locale are accepted by the Electrum client.
+
+# Release 1.8.1
+
+* Notifcation option when receiving new tranactions 
+* Confirm dialogue before sending large amounts 
+* Alternative datafile location for non-windows systems
+* Fix offline wallet creation
+* Remove enforced tx fee
+* Tray icon improvements
+* Various bugfixes 
 
 # Release 1.8
 

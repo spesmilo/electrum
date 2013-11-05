@@ -7,9 +7,8 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
-from electrum_gui.qrcodewidget import QRCodeWidget
-from electrum_gui import bmp, pyqrnative
-from electrum_gui.i18n import _
+from electrum import bmp, pyqrnative
+from electrum.i18n import _
 
 from electrum import util
 
@@ -17,15 +16,21 @@ ALIAS_REGEXP = '^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$'
 
 
 
-from electrum_gui import BasePlugin
+from electrum.plugins import BasePlugin
+
 class Plugin(BasePlugin):
 
-    def __init__(self, gui):
-        BasePlugin.__init__(self, gui, 'aliases', 'Aliases', _('Retrieve aliases using http.'))
+    def fullname(self): return 'Aliases'
+
+    def description(self): return _('Retrieve aliases using http.')
+
+    def init(self):
         self.aliases      = self.config.get('aliases', {})            # aliases for addresses
         self.authorities  = self.config.get('authorities', {})        # trusted addresses
         self.receipts     = self.config.get('receipts',{})            # signed URIs
 
+    def is_available(self):
+        return False
 
     def timer_actions(self):
         if self.gui.payto_e.hasFocus():

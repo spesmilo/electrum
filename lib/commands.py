@@ -53,6 +53,7 @@ register_command('getbalance',           0, 1, False, False, 'Return the balance
 register_command('getaddressbalance',    1, 1, False, False, 'Return the balance of an address', 'getbalance <address>')
 register_command('getaddresshistory',    1, 1, False, False, 'Return the transaction history of an address', 'getaddresshistory <address>')
 register_command('getconfig',            1, 1, False, True,  'Return a configuration variable', 'getconfig <name>', config_options)
+register_command('getrawtransaction',    1, 2, False, False, 'Retrieve a transaction', 'getrawtransaction <txhash> <height>')
 register_command('getseed',              0, 0, True,  True,  'Print the generation seed of your wallet.')
 register_command('help',                 0, 1, False, True,  'Prints this help')
 register_command('history',              0, 0, False, False, 'Returns the transaction history of your wallet')
@@ -60,7 +61,9 @@ register_command('importprivkey',        1, 1, True,  True,  'Import a private k
 register_command('listaddresses',        3, 3, False, True,  'Returns your list of addresses.', '', listaddr_options)
 register_command('listunspent',          0, 0, False, True,  'Returns a list of unspent inputs in your wallet.')
 register_command('mktx',                 5, 5, True,  True,  'Create a signed transaction', 'mktx <recipient> <amount> [label]', payto_options)
+register_command('mksendmanytx',         4, 4, True,  True,  'Create a signed transaction', 'mksendmanytx <recipient> <amount> [<recipient> <amount> ...]', payto_options)
 register_command('payto',                5, 5, True,  False, 'Create and broadcast a transaction.', "payto <recipient> <amount> [label]\n<recipient> can be a bitcoin address or a label", payto_options)
+register_command('paytomany',            4, 4, True,  False, 'Create and broadcast a transaction.', "paytomany <recipient> <amount> [<recipient> <amount> ...]\n<recipient> can be a bitcoin address or a label", payto_options)
 register_command('password',             0, 0, True,  True,  'Change your password')
 register_command('prioritize',           1, 1, False, True,  'Coins at prioritized addresses are spent first.', 'prioritize <address>')
 register_command('restore',              0, 0, False, False, 'Restore a wallet', '', restore_options)
@@ -79,9 +82,9 @@ register_command('verifymessage',        3,-1, False, True,  'Verifies a signatu
 
 class Commands:
 
-    def __init__(self, wallet, interface, callback = None):
+    def __init__(self, wallet, network, callback = None):
         self.wallet = wallet
-        self.interface = interface
+        self.network = network
         self._callback = callback
         self.password = None
 
@@ -113,12 +116,12 @@ class Commands:
             i['index'] = i['vout']
         outputs = map(lambda x: (x[0],int(1e8*x[1])), outputs.items())
         tx = Transaction.from_io(inputs, outputs)
-        return tx.as_dict()
+        return tx
 
     def signrawtransaction(self, raw_tx, input_info, private_keys):
         tx = Transaction(raw_tx)
         self.wallet.signrawtransaction(tx, input_info, private_keys, self.password)
-        return tx.as_dict()
+        return tx
 
     def decoderawtransaction(self, raw):
         tx = Transaction(raw)
@@ -131,7 +134,9 @@ class Commands:
 
     def createmultisig(self, num, pubkeys):
         assert isinstance(pubkeys, list)
-        return Transaction.multisig_script(pubkeys, num)
+        redeem_script = Transaction.multisig_script(pubkeys, num)
+        address = hash_160_to_bc_address(hash_160(redeem_script.decode('hex')), 5)
+        return {'address':address, 'redeemScript':redeem_script}
     
     def freeze(self,addr):
         return self.wallet.freeze(addr)
@@ -151,7 +156,7 @@ class Commands:
     def dumpprivkeys(self, addresses = None):
         if addresses is None:
             addresses = self.wallet.addresses(True)
-        return self.wallet.get_private_keys(addresses, self.password)
+        return [self.wallet.get_private_key(address, self.password) for address in addresses]
 
     def validateaddress(self,addr):
         isvalid = is_valid(addr)
@@ -161,8 +166,9 @@ class Commands:
             out['address'] = addr
             out['ismine'] = is_mine
             if is_mine:
-                out['pubkey'] = self.wallet.get_public_key(addr)
-            
+                account, sequence = self.wallet.get_address_index(addr)
+                if account != -1:
+                    out['pubkey'] = self.wallet.get_public_key(addr)
         return out
 
     def getbalance(self, account= None):
@@ -190,7 +196,6 @@ class Commands:
     def importprivkey(self, sec):
         try:
             addr = self.wallet.import_key(sec,self.password)
-            self.wallet.save()
             out = "Keypair imported: ", addr
         except BaseException as e:
             out = "Error: Keypair import failed: " + str(e)
@@ -205,10 +210,11 @@ class Commands:
         return self.wallet.verify_message(address, signature, message)
 
 
-    def _mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):
+    def _mktx(self, outputs, fee = None, change_addr = None, domain = None):
 
-        if not is_valid(to_address):
-            raise BaseException("Invalid Bitcoin address", to_address)
+        for to_address, amount in outputs:
+            if not is_valid(to_address):
+                raise BaseException("Invalid Bitcoin address", to_address)
 
         if change_addr:
             if not is_valid(change_addr):
@@ -223,25 +229,40 @@ class Commands:
                     raise BaseException("address not in wallet", addr)
 
         for k, v in self.wallet.labels.items():
-            if v == to_address:
-                to_address = k
-                print_msg("alias", to_address)
-                break
             if change_addr and v == change_addr:
                 change_addr = k
 
-        amount = int(100000000*amount)
+        final_outputs = []
+        for to_address, amount in outputs:
+            for k, v in self.wallet.labels.items():
+                if v == to_address:
+                    to_address = k
+                    print_msg("alias", to_address)
+                    break
+
+            amount = int(100000000*amount)
+            final_outputs.append((to_address, amount))
+            
         if fee: fee = int(100000000*fee)
-        return self.wallet.mktx( [(to_address, amount)], self.password, fee , change_addr, domain)
+        return self.wallet.mktx(final_outputs, self.password, fee , change_addr, domain)
 
 
     def mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):
-        tx = self._mktx(to_address, amount, fee, change_addr, domain)
-        return tx.as_dict()
+        tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
+        return tx
+
+    def mksendmanytx(self, outputs, fee = None, change_addr = None, domain = None):
+        tx = self._mktx(outputs, fee, change_addr, domain)
+        return tx
 
 
     def payto(self, to_address, amount, fee = None, change_addr = None, domain = None):
-        tx = self._mktx(to_address, amount, fee, change_addr, domain)
+        tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
+        r, h = self.wallet.sendtx( tx )
+        return h
+
+    def paytomany(self, outputs, fee = None, change_addr = None, domain = None):
+        tx = self._mktx(outputs, fee, change_addr, domain)
         r, h = self.wallet.sendtx( tx )
         return h
 
@@ -266,9 +287,9 @@ class Commands:
 
 
 
-    def setlabel(self, tx, label):
-        self.wallet.labels[tx] = label
-        self.wallet.save()
+    def setlabel(self, key, label):
+        self.wallet.set_label(key, label)
+
             
 
     def contacts(self):
@@ -304,5 +325,12 @@ class Commands:
             if syntax: print_msg("Syntax: " + syntax)
             if options_syntax: print_msg("options:\n" + options_syntax)
         return None
+
+    def getrawtransaction(self, tx_hash, height = 0):
+        tx = self.wallet.transactions.get(tx_hash)
+        if tx:
+            return tx
+        height = int(height)
+        return self.network.retrieve_transaction(tx_hash, height)
 
 

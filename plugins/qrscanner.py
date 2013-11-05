@@ -2,12 +2,13 @@ from electrum.util import print_error
 from urlparse import urlparse, parse_qs
 from PyQt4.QtGui import QPushButton, QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel
 from PyQt4.QtCore import Qt
-from electrum_gui.i18n import _
 
+from electrum.i18n import _
 import re
-from electrum.bitcoin import MIN_RELAY_TX_FEE, Transaction, is_valid
-from electrum_gui.qrcodewidget import QRCodeWidget
-import electrum_gui.bmp
+from electrum import Transaction
+from electrum.bitcoin import MIN_RELAY_TX_FEE, is_valid
+from electrum_gui.qt.qrcodewidget import QRCodeWidget
+from electrum import bmp
 import json
 from decimal import Decimal
 
@@ -16,13 +17,17 @@ try:
 except ImportError:
     zbar = None
 
-from electrum_gui import BasePlugin
+from electrum import BasePlugin
 class Plugin(BasePlugin):
 
-    def __init__(self, gui):
-        BasePlugin.__init__(self, gui, 'qrscans', 'QR scans', "QR Scans.\nInstall the zbar package (http://zbar.sourceforge.net/download.html) to enable this plugin")
+    def fullname(self): return 'QR scans'
+
+    def description(self): return "QR Scans.\nInstall the zbar package (http://zbar.sourceforge.net/download.html) to enable this plugin"
+
+    def __init__(self, gui, name):
+        BasePlugin.__init__(self, gui, name)
         self._is_available = self._init()
-        
+
     def _init(self):
         if not zbar:
             return False

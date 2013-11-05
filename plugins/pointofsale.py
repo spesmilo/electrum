@@ -7,9 +7,10 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
-from electrum_gui.qrcodewidget import QRCodeWidget
-from electrum_gui import bmp, pyqrnative, BasePlugin
-from electrum_gui.i18n import _
+from electrum_gui.qt.qrcodewidget import QRCodeWidget
+
+from electrum import bmp, pyqrnative, BasePlugin
+from electrum.i18n import _
 
 
 if platform.system() == 'Windows':
@@ -93,23 +94,29 @@ class QR_Window(QWidget):
 
 class Plugin(BasePlugin):
 
-    def __init__(self, gui):
-        BasePlugin.__init__(self, gui, 'pointofsale', 'Point of Sale',
-                            _('Show QR code window and amounts requested for each address. Add menu item to request amount.') )
+    def fullname(self):
+        return 'Point of Sale'
+
+    def description(self):
+        return _('Show QR code window and amounts requested for each address. Add menu item to request amount.')
+
+    def init(self):
+        self.window = self.gui.main_window
+
         self.qr_window = None
-        self.requested_amounts = self.config.get('requested_amounts',{}) 
         self.merchant_name = self.config.get('merchant_name', 'Invoice')
 
+        self.window.expert_mode = True
+        self.window.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Request')])
+        self.requested_amounts = {}
+        self.toggle_QR_window(True)
 
-    def init_gui(self):
-        enabled = self.is_enabled()
-        if enabled:
-            self.gui.expert_mode = True
-            self.gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Request')])
-        else:
-            self.gui.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Tx')])
+    def load_wallet(self):
+        self.requested_amounts = self.window.wallet.storage.get('requested_amounts',{}) 
 
-        self.toggle_QR_window(enabled)
+    def close(self):
+        self.window.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Tx')])
+        self.toggle_QR_window(False)
     
 
     def close_main_window(self):
@@ -128,10 +135,10 @@ class Plugin(BasePlugin):
             self.qr_window = QR_Window(self.gui.exchanger)
             self.qr_window.setVisible(True)
             self.qr_window_geometry = self.qr_window.geometry()
-            item = self.gui.receive_list.currentItem()
+            item = self.window.receive_list.currentItem()
             if item:
                 address = str(item.text(1))
-                label = self.gui.wallet.labels.get(address)
+                label = self.window.wallet.labels.get(address)
                 amount, currency = self.requested_amounts.get(address, (None, None))
                 self.qr_window.set_content( address, label, amount, currency )
 
@@ -161,7 +168,7 @@ class Plugin(BasePlugin):
     def current_item_changed(self, a):
         if a is not None and self.qr_window and self.qr_window.isVisible():
             address = str(a.text(0))
-            label = self.gui.wallet.labels.get(address)
+            label = self.window.wallet.labels.get(address)
             try:
                 amount, currency = self.requested_amounts.get(address, (None, None))
             except:
@@ -176,16 +183,16 @@ class Plugin(BasePlugin):
         address = str( item.text(0) )
         text = str( item.text(column) )
         try:
-            seq = self.gui.wallet.get_address_index(address)
-            index = seq[-1]
+            seq = self.window.wallet.get_address_index(address)
+            index = seq[1][1]
         except:
             print "cannot get index"
             return
 
         text = text.strip().upper()
         print text
-        m = re.match('^(\d+(|\.\d*))\s*(|BTC|EUR|USD|GBP|CNY|JPY|RUB|BRL)$', text)
-        if m:
+        m = re.match('^(\d*(|\.\d*))\s*(|BTC|EUR|USD|GBP|CNY|JPY|RUB|BRL)$', text)
+        if m and m.group(1) and m.group(1)!='.':
             amount = m.group(1)
             currency = m.group(3)
             if not currency:
@@ -194,12 +201,12 @@ class Plugin(BasePlugin):
                 currency = currency.upper()
                     
             self.requested_amounts[address] = (amount, currency)
-            self.gui.wallet.config.set_key('requested_amounts', self.requested_amounts, True)
+            self.window.wallet.storage.put('requested_amounts', self.requested_amounts, True)
 
-            label = self.gui.wallet.labels.get(address)
+            label = self.window.wallet.labels.get(address)
             if label is None:
                 label = self.merchant_name + ' - %04d'%(index+1)
-                self.wallet.labels[address] = label
+                self.window.wallet.labels[address] = label
 
             if self.qr_window:
                 self.qr_window.set_content( address, label, amount, currency )
@@ -209,13 +216,13 @@ class Plugin(BasePlugin):
             if address in self.requested_amounts:
                 self.requested_amounts.pop(address)
             
-        self.gui.update_receive_item(self.gui.receive_list.currentItem())
+        self.window.update_receive_item(self.window.receive_list.currentItem())
 
 
 
 
     def edit_amount(self):
-        l = self.gui.receive_list
+        l = self.window.receive_list
         item = l.currentItem()
         item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
         l.editItem( item, column_index )

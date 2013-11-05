@@ -5,12 +5,25 @@ _ = lambda x:x
 from electrum.util import format_satoshis, set_verbosity
 from electrum.bitcoin import is_valid
 
+from electrum import Wallet, WalletStorage
+
 import tty, sys
 
 
 class ElectrumGui:
 
-    def __init__(self, wallet, config, app=None):
+    def __init__(self, config, network):
+
+        self.config = config
+        self.network = network
+        storage = WalletStorage(config)
+        if not storage.file_exists:
+            print "Wallet not found. try 'electrum create'"
+            exit()
+
+        self.wallet = Wallet(storage)
+        self.wallet.start_threads(network)
+
         self.stdscr = curses.initscr()
         curses.noecho()
         curses.cbreak()
@@ -21,11 +34,9 @@ class ElectrumGui:
         self.stdscr.keypad(1)
         self.stdscr.border(0)
         self.maxy, self.maxx = self.stdscr.getmaxyx()
-        curses.curs_set(0)
+        self.set_cursor(0)
         self.w = curses.newwin(10, 50, 5, 5)
 
-        self.wallet = wallet
-        self.config = config
         set_verbosity(False)
         self.tab = 0
         self.pos = 0
@@ -36,13 +47,19 @@ class ElectrumGui:
         self.str_amount = ""
         self.str_fee = ""
         
-        self.wallet.interface.register_callback('updated', self.refresh)
-        self.wallet.interface.register_callback('connected', self.refresh)
-        self.wallet.interface.register_callback('disconnected', self.refresh)
-        self.wallet.interface.register_callback('disconnecting', self.refresh)
+        self.network.register_callback('updated', self.refresh)
+        self.network.register_callback('connected', self.refresh)
+        self.network.register_callback('disconnected', self.refresh)
+        self.network.register_callback('disconnecting', self.refresh)
         self.tab_names = [_("History"), _("Send"), _("Receive"), _("Contacts"), _("Wall")]
         self.num_tabs = len(self.tab_names)
         
+
+    def set_cursor(self, x):
+        try:
+            curses.curs_set(x)
+        except:
+            pass
 
     def restore_or_create(self):
         pass
@@ -51,12 +68,12 @@ class ElectrumGui:
         pass
     
     def get_string(self, y, x):
-        curses.curs_set(1)
+        self.set_cursor(1)
         curses.echo()
         self.stdscr.addstr( y, x, " "*20, curses.A_REVERSE)
         s = self.stdscr.getstr(y,x)
         curses.noecho()
-        curses.curs_set(0)
+        self.set_cursor(0)
         return s
 
 
@@ -79,13 +96,13 @@ class ElectrumGui:
                 time_str = 'pending'
 
             label, is_default_label = self.wallet.get_label(tx_hash)
-            messages.append( format_str%( time_str, label, format_satoshis(value), format_satoshis(balance) ) )
+            messages.append( format_str%( time_str, label, format_satoshis(value, whitespaces=True), format_satoshis(balance, whitespaces=True) ) )
 
         self.print_list(messages[::-1], format_str%( _("Date"), _("Description"), _("Amount"), _("Balance")))
 
 
     def print_balance(self):
-        if self.wallet.interface and self.wallet.interface.is_connected:
+        if self.network.interface and self.network.interface.is_connected:
             if not self.wallet.up_to_date:
                 msg = _( "Synchronizing..." )
             else: 
@@ -126,7 +143,7 @@ class ElectrumGui:
         self.stdscr.addstr( 12, 25, _("[Clear]"), curses.A_REVERSE if self.pos%6==5 else curses.color_pair(2))
 
     def print_banner(self):
-        for i, x in enumerate( self.wallet.interface.banner.split('\n') ):
+        for i, x in enumerate( self.network.banner.split('\n') ):
             self.stdscr.addstr( 1+i, 1, x )
 
     def print_list(self, list, firstline):
@@ -175,7 +192,8 @@ class ElectrumGui:
             
 
     def edit_str(self, target, c, is_num=False):
-        if c==263 and target:
+        # detect backspace
+        if c in [8, 127, 263] and target:
             target = target[:-1]
         elif not is_num or curses.unctrl(c) in '0123456789.':
             target += curses.unctrl(c)
@@ -202,7 +220,7 @@ class ElectrumGui:
             out = self.run_popup('Address', ["Edit label", "Freeze", "Prioritize"])
             
     def run_contacts_tab(self, c):
-        if c == 10:
+        if c == 10 and self.wallet.addressbook:
             out = self.run_popup('Adress', ["Copy", "Pay to", "Edit label", "Delete"]).get('button')
             address = self.wallet.addressbook[self.pos%len(self.wallet.addressbook)]
             if out == "Pay to":
@@ -300,7 +318,7 @@ class ElectrumGui:
 
     def network_dialog(self):
         out = self.run_dialog('Network', [
-            {'label':'server', 'type':'str', 'value':self.wallet.interface.server},
+            {'label':'server', 'type':'str', 'value':self.network.interface.server},
             {'label':'proxy', 'type':'str', 'value':self.config.get('proxy', '')},
             ], buttons = 1)
         if out:
@@ -313,14 +331,14 @@ class ElectrumGui:
 
                 self.wallet.config.set_key("proxy", proxy, True)
                 self.wallet.config.set_key("server", server, True)
-                self.wallet.interface.set_server(server, proxy)
+                self.network.interface.set_server(server, proxy)
                 
 
 
     def settings_dialog(self):
         out = self.run_dialog('Settings', [
             {'label':'Default GUI', 'type':'list', 'choices':['classic','lite','gtk','text'], 'value':self.config.get('gui')},
-            {'label':'Default fee', 'type':'satoshis', 'value': format_satoshis(self.config.get('fee_per_kb')).strip() }
+            {'label':'Default fee', 'type':'satoshis', 'value': format_satoshis(self.wallet.fee).strip() }
             ], buttons = 1)
         if out:
             if out.get('Default GUI'):
@@ -383,8 +401,8 @@ class ElectrumGui:
 
             c = self.stdscr.getch()
             if c in [ord('q'), 27]: break
-            elif c == curses.KEY_UP: self.popup_pos -= 1
-            elif c == curses.KEY_DOWN: self.popup_pos +=1
+            elif c in [curses.KEY_LEFT, curses.KEY_UP]: self.popup_pos -= 1
+            elif c in [curses.KEY_RIGHT, curses.KEY_DOWN]: self.popup_pos +=1
             else:
                 i = self.popup_pos%numpos
                 if buttons and c==10:

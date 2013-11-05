@@ -10,7 +10,6 @@ except ImportError:
 	print "If you have pip installed try 'sudo pip install pyqt' if you are on Debian/Ubuntu try 'sudo apt-get install python-qt4'."
 	sys.exit(0)
 
-
 class MyQLocale(QLocale) :
     	# Return true if c is a digit for *this* locale.
 	def isDigit(self, c, base):
@@ -22,6 +21,7 @@ class MyQLocale(QLocale) :
 	
 	# Convert a single digit number to a QCharacter with the character that represents that single
 	# digit number in *this* locale.
+	# d must be such that 0 <= d < 10.
 	def toQChar(self, d):
 	    assert(0 <= d < 10)
 	    d = int(d)
@@ -148,14 +148,14 @@ class MyQLocale(QLocale) :
 				limit -= 1
 				decimal_count = 0
 				while decimal_count < self.maximum_decimals and ((decimal_count < self.mandatory_decimals) or (limit > 1 and dv != 0)):
+					if exp != 0 and exp % 3 == 0:
+					    os += comma
 					digit = int(10 * dv)
 					os += self.toQChar(digit)
 					v *= 10
 					v -= digit
 					dv = (v - int(v))
 					exp -= 1
-					if exp % 3 == 0 and dv and limit > 1:
-						os += comma
 					limit -= 1
 					decimal_count += 1
 				
@@ -163,6 +163,10 @@ class MyQLocale(QLocale) :
 		else:
 			return QLocale.toString(self, v)
 			
+	@staticmethod		
+	def system() :
+	    return MyQLocale(QLocale.system())
+	    	
 	def __init__(self, _name) :
 		if _name.__class__ == str or _name.__class__ == QLocale:
 			QLocale.__init__(self, _name)
@@ -255,7 +259,8 @@ class MyQDoubleValidator(QDoubleValidator) :
             if (not s.isEmpty()) and s[0] == self.groupSeparator or \
             s[s.length()-1] == self.groupSeparator:
                     return QValidator.Intermediate, pos
-            return QValidator.Acceptable, pos      
+            return QValidator.Acceptable, pos
+            
 	def test(self, cases):
 		for case in cases:
 			(control, old_string) = case
@@ -284,7 +289,6 @@ class CommaSeparatedSpacedQDoubleValidator(QDoubleValidator) :
             	s[0] = '!'
             	s.remove(1,s.length()-1)
             	return QValidator.Acceptable, 1
-            print s
             if s.isEmpty():       
                     return QValidator.Intermediate, pos 
             first_non_space_location = 0

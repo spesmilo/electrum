@@ -17,43 +17,53 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import sys, time, datetime, re, threading
-from i18n import _
+from electrum.i18n import _
 from electrum.util import print_error, print_msg
 import os.path, json, ast, traceback
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-from electrum.interface import DEFAULT_SERVERS, DEFAULT_PORTS
+from electrum import DEFAULT_SERVERS, DEFAULT_PORTS
 
-from qt_util import *
+from util import *
 
 protocol_names = ['TCP', 'HTTP', 'SSL', 'HTTPS']
 protocol_letters = 'thsg'
 
 class NetworkDialog(QDialog):
-    def __init__(self, interface, config, parent):
+    def __init__(self, network, config, parent):
 
         QDialog.__init__(self,parent)
         self.setModal(1)
         self.setWindowTitle(_('Server'))
         self.setMinimumSize(375, 20)
 
-        self.interface = interface
+        self.network = network
+        self.interface = interface = network.interface
         self.config = config
         self.protocol = None
 
         if parent:
-            if interface.is_connected:
-                status = _("Connected to")+" %s"%(interface.host) + "\n%d "%(parent.wallet.verifier.height)+_("blocks")
+            n = len(network.interfaces)
+            if n:
+                status = _("Connected to %d servers")%n + ", %d "%(network.blockchain.height) + _("blocks")
             else:
                 status = _("Not connected")
+
+            if interface.is_connected:
+                status += "\n" + _("Main server:") + " %s"%(interface.host) 
+            else:
+                status += "\n" + _("Disconnected from main server")
+                
+
             server = interface.server
         else:
             import random
             status = _("Please choose a server.") + "\n" + _("Select 'Cancel' if you are offline.")
             server = interface.server
 
-        self.servers = interface.get_servers()
+        self.servers = network.get_servers()
+
 
         vbox = QVBoxLayout()
         vbox.setSpacing(30)
@@ -65,6 +75,7 @@ class NetworkDialog(QDialog):
         hbox.addWidget(l)
         hbox.addWidget(QLabel(status))
         hbox.addStretch(50)
+        hbox.addWidget(HelpButton(_("As of version 1.9, Electrum connects to several servers in order to download block headers and find out the longest blockchain. However, your wallet addresses are sent to a single server, in order to receive your transaction history.")))
         vbox.addLayout(hbox)
 
         # grid layout
@@ -211,7 +222,8 @@ class NetworkDialog(QDialog):
 
     def do_exec(self):
 
-        if not self.exec_(): return
+        if not self.exec_():
+            return
 
         server = ':'.join([str( self.server_host.text() ),
                            str( self.server_port.text() ),
@@ -226,6 +238,7 @@ class NetworkDialog(QDialog):
 
         self.config.set_key("proxy", proxy, True)
         self.config.set_key("server", server, True)
-        self.interface.set_server(server, proxy)
+        self.network.set_server(server, proxy)
+
         self.config.set_key('auto_cycle', self.autocycle_cb.isChecked(), True)
         return True

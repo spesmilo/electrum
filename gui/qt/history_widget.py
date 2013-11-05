@@ -1,5 +1,7 @@
 from PyQt4.QtGui import *
-from i18n import _
+from electrum.i18n import _
+from comma_separated import MyQLocale
+from PyQt4.QtCore import QString
 
 class HistoryWidget(QTreeWidget):
 
@@ -13,6 +15,7 @@ class HistoryWidget(QTreeWidget):
         self.clear()
 
     def append(self, address, amount, date):
+    	locale = MyQLocale.system()
         if address is None:
           address = _("Unknown")
         if amount is None: 
@@ -20,7 +23,11 @@ class HistoryWidget(QTreeWidget):
         if date is None:
           date = _("Unknown")
         item = QTreeWidgetItem([amount, address, date])
-        if float(amount) < 0:
+        if amount.__class__ == str:
+            amount = QString(amount)
+        assert(amount.__class__ == QString)
+        succeeds, amount_value = locale.toDecimal(amount)
+        if succeeds and amount_value < 0:
           item.setForeground(0, QBrush(QColor("#BC1E1E")))
         self.insertTopLevelItem(0, item)
 

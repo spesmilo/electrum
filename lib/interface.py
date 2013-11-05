@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import random, socket, ast, re, ssl
+import random, socket, ast, re, ssl, errno
 import threading, traceback, sys, time, json, Queue
 
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
@@ -25,58 +25,11 @@ from util import print_error, print_msg
 
 
 DEFAULT_TIMEOUT = 5
-DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
-
-DEFAULT_SERVERS = {
-    'the9ull.homelinux.org': {'h': '8082', 't': '50001'},
-    'electrum.coinwallet.me': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.dynaloop.net': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.koh.ms': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.novit.ro': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.stepkrav.pw': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'ecdsa.org': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.mooo.com': {'h': '8081', 't': '50001'},
-    'electrum.bitcoins.sk': {'h': '8081', 's': '50002', 't': '50001', 'g': '8'},
-    'electrum.no-ip.org': {'h': '80', 's': '50002', 't': '50001', 'g': '443'},
-    'electrum.drollette.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'btc.it-zone.org': {'h': '80', 's': '110', 't': '50001', 'g': '443'},
-    'electrum.yacoin.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.be': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'}
-}
-
-
-
-def filter_protocol(servers, p):
-    l = []
-    for k, protocols in servers.items():
-        if p in protocols:
-            l.append( ':'.join([k, protocols[p], p]) )
-    return l
-    
-
-
 proxy_modes = ['socks4', 'socks5', 'http']
-
-
-def pick_random_server():
-    return random.choice( filter_protocol(DEFAULT_SERVERS,'s') )
-
-
 
 
 class Interface(threading.Thread):
 
-    def register_callback(self, event, callback):
-        with self.lock:
-            if not self.callbacks.get(event):
-                self.callbacks[event] = []
-            self.callbacks[event].append(callback)
-
-    def trigger_callback(self, event):
-        with self.lock:
-            callbacks = self.callbacks.get(event,[])[:]
-        if callbacks:
-            [callback() for callback in callbacks]
 
     def init_server(self, host, port, proxy=None, use_ssl=True):
         self.host = host
@@ -88,8 +41,7 @@ class Interface(threading.Thread):
         #json
         self.message_id = 0
         self.unanswered_requests = {}
-        #banner
-        self.banner = ''
+        self.pending_transactions_for_notifications= []
 
 
     def queue_json_response(self, c):
@@ -104,58 +56,18 @@ class Interface(threading.Thread):
             print_error("received error:", c)
             if msg_id is not None:
                 with self.lock: 
-                    method, params, channel = self.unanswered_requests.pop(msg_id)
-                response_queue = self.responses[channel]
-                response_queue.put({'method':method, 'params':params, 'error':error, 'id':msg_id})
+                    method, params, callback = self.unanswered_requests.pop(msg_id)
+                callback(self,{'method':method, 'params':params, 'error':error, 'id':msg_id})
 
             return
 
         if msg_id is not None:
             with self.lock: 
-                method, params, channel = self.unanswered_requests.pop(msg_id)
+                method, params, callback = self.unanswered_requests.pop(msg_id)
             result = c.get('result')
 
-            if method == 'server.version':
-                self.server_version = result
-
-            elif method == 'server.banner':
-                self.banner = result
-                self.trigger_callback('banner')
-
-            elif method == 'server.peers.subscribe':
-                servers = {}
-                for item in result:
-
-                    host = item[1]
-                    out = {}
-
-                    version = None
-                    pruning_level = '-'
-                    if len(item) > 2:
-                        for v in item[2]:
-                            if re.match("[stgh]\d*", v):
-                                protocol, port = v[0], v[1:]
-                                if port == '': port = DEFAULT_PORTS[protocol]
-                                out[protocol] = port
-                            elif re.match("v(.?)+", v):
-                                version = v[1:]
-                            elif re.match("p\d*", v):
-                                pruning_level = v[1:]
-                                if pruning_level == '': pruning_level = '0'
-                    try: 
-                        is_recent = float(version)>=float(PROTOCOL_VERSION)
-                    except:
-                        is_recent = False
-
-                    if out and is_recent:
-                        out['pruning'] = pruning_level
-                        servers[host] = out 
-
-                self.servers = servers
-                self.trigger_callback('peers')
-
         else:
-            # notification: find the channel(s)
+            # notification
             method = c.get('method')
             params = c.get('params')
 
@@ -175,27 +87,19 @@ class Interface(threading.Thread):
             with self.lock:
                 for k,v in self.subscriptions.items():
                     if (method, params) in v:
-                        channel = k
+                        callback = k
                         break
                 else:
                     print_error( "received unexpected notification", method, params)
                     print_error( self.subscriptions )
                     return
-                
-        response_queue = self.responses[channel]
-        response_queue.put({'method':method, 'params':params, 'result':result, 'id':msg_id})
 
 
+        callback(self, {'method':method, 'params':params, 'result':result, 'id':msg_id})
 
-    def get_response(self, channel='default', block=True, timeout=10000000000):
-        return self.responses[channel].get(block, timeout)
 
-    def register_channel(self, channel):
-        with self.lock:
-            self.responses[channel] = Queue.Queue()
-
-    def poke(self, channel):
-        self.responses[channel].put(None)
+    def on_version(self, i, result):
+        self.server_version = result
 
 
     def init_http(self, host, port, proxy=None, use_ssl=True):
@@ -238,7 +142,7 @@ class Interface(threading.Thread):
         self.send([])
 
 
-    def send_http(self, messages, channel='default'):
+    def send_http(self, messages, callback):
         import urllib2, json, time, cookielib
         print_error( "send_http", messages )
         
@@ -258,7 +162,7 @@ class Interface(threading.Thread):
             method, params = m
             if type(params) != type([]): params = [params]
             data.append( { 'method':method, 'id':self.message_id, 'params':params } )
-            self.unanswered_requests[self.message_id] = method, params, channel
+            self.unanswered_requests[self.message_id] = method, params, callback
             self.message_id += 1
 
         if data:
@@ -327,7 +231,8 @@ class Interface(threading.Thread):
         try:
             s.connect(( self.host.encode('ascii'), int(self.port)))
         except:
-            traceback.print_exc(file=sys.stdout)
+            #traceback.print_exc(file=sys.stdout)
+            print_error("failed to connect", host, port)
             self.is_connected = False
             self.s = None
             return
@@ -359,7 +264,7 @@ class Interface(threading.Thread):
 
                 if timeout:
                     # ping the server with server.version, as a real ping does not exist yet
-                    self.send([('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])])
+                    self.send([('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])], self.on_version)
                     continue
 
                 out += msg
@@ -381,33 +286,39 @@ class Interface(threading.Thread):
         self.is_connected = False
 
 
-    def send_tcp(self, messages, channel='default'):
+    def send_tcp(self, messages, callback):
         """return the ids of the requests that we sent"""
         out = ''
         ids = []
         for m in messages:
             method, params = m 
             request = json.dumps( { 'id':self.message_id, 'method':method, 'params':params } )
-            self.unanswered_requests[self.message_id] = method, params, channel
+            self.unanswered_requests[self.message_id] = method, params, callback
             ids.append(self.message_id)
             # uncomment to debug
-            # print "-->",request
+            # print "-->", request
             self.message_id += 1
             out += request + '\n'
         while out:
             try:
                 sent = self.s.send( out )
                 out = out[sent:]
-            except:
-                # this happens when we get disconnected
-                print_error( "Not connected, cannot send" )
-                return None
+            except socket.error,e:
+                if e[0] in (errno.EWOULDBLOCK,errno.EAGAIN):
+                    print_error( "EAGAIN: retrying")
+                    time.sleep(0.1)
+                    continue
+                else:
+                    traceback.print_exc(file=sys.stdout)
+                    # this happens when we get disconnected
+                    print_error( "Not connected, cannot send" )
+                    return None
         return ids
 
 
 
-    def __init__(self, config=None, loop=False):
-        self.server = random.choice(filter_protocol(DEFAULT_SERVERS, 's'))
+    def __init__(self, config=None):
+        #self.server = random.choice(filter_protocol(DEFAULT_SERVERS, 's'))
         self.proxy = None
 
         if config is None:
@@ -416,21 +327,20 @@ class Interface(threading.Thread):
 
         threading.Thread.__init__(self)
         self.daemon = True
-        self.loop = loop
         self.config = config
         self.connect_event = threading.Event()
 
         self.subscriptions = {}
-        self.responses = {}
-        self.responses['default'] = Queue.Queue()
-
-        self.callbacks = {}
         self.lock = threading.Lock()
 
         self.servers = {} # actual list from IRC
         self.rtime = 0
         self.bytes_received = 0
         self.is_connected = False
+
+        # init with None server, in case we are offline 
+        self.init_server(None, None)
+
 
 
 
@@ -441,32 +351,11 @@ class Interface(threading.Thread):
             if self.config.get('auto_cycle') is None:
                 self.config.set_key('auto_cycle', True, False)
 
-        if not self.is_connected and self.config.get('auto_cycle'):
-            print_msg("Using random server...")
-            servers = filter_protocol(DEFAULT_SERVERS, 's')
-            while servers:
-                server = random.choice( servers )
-                servers.remove(server)
-                print server
-                self.config.set_key('server', server, False)
-                self.init_with_server(self.config)
-                if self.is_connected: break
-
-            if not self.is_connected:
-                print 'no server available'
-                self.connect_event.set() # to finish start
-                self.server = 'ecdsa.org:50001:t'
-                self.proxy = None
-                return
+        if not self.is_connected: 
+            self.connect_event.set()
+            return
 
         self.connect_event.set()
-        if self.is_connected:
-            self.send([('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])])
-            self.send([('server.banner',[])])
-            self.trigger_callback('connected')
-        else:
-            self.trigger_callback('notconnected')
-            #print_error("Failed to connect " + self.connection_msg)
 
 
     def init_with_server(self, config):
@@ -488,7 +377,13 @@ class Interface(threading.Thread):
             raise BaseException('Unknown protocol: %s'%protocol)
 
 
-    def send(self, messages, channel='default'):
+    def stop_subscriptions(self):
+        for callback in self.subscriptions.keys():
+            callback(self, None)
+        self.subscriptions = {}
+
+
+    def send(self, messages, callback):
 
         sub = []
         for message in messages:
@@ -498,29 +393,23 @@ class Interface(threading.Thread):
 
         if sub:
             with self.lock:
-                if self.subscriptions.get(channel) is None: 
-                    self.subscriptions[channel] = []
+                if self.subscriptions.get(callback) is None: 
+                    self.subscriptions[callback] = []
                 for message in sub:
-                    if message not in self.subscriptions[channel]:
-                        self.subscriptions[channel].append(message)
+                    if message not in self.subscriptions[callback]:
+                        self.subscriptions[callback].append(message)
 
         if not self.is_connected: 
             return
 
         if self.protocol in 'st':
             with self.lock:
-                out = self.send_tcp(messages, channel)
+                out = self.send_tcp(messages, callback)
         else:
             # do not use lock, http is synchronous
-            out = self.send_http(messages, channel)
+            out = self.send_http(messages, callback)
 
         return out
-
-    def resend_subscriptions(self):
-        for channel, messages in self.subscriptions.items():
-            if messages:
-                self.send(messages, channel)
-
 
 
     def parse_proxy_options(self, s):
@@ -543,21 +432,6 @@ class Interface(threading.Thread):
         return proxy
 
 
-    def set_server(self, server, proxy=None):
-        # raise an error if the format isnt correct
-        a,b,c = server.split(':')
-        b = int(b)
-        assert c in 'stgh'
-        # set the server
-        if server != self.server or proxy != self.proxy:
-            print "changing server:", server, proxy
-            self.server = server
-            self.proxy = proxy
-            if self.is_connected and self.protocol in 'st' and self.s:
-                self.s.shutdown(socket.SHUT_RDWR)
-                self.s.close()
-            self.is_connected = False  # this exits the polling loop
-            self.trigger_callback('disconnecting') # for actively disconnecting
 
     def stop(self):
         if self.is_connected and self.protocol in 'st' and self.s:
@@ -565,40 +439,18 @@ class Interface(threading.Thread):
             self.s.close()
 
 
-    def get_servers(self):
-        if not self.servers:
-            return DEFAULT_SERVERS
-        else:
-            return self.servers
-
-
-    def is_empty(self, channel):
-        q = self.responses.get(channel)
-        if q: 
-            return q.empty()
-        else:
-            return True
-
-
-    def get_pending_requests(self, channel):
-        result = []
-        with self.lock:
-            for k, v in self.unanswered_requests.items():
-                a, b, c = v
-                if c == channel: result.append(k)
-        return result
-
-    def is_up_to_date(self, channel):
-        return self.is_empty(channel) and not self.get_pending_requests(channel)
+    def is_up_to_date(self):
+        return self.unanswered_requests == {}
 
 
     def synchronous_get(self, requests, timeout=100000000):
         # todo: use generators, unanswered_requests should be a list of arrays...
-        ids = self.send(requests)
+        queue = Queue.Queue()
+        ids = self.send(requests, lambda i,r: queue.put(r))
         id2 = ids[:]
         res = {}
         while ids:
-            r = self.responses['default'].get(True, timeout)
+            r = queue.get(True, timeout)
             _id = r.get('id')
             if _id in ids:
                 ids.remove(_id)
@@ -609,26 +461,21 @@ class Interface(threading.Thread):
         return out
 
 
-    def start(self, wait=True):
+    def start(self, queue):
+        self.queue = queue
         threading.Thread.start(self)
-        if wait:
-            # wait until connection is established
-            self.connect_event.wait()
-            if not self.is_connected:
-                return False
-        return True
+
 
     def run(self):
-        while True:
-            self.init_interface()
-            if self.is_connected:
-                self.resend_subscriptions()
-                self.run_tcp() if self.protocol in 'st' else self.run_http()
+        self.init_interface()
+        if self.is_connected:
+            self.send([('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])], self.on_version)
+            self.change_status()
+            self.run_tcp() if self.protocol in 'st' else self.run_http()
+        self.change_status()
+        
 
-            self.trigger_callback('disconnected')
-
-            if not self.loop: break
-            time.sleep(5)
-
-
+    def change_status(self):
+        #print "change status", self.server, self.is_connected
+        self.queue.put(self)
 
