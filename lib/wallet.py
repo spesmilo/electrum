@@ -1256,6 +1256,9 @@ class Wallet:
 
 
     def get_tx_history(self, account=None):
+        if not self.verifier:
+            return []
+
         with self.transaction_lock:
             history = self.transactions.items()
             history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
