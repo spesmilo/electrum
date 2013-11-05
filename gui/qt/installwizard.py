@@ -304,7 +304,8 @@ class InstallWizard(QDialog):
         else: raise
                 
         #if not self.config.get('server'):
-        self.network_dialog()
+        if self.network:
+            self.network_dialog()
 
         # start wallet threads
         wallet.start_threads(self.network)
@@ -313,12 +314,13 @@ class InstallWizard(QDialog):
 
             self.waiting_dialog(lambda: wallet.restore(self.waiting_label.setText))
 
-            if wallet.is_found():
-                QMessageBox.information(None, _('Information'), _("Recovery successful"), _('OK'))
+            if self.network:
+                if wallet.is_found():
+                    QMessageBox.information(None, _('Information'), _("Recovery successful"), _('OK'))
+                else:
+                    QMessageBox.information(None, _('Information'), _("No transactions found for this seed"), _('OK'))
             else:
-                QMessageBox.information(None, _('Information'), _("No transactions found for this seed"), _('OK'))
-            
-            wallet.fill_addressbook()
+                QMessageBox.information(None, _('Information'), _("This wallet was restored offline. It may contain more addresses than displayed."), _('OK'))
 
         self.password_dialog(wallet)
 

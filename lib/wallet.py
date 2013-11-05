@@ -1560,16 +1560,20 @@ class Wallet:
     def start_threads(self, network):
         from verifier import TxVerifier
         self.network = network
-        self.verifier = TxVerifier(self.network, self.storage)
-        self.verifier.start()
-        self.set_verifier(self.verifier)
-        self.synchronizer = WalletSynchronizer(self, network)
-        self.synchronizer.start()
+        if self.network:
+            self.verifier = TxVerifier(self.network, self.storage)
+            self.verifier.start()
+            self.set_verifier(self.verifier)
+            self.synchronizer = WalletSynchronizer(self, network)
+            self.synchronizer.start()
+        else:
+            self.verifier = None
+            self.synchronizer =None
 
     def stop_threads(self):
-        self.verifier.stop()
-        self.synchronizer.stop()
-
+        if self.network:
+            self.verifier.stop()
+            self.synchronizer.stop()
 
 
     def restore(self, callback):
@@ -1580,7 +1584,8 @@ class Wallet:
                 msg = "%s\n%s %d\n%s %.1f"%(
                     _("Please wait..."),
                     _("Addresses generated:"),
-                    len(self.addresses(True)),_("Kilobytes received:"), 
+                    len(self.addresses(True)), 
+                    _("Kilobytes received:"), 
                     self.network.interface.bytes_received/1024.)
 
                 apply(callback, (msg,))
@@ -1593,11 +1598,17 @@ class Wallet:
                 time.sleep(0.1)
 
         # wait until we are connected, because the user might have selected another server
-        wait_for_network()
-
+        if self.network:
+            wait_for_network()
 
         self.create_accounts()
-        wait_for_wallet()
+
+        if self.network:
+            wait_for_wallet()
+        else:
+            self.synchronize()
+            
+        self.fill_addressbook()
 
 
 

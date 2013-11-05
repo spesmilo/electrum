@@ -153,13 +153,18 @@ if __name__ == '__main__':
             #sys.exit("Error: Unknown GUI: " + gui_name )
         
         # network interface
-        network = Network(config)
-        network.start()
+        if not options.offline:
+            network = Network(config)
+            network.start()
+        else:
+            network = None
 
         gui = gui.ElectrumGui(config, network)
         gui.main(url)
         
-        network.stop()
+        if network:
+            network.stop()
+
         # we use daemon threads, their termination is enforced.
         # this sleep command gives them time to terminate cleanly. 
         time.sleep(0.1)
@@ -215,17 +220,22 @@ if __name__ == '__main__':
 
             wallet.init_seed( str(seed) )
             wallet.save_seed()
-            network = Network(config)
-            network.start()
-            wallet.start_threads(network)
+            if not options.offline:
+                network = Network(config)
+                network.start()
+                wallet.start_threads(network)
 
-            print_msg("Recovering wallet...")
-            wallet.restore(lambda x: x)
+                print_msg("Recovering wallet...")
+                wallet.restore(lambda x: x)
 
-            if wallet.is_found():
-                print_msg("Recovery successful")
+                if wallet.is_found():
+                    print_msg("Recovery successful")
+                else:
+                    print_msg("Warning: Found no history for this wallet")
             else:
-                print_msg("Warning: Found no history for this wallet")
+                wallet.create_accounts()
+                wallet.synchronize()
+                print_msg("Warning: This wallet was restored offline. It may contain more addresses than displayed.")
 
         else:
             wallet.init_seed(None)

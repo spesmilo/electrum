@@ -821,9 +821,10 @@ class MiniDriver(QObject):
         self.network = main_window.network
         self.window = mini_window
 
-        self.network.register_callback('updated',self.update_callback)
-        self.network.register_callback('connected', self.update_callback)
-        self.network.register_callback('disconnected', self.update_callback)
+        if self.network:
+            self.network.register_callback('updated',self.update_callback)
+            self.network.register_callback('connected', self.update_callback)
+            self.network.register_callback('disconnected', self.update_callback)
 
         self.state = None
 
@@ -838,7 +839,9 @@ class MiniDriver(QObject):
         self.emit(SIGNAL("updatesignal()"))
 
     def update(self):
-        if not self.network.interface:
+        if not self.network:
+            self.initializing()
+        elif not self.network.interface:
             self.initializing()
         elif not self.network.interface.is_connected:
             self.connecting()

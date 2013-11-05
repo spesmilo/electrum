@@ -187,13 +187,15 @@ class ElectrumWindow(QMainWindow):
         self.history_list.setFocus(True)
 
         # network callbacks
-        self.network.register_callback('updated', lambda: self.need_update.set())
-        self.network.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')))
-        self.network.register_callback('disconnected', lambda: self.emit(QtCore.SIGNAL('update_status')))
-        self.network.register_callback('disconnecting', lambda: self.emit(QtCore.SIGNAL('update_status')))
-        self.network.register_callback('new_transaction', lambda: self.emit(QtCore.SIGNAL('transaction_signal')))
-        # set initial message
-        self.console.showMessage(self.network.banner)
+        if self.network:
+            self.network.register_callback('updated', lambda: self.need_update.set())
+            self.network.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')))
+            self.network.register_callback('disconnected', lambda: self.emit(QtCore.SIGNAL('update_status')))
+            self.network.register_callback('disconnecting', lambda: self.emit(QtCore.SIGNAL('update_status')))
+            self.network.register_callback('new_transaction', lambda: self.emit(QtCore.SIGNAL('transaction_signal')))
+
+            # set initial message
+            self.console.showMessage(self.network.banner)
 
         self.wallet = None
         self.init_lite()
@@ -457,7 +459,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def notify_transactions(self):
-        if not self.network.is_connected(): 
+        if not self.network or not self.network.is_connected(): 
             return
 
         print_error("Notifying GUI")
@@ -532,7 +534,11 @@ class ElectrumWindow(QMainWindow):
 
 
     def update_status(self):
-        if self.network.is_connected():
+        if self.network is None:
+            text = _("Offline")
+            icon = QIcon(":icons/status_disconnected.png")
+
+        elif self.network.is_connected():
             if not self.wallet.up_to_date:
                 text = _("Synchronizing...")
                 icon = QIcon(":icons/status_waiting.png")
@@ -562,7 +568,7 @@ class ElectrumWindow(QMainWindow):
 
     def update_wallet(self):
         self.update_status()
-        if self.wallet.up_to_date or not self.network.is_connected():
+        if self.wallet.up_to_date or not self.network or not self.network.is_connected():
             self.update_history_tab()
             self.update_receive_tab()
             self.update_contacts_tab()
@@ -2073,6 +2079,8 @@ class ElectrumWindow(QMainWindow):
 
 
     def run_network_dialog(self):
+        if not self.network:
+            return
         NetworkDialog(self.wallet.network, self.config, self).do_exec()
 
     def closeEvent(self, event):
