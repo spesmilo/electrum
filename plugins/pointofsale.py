@@ -98,7 +98,7 @@ class Plugin(BasePlugin):
         return 'Point of Sale'
 
     def description(self):
-        return _('Show QR code window and amounts requested for each address. Add menu item to request amount. Note: This requires the exchange rate plugin to be installed.')
+        return _('Show QR code window and amounts requested for each address. Add menu item to request amount.')+_(' Note: This requires the exchange rate plugin to be installed.')
 
     def init(self):
         self.window = self.gui.main_window
