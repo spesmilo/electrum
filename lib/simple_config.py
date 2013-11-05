@@ -22,6 +22,9 @@ a SimpleConfig instance then reads the wallet file.
         if options.get('portable') is not True:
             self.read_system_config()
 
+        # command-line options
+        self.options_config = options
+
         # init path
         self.init_path()
 
@@ -30,16 +33,18 @@ a SimpleConfig instance then reads the wallet file.
         if options.get('portable') == False:
             self.read_user_config()
 
-        # command-line options
-        self.options_config = options
 
 
 
 
     def init_path(self):
 
+        # Read electrum path in the command line configuration
+        self.path = self.options_config.get('electrum_path')
+
         # Read electrum path in the system configuration
-        self.path = self.system_config.get('electrum_path')
+        if self.path is None:
+            self.path = self.system_config.get('electrum_path')
 
         # If not set, use the user's default data directory.
         if self.path is None:

@@ -118,7 +118,7 @@ if __name__ == '__main__':
     parser = arg_parser()
     options, args = parser.parse_args()
     if options.portable and options.wallet_path is None:
-        options.wallet_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum.dat')
+        options.electrum_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
 
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
