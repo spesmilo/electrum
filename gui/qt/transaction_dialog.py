@@ -154,10 +154,10 @@ class TxDialog(QDialog):
             if is_mine:
                 if fee is not None: 
                     self.amount_label.setText(_("Amount sent:")+' %s'% self.parent.format_amount(v-fee) + ' ' + self.parent.base_unit())
-                    self.fee_label.setText(_("Transaction fee:")+' %s'% self.parent.format_amount(fee) + ' ' + self.parent.base_unit())
+                    self.fee_label.setText(_("Transaction fee")+': %s'% self.parent.format_amount(fee) + ' ' + self.parent.base_unit())
                 else:
                     self.amount_label.setText(_("Amount sent:")+' %s'% self.parent.format_amount(v) + ' ' + self.parent.base_unit())
-                    self.fee_label.setText(_("Transaction fee: unknown"))
+                    self.fee_label.setText(_("Transaction fee")+': ' _("unknown"))
             else:
                 self.amount_label.setText(_("Amount received:")+' %s'% self.parent.format_amount(v) + ' ' + self.parent.base_unit())
         else:
@@ -198,7 +198,7 @@ class TxDialog(QDialog):
     def broadcast(self):
         result, result_message = self.wallet.sendtx( self.tx )
         if result:
-            self.show_message(_("Transaction successfully sent:")+' %s' % (result_message))
+            self.show_message(_("Transaction successfully sent")+': %s' % (result_message))
             if dialog:
                 dialog.done(0)
         else:
