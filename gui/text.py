@@ -22,7 +22,7 @@ class ElectrumGui:
             exit()
 
         self.wallet = Wallet(storage)
-        self.wallet.start_threads(network)
+        self.wallet.start_threads(self.network)
 
         locale.setlocale(locale.LC_ALL, '')
         self.encoding = locale.getpreferredencoding()
@@ -50,11 +50,13 @@ class ElectrumGui:
         self.str_amount = ""
         self.str_fee = ""
         self.history = None
-        
-        self.network.register_callback('updated', self.update)
-        self.network.register_callback('connected', self.refresh)
-        self.network.register_callback('disconnected', self.refresh)
-        self.network.register_callback('disconnecting', self.refresh)
+       
+        if self.network: 
+            self.network.register_callback('updated', self.update)
+            self.network.register_callback('connected', self.refresh)
+            self.network.register_callback('disconnected', self.refresh)
+            self.network.register_callback('disconnecting', self.refresh)
+
         self.tab_names = [_("History"), _("Send"), _("Receive"), _("Contacts"), _("Wall")]
         self.num_tabs = len(self.tab_names)
 
@@ -120,7 +122,7 @@ class ElectrumGui:
 
 
     def print_balance(self):
-        if self.network.interface and self.network.interface.is_connected:
+        if self.network and self.network.interface and self.network.interface.is_connected:
             if not self.wallet.up_to_date:
                 msg = _( "Synchronizing..." )
             else: 
@@ -162,7 +164,8 @@ class ElectrumGui:
         self.stdscr.addstr( 12, 25, _("[Clear]"), curses.A_REVERSE if self.pos%6==5 else curses.color_pair(2))
 
     def print_banner(self):
-        self.print_list( self.network.banner.split('\n'))
+        if self.network:
+            self.print_list( self.network.banner.split('\n'))
 
     def print_list(self, list, firstline = None):
         self.maxpos = len(list)
@@ -339,6 +342,7 @@ class ElectrumGui:
 
 
     def network_dialog(self):
+        if not self.network: return
         auto_connect = self.network.config.get('auto_cycle')
         host, port, protocol = self.network.default_server.split(':')
         srv = 'auto-connect' if auto_connect else self.network.default_server
