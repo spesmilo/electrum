@@ -172,6 +172,7 @@ class ElectrumWindow(QMainWindow):
         g = self.config.get("winpos-qt",[100, 100, 840, 400])
         self.setGeometry(g[0], g[1], g[2], g[3])
 
+        self.setWindowIcon(QIcon(":icons/electrum.png"))
         self.init_menubar()
 
         QShortcut(QKeySequence("Ctrl+W"), self, self.close)
