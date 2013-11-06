@@ -37,6 +37,7 @@ from transaction import Transaction
 from plugins import run_hook
 
 COINBASE_MATURITY = 100
+DUST_THRESHOLD = 5430
 
 # AES encryption
 EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
@@ -1185,7 +1186,7 @@ class Wallet:
     def add_tx_change( self, inputs, outputs, amount, fee, total, change_addr=None):
         "add change to a transaction"
         change_amount = total - ( amount + fee )
-        if change_amount != 0:
+        if change_amount > DUST_THRESHOLD:
             if not change_addr:
 
                 # send change to one of the accounts involved in the tx
