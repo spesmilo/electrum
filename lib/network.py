@@ -22,7 +22,6 @@ DEFAULT_SERVERS = {
 }
 
 
-NUM_SERVERS = 8
 
 
 def filter_protocol(servers, p):
@@ -45,6 +44,7 @@ class Network(threading.Thread):
         self.daemon = True
         self.config = SimpleConfig(config) if type(config) == type({}) else config
         self.lock = threading.Lock()
+        self.num_server = 8 if not self.config.get('oneserver') else 0
         self.blockchain = Blockchain(self.config, self)
         self.interfaces = {}
         self.queue = Queue.Queue()
@@ -154,7 +154,7 @@ class Network(threading.Thread):
         self.start_interface(self.default_server)
         self.interface = self.interfaces[self.default_server]
 
-        for i in range(NUM_SERVERS):
+        for i in range(self.num_server):
             self.start_random_interface()
             
         if not self.interface:
@@ -282,7 +282,7 @@ class Network(threading.Thread):
             try:
                 i = self.queue.get(timeout = 30 if self.interfaces else 3)
             except Queue.Empty:
-                if len(self.interfaces) < NUM_SERVERS:
+                if len(self.interfaces) < self.num_server:
                     self.start_random_interface()
                 continue
 
