@@ -4,7 +4,7 @@ string = sys.stdin.read()
 
 
 import hashlib, os
-version = "1.9"
+version = "1.9.1"
 version_win = "1.9"
 version_mac = "1.9"
 
