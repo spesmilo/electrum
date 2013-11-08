@@ -71,6 +71,7 @@ def arg_parser():
     parser.add_option("-g", "--gui", dest="gui", help="User interface: qt, lite, gtk, text or stdio")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
     parser.add_option("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
+    parser.add_option("-C", "--concealed", action="store_true", dest="concealed", default=False, help="don't echo seed to console when restoring")
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
     parser.add_option("-l", "--labels", action="store_true", dest="show_labels", default=False, help="show the labels of listed addresses")
     parser.add_option("-f", "--fee", dest="tx_fee", default=None, help="set tx fee")
@@ -209,7 +210,8 @@ if __name__ == '__main__':
         if gap: wallet.change_gap_limit(int(gap))
 
         if cmd.name == 'restore':
-            seed = raw_input("seed:")
+            import getpass
+            seed = getpass.getpass(prompt = "seed:", stream = None) if options.concealed else raw_input("seed:")
             try:
                 seed.decode('hex')
             except:
