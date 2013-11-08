@@ -242,8 +242,9 @@ def run_network_dialog( network, parent ):
         import random
         status = "Please choose a server.\nSelect cancel if you are offline."
 
-    server = interface.server
-    host, port, protocol = server.split(':')
+    if network.is_connected():
+        server = interface.server
+        host, port, protocol = server.split(':')
 
     servers = network.get_servers()
 
@@ -261,7 +262,10 @@ def run_network_dialog( network, parent ):
     host_box.pack_start(host_label, False, False, 10)
     host_entry = gtk.Entry()
     host_entry.set_size_request(200,-1)
-    host_entry.set_text(server)
+    if network.is_connected():
+        host_entry.set_text(server)
+    else:
+        host_entry.set_text("Not Connected")
     host_entry.show()
     host_box.pack_start(host_entry, False, False, 10)
     add_help_button(host_box, 'The name, port number and protocol of your Electrum server, separated by a colon. Example: "ecdsa.org:50002:s". Some servers allow you to connect through http (port 80) or https (port 443)')
@@ -286,7 +290,7 @@ def run_network_dialog( network, parent ):
 
     def current_line():
         return unicode(host_entry.get_text()).split(':')
-    
+
     def set_combobox(protocol):
         combobox.set_active('tshg'.index(protocol))
 
@@ -300,7 +304,8 @@ def run_network_dialog( network, parent ):
         host_entry.set_text( host + ':' + port + ':' + protocol)
 
     combobox.connect("changed", lambda x:set_protocol('tshg'[combobox.get_active()]))
-    set_combobox(protocol)
+    if network.is_connected():
+        set_combobox(protocol)
         
     server_list = gtk.ListStore(str)
     for host in servers.keys():
@@ -898,8 +903,7 @@ class ElectrumWindow:
         cell.set_property('editable', True)
         def edited_cb(cell, path, new_text, h_list):
             tx = h_list.get_value( h_list.get_iter(path), 0)
-            self.wallet.labels[tx] = new_text
-            self.wallet.save() 
+            self.wallet.set_label(tx,new_text)
             self.update_history_tab()
         cell.connect('edited', edited_cb, self.history_list)
         def editing_started(cell, entry, path, h_list):
@@ -942,7 +946,7 @@ class ElectrumWindow:
 
 
     def create_recv_tab(self):
-        self.recv_list = gtk.ListStore(str, str, str)
+        self.recv_list = gtk.ListStore(str, str, str, str)
         self.add_tab( self.make_address_list(True), 'Receive')
         self.update_receiving_tab()
 
@@ -974,8 +978,7 @@ class ElectrumWindow:
         cell.set_property('editable', True)
         def edited_cb2(cell, path, new_text, liststore):
             address = liststore.get_value( liststore.get_iter(path), 0)
-            self.wallet.labels[address] = new_text
-            self.wallet.save() 
+            self.wallet.set_label(address, new_text)
             self.update_receiving_tab()
             self.update_sending_tab()
             self.update_history_tab()
@@ -988,6 +991,13 @@ class ElectrumWindow:
         cell = gtk.CellRendererText()
         tvcolumn.pack_start(cell, True)
         tvcolumn.add_attribute(cell, 'text', 2)
+
+        if is_recv:
+            tvcolumn = gtk.TreeViewColumn('Type')
+            treeview.append_column(tvcolumn)
+            cell = gtk.CellRendererText()
+            tvcolumn.pack_start(cell, True)
+            tvcolumn.add_attribute(cell, 'text', 3)
 
         scroll = gtk.ScrolledWindow()
         scroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
@@ -1102,12 +1112,16 @@ class ElectrumWindow:
     def update_receiving_tab(self):
         self.recv_list.clear()
         for address in self.wallet.addresses(True):
-            if self.wallet.is_change(address):continue
+            Type = "R"
+            if self.wallet.is_change(address): Type = "C"
+            if address in self.wallet.imported_keys.keys(): Type = "I"
+            if address in self.wallet.frozen_addresses: Type = Type + "F"
+            if address in self.wallet.prioritized_addresses: Type = Type + "P"
             label = self.wallet.labels.get(address)
             h = self.wallet.history.get(address,[])
             n = len(h)
-            tx = "None" if n==0 else "%d"%n
-            self.recv_list.append((address, label, tx ))
+            tx = "0" if n==0 else "%d"%n
+            self.recv_list.append((address, label, tx, Type ))
 
     def update_sending_tab(self):
         # detect addresses that are not mine in history, add them here...
