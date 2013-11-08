@@ -1115,6 +1115,8 @@ class ElectrumWindow:
             Type = "R"
             if self.wallet.is_change(address): Type = "C"
             if address in self.wallet.imported_keys.keys(): Type = "I"
+            if address in self.wallet.frozen_addresses: Type = Type + "F"
+            if address in self.wallet.prioritized_addresses: Type = Type + "P"
             label = self.wallet.labels.get(address)
             h = self.wallet.history.get(address,[])
             n = len(h)
