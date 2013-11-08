@@ -898,8 +898,7 @@ class ElectrumWindow:
         cell.set_property('editable', True)
         def edited_cb(cell, path, new_text, h_list):
             tx = h_list.get_value( h_list.get_iter(path), 0)
-            self.wallet.labels[tx] = new_text
-            self.wallet.save() 
+            self.wallet.set_label(tx,new_text)
             self.update_history_tab()
         cell.connect('edited', edited_cb, self.history_list)
         def editing_started(cell, entry, path, h_list):
@@ -974,8 +973,7 @@ class ElectrumWindow:
         cell.set_property('editable', True)
         def edited_cb2(cell, path, new_text, liststore):
             address = liststore.get_value( liststore.get_iter(path), 0)
-            self.wallet.labels[address] = new_text
-            self.wallet.save() 
+            self.wallet.set_label(address, new_text)
             self.update_receiving_tab()
             self.update_sending_tab()
             self.update_history_tab()
