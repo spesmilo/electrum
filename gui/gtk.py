@@ -242,8 +242,9 @@ def run_network_dialog( network, parent ):
         import random
         status = "Please choose a server.\nSelect cancel if you are offline."
 
-    server = interface.server
-    host, port, protocol = server.split(':')
+    if network.is_connected():
+        server = interface.server
+        host, port, protocol = server.split(':')
 
     servers = network.get_servers()
 
@@ -261,7 +262,10 @@ def run_network_dialog( network, parent ):
     host_box.pack_start(host_label, False, False, 10)
     host_entry = gtk.Entry()
     host_entry.set_size_request(200,-1)
-    host_entry.set_text(server)
+    if network.is_connected():
+        host_entry.set_text(server)
+    else:
+        host_entry.set_text("Not Connected")
     host_entry.show()
     host_box.pack_start(host_entry, False, False, 10)
     add_help_button(host_box, 'The name, port number and protocol of your Electrum server, separated by a colon. Example: "ecdsa.org:50002:s". Some servers allow you to connect through http (port 80) or https (port 443)')
@@ -286,7 +290,7 @@ def run_network_dialog( network, parent ):
 
     def current_line():
         return unicode(host_entry.get_text()).split(':')
-    
+
     def set_combobox(protocol):
         combobox.set_active('tshg'.index(protocol))
 
@@ -300,7 +304,8 @@ def run_network_dialog( network, parent ):
         host_entry.set_text( host + ':' + port + ':' + protocol)
 
     combobox.connect("changed", lambda x:set_protocol('tshg'[combobox.get_active()]))
-    set_combobox(protocol)
+    if network.is_connected():
+        set_combobox(protocol)
         
     server_list = gtk.ListStore(str)
     for host in servers.keys():
