@@ -96,7 +96,7 @@ register_command('unfreeze',             1, 1, False, True,  False, 'Unfreeze th
 register_command('unprioritize',         1, 1, False, True,  False, 'Unprioritize an address', 'unprioritize <address>')
 register_command('validateaddress',      1, 1, False, False, False, 'Check that the address is valid', 'validateaddress <address>')
 register_command('verifymessage',        3,-1, False, False, False, 'Verifies a signature', verifymessage_syntax)
-register_command('restorempk',           0, 0, True, True, False, 'Verifies a signature', 'restore_options')
+register_command('restorempk',           0, 0, True, True, False, 'Restore a watch-only wallet', 'restore_options')
 
 
 
