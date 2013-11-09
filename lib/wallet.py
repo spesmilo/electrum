@@ -347,6 +347,7 @@ class Wallet:
 
         if not c0:
             self.seed_version = 4
+            self.storage.put('seed_version', self.seed_version, True)
             self.create_old_account(K0)
             return
 
@@ -355,6 +356,7 @@ class Wallet:
             "m/0'/": (c0, K0, cK0),
             }
         self.storage.put('master_public_keys', self.master_public_keys, True)
+        self.storage.put('seed_version', self.seed_version, True)
         self.create_account('1','Main account')
 
 

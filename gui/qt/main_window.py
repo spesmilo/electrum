@@ -1124,8 +1124,9 @@ class ElectrumWindow(QMainWindow):
         menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")) )
         menu.addAction(_("Edit label"), lambda: self.edit_label(True))
-        menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
-        menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
+        if self.wallet.seed:
+            menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
+            menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
         if addr in self.wallet.imported_keys:
             menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
 
