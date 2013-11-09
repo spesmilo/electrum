@@ -184,12 +184,12 @@ if __name__ == '__main__':
     else:
         wallet = None
 
-    if cmd.name not in ['create', 'restore'] and cmd.requires_wallet and not storage.file_exists:
+    if cmd.name not in ['create', 'restore', 'restorempk'] and cmd.requires_wallet and not storage.file_exists:
         print_msg("Error: Wallet file not found.")
         print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
     
-    if cmd.name in ['create', 'restore']:
+    if cmd.name in ['create', 'restore', 'restorempk']:
         if storage.file_exists:
             sys.exit("Error: Remove the existing wallet first!")
         if options.password != None:
@@ -236,6 +236,24 @@ if __name__ == '__main__':
                     print_msg("Warning: Found no history for this wallet")
             else:
                 wallet.create_accounts()
+                wallet.synchronize()
+                print_msg("Warning: This wallet was restored offline. It may contain more addresses than displayed.")
+        elif cmd.name == 'restorempk' :
+            mpk = raw_input("Master Public Key:")
+            wallet.create_watching_only_wallet([mpk, None])
+            if not options.offline:
+                network = Network(config)
+                network.start()
+                wallet.start_threads(network)
+
+                print_msg("Recovering wallet...")
+                wallet.synchronize()
+
+                if wallet.is_found():
+                    print_msg("Recovery successful")
+                else:
+                    print_msg("Warning: Found no history for this wallet")
+            else:
                 wallet.synchronize()
                 print_msg("Warning: This wallet was restored offline. It may contain more addresses than displayed.")
 
