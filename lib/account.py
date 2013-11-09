@@ -106,7 +106,7 @@ class OldAccount(Account):
         curve = SECP256k1
         secexp = self.stretch_key(seed)
         master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
-        master_public_key = master_private_key.get_verifying_key().to_string().encode('hex')
+        master_public_key = master_private_key.get_verifying_key().to_string()
         if master_public_key != self.mpk:
             print_error('invalid password (mpk)')
             raise BaseException('Invalid password')

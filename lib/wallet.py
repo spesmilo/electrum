@@ -678,9 +678,9 @@ class Wallet:
         s = pw_decode(self.seed, password)
         if self.seed_version == 4:
             seed = s
+            self.accounts[0].check_seed(seed)
         else:
             seed = mnemonic_hash(s)
-        #todo:  #self.sequences[0].check_seed(seed)
         return seed
         
 
