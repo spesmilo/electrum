@@ -7,7 +7,7 @@ from blockchain import Blockchain
 DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
 DEFAULT_SERVERS = {
-    'electrum.coinwallet.me': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    #'electrum.coinwallet.me': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
     'electrum.hachre.de': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
     'electrum.novit.ro': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
     'electrum.stepkrav.pw': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
@@ -16,8 +16,8 @@ DEFAULT_SERVERS = {
     'electrum.drollette.com': {'h': '5000', 's': '50002', 't': '50001', 'g': '8082'},
     'btc.it-zone.org': {'h': '80', 's': '110', 't': '50001', 'g': '443'},
     'btc.medoix.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'spv.nybex.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.pdmc.net': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.stupidfoot.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    #'electrum.pdmc.net': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
     'electrum.be': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'}
 }
 
