@@ -64,7 +64,7 @@ class ElectrumGui:
     def set_cursor(self, x):
         try:
             curses.curs_set(x)
-        except:
+        except Exception:
             pass
 
     def restore_or_create(self):
@@ -112,7 +112,7 @@ class ElectrumGui:
             if conf:
                 try:
                     time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
-                except:
+                except Exception:
                     time_str = "------"
             else:
                 time_str = 'pending'
@@ -291,12 +291,12 @@ class ElectrumGui:
             return
         try:
             amount = int( Decimal( self.str_amount) * 100000000 )
-        except:
+        except Exception:
             self.show_message(_('Invalid Amount'))
             return
         try:
             fee = int( Decimal( self.str_fee) * 100000000 )
-        except:
+        except Exception:
             self.show_message(_('Invalid Fee'))
             return
 
@@ -360,7 +360,7 @@ class ElectrumGui:
                 if not auto_connect:
                     try:
                         host, port, protocol = server.split(':')
-                    except:
+                    except Exception:
                         self.show_message("Error:" + server + "\nIn doubt, type \"auto-connect\"")
                         return False
 
@@ -468,7 +468,7 @@ class ElectrumGui:
                     choices = item.get('choices')
                     try:
                         j = choices.index(item.get('value'))
-                    except:
+                    except Exception:
                         j = 0
                     new_choice = choices[(j + 1)% len(choices)]
                     item['value'] = new_choice

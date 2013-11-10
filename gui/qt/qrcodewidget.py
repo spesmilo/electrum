@@ -35,7 +35,7 @@ class QRCodeWidget(QWidget):
                     self.qr.addData(self.addr)
                     self.qr.make()
                     break
-                except:
+                except Exception:
                     self.qr=None
                     continue
             self.update()

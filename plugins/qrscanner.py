@@ -76,7 +76,7 @@ class Plugin(BasePlugin):
         while True:
             try:
                 proc.process_one()
-            except:
+            except Exception:
                 # User closed the preview window
                 return {}
 
@@ -99,12 +99,12 @@ class Plugin(BasePlugin):
 
         try:
             amount = self.gui.main_window.read_amount(unicode( self.gui.main_window.amount_e.text()))
-        except:
+        except Exception:
             QMessageBox.warning(self.gui.main_window, _('Error'), _('Invalid Amount'), _('OK'))
             return
         try:
             fee = self.gui.main_window.read_amount(unicode( self.gui.main_window.fee_e.text()))
-        except:
+        except Exception:
             QMessageBox.warning(self.gui.main_window, _('Error'), _('Invalid Fee'), _('OK'))
             return
 

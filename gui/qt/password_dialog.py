@@ -85,7 +85,7 @@ def run_password_dialog(self, wallet, parent):
 
     try:
         wallet.get_seed(password)
-    except:
+    except Exception:
         QMessageBox.warning(parent, _('Error'), _('Incorrect Password'), _('OK'))
         return
 
@@ -97,7 +97,7 @@ def run_password_dialog(self, wallet, parent):
 
     try:
         wallet.update_password(password, new_password)
-    except:
+    except Exception:
         QMessageBox.warning(parent, _('Error'), _('Failed to update password'), _('OK'))
         return
 

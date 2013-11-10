@@ -165,7 +165,7 @@ class Plugin(BasePlugin):
     def update_receive_item(self, address, item):
         try:
             amount, currency = self.requested_amounts.get(address, (None, None))
-        except:
+        except Exception:
             print "cannot get requested amount", address, self.requested_amounts.get(address)
             amount, currency = None, None
             self.requested_amounts.pop(address)
@@ -183,7 +183,7 @@ class Plugin(BasePlugin):
             label = self.wallet.labels.get(address)
             try:
                 amount, currency = self.requested_amounts.get(address, (None, None))
-            except:
+            except Exception:
                 amount, currency = None, None
             self.qr_window.set_content( address, label, amount, currency )
 
@@ -197,7 +197,7 @@ class Plugin(BasePlugin):
         try:
             seq = self.wallet.get_address_index(address)
             index = seq[1][1]
-        except:
+        except Exception:
             print "cannot get index"
             return
 

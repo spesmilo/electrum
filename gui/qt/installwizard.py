@@ -284,7 +284,7 @@ class InstallWizard(QDialog):
                 return
             try:
                 wallet.init_seed(seed)
-            except:
+            except Exception:
                 import traceback
                 traceback.print_exc(file=sys.stdout)
                 QMessageBox.warning(None, _('Error'), _('Incorrect seed'), _('OK'))

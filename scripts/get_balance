@@ -85,7 +85,7 @@ def main(address):
 if __name__ == "__main__":
     try:
         address = sys.argv[1]
-    except:
+    except Exception:
         print "usage: get_balance <bitcoin_address>"
         sys.exit(1)
     main(address)
