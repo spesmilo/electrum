@@ -946,7 +946,7 @@ class ElectrumWindow:
 
 
     def create_recv_tab(self):
-        self.recv_list = gtk.ListStore(str, str, str, str)
+        self.recv_list = gtk.ListStore(str, str, str, str, str)
         self.add_tab( self.make_address_list(True), 'Receive')
         self.update_receiving_tab()
 
@@ -993,11 +993,16 @@ class ElectrumWindow:
         tvcolumn.add_attribute(cell, 'text', 2)
 
         if is_recv:
-            tvcolumn = gtk.TreeViewColumn('Type')
+            tvcolumn = gtk.TreeViewColumn('Balance')
             treeview.append_column(tvcolumn)
             cell = gtk.CellRendererText()
             tvcolumn.pack_start(cell, True)
             tvcolumn.add_attribute(cell, 'text', 3)
+            tvcolumn = gtk.TreeViewColumn('Type')
+            treeview.append_column(tvcolumn)
+            cell = gtk.CellRendererText()
+            tvcolumn.pack_start(cell, True)
+            tvcolumn.add_attribute(cell, 'text', 4)
 
         scroll = gtk.ScrolledWindow()
         scroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
@@ -1060,6 +1065,21 @@ class ElectrumWindow:
         button.show()
         hbox.pack_start(button,False)
 
+        if is_recv:
+            button = gtk.Button("Freeze")
+            def freeze_address(w, treeview, liststore, wallet):
+                path, col = treeview.get_cursor()
+                if path:
+                    address = liststore.get_value( liststore.get_iter(path), 0)
+                    if address in wallet.frozen_addresses:
+                        wallet.unfreeze(address)
+                    else:
+                        wallet.freeze(address)
+                    self.update_receiving_tab()
+            button.connect("clicked", freeze_address, treeview, liststore, self.wallet)
+            button.show()
+            hbox.pack_start(button,False)
+
         if not is_recv:
             button = gtk.Button("Pay to")
             def payto(w, treeview, liststore):
@@ -1113,15 +1133,18 @@ class ElectrumWindow:
         self.recv_list.clear()
         for address in self.wallet.addresses(True):
             Type = "R"
+            c = u = 0
             if self.wallet.is_change(address): Type = "C"
-            if address in self.wallet.imported_keys.keys(): Type = "I"
+            if address in self.wallet.imported_keys.keys():
+                Type = "I"
+            c, u = self.wallet.get_addr_balance(address)
             if address in self.wallet.frozen_addresses: Type = Type + "F"
             if address in self.wallet.prioritized_addresses: Type = Type + "P"
             label = self.wallet.labels.get(address)
             h = self.wallet.history.get(address,[])
             n = len(h)
             tx = "0" if n==0 else "%d"%n
-            self.recv_list.append((address, label, tx, Type ))
+            self.recv_list.append((address, label, tx, format_satoshis(c,False,self.num_zeros), Type ))
 
     def update_sending_tab(self):
         # detect addresses that are not mine in history, add them here...
