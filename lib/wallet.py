@@ -697,13 +697,15 @@ class Wallet:
         
 
     def get_private_key(self, address, password):
+        # first check the provided password
+        seed = self.get_seed(password)
+        
         out = []
         if address in self.imported_keys.keys():
             out.append( pw_decode( self.imported_keys[address], password ) )
         else:
             account, sequence = self.get_address_index(address)
             if account == 0:
-                seed = self.get_seed(password)
                 pk = self.accounts[account].get_private_key(seed, sequence)
                 out.append(pk)
                 return out
