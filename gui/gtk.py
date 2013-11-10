@@ -1060,6 +1060,21 @@ class ElectrumWindow:
         button.show()
         hbox.pack_start(button,False)
 
+        if is_recv:
+            button = gtk.Button("Freeze")
+            def freeze_address(w, treeview, liststore, wallet):
+                path, col = treeview.get_cursor()
+                if path:
+                    address = liststore.get_value( liststore.get_iter(path), 0)
+                    if address in wallet.frozen_addresses:
+                        wallet.unfreeze(address)
+                    else:
+                        wallet.freeze(address)
+                    self.update_receiving_tab()
+            button.connect("clicked", freeze_address, treeview, liststore, self.wallet)
+            button.show()
+            hbox.pack_start(button,False)
+
         if not is_recv:
             button = gtk.Button("Pay to")
             def payto(w, treeview, liststore):
