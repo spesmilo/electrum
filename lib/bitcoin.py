@@ -115,7 +115,7 @@ def hash_160(public_key):
         md = hashlib.new('ripemd160')
         md.update(hashlib.sha256(public_key).digest())
         return md.digest()
-    except:
+    except Exception:
         import ripemd
         md = ripemd.new(hashlib.sha256(public_key).digest())
         return md.digest()
@@ -268,7 +268,7 @@ def is_valid(addr):
     if not ADDRESS_RE.match(addr): return False
     try:
         addrtype, h = bc_address_to_hash_160(addr)
-    except:
+    except Exception:
         return False
     return addr == hash_160_to_bc_address(h, addrtype)
 
@@ -277,7 +277,7 @@ def is_valid(addr):
 
 try:
     from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
-except:
+except Exception:
     print "cannot import ecdsa.curve_secp256k1. You probably need to upgrade ecdsa.\nTry: sudo pip install --upgrade ecdsa"
     exit()
 from ecdsa.curves import SECP256k1
@@ -316,7 +316,7 @@ class EC_KEY(object):
             try:
                 self.verify_message( address, sig, message)
                 return sig
-            except:
+            except Exception:
                 continue
         else:
             raise Exception("error: cannot sign message")

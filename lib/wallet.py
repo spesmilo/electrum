@@ -55,7 +55,7 @@ def pw_decode(s, password):
         secret = Hash(password)
         try:
             d = DecodeAES(secret, s)
-        except:
+        except Exception:
             raise Exception('Invalid password')
         return d
     else:
@@ -117,7 +117,7 @@ class WalletStorage:
             return
         try:
             d = ast.literal_eval( data )  #parse raw data from reading wallet file
-        except:
+        except Exception:
             raise IOError("Cannot read wallet file.")
 
         self.data = d
@@ -192,7 +192,7 @@ class Wallet:
         for k,v in tx_list.items():
             try:
                 tx = Transaction(v)
-            except:
+            except Exception:
                 print_msg("Warning: Cannot deserialize transactions. skipping")
                 continue
 
@@ -256,7 +256,7 @@ class Wallet:
         seed = self.get_seed(password)
         try:
             address = address_from_private_key(sec)
-        except:
+        except Exception:
             raise Exception('Invalid private key')
 
         if self.is_mine(address):
@@ -314,7 +314,7 @@ class Wallet:
             self.seed_version = 4
             self.seed = str(seed)
             return
-        except:
+        except Exception:
             pass
 
         words = seed.split()
@@ -324,7 +324,7 @@ class Wallet:
         #try:
         #    mnemonic.mn_decode(words)
         #    uses_electrum_words = True
-        #except:
+        #except Exception:
         #    uses_electrum_words = False
         #
         #if uses_electrum_words and len(words) != 13:
@@ -608,7 +608,7 @@ class Wallet:
         try:
             K, Kc = get_pubkeys_from_secret(master_k.decode('hex'))
             assert K.encode('hex') == master_K
-        except:
+        except Exception:
             raise Exception("Invalid password")
         return master_k
 

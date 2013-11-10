@@ -306,7 +306,7 @@ class Commands:
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
             try:
                 time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
-            except:
+            except Exception:
                 time_str = "----"
 
             label, is_default_label = self.wallet.get_label(tx_hash)

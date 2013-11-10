@@ -385,7 +385,7 @@ class Network(threading.Thread):
                     if pruning_level == '': pruning_level = '0'
             try: 
                 is_recent = float(version)>=float(PROTOCOL_VERSION)
-            except:
+            except Exception:
                 is_recent = False
 
             if out and is_recent:
