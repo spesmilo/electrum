@@ -889,7 +889,7 @@ class ElectrumWindow(QMainWindow):
 
         try:
             tx = self.wallet.mktx_from_account( [(to_address, amount)], password, fee, self.current_account)
-        except BaseException, e:
+        except Exception as e:
             traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
             return
@@ -1635,7 +1635,7 @@ class ElectrumWindow(QMainWindow):
         if not address: return
         try:
             pk_list = self.wallet.get_private_key(address, password)
-        except BaseException, e:
+        except Exception as e:
             self.show_message(str(e))
             return
         QMessageBox.information(self, _('Private key'), _('Address')+ ': ' + address + '\n\n' + _('Private key') + ': ' + '\n'.join(pk_list), _('OK'))
@@ -1648,7 +1648,7 @@ class ElectrumWindow(QMainWindow):
         try:
             sig = self.wallet.sign_message(str(address.text()), message, password)
             signature.setText(sig)
-        except BaseException, e:
+        except Exception as e:
             self.show_message(str(e))
 
     def sign_message(self, address):
@@ -1840,7 +1840,7 @@ class ElectrumWindow(QMainWindow):
 
         try:
             tx = self.wallet.make_unsigned_transaction(outputs, None, None)
-        except BaseException, e:
+        except Exception as e:
             self.show_message(str(e))
             return
 
@@ -1893,7 +1893,7 @@ class ElectrumWindow(QMainWindow):
             export_error_label = _("Electrum was unable to produce a private key-export.")
             QMessageBox.critical(None, _("Unable to create csv"), export_error_label + "\n" + str(reason))
 
-        except BaseException, e:
+        except Exception as e:
           self.show_message(str(e))
           return
 
@@ -1946,7 +1946,7 @@ class ElectrumWindow(QMainWindow):
         for key in text:
             try:
                 addr = self.wallet.import_key(key, password)
-            except BaseException as e:
+            except Exception as e:
                 badkeys.append(key)
                 continue
             if not addr: 

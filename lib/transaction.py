@@ -298,7 +298,7 @@ def match_decoded(decoded, to_match):
 def get_address_from_input_script(bytes):
     try:
         decoded = [ x for x in script_GetOp(bytes) ]
-    except:
+    except Exception:
         # coinbase transactions raise an exception
         print_error("cannot find address in input script", bytes.encode('hex'))
         return [], [], "(None)"

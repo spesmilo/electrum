@@ -115,7 +115,7 @@ def hash_160(public_key):
         md = hashlib.new('ripemd160')
         md.update(hashlib.sha256(public_key).digest())
         return md.digest()
-    except:
+    except Exception:
         import ripemd
         md = ripemd.new(hashlib.sha256(public_key).digest())
         return md.digest()
@@ -268,7 +268,7 @@ def is_valid(addr):
     if not ADDRESS_RE.match(addr): return False
     try:
         addrtype, h = bc_address_to_hash_160(addr)
-    except:
+    except Exception:
         return False
     return addr == hash_160_to_bc_address(h, addrtype)
 
@@ -277,7 +277,7 @@ def is_valid(addr):
 
 try:
     from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
-except:
+except Exception:
     print "cannot import ecdsa.curve_secp256k1. You probably need to upgrade ecdsa.\nTry: sudo pip install --upgrade ecdsa"
     exit()
 from ecdsa.curves import SECP256k1
@@ -294,7 +294,7 @@ def verify_message(address, signature, message):
     try:
         EC_KEY.verify_message(address, signature, message)
         return True
-    except BaseException as e:
+    except Exception as e:
         print_error("Verification error: {0}".format(e))
         return False
 
@@ -316,10 +316,10 @@ class EC_KEY(object):
             try:
                 self.verify_message( address, sig, message)
                 return sig
-            except:
+            except Exception:
                 continue
         else:
-            raise BaseException("error: cannot sign message")
+            raise Exception("error: cannot sign message")
 
     @classmethod
     def verify_message(self, address, signature, message):
@@ -331,11 +331,11 @@ class EC_KEY(object):
         order = G.order()
         # extract r,s from signature
         sig = base64.b64decode(signature)
-        if len(sig) != 65: raise BaseException("Wrong encoding")
+        if len(sig) != 65: raise Exception("Wrong encoding")
         r,s = util.sigdecode_string(sig[1:], order)
         nV = ord(sig[0])
         if nV < 27 or nV >= 35:
-            raise BaseException("Bad encoding")
+            raise Exception("Bad encoding")
         if nV >= 31:
             compressed = True
             nV -= 4
@@ -364,7 +364,7 @@ class EC_KEY(object):
         # check that we get the original signing address
         addr = public_key_to_bc_address( encode_point(public_key, compressed) )
         if address != addr:
-            raise BaseException("Bad signature")
+            raise Exception("Bad signature")
 
 
 ###################################### BIP32 ##############################

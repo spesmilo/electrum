@@ -750,7 +750,7 @@ class MiniActuator:
 
         try:
             tx = self.g.wallet.mktx([(dest_address, amount)], password, fee)
-        except BaseException as error:
+        except Exception as error:
             QMessageBox.warning(parent_window, _('Error'), str(error), _('OK'))
             return False
 
@@ -778,7 +778,7 @@ class MiniActuator:
                 with open(fileName,'w') as f:
                     f.write(json.dumps(tx.as_dict(),indent=4) + '\n')
                 QMessageBox.information(QWidget(), _('Unsigned transaction created'), _("Unsigned transaction was saved to file:") + " " +fileName, _('OK'))
-            except BaseException as e:
+            except Exception as e:
                 QMessageBox.warning(QWidget(), _('Error'), _('Could not write transaction to file: %s' % e), _('OK'))
         return True
 

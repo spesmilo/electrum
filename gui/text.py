@@ -309,7 +309,7 @@ class ElectrumGui:
 
         try:
             tx = self.wallet.mktx( [(self.str_recipient, amount)], password, fee)
-        except BaseException, e:
+        except Exception as e:
             self.show_message(str(e))
             return
             
