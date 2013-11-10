@@ -5,7 +5,7 @@ from electrum import Network
 
 try:
     addr = sys.argv[1]
-except:
+except Exception:
     print "usage: get_history <bitcoin_address>"
     sys.exit(1)
 

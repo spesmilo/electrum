@@ -42,7 +42,7 @@ class Plugin(BasePlugin):
             if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r):
                 try:
                     to_address = self.get_alias(r, True, self.gui.show_message, self.gui.question)
-                except:
+                except Exception:
                     return
                 if to_address:
                     s = r + '  <' + to_address + '>'
@@ -103,7 +103,7 @@ class Plugin(BasePlugin):
             return ''
         try:
             lines = urllib.urlopen(url).readlines()
-        except:
+        except Exception:
             return ''
 
         # line 0
@@ -147,7 +147,7 @@ class Plugin(BasePlugin):
             try:
                 EC_KEY.verify_message(signing_address, signature, url )
                 self.receipt = (signing_address, signature, url)
-            except:
+            except Exception:
                 show_message('Warning: the URI contains a bad signature.\nThe identity of the recipient cannot be verified.')
                 address = amount = label = identity = message = ''
 

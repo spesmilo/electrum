@@ -7,7 +7,7 @@ import json
 from urlparse import urlparse, parse_qs
 try:
     import PyQt4
-except:
+except Exception:
     sys.exit("Error: Could not import PyQt4 on Linux systems, you may try 'sudo apt-get install python-qt4'")
 
 from PyQt4.QtGui import *

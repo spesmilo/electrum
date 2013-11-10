@@ -345,7 +345,7 @@ def get_history_values(n):
                 time_str = str( dt.time() )
             else:
                 time_str = str( dt.date() )
-        except:
+        except Exception:
             time_str = 'pending'
 
         conf_str = 'v' if conf else 'o'
@@ -600,7 +600,7 @@ def payto_loop():
 
                 try:
                     amount = int( 100000000 * Decimal(amount) )
-                except:
+                except Exception:
                     modal_dialog('Error','Invalid amount')
                     continue
 
@@ -718,7 +718,7 @@ def show_seed():
     
     try:
         seed = wallet.get_seed(password)
-    except:
+    except Exception:
         modal_dialog('error','incorrect password')
         return
 
@@ -734,7 +734,7 @@ def change_password_dialog():
 
     try:
         wallet.get_seed(password)
-    except:
+    except Exception:
         modal_dialog('error','incorrect password')
         return
 
@@ -811,7 +811,7 @@ def settings_loop():
                 if fee:
                     try:
                         fee = int( 100000000 * Decimal(fee) )
-                    except:
+                    except Exception:
                         modal_dialog('error','invalid fee value')
                     wallet.set_fee(fee)
                     set_listview()
@@ -828,7 +828,7 @@ def settings_loop():
                 auto_connect = False
                 try:
                     network.set_parameters(host, port, protocol, proxy, auto_connect)
-                except:
+                except Exception:
                     modal_dialog('error','invalid server')
                 set_listview()
 
@@ -987,7 +987,7 @@ class ElectrumGui:
             m = modal_input('Mnemonic','please enter your code')
             try:
                 seed = mnemonic_decode(m.split(' '))
-            except:
+            except Exception:
                 modal_dialog('error: could not decode this seed')
                 return
 

@@ -34,14 +34,14 @@ class Exchanger(threading.Thread):
         try:
             connection = httplib.HTTPConnection('blockchain.info')
             connection.request("GET", "/ticker")
-        except:
+        except Exception:
             return
         response = connection.getresponse()
         if response.reason == httplib.responses[httplib.NOT_FOUND]:
             return
         try:
             response = json.loads(response.read())
-        except:
+        except Exception:
             return
         quote_currencies = {}
         try:
@@ -122,12 +122,12 @@ class Plugin(BasePlugin):
         def set_currencies(combo):
             try:
                 combo.clear()
-            except:
+            except Exception:
                 return
             combo.addItems(self.currencies)
             try:
                 index = self.currencies.index(self.config.get('currency', "EUR"))
-            except:
+            except Exception:
                 index = 0
             combo.setCurrentIndex(index)
 

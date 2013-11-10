@@ -104,7 +104,7 @@ def process_request(amount, confirmations, expires_in, password):
         amount = float(amount)
         confirmations = int(confirmations)
         expires_in = float(expires_in)
-    except:
+    except Exception:
         return "incorrect parameters"
 
     account = wallet.accounts["m/0'/0"]

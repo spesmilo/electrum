@@ -104,7 +104,7 @@ class ElectrumGui:
             if confirmations:
                 try:
                     time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
-                except:
+                except Exception:
                     time_str = "unknown"
             else:
                 time_str = 'pending'
@@ -175,12 +175,12 @@ class ElectrumGui:
             return
         try:
             amount = int( Decimal( self.str_amount) * 100000000 )
-        except:
+        except Exception:
             print(_('Invalid Amount'))
             return
         try:
             fee = int( Decimal( self.str_fee) * 100000000 )
-        except:
+        except Exception:
             print(_('Invalid Fee'))
             return
 

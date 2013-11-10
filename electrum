@@ -215,7 +215,7 @@ if __name__ == '__main__':
             seed = getpass.getpass(prompt = "seed:", stream = None) if options.concealed else raw_input("seed:")
             try:
                 seed.decode('hex')
-            except:
+            except Exception:
                 print_error("Warning: Not hex, trying decode.")
                 seed = mnemonic_decode( seed.split(' ') )
             if not seed:
@@ -274,7 +274,7 @@ if __name__ == '__main__':
             # check password
             try:
                 seed = wallet.get_seed(password)
-            except:
+            except Exception:
                 print_msg("Error: This password does not decode this wallet.")
                 exit(1)
         else:

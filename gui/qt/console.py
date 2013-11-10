@@ -219,7 +219,7 @@ class Console(QtGui.QPlainTextEdit):
                     exec command in self.namespace
             except SystemExit:
                 self.close()
-            except:
+            except Exception:
                 traceback_lines = traceback.format_exc().split('\n')
                 # Remove traceback mentioning this file, and a linebreak
                 for i in (3,2,1,-1):
