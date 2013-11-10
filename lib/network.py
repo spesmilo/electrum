@@ -7,7 +7,7 @@ from blockchain import Blockchain
 DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
 DEFAULT_SERVERS = {
-    'electrum.coinwallet.me': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    #'electrum.coinwallet.me': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
     'electrum.hachre.de': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
     'electrum.novit.ro': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
     'electrum.stepkrav.pw': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
@@ -16,13 +16,12 @@ DEFAULT_SERVERS = {
     'electrum.drollette.com': {'h': '5000', 's': '50002', 't': '50001', 'g': '8082'},
     'btc.it-zone.org': {'h': '80', 's': '110', 't': '50001', 'g': '443'},
     'btc.medoix.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'spv.nybex.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.pdmc.net': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.stupidfoot.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    #'electrum.pdmc.net': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
     'electrum.be': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'}
 }
 
 
-NUM_SERVERS = 8
 
 
 def filter_protocol(servers, p):
@@ -45,6 +44,7 @@ class Network(threading.Thread):
         self.daemon = True
         self.config = SimpleConfig(config) if type(config) == type({}) else config
         self.lock = threading.Lock()
+        self.num_server = 8 if not self.config.get('oneserver') else 0
         self.blockchain = Blockchain(self.config, self)
         self.interfaces = {}
         self.queue = Queue.Queue()
@@ -154,7 +154,7 @@ class Network(threading.Thread):
         self.start_interface(self.default_server)
         self.interface = self.interfaces[self.default_server]
 
-        for i in range(NUM_SERVERS):
+        for i in range(self.num_server):
             self.start_random_interface()
             
         if not self.interface:
@@ -282,7 +282,7 @@ class Network(threading.Thread):
             try:
                 i = self.queue.get(timeout = 30 if self.interfaces else 3)
             except Queue.Empty:
-                if len(self.interfaces) < NUM_SERVERS:
+                if len(self.interfaces) < self.num_server:
                     self.start_random_interface()
                 continue
 
@@ -385,7 +385,7 @@ class Network(threading.Thread):
                     if pruning_level == '': pruning_level = '0'
             try: 
                 is_recent = float(version)>=float(PROTOCOL_VERSION)
-            except:
+            except Exception:
                 is_recent = False
 
             if out and is_recent:

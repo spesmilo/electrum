@@ -24,7 +24,7 @@ def init_plugins(self):
     for name, p in zip(plugin_names, plugin_modules):
         try:
             plugins.append( p.Plugin(self, name) )
-        except:
+        except Exception:
             print_msg(_("Error: cannot initialize plugin"),p)
             traceback.print_exc(file=sys.stdout)
 
@@ -45,7 +45,7 @@ def run_hook(name, *args):
 
         try:
             f(*args)
-        except:
+        except Exception:
             print_error("Plugin error")
             traceback.print_exc(file=sys.stdout)
             

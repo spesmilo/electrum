@@ -103,7 +103,7 @@ a SimpleConfig instance then reads the wallet file.
             import ast
             try:
                 out = ast.literal_eval(out)
-            except:
+            except Exception:
                 print "type error for '%s': using default value"%key
                 out = default
 
@@ -154,7 +154,7 @@ a SimpleConfig instance then reads the wallet file.
                 return
             try:
                 d = ast.literal_eval( data )  #parse raw data from reading wallet file
-            except:
+            except Exception:
                 raise IOError("Cannot read config file.")
 
             self.user_config = d

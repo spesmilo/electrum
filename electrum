@@ -71,6 +71,7 @@ def arg_parser():
     parser.add_option("-g", "--gui", dest="gui", help="User interface: qt, lite, gtk, text or stdio")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
     parser.add_option("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
+    parser.add_option("-C", "--concealed", action="store_true", dest="concealed", default=False, help="don't echo seed to console when restoring")
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
     parser.add_option("-l", "--labels", action="store_true", dest="show_labels", default=False, help="show the labels of listed addresses")
     parser.add_option("-f", "--fee", dest="tx_fee", default=None, help="set tx fee")
@@ -84,6 +85,7 @@ def arg_parser():
     parser.add_option("-u", "--usb", dest="bitkey", action="store_true", help="Turn on support for hardware wallets (EXPERIMENTAL)")
     parser.add_option("-G", "--gap", dest="gap_limit", default=None, help="gap limit")
     parser.add_option("-W", "--password", dest="password", default=None, help="set password for usage with commands (currently only implemented for create command, do not use it for longrunning gui session since the password is visible in /proc)")
+    parser.add_option("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
     return parser
 
 def print_help(parser):
@@ -102,7 +104,7 @@ def run_command(cmd, password = None, args = []):
     cmd_runner.password = password
     try:
         result = func(*args[1:])
-    except BaseException, e:
+    except Exception as e:
         import traceback
         traceback.print_exc(file=sys.stdout)
         sys.exit(1)
@@ -209,7 +211,8 @@ if __name__ == '__main__':
         if gap: wallet.change_gap_limit(int(gap))
 
         if cmd.name == 'restore':
-            seed = raw_input("seed:")
+            import getpass
+            seed = getpass.getpass(prompt = "seed:", stream = None) if options.concealed else raw_input("seed:")
             try:
                 seed.decode('hex')
             except:

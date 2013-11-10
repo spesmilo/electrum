@@ -138,8 +138,13 @@ class ElectrumWindow(QMainWindow):
 
         self._close_electrum = False
         self.lite = None
-            
-        self.icon = QIcon(':icons/electrum_light_icon.png')
+
+        if sys.platform == 'darwin':
+          self.icon = QIcon(":icons/electrum_dark_icon.png")
+          #self.icon = QIcon(":icons/lock.png")
+        else:
+          self.icon = QIcon(':icons/electrum_light_icon.png')
+
         self.tray = QSystemTrayIcon(self.icon, self)
         self.tray.setToolTip('Electrum')
         self.tray.activated.connect(self.tray_activated)
@@ -889,7 +894,7 @@ class ElectrumWindow(QMainWindow):
 
         try:
             tx = self.wallet.mktx_from_account( [(to_address, amount)], password, fee, self.current_account)
-        except BaseException, e:
+        except Exception as e:
             traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
             return
@@ -1124,8 +1129,9 @@ class ElectrumWindow(QMainWindow):
         menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")) )
         menu.addAction(_("Edit label"), lambda: self.edit_label(True))
-        menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
-        menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
+        if self.wallet.seed:
+            menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
+            menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
         if addr in self.wallet.imported_keys:
             menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
 
@@ -1634,7 +1640,7 @@ class ElectrumWindow(QMainWindow):
         if not address: return
         try:
             pk_list = self.wallet.get_private_key(address, password)
-        except BaseException, e:
+        except Exception as e:
             self.show_message(str(e))
             return
         QMessageBox.information(self, _('Private key'), _('Address')+ ': ' + address + '\n\n' + _('Private key') + ': ' + '\n'.join(pk_list), _('OK'))
@@ -1647,7 +1653,7 @@ class ElectrumWindow(QMainWindow):
         try:
             sig = self.wallet.sign_message(str(address.text()), message, password)
             signature.setText(sig)
-        except BaseException, e:
+        except Exception as e:
             self.show_message(str(e))
 
     def sign_message(self, address):
@@ -1839,7 +1845,7 @@ class ElectrumWindow(QMainWindow):
 
         try:
             tx = self.wallet.make_unsigned_transaction(outputs, None, None)
-        except BaseException, e:
+        except Exception as e:
             self.show_message(str(e))
             return
 
@@ -1892,7 +1898,7 @@ class ElectrumWindow(QMainWindow):
             export_error_label = _("Electrum was unable to produce a private key-export.")
             QMessageBox.critical(None, _("Unable to create csv"), export_error_label + "\n" + str(reason))
 
-        except BaseException, e:
+        except Exception as e:
           self.show_message(str(e))
           return
 
@@ -1945,7 +1951,7 @@ class ElectrumWindow(QMainWindow):
         for key in text:
             try:
                 addr = self.wallet.import_key(key, password)
-            except BaseException as e:
+            except Exception as e:
                 badkeys.append(key)
                 continue
             if not addr: 

@@ -119,7 +119,7 @@ class Blockchain(threading.Thread):
                 assert prev_hash == header.get('prev_block_hash')
                 assert bits == header.get('bits')
                 assert eval('0x'+_hash) < target
-            except:
+            except Exception:
                 return False
 
             prev_header = header
@@ -176,7 +176,7 @@ class Blockchain(threading.Thread):
             assert prev_hash == header.get('prev_block_hash')
             assert bits == header.get('bits')
             assert eval('0x'+_hash) < target
-        except:
+        except Exception:
             # this can be caused by a reorg.
             print_error("verify header failed"+ repr(header))
             verifier.undo_verifications()
@@ -227,7 +227,7 @@ class Blockchain(threading.Thread):
             print_error("downloading ", self.headers_url )
             urllib.urlretrieve(self.headers_url, filename)
             print_error("done.")
-        except:
+        except Exception:
             print_error( "download failed. creating file", filename )
             open(filename,'wb+').close()
 
@@ -411,7 +411,7 @@ class Blockchain(threading.Thread):
             index = params[0]
             try:
                 self.verify_chunk(index, result)
-            except:
+            except Exception:
                 print_error('Verify chunk failed!!')
                 return False
             requested_chunks.remove(index)

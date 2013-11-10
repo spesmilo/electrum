@@ -110,7 +110,7 @@ class Plugin(BasePlugin):
 
         try:
             tx = self.gui.main_window.wallet.mktx( [(to_address, amount)], None, fee)
-        except BaseException, e:
+        except Exception as e:
             self.gui.main_window.show_message(str(e))
             return
 
@@ -126,13 +126,13 @@ class Plugin(BasePlugin):
     
             input_info = []
 
-        except BaseException, e:
+        except Exception as e:
             self.gui.main_window.show_message(str(e))
 
         try:
             json_text = json.dumps(tx.as_dict()).replace(' ', '')
             self.show_tx_qrcode(json_text, 'Unsigned Transaction')
-        except BaseException, e:
+        except Exception as e:
             self.gui.main_window.show_message(str(e))
 
     def show_tx_qrcode(self, data, title):
@@ -235,7 +235,7 @@ class Plugin(BasePlugin):
             self.gui.main_window.wallet.signrawtransaction(tx, input_info, [], password)
             txtext = json.dumps(tx.as_dict()).replace(' ', '')
             self.show_tx_qrcode(txtext, 'Signed Transaction')
-        except BaseException, e:
+        except Exception as e:
             self.gui.main_window.show_message(str(e))
 
 

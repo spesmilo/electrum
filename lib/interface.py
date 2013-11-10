@@ -49,7 +49,7 @@ def check_cert(host, cert):
 def cert_has_expired(cert_path):
     try:
         import OpenSSL
-    except:
+    except Exception:
         print_error("Warning: cannot import OpenSSL")
         return False
     from OpenSSL import crypto as c
@@ -112,12 +112,12 @@ class Interface(threading.Thread):
         try:
             host, port, protocol = self.server.split(':')
             port = int(port)
-        except:
+        except Exception:
             self.server = None
             return
 
         if protocol not in 'ghst':
-            raise BaseException('Unknown protocol: %s'%protocol)
+            raise Exception('Unknown protocol: %s'%protocol)
 
         self.host = host
         self.port = port
@@ -196,7 +196,7 @@ class Interface(threading.Thread):
         self.connection_msg = ('https' if self.use_ssl else 'http') + '://%s:%d'%( self.host, self.port )
         try:
             self.poll()
-        except:
+        except Exception:
             print_error("http init session failed")
             self.is_connected = False
             return
@@ -218,7 +218,7 @@ class Interface(threading.Thread):
                 break
             except socket.error:
                 break
-            except:
+            except Exception:
                 traceback.print_exc(file=sys.stdout)
                 break
             
@@ -265,7 +265,7 @@ class Interface(threading.Thread):
         try:
             req = urllib2.Request(self.connection_msg, data_json, headers)
             response_stream = urllib2.urlopen(req, timeout=DEFAULT_TIMEOUT)
-        except:
+        except Exception:
             return
 
         for index, cookie in enumerate(cj):
@@ -318,7 +318,7 @@ class Interface(threading.Thread):
                 s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
                 try:
                     s.connect((self.host, self.port))
-                except:
+                except Exception:
                     # print_error("failed to connect", self.host, self.port)
                     return
 
@@ -346,7 +346,7 @@ class Interface(threading.Thread):
 
         try:
             s.connect(( self.host.encode('ascii'), int(self.port)))
-        except:
+        except Exception:
             print_error("failed to connect", self.host, self.port)
             return
 
@@ -370,7 +370,7 @@ class Interface(threading.Thread):
                     else:
                         print_msg("wrong certificate", self.host)
                 return
-            except:
+            except Exception:
                 print_error("wrap_socket failed", self.host)
                 traceback.print_exc(file=sys.stdout)
                 return
@@ -424,7 +424,7 @@ class Interface(threading.Thread):
                     c = json.loads(c)
                     self.queue_json_response(c)
 
-        except:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
 
         self.is_connected = False
