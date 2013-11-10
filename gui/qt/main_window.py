@@ -690,7 +690,7 @@ class ElectrumWindow(QMainWindow):
             if conf > 0:
                 try:
                     time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
-                except:
+                except Exception:
                     time_str = _("error")
 
             if conf == -1:
@@ -872,12 +872,12 @@ class ElectrumWindow(QMainWindow):
 
         try:
             amount = self.read_amount(unicode( self.amount_e.text()))
-        except:
+        except Exception:
             QMessageBox.warning(self, _('Error'), _('Invalid Amount'), _('OK'))
             return
         try:
             fee = self.read_amount(unicode( self.fee_e.text()))
-        except:
+        except Exception:
             QMessageBox.warning(self, _('Error'), _('Invalid Fee'), _('OK'))
             return
 
@@ -923,7 +923,7 @@ class ElectrumWindow(QMainWindow):
                 with open(fileName,'w') as f:
                     f.write(json.dumps(tx.as_dict(),indent=4) + '\n')
                 QMessageBox.information(self, _('Unsigned transaction created'), _("Unsigned transaction was saved to file:") + " " +fileName, _('OK'))
-            except:
+            except Exception:
                 QMessageBox.warning(self, _('Error'), _('Could not write transaction to file'), _('OK'))
 
         # add recipient to addressbook
@@ -1559,7 +1559,7 @@ class ElectrumWindow(QMainWindow):
         if self.wallet.seed:
             try:
                 mnemonic = self.wallet.get_mnemonic(password)
-            except:
+            except Exception:
                 QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
                 return
             from seed_dialog import SeedDialog
@@ -1781,7 +1781,7 @@ class ElectrumWindow(QMainWindow):
             txt.decode('hex')
             tx = Transaction(txt)
             return tx
-        except:
+        except Exception:
             pass
 
         try:
@@ -1794,7 +1794,7 @@ class ElectrumWindow(QMainWindow):
                 input_info = json.loads(tx_dict['input_info'])
                 tx.add_input_info(input_info)
             return tx
-        except:
+        except Exception:
             pass
         
         QMessageBox.critical(None, _("Unable to parse transaction"), _("Electrum was unable to parse your transaction"))
@@ -1991,7 +1991,7 @@ class ElectrumWindow(QMainWindow):
         lang_combo.addItems(languages.values())
         try:
             index = languages.keys().index(self.config.get("language",''))
-        except:
+        except Exception:
             index = 0
         lang_combo.setCurrentIndex(index)
         grid.addWidget(lang_combo, 1, 1)
@@ -2040,7 +2040,7 @@ class ElectrumWindow(QMainWindow):
         fee = unicode(fee_e.text())
         try:
             fee = self.read_amount(fee)
-        except:
+        except Exception:
             QMessageBox.warning(self, _('Error'), _('Invalid value') +': %s'%fee, _('OK'))
             return
 
@@ -2050,7 +2050,7 @@ class ElectrumWindow(QMainWindow):
         try:
             nz = int( nz )
             if nz>8: nz=8
-        except:
+        except Exception:
             QMessageBox.warning(self, _('Error'), _('Invalid value')+':%s'%nz, _('OK'))
             return
 
@@ -2146,7 +2146,7 @@ class ElectrumWindow(QMainWindow):
                     w = None
                 cb.clicked.connect(mk_toggle(cb,p,w))
                 grid.addWidget(HelpButton(p.description()), i, 2)
-            except:
+            except Exception:
                 print_msg(_("Error: cannot display plugin"), p)
                 traceback.print_exc(file=sys.stdout)
         grid.setRowStretch(i+1,1)

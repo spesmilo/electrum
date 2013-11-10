@@ -4,7 +4,7 @@ import sys, time, electrum
 
 try:
     addr = sys.argv[1]
-except:
+except Exception:
     print "usage: watch_address <bitcoin_address>"
     sys.exit(1)
 

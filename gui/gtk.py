@@ -51,12 +51,12 @@ def numbify(entry, is_int = False):
             s = s[:p] + '.' + s[p:p+8]
         try:
             amount = int( Decimal(s) * 100000000 )
-        except:
+        except Exception:
             amount = None
     else:
         try:
             amount = int( s )
-        except:
+        except Exception:
             amount = None
     entry.set_text(s)
     return amount
@@ -70,7 +70,7 @@ def show_seed_dialog(wallet, password, parent):
         return
     try:
         seed = wallet.get_seed(password)
-    except:
+    except Exception:
         show_message("Incorrect password")
         return
     dialog = gtk.MessageDialog(
@@ -140,7 +140,7 @@ def run_recovery_dialog():
 
     try:
         seed.decode('hex')
-    except:
+    except Exception:
         print_error("Warning: Not hex, trying decode")
         seed = mnemonic.mn_decode( seed.split(' ') )
     if not seed:
@@ -209,7 +209,7 @@ def run_settings_dialog(self):
 
     try:
         fee = int( 100000000 * Decimal(fee) )
-    except:
+    except Exception:
         show_message("error")
         return
     self.wallet.set_fee(fee)
@@ -217,7 +217,7 @@ def run_settings_dialog(self):
     try:
         nz = int( nz )
         if nz>8: nz = 8
-    except:
+    except Exception:
         show_message("error")
         return
 
@@ -359,7 +359,7 @@ def run_network_dialog( network, parent ):
         proxy = network.config.get('proxy')
         auto_connect = network.config.get('auto_cycle')
         network.set_parameters(host, port, protocol, proxy, auto_connect)
-    except:
+    except Exception:
         show_message("error:" + server)
         return False
 
@@ -441,7 +441,7 @@ def change_password_dialog(wallet, parent, icon):
 
     try:
         wallet.get_seed(password)
-    except:
+    except Exception:
         show_message("Incorrect password")
         return
 
@@ -591,7 +591,7 @@ class ElectrumWindow:
                     if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r):
                         try:
                             to_address = self.wallet.get_alias(r, interactive=False)
-                        except:
+                        except Exception:
                             continue
                         if to_address:
                             s = r + ' <' + to_address + '>'
@@ -789,12 +789,12 @@ class ElectrumWindow:
 
         try:
             amount = int( Decimal(amount_entry.get_text()) * 100000000 )
-        except:
+        except Exception:
             self.show_message( "invalid amount")
             return
         try:
             fee = int( Decimal(fee_entry.get_text()) * 100000000 )
-        except:
+        except Exception:
             self.show_message( "invalid fee")
             return
 
@@ -1168,7 +1168,7 @@ class ElectrumWindow:
             if conf > 0:
                 try:
                     time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
-                except:
+                except Exception:
                     time_str = "------"
                 conf_icon = gtk.STOCK_APPLY
             elif conf == -1:
