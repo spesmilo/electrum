@@ -49,7 +49,7 @@ def user_dir():
     elif 'ANDROID_DATA' in os.environ:
         return "/sdcard/electrum/"
     else:
-        #raise BaseException("No home directory found in environment variables.")
+        #raise Exception("No home directory found in environment variables.")
         return 
 
 def appdata_dir():

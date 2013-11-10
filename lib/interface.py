@@ -117,7 +117,7 @@ class Interface(threading.Thread):
             return
 
         if protocol not in 'ghst':
-            raise BaseException('Unknown protocol: %s'%protocol)
+            raise Exception('Unknown protocol: %s'%protocol)
 
         self.host = host
         self.port = port

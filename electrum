@@ -103,7 +103,7 @@ def run_command(cmd, password = None, args = []):
     cmd_runner.password = password
     try:
         result = func(*args[1:])
-    except BaseException, e:
+    except Exception as e:
         import traceback
         traceback.print_exc(file=sys.stdout)
         sys.exit(1)

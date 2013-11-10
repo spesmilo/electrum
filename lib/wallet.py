@@ -56,7 +56,7 @@ def pw_decode(s, password):
         try:
             d = DecodeAES(secret, s)
         except:
-            raise BaseException('Invalid password')
+            raise Exception('Invalid password')
         return d
     else:
         return s
@@ -257,10 +257,10 @@ class Wallet:
         try:
             address = address_from_private_key(sec)
         except:
-            raise BaseException('Invalid private key')
+            raise Exception('Invalid private key')
 
         if self.is_mine(address):
-            raise BaseException('Address already in wallet')
+            raise Exception('Address already in wallet')
         
         # store the originally requested keypair into the imported keys table
         self.imported_keys[address] = pw_encode(sec, password )
@@ -296,7 +296,7 @@ class Wallet:
         import mnemonic
         
         if self.seed: 
-            raise BaseException("a seed exists")
+            raise Exception("a seed exists")
 
         if not seed:
             self.seed = random_seed(128)
@@ -438,7 +438,7 @@ class Wallet:
         elif account_type == '2of3':
             return "m/3'/%d & m/4'/%d & m/5'/%d"%(i,i,i)
         else:
-            raise BaseException('unknown account type')
+            raise Exception('unknown account type')
 
 
     def num_accounts(self, account_type):
@@ -609,7 +609,7 @@ class Wallet:
             K, Kc = get_pubkeys_from_secret(master_k.decode('hex'))
             assert K.encode('hex') == master_K
         except:
-            raise BaseException("Invalid password")
+            raise Exception("Invalid password")
         return master_k
 
 
@@ -628,7 +628,7 @@ class Wallet:
             if v == address:
                 return k, (0,0)
 
-        raise BaseException("Address not found", address)
+        raise Exception("Address not found", address)
 
 
     def get_roots(self, account):
@@ -1110,7 +1110,7 @@ class Wallet:
             if h == ['*']: continue
             for tx_hash, tx_height in h:
                 tx = self.transactions.get(tx_hash)
-                if tx is None: raise BaseException("Wallet not synchronized")
+                if tx is None: raise Exception("Wallet not synchronized")
                 is_coinbase = tx.inputs[0].get('prevout_hash') == '0'*64
                 for output in tx.d.get('outputs'):
                     if output.get('address') != addr: continue
@@ -1245,7 +1245,7 @@ class Wallet:
     def receive_history_callback(self, addr, hist):
 
         if not self.check_new_history(addr, hist):
-            raise BaseException("error: received history for %s is not consistent with known transactions"%addr)
+            raise Exception("error: received history for %s is not consistent with known transactions"%addr)
             
         with self.lock:
             self.history[addr] = hist
@@ -1754,12 +1754,12 @@ class WalletSynchronizer(threading.Thread):
                             hist.append( (tx_hash, item['height']) )
 
                     if len(hist) != len(result):
-                        raise BaseException("error: server sent history with non-unique txid", result)
+                        raise Exception("error: server sent history with non-unique txid", result)
 
                     # check that the status corresponds to what was announced
                     rs = requested_histories.pop(addr)
                     if self.wallet.get_status(hist) != rs:
-                        raise BaseException("error: status mismatch: %s"%addr)
+                        raise Exception("error: status mismatch: %s"%addr)
                 
                     # store received history
                     self.wallet.receive_history_callback(addr, hist)

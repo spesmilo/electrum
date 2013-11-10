@@ -807,7 +807,7 @@ class ElectrumWindow:
 
         try:
             tx = self.wallet.mktx( [(to_address, amount)], password, fee )
-        except BaseException, e:
+        except Exception as e:
             self.show_message(str(e))
             return
 

@@ -52,7 +52,7 @@ class Plugin(BasePlugin):
     def get_alias(self, alias, interactive = False, show_message=None, question = None):
         try:
             target, signing_address, auth_name = read_alias(self, alias)
-        except BaseException, e:
+        except Exception as e:
             # raise exception if verify fails (verify the chain)
             if interactive:
                 show_message("Alias error: " + str(e))

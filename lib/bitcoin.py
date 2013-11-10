@@ -294,7 +294,7 @@ def verify_message(address, signature, message):
     try:
         EC_KEY.verify_message(address, signature, message)
         return True
-    except BaseException as e:
+    except Exception as e:
         print_error("Verification error: {0}".format(e))
         return False
 
@@ -319,7 +319,7 @@ class EC_KEY(object):
             except:
                 continue
         else:
-            raise BaseException("error: cannot sign message")
+            raise Exception("error: cannot sign message")
 
     @classmethod
     def verify_message(self, address, signature, message):
@@ -331,11 +331,11 @@ class EC_KEY(object):
         order = G.order()
         # extract r,s from signature
         sig = base64.b64decode(signature)
-        if len(sig) != 65: raise BaseException("Wrong encoding")
+        if len(sig) != 65: raise Exception("Wrong encoding")
         r,s = util.sigdecode_string(sig[1:], order)
         nV = ord(sig[0])
         if nV < 27 or nV >= 35:
-            raise BaseException("Bad encoding")
+            raise Exception("Bad encoding")
         if nV >= 31:
             compressed = True
             nV -= 4
@@ -364,7 +364,7 @@ class EC_KEY(object):
         # check that we get the original signing address
         addr = public_key_to_bc_address( encode_point(public_key, compressed) )
         if address != addr:
-            raise BaseException("Bad signature")
+            raise Exception("Bad signature")
 
 
 ###################################### BIP32 ##############################

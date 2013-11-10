@@ -109,7 +109,7 @@ class OldAccount(Account):
         master_public_key = master_private_key.get_verifying_key().to_string()
         if master_public_key != self.mpk:
             print_error('invalid password (mpk)')
-            raise BaseException('Invalid password')
+            raise Exception('Invalid password')
         return True
 
     def redeem_script(self, sequence):

@@ -228,7 +228,7 @@ class Commands:
         try:
             addr = self.wallet.import_key(sec,self.password)
             out = "Keypair imported: ", addr
-        except BaseException as e:
+        except Exception as e:
             out = "Error: Keypair import failed: " + str(e)
         return out
 
@@ -245,19 +245,19 @@ class Commands:
 
         for to_address, amount in outputs:
             if not is_valid(to_address):
-                raise BaseException("Invalid Bitcoin address", to_address)
+                raise Exception("Invalid Bitcoin address", to_address)
 
         if change_addr:
             if not is_valid(change_addr):
-                raise BaseException("Invalid Bitcoin address", change_addr)
+                raise Exception("Invalid Bitcoin address", change_addr)
 
         if domain is not None:
             for addr in domain:
                 if not is_valid(addr):
-                    raise BaseException("invalid Bitcoin address", addr)
+                    raise Exception("invalid Bitcoin address", addr)
             
                 if not self.wallet.is_mine(addr):
-                    raise BaseException("address not in wallet", addr)
+                    raise Exception("address not in wallet", addr)
 
         for k, v in self.wallet.labels.items():
             if change_addr and v == change_addr:
