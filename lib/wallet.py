@@ -1408,8 +1408,7 @@ class Wallet:
 
     def update_password(self, old_password, new_password):
         if new_password == '': new_password = None
-        # this will throw an exception if unicode cannot be converted
-        decoded = pw_decode(self.seed, old_password)
+        decoded = self.get_seed(old_password)
         self.seed = pw_encode( decoded, new_password)
         self.storage.put('seed', self.seed, True)
         self.use_encryption = (new_password != None)
