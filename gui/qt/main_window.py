@@ -138,8 +138,13 @@ class ElectrumWindow(QMainWindow):
 
         self._close_electrum = False
         self.lite = None
-            
-        self.icon = QIcon(':icons/electrum_light_icon.png')
+
+        if sys.platform == 'darwin':
+          self.icon = QIcon(":icons/electrum_dark_icon.png")
+          #self.icon = QIcon(":icons/lock.png")
+        else:
+          self.icon = QIcon(':icons/electrum_light_icon.png')
+
         self.tray = QSystemTrayIcon(self.icon, self)
         self.tray.setToolTip('Electrum')
         self.tray.activated.connect(self.tray_activated)
