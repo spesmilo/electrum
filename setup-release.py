@@ -23,8 +23,18 @@ if sys.version_info[:3] < (2,6,0):
 
 if sys.platform == 'darwin':
     from plistlib import Plist
-    plist = Plist.fromFile('Info.plist')
-    plist.update(dict(CFBundleIconFile='electrum.icns')) 
+    #plist = Plist.fromFile('Info.plist')
+    plist.update(dict(
+        CFBundleIconFile='electrum.icns',
+        CFBundleName='Electrum',
+        CFBundlrURLTypes=[
+            dict(
+                CFBundleURLName='bitcoin',
+                CFBundlrURLSchemes=['bitcoin'],
+            )
+        ]
+        ),
+    ) 
     shutil.copy(mainscript, mainscript + '.py')
     mainscript += '.py'
     extra_options = dict(
