@@ -33,7 +33,6 @@ class TxVerifier(threading.Thread):
         self.storage = storage
         self.network = network
         self.blockchain = network.blockchain
-        self.interface = network.interface
         self.transactions    = {}                                 # requested verifications (with height sent by the requestor)
         self.verified_tx     = storage.get('verified_tx3',{})      # height, timestamp of verified transactions
         self.merkle_roots    = storage.get('merkle_roots',{})      # hashed by me
@@ -106,8 +105,8 @@ class TxVerifier(threading.Thread):
                 if tx_hash not in self.verified_tx:
                     if self.merkle_roots.get(tx_hash) is None and tx_hash not in requested_merkle:
                         print_error('requesting merkle', tx_hash)
-                        self.interface.send([ ('blockchain.transaction.get_merkle',[tx_hash, tx_height]) ], lambda i,r: self.queue.put(r))
-                        requested_merkle.append(tx_hash)
+                        if self.network.send([ ('blockchain.transaction.get_merkle',[tx_hash, tx_height]) ], lambda i,r: self.queue.put(r)):
+                            requested_merkle.append(tx_hash)
 
             try:
                 r = self.queue.get(timeout=1)

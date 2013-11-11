@@ -97,6 +97,14 @@ class Network(threading.Thread):
             self.interface.send( messages, callback )
 
 
+    def send(self, messages, callback):
+        if self.interface and self.interface.is_connected:
+            self.interface.send( messages, callback )
+            return True
+        else:
+            return False
+
+
     def register_callback(self, event, callback):
         with self.lock:
             if not self.callbacks.get(event):
