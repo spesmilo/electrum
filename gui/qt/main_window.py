@@ -289,16 +289,9 @@ class ElectrumWindow(QMainWindow):
         run_hook('load_wallet', wallet)
 
 
-    def select_wallet_file(self):
-        wallet_folder = self.wallet.storage.path
-        re.sub("(\/\w*.dat)$", "", wallet_folder)
-        file_name = unicode( QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder) )
-        return file_name
-
-
     def open_wallet(self):
-
-        filename = self.select_wallet_file()
+        wallet_folder = self.wallet.storage.path
+        filename = unicode( QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder) )
         if not filename:
             return
 
@@ -321,12 +314,11 @@ class ElectrumWindow(QMainWindow):
         import shutil
         path = self.wallet.storage.path
         wallet_folder = os.path.dirname(path)
-        new_filename, ok = QInputDialog.getText(self, _('Filename'), _('Current directory') + ': ' + wallet_folder + '\n' + _('Enter a filename for the copy of your wallet') + ':')
-        new_filename = unicode(new_filename)
-        if not ok or not new_filename:
+        filename = unicode( QFileDialog.getSaveFileName(self, _('Enter a filename for the copy of your wallet'), wallet_folder) )
+        if not filename:
             return
 
-        new_path = os.path.join(wallet_folder, new_filename)
+        new_path = os.path.join(wallet_folder, filename)
         if new_path != path:
             try:
                 shutil.copy2(path, new_path)
@@ -339,9 +331,8 @@ class ElectrumWindow(QMainWindow):
         import installwizard
 
         wallet_folder = os.path.dirname(self.wallet.storage.path)
-        filename, ok = QInputDialog.getText(self, _('Filename'), _('Current directory') + ': ' + wallet_folder + '\n'+_('Enter a new file name') + ':')
-        filename = unicode(filename)
-        if not ok or not filename:
+        filename = unicode( QFileDialog.getSaveFileName(self, _('Enter a new file name'), wallet_folder) )
+        if not filename:
             return
         filename = os.path.join(wallet_folder, filename)
 
