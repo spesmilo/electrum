@@ -337,7 +337,9 @@ class ElectrumWindow(QMainWindow):
         filename = os.path.join(wallet_folder, filename)
 
         storage = WalletStorage({'wallet_path': filename})
-        assert not storage.file_exists
+        if storage.file_exists:
+            QMessageBox.critical(None, "Error", _("File exists"))
+            return
 
         wizard = installwizard.InstallWizard(self.config, self.network, storage)
         wallet = wizard.run()
