@@ -1114,7 +1114,8 @@ class Wallet:
                 tx = self.transactions.get(tx_hash)
                 if tx is None: raise Exception("Wallet not synchronized")
                 is_coinbase = tx.inputs[0].get('prevout_hash') == '0'*64
-                for output in tx.d.get('outputs'):
+                for o in tx.d.get('outputs'):
+                    output = o.copy()
                     if output.get('address') != addr: continue
                     key = tx_hash + ":%d" % output.get('prevout_n')
                     if key in self.spent_outputs: continue
