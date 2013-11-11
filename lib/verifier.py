@@ -104,8 +104,8 @@ class TxVerifier(threading.Thread):
             for tx_hash, tx_height in self.transactions.items():
                 if tx_hash not in self.verified_tx:
                     if self.merkle_roots.get(tx_hash) is None and tx_hash not in requested_merkle:
-                        print_error('requesting merkle', tx_hash)
                         if self.network.send([ ('blockchain.transaction.get_merkle',[tx_hash, tx_height]) ], lambda i,r: self.queue.put(r)):
+                            print_error('requesting merkle', tx_hash)
                             requested_merkle.append(tx_hash)
 
             try:
