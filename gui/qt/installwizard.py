@@ -271,7 +271,6 @@ class InstallWizard(QDialog):
             if self.verify_seed(wallet):
                 def create():
                     wallet.save_seed()
-                    wallet.create_accounts()
                     wallet.synchronize()  # generate first addresses offline
                 self.waiting_dialog(create)
             else:
@@ -299,7 +298,6 @@ class InstallWizard(QDialog):
                 return
             wallet.seed = ''
             wallet.create_watching_only_wallet(mpk)
-
 
         else: raise
                 

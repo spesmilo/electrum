@@ -904,7 +904,6 @@ class ElectrumGui:
                 wallet.init_seed(None)
                 self.show_seed()
                 wallet.save_seed()
-                wallet.create_accounts()
                 wallet.synchronize()  # generate first addresses offline
                 
             elif action == 'restore':

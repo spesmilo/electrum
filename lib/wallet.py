@@ -310,7 +310,7 @@ class Wallet:
 
         # find out what kind of wallet we are
         try:
-            seed.decode('hex')
+            seed.strip().decode('hex')
             self.seed_version = 4
             self.seed = str(seed)
             return
@@ -339,6 +339,8 @@ class Wallet:
     def save_seed(self):
         self.storage.put('seed', self.seed, True)
         self.storage.put('seed_version', self.seed_version, True)
+        self.create_accounts()
+
 
     def create_watching_only_wallet(self, params):
         K0, c0 = params
@@ -1608,10 +1610,6 @@ class Wallet:
         # wait until we are connected, because the user might have selected another server
         if self.network:
             wait_for_network()
-
-        self.create_accounts()
-
-        if self.network:
             wait_for_wallet()
         else:
             self.synchronize()

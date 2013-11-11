@@ -236,14 +236,12 @@ if __name__ == '__main__':
                 else:
                     print_msg("Warning: Found no history for this wallet")
             else:
-                wallet.create_accounts()
                 wallet.synchronize()
                 print_msg("Warning: This wallet was restored offline. It may contain more addresses than displayed.")
 
         else:
             wallet.init_seed(None)
             wallet.save_seed()
-            wallet.create_accounts()
             wallet.synchronize()
             print_msg("Your wallet generation seed is:\n\"%s\""% wallet.get_mnemonic(None))
             print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
