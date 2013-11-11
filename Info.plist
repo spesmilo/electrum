@@ -13,6 +13,10 @@
       </array>
     </dict>
   </array>
+<key>NSAppleScriptEnabled</key>
+ <true/>
+ <key>NSPrincipalClass</key>
+ <string>NSApplication</string>
   <key>LSArchitecturePriority</key>
   <array>
     <string>i386</string>
