@@ -362,7 +362,10 @@ class Interface(threading.Thread):
                 if e.errno != 1:
                     return
                 if is_new:
-                    os.rename(temporary_path, cert_path + '.rej')
+                    rej = cert_path + '.rej'
+                    if os.path.exists(rej):
+                        os.unlink(rej)
+                    os.rename(temporary_path, rej)
                 else:
                     if cert_has_expired(cert_path):
                         print_error("certificate has expired:", cert_path)
