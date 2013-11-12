@@ -938,6 +938,7 @@ class ElectrumWindow(QMainWindow):
 
         try:
             if amount and self.base_unit() == 'mBTC': amount = str( 1000* Decimal(amount))
+            elif amount: amount = str(Decimal(amount))
         except Exception:
             amount = "0.0"
             QMessageBox.warning(self, _('Error'), _('Invalid Amount'), _('OK'))
