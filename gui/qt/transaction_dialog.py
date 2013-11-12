@@ -106,7 +106,8 @@ class TxDialog(QDialog):
 
 
     def save(self):
-        fileName = self.parent.getSaveFileName(_("Select where to save your signed transaction"), 'signed_%s.txn' % (self.tx.hash()[0:8]), "*.txn")
+        name = 'signed_%s.txn' % (self.tx.hash()[0:8]) if self.tx.is_complete else 'unsigned.txn'
+        fileName = self.parent.getSaveFileName(_("Select where to save your signed transaction"), name, "*.txn")
         if fileName:
             with open(fileName, "w+") as f:
                 f.write(json.dumps(self.tx.as_dict(),indent=4) + '\n')
@@ -115,13 +116,13 @@ class TxDialog(QDialog):
 
 
     def update(self):
-        tx_hash = self.tx.hash()
 
         is_relevant, is_mine, v, fee = self.wallet.get_tx_value(self.tx)
 
         if self.tx.is_complete:
             status = _("Status: Signed")
             self.sign_button.hide()
+            tx_hash = self.tx.hash()
 
             if tx_hash in self.wallet.transactions.keys():
                 conf, timestamp = self.wallet.verifier.get_confirmations(tx_hash)
@@ -138,8 +139,12 @@ class TxDialog(QDialog):
         else:
             status = _("Status: Unsigned")
             time_str = None
-            self.sign_button.show()
+            if not self.wallet.is_watching_only():
+                self.sign_button.show()
+            else:
+                self.sign_button.hide()
             self.broadcast_button.hide()
+            tx_hash = 'unknown'
 
         self.tx_hash_e.setText(tx_hash)
         self.status_label.setText(status)

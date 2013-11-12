@@ -677,7 +677,7 @@ class Transaction:
                 'redeemScript':i.get('redeemScript'),
                 'redeemPubkey':i.get('redeemPubkey'),
                 'pubkeys':i.get('pubkeys'),
-                'signatures':i.get('signatures'),
+                'signatures':i.get('signatures',[]),
                 }
             info.append(item)
         return info

@@ -699,6 +699,9 @@ class Wallet:
         
 
     def get_private_key(self, address, password):
+        if self.is_watching_only():
+            return []
+
         # first check the provided password
         seed = self.get_seed(password)
         
