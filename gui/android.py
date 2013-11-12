@@ -87,7 +87,7 @@ def select_from_contacts():
     for i in range(len(wallet.addressbook)):
         addr = wallet.addressbook[i]
         label = wallet.labels.get(addr,addr)
-        l.append( label )
+        l.append(label)
     droid.dialogSetItems(l)
     droid.dialogSetPositiveButtonText('New contact')
     droid.dialogShow()
@@ -111,7 +111,7 @@ def select_from_addresses():
     for i in range(len(addresses)):
         addr = addresses[i]
         label = wallet.labels.get(addr,addr)
-        l.append( label )
+        l.append(label)
     droid.dialogSetItems(l)
     droid.dialogShow()
     response = droid.dialogGetResponse()
@@ -340,17 +340,17 @@ def get_history_values(n):
     for i in range(length):
         tx_hash, conf, is_mine, value, fee, balance, timestamp = h[-i-1]
         try:
-            dt = datetime.datetime.fromtimestamp( timestamp )
+            dt = datetime.datetime.fromtimestamp(timestamp)
             if dt.date() == dt.today().date():
-                time_str = str( dt.time() )
+                time_str = str(dt.time())
             else:
-                time_str = str( dt.date() )
+                time_str = str(dt.date())
         except Exception:
             time_str = 'pending'
 
         conf_str = 'v' if conf else 'o'
         label, is_default_label = wallet.get_label(tx_hash)
-        values.append((conf_str, '  ' + time_str, '  ' + format_satoshis(value,True), '  ' + label ))
+        values.append((conf_str, '  ' + time_str, '  ' + format_satoshis(value,True), '  ' + label))
 
     return values
 
@@ -457,7 +457,7 @@ def pay_to(recipient, amount, fee, label):
     droid.dialogShow()
 
     try:
-        tx = wallet.mktx( [(recipient, amount)], password, fee)
+        tx = wallet.mktx([(recipient, amount)], password, fee)
     except Exception as e:
         modal_dialog('error', e.message)
         droid.dialogDismiss()
@@ -468,7 +468,7 @@ def pay_to(recipient, amount, fee, label):
 
     droid.dialogDismiss()
 
-    r, h = wallet.sendtx( tx )
+    r, h = wallet.sendtx(tx)
     if r:
         modal_dialog('Payment sent', h)
         return True
@@ -599,7 +599,7 @@ def payto_loop():
                     continue
 
                 try:
-                    amount = int( 100000000 * Decimal(amount) )
+                    amount = int(100000000 * Decimal(amount))
                 except Exception:
                     modal_dialog('Error','Invalid amount')
                     continue
@@ -693,7 +693,7 @@ def contacts_loop():
 
 def server_dialog(servers):
     droid.dialogCreateAlert("Public servers")
-    droid.dialogSetItems( servers.keys() )
+    droid.dialogSetItems(servers.keys())
     droid.dialogSetPositiveButtonText('Private server')
     droid.dialogShow()
     response = droid.dialogGetResponse().result
@@ -723,7 +723,7 @@ def show_seed():
         return
 
     modal_dialog('Your seed is',seed)
-    modal_dialog('Mnemonic code:', ' '.join(mnemonic_encode(seed)) )
+    modal_dialog('Mnemonic code:', ' '.join(mnemonic_encode(seed)))
 
 def change_password_dialog():
     if wallet.use_encryption:
@@ -761,7 +761,7 @@ def settings_loop():
 
     def set_listview():
         host, port, p = network.default_server.split(':')
-        fee = str( Decimal( wallet.fee)/100000000 )
+        fee = str(Decimal(wallet.fee)/100000000)
         is_encrypted = 'yes' if wallet.use_encryption else 'no'
         protocol = protocol_name(p)
         droid.fullShow(settings_layout)
@@ -807,10 +807,10 @@ def settings_loop():
                     network_changed = True
 
             elif pos == "3": #fee
-                fee = modal_input('Transaction fee', 'The fee will be this amount multiplied by the number of inputs in your transaction. ', str( Decimal( wallet.fee)/100000000 ), "numberDecimal")
+                fee = modal_input('Transaction fee', 'The fee will be this amount multiplied by the number of inputs in your transaction. ', str(Decimal(wallet.fee)/100000000), "numberDecimal")
                 if fee:
                     try:
-                        fee = int( 100000000 * Decimal(fee) )
+                        fee = int(100000000 * Decimal(fee))
                     except Exception:
                         modal_dialog('error','invalid fee value')
                     wallet.set_fee(fee)
@@ -1002,7 +1002,7 @@ class ElectrumGui:
         
     def show_seed(self):
         modal_dialog('Your seed is:', wallet.seed)
-        modal_dialog('Mnemonic code:', ' '.join(mnemonic_encode(wallet.seed)) )
+        modal_dialog('Mnemonic code:', ' '.join(mnemonic_encode(wallet.seed)))
 
 
     def password_dialog(self):

@@ -234,7 +234,7 @@ class MiniWindow(QDialog):
         self.send_button.clicked.connect(self.send)
 
         # Creating the receive button
-        self.switch_button = QPushButton( QIcon(":icons/switchgui.png"),'' )
+        self.switch_button = QPushButton(QIcon(":icons/switchgui.png"),'')
         self.switch_button.setMaximumWidth(25)
         self.switch_button.setFlat(True)
         self.switch_button.clicked.connect(expand_callback)
@@ -276,7 +276,7 @@ class MiniWindow(QDialog):
 
 
         # Label
-        extra_layout.addWidget( QLabel(_('Selecting an address will copy it to the clipboard.') + '\n' + _('Double clicking the label will allow you to edit it.') ),0,0)
+        extra_layout.addWidget(QLabel(_('Selecting an address will copy it to the clipboard.') + '\n' + _('Double clicking the label will allow you to edit it.')),0,0)
 
         extra_layout.addWidget(self.receiving, 1,0)
         extra_layout.addWidget(hide_used, 2,0)

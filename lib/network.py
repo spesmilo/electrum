@@ -1,41 +1,50 @@
-import threading, time, Queue, os, sys, shutil, random
-from util import user_dir, appdata_dir, print_error, print_msg
-from bitcoin import *
 import interface
+import os
+import Queue
+import random
+import shutil
+import sys
+import threading
+import time
+
+from bitcoin import *  # todo: * imports are lazy and bad. remove them
 from blockchain import Blockchain
+from simple_config import SimpleConfig
+from util import user_dir, appdata_dir, print_error, print_msg
+from version import PROTOCOL_VERSION
+import simple_config
+import transaction
+
 
 DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
 DEFAULT_SERVERS = {
-    #'electrum.coinwallet.me': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.hachre.de': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.novit.ro': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.stepkrav.pw': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    #'ecdsa.org': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.no-ip.org': {'h': '80', 's': '50002', 't': '50001', 'g': '443'},
-    'electrum.drollette.com': {'h': '5000', 's': '50002', 't': '50001', 'g': '8082'},
     'btc.it-zone.org': {'h': '80', 's': '110', 't': '50001', 'g': '443'},
     'btc.medoix.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.stupidfoot.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    #'ecdsa.org': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.be': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    #'electrum.coinwallet.me': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.drollette.com': {'h': '5000', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.hachre.de': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.no-ip.org': {'h': '80', 's': '50002', 't': '50001', 'g': '443'},
+    'electrum.novit.ro': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
     #'electrum.pdmc.net': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.be': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'}
+    'electrum.stepkrav.pw': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
+    'electrum.stupidfoot.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
 }
-
-
 
 
 def filter_protocol(servers, p):
     l = []
     for k, protocols in servers.items():
         if p in protocols:
-            l.append( ':'.join([k, protocols[p], p]) )
+            l.append(':'.join([k, protocols[p], p]))
     return l
-    
+
 
 def pick_random_server(p='s'):
-    return random.choice( filter_protocol(DEFAULT_SERVERS,p) )
+    return random.choice(filter_protocol(DEFAULT_SERVERS,p))
 
-from simple_config import SimpleConfig
 
 class Network(threading.Thread):
 
@@ -66,7 +75,7 @@ class Network(threading.Thread):
         self.heights = {}
         self.server_lag = 0
 
-        dir_path = os.path.join( self.config.path, 'certs')
+        dir_path = os.path.join(self.config.path, 'certs')
         if not os.path.exists(dir_path):
             os.mkdir(dir_path)
 
@@ -75,35 +84,30 @@ class Network(threading.Thread):
         self.subscriptions[self.on_banner] = [('server.banner',[])]
         self.subscriptions[self.on_peers] = [('server.peers.subscribe',[])]
 
-
     def is_connected(self):
         return self.interface and self.interface.is_connected
-
 
     def send_subscriptions(self):
         for cb, sub in self.subscriptions.items():
             self.interface.send(sub, cb)
 
-
     def subscribe(self, messages, callback):
         with self.lock:
-            if self.subscriptions.get(callback) is None: 
+            if self.subscriptions.get(callback) is None:
                 self.subscriptions[callback] = []
             for message in messages:
                 if message not in self.subscriptions[callback]:
                     self.subscriptions[callback].append(message)
 
         if self.interface and self.interface.is_connected:
-            self.interface.send( messages, callback )
-
+            self.interface.send(messages, callback)
 
     def send(self, messages, callback):
         if self.interface and self.interface.is_connected:
-            self.interface.send( messages, callback )
+            self.interface.send(messages, callback)
             return True
         else:
             return False
-
 
     def register_callback(self, event, callback):
         with self.lock:
@@ -111,13 +115,11 @@ class Network(threading.Thread):
                 self.callbacks[event] = []
             self.callbacks[event].append(callback)
 
-
     def trigger_callback(self, event):
         with self.lock:
             callbacks = self.callbacks.get(event,[])[:]
         if callbacks:
             [callback() for callback in callbacks]
-
 
     def random_server(self):
         choice_list = []
@@ -127,23 +129,22 @@ class Network(threading.Thread):
                 continue
             else:
                 choice_list.append(s)
-        
-        if not choice_list: 
+
+        if not choice_list:
             if not self.interfaces:
                 # we are probably offline, retry later
                 self.disconnected_servers = []
             return
-        
-        server = random.choice( choice_list )
-        return server
 
+        server = random.choice(choice_list)
+        return server
 
     def get_servers(self):
         out = self.irc_servers if self.irc_servers else DEFAULT_SERVERS
         for s in self.recent_servers:
             host, port, protocol = s.split(':')
             if host not in out:
-                out[host] = { protocol:port }
+                out[host] = {protocol: port}
         return out
 
     def start_interface(self, server):
@@ -164,10 +165,9 @@ class Network(threading.Thread):
 
         for i in range(self.num_server):
             self.start_random_interface()
-            
+
         if not self.interface:
             self.interface = self.interfaces.values()[0]
-
 
     def start(self, wait=False):
         self.start_interfaces()
@@ -176,15 +176,12 @@ class Network(threading.Thread):
             self.interface.connect_event.wait()
             return self.interface.is_connected
 
-
     def wait_until_connected(self):
         while not self.interface:
             time.sleep(1)
         self.interface.connect_event.wait()
 
-
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
-
         self.config.set_key('auto_cycle', auto_connect, True)
         self.config.set_key("proxy", proxy, True)
         self.config.set_key("protocol", protocol, True)
@@ -208,7 +205,6 @@ class Network(threading.Thread):
         else:
             self.set_server(server)
 
-
     def switch_to_random_interface(self):
         if self.interfaces:
             self.switch_to_interface(random.choice(self.interfaces.values()))
@@ -226,9 +222,8 @@ class Network(threading.Thread):
         self.send_subscriptions()
         self.trigger_callback('connected')
 
-
     def stop_interface(self):
-        self.interface.stop() 
+        self.interface.stop()
         self.interface = None
 
     def set_server(self, server):
@@ -249,11 +244,10 @@ class Network(threading.Thread):
         self.config.set_key("server", server, True)
 
         if server in self.interfaces.keys():
-            self.switch_to_interface( self.interfaces[server] )
+            self.switch_to_interface(self.interfaces[server])
         else:
             self.start_interface(server)
             self.interface = self.interfaces[server]
-        
 
     def add_recent_server(self, i):
         # list is ordered
@@ -264,21 +258,19 @@ class Network(threading.Thread):
         self.recent_servers = self.recent_servers[0:20]
         self.config.set_key('recent_servers', self.recent_servers)
 
-
     def new_blockchain_height(self, blockchain_height, i):
         if self.is_connected():
             h = self.heights.get(self.interface.server)
             if h:
                 self.server_lag = blockchain_height - h
                 if self.server_lag > 1:
-                    print_error( "Server is lagging", blockchain_height, h)
+                    print_error("Server is lagging", blockchain_height, h)
                     if self.config.get('auto_cycle'):
                         self.set_server(i.server)
             else:
                 print_error('no height for main interface')
-        
-        self.trigger_callback('updated')
 
+        self.trigger_callback('updated')
 
     def run(self):
         self.blockchain.start()
@@ -313,7 +305,6 @@ class Network(threading.Thread):
             if self.interface is None and self.config.get('auto_cycle'):
                 self.switch_to_random_interface()
 
-
     def on_header(self, i, r):
         result = r.get('result')
         if not result: return
@@ -325,14 +316,14 @@ class Network(threading.Thread):
         if i == self.interface:
             self.server_lag = self.blockchain.height() - height
             if self.server_lag > 1 and self.config.get('auto_cycle'):
-                print_error( "Server lagging, stopping interface")
+                print_error("Server lagging, stopping interface")
                 self.stop_interface()
 
             self.trigger_callback('updated')
 
-
     def on_peers(self, i, r):
-        if not r: return
+        if not r:
+            return
         self.irc_servers = self.parse_servers(r.get('result'))
         self.trigger_callback('peers')
 
@@ -341,12 +332,13 @@ class Network(threading.Thread):
         self.trigger_callback('banner')
 
     def stop(self):
-        with self.lock: self.running = False
+        with self.lock:
+            self.running = False
 
     def is_running(self):
-        with self.lock: return self.running
+        with self.lock:
+            return self.running
 
-    
     def synchronous_get(self, requests, timeout=100000000):
         queue = Queue.Queue()
         ids = self.interface.send(requests, lambda i,r: queue.put(r))
@@ -363,17 +355,13 @@ class Network(threading.Thread):
             out.append(res[_id])
         return out
 
-
     def retrieve_transaction(self, tx_hash, tx_height=0):
-        import transaction
         r = self.synchronous_get([ ('blockchain.transaction.get',[tx_hash, tx_height]) ])[0]
         if r:
             return transaction.Transaction(r)
 
-
     def parse_servers(self, result):
-        """ parse servers list into dict format"""
-        from version import PROTOCOL_VERSION
+        """parse servers list into dict format"""
         servers = {}
         for item in result:
             host = item[1]
@@ -391,7 +379,7 @@ class Network(threading.Thread):
                     elif re.match("p\d*", v):
                         pruning_level = v[1:]
                     if pruning_level == '': pruning_level = '0'
-            try: 
+            try:
                 is_recent = float(version)>=float(PROTOCOL_VERSION)
             except Exception:
                 is_recent = False
@@ -403,16 +391,10 @@ class Network(threading.Thread):
         return servers
 
 
-
-
 if __name__ == "__main__":
-    import simple_config
     config = simple_config.SimpleConfig({'verbose':True, 'server':'ecdsa.org:50002:s'})
     network = Network(config)
     network.start()
 
     while 1:
         time.sleep(1)
-
-
-

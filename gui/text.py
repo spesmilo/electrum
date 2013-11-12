@@ -76,7 +76,7 @@ class ElectrumGui:
     def get_string(self, y, x):
         self.set_cursor(1)
         curses.echo()
-        self.stdscr.addstr( y, x, " "*20, curses.A_REVERSE)
+        self.stdscr.addstr(y, x, " "*20, curses.A_REVERSE)
         s = self.stdscr.getstr(y,x)
         curses.noecho()
         self.set_cursor(0)
@@ -97,7 +97,7 @@ class ElectrumGui:
         if self.history is None:
             self.update_history()
 
-        self.print_list(self.history[::-1], format_str%( _("Date"), _("Description"), _("Amount"), _("Balance")))
+        self.print_list(self.history[::-1], format_str%(_("Date"), _("Description"), _("Amount"), _("Balance")))
 
     def update_history(self):
         width = [20, 40, 14, 14]
@@ -111,14 +111,14 @@ class ElectrumGui:
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
             if conf:
                 try:
-                    time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
+                    time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                 except Exception:
                     time_str = "------"
             else:
                 time_str = 'pending'
 
             label, is_default_label = self.wallet.get_label(tx_hash)
-            self.history.append( format_str%( time_str, label, format_satoshis(value, whitespaces=True), format_satoshis(balance, whitespaces=True) ) )
+            self.history.append(format_str%(time_str, label, format_satoshis(value, whitespaces=True), format_satoshis(balance, whitespaces=True)))
 
 
     def print_balance(self):
@@ -129,17 +129,17 @@ class ElectrumGui:
                 msg = _("Synchronizing...")
             else: 
                 c, u =  self.wallet.get_balance()
-                msg = _("Balance")+": %f  "%(Decimal( c ) / 100000000)
-                if u: msg += "  [%f unconfirmed]"%(Decimal( u ) / 100000000)
+                msg = _("Balance")+": %f  "%(Decimal(c) / 100000000)
+                if u: msg += "  [%f unconfirmed]"%(Decimal(u) / 100000000)
         else:
             msg = _("Not connected")
             
-        self.stdscr.addstr( self.maxy -1, 3, msg)
+        self.stdscr.addstr(self.maxy -1, 3, msg)
 
         for i in range(self.num_tabs):
-            self.stdscr.addstr( 0, 2 + 2*i + len(''.join(self.tab_names[0:i])), ' '+self.tab_names[i]+' ', curses.A_BOLD if self.tab == i else 0)
+            self.stdscr.addstr(0, 2 + 2*i + len(''.join(self.tab_names[0:i])), ' '+self.tab_names[i]+' ', curses.A_BOLD if self.tab == i else 0)
             
-        self.stdscr.addstr( self.maxy -1, self.maxx-30, ' '.join([_("Settings"), _("Network"), _("Quit")]))
+        self.stdscr.addstr(self.maxy -1, self.maxx-30, ' '.join([_("Settings"), _("Network"), _("Quit")]))
 
 
     def print_contacts(self):
@@ -152,9 +152,9 @@ class ElectrumGui:
         self.print_list(messages,   fmt % ("Address", "Label"))
 
     def print_edit_line(self, y, label, text, index, size):
-        text += " "*(size - len(text) )
-        self.stdscr.addstr( y, 2, label)
-        self.stdscr.addstr( y, 15, text, curses.A_REVERSE if self.pos%6==index else curses.color_pair(1))
+        text += " "*(size - len(text))
+        self.stdscr.addstr(y, 2, label)
+        self.stdscr.addstr(y, 15, text, curses.A_REVERSE if self.pos%6==index else curses.color_pair(1))
 
     def print_send_tab(self):
         self.stdscr.clear()
@@ -162,25 +162,25 @@ class ElectrumGui:
         self.print_edit_line(5, _("Description"), self.str_description, 1, 40)
         self.print_edit_line(7, _("Amount"), self.str_amount, 2, 15)
         self.print_edit_line(9, _("Fee"), self.str_fee, 3, 15)
-        self.stdscr.addstr( 12, 15, _("[Send]"), curses.A_REVERSE if self.pos%6==4 else curses.color_pair(2))
-        self.stdscr.addstr( 12, 25, _("[Clear]"), curses.A_REVERSE if self.pos%6==5 else curses.color_pair(2))
+        self.stdscr.addstr(12, 15, _("[Send]"), curses.A_REVERSE if self.pos%6==4 else curses.color_pair(2))
+        self.stdscr.addstr(12, 25, _("[Clear]"), curses.A_REVERSE if self.pos%6==5 else curses.color_pair(2))
 
     def print_banner(self):
         if self.network:
-            self.print_list( self.network.banner.split('\n'))
+            self.print_list(self.network.banner.split('\n'))
 
     def print_list(self, list, firstline = None):
         self.maxpos = len(list)
         if not self.maxpos: return
         if firstline:
             firstline += " "*(self.maxx -2 - len(firstline))
-            self.stdscr.addstr( 1, 1, firstline )
+            self.stdscr.addstr(1, 1, firstline)
         for i in range(self.maxy-4):
             msg = list[i] if i < len(list) else ""
             msg += " "*(self.maxx - 2 - len(msg))
             m = msg[0:self.maxx - 2]
             m = m.encode(self.encoding)
-            self.stdscr.addstr( i+2, 1, m, curses.A_REVERSE if i == (self.pos % self.maxpos) else 0)
+            self.stdscr.addstr(i+2, 1, m, curses.A_REVERSE if i == (self.pos % self.maxpos) else 0)
 
     def refresh(self):
         if self.tab == -1: return
@@ -290,12 +290,12 @@ class ElectrumGui:
             self.show_message(_('Invalid Bitcoin address'))
             return
         try:
-            amount = int( Decimal( self.str_amount) * 100000000 )
+            amount = int(Decimal(self.str_amount) * 100000000)
         except Exception:
             self.show_message(_('Invalid Amount'))
             return
         try:
-            fee = int( Decimal( self.str_fee) * 100000000 )
+            fee = int(Decimal(self.str_fee) * 100000000)
         except Exception:
             self.show_message(_('Invalid Fee'))
             return
@@ -308,7 +308,7 @@ class ElectrumGui:
             password = None
 
         try:
-            tx = self.wallet.mktx( [(self.str_recipient, amount)], password, fee)
+            tx = self.wallet.mktx([(self.str_recipient, amount)], password, fee)
         except Exception as e:
             self.show_message(str(e))
             return
@@ -319,7 +319,7 @@ class ElectrumGui:
         h = self.wallet.send_tx(tx)
         self.show_message(_("Please wait..."), getchar=False)
         self.wallet.tx_event.wait()
-        status, msg = self.wallet.receive_tx( h )
+        status, msg = self.wallet.receive_tx(h)
 
         if status:
             self.show_message(_('Payment sent.'))
@@ -382,7 +382,7 @@ class ElectrumGui:
             if out.get('Default GUI'):
                 self.config.set_key('gui', out['Default GUI'], True)
             if out.get('Default fee'):
-                fee = int ( Decimal( out['Default fee']) *10000000 )
+                fee = int (Decimal(out['Default fee']) *10000000)
                 self.config.set_key('fee_per_kb', fee, True)
 
 
@@ -396,13 +396,13 @@ class ElectrumGui:
     def run_dialog(self, title, items, interval=2, buttons=None, y_pos=3):
         self.popup_pos = 0
         
-        self.w = curses.newwin( 5 + len(items)*interval + (2 if buttons else 0), 50, y_pos, 5)
+        self.w = curses.newwin(5 + len(items)*interval + (2 if buttons else 0), 50, y_pos, 5)
         w = self.w
         out = {}
         while True:
             w.clear()
             w.border(0)
-            w.addstr( 0, 2, title)
+            w.addstr(0, 2, title)
 
             num = len(items)
 
@@ -426,14 +426,14 @@ class ElectrumGui:
                 if len(value)<20: value += ' '*(20-len(value))
 
                 if item.has_key('value'):
-                    w.addstr( 2+interval*i, 2, label)
-                    w.addstr( 2+interval*i, 15, value, curses.A_REVERSE if self.popup_pos%numpos==i else curses.color_pair(1) )
+                    w.addstr(2+interval*i, 2, label)
+                    w.addstr(2+interval*i, 15, value, curses.A_REVERSE if self.popup_pos%numpos==i else curses.color_pair(1))
                 else:
-                    w.addstr( 2+interval*i, 2, label, curses.A_REVERSE if self.popup_pos%numpos==i else 0)
+                    w.addstr(2+interval*i, 2, label, curses.A_REVERSE if self.popup_pos%numpos==i else 0)
 
             if buttons:
-                w.addstr( 5+interval*i, 10, "[  ok  ]",     curses.A_REVERSE if self.popup_pos%numpos==(numpos-2) else curses.color_pair(2))
-                w.addstr( 5+interval*i, 25, "[cancel]", curses.A_REVERSE if self.popup_pos%numpos==(numpos-1) else curses.color_pair(2))
+                w.addstr(5+interval*i, 10, "[  ok  ]",     curses.A_REVERSE if self.popup_pos%numpos==(numpos-2) else curses.color_pair(2))
+                w.addstr(5+interval*i, 25, "[cancel]", curses.A_REVERSE if self.popup_pos%numpos==(numpos-1) else curses.color_pair(2))
                 
             w.refresh()
 

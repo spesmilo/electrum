@@ -1,12 +1,12 @@
 #!/usr/bin/env python
+import time
 
-import time, electrum
+import electrum
 
-electrum.set_verbosity(False)     # default is True
+
+electrum.set_verbosity(False)  # default is True
 
 network = electrum.Network({'verbose':False})
 network.start(wait=True)
 time.sleep(1)
-electrum.print_json( network.heights )
-
-
+electrum.print_json(network.heights)

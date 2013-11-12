@@ -103,16 +103,16 @@ class ElectrumGui:
             tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
             if confirmations:
                 try:
-                    time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
+                    time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                 except Exception:
                     time_str = "unknown"
             else:
                 time_str = 'pending'
 
             label, is_default_label = self.wallet.get_label(tx_hash)
-            messages.append( format_str%( time_str, label, format_satoshis(value, whitespaces=True), format_satoshis(balance, whitespaces=True) ) )
+            messages.append(format_str%(time_str, label, format_satoshis(value, whitespaces=True), format_satoshis(balance, whitespaces=True)))
 
-        self.print_list(messages[::-1], format_str%( _("Date"), _("Description"), _("Amount"), _("Balance")))
+        self.print_list(messages[::-1], format_str%(_("Date"), _("Description"), _("Amount"), _("Balance")))
 
 
     def print_balance(self):
@@ -121,13 +121,13 @@ class ElectrumGui:
     def get_balance(self):
         if self.wallet.network.interface and self.wallet.network.interface.is_connected:
             if not self.wallet.up_to_date:
-                msg = _( "Synchronizing..." )
+                msg = _("Synchronizing...")
             else: 
                 c, u =  self.wallet.get_balance()
-                msg = _("Balance")+": %f  "%(Decimal( c ) / 100000000)
-                if u: msg += "  [%f unconfirmed]"%(Decimal( u ) / 100000000)
+                msg = _("Balance")+": %f  "%(Decimal(c) / 100000000)
+                if u: msg += "  [%f unconfirmed]"%(Decimal(u) / 100000000)
         else:
-                msg = _( "Not connected" )
+                msg = _("Not connected")
             
         return(msg)
 
@@ -154,8 +154,8 @@ class ElectrumGui:
         self.do_send()
 
     def print_banner(self):
-        for i, x in enumerate( self.wallet.network.banner.split('\n') ):
-            print( x )
+        for i, x in enumerate(self.wallet.network.banner.split('\n')):
+            print(x)
 
     def print_list(self, list, firstline):
         self.maxpos = len(list)
@@ -174,12 +174,12 @@ class ElectrumGui:
             print(_('Invalid Bitcoin address'))
             return
         try:
-            amount = int( Decimal( self.str_amount) * 100000000 )
+            amount = int(Decimal(self.str_amount) * 100000000)
         except Exception:
             print(_('Invalid Amount'))
             return
         try:
-            fee = int( Decimal( self.str_fee) * 100000000 )
+            fee = int(Decimal(self.str_fee) * 100000000)
         except Exception:
             print(_('Invalid Fee'))
             return
@@ -197,7 +197,7 @@ class ElectrumGui:
             if c == "n": return
 
         try:
-            tx = self.wallet.mktx( [(self.str_recipient, amount)], password, fee)
+            tx = self.wallet.mktx([(self.str_recipient, amount)], password, fee)
         except Exception as e:
             print(str(e))
             return
@@ -208,7 +208,7 @@ class ElectrumGui:
         h = self.wallet.send_tx(tx)
         print(_("Please wait..."))
         self.wallet.tx_event.wait()
-        status, msg = self.wallet.receive_tx( h )
+        status, msg = self.wallet.receive_tx(h)
 
         if status:
             print(_('Payment sent.'))

@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2011 thomasv@gitorious
 #
@@ -15,16 +13,23 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-
-
-import time, thread, sys, socket, os
-import urllib2,json
+import json
+import os
 import Queue
+import socket
 import sqlite3
-from electrum import Wallet, WalletStorage, SimpleConfig, Network, set_verbosity
-set_verbosity(False)
+import sys
+import thread
+import time
+import urllib2
 
 import ConfigParser
+
+from electrum import Network, set_verbosity, SimpleConfig, Wallet, WalletStorage
+
+
+set_verbosity(False)
+
 config = ConfigParser.ConfigParser()
 config.read("merchant.conf")
 
@@ -42,7 +47,6 @@ wallet_path = config.get('electrum','wallet_path')
 master_public_key = config.get('electrum','mpk')
 master_chain = config.get('electrum','chain')
 
-
 pending_requests = {}
 
 num = 0
@@ -52,14 +56,13 @@ def check_create_table(conn):
     c = conn.cursor()
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='electrum_payments';")
     data = c.fetchall()
-    if not data: 
-        c.execute("""CREATE TABLE electrum_payments (address VARCHAR(40), amount FLOAT, confirmations INT(8), received_at TIMESTAMP, expires_at TIMESTAMP, paid INT(1), processed INT(1));""")
+    if not data:
+        c.execute("CREATE TABLE electrum_payments (address VARCHAR(40), amount FLOAT, confirmations INT(8), received_at TIMESTAMP, expires_at TIMESTAMP, paid INT(1), processed INT(1));")
         conn.commit()
 
     c.execute("SELECT Count(address) FROM 'electrum_payments'")
     num = c.fetchone()[0]
     print "num rows", num
-
 
 
 # this process detects when addresses have received payments
@@ -79,13 +82,14 @@ def on_wallet_update():
                     value += o_value
 
         s = (value)/1.e8
-        print "balance for %s:"%addr, s, requested_amount
-        if s>= requested_amount: 
+        print "balance for %s:" % addr, s, requested_amount
+        if s >= requested_amount:
             print "payment accepted", addr
-            out_queue.put( ('payment', addr))
+            out_queue.put(('payment', addr))
 
 
 stopping = False
+
 
 def do_stop(password):
     global stopping
@@ -93,6 +97,7 @@ def do_stop(password):
         return "wrong password"
     stopping = True
     return "ok"
+
 
 def process_request(amount, confirmations, expires_in, password):
     global num
@@ -111,20 +116,16 @@ def process_request(amount, confirmations, expires_in, password):
     addr = account.get_address(0, num)
     num += 1
 
-    out_queue.put( ('request', (addr, amount, confirmations, expires_in) ))
+    out_queue.put(('request', (addr, amount, confirmations, expires_in)))
     return addr
-
 
 
 def server_thread(conn):
     from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
-    server = SimpleJSONRPCServer(( my_host, my_port))
+    server = SimpleJSONRPCServer((my_host, my_port))
     server.register_function(process_request, 'request')
     server.register_function(do_stop, 'stop')
     server.serve_forever()
-    
-
-
 
 
 def send_command(cmd, params):
@@ -146,7 +147,6 @@ def send_command(cmd, params):
 
 
 if __name__ == '__main__':
-
     if len(sys.argv) > 1:
         cmd = sys.argv[1]
         params = sys.argv[2:] + [my_password]
@@ -172,7 +172,7 @@ if __name__ == '__main__':
     wallet.synchronize = lambda: None # prevent address creation by the wallet
     wallet.start_threads(network)
     network.register_callback('updated', on_wallet_update)
-    
+
     out_queue = Queue.Queue()
     thread.start_new_thread(server_thread, (conn,))
 
@@ -184,9 +184,8 @@ if __name__ == '__main__':
         data = cur.fetchall()
 
         # add pending requests to the wallet
-        for item in data: 
-            addr, amount, confirmations = item
-            if addr in pending_requests: 
+        for addr, amount, confirmations in data:
+            if addr in pending_requests:
                 continue
             else:
                 with wallet.lock:
@@ -210,21 +209,25 @@ if __name__ == '__main__':
             # add a new request to the table.
             addr, amount, confs, minutes = params
             sql = "INSERT INTO electrum_payments (address, amount, confirmations, received_at, expires_at, paid, processed)"\
-                + " VALUES ('%s', %f, %d, datetime('now'), datetime('now', '+%d Minutes'), NULL, NULL);"%(addr, amount, confs, minutes)
+                + " VALUES ('%s', %f, %d, datetime('now'), datetime('now', '+%d Minutes'), NULL, NULL);" % (addr, amount, confs, minutes)
             print sql
             cur.execute(sql)
 
-        # set paid=0 for expired requests 
-        cur.execute("""UPDATE electrum_payments set paid=0 WHERE expires_at < CURRENT_TIMESTAMP and paid is NULL;""")
+        # set paid=0 for expired requests
+        cur.execute("UPDATE electrum_payments set paid=0 WHERE expires_at < CURRENT_TIMESTAMP and paid is NULL;")
 
         # do callback for addresses that received payment or expired
-        cur.execute("""SELECT address, paid from electrum_payments WHERE paid is not NULL and processed is NULL;""")
+        cur.execute("SELECT address, paid from electrum_payments WHERE paid is not NULL and processed is NULL;")
         data = cur.fetchall()
         for item in data:
             address, paid = item
             paid = bool(paid)
-            headers = {'content-type':'application/json'}
-            data_json = { 'address':address, 'password':cb_password, 'paid':paid }
+            headers = {'content-type': 'application/json'}
+            data_json = {
+                'address': address,
+                'paid': paid,
+                'password': cb_password,
+            }
             data_json = json.dumps(data_json)
             url = received_url if paid else expired_url
             req = urllib2.Request(url, data_json, headers)
@@ -236,9 +239,8 @@ if __name__ == '__main__':
             except ValueError, e:
                 print e
                 print "cannot do callback", data_json
-        
+
         conn.commit()
 
     conn.close()
     print "Done"
-

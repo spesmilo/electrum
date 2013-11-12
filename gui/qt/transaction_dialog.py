@@ -71,7 +71,7 @@ class TxDialog(QDialog):
         vbox.addStretch(1)
 
         buttons = QHBoxLayout()
-        vbox.addLayout( buttons )
+        vbox.addLayout(buttons)
 
         buttons.addStretch(1)
 
@@ -181,7 +181,7 @@ class TxDialog(QDialog):
     def add_io(self, vbox):
 
         vbox.addWidget(QLabel(_("Inputs")))
-        lines = map(lambda x: x.get('address') , self.tx.inputs )
+        lines = map(lambda x: x.get('address') , self.tx.inputs)
 
         i_text = QTextEdit('\n'.join(lines))
         i_text.setReadOnly(True)
@@ -201,7 +201,7 @@ class TxDialog(QDialog):
 
 
     def broadcast(self):
-        result, result_message = self.wallet.sendtx( self.tx )
+        result, result_message = self.wallet.sendtx(self.tx)
         if result:
             self.show_message(_("Transaction successfully sent")+': %s' % (result_message))
             if dialog:

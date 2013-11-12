@@ -1,19 +1,17 @@
-import json
 import ast
-import threading
+import json
 import os
+import threading
 
-from util import user_dir, print_error
-
+from util import print_error, user_dir
 
 
 class SimpleConfig:
+    """The SimpleConfig class is responsible for handling operations involving
+    configuration files.  The constructor reads and stores the system and
+    user configurations from electrum.conf into separate dictionaries within
+    a SimpleConfig instance then reads the wallet file.
     """
-The SimpleConfig class is responsible for handling operations involving
-configuration files.  The constructor reads and stores the system and 
-user configurations from electrum.conf into separate dictionaries within
-a SimpleConfig instance then reads the wallet file.
-"""
     def __init__(self, options={}):
         self.lock = threading.Lock()
 
@@ -33,12 +31,7 @@ a SimpleConfig instance then reads the wallet file.
         if options.get('portable') == False:
             self.read_user_config()
 
-
-
-
-
     def init_path(self):
-
         # Read electrum path in the command line configuration
         self.path = self.options_config.get('electrum_path')
 
@@ -59,35 +52,29 @@ a SimpleConfig instance then reads the wallet file.
         # portable wallet: use the same directory for wallet and headers file
         #if options.get('portable'):
         #    self.wallet_config['blockchain_headers_path'] = os.path.dirname(self.path)
-            
+
     def set_key(self, key, value, save = True):
         # find where a setting comes from and save it there
         if self.options_config.get(key) is not None:
-            print "Warning: not changing '%s' because it was passed as a command-line option"%key
+            print "Warning: not changing '%s' because it was passed as a command-line option" % key
             return
-
         elif self.system_config.get(key) is not None:
             if str(self.system_config[key]) != str(value):
-                print "Warning: not changing '%s' because it was set in the system configuration"%key
-
+                print "Warning: not changing '%s' because it was set in the system configuration" % key
         else:
-
             with self.lock:
                 self.user_config[key] = value
-                if save: 
+                if save:
                     self.save_user_config()
 
-
-
     def get(self, key, default=None):
-
         out = None
 
         # 1. command-line options always override everything
         if self.options_config.has_key(key) and self.options_config.get(key) is not None:
             out = self.options_config.get(key)
 
-        # 2. user configuration 
+        # 2. user configuration
         elif self.user_config.has_key(key):
             out = self.user_config.get(key)
 
@@ -131,7 +118,7 @@ a SimpleConfig instance then reads the wallet file.
             except ImportError:
                 print "cannot parse electrum.conf. please install ConfigParser"
                 return
-                
+
             p = ConfigParser.ConfigParser()
             p.read(name)
             try:
@@ -153,7 +140,7 @@ a SimpleConfig instance then reads the wallet file.
             except IOError:
                 return
             try:
-                d = ast.literal_eval( data )  #parse raw data from reading wallet file
+                d = ast.literal_eval( data)  #parse raw data from reading wallet file
             except Exception:
                 raise IOError("Cannot read config file.")
 
@@ -166,7 +153,7 @@ a SimpleConfig instance then reads the wallet file.
         path = os.path.join(self.path, "config")
         s = repr(self.user_config)
         f = open(path,"w")
-        f.write( s )
+        f.write( s)
         f.close()
         if self.get('gui') != 'android':
             import stat

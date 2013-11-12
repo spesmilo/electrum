@@ -114,7 +114,7 @@ class NetworkDialog(QDialog):
 
         label = _('Active Servers') if network.irc_servers else _('Default Servers')
         self.servers_list_widget = QTreeWidget(parent)
-        self.servers_list_widget.setHeaderLabels( [ label, _('Limit') ] )
+        self.servers_list_widget.setHeaderLabels([ label, _('Limit') ])
         self.servers_list_widget.setMaximumHeight(150)
         self.servers_list_widget.setColumnWidth(0, 240)
 
@@ -185,7 +185,7 @@ class NetworkDialog(QDialog):
         for _host, d in self.servers.items():
             if d.get(self.protocol):
                 pruning_level = d.get('pruning','')
-                self.servers_list_widget.addTopLevelItem(QTreeWidgetItem( [ _host, pruning_level ] ))
+                self.servers_list_widget.addTopLevelItem(QTreeWidgetItem([ _host, pruning_level ]))
 
 
     def set_protocol(self, protocol):
@@ -200,8 +200,8 @@ class NetworkDialog(QDialog):
         if p not in pp.keys():
             p = pp.keys()[0]
         port = pp[p]
-        self.server_host.setText( host )
-        self.server_port.setText( port )
+        self.server_host.setText(host)
+        self.server_port.setText(port)
         self.set_protocol(p)
 
     def server_changed(self, x):
@@ -223,8 +223,8 @@ class NetworkDialog(QDialog):
                 protocol = pp.keys()[0]
                 port = pp.get(protocol)
             
-        self.server_host.setText( host )
-        self.server_port.setText( port )
+        self.server_host.setText(host)
+        self.server_port.setText(port)
         self.server_protocol.setCurrentIndex(protocol_letters.index(protocol))
 
         if not self.servers: return
@@ -242,8 +242,8 @@ class NetworkDialog(QDialog):
         if not self.exec_():
             return
 
-        host = str( self.server_host.text() )
-        port = str( self.server_port.text() )
+        host = str(self.server_host.text())
+        port = str(self.server_port.text())
         protocol = protocol_letters[self.server_protocol.currentIndex()]
 
         if self.proxy_mode.currentText() != 'NONE':

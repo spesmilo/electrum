@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2011 thomasv@gitorious
 #
@@ -15,14 +13,17 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-
-from util import *
-from bitcoin import *
 from decimal import Decimal
-import bitcoin
+import datetime
+
+from bitcoin import *  # todo: * imports are lazy and bad. remove them
 from transaction import Transaction
+from util import *  # todo: * imports are lazy and bad. remove them
+import bitcoin
+
 
 class Command:
+
     def __init__(self, name, min_args, max_args, requires_network, requires_wallet, requires_password, description, syntax = '', options_syntax = ''):
         self.name = name
         self.min_args=min_args
@@ -34,12 +35,12 @@ class Command:
         self.syntax = syntax
         self.options = options_syntax
 
+
 known_commands = {}
 def register_command(*args):
     global known_commands
     name = args[0]
     known_commands[name] = Command(*args)
-
 
 
 payto_options = ' --fee, -f: set transaction fee\n --fromaddr, -F: send from address -\n --changeaddr, -c: send change to address'
@@ -51,7 +52,6 @@ payto_syntax = "payto <recipient> <amount> [label]\n<recipient> can be a bitcoin
 paytomany_syntax = "paytomany <recipient> <amount> [<recipient> <amount> ...]\n<recipient> can be a bitcoin address or a label"
 signmessage_syntax = 'signmessage <address> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "'
 verifymessage_syntax = 'verifymessage <address> <signature> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "'
-
 
 #                command
 #                                              requires_network
@@ -96,8 +96,6 @@ register_command('unfreeze',             1, 1, False, True,  False, 'Unfreeze th
 register_command('unprioritize',         1, 1, False, True,  False, 'Unprioritize an address', 'unprioritize <address>')
 register_command('validateaddress',      1, 1, False, False, False, 'Check that the address is valid', 'validateaddress <address>')
 register_command('verifymessage',        3,-1, False, False, False, 'Verifies a signature', verifymessage_syntax)
-
-
 
 
 class Commands:
@@ -151,7 +149,7 @@ class Commands:
 
     def sendrawtransaction(self, raw):
         tx = Transaction(raw)
-        r, h = self.wallet.sendtx( tx )
+        r, h = self.wallet.sendtx(tx)
         return h
 
     def createmultisig(self, num, pubkeys):
@@ -159,10 +157,10 @@ class Commands:
         redeem_script = Transaction.multisig_script(pubkeys, num)
         address = hash_160_to_bc_address(hash_160(redeem_script.decode('hex')), 5)
         return {'address':address, 'redeemScript':redeem_script}
-    
+
     def freeze(self,addr):
         return self.wallet.freeze(addr)
-        
+
     def unfreeze(self,addr):
         return self.wallet.unfreeze(addr)
 
@@ -193,7 +191,7 @@ class Commands:
         account, sequence = self.wallet.get_address_index(addr)
         if account != -1:
             a = self.wallet.accounts[account]
-            out['pubkeys'] = a.get_pubkeys( sequence )
+            out['pubkeys'] = a.get_pubkeys(sequence)
 
         return out
 
@@ -232,17 +230,13 @@ class Commands:
             out = "Error: Keypair import failed: " + str(e)
         return out
 
-
     def signmessage(self, address, message):
         return self.wallet.sign_message(address, message, self.password)
-
 
     def verifymessage(self, address, signature, message):
         return bitcoin.verify_message(address, signature, message)
 
-
     def _mktx(self, outputs, fee = None, change_addr = None, domain = None):
-
         for to_address, amount in outputs:
             if not is_valid(to_address):
                 raise Exception("Invalid Bitcoin address", to_address)
@@ -255,7 +249,7 @@ class Commands:
             for addr in domain:
                 if not is_valid(addr):
                     raise Exception("invalid Bitcoin address", addr)
-            
+
                 if not self.wallet.is_mine(addr):
                     raise Exception("address not in wallet", addr)
 
@@ -271,12 +265,12 @@ class Commands:
                     print_msg("alias", to_address)
                     break
 
-            amount = int(100000000*amount)
+            amount = int(100000000 * amount)
             final_outputs.append((to_address, amount))
-            
-        if fee: fee = int(100000000*fee)
-        return self.wallet.mktx(final_outputs, self.password, fee , change_addr, domain)
 
+        if fee:
+            fee = int(100000000 * fee)
+        return self.wallet.mktx(final_outputs, self.password, fee, change_addr, domain)
 
     def mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):
         tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
@@ -286,49 +280,41 @@ class Commands:
         tx = self._mktx(outputs, fee, change_addr, domain)
         return tx
 
-
     def payto(self, to_address, amount, fee = None, change_addr = None, domain = None):
         tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
-        r, h = self.wallet.sendtx( tx )
+        r, h = self.wallet.sendtx(tx)
         return h
 
     def paytomany(self, outputs, fee = None, change_addr = None, domain = None):
         tx = self._mktx(outputs, fee, change_addr, domain)
-        r, h = self.wallet.sendtx( tx )
+        r, h = self.wallet.sendtx(tx)
         return h
 
-
     def history(self):
-        import datetime
         balance = 0
         out = []
         for item in self.wallet.get_tx_history():
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
             try:
-                time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
+                time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
             except Exception:
                 time_str = "----"
 
             label, is_default_label = self.wallet.get_label(tx_hash)
             if not label: label = tx_hash
-            else: label = label + ' '*(64 - len(label) )
+            else: label = label + ' '*(64 - len(label))
 
-            out.append( "%16s"%time_str + "  " + label + "  " + format_satoshis(value)+ "  "+ format_satoshis(balance) )
+            out.append("%16s"%time_str + "  " + label + "  " + format_satoshis(value)+ "  "+ format_satoshis(balance))
         return out
-
-
 
     def setlabel(self, key, label):
         self.wallet.set_label(key, label)
-
-            
 
     def contacts(self):
         c = {}
         for addr in self.wallet.addressbook:
             c[addr] = self.wallet.labels.get(addr)
         return c
-
 
     def listaddresses(self, show_all = False, show_label = False):
         out = []
@@ -342,17 +328,19 @@ class Commands:
                             item['label'] = label
                 else:
                     item = addr
-                out.append( item )
+                out.append(item)
         return out
-                         
+
     def help(self, cmd=None):
         if cmd not in known_commands:
             print_msg("\nList of commands:", ', '.join(sorted(known_commands)))
         else:
             cmd = known_commands[cmd]
             print_msg(cmd.description)
-            if cmd.syntax: print_msg("Syntax: " + cmd.syntax)
-            if cmd.options: print_msg("options:\n" + cmd.options)
+            if cmd.syntax:
+                print_msg("Syntax: " + cmd.syntax)
+            if cmd.options:
+                print_msg("options:\n" + cmd.options)
         return None
 
     def getrawtransaction(self, tx_hash, height = 0):
@@ -361,5 +349,3 @@ class Commands:
             return tx
         height = int(height)
         return self.network.retrieve_transaction(tx_hash, height)
-
-

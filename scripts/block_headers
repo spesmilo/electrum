@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-
 # A simple script that connects to a server and displays block headers
+import time
 
-import time, electrum
+import electrum
 
 # 1. start the interface and wait for connection
 interface = electrum.Interface('electrum.no-ip.org:50002:s')

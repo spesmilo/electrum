@@ -1,14 +1,16 @@
-import os, sys, re, json
-import platform
-import shutil
 from datetime import datetime
-is_verbose = True
+from decimal import Decimal
+import json
+import os
+import platform
+import re
+import sys
 
 
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
         from transaction import Transaction
-        if isinstance(obj, Transaction): 
+        if isinstance(obj, Transaction):
             return obj.as_dict()
         return super(MyEncoder, self).default(obj)
 
@@ -17,11 +19,14 @@ def set_verbosity(b):
     global is_verbose
     is_verbose = b
 
+
 def print_error(*args):
-    if not is_verbose: return
+    if not is_verbose:
+        return
     args = [str(item) for item in args]
     sys.stderr.write(" ".join(args) + "\n")
     sys.stderr.flush()
+
 
 def print_msg(*args):
     # Stringify args
@@ -29,14 +34,15 @@ def print_msg(*args):
     sys.stdout.write(" ".join(args) + "\n")
     sys.stdout.flush()
 
+
 def print_json(obj):
     try:
-        s = json.dumps(obj, sort_keys = True, indent = 4, cls=MyEncoder)
+        s = json.dumps(obj, sort_keys=True, indent=4, cls=MyEncoder)
     except TypeError:
         s = repr(obj)
     sys.stdout.write(s + "\n")
     sys.stdout.flush()
-    
+
 
 def user_dir():
     if "HOME" in os.environ:
@@ -49,7 +55,8 @@ def user_dir():
         return "/sdcard/electrum/"
     else:
         #raise Exception("No home directory found in environment variables.")
-        return 
+        return
+
 
 def appdata_dir():
     """Find the path to the application data directory; add an electrum folder and return path."""
@@ -59,7 +66,7 @@ def appdata_dir():
         return os.path.join(sys.prefix, "share", "electrum")
     elif (platform.system() == "Darwin" or
           platform.system() == "DragonFly" or
-	  platform.system() == "NetBSD"):
+          platform.system() == "NetBSD"):
         return "/Library/Application Support/Electrum"
     else:
         raise Exception("Unknown system")
@@ -77,30 +84,29 @@ def local_data_dir():
     return local_data
 
 
-def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespaces=False):
-    from decimal import Decimal
+def format_satoshis(x, is_diff=False, num_zeros=0, decimal_point=8, whitespaces=False):
     s = Decimal(x)
     sign, digits, exp = s.as_tuple()
     digits = map(str, digits)
     while len(digits) < decimal_point + 1:
-        digits.insert(0,'0')
-    digits.insert(-decimal_point,'.')
+        digits.insert(0, '0')
+    digits.insert(-decimal_point, '.')
     s = ''.join(digits).rstrip('0')
-    if sign: 
+    if sign:
         s = '-' + s
     elif is_diff:
         s = "+" + s
 
     p = s.find('.')
-    s += "0"*( 1 + num_zeros - ( len(s) - p ))
+    s += "0"*(1 + num_zeros - (len(s) - p))
     if whitespaces:
-        s += " "*( 1 + decimal_point - ( len(s) - p ))
-        s = " "*( 13 - decimal_point - ( p )) + s 
+        s += " "*(1 + decimal_point - (len(s) - p))
+        s = " "*(13 - decimal_point - (p)) + s
     return s
 
 
 # Takes a timestamp and returns a string with the approximation of the age
-def age(from_date, since_date = None, target_tz=None, include_seconds=False):
+def age(from_date, since_date=None, target_tz=None, include_seconds=False):
     if from_date is None:
         return "Unknown"
 
@@ -148,32 +154,34 @@ def age(from_date, since_date = None, target_tz=None, include_seconds=False):
         return "over %d years ago" % (round(distance_in_minutes / 525600))
 
 
-
-
 # URL decode
 _ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
 urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
+
 def parse_url(url):
     o = url[8:].split('?')
     address = o[0]
-    if len(o)>1:
+    if len(o) > 1:
         params = o[1].split('&')
     else:
         params = []
 
     amount = label = message = signature = identity = ''
     for p in params:
-        k,v = p.split('=')
+        k, v = p.split('=')
         uv = urldecode(v)
-        if k == 'amount': amount = uv
-        elif k == 'message': message = uv
-        elif k == 'label': label = uv
+        if k == 'amount':
+            amount = uv
+        elif k == 'message':
+            message = uv
+        elif k == 'label':
+            label = uv
         elif k == 'signature':
             identity, signature = uv.split(':')
-            url = url.replace('&%s=%s'%(k,v),'')
-        else: 
-            print k,v
+            url = url.replace('&%s=%s' % (k, v), '')
+        else:
+            print k, v
 
     return address, amount, label, message, signature, identity, url
 
