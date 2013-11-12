@@ -18,7 +18,7 @@
 
 
 import threading, time, Queue, os, sys, shutil
-from util import user_dir, appdata_dir, print_error
+from util import user_dir, appdata_dir, print_error, hex_to_int
 from bitcoin import *
 
 
@@ -118,7 +118,7 @@ class Blockchain(threading.Thread):
             try:
                 assert prev_hash == header.get('prev_block_hash')
                 assert bits == header.get('bits')
-                assert eval('0x'+_hash) < target
+                assert hex_to_int(_hash) < target
             except Exception:
                 return False
 
@@ -149,7 +149,7 @@ class Blockchain(threading.Thread):
             _hash = self.hash_header(header)
             assert previous_hash == header.get('prev_block_hash')
             assert bits == header.get('bits')
-            assert eval('0x'+_hash) < target
+            assert hex_to_int(_hash) < target
 
             previous_header = header
             previous_hash = _hash 
@@ -175,7 +175,7 @@ class Blockchain(threading.Thread):
         try:
             assert prev_hash == header.get('prev_block_hash')
             assert bits == header.get('bits')
-            assert eval('0x'+_hash) < target
+            assert hex_to_int(_hash) < target
         except Exception:
             # this can be caused by a reorg.
             print_error("verify header failed"+ repr(header))
@@ -200,7 +200,6 @@ class Blockchain(threading.Thread):
 
 
     def header_from_string(self, s):
-        hex_to_int = lambda s: eval('0x' + s[::-1].encode('hex'))
         h = {}
         h['version'] = hex_to_int(s[0:4])
         h['prev_block_hash'] = hash_encode(s[4:36])
@@ -306,7 +305,7 @@ class Blockchain(threading.Thread):
             c = c[2:]
             i -= 1
 
-        c = eval('0x'+c[0:6])
+        c = hex_to_int(c[0:6])
         if c > 0x800000: 
             c /= 256
             i += 1

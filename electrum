@@ -100,7 +100,7 @@ def print_help_cb(self, opt, value, parser):
 
 def run_command(cmd, password = None, args = []):
     cmd_runner = Commands(wallet, network)
-    func = eval('cmd_runner.' + cmd)
+    func = getattr(cmd_runner, cmd)
     cmd_runner.password = password
     try:
         result = func(*args[1:])
@@ -126,7 +126,7 @@ if __name__ == '__main__':
     if is_android:
         config_options = {'portable':True, 'verbose':True, 'gui':'android', 'auto_cycle':True}
     else:
-        config_options = eval(str(options))
+        config_options = vars(options)
         for k, v in config_options.items():
             if v is None: config_options.pop(k)
 

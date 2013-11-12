@@ -39,6 +39,8 @@ class Console(QtGui.QPlainTextEdit):
     def run_script(self, filename):
         with open(filename) as f:
             script = f.read()
+
+        # eval is generally considered bad practice. use it wisely!
         result = eval(script, self.namespace, self.namespace)
 
 
@@ -209,6 +211,7 @@ class Console(QtGui.QPlainTextEdit):
             sys.stdout = stdoutProxy(self.appendPlainText)
             try:
                 try:
+                    # eval is generally considered bad practice. use it wisely!
                     result = eval(command, self.namespace, self.namespace)
                     if result != None:
                         if self.is_json:
@@ -216,6 +219,7 @@ class Console(QtGui.QPlainTextEdit):
                         else:
                             self.appendPlainText(repr(result))
                 except SyntaxError:
+                    # exec is generally considered bad practice. use it wisely!
                     exec command in self.namespace
             except SystemExit:
                 self.close()
