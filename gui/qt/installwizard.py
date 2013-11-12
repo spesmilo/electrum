@@ -236,13 +236,10 @@ class InstallWizard(QDialog):
 
     def show_seed(self, wallet):
         from seed_dialog import make_seed_dialog
-
         vbox = make_seed_dialog(wallet.get_mnemonic(None), wallet.imported_keys)
         vbox.addLayout(ok_cancel_buttons(self, _("Next")))
-
         self.set_layout(vbox)
-        if not self.exec_():
-            exit()
+        return self.exec_()
 
 
     def password_dialog(self, wallet):
@@ -257,7 +254,8 @@ class InstallWizard(QDialog):
     def run(self):
 
         action = self.restore_or_create()
-        if not action: exit()
+        if not action: 
+            return
 
         wallet = Wallet(self.storage)
         gap = self.config.get('gap_limit', 5)
@@ -267,15 +265,15 @@ class InstallWizard(QDialog):
 
         if action == 'create':
             wallet.init_seed(None)
-            self.show_seed(wallet)
-            if self.verify_seed(wallet):
-                def create():
-                    wallet.save_seed()
-                    wallet.synchronize()  # generate first addresses offline
-                self.waiting_dialog(create)
-            else:
+            if not self.show_seed(wallet):
                 return
-                
+            if not self.verify_seed(wallet):
+                return
+            def create():
+                wallet.save_seed()
+                wallet.synchronize()  # generate first addresses offline
+            self.waiting_dialog(create)
+
         elif action == 'restore':
             # ask for seed and gap.
             seed = self.seed_dialog()

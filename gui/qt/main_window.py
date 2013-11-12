@@ -345,7 +345,7 @@ class ElectrumWindow(QMainWindow):
         wallet = wizard.run()
         if wallet: 
             self.load_wallet(wallet)
-        
+
 
 
     def init_menubar(self):
