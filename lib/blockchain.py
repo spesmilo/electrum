@@ -18,7 +18,7 @@
 
 
 import threading, time, Queue, os, sys, shutil
-from util import user_dir, appdata_dir, print_error, hex_to_int
+from util import user_dir, appdata_dir, print_error
 from bitcoin import *
 
 
@@ -118,7 +118,7 @@ class Blockchain(threading.Thread):
             try:
                 assert prev_hash == header.get('prev_block_hash')
                 assert bits == header.get('bits')
-                assert hex_to_int(_hash) < target
+                assert int('0x'+_hash,16) < target
             except Exception:
                 return False
 
@@ -149,7 +149,7 @@ class Blockchain(threading.Thread):
             _hash = self.hash_header(header)
             assert previous_hash == header.get('prev_block_hash')
             assert bits == header.get('bits')
-            assert hex_to_int(_hash) < target
+            assert int('0x'+_hash,16) < target
 
             previous_header = header
             previous_hash = _hash 
@@ -157,36 +157,6 @@ class Blockchain(threading.Thread):
         self.save_chunk(index, data)
         print_error("validated chunk %d"%height)
 
-
-    def verify_header(self, header):
-        # add header to the blockchain file
-        # if there is a reorg, push it in a stack
-
-        height = header.get('block_height')
-
-        prev_header = self.read_header(height -1)
-        if not prev_header:
-            # return False to request previous header
-            return False
-
-        prev_hash = self.hash_header(prev_header)
-        bits, target = self.get_target(height/2016)
-        _hash = self.hash_header(header)
-        try:
-            assert prev_hash == header.get('prev_block_hash')
-            assert bits == header.get('bits')
-            assert hex_to_int(_hash) < target
-        except Exception:
-            # this can be caused by a reorg.
-            print_error("verify header failed"+ repr(header))
-            verifier.undo_verifications()
-
-            # return False to request previous header.
-            return False
-
-        self.save_header(header)
-        print_error("verify header:", _hash, height)
-        return True
         
 
     def header_to_string(self, res):
@@ -200,6 +170,7 @@ class Blockchain(threading.Thread):
 
 
     def header_from_string(self, s):
+        hex_to_int = lambda s: int('0x' + s[::-1].encode('hex'), 16)
         h = {}
         h['version'] = hex_to_int(s[0:4])
         h['prev_block_hash'] = hash_encode(s[4:36])
@@ -305,7 +276,7 @@ class Blockchain(threading.Thread):
             c = c[2:]
             i -= 1
 
-        c = hex_to_int(c[0:6])
+        c = int('0x'+c[0:6],16)
         if c > 0x800000: 
             c /= 256
             i += 1
