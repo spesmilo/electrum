@@ -2,11 +2,8 @@
 import sys
 string = sys.stdin.read()
 
-
 import hashlib, os
-version = "1.9.1"
-version_win = "1.9"
-version_mac = "1.9"
+from versions import version, version_win, version_mac
 
 _tgz="Electrum-%s.tar.gz"%version
 _zip="Electrum-%s.zip"%version

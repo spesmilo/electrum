@@ -912,14 +912,6 @@ class ElectrumWindow(QMainWindow):
         else:
 
             self.show_transaction(tx)
-            #filename = label + '.txn' if label else 'unsigned_%s.txn' % (time.mktime(time.gmtime()))
-            #try:
-            #    fileName = self.getSaveFileName(_("Select a transaction filename"), filename, "*.txn")
-            #    with open(fileName,'w') as f:
-            #        f.write(json.dumps(tx.as_dict(),indent=4) + '\n')
-            #    QMessageBox.information(self, _('Unsigned transaction created'), _("Unsigned transaction was saved to file:") + " " +fileName, _('OK'))
-            #except Exception:
-            #    QMessageBox.warning(self, _('Error'), _('Could not write transaction to file'), _('OK'))
 
         # add recipient to addressbook
         if to_address not in self.wallet.addressbook and not self.wallet.is_mine(to_address):
