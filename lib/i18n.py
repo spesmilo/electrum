@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@gitorious
 #
@@ -15,8 +13,9 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
+import gettext
+import os
 
-import gettext, os
 
 if os.path.exists('./locale'):
     LOCALE_DIR = './locale'
@@ -25,31 +24,33 @@ else:
 
 language = gettext.translation('electrum', LOCALE_DIR, fallback = True)
 
+
 def _(x):
     global language
     return language.ugettext(x)
 
+
 def set_language(x):
     global language
     if x: language = gettext.translation('electrum', LOCALE_DIR, fallback = True, languages=[x])
-    
-    
+
+
 languages = {
-    '':_('Default'),
-    'br':_('Brasilian'),
-    'cs':_('Czech'),
-    'de':_('German'),
-    'eo':_('Esperanto'),
-    'en':_('English'),
-    'es':_('Spanish'),
-    'fr':_('French'),
-    'it':_('Italian'),
-    'ja':_('Japanese'),
-    'lv':_('Latvian'),
-    'nl':_('Dutch'),
-    'ru':_('Russian'),
-    'sl':_('Slovenian'),
-    'ta':_('Tamil'),
-    'vi':_('Vietnamese'),
-    'zh':_('Chinese')
-    }
+    '': _('Default'),
+    'br': _('Brasilian'),
+    'cs': _('Czech'),
+    'de': _('German'),
+    'en': _('English'),
+    'eo': _('Esperanto'),
+    'es': _('Spanish'),
+    'fr': _('French'),
+    'it': _('Italian'),
+    'ja': _('Japanese'),
+    'lv': _('Latvian'),
+    'nl': _('Dutch'),
+    'ru': _('Russian'),
+    'sl': _('Slovenian'),
+    'ta': _('Tamil'),
+    'vi': _('Vietnamese'),
+    'zh': _('Chinese'),
+}

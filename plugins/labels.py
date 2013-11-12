@@ -1,26 +1,28 @@
-from electrum.util import print_error
-
-import httplib, urllib
-import socket
-import hashlib
-import json
 from urlparse import urlparse, parse_qs
+import base64
+import hashlib
+import httplib
+import json
+import socket
+import urllib
+
 try:
     import PyQt4
 except Exception:
     sys.exit("Error: Could not import PyQt4 on Linux systems, you may try 'sudo apt-get install python-qt4'")
 
-from PyQt4.QtGui import *
+import aes
 from PyQt4.QtCore import *
+from PyQt4.QtGui import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
-import aes
-import base64
-from electrum import bmp, pyqrnative
-from electrum.plugins import BasePlugin
-from electrum.i18n import _
 
+from electrum import bmp, pyqrnative
+from electrum.i18n import _
+from electrum.plugins import BasePlugin
+from electrum.util import print_error
 from electrum_gui.qt import HelpButton, EnterButton
+
 
 class Plugin(BasePlugin):
 
@@ -36,14 +38,11 @@ class Plugin(BasePlugin):
     def encode(self, message):
         encrypted = aes.encryptData(self.encode_password, unicode(message))
         encoded_message = base64.b64encode(encrypted)
-
         return encoded_message
 
     def decode(self, message):
-        decoded_message = aes.decryptData(self.encode_password, base64.b64decode(unicode(message)) )
-
+        decoded_message = aes.decryptData(self.encode_password, base64.b64decode(unicode(message)))
         return decoded_message
-
 
     def init(self):
         self.target_host = 'labelectrum.herokuapp.com'
@@ -58,7 +57,7 @@ class Plugin(BasePlugin):
         self.encode_password = hashlib.sha1(mpk).digest().encode('hex')[:32]
         self.wallet_id = hashlib.sha256(mpk).digest().encode('hex')
 
-        addresses = [] 
+        addresses = []
         for account in self.wallet.accounts.values():
             for address in account.get_addresses(0):
                 addresses.append(address)
@@ -80,7 +79,7 @@ class Plugin(BasePlugin):
 
     def set_label(self, item,label, changed):
         if not changed:
-            return 
+            return
         try:
             bundle = {"label": {"external_id": self.encode(item), "text": self.encode(label)}}
             params = json.dumps(bundle)
@@ -164,7 +163,6 @@ class Plugin(BasePlugin):
         self.set_enabled(True)
         return True
 
-
     def full_push(self):
         if self.do_full_push():
             QMessageBox.information(None, _("Labels uploaded"), _("Your labels have been uploaded."))
@@ -222,10 +220,10 @@ class Plugin(BasePlugin):
                 return False
 
             for label in response:
-                 decoded_key = self.decode(label["external_id"]) 
-                 decoded_label = self.decode(label["text"]) 
+                 decoded_key = self.decode(label["external_id"])
+                 decoded_label = self.decode(label["text"])
                  if force or not self.wallet.labels.get(decoded_key):
-                     self.wallet.labels[decoded_key] = decoded_label 
+                     self.wallet.labels[decoded_key] = decoded_label
             return True
         except socket.gaierror as e:
             print_error('Error connecting to service: %s ' %  e)

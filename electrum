@@ -15,17 +15,19 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-
-import re
-import pkgutil
-import sys, os, time, json
-import optparse
-import platform
 from decimal import Decimal
+import json
+import optparse
+import os
+import pkgutil
+import platform
+import re
+import sys
+import time
 import traceback
 
 try:
-    import ecdsa  
+    import ecdsa
 except ImportError:
     sys.exit("Error: python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'")
 
@@ -49,6 +51,7 @@ if __builtin__.use_local_modules:
 
 from electrum import *
 
+
 # get password routine
 def prompt_password(prompt, confirm=True):
     import getpass
@@ -65,7 +68,7 @@ def prompt_password(prompt, confirm=True):
     return password
 
 def arg_parser():
-    usage = "%prog [options] command" 
+    usage = "%prog [options] command"
     parser = optparse.OptionParser(prog=usage, add_help_option = False)
     parser.add_option("-h", "--help", action="callback", callback=print_help_cb, help="show this help text")
     parser.add_option("-g", "--gui", dest="gui", help="User interface: qt, lite, gtk, text or stdio")
@@ -88,6 +91,7 @@ def arg_parser():
     parser.add_option("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
     return parser
 
+
 def print_help(parser):
     parser.print_help()
     print_msg("Type 'electrum help <command>' to see the help for a specific command")
@@ -95,8 +99,10 @@ def print_help(parser):
     run_command('help')
     exit(1)
 
+
 def print_help_cb(self, opt, value, parser):
     print_help(parser)
+
 
 def run_command(cmd, password = None, args = []):
     cmd_runner = Commands(wallet, network)
@@ -116,7 +122,6 @@ def run_command(cmd, password = None, args = []):
 
 
 if __name__ == '__main__':
-
     parser = arg_parser()
     options, args = parser.parse_args()
     if options.portable and options.wallet_path is None:
@@ -142,7 +147,6 @@ if __name__ == '__main__':
         cmd = 'gui'
     else:
         cmd = args[0]
-       
 
     if cmd == 'gui':
         gui_name = config.get('gui','classic')
@@ -152,8 +156,8 @@ if __name__ == '__main__':
         except ImportError:
             traceback.print_exc(file=sys.stdout)
             sys.exit()
-            #sys.exit("Error: Unknown GUI: " + gui_name )
-        
+            #sys.exit("Error: Unknown GUI: " + gui_name)
+
         # network interface
         if not options.offline:
             network = Network(config)
@@ -163,12 +167,12 @@ if __name__ == '__main__':
 
         gui = gui.ElectrumGui(config, network)
         gui.main(url)
-        
+
         if network:
             network.stop()
 
         # we use daemon threads, their termination is enforced.
-        # this sleep command gives them time to terminate cleanly. 
+        # this sleep command gives them time to terminate cleanly.
         time.sleep(0.1)
         sys.exit(0)
 
@@ -189,7 +193,7 @@ if __name__ == '__main__':
         print_msg("Error: Wallet file not found.")
         print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
-    
+
     if cmd.name in ['create', 'restore']:
         if storage.file_exists:
             sys.exit("Error: Remove the existing wallet first!")
@@ -204,7 +208,7 @@ if __name__ == '__main__':
         if not config.get('server'):
             config.set_key('server', pick_random_server())
 
-        fee = options.tx_fee if options.tx_fee else raw_input("fee (default:%s):"%( str(Decimal(wallet.fee)/100000000)) )
+        fee = options.tx_fee if options.tx_fee else raw_input("fee (default:%s):"%(str(Decimal(wallet.fee)/100000000)))
         gap = options.gap_limit if options.gap_limit else raw_input("gap limit (default 5):")
 
         if fee: wallet.set_fee(float(fee)*100000000)
@@ -217,11 +221,11 @@ if __name__ == '__main__':
                 seed.decode('hex')
             except Exception:
                 print_error("Warning: Not hex, trying decode.")
-                seed = mnemonic_decode( seed.split(' ') )
+                seed = mnemonic_decode(seed.split(' '))
             if not seed:
                 sys.exit("Error: No seed")
 
-            wallet.init_seed( str(seed) )
+            wallet.init_seed(str(seed))
             wallet.save_seed()
             if not options.offline:
                 network = Network(config)
@@ -247,14 +251,12 @@ if __name__ == '__main__':
             print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
 
         print_msg("Wallet saved in '%s'"%wallet.storage.path)
-            
+
         if password:
             wallet.update_password(None, password)
 
         # terminate
         sys.exit(0)
-
-
 
     # important warning
     if cmd.name in ['dumpprivkey', 'dumpprivkeys']:
@@ -281,7 +283,6 @@ if __name__ == '__main__':
     else:
         password = None
 
-
     # add missing arguments, do type conversions
     if cmd.name == 'importprivkey':
         # See if they specificed a key on the cmd line, if not prompt
@@ -303,7 +304,7 @@ if __name__ == '__main__':
     elif cmd.name in ['payto', 'mktx']:
         domain = [options.from_addr] if options.from_addr else None
         args = [ 'mktx', args[1], Decimal(args[2]), Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, domain ]
-        
+
     elif cmd.name in ['paytomany', 'mksendmanytx']:
         domain = [options.from_addr] if options.from_addr else None
         outputs = []
@@ -312,13 +313,11 @@ if __name__ == '__main__':
                 print_msg("Error: Mismatched arguments.")
                 exit(1)
             outputs.append((args[i], Decimal(args[i+1])))
-        args = [ 'mksendmanytx', outputs, Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, domain ]        
+        args = [ 'mksendmanytx', outputs, Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, domain ]
 
     elif cmd.name == 'help':
         if len(args) < 2:
             print_help(parser)
-
-                
 
     # check the number of arguments
     if len(args) - 1 < cmd.min_args:
@@ -337,7 +336,6 @@ if __name__ == '__main__':
             print_msg("Warning: Final argument was reconstructed from several arguments:", repr(message))
             args = args[0:cmd.min_args] + [ message ]
 
-
     # open session
     if cmd.requires_network and not options.offline:
         network = Network(config)
@@ -351,8 +349,6 @@ if __name__ == '__main__':
             wallet.update()
     else:
         network = None
-
-
 
     # run the command
 
@@ -390,7 +386,6 @@ if __name__ == '__main__':
 
     else:
         run_command(cmd.name, password, args)
-        
 
     if network:
         if wallet:

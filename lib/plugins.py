@@ -1,13 +1,18 @@
-from util import print_error
-import traceback, sys
-from util import *
+import __builtin__
+import imp
+import os
+import pkgutil
+import sys
+import traceback
+
 from i18n import _
+from util import *
+
 
 plugins = []
 
 
 def init_plugins(self):
-    import imp, pkgutil, __builtin__, os
     global plugins
 
     if __builtin__.use_local_modules:
@@ -19,23 +24,20 @@ def init_plugins(self):
     else:
         import electrum_plugins
         plugin_names = [name for a, name, b in pkgutil.iter_modules(electrum_plugins.__path__)]
-        plugin_modules = [ __import__('electrum_plugins.'+name, fromlist=['electrum_plugins']) for name in plugin_names]
+        plugin_modules = [__import__('electrum_plugins.'+name, fromlist=['electrum_plugins']) for name in plugin_names]
 
     for name, p in zip(plugin_names, plugin_modules):
         try:
-            plugins.append( p.Plugin(self, name) )
+            plugins.append(p.Plugin(self, name))
         except Exception:
             print_msg(_("Error: cannot initialize plugin"),p)
             traceback.print_exc(file=sys.stdout)
 
 
-
 def run_hook(name, *args):
-    
     global plugins
 
     for p in plugins:
-
         if not p.is_enabled():
             continue
 
@@ -48,9 +50,6 @@ def run_hook(name, *args):
         except Exception:
             print_error("Plugin error")
             traceback.print_exc(file=sys.stdout)
-            
-    return
-
 
 
 class BasePlugin:
@@ -79,7 +78,6 @@ class BasePlugin:
 
         return self.is_enabled()
 
-    
     def enable(self):
         self.set_enabled(True)
         return True
@@ -88,12 +86,14 @@ class BasePlugin:
         self.set_enabled(False)
         return True
 
-    def init(self): pass
+    def init(self):
+        pass
 
-    def close(self): pass
+    def close(self):
+        pass
 
     def is_enabled(self):
-        return self.is_available() and self.config.get('use_'+self.name) is True
+        return bool(self.is_available() and self.config.get('use_'+self.name))
 
     def is_available(self):
         return True

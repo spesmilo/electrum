@@ -1,14 +1,14 @@
+from decimal import Decimal
+import httplib
+import json
+import re
+import threading
+
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-import decimal
-import httplib
-import json
-import threading
-import re
-from decimal import Decimal
-from electrum.plugins import BasePlugin
 from electrum.i18n import _
+from electrum.plugins import BasePlugin
 from electrum_gui.qt.util import *
 
 
@@ -53,12 +53,11 @@ class Exchanger(threading.Thread):
         except KeyError:
             pass
 
-            
     def get_currencies(self):
         return [] if self.quote_currencies == None else sorted(self.quote_currencies.keys())
 
     def _lookup_rate(self, response, quote_id):
-        return decimal.Decimal(str(response[str(quote_id)]["15m"]))
+        return Decimal(str(response[str(quote_id)]["15m"]))
 
 
 class Plugin(BasePlugin):
@@ -69,8 +68,7 @@ class Plugin(BasePlugin):
     def description(self):
         return """exchange rates, retrieved from blockchain.info"""
 
-
-    def __init__(self,a,b):
+    def __init__(self, a, b):
         BasePlugin.__init__(self,a,b)
         self.currencies = [self.config.get('currency', "EUR")]
 
@@ -99,16 +97,13 @@ class Plugin(BasePlugin):
             quote_text = "%.2f %s" % (quote_balance, quote_currency)
         return quote_text
 
-
     def requires_settings(self):
         return True
-
 
     def toggle(self):
         out = BasePlugin.toggle(self)
         self.win.update_status()
         return out
-
 
     def settings_widget(self, window):
         combo = QComboBox()
@@ -135,6 +130,3 @@ class Plugin(BasePlugin):
         combo.currentIndexChanged.connect(on_change)
         combo.connect(window, SIGNAL('refresh_currencies_combo()'), lambda: set_currencies(combo))
         return combo
-
-
-        

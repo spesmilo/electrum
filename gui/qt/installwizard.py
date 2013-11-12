@@ -249,7 +249,7 @@ class InstallWizard(QDialog):
         msg = _("Please choose a password to encrypt your wallet keys.")+'\n'\
               +_("Leave these fields empty if you want to disable encryption.")
         from password_dialog import make_password_dialog, run_password_dialog
-        self.set_layout( make_password_dialog(self, wallet, msg) )
+        self.set_layout( make_password_dialog(self, wallet, msg))
 
         run_password_dialog(self, wallet, self)
 

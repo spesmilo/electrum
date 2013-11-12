@@ -1,9 +1,12 @@
+import random
+
 from PyQt4.QtGui import *
+
 from electrum import BasePlugin
 from electrum.i18n import _
 
-class Plugin(BasePlugin):
 
+class Plugin(BasePlugin):
 
     def fullname(self):
         return 'Virtual Keyboard'
@@ -15,7 +18,6 @@ class Plugin(BasePlugin):
         self.vkb = None
         self.vkb_index = 0
 
-
     def password_dialog(self, pw, grid, pos):
         vkb_button = QPushButton(_("+"))
         vkb_button.setFixedWidth(20)
@@ -23,16 +25,13 @@ class Plugin(BasePlugin):
         grid.addWidget(vkb_button, pos, 2)
         self.kb_pos = 2
 
-
     def toggle_vkb(self, grid, pw):
         if self.vkb: grid.removeItem(self.vkb)
         self.vkb = self.virtual_keyboard(self.vkb_index, pw)
         grid.addLayout(self.vkb, self.kb_pos, 0, 1, 3)
         self.vkb_index += 1
 
-
     def virtual_keyboard(self, i, pw):
-        import random
         i = i%3
         if i == 0:
             chars = 'abcdefghijklmnopqrstuvwxyz '
@@ -40,7 +39,7 @@ class Plugin(BasePlugin):
             chars = 'ABCDEFGHIJKLMNOPQRTSUVWXYZ '
         elif i == 2:
             chars = '1234567890!?.,;:/%&()[]{}+-'
-            
+
         n = len(chars)
         s = []
         for i in xrange(n):
@@ -51,8 +50,8 @@ class Plugin(BasePlugin):
                     break
 
         def add_target(t):
-            return lambda: pw.setText(str( pw.text() ) + t)
-            
+            return lambda: pw.setText(str(pw.text()) + t)
+
         vbox = QVBoxLayout()
         grid = QGridLayout()
         grid.setSpacing(2)
@@ -60,10 +59,9 @@ class Plugin(BasePlugin):
             l_button = QPushButton(chars[s[i]])
             l_button.setFixedWidth(25)
             l_button.setFixedHeight(25)
-            l_button.clicked.connect(add_target(chars[s[i]]) )
+            l_button.clicked.connect(add_target(chars[s[i]]))
             grid.addWidget(l_button, i/6, i%6)
 
         vbox.addLayout(grid)
 
         return vbox
-

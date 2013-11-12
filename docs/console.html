@@ -49,7 +49,7 @@ For example, let us pick only the addresses in the previous result:
 Here we combine two commands, <tt>listunspent</tt>
 and <tt>dumpprivkeys</tt>, in order to dump the private keys of all adresses that have unspent outputs:
 <pre>
->> dumpprivkeys( map(lambda x:x.get('address'), listunspent()) )
+>> dumpprivkeys( map(lambda x:x.get('address'), listunspent()))
 {
     "12cmY5RHRgx8KkUKASDcDYRotget9FNso3": "***************************************************", 
     "1GavSCND6TB7HuCnJSTEbHEmCctNGeJwXF": "***************************************************"

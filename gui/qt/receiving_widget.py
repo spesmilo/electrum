@@ -26,7 +26,7 @@ class ReceivingWidget(QTreeWidget):
           return
       else:
           address = str(item.text(0))
-          label = unicode( item.text(1) )
+          label = unicode( item.text(1))
           self.owner.actuator.g.wallet.set_label(address, label)
 
     def copy_address(self):

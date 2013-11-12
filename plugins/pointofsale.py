@@ -1,16 +1,15 @@
-import re
-import platform
 from decimal import Decimal
+import platform
+import re
 
-from PyQt4.QtGui import *
 from PyQt4.QtCore import *
+from PyQt4.QtGui import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
-from electrum_gui.qt.qrcodewidget import QRCodeWidget
-
-from electrum import bmp, pyqrnative, BasePlugin
+from electrum import BasePlugin, bmp, pyqrnative
 from electrum.i18n import _
+from electrum_gui.qt.qrcodewidget import QRCodeWidget
 
 
 if platform.system() == 'Windows':
@@ -21,6 +20,7 @@ else:
     MONOSPACE_FONT = 'monospace'
 
 column_index = 3
+
 
 class QR_Window(QWidget):
 
@@ -35,7 +35,7 @@ class QR_Window(QWidget):
         self.setFocusPolicy(QtCore.Qt.NoFocus)
 
         main_box = QHBoxLayout()
-        
+
         self.qrw = QRCodeWidget()
         main_box.addWidget(self.qrw, 1)
 
@@ -55,7 +55,6 @@ class QR_Window(QWidget):
         vbox.addStretch(1)
         self.setLayout(main_box)
 
-
     def set_content(self, addr, label, amount, currency):
         self.address = addr
         address_text = "<span style='font-size: 18pt'>%s</span>" % addr if addr else ""
@@ -72,7 +71,7 @@ class QR_Window(QWidget):
 
             if currency:
                 amount_text += "<span style='font-size: 18pt'>%s %s</span><br/>" % (amount, currency)
-            amount_text += "<span style='font-size: 21pt'>%s</span> <span style='font-size: 16pt'>BTC</span> " % str(self.amount) 
+            amount_text += "<span style='font-size: 21pt'>%s</span> <span style='font-size: 16pt'>BTC</span> " % str(self.amount)
         self.amount_label.setText(amount_text)
 
         self.label = label
@@ -81,15 +80,13 @@ class QR_Window(QWidget):
 
         msg = 'bitcoin:'+self.address
         if self.amount is not None:
-            msg += '?amount=%s'%(str( self.amount))
+            msg += '?amount=%s'%(str(self.amount))
             if self.label is not None:
                 msg += '&label=%s'%(self.label)
         elif self.label is not None:
             msg += '?label=%s'%(self.label)
-            
-        self.qrw.set_addr( msg )
 
-
+        self.qrw.set_addr(msg)
 
 
 class Plugin(BasePlugin):
@@ -119,26 +116,22 @@ class Plugin(BasePlugin):
 
         return BasePlugin.enable(self)
 
-
     def load_wallet(self, wallet):
         self.wallet = wallet
-        self.requested_amounts = self.wallet.storage.get('requested_amounts',{}) 
+        self.requested_amounts = self.wallet.storage.get('requested_amounts',{})
 
     def close(self):
         self.window.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Tx')])
         self.toggle_QR_window(False)
-    
 
     def close_main_window(self):
-        if self.qr_window: 
+        if self.qr_window:
             self.qr_window.close()
             self.qr_window = None
 
-    
     def timer_actions(self):
         if self.qr_window:
             self.qr_window.qrw.update_qr()
-
 
     def toggle_QR_window(self, show):
         if show and not self.qr_window:
@@ -150,7 +143,7 @@ class Plugin(BasePlugin):
                 address = str(item.text(1))
                 label = self.wallet.labels.get(address)
                 amount, currency = self.requested_amounts.get(address, (None, None))
-                self.qr_window.set_content( address, label, amount, currency )
+                self.qr_window.set_content(address, label, amount, currency)
 
         elif show and self.qr_window and not self.qr_window.isVisible():
             self.qr_window.setVisible(True)
@@ -160,8 +153,6 @@ class Plugin(BasePlugin):
             self.qr_window_geometry = self.qr_window.geometry()
             self.qr_window.setVisible(False)
 
-
-    
     def update_receive_item(self, address, item):
         try:
             amount, currency = self.requested_amounts.get(address, (None, None))
@@ -173,10 +164,8 @@ class Plugin(BasePlugin):
         amount_str = amount + (' ' + currency if currency else '') if amount is not None  else ''
         item.setData(column_index,0,amount_str)
 
-
-    
     def current_item_changed(self, a):
-        if not self.wallet: 
+        if not self.wallet:
             return
         if a is not None and self.qr_window and self.qr_window.isVisible():
             address = str(a.text(0))
@@ -185,15 +174,13 @@ class Plugin(BasePlugin):
                 amount, currency = self.requested_amounts.get(address, (None, None))
             except Exception:
                 amount, currency = None, None
-            self.qr_window.set_content( address, label, amount, currency )
+            self.qr_window.set_content(address, label, amount, currency)
 
-
-    
     def item_changed(self, item, column):
         if column != column_index:
             return
-        address = str( item.text(0) )
-        text = str( item.text(column) )
+        address = str(item.text(0))
+        text = str(item.text(column))
         try:
             seq = self.wallet.get_address_index(address)
             index = seq[1][1]
@@ -211,7 +198,7 @@ class Plugin(BasePlugin):
                 currency = 'BTC'
             else:
                 currency = currency.upper()
-                    
+
             self.requested_amounts[address] = (amount, currency)
             self.wallet.storage.put('requested_amounts', self.requested_amounts, True)
 
@@ -221,27 +208,21 @@ class Plugin(BasePlugin):
                 self.wallet.labels[address] = label
 
             if self.qr_window:
-                self.qr_window.set_content( address, label, amount, currency )
+                self.qr_window.set_content(address, label, amount, currency)
 
         else:
             item.setText(column,'')
             if address in self.requested_amounts:
                 self.requested_amounts.pop(address)
-            
+
         self.window.update_receive_item(self.window.receive_list.currentItem())
-
-
-
 
     def edit_amount(self):
         l = self.window.receive_list
         item = l.currentItem()
         item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
-        l.editItem( item, column_index )
+        l.editItem(item, column_index)
         item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
 
-    
     def receive_menu(self, menu):
         menu.addAction(_("Request amount"), self.edit_amount)
-
-

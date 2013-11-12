@@ -7,11 +7,15 @@ Usage (Mac OS X):
 Usage (Windows):
      python setup.py py2exe
 """
-
-import sys, os, shutil, re
+from distutils import dir_util
 from setuptools import setup
-from lib.version import ELECTRUM_VERSION as version
+import os
+import re
+import shutil
+import sys
+
 from lib.util import print_error
+from lib.version import ELECTRUM_VERSION as version
 
 
 name = "Electrum"
@@ -37,25 +41,24 @@ if sys.platform == 'darwin':
                                  iconfile='electrum.icns',
 #                                 plist=plist,
                                  resources=["data", "icons"])),
-    )
+   )
 elif sys.platform == 'win32':
     extra_options = dict(
         setup_requires=['py2exe'],
         app=[mainscript],
-    )
+   )
 else:
     extra_options = dict(
         # Normally unix-like platforms will use "setup.py install"
         # and install the main script as such
         scripts=[mainscript],
-    )
+   )
 
 setup(
     name = name,
     version = version,
     **extra_options
 )
-from distutils import dir_util
 
 if sys.platform == 'darwin':
     # Remove the copied py file
@@ -72,7 +75,7 @@ if sys.platform == 'darwin':
       qt_menu_location = os.popen("find /usr/local/Cellar -name qt_menu.nib | tail -n 1").read()
       qt_menu_location = re.sub('\n','', qt_menu_location)
 
-    if(len(qt_menu_location) == 0):
+    if (len(qt_menu_location) == 0):
       print "Sorry couldn't find your qt_menu.nib this probably won't work"
     else:
       print "Found your qib: " + qt_menu_location
