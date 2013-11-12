@@ -112,8 +112,8 @@ class Commands:
         cmd = known_commands[method]
         if cmd.requires_password and self.wallet.use_encryption:
             self.password = apply(password_getter,())
-        f = eval('self.'+method)
-        result = apply(f,args)
+        f = getattr(self, method)
+        result = f(*args)
         self.password = None
         if self._callback:
             apply(self._callback, ())

@@ -5,6 +5,9 @@ from datetime import datetime
 is_verbose = True
 
 
+def hex_to_int(s):
+    return int('0x' + s[::-1].encode('hex'), 16)
+
 
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
