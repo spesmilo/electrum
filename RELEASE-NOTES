@@ -1,3 +1,9 @@
+# Release 1.9.4
+bugfixes: offline transactions
+
+# Release 1.9.3
+bugfixes: connection problems, transactions staying unverified
+
 # Release 1.9.2
 * fix a syntax error
 
