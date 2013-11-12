@@ -126,7 +126,7 @@ if __name__ == '__main__':
     if is_android:
         config_options = {'portable':True, 'verbose':True, 'gui':'android', 'auto_cycle':True}
     else:
-        config_options = vars(options)
+        config_options = eval(str(options))
         for k, v in config_options.items():
             if v is None: config_options.pop(k)
 
