@@ -155,6 +155,7 @@ _ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
 urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
 def parse_url(url):
+    url = str(url)
     o = url[8:].split('?')
     address = o[0]
     if len(o)>1:

@@ -923,7 +923,12 @@ class ElectrumWindow(QMainWindow):
     def set_url(self, url):
         address, amount, label, message, signature, identity, url = util.parse_url(url)
 
-        if amount and self.base_unit() == 'mBTC': amount = str( 1000* Decimal(amount))
+        try:
+            if amount and self.base_unit() == 'mBTC': amount = str( 1000* Decimal(amount))
+            elif amount: amount = str(Decimal(amount))
+        except Exception:
+            amount = "0.0"
+            QMessageBox.warning(self, _('Error'), _('Invalid Amount'), _('OK'))
 
         if self.mini:
             self.mini.set_payment_fields(address, amount)
