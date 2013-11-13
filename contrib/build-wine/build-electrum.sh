@@ -23,7 +23,7 @@ rm -rf $WINEPREFIX/drive_c/electrum
 cp electrum/LICENCE .
 mv electrum $WINEPREFIX/drive_c
 
-# Copy ZBar libraries to electrum    
+# Copy ZBar libraries to electrum
 #cp "$WINEPREFIX/drive_c/Program Files (x86)/ZBar/bin/"*.dll "$WINEPREFIX/drive_c/electrum/"
 
 cd ..
