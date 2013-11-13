@@ -16,21 +16,22 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import re
-import pkgutil
-import sys, os, time, json
-import optparse
-import platform
 from decimal import Decimal
+import json
+import optparse
+import os
+import re
+import sys
+import time
 import traceback
 
 try:
-    import ecdsa  
+    import ecdsa  # todo: 'ecdsa' imported but unused
 except ImportError:
     sys.exit("Error: python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'")
 
 try:
-    import aes
+    import aes  # todo: 'aes' imported but unused
 except ImportError:
     sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
 
@@ -47,7 +48,8 @@ if __builtin__.use_local_modules:
     imp.load_module('electrum', *imp.find_module('lib'))
     imp.load_module('electrum_gui', *imp.find_module('gui'))
 
-from electrum import *
+from electrum import *  # todo: import * is generally frowned upon. should import just what is used
+
 
 # get password routine
 def prompt_password(prompt, confirm=True):
@@ -64,9 +66,10 @@ def prompt_password(prompt, confirm=True):
         password = None
     return password
 
+
 def arg_parser():
-    usage = "%prog [options] command" 
-    parser = optparse.OptionParser(prog=usage, add_help_option = False)
+    usage = "%prog [options] command"
+    parser = optparse.OptionParser(prog=usage, add_help_option=False)
     parser.add_option("-h", "--help", action="callback", callback=print_help_cb, help="show this help text")
     parser.add_option("-g", "--gui", dest="gui", help="User interface: qt, lite, gtk, text or stdio")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
@@ -88,6 +91,7 @@ def arg_parser():
     parser.add_option("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
     return parser
 
+
 def print_help(parser):
     parser.print_help()
     print_msg("Type 'electrum help <command>' to see the help for a specific command")
@@ -95,17 +99,18 @@ def print_help(parser):
     run_command('help')
     exit(1)
 
+
 def print_help_cb(self, opt, value, parser):
     print_help(parser)
 
-def run_command(cmd, password = None, args = []):
+
+def run_command(cmd, password=None, args=[]):
     cmd_runner = Commands(wallet, network)
     func = getattr(cmd_runner, cmd)
     cmd_runner.password = password
     try:
         result = func(*args[1:])
-    except Exception as e:
-        import traceback
+    except Exception:
         traceback.print_exc(file=sys.stdout)
         sys.exit(1)
 
@@ -124,36 +129,42 @@ if __name__ == '__main__':
 
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
-        config_options = {'portable':True, 'verbose':True, 'gui':'android', 'auto_cycle':True}
+        config_options = {
+            'portable': True,
+            'verbose': True,
+            'gui': 'android',
+            'auto_cycle': True,
+        }
     else:
         config_options = eval(str(options))
         for k, v in config_options.items():
-            if v is None: config_options.pop(k)
+            if v is None:
+                config_options.pop(k)
 
     set_verbosity(config_options.get('verbose'))
 
     config = SimpleConfig(config_options)
 
-    if len(args)==0:
+    if len(args) == 0:
         url = None
         cmd = 'gui'
-    elif len(args)==1 and re.match('^bitcoin:', args[0]):
+    elif len(args) == 1 and re.match('^bitcoin:', args[0]):
         url = args[0]
         cmd = 'gui'
     else:
         cmd = args[0]
-       
 
     if cmd == 'gui':
-        gui_name = config.get('gui','classic')
-        if gui_name in ['lite', 'classic']: gui_name = 'qt'
+        gui_name = config.get('gui', 'classic')
+        if gui_name in ['lite', 'classic']:
+            gui_name = 'qt'
         try:
             gui = __import__('electrum_gui.' + gui_name, fromlist=['electrum_gui'])
         except ImportError:
             traceback.print_exc(file=sys.stdout)
             sys.exit()
             #sys.exit("Error: Unknown GUI: " + gui_name )
-        
+
         # network interface
         if not options.offline:
             network = Network(config)
@@ -163,12 +174,12 @@ if __name__ == '__main__':
 
         gui = gui.ElectrumGui(config, network)
         gui.main(url)
-        
+
         if network:
             network.stop()
 
         # we use daemon threads, their termination is enforced.
-        # this sleep command gives them time to terminate cleanly. 
+        # this sleep command gives them time to terminate cleanly.
         time.sleep(0.1)
         sys.exit(0)
 
@@ -189,11 +200,11 @@ if __name__ == '__main__':
         print_msg("Error: Wallet file not found.")
         print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
-    
+
     if cmd.name in ['create', 'restore']:
         if storage.file_exists:
             sys.exit("Error: Remove the existing wallet first!")
-        if options.password != None:
+        if options.password is not None:
             password = options.password
         else:
             password = prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
@@ -204,24 +215,26 @@ if __name__ == '__main__':
         if not config.get('server'):
             config.set_key('server', pick_random_server())
 
-        fee = options.tx_fee if options.tx_fee else raw_input("fee (default:%s):"%( str(Decimal(wallet.fee)/100000000)) )
+        fee = options.tx_fee if options.tx_fee else raw_input("fee (default:%s):" % (str(Decimal(wallet.fee)/100000000)))
         gap = options.gap_limit if options.gap_limit else raw_input("gap limit (default 5):")
 
-        if fee: wallet.set_fee(float(fee)*100000000)
-        if gap: wallet.change_gap_limit(int(gap))
+        if fee:
+            wallet.set_fee(float(fee)*100000000)
+        if gap:
+            wallet.change_gap_limit(int(gap))
 
         if cmd.name == 'restore':
             import getpass
-            seed = getpass.getpass(prompt = "seed:", stream = None) if options.concealed else raw_input("seed:")
+            seed = getpass.getpass(prompt="seed:", stream=None) if options.concealed else raw_input("seed:")
             try:
                 seed.decode('hex')
             except Exception:
                 print_error("Warning: Not hex, trying decode.")
-                seed = mnemonic_decode( seed.split(' ') )
+                seed = mnemonic_decode(seed.split(' '))
             if not seed:
                 sys.exit("Error: No seed")
 
-            wallet.init_seed( str(seed) )
+            wallet.init_seed(str(seed))
             wallet.save_seed()
             if not options.offline:
                 network = Network(config)
@@ -243,18 +256,16 @@ if __name__ == '__main__':
             wallet.init_seed(None)
             wallet.save_seed()
             wallet.synchronize()
-            print_msg("Your wallet generation seed is:\n\"%s\""% wallet.get_mnemonic(None))
+            print_msg("Your wallet generation seed is:\n\"%s\"" % wallet.get_mnemonic(None))
             print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
 
-        print_msg("Wallet saved in '%s'"%wallet.storage.path)
-            
+        print_msg("Wallet saved in '%s'" % wallet.storage.path)
+
         if password:
             wallet.update_password(None, password)
 
         # terminate
         sys.exit(0)
-
-
 
     # important warning
     if cmd.name in ['dumpprivkey', 'dumpprivkeys']:
@@ -281,7 +292,6 @@ if __name__ == '__main__':
     else:
         password = None
 
-
     # add missing arguments, do type conversions
     if cmd.name == 'importprivkey':
         # See if they specificed a key on the cmd line, if not prompt
@@ -289,21 +299,21 @@ if __name__ == '__main__':
             args[1] = prompt_password('Enter PrivateKey (will not echo):', False)
 
     elif cmd.name == 'signrawtransaction':
-        args = [ cmd, args[1], json.loads(args[2]) if len(args)>2 else [], json.loads(args[3]) if len(args)>3 else []]
+        args = [cmd, args[1], json.loads(args[2]) if len(args) > 2 else [], json.loads(args[3]) if len(args) > 3 else []]
 
     elif cmd.name == 'createmultisig':
-        args = [ cmd, int(args[1]), json.loads(args[2])]
+        args = [cmd, int(args[1]), json.loads(args[2])]
 
     elif cmd.name == 'createrawtransaction':
-        args = [ cmd, json.loads(args[1]), json.loads(args[2])]
+        args = [cmd, json.loads(args[1]), json.loads(args[2])]
 
     elif cmd.name == 'listaddresses':
         args = [cmd, options.show_all, options.show_labels]
 
     elif cmd.name in ['payto', 'mktx']:
         domain = [options.from_addr] if options.from_addr else None
-        args = [ 'mktx', args[1], Decimal(args[2]), Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, domain ]
-        
+        args = ['mktx', args[1], Decimal(args[2]), Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, domain]
+
     elif cmd.name in ['paytomany', 'mksendmanytx']:
         domain = [options.from_addr] if options.from_addr else None
         outputs = []
@@ -312,13 +322,11 @@ if __name__ == '__main__':
                 print_msg("Error: Mismatched arguments.")
                 exit(1)
             outputs.append((args[i], Decimal(args[i+1])))
-        args = [ 'mksendmanytx', outputs, Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, domain ]        
+        args = ['mksendmanytx', outputs, Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, domain]
 
     elif cmd.name == 'help':
         if len(args) < 2:
             print_help(parser)
-
-                
 
     # check the number of arguments
     if len(args) - 1 < cmd.min_args:
@@ -335,8 +343,7 @@ if __name__ == '__main__':
         if len(args) > cmd.min_args + 1:
             message = ' '.join(args[cmd.min_args:])
             print_msg("Warning: Final argument was reconstructed from several arguments:", repr(message))
-            args = args[0:cmd.min_args] + [ message ]
-
+            args = args[0:cmd.min_args] + [message]
 
     # open session
     if cmd.requires_network and not options.offline:
@@ -352,24 +359,22 @@ if __name__ == '__main__':
     else:
         network = None
 
-
-
     # run the command
-
     if cmd.name == 'deseed':
         if not wallet.seed:
             print_msg("Error: This wallet has no seed")
         else:
             ns = wallet.storage.path + '.seedless'
-            print_msg("Warning: you are going to create a seedless wallet'\nIt will be saved in '%s'"%ns)
-            if raw_input("Are you sure you want to continue? (y/n) ") in ['y','Y','yes']:
+            print_msg("Warning: you are going to create a seedless wallet'\nIt will be saved in '%s'" % ns)
+            if raw_input("Are you sure you want to continue? (y/n) ") in ['y', 'Y', 'yes']:
                 wallet.storage.path = ns
                 wallet.seed = ''
                 wallet.storage.put('seed', '', True)
                 wallet.use_encryption = False
                 wallet.storage.put('use_encryption', wallet.use_encryption, True)
-                for k in wallet.imported_keys.keys(): wallet.imported_keys[k] = ''
-                wallet.storage.put('imported_keys',wallet.imported_keys, True)
+                for k in wallet.imported_keys.keys():
+                    wallet.imported_keys[k] = ''
+                wallet.storage.put('imported_keys', wallet.imported_keys, True)
                 print_msg("Done.")
             else:
                 print_msg("Action canceled.")
@@ -390,7 +395,6 @@ if __name__ == '__main__':
 
     else:
         run_command(cmd.name, password, args)
-        
 
     if network:
         if wallet:
