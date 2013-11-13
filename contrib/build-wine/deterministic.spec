@@ -5,7 +5,7 @@ a = Analysis(['electrum', 'gui/qt/main_window.py', 'gui/qt/lite_window.py', 'gui
               'lib/util.py', 'lib/wallet.py', 'lib/simple_config.py',
               'lib/bitcoin.py'
               ],
-             hiddenimports=["lib","gui"], 
+             hiddenimports=["lib","gui"],
              pathex=['lib:gui:plugins'],
              hookspath=None)
 
