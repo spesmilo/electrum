@@ -23,19 +23,26 @@ if sys.version_info[:3] < (2,6,0):
 
 if sys.platform == 'darwin':
     from plistlib import Plist
-    plist = Plist.fromFile('Info.plist')
-    plist.update(dict(CFBundleIconFile='electrum.icns'))
-
+    #plist = Plist.fromFile('Info.plist')
+    plist = dict(
+        CFBundleName="Electrum",
+        CFBundleURLTypes=[
+            dict(
+                CFBundleURLName='bitcoin',
+                CFBundleURLSchemes=['bitcoin'],
+            )
+        ]
+        ) 
     shutil.copy(mainscript, mainscript + '.py')
     mainscript += '.py'
     extra_options = dict(
         setup_requires=['py2app'],
         app=[mainscript],
-        options=dict(py2app=dict(argv_emulation=True,
+        options=dict(py2app=dict(argv_emulation=False,
                                  includes = ['PyQt4.QtCore','PyQt4.QtGui', 'sip'],
                                  packages = ['lib', 'gui', 'plugins'],
                                  iconfile='electrum.icns',
-#                                 plist=plist,
+                                 plist=plist,
                                  resources=["data", "icons"])),
     )
 elif sys.platform == 'win32':
