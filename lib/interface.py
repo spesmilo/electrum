@@ -315,18 +315,25 @@ class Interface(threading.Thread):
                 is_new = True
                 # get server certificate.
                 # Do not use ssl.get_server_certificate because it does not work with proxy
-                s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
-                try:
-                    s.connect((self.host, self.port))
-                except Exception:
-                    # print_error("failed to connect", self.host, self.port)
+                for res in socket.getaddrinfo(self.host, self.port, socket.AF_UNSPEC, socket.SOCK_STREAM):
+                    try:
+                        s = socket.socket( res[0], socket.SOCK_STREAM )
+                        s.connect(res[4])
+                    except:
+                        s = None
+                        continue
+
+                    try:
+                        s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv3, cert_reqs=ssl.CERT_NONE, ca_certs=None)
+                    except ssl.SSLError, e:
+                        s = None
+                        continue
+                    break
+
+                if s == None:
+                    print_error("SSL error retrieving SSL certificate:", self.host, e)
                     return
 
-                try:
-                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv3, cert_reqs=ssl.CERT_NONE, ca_certs=None)
-                except ssl.SSLError, e:
-                    print_error("SSL error:", self.host, e)
-                    return
                 dercert = s.getpeercert(True)
                 s.close()
                 cert = ssl.DER_cert_to_PEM_cert(dercert)
@@ -339,14 +346,19 @@ class Interface(threading.Thread):
             else:
                 is_new = False
 
+        for res in socket.getaddrinfo(self.host, self.port, socket.AF_UNSPEC, socket.SOCK_STREAM):
+            try:
+                s = socket.socket( res[0], socket.SOCK_STREAM )
+                s.settimeout(2)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
-        s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
-        s.settimeout(2)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+                s.connect(res[4])
+            except:
+                s = None
+                continue
+            break
 
-        try:
-            s.connect(( self.host.encode('ascii'), int(self.port)))
-        except Exception:
+        if s == None:
             print_error("failed to connect", self.host, self.port)
             return
 
