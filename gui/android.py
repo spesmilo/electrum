@@ -240,7 +240,7 @@ def qr_layout(addr):
      <TextView android:id="@+id/addrTextView"
                 android:layout_width="match_parent"
                 android:layout_height="50"
-                android:text=" % s"
+                android:text="%s"
                 android:textAppearance="?android:attr/textAppearanceLarge"
                 android:gravity="center_vertical|center_horizontal|center">
      </TextView>
@@ -256,7 +256,7 @@ def qr_layout(addr):
      <TextView android:id="@+id/labelTextView"
                 android:layout_width="match_parent"
                 android:layout_height="50"
-                android:text=" % s"
+                android:text="%s"
                 android:textAppearance="?android:attr/textAppearanceLarge"
                 android:gravity="center_vertical|center_horizontal|center">
      </TextView>
@@ -365,23 +365,23 @@ def get_history_layout(n):
           <TextView
             android:id="@+id/hl_%d_col1"
             android:layout_column="0"
-            android:text=" % s"
-            android:textColor=" % s"
+            android:text="%s"
+            android:textColor="%s"
             android:padding="3" />
           <TextView
             android:id="@+id/hl_%d_col2"
             android:layout_column="1"
-            android:text=" % s"
+            android:text="%s"
             android:padding="3" />
           <TextView
             android:id="@+id/hl_%d_col3"
             android:layout_column="2"
-            android:text=" % s"
+            android:text="%s"
             android:padding="3" />
           <TextView
             android:id="@+id/hl_%d_col4"
             android:layout_column="3"
-            android:text=" % s"
+            android:text="%s"
             android:padding="4" />
         </TableRow>""" % (i, a, color, i, b, i, c, i, d)
         i += 1
