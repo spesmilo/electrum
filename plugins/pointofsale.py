@@ -20,7 +20,7 @@ elif platform.system() == 'Darwin':
 else:
     MONOSPACE_FONT = 'monospace'
 
-column_index = 3
+column_index = 4
 
 class QR_Window(QWidget):
 
@@ -108,7 +108,8 @@ class Plugin(BasePlugin):
         self.merchant_name = self.config.get('merchant_name', 'Invoice')
 
         self.window.expert_mode = True
-        self.window.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Request')])
+        self.window.receive_list.setColumnCount(5)
+        self.window.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Tx'), _('Request')])
         self.requested_amounts = {}
         self.toggle_QR_window(True)
 
@@ -126,6 +127,9 @@ class Plugin(BasePlugin):
 
     def close(self):
         self.window.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Tx')])
+        self.window.receive_list.setColumnCount(4)
+        for i,width in enumerate(self.window.column_widths['receive']):
+            self.window.receive_list.setColumnWidth(i, width)
         self.toggle_QR_window(False)
     
 
@@ -202,7 +206,7 @@ class Plugin(BasePlugin):
             return
 
         text = text.strip().upper()
-        print text
+        #print text
         m = re.match('^(\d*(|\.\d*))\s*(|BTC|EUR|USD|GBP|CNY|JPY|RUB|BRL)$', text)
         if m and m.group(1) and m.group(1)!='.':
             amount = m.group(1)
@@ -243,5 +247,6 @@ class Plugin(BasePlugin):
     
     def receive_menu(self, menu):
         menu.addAction(_("Request amount"), self.edit_amount)
+        menu.addAction(_("Show Invoice"), lambda: self.toggle_QR_window(True))
 
 
