@@ -1236,7 +1236,7 @@ class ElectrumWindow(QMainWindow):
                 is_red = False
                 gap = 0
 
-                for address in reversed(account.get_addresses(is_change)):
+                for address in account.get_addresses(is_change):
                     h = self.wallet.history.get(address,[])
             
                     if h == []:
