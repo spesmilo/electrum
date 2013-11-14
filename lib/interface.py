@@ -326,12 +326,12 @@ class Interface(threading.Thread):
                     try:
                         s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv3, cert_reqs=ssl.CERT_NONE, ca_certs=None)
                     except ssl.SSLError, e:
+                        print_error("SSL error retrieving SSL certificate:", self.host, e)
                         s = None
-                        continue
+
                     break
 
-                if s == None:
-                    print_error("SSL error retrieving SSL certificate:", self.host, e)
+                if s is None:
                     return
 
                 dercert = s.getpeercert(True)
@@ -351,14 +351,13 @@ class Interface(threading.Thread):
                 s = socket.socket( res[0], socket.SOCK_STREAM )
                 s.settimeout(2)
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-
                 s.connect(res[4])
             except:
                 s = None
                 continue
             break
 
-        if s == None:
+        if s is None:
             print_error("failed to connect", self.host, self.port)
             return
 
