@@ -29,6 +29,7 @@ import random
 import aes
 import Queue
 import time
+import bisect
 
 from util import print_msg, print_error, format_satoshis
 from bitcoin import *
@@ -1127,15 +1128,14 @@ class Wallet:
                     output['prevout_hash'] = tx_hash
                     output['height'] = tx_height
                     output['coinbase'] = is_coinbase
-                    coins.append((tx_height, output))
+                    coins.append(output)
 
         # sort by age
-        if coins:
-            coins = sorted(coins)
-            if coins[-1][0] != 0:
-                while coins[0][0] == 0: 
-                    coins = coins[1:] + [ coins[0] ]
-        return [x[1] for x in coins]
+        coins = sorted(coins, key=lambda i: i['height'])
+        if coins and coins[-1]['height'] != 0:
+            while coins[0]['height'] == 0: 
+                coins = coins[1:] + [ coins[0] ]
+        return coins
 
 
 
@@ -1145,40 +1145,72 @@ class Wallet:
 
 
     def choose_tx_inputs( self, amount, fixed_fee, domain = None ):
-        """ todo: minimize tx size """
-        total = 0
-        fee = self.fee if fixed_fee is None else fixed_fee
-        if domain is None:
-            domain = self.addresses(True)
+        domain = self.addresses(True) if domain is None else domain
 
-        for i in self.frozen_addresses:
-            if i in domain: domain.remove(i)
-
-        prioritized = []
-        for i in self.prioritized_addresses:
-            if i in domain:
-                domain.remove(i)
+        prioritized, unprioritized = [], []
+        for i in self.get_spendable_coins(domain):
+            if i['address'] in self.prioritized_addresses:
                 prioritized.append(i)
+            else:
+                unprioritized.append(i)
 
-        coins = self.get_unspent_coins(domain)
-        prioritized_coins = self.get_unspent_coins(prioritized)
-
-        inputs = []
-        coins = prioritized_coins + coins
-
-        for item in coins:
-            if item.get('coinbase') and item.get('height') + COINBASE_MATURITY > self.network.blockchain.height:
-                continue
-            addr = item.get('address')
-            v = item.get('value')
-            total += v
-            inputs.append(item)
-            fee = self.estimated_fee(inputs) if fixed_fee is None else fixed_fee
-            if total >= amount + fee: break
-        else:
+        inputs, total, fee = self.pick_coins_smalltx(prioritized, amount, fixed_fee)
+        if total < amount:
+            i, t, fee = self.pick_coins_smalltx(unprioritized, amount-total, fixed_fee, len(inputs))
+            inputs += i
+            total += t
+        if total < amount:
             inputs = []
 
         return inputs, total, fee
+
+
+    def get_spendable_coins(self, domain=None):
+        for c in self.get_unspent_coins(domain):
+            if c['coinbase'] and self.network.blockchain.height < c['height'] + COINBASE_MATURITY:
+                continue
+            if c['address'] in self.frozen_addresses:
+                continue
+            yield c
+
+
+    def pick_coins_smalltx(self, coins, amount, fixed_fee, other_coins=0):
+        """Choose a subset of coins totalling at least amount.
+        This algorithm always minimizes the size of the transaction; it then
+        tries to minimize addresses used together.
+        An ideal optimizer would also take ages into account.
+        An exact optimization would take at least pseudo-polynomial time.
+        """
+        # find the fewest inputs we can use
+        coins_needed = 0
+        coins.sort(key=lambda i: -i['value'])
+        total, fee = 0, fixed_fee
+        for item in coins:
+            total += item['value']
+            coins_needed += 1
+            if fixed_fee is None: fee = self.estimated_fee(coins_needed+other_coins)
+            if total >= amount + fee: break
+        else:
+            return coins, total, fee
+
+        # group by address
+        by_addr = {}
+        for item in coins:
+            bisect.insort(by_addr.setdefault(item['address'], []),
+                    (-item['value'], item))
+
+        # compose a sufficient set of coins_needed inputs from few addresses,
+        # while trying inputs from at most coins_needed addresses
+        inputs, total = [], 0
+        for item in coins:
+            for v, i in by_addr.pop(item['address'], []):
+                if len(inputs) == coins_needed and inputs[-1][1]['value'] >= -v:
+                    break
+                bisect.insort(inputs, (v, i))
+                total += -v
+                if len(inputs) > coins_needed: total -= inputs.pop()[1]['value']
+                if total >= amount + fee:
+                    return [i[1] for i in inputs], total, fee
 
 
     def set_fee(self, fee):
@@ -1187,7 +1219,7 @@ class Wallet:
             self.storage.put('fee_per_kb', self.fee, True)
         
     def estimated_fee(self, inputs):
-        estimated_size =  len(inputs) * 180 + 80     # this assumes non-compressed keys
+        estimated_size = inputs * 180 + 80     # this assumes non-compressed keys
         fee = self.fee * int(round(estimated_size/1024.))
         if fee == 0: fee = self.fee
         return fee
