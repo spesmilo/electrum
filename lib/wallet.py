@@ -1138,12 +1138,6 @@ class Wallet:
         return [x[1] for x in coins]
 
 
-
-    def choose_tx_inputs_from_account( self, amount, fixed_fee, account ):
-        domain = self.get_account_addresses(account) if account else None
-        return self.choose_tx_inputs( amount, fixed_fee, domain )
-
-
     def choose_tx_inputs( self, amount, fixed_fee, domain = None ):
         """ todo: minimize tx size """
         total = 0
@@ -1355,17 +1349,6 @@ class Wallet:
         self.add_input_info(inputs)
         outputs = self.add_tx_change(inputs, outputs, amount, fee, total, change_addr)
         return Transaction.from_io(inputs, outputs)
-
-
-    def mktx_from_account(self, outputs, password, fee=None, account=None,
-            pay_from=None):
-        if pay_from:
-            domain = pay_from
-        elif account:
-            domain = self.get_account_addresses(account)
-        else:
-            domain = None
-        return self.mktx(outputs, password, fee, change_addr=None, domain=domain)
 
 
     def mktx(self, outputs, password, fee=None, change_addr=None, domain= None ):
