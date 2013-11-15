@@ -1357,8 +1357,14 @@ class Wallet:
         return Transaction.from_io(inputs, outputs)
 
 
-    def mktx_from_account(self, outputs, password, fee=None, account=None):
-        domain = self.get_account_addresses(account) if account else None
+    def mktx_from_account(self, outputs, password, fee=None, account=None,
+            pay_from=None):
+        if pay_from:
+            domain = pay_from
+        elif account:
+            domain = self.get_account_addresses(account)
+        else:
+            domain = None
         return self.mktx(outputs, password, fee, change_addr=None, domain=domain)
 
 
