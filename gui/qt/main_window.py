@@ -810,8 +810,8 @@ class ElectrumWindow(QMainWindow):
 
             if self.amount_e.is_shortcut:
                 self.amount_e.is_shortcut = False
-                c, u = self.wallet.get_account_balance(self.current_account)
-                inputs, total, fee = self.wallet.choose_tx_inputs_from_account( c + u, 0, self.current_account)
+                sendable = self.get_sendable_balance()
+                inputs, total, fee = self.wallet.choose_tx_inputs( sendable, 0, self.get_payment_sources())
                 fee = self.wallet.estimated_fee(inputs)
                 amount = total - fee
                 self.amount_e.setText( self.format_amount(amount) )
@@ -824,7 +824,7 @@ class ElectrumWindow(QMainWindow):
             if not is_fee: fee = None
             if amount is None:
                 return
-            inputs, total, fee = self.wallet.choose_tx_inputs_from_account( amount, fee, self.current_account )
+            inputs, total, fee = self.wallet.choose_tx_inputs(amount, 0, self.get_payment_sources())
             if not is_fee:
                 self.fee_e.setText( self.format_amount( fee ) )
             if inputs:
@@ -909,10 +909,9 @@ class ElectrumWindow(QMainWindow):
 
     @protected
     def send_tx(self, to_address, amount, fee, label, password):
-
         try:
-            tx = self.wallet.mktx_from_account( [(to_address, amount)],
-                    password, fee, self.current_account, self.pay_from)
+            tx = self.wallet.mktx( [(to_address, amount)], password, fee,
+                    domain=self.get_payment_sources())
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
@@ -1176,21 +1175,27 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Unprioritize"),
                     lambda: self.set_addrs_prioritized(addrs, False))
 
-        total = 0
-        for item in self.receive_list.selectedItems():
-            c, u = self.wallet.get_addr_balance(unicode(item.text(0)))
-            total += c + u
-        balance = "  [%s]" % self.format_amount(total)
+        balance = "  [%s]" % self.format_amount(self.get_sendable_balance())
         menu.addAction(_("Send From")+balance,
-                lambda: self.send_from_addresses(self.receive_list))
+                lambda: self.send_from_addresses(addrs))
             
         run_hook('receive_menu', menu)
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
 
+    def get_sendable_balance(self):
+        return sum(sum(self.wallet.get_addr_balance(a)) for a in self.get_payment_sources())
+
+
+    def get_payment_sources(self):
+        if self.pay_from:
+            return self.pay_from
+        else:
+            return self.wallet.get_account_addresses(self.current_account)
+
+
     def send_from_addresses(self, addrs):
-        for item in addrs.selectedItems():
-            self.pay_from.append(unicode(item.text(0)))
+        self.pay_from = addrs[:]
         self.tabs.setCurrentIndex(1)
 
 
