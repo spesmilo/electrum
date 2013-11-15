@@ -1010,20 +1010,22 @@ class ElectrumWindow(QMainWindow):
             entry.setPalette(palette)
 
 
-    def toggle_freeze(self,addr):
-        if not addr: return
-        if addr in self.wallet.frozen_addresses:
-            self.wallet.unfreeze(addr)
-        else:
-            self.wallet.freeze(addr)
+    def set_addrs_frozen(self,addrs,freeze):
+        for addr in addrs:
+            if not addr: continue
+            if addr in self.wallet.frozen_addresses and not freeze:
+                self.wallet.unfreeze(addr)
+            elif addr not in self.wallet.frozen_addresses and freeze:
+                self.wallet.freeze(addr)
         self.update_receive_tab()
 
-    def toggle_priority(self,addr):
-        if not addr: return
-        if addr in self.wallet.prioritized_addresses:
-            self.wallet.unprioritize(addr)
-        else:
-            self.wallet.prioritize(addr)
+    def set_addrs_prioritized(self,addrs,prioritize):
+        for addr in addrs:
+            if not addr: continue
+            if addr in self.wallet.prioritized_addresses and not prioritize:
+                self.wallet.unprioritize(addr)
+            elif addr not in self.wallet.prioritized_addresses and prioritize:
+                self.wallet.prioritize(addr)
         self.update_receive_tab()
 
 
@@ -1136,32 +1138,43 @@ class ElectrumWindow(QMainWindow):
         # if it is not called the menu pops up several times
         #self.receive_list.selectedIndexes() 
 
-        item = self.receive_list.itemAt(position)
-        if not item: return
+        selected = self.receive_list.selectedItems()
+        multi_select = len(selected) > 1
+        addrs = [unicode(item.text(0)) for item in selected]
+        if not multi_select:
+            item = self.receive_list.itemAt(position)
+            if not item: return
 
-        addr = unicode(item.text(0))
-        if not is_valid(addr): 
-            k = str(item.data(0,32).toString())
-            if k:
-                self.create_account_menu(position, k, item)
-            else:
-                item.setExpanded(not item.isExpanded())
-            return 
+            addr = addrs[0]
+            if not is_valid(addr):
+                k = str(item.data(0,32).toString())
+                if k:
+                    self.create_account_menu(position, k, item)
+                else:
+                    item.setExpanded(not item.isExpanded())
+                return
 
         menu = QMenu()
-        menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
-        menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")) )
-        menu.addAction(_("Edit label"), lambda: self.edit_label(True))
-        if self.wallet.seed:
-            menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
-            menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
-        if addr in self.wallet.imported_keys:
-            menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
+        if not multi_select:
+            menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
+            menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")) )
+            menu.addAction(_("Edit label"), lambda: self.edit_label(True))
+            if self.wallet.seed:
+                menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
+                menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
+            if addr in self.wallet.imported_keys:
+                menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
 
-        t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
-        menu.addAction(t, lambda: self.toggle_freeze(addr))
-        t = _("Unprioritize") if addr in self.wallet.prioritized_addresses else _("Prioritize")
-        menu.addAction(t, lambda: self.toggle_priority(addr))
+        if any(addr not in self.wallet.frozen_addresses for addr in addrs):
+            menu.addAction(_("Freeze"), lambda: self.set_addrs_frozen(addrs, True))
+        if any(addr in self.wallet.frozen_addresses for addr in addrs):
+            menu.addAction(_("Unfreeze"), lambda: self.set_addrs_frozen(addrs, False))
+        if any(addr not in self.wallet.prioritized_addresses for addr in addrs):
+            menu.addAction(_("Prioritize"),
+                    lambda: self.set_addrs_prioritized(addrs, True))
+        if any(addr in self.wallet.prioritized_addresses for addr in addrs):
+            menu.addAction(_("Unprioritize"),
+                    lambda: self.set_addrs_prioritized(addrs, False))
 
         total = 0
         for item in self.receive_list.selectedItems():
