@@ -73,6 +73,9 @@ class QR_Window(QWidget):
             if currency:
                 amount_text += "<span style='font-size: 18pt'>%s %s</span><br/>" % (amount, currency)
             amount_text += "<span style='font-size: 21pt'>%s</span> <span style='font-size: 16pt'>BTC</span> " % str(self.amount) 
+        else:
+            self.amount = None
+            
         self.amount_label.setText(amount_text)
 
         self.label = label
