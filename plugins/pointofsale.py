@@ -65,7 +65,11 @@ class QR_Window(QWidget):
         amount_text = ''
         if amount:
             if currency:
-                self.amount = Decimal(amount) / self.exchanger.exchange(1, currency) if currency else amount
+                exch = self.exchanger.exchange(1, currency)
+                if exch == None:
+                    self.amount = Decimal('0.0')
+                else:
+                    self.amount = Decimal(amount) / exch if currency else amount
             else:
                 self.amount = Decimal(amount)
             self.amount = self.amount.quantize(Decimal('1.0000'))
@@ -83,7 +87,7 @@ class QR_Window(QWidget):
         self.label_label.setText(label_text)
 
         msg = 'bitcoin:'+self.address
-        if self.amount is not None:
+        if amount:
             msg += '?amount=%s'%(str( self.amount))
             if self.label is not None:
                 msg += '&label=%s'%(self.label)
