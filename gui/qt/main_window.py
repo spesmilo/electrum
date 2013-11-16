@@ -672,6 +672,9 @@ class ElectrumWindow(QMainWindow):
     def current_item_changed(self, a):
         run_hook('current_item_changed', a)
 
+        self.pay_from = []
+        self.tabs.emit(SIGNAL('currentChanged(int)'), 1)
+
 
 
     def update_history_tab(self):
@@ -754,21 +757,33 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.message_e, 2, 1, 1, 3)
         grid.addWidget(HelpButton(_('Description of the transaction (not mandatory).') + '\n\n' + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.')), 2, 4)
 
+        self.pay_from = []
+        grid.addWidget(QLabel(_('Selected\nInputs')), 3, 0)
+        self.from_list = QTreeWidget(self)
+        self.from_list.setColumnCount(2)
+        self.from_list.setColumnWidth(0, 350)
+        self.from_list.setColumnWidth(1, 50)
+        self.from_list.setHeaderHidden (True)
+        self.from_list.setMaximumHeight(80)
+        grid.addWidget(self.from_list, 3, 1, 1, 3)
+        self.connect(self.tabs, SIGNAL('currentChanged(int)'),
+                lambda: self.update_pay_from_list(grid))
+
         self.amount_e = AmountEdit(self.base_unit)
-        grid.addWidget(QLabel(_('Amount')), 3, 0)
-        grid.addWidget(self.amount_e, 3, 1, 1, 2)
+        grid.addWidget(QLabel(_('Amount')), 4, 0)
+        grid.addWidget(self.amount_e, 4, 1)
         grid.addWidget(HelpButton(
                 _('Amount to be sent.') + '\n\n' \
                     + _('The amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') \
-                    + '\n\n' + _('Keyboard shortcut: type "!" to send all your coins.')), 3, 3)
+                    + '\n\n' + _('Keyboard shortcut: type "!" to send all your coins.')), 4, 3)
         
         self.fee_e = AmountEdit(self.base_unit)
-        grid.addWidget(QLabel(_('Fee')), 4, 0)
-        grid.addWidget(self.fee_e, 4, 1, 1, 2) 
+        grid.addWidget(QLabel(_('Fee')), 5, 0)
+        grid.addWidget(self.fee_e, 5, 1)
         grid.addWidget(HelpButton(
                 _('Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
                     + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
-                    + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')), 4, 3)
+                    + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')), 5, 3)
 
 
         self.send_button = EnterButton(_("Send"), self.do_send)
@@ -795,8 +810,8 @@ class ElectrumWindow(QMainWindow):
 
             if self.amount_e.is_shortcut:
                 self.amount_e.is_shortcut = False
-                c, u = self.wallet.get_account_balance(self.current_account)
-                inputs, total, fee = self.wallet.choose_tx_inputs_from_account( c + u, 0, self.current_account)
+                sendable = self.get_sendable_balance()
+                inputs, total, fee = self.wallet.choose_tx_inputs( sendable, 0, self.get_payment_sources())
                 fee = self.wallet.estimated_fee(inputs)
                 amount = total - fee
                 self.amount_e.setText( self.format_amount(amount) )
@@ -809,7 +824,7 @@ class ElectrumWindow(QMainWindow):
             if not is_fee: fee = None
             if amount is None:
                 return
-            inputs, total, fee = self.wallet.choose_tx_inputs_from_account( amount, fee, self.current_account )
+            inputs, total, fee = self.wallet.choose_tx_inputs(amount, 0, self.get_payment_sources())
             if not is_fee:
                 self.fee_e.setText( self.format_amount( fee ) )
             if inputs:
@@ -833,6 +848,16 @@ class ElectrumWindow(QMainWindow):
 
         run_hook('create_send_tab', grid)
         return w2
+
+
+    def update_pay_from_list(self, grid):
+        self.from_list.clear()
+        grid.itemAtPosition(3,0).widget().setHidden(len(self.pay_from) == 0)
+        grid.itemAtPosition(3,1).widget().setHidden(len(self.pay_from) == 0)
+        for addr in self.pay_from:
+            c, u = self.wallet.get_addr_balance(addr)
+            balance = self.format_amount(c + u)
+            self.from_list.addTopLevelItem(QTreeWidgetItem( [addr, balance] ))
 
 
     def update_completions(self):
@@ -884,9 +909,9 @@ class ElectrumWindow(QMainWindow):
 
     @protected
     def send_tx(self, to_address, amount, fee, label, password):
-
         try:
-            tx = self.wallet.mktx_from_account( [(to_address, amount)], password, fee, self.current_account)
+            tx = self.wallet.mktx( [(to_address, amount)], password, fee,
+                    domain=self.get_payment_sources())
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
@@ -963,6 +988,10 @@ class ElectrumWindow(QMainWindow):
         for e in [self.payto_e, self.message_e, self.amount_e, self.fee_e]:
             e.setText('')
             self.set_frozen(e,False)
+
+        self.pay_from = []
+        self.tabs.emit(SIGNAL('currentChanged(int)'), 1)
+
         self.update_status()
 
     def set_frozen(self,entry,frozen):
@@ -980,20 +1009,22 @@ class ElectrumWindow(QMainWindow):
             entry.setPalette(palette)
 
 
-    def toggle_freeze(self,addr):
-        if not addr: return
-        if addr in self.wallet.frozen_addresses:
-            self.wallet.unfreeze(addr)
-        else:
-            self.wallet.freeze(addr)
+    def set_addrs_frozen(self,addrs,freeze):
+        for addr in addrs:
+            if not addr: continue
+            if addr in self.wallet.frozen_addresses and not freeze:
+                self.wallet.unfreeze(addr)
+            elif addr not in self.wallet.frozen_addresses and freeze:
+                self.wallet.freeze(addr)
         self.update_receive_tab()
 
-    def toggle_priority(self,addr):
-        if not addr: return
-        if addr in self.wallet.prioritized_addresses:
-            self.wallet.unprioritize(addr)
-        else:
-            self.wallet.prioritize(addr)
+    def set_addrs_prioritized(self,addrs,prioritize):
+        for addr in addrs:
+            if not addr: continue
+            if addr in self.wallet.prioritized_addresses and not prioritize:
+                self.wallet.unprioritize(addr)
+            elif addr not in self.wallet.prioritized_addresses and prioritize:
+                self.wallet.prioritize(addr)
         self.update_receive_tab()
 
 
@@ -1025,6 +1056,7 @@ class ElectrumWindow(QMainWindow):
         l,w,hbox = self.create_list_tab([ _('Address'), _('Label'), _('Balance'), _('Tx')])
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_receive_menu)
+        l.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,0,1))
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.connect(l, SIGNAL('currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)'), lambda a,b: self.current_item_changed(a))
@@ -1105,35 +1137,66 @@ class ElectrumWindow(QMainWindow):
         # if it is not called the menu pops up several times
         #self.receive_list.selectedIndexes() 
 
-        item = self.receive_list.itemAt(position)
-        if not item: return
+        selected = self.receive_list.selectedItems()
+        multi_select = len(selected) > 1
+        addrs = [unicode(item.text(0)) for item in selected]
+        if not multi_select:
+            item = self.receive_list.itemAt(position)
+            if not item: return
 
-        addr = unicode(item.text(0))
-        if not is_valid(addr): 
-            k = str(item.data(0,32).toString())
-            if k:
-                self.create_account_menu(position, k, item)
-            else:
-                item.setExpanded(not item.isExpanded())
-            return 
+            addr = addrs[0]
+            if not is_valid(addr):
+                k = str(item.data(0,32).toString())
+                if k:
+                    self.create_account_menu(position, k, item)
+                else:
+                    item.setExpanded(not item.isExpanded())
+                return
 
         menu = QMenu()
-        menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
-        menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")) )
-        menu.addAction(_("Edit label"), lambda: self.edit_label(True))
-        if self.wallet.seed:
-            menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
-            menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
-        if addr in self.wallet.imported_keys:
-            menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
+        if not multi_select:
+            menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
+            menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")) )
+            menu.addAction(_("Edit label"), lambda: self.edit_label(True))
+            if self.wallet.seed:
+                menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
+                menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
+            if addr in self.wallet.imported_keys:
+                menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
 
-        t = _("Unfreeze") if addr in self.wallet.frozen_addresses else _("Freeze")
-        menu.addAction(t, lambda: self.toggle_freeze(addr))
-        t = _("Unprioritize") if addr in self.wallet.prioritized_addresses else _("Prioritize")
-        menu.addAction(t, lambda: self.toggle_priority(addr))
+        if any(addr not in self.wallet.frozen_addresses for addr in addrs):
+            menu.addAction(_("Freeze"), lambda: self.set_addrs_frozen(addrs, True))
+        if any(addr in self.wallet.frozen_addresses for addr in addrs):
+            menu.addAction(_("Unfreeze"), lambda: self.set_addrs_frozen(addrs, False))
+        if any(addr not in self.wallet.prioritized_addresses for addr in addrs):
+            menu.addAction(_("Prioritize"),
+                    lambda: self.set_addrs_prioritized(addrs, True))
+        if any(addr in self.wallet.prioritized_addresses for addr in addrs):
+            menu.addAction(_("Unprioritize"),
+                    lambda: self.set_addrs_prioritized(addrs, False))
+
+        balance = "  [%s]" % self.format_amount(self.get_sendable_balance())
+        menu.addAction(_("Send From")+balance,
+                lambda: self.send_from_addresses(addrs))
             
         run_hook('receive_menu', menu)
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
+
+
+    def get_sendable_balance(self):
+        return sum(sum(self.wallet.get_addr_balance(a)) for a in self.get_payment_sources())
+
+
+    def get_payment_sources(self):
+        if self.pay_from:
+            return self.pay_from
+        else:
+            return self.wallet.get_account_addresses(self.current_account)
+
+
+    def send_from_addresses(self, addrs):
+        self.pay_from = addrs[:]
+        self.tabs.setCurrentIndex(1)
 
 
     def payto(self, addr):
