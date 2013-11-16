@@ -758,7 +758,8 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(HelpButton(_('Description of the transaction (not mandatory).') + '\n\n' + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.')), 2, 4)
 
         self.pay_from = []
-        grid.addWidget(QLabel(_('Selected\nInputs')), 3, 0)
+        self.from_label = QLabel(_('From'))
+        grid.addWidget(self.from_label, 3, 0)
         self.from_list = QTreeWidget(self)
         self.from_list.setColumnCount(2)
         self.from_list.setColumnWidth(0, 350)
@@ -766,12 +767,11 @@ class ElectrumWindow(QMainWindow):
         self.from_list.setHeaderHidden (True)
         self.from_list.setMaximumHeight(80)
         grid.addWidget(self.from_list, 3, 1, 1, 3)
-        self.connect(self.tabs, SIGNAL('currentChanged(int)'),
-                lambda: self.update_pay_from_list(grid))
+        self.connect(self.tabs, SIGNAL('currentChanged(int)'), lambda: self.update_pay_from_list(grid))
 
         self.amount_e = AmountEdit(self.base_unit)
         grid.addWidget(QLabel(_('Amount')), 4, 0)
-        grid.addWidget(self.amount_e, 4, 1)
+        grid.addWidget(self.amount_e, 4, 1, 1, 2)
         grid.addWidget(HelpButton(
                 _('Amount to be sent.') + '\n\n' \
                     + _('The amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') \
@@ -779,7 +779,7 @@ class ElectrumWindow(QMainWindow):
         
         self.fee_e = AmountEdit(self.base_unit)
         grid.addWidget(QLabel(_('Fee')), 5, 0)
-        grid.addWidget(self.fee_e, 5, 1)
+        grid.addWidget(self.fee_e, 5, 1, 1, 2)
         grid.addWidget(HelpButton(
                 _('Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
                     + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
@@ -824,7 +824,7 @@ class ElectrumWindow(QMainWindow):
             if not is_fee: fee = None
             if amount is None:
                 return
-            inputs, total, fee = self.wallet.choose_tx_inputs(amount, 0, self.get_payment_sources())
+            inputs, total, fee = self.wallet.choose_tx_inputs(amount, fee, self.get_payment_sources())
             if not is_fee:
                 self.fee_e.setText( self.format_amount( fee ) )
             if inputs:
@@ -852,8 +852,8 @@ class ElectrumWindow(QMainWindow):
 
     def update_pay_from_list(self, grid):
         self.from_list.clear()
-        grid.itemAtPosition(3,0).widget().setHidden(len(self.pay_from) == 0)
-        grid.itemAtPosition(3,1).widget().setHidden(len(self.pay_from) == 0)
+        self.from_label.setHidden(len(self.pay_from) == 0)
+        self.from_list.setHidden(len(self.pay_from) == 0)
         for addr in self.pay_from:
             c, u = self.wallet.get_addr_balance(addr)
             balance = self.format_amount(c + u)
@@ -1175,9 +1175,7 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Unprioritize"),
                     lambda: self.set_addrs_prioritized(addrs, False))
 
-        balance = "  [%s]" % self.format_amount(self.get_sendable_balance())
-        menu.addAction(_("Send From")+balance,
-                lambda: self.send_from_addresses(addrs))
+        menu.addAction(_("Send From"), lambda: self.send_from_addresses(addrs))
             
         run_hook('receive_menu', menu)
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
