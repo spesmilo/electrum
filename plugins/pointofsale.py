@@ -65,7 +65,10 @@ class QR_Window(QWidget):
         amount_text = ''
         if amount:
             if currency:
-                self.amount = Decimal(amount) / self.exchanger.exchange(1, currency) if currency else amount
+                try:
+                    self.amount = Decimal(amount) / self.exchanger.exchange(1, currency) if currency else amount
+                except Exception:
+                    self.amount = None
             else:
                 self.amount = Decimal(amount)
             self.amount = self.amount.quantize(Decimal('1.0000'))
