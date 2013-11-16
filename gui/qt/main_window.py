@@ -1232,7 +1232,7 @@ class ElectrumWindow(QMainWindow):
                 seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
                 account_item.addChild(seq_item)
                 used_item = QTreeWidgetItem( [ _("Used"), '', '', '', ''] )
-                seq_item.addChild(used_item)
+                used_flag = False
                 if not is_change: seq_item.setExpanded(True)
 
                 is_red = False
@@ -1255,6 +1255,9 @@ class ElectrumWindow(QMainWindow):
                     if is_red:
                         item.setBackgroundColor(1, QColor('red'))
                     if len(h) > 0 and c == -u:
+                        if not used_flag:
+                            seq_item.addChild(used_item)
+                            used_flag = True
                         used_item.addChild(item)
                     else:
                         seq_item.addChild(item)
