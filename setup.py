@@ -104,6 +104,7 @@ setup(
         'electrum_gui.text',
         'electrum_plugins.aliases',
         'electrum_plugins.exchange_rate',
+        'electrum_plugins.mixer',
         'electrum_plugins.labels',
         'electrum_plugins.pointofsale',
         'electrum_plugins.qrscanner',
