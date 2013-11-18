@@ -1,18 +1,23 @@
 #!/usr/bin/python
-
-import urllib2, os
+from StringIO import StringIO
+import urllib2, os, zipfile
 
 url = 'http://crowdin.net/download/project/electrum-client.zip'
 
-# Download latest translation build
-
-
-
 # Unzip to locale
-if not os.path.exists('locale'):
-    os.mkdir('locale')
 
+zfobj = zipfile.ZipFile(StringIO(urllib2.urlopen(url).read()))
 
+for name in zfobj.namelist():
+    uncompressed = zfobj.read(name)
+    if name.endswith('/'):
+        if not os.path.exists(name):
+            os.mkdir(name)
+    else:
+        print "Saving",zipfname
+        output = open(name,'w')
+        output.write(uncompressed)
+        output.close()
 
 # Convert .po to .mo
 for lang in os.listdir('./locale'):
@@ -27,5 +32,5 @@ for lang in os.listdir('./locale'):
         os.mkdir(mo_dir)
         
     cmd = 'msgfmt --output-file="%s/electrum.mo" "locale/%s/electrum.po"' % (mo_dir,lang)
-    #print cmd
+    print 'Installing',lang
     os.system(cmd)
