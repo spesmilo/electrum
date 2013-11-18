@@ -21,6 +21,8 @@ class Plugin(BasePlugin):
         self._is_available = self._init()
 
     def _init(self):
+        self.mix_addr = ""
+        self.is_fee_hook = False
         return True
 
     def is_available(self):
@@ -30,19 +32,35 @@ class Plugin(BasePlugin):
         b = QPushButton(_("Via Mixer"))
         b.clicked.connect(self.via_mixer)
         grid.addWidget(b, 2, 5)
+        self.mix_fee = QLabel("")
+        self.mix_fee.setAlignment(Qt.AlignCenter)
+        grid.addWidget(self.mix_fee, 5, 3)
         
     def receive_menu(self, menu, addr):
         menu.addAction(_("QR code, Via Mixer"), lambda: self.show_qrcode_via_mixer(addr) ) 
         
     def via_mixer(self):
-        mix_addr = self.request_mixer_address(self.gui.main_window.payto_e.text())
-        if is_valid(mix_addr):
-            self.gui.main_window.payto_e.setText(mix_addr)
+        if not self.is_fee_hook:
+            self.gui.main_window.amount_e.textChanged.connect(lambda: self.update_mix_fee() )
+            self.gui.main_window.fee_e.textChanged.connect(lambda: self.update_mix_fee() ) 
+            self.gui.main_window.payto_e.textChanged.connect(lambda: self.update_mix_fee() )
+            self.is_fee_hook = True
+        self.mix_addr = self.request_mixer_address(self.gui.main_window.payto_e.text())
+        if is_valid(self.mix_addr):
+            self.gui.main_window.payto_e.setText(self.mix_addr)
+            self.update_mix_fee()
 
     def show_qrcode_via_mixer(self, addr):
         mix_addr = self.request_mixer_address(addr)
         if is_valid(mix_addr):
             self.gui.main_window.show_qrcode("bitcoin:" + mix_addr, _("Address") )
+            self.update_mix_fee
+            
+    def update_mix_fee(self):
+        if is_valid(self.mix_addr)  and  self.mix_addr == self.gui.main_window.payto_e.text():
+            self.mix_fee.setText("(%s: %.8f)" % (_("Est. Mix Fee"), ((float(self.gui.main_window.amount_e.text())+float(self.gui.main_window.fee_e.text())) * 0.005 )) )
+        else:
+            self.mix_fee.setText("")
 
     def request_mixer_address(self, addr):
         try:
