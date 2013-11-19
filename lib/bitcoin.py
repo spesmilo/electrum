@@ -53,7 +53,9 @@ def op_push(i):
     
 
 
-Hash = lambda x: hashlib.sha256(hashlib.sha256(x).digest()).digest()
+def Hash(x):
+    if type(x) is unicode: x=x.encode('utf-8')
+    return hashlib.sha256(hashlib.sha256(x).digest()).digest()
 hash_encode = lambda x: x[::-1].encode('hex')
 hash_decode = lambda x: x.decode('hex')[::-1]
 
