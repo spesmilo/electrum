@@ -955,6 +955,7 @@ class ElectrumWindow(QMainWindow):
         # add recipient to addressbook
         if to_address not in self.wallet.addressbook and not self.wallet.is_mine(to_address):
             self.wallet.addressbook.append(to_address)
+        run_hook('send_tx', tx)
 
 
 
