@@ -70,6 +70,7 @@ register_command('getaddressbalance',    1, 1, True,  True,  False, 'Return the 
 register_command('getaddresshistory',    1, 1, True,  True,  False, 'Return the transaction history of a wallet address', 'getaddresshistory <address>')
 register_command('getbalance',           0, 1, True,  True,  False, 'Return the balance of your wallet, or of one account in your wallet', 'getbalance [<account>]')
 register_command('getconfig',            1, 1, False, False, False, 'Return a configuration variable', 'getconfig <name>', config_options)
+register_command('getmasterpublickey',   0, 0, False, True, True,   'Show the master public key')
 register_command('getmpk',               0, 0, False, True,  False, 'Return your wallet\'s master public key', 'getmpk')
 register_command('getpubkeys',           1, 1, False, True,  False, 'Return the public keys for a wallet address', 'getpubkeys <bitcoin address>')
 register_command('getrawtransaction',    1, 2, True,  False, False, 'Retrieve a transaction', 'getrawtransaction <txhash> <height>')
@@ -118,6 +119,9 @@ class Commands:
         if self._callback:
             apply(self._callback, ())
         return result
+
+    def getmasterpublickey(self):
+        return self.wallet.get_master_public_key()
 
     def getaddresshistory(self, addr):
         assert self.wallet.is_mine(addr)
