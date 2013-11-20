@@ -125,7 +125,10 @@ class WalletStorage:
 
 
     def get(self, key, default=None):
-        return self.data.get(key, default)
+        v = self.data.get(key)
+        if v is None: 
+            v = default
+        return v
 
     def put(self, key, value, save = True):
 
