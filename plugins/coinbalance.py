@@ -34,7 +34,7 @@ class Plugin(BasePlugin):
 
     def fullname(self): return 'Coinbalance'
 
-    def description(self): return 'After sending bitcoin, prompt to rebuy them via Coinbase.'
+    def description(self): return 'After sending bitcoin, prompt to rebuy them via Coinbase.\n\nMarcell Ortutay, 1FNGQvm29tKM7y3niq63RKi7Qbg7oZ3jrB'
 
     def __init__(self, gui, name):
         BasePlugin.__init__(self, gui, name)
