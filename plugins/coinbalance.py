@@ -25,6 +25,11 @@ from electrum.util import appdata_dir
 from oauth2client.client import FlowExchangeError
 from oauth2client.client import OAuth2WebServerFlow
 from oauth2client.client import OAuth2Credentials
+
+SATOSHIS_PER_BTC = float(100000000)
+COINBASE_ENDPOINT = 'https://coinbase.com'
+CERTS_PATH = appdata_dir() + '/certs/ca-coinbase.crt'
+
 class Plugin(BasePlugin):
 
     def fullname(self): return 'Coinbalance'
@@ -45,32 +50,29 @@ class Plugin(BasePlugin):
         return BasePlugin.enable(self)
 
     def send_tx(self, tx, to_address, amount, fee):
-        web = proposeRebuy(amount + fee)
+        web = propose_rebuy(amount + fee)
 
 
-SATOSHIS_PER_BTC = float(100000000)
-COINBASE_ENDPOINT = 'https://coinbase.com'
-CERTS_PATH = appdata_dir() + '/certs/ca-coinbase.crt'
 
-def proposeRebuy(amount):
+def propose_rebuy(amount):
     web = QWebView()
     box = QMessageBox()
     box.setFixedSize(200, 200)
 
     # TODO(marcell): in the case of OAuth failure, remove local token
-    credentials = readLocalOauthCredentials()
+    credentials = read_local_oauth_credentials()
     questionText = _('Rebuy ') + str(amount/SATOSHIS_PER_BTC) + _(' BTC?')
     if credentials:
-        credentials = refreshCredentials(credentials)
-        storeLocalOauthCredentials(credentials)
-        totalPrice = getCoinbaseTotalPrice(credentials, amount)
+        credentials = refresh_credentials(credentials)
+        store_local_oauth_credentials(credentials)
+        totalPrice = get_coinbase_total_price(credentials, amount)
         questionText += _('\n(Price: ') + totalPrice + _(')')
 
     if not question(box, questionText):
         return
 
     if credentials:
-        doBuy(credentials, amount)
+        do_buy(credentials, amount)
     else:
         flow = OAuth2WebServerFlow(
             client_id='0a930a48b5a6ea10fb9f7a9fec3d093a6c9062ef8a7eeab20681274feabdab06',
@@ -79,19 +81,19 @@ def proposeRebuy(amount):
             redirect_uri='urn:ietf:wg:oauth:2.0:oob',
             auth_uri='https://coinbase.com/oauth/authorize',
             token_uri='https://coinbase.com/oauth/token')
-        doOauthFlow(flow, web, amount)
+        do_oauth_flow(flow, web, amount)
     return web
 
-def completeOauthFlow(flow, token, web, amount):
+def complete_oauth_flow(flow, token, web, amount):
     http = httplib2.Http(ca_certs=CERTS_PATH)
     try:
         credentials = flow.step2_exchange(str(token), http=http)
     except FlowExchangeError as e:
         raise e
-    storeLocalOauthCredentials(credentials)
-    doBuy(credentials, amount)
+    store_local_oauth_credentials(credentials)
+    do_buy(credentials, amount)
 
-def doBuy(credentials, amount):
+def do_buy(credentials, amount):
     h = httplib2.Http(ca_certs=CERTS_PATH)
     h = credentials.authorize(h)
     params = {'qty': float(amount)/SATOSHIS_PER_BTC, 'agree_btc_amount_varies': False}
@@ -106,10 +108,10 @@ def doBuy(credentials, amount):
             message(_('Error, could not buy bitcoin'))
             
 
-def readLocalOauthCredentials():
-    if not os.access(tokenPath(), os.F_OK):
+def read_local_oauth_credentials():
+    if not os.access(token_path(), os.F_OK):
         return None
-    f = open(tokenPath(), 'r')
+    f = open(token_path(), 'r')
     data = f.read()
     f.close()
     try:
@@ -118,31 +120,31 @@ def readLocalOauthCredentials():
     except Exception as e:
         return None
 
-def storeLocalOauthCredentials(credentials):
-    f = open(tokenPath(), 'w')
+def store_local_oauth_credentials(credentials):
+    f = open(token_path(), 'w')
     f.write(credentials.to_json())
     f.close()
 
-def refreshCredentials(credentials):
+def refresh_credentials(credentials):
     h = httplib2.Http(ca_certs=CERTS_PATH)
     credentials.refresh(h)
     return credentials
 
-def tokenPath():
+def token_path():
     dir = user_dir() + '/coinbalance'
     if not os.access(dir, os.F_OK):
         os.mkdir(dir)
     return dir + '/token'
 
-def doOauthFlow(flow, web, amount):
+def do_oauth_flow(flow, web, amount):
     # QT expects un-escaped URL
     auth_uri = urllib.unquote(flow.step1_get_authorize_url())
     web.load(QUrl(auth_uri))
     web.setFixedSize(500, 700)
     web.show()
-    web.titleChanged.connect(lambda(title): completeOauthFlow(flow, title, web, amount) if re.search('^[a-z0-9]+$', title) else False)
+    web.titleChanged.connect(lambda(title): complete_oauth_flow(flow, title, web, amount) if re.search('^[a-z0-9]+$', title) else False)
     
-def getCoinbaseTotalPrice(credentials, amount):
+def get_coinbase_total_price(credentials, amount):
     r = requests.get(COINBASE_ENDPOINT + '/api/v1/prices/buy',
                      params={'qty': amount/SATOSHIS_PER_BTC})
     resp = r.json()
@@ -152,17 +154,8 @@ def message(msg):
     box = QMessageBox()
     box.setFixedSize(200, 200)
     return QMessageBox.information(box, _('Message'), msg)
-    pass
 
 def question(widget, msg):
     return (QMessageBox.question(
         widget, _('Message'), msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             == QMessageBox.Yes)
-
-#TODO(marcell): rm test code
-# if __name__ == '__main__':
-#     app = QApplication(sys.argv)
-#     web = proposeRebuy(float(100000))
-#     sys.exit(app.exec_())
-
-
