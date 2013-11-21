@@ -84,6 +84,14 @@ def propose_rebuy(amount):
         do_oauth_flow(flow, web, amount)
     return web
 
+def do_oauth_flow(flow, web, amount):
+    # QT expects un-escaped URL
+    auth_uri = urllib.unquote(flow.step1_get_authorize_url())
+    web.load(QUrl(auth_uri))
+    web.setFixedSize(500, 700)
+    web.show()
+    web.titleChanged.connect(lambda(title): complete_oauth_flow(flow, title, web, amount) if re.search('^[a-z0-9]+$', title) else False)
+    
 def complete_oauth_flow(flow, token, web, amount):
     http = httplib2.Http(ca_certs=CERTS_PATH)
     try:
@@ -92,22 +100,7 @@ def complete_oauth_flow(flow, token, web, amount):
         raise e
     store_local_oauth_credentials(credentials)
     do_buy(credentials, amount)
-
-def do_buy(credentials, amount):
-    h = httplib2.Http(ca_certs=CERTS_PATH)
-    h = credentials.authorize(h)
-    params = {'qty': float(amount)/SATOSHIS_PER_BTC, 'agree_btc_amount_varies': False}
-    resp, content = h.request(COINBASE_ENDPOINT + '/api/v1/buys', 'POST', urlencode(params))
-    content = json.loads(content)
-    if content['success']:
-        message(_('Success!\n') + content['transfer']['description'])
-    else:
-        if content['errors']:
-            message(_('Error: ') + string.join(content['errors'], '\n'))
-        else:
-            message(_('Error, could not buy bitcoin'))
             
-
 def read_local_oauth_credentials():
     if not os.access(token_path(), os.F_OK):
         return None
@@ -130,20 +123,26 @@ def refresh_credentials(credentials):
     credentials.refresh(h)
     return credentials
 
+def do_buy(credentials, amount):
+    h = httplib2.Http(ca_certs=CERTS_PATH)
+    h = credentials.authorize(h)
+    params = {'qty': float(amount)/SATOSHIS_PER_BTC, 'agree_btc_amount_varies': False}
+    resp, content = h.request(COINBASE_ENDPOINT + '/api/v1/buys', 'POST', urlencode(params))
+    content = json.loads(content)
+    if content['success']:
+        message(_('Success!\n') + content['transfer']['description'])
+    else:
+        if content['errors']:
+            message(_('Error: ') + string.join(content['errors'], '\n'))
+        else:
+            message(_('Error, could not buy bitcoin'))
+
 def token_path():
     dir = user_dir() + '/coinbalance'
     if not os.access(dir, os.F_OK):
         os.mkdir(dir)
     return dir + '/token'
 
-def do_oauth_flow(flow, web, amount):
-    # QT expects un-escaped URL
-    auth_uri = urllib.unquote(flow.step1_get_authorize_url())
-    web.load(QUrl(auth_uri))
-    web.setFixedSize(500, 700)
-    web.show()
-    web.titleChanged.connect(lambda(title): complete_oauth_flow(flow, title, web, amount) if re.search('^[a-z0-9]+$', title) else False)
-    
 def get_coinbase_total_price(credentials, amount):
     r = requests.get(COINBASE_ENDPOINT + '/api/v1/prices/buy',
                      params={'qty': amount/SATOSHIS_PER_BTC})
