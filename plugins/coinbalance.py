@@ -20,6 +20,7 @@ from PyQt4.QtWebKit import *
 from electrum import BasePlugin
 from electrum.i18n import _, set_language
 from electrum.util import user_dir
+from electrum.util import appdata_dir
 
 from oauth2client.client import FlowExchangeError
 from oauth2client.client import OAuth2WebServerFlow
@@ -43,13 +44,13 @@ class Plugin(BasePlugin):
     def enable(self):
         return BasePlugin.enable(self)
 
-    def send_tx(self, tx, to_address, amount):
-        web = proposeRebuy(amount)
+    def send_tx(self, tx, to_address, amount, fee):
+        web = proposeRebuy(amount + fee)
 
 
 SATOSHIS_PER_BTC = float(100000000)
 COINBASE_ENDPOINT = 'https://coinbase.com'
-CERTS_PATH = os.path.dirname(os.path.realpath(__file__)) + '/ca-coinbase.crt'
+CERTS_PATH = appdata_dir() + '/certs/ca-coinbase.crt'
 
 def proposeRebuy(amount):
     web = QWebView()

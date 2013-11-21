@@ -932,7 +932,7 @@ class ElectrumWindow(QMainWindow):
                 QMessageBox.information(self, '', _('Payment sent.')+'\n'+msg, _('OK'))
                 self.do_clear()
                 self.update_contacts_tab()
-                run_hook('send_tx', tx, to_address, amount)
+                run_hook('send_tx', tx, to_address, amount, fee)
             else:
                 QMessageBox.warning(self, _('Error'), msg, _('OK'))
         else:
@@ -942,7 +942,6 @@ class ElectrumWindow(QMainWindow):
         # add recipient to addressbook
         if to_address not in self.wallet.addressbook and not self.wallet.is_mine(to_address):
             self.wallet.addressbook.append(to_address)
-        run_hook('send_tx', tx, to_address, amount)
 
 
 
