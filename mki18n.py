@@ -1,66 +1,63 @@
 #!/usr/bin/python
+from StringIO import StringIO
+import urllib2, os, zipfile, pycurl
 
-import urllib2, os
-from lib.version import TRANSLATION_ID
+crowdin_identifier = 'electrum'
+crowdin_file_name = 'electrum-client/messages.pot'
+locale_file_name = 'locale/messages.pot'
 
-#url = "https://en.bitcoin.it/w/index.php?title=Electrum/Translation&oldid=%d&action=raw"%TRANSLATION_ID
-url = "http://bitcoin.wikia.com/wiki/Electrum?oldid=%d&action=raw"%TRANSLATION_ID
-f = urllib2.urlopen(url)
-lines = f.readlines()
-dicts = {}
-message = None
-num_m = 0
-for line in lines:
-    l = line.strip()
-    if not l: continue
-    if l[0] != '*': continue
-    if l[0:2] == '**':
-        n = l.find(':')
-        translation = l[n+1:]
-        lang = l[2:n]
-        if dicts.get(lang) is None: dicts[lang] = {}
-        dicts[lang][message] = translation.strip()
+if os.path.exists('build/crowdin_api_key.txt'):
+    crowdin_api_key = open('build/crowdin_api_key.txt').read()
+
+    # Generate fresh translation template
+    if not os.path.exists('locale'):
+      os.mkdir('locale')
+
+    cmd = 'xgettext -s --no-wrap -f app.fil --output=locale/messages.pot'
+    print 'Generate template'
+    os.system(cmd)
+
+    # Push to Crowdin
+    print 'Push to Crowdin'
+    url = ('http://api.crowdin.net/api/project/' + crowdin_identifier + '/update-file?key=' + crowdin_api_key)
+
+    c = pycurl.Curl()
+    c.setopt(c.URL, url)
+    c.setopt(c.POST, 1)
+    fields = [('files[' + crowdin_file_name + ']', (pycurl.FORM_FILE, locale_file_name))]
+    c.setopt(c.HTTPPOST, fields)
+    c.perform()
+
+    # Build translations
+    print 'Build translations'
+    response = urllib2.urlopen('http://api.crowdin.net/api/project/' + crowdin_identifier + '/export?key=' + crowdin_api_key).read()
+    print response
+
+# Download & unzip
+print 'Download translations'
+zfobj = zipfile.ZipFile(StringIO(urllib2.urlopen('http://crowdin.net/download/project/' + crowdin_identifier + '.zip').read()))
+
+print 'Unzip translations'
+for name in zfobj.namelist():
+    if not name.startswith('electrum-client/locale'):
+        continue
+    if name.endswith('/'):
+        if not os.path.exists(name[16:]):
+            os.mkdir(name[16:])
     else:
-        message = l[1:]
-        num_m += 1
+        output = open(name[16:],'w')
+        output.write(zfobj.read(name))
+        output.close()
 
-#print dicts
-
-if not os.path.exists('locale'):
-    os.mkdir('locale')
-
-
-cmd = 'xgettext -s --no-wrap -f app.fil --output=locale/messages.pot'
-print cmd
-os.system(cmd)
-
-# Make locale directory if doesn't exist
-try:
-    os.mkdir('locale')
-except OSError:
-    pass
-f = open(os.path.join('locale', 'messages.pot'),'r')
-s = f.read()
-f.close()
-s = s.replace('CHARSET', 'utf-8')
-
-for lang, strings in dicts.items():
-    ss = s[:]
-    print(lang + " :%d/%d"%(len(strings), num_m))
-    for k,v in strings.items():
-        ss = ss.replace("msgid \"%s\"\nmsgstr \"\""%k,"msgid \"%s\"\nmsgstr \"%s\""%(k,v))
-    f = open('locale/electrum_%s.po'%lang,'w')
-    f.write(ss)
-    f.close()
-
-    if not os.path.exists('locale/'+lang):
-        os.mkdir('locale/'+lang)
-
-    mo_dir = "locale/%s/LC_MESSAGES" % lang
+# Convert .po to .mo
+print 'Installing'
+for lang in os.listdir('./locale'):
+    if name.startswith('messages'):
+        continue
+    # Check LC_MESSAGES folder
+    mo_dir = 'locale/%s/LC_MESSAGES' % lang
     if not os.path.exists(mo_dir):
         os.mkdir(mo_dir)
-    
-    cmd = 'msgfmt --output-file="%s/electrum.mo" "locale/electrum_%s.po"' % (mo_dir,lang)
-    #print cmd
+    cmd = 'msgfmt --output-file="%s/electrum.mo" "locale/%s/electrum.po"' % (mo_dir,lang)
+    print 'Installing',lang
     os.system(cmd)
-    
