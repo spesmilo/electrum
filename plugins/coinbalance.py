@@ -50,7 +50,7 @@ class Plugin(BasePlugin):
     def enable(self):
         return BasePlugin.enable(self)
 
-    def send_tx(self, tx, wallet):
+    def receive_tx(self, tx, wallet):
         domain = wallet.get_account_addresses(None)
         is_relevant, is_send, v, fee = tx.get_value(domain, wallet.prevout_values)
         if isinstance(self.gui, ElectrumGui):
