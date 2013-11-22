@@ -1276,6 +1276,8 @@ class ElectrumWindow(QMainWindow):
                 name = _("Receiving") if not is_change else _("Change")
                 seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
                 account_item.addChild(seq_item)
+                used_item = QTreeWidgetItem( [ _("Used"), '', '', '', ''] )
+                used_flag = False
                 if not is_change: seq_item.setExpanded(True)
 
                 is_red = False
@@ -1291,12 +1293,19 @@ class ElectrumWindow(QMainWindow):
                     else:
                         gap = 0
 
+                    c, u = self.wallet.get_addr_balance(address)
                     num_tx = '*' if h == ['*'] else "%d"%len(h)
                     item = QTreeWidgetItem( [ address, '', '', num_tx] )
                     self.update_receive_item(item, len(h))
                     if is_red:
                         item.setBackgroundColor(1, QColor('red'))
-                    seq_item.addChild(item)
+                    if len(h) > 0 and c == -u:
+                        if not used_flag:
+                            seq_item.addChild(used_item)
+                            used_flag = True
+                        used_item.addChild(item)
+                    else:
+                        seq_item.addChild(item)
 
 
         for k, addr in self.wallet.get_pending_accounts():
