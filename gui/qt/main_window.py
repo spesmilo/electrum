@@ -1018,14 +1018,6 @@ class ElectrumWindow(QMainWindow):
                 self.wallet.freeze(addr)
         self.update_receive_tab()
 
-    def set_addrs_prioritized(self,addrs,prioritize):
-        for addr in addrs:
-            if not addr: continue
-            if addr in self.wallet.prioritized_addresses and not prioritize:
-                self.wallet.unprioritize(addr)
-            elif addr not in self.wallet.prioritized_addresses and prioritize:
-                self.wallet.prioritize(addr)
-        self.update_receive_tab()
 
 
     def create_list_tab(self, headers):
@@ -1168,12 +1160,6 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Freeze"), lambda: self.set_addrs_frozen(addrs, True))
         if any(addr in self.wallet.frozen_addresses for addr in addrs):
             menu.addAction(_("Unfreeze"), lambda: self.set_addrs_frozen(addrs, False))
-        if any(addr not in self.wallet.prioritized_addresses for addr in addrs):
-            menu.addAction(_("Prioritize"),
-                    lambda: self.set_addrs_prioritized(addrs, True))
-        if any(addr in self.wallet.prioritized_addresses for addr in addrs):
-            menu.addAction(_("Unprioritize"),
-                    lambda: self.set_addrs_prioritized(addrs, False))
 
         menu.addAction(_("Send From"), lambda: self.send_from_addresses(addrs))
             
@@ -1256,8 +1242,6 @@ class ElectrumWindow(QMainWindow):
             item.setForeground(3,QColor('gray'))
         elif address in self.wallet.frozen_addresses: 
             item.setBackgroundColor(0, QColor('lightblue'))
-        elif address in self.wallet.prioritized_addresses: 
-            item.setBackgroundColor(0, QColor('lightgreen'))
 
 
     def update_receive_tab(self):
