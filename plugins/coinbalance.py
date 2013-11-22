@@ -72,6 +72,7 @@ def propose_rebuy_qt(amount):
     questionText = _('Rebuy ') + format_satoshis(amount) + _(' BTC?')
     if credentials:
         credentials = refresh_credentials(credentials)
+    if credentials:
         store_local_oauth_credentials(credentials)
         totalPrice = get_coinbase_total_price(credentials, amount)
         questionText += _('\n(Price: ') + totalPrice + _(')')
@@ -132,8 +133,12 @@ def rm_local_oauth_credentials():
 
 def refresh_credentials(credentials):
     h = httplib2.Http(ca_certs=CERTS_PATH)
-    credentials.refresh(h)
-    return credentials
+    try:
+        credentials.refresh(h)
+        return credentials
+    except Exception as e:
+        rm_local_oauth_credentials()
+        return None
 
 def do_buy(credentials, amount):
     h = httplib2.Http(ca_certs=CERTS_PATH)
