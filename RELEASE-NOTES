@@ -1,3 +1,10 @@
+# Release 1.9.5
+
+* Coin control: select addresses to send from
+* Put addresses that have been used in a minimized section (Qt GUI)
+* Allow non ascii chars in passwords
+
+
 # Release 1.9.4
 bugfixes: offline transactions
 
