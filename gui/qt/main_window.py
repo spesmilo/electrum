@@ -946,7 +946,6 @@ class ElectrumWindow(QMainWindow):
                 QMessageBox.information(self, '', _('Payment sent.')+'\n'+msg, _('OK'))
                 self.do_clear()
                 self.update_contacts_tab()
-                run_hook('send_tx', tx, to_address, amount, fee)
             else:
                 QMessageBox.warning(self, _('Error'), msg, _('OK'))
         else:

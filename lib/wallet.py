@@ -1394,6 +1394,7 @@ class Wallet:
         # asynchronous
         self.tx_event.clear()
         self.network.interface.send([('blockchain.transaction.broadcast', [str(tx)])], self.on_broadcast)
+        run_hook('send_tx', tx, self)
         return tx.hash()
 
     def on_broadcast(self, i, r):
