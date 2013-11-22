@@ -1080,20 +1080,6 @@ class ElectrumWindow:
             button.show()
             hbox.pack_start(button,False)
 
-            button = gtk.Button("Prioritize")
-            def prioritize_address(w, treeview, liststore, wallet):
-                path, col = treeview.get_cursor()
-                if path:
-                    address = liststore.get_value( liststore.get_iter(path), 0)
-                    if address in wallet.prioritized_addresses:
-                        wallet.unprioritize(address)
-                    else:
-                        wallet.prioritize(address)
-                    self.update_receiving_tab()
-            button.connect("clicked", prioritize_address, treeview, liststore, self.wallet) 
-            button.show()
-            hbox.pack_start(button,False)
-
         if not is_recv:
             button = gtk.Button("Pay to")
             def payto(w, treeview, liststore):
@@ -1153,7 +1139,6 @@ class ElectrumWindow:
                 Type = "I"
             c, u = self.wallet.get_addr_balance(address)
             if address in self.wallet.frozen_addresses: Type = Type + "F"
-            if address in self.wallet.prioritized_addresses: Type = Type + "P"
             label = self.wallet.labels.get(address)
             h = self.wallet.history.get(address,[])
             n = len(h)

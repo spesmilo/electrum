@@ -45,7 +45,6 @@ def register_command(*args):
 payto_options = ' --fee, -f: set transaction fee\n --fromaddr, -F: send from address -\n --changeaddr, -c: send change to address'
 listaddr_options = " -a: show all addresses, including change addresses\n -l: include labels in results"
 restore_options = " accepts a seed or master public key."
-config_options = " accounts, addr_history, auto_cycle, column_widths, console-history, contacts,\n fee_per_kb, frozen_addresses, gap_limit, imported_keys, labels,\n master_public_key, num_zeros, prioritized_addresses, proxy, seed,\n seed_version, server, transactions, use_change, use_encryption, winpos-qt"
 mksendmany_syntax = 'mksendmanytx <recipient> <amount> [<recipient> <amount> ...]'
 payto_syntax = "payto <recipient> <amount> [label]\n<recipient> can be a bitcoin address or a label"
 paytomany_syntax = "paytomany <recipient> <amount> [<recipient> <amount> ...]\n<recipient> can be a bitcoin address or a label"
@@ -70,7 +69,7 @@ register_command('getbalance',           0, 1, True,  True,  False, 'Return the 
 register_command('getservers',           0, 0, True,  False, False, 'Return the list of available servers')
 register_command('getaddressbalance',    1, 1, True,  True,  False, 'Return the balance of an address', 'getbalance <address>')
 register_command('getaddresshistory',    1, 1, True,  True,  False, 'Return the transaction history of a wallet address', 'getaddresshistory <address>')
-register_command('getconfig',            1, 1, False, False, False, 'Return a configuration variable', 'getconfig <name>', config_options)
+register_command('getconfig',            1, 1, False, False, False, 'Return a configuration variable', 'getconfig <name>')
 register_command('getpubkeys',           1, 1, False, True,  False, 'Return the public keys for a wallet address', 'getpubkeys <bitcoin address>')
 register_command('getrawtransaction',    1, 2, True,  False, False, 'Retrieve a transaction', 'getrawtransaction <txhash> <height>')
 register_command('getseed',              0, 0, False, True,  True,  'Print the generation seed of your wallet.')
@@ -85,15 +84,13 @@ register_command('mksendmanytx',         4, 4, False, True,  True,  'Create a si
 register_command('payto',                5, 5, True,  True,  True,  'Create and broadcast a transaction.', payto_syntax, payto_options)
 register_command('paytomany',            4, 4, True,  True,  True,  'Create and broadcast a transaction.', paytomany_syntax, payto_options)
 register_command('password',             0, 0, False, True,  True,  'Change your password')
-register_command('prioritize',           1, 1, False, True,  False, 'Coins at prioritized addresses are spent first.', 'prioritize <address>')
 register_command('restore',              0, 0, True,  True,  False, 'Restore a wallet', '', restore_options)
-register_command('setconfig',            2, 2, False, False, False, 'Set a configuration variable', 'setconfig <name> <value>', config_options)
+register_command('setconfig',            2, 2, False, False, False, 'Set a configuration variable', 'setconfig <name> <value>')
 register_command('setlabel',             2,-1, False, True,  False, 'Assign a label to an item', 'setlabel <tx_hash> <label>')
 register_command('sendrawtransaction',   1, 1, True,  False, False, 'Broadcasts a transaction to the network.', 'sendrawtransaction <tx in hexadecimal>')
 register_command('signrawtransaction',   1, 3, False, True,  True,  'similar to bitcoind\'s command')
 register_command('signmessage',          2,-1, False, True,  True,  'Sign a message with a key', signmessage_syntax)
 register_command('unfreeze',             1, 1, False, True,  False, 'Unfreeze the funds at one of your wallet\'s address', 'unfreeze <address>')
-register_command('unprioritize',         1, 1, False, True,  False, 'Unprioritize an address', 'unprioritize <address>')
 register_command('validateaddress',      1, 1, False, False, False, 'Check that the address is valid', 'validateaddress <address>')
 register_command('verifymessage',        3,-1, False, False, False, 'Verifies a signature', verifymessage_syntax)
 
@@ -165,12 +162,6 @@ class Commands:
         
     def unfreeze(self,addr):
         return self.wallet.unfreeze(addr)
-
-    def prioritize(self, addr):
-        return self.wallet.prioritize(addr)
-
-    def unprioritize(self, addr):
-        return self.wallet.unprioritize(addr)
 
     def dumpprivkey(self, addr):
         return self.wallet.get_private_key(addr, self.password)

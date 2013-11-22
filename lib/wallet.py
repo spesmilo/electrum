@@ -167,7 +167,6 @@ class Wallet:
         self.seed                  = storage.get('seed', '')               # encrypted
         self.labels                = storage.get('labels', {})
         self.frozen_addresses      = storage.get('frozen_addresses',[])
-        self.prioritized_addresses = storage.get('prioritized_addresses',[])
         self.addressbook           = storage.get('contacts', [])
 
         self.imported_keys         = storage.get('imported_keys',{})
@@ -987,7 +986,7 @@ class Wallet:
 
     def get_address_flags(self, addr):
         flags = "C" if self.is_change(addr) else "I" if addr in self.imported_keys.keys() else "-" 
-        flags += "F" if addr in self.frozen_addresses else "P" if addr in self.prioritized_addresses else "-"
+        flags += "F" if addr in self.frozen_addresses else "-"
         return flags
         
 
@@ -1151,17 +1150,8 @@ class Wallet:
         for i in self.frozen_addresses:
             if i in domain: domain.remove(i)
 
-        prioritized = []
-        for i in self.prioritized_addresses:
-            if i in domain:
-                domain.remove(i)
-                prioritized.append(i)
-
         coins = self.get_unspent_coins(domain)
-        prioritized_coins = self.get_unspent_coins(prioritized)
-
         inputs = []
-        coins = prioritized_coins + coins
 
         for item in coins:
             if item.get('coinbase') and item.get('height') + COINBASE_MATURITY > self.network.blockchain.height:
@@ -1429,7 +1419,6 @@ class Wallet:
 
     def freeze(self,addr):
         if self.is_mine(addr) and addr not in self.frozen_addresses:
-            self.unprioritize(addr)
             self.frozen_addresses.append(addr)
             self.storage.put('frozen_addresses', self.frozen_addresses, True)
             return True
@@ -1440,23 +1429,6 @@ class Wallet:
         if self.is_mine(addr) and addr in self.frozen_addresses:
             self.frozen_addresses.remove(addr)
             self.storage.put('frozen_addresses', self.frozen_addresses, True)
-            return True
-        else:
-            return False
-
-    def prioritize(self,addr):
-        if self.is_mine(addr) and addr not in self.prioritized_addresses:
-            self.unfreeze(addr)
-            self.prioritized_addresses.append(addr)
-            self.storage.put('prioritized_addresses', self.prioritized_addresses, True)
-            return True
-        else:
-            return False
-
-    def unprioritize(self,addr):
-        if self.is_mine(addr) and addr in self.prioritized_addresses:
-            self.prioritized_addresses.remove(addr)
-            self.storage.put('prioritized_addresses', self.prioritized_addresses, True)
             return True
         else:
             return False
