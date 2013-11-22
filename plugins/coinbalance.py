@@ -21,6 +21,7 @@ from electrum import BasePlugin
 from electrum.i18n import _, set_language
 from electrum.util import user_dir
 from electrum.util import appdata_dir
+from electrum.util import format_satoshis
 from electrum_gui.qt import ElectrumGui
 
 from oauth2client.client import FlowExchangeError
@@ -66,7 +67,7 @@ def propose_rebuy_qt(amount):
 
     # TODO(marcell): in the case of OAuth failure, remove local token
     credentials = read_local_oauth_credentials()
-    questionText = _('Rebuy ') + str(amount/SATOSHIS_PER_BTC) + _(' BTC?')
+    questionText = _('Rebuy ') + format_satoshis(amount) + _(' BTC?')
     if credentials:
         credentials = refresh_credentials(credentials)
         store_local_oauth_credentials(credentials)
