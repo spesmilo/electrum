@@ -1383,23 +1383,23 @@ class Wallet:
         # synchronous
         h = self.send_tx(tx)
         self.tx_event.wait()
-        return self.receive_tx(h)
+        return self.receive_tx(h, tx)
 
     def send_tx(self, tx):
         # asynchronous
         self.tx_event.clear()
         self.network.interface.send([('blockchain.transaction.broadcast', [str(tx)])], self.on_broadcast)
-        run_hook('send_tx', tx, self)
         return tx.hash()
 
     def on_broadcast(self, i, r):
         self.tx_result = r.get('result')
         self.tx_event.set()
 
-    def receive_tx(self,tx_hash):
+    def receive_tx(self, tx_hash, tx):
         out = self.tx_result 
         if out != tx_hash:
             return False, "error: " + out
+        run_hook('receive_tx', tx, self)
         return True, out
 
 
