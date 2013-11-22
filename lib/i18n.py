@@ -36,6 +36,7 @@ def set_language(x):
     
 languages = {
     '':_('Default'),
+    'pt-PT':_('Portuguese'),
     'pt-BR':_('Brasilian'),
     'cs-CZ':_('Czech'),
     'de-DE':_('German'),
