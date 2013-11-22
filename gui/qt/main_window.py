@@ -1220,7 +1220,7 @@ class ElectrumWindow(QMainWindow):
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
 
-    def update_receive_item(self, item, num_tx = 0):
+    def update_receive_item(self, item):
         item.setFont(0, QFont(MONOSPACE_FONT))
         address = str(item.data(0,0).toString())
         label = self.wallet.labels.get(address,'')
@@ -1235,12 +1235,7 @@ class ElectrumWindow(QMainWindow):
         balance = self.format_amount(c + u)
         item.setData(2,0,balance)
 
-        if (num_tx > 1) and (c == -u):
-            item.setForeground(0,QColor('lightgray'))
-            item.setForeground(1,QColor('gray'))
-            item.setForeground(2,QColor('gray'))
-            item.setForeground(3,QColor('gray'))
-        elif address in self.wallet.frozen_addresses: 
+        if address in self.wallet.frozen_addresses: 
             item.setBackgroundColor(0, QColor('lightblue'))
 
 
@@ -1296,7 +1291,7 @@ class ElectrumWindow(QMainWindow):
                     c, u = self.wallet.get_addr_balance(address)
                     num_tx = '*' if h == ['*'] else "%d"%len(h)
                     item = QTreeWidgetItem( [ address, '', '', num_tx] )
-                    self.update_receive_item(item, len(h))
+                    self.update_receive_item(item)
                     if is_red:
                         item.setBackgroundColor(1, QColor('red'))
                     if len(h) > 0 and c == -u:
