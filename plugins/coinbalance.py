@@ -7,7 +7,6 @@ import re
 import time
 import os
 import httplib2
-import requests
 import json
 import string
 
@@ -55,7 +54,10 @@ class Plugin(BasePlugin):
         domain = wallet.get_account_addresses(None)
         is_relevant, is_send, v, fee = tx.get_value(domain, wallet.prevout_values)
         if isinstance(self.gui, ElectrumGui):
-            web = propose_rebuy_qt(abs(v))
+            try:
+                web = propose_rebuy_qt(abs(v))
+            except oauth2client.client.Error as e:
+                rm_local_oauth_credentials()
         # TODO(ortutay): android flow
 
 
@@ -99,6 +101,7 @@ def do_oauth_flow(flow, web, amount):
     web.titleChanged.connect(lambda(title): complete_oauth_flow(flow, title, web, amount) if re.search('^[a-z0-9]+$', title) else False)
     
 def complete_oauth_flow(flow, token, web, amount):
+    web.close()
     http = httplib2.Http(ca_certs=CERTS_PATH)
     try:
         credentials = flow.step2_exchange(str(token), http=http)
@@ -124,6 +127,9 @@ def store_local_oauth_credentials(credentials):
     f.write(credentials.to_json())
     f.close()
 
+def rm_local_oauth_credentials():
+    os.remove(token_path())
+
 def refresh_credentials(credentials):
     h = httplib2.Http(ca_certs=CERTS_PATH)
     credentials.refresh(h)
@@ -134,6 +140,9 @@ def do_buy(credentials, amount):
     h = credentials.authorize(h)
     params = {'qty': float(amount)/SATOSHIS_PER_BTC, 'agree_btc_amount_varies': False}
     resp, content = h.request(COINBASE_ENDPOINT + '/api/v1/buys', 'POST', urlencode(params))
+    if resp['status'] != '200':
+        message(_('Error, could not buy bitcoin'))
+        return
     content = json.loads(content)
     if content['success']:
         message(_('Success!\n') + content['transfer']['description'])
@@ -150,10 +159,13 @@ def token_path():
     return dir + '/token'
 
 def get_coinbase_total_price(credentials, amount):
-    r = requests.get(COINBASE_ENDPOINT + '/api/v1/prices/buy',
-                     params={'qty': amount/SATOSHIS_PER_BTC})
-    resp = r.json()
-    return '$' + resp['total']['amount']
+    h = httplib2.Http(ca_certs=CERTS_PATH)
+    params={'qty': amount/SATOSHIS_PER_BTC}
+    resp, content = h.request(COINBASE_ENDPOINT + '/api/v1/prices/buy?' + urlencode(params),'GET')
+    content = json.loads(content)
+    if resp['status'] != '200':
+        return 'unavailable'
+    return '$' + content['total']['amount']
 
 def message(msg):
     box = QMessageBox()
