@@ -15,12 +15,13 @@ from urllib import urlencode
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-from PyQt4.QtWebKit import *
+from PyQt4.QtWebKit import QWebView
 
 from electrum import BasePlugin
 from electrum.i18n import _, set_language
 from electrum.util import user_dir
 from electrum.util import appdata_dir
+from electrum_gui.qt import ElectrumGui
 
 from oauth2client.client import FlowExchangeError
 from oauth2client.client import OAuth2WebServerFlow
@@ -49,12 +50,16 @@ class Plugin(BasePlugin):
     def enable(self):
         return BasePlugin.enable(self)
 
-    def send_tx(self, tx, to_address, amount, fee):
-        web = propose_rebuy(amount + fee)
+    def send_tx(self, tx, wallet):
+        domain = wallet.get_account_addresses(None)
+        is_relevant, is_send, v, fee = tx.get_value(domain, wallet.prevout_values)
+        if isinstance(self.gui, ElectrumGui):
+            web = propose_rebuy_qt(abs(v))
+        # TODO(ortutay): android flow
 
 
 
-def propose_rebuy(amount):
+def propose_rebuy_qt(amount):
     web = QWebView()
     box = QMessageBox()
     box.setFixedSize(200, 200)
