@@ -56,7 +56,7 @@ class Plugin(BasePlugin):
         if isinstance(self.gui, ElectrumGui):
             try:
                 web = propose_rebuy_qt(abs(v))
-            except oauth2client.client.Error as e:
+            except Exception as e:
                 rm_local_oauth_credentials()
         # TODO(ortutay): android flow
 
