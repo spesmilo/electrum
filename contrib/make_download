@@ -3,9 +3,10 @@ import sys
 import hashlib
 import os
 
-from versions import version, version_win, version_mac
+from versions import version, version_win, version_mac, template_path, dl_path
 
-string = sys.stdin.read()
+with open(template_path) as f:
+    string = f.read()
 
 _tgz = "Electrum-%s.tar.gz" % version
 _zip = "Electrum-%s.zip" % version
@@ -37,4 +38,6 @@ string = string.replace("##md5_win##", md5_win)
 string = string.replace("##md5_win_setup##", md5_win_setup)
 string = string.replace("##md5_win_portable##", md5_win_portable)
 
-print string
+with open(dl_path,'w') as f:
+    f.write(string)
+
