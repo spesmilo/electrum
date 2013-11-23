@@ -1163,7 +1163,7 @@ class ElectrumWindow(QMainWindow):
 
         menu.addAction(_("Send From"), lambda: self.send_from_addresses(addrs))
             
-        run_hook('receive_menu', menu)
+        run_hook('receive_menu', menu, addr)
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
 
