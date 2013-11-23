@@ -251,7 +251,7 @@ class Plugin(BasePlugin):
         item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
 
     
-    def receive_menu(self, menu):
+    def receive_menu(self, menu, addr):
         menu.addAction(_("Request amount"), self.edit_amount)
         menu.addAction(_("Show Invoice"), lambda: self.toggle_QR_window(True))
 
