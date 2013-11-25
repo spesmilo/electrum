@@ -52,7 +52,7 @@ for name in zfobj.namelist():
 # Convert .po to .mo
 print 'Installing'
 for lang in os.listdir('./locale'):
-    if name.startswith('messages'):
+    if lang.startswith('messages'):
         continue
     # Check LC_MESSAGES folder
     mo_dir = 'locale/%s/LC_MESSAGES' % lang
