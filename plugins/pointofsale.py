@@ -1,6 +1,7 @@
 import re
 import platform
 from decimal import Decimal
+from urllib import quote
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -89,9 +90,11 @@ class QR_Window(QWidget):
         if self.amount is not None:
             msg += '?amount=%s'%(str( self.amount))
             if self.label is not None:
-                msg += '&label=%s'%(self.label)
+                encoded_label = quote(self.label)
+                msg += '&label=%s'%(encoded_label)
         elif self.label is not None:
-            msg += '?label=%s'%(self.label)
+            encoded_label = quote(self.label)
+            msg += '?label=%s'%(encoded_label)
             
         self.qrw.set_addr( msg )
 
