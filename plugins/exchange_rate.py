@@ -53,7 +53,7 @@ class Exchanger(threading.Thread):
         except KeyError:
             pass
 
-            
+
     def get_currencies(self):
         return [] if self.quote_currencies == None else sorted(self.quote_currencies.keys())
 
@@ -137,4 +137,4 @@ class Plugin(BasePlugin):
         return combo
 
 
-        
+

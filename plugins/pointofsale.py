@@ -35,7 +35,7 @@ class QR_Window(QWidget):
         self.setFocusPolicy(QtCore.Qt.NoFocus)
 
         main_box = QHBoxLayout()
-        
+
         self.qrw = QRCodeWidget()
         main_box.addWidget(self.qrw, 1)
 
@@ -75,10 +75,10 @@ class QR_Window(QWidget):
 
             if currency:
                 amount_text += "<span style='font-size: 18pt'>%s %s</span><br/>" % (amount, currency)
-            amount_text += "<span style='font-size: 21pt'>%s</span> <span style='font-size: 16pt'>BTC</span> " % str(self.amount) 
+            amount_text += "<span style='font-size: 21pt'>%s</span> <span style='font-size: 16pt'>BTC</span> " % str(self.amount)
         else:
             self.amount = None
-            
+
         self.amount_label.setText(amount_text)
 
         self.label = label
@@ -92,7 +92,7 @@ class QR_Window(QWidget):
                 msg += '&label=%s'%(self.label)
         elif self.label is not None:
             msg += '?label=%s'%(self.label)
-            
+
         self.qrw.set_addr( msg )
 
 
@@ -129,7 +129,7 @@ class Plugin(BasePlugin):
 
     def load_wallet(self, wallet):
         self.wallet = wallet
-        self.requested_amounts = self.wallet.storage.get('requested_amounts',{}) 
+        self.requested_amounts = self.wallet.storage.get('requested_amounts',{})
 
     def close(self):
         self.window.receive_list.setHeaderLabels([ _('Address'), _('Label'), _('Balance'), _('Tx')])
@@ -137,14 +137,14 @@ class Plugin(BasePlugin):
         for i,width in enumerate(self.window.column_widths['receive']):
             self.window.receive_list.setColumnWidth(i, width)
         self.toggle_QR_window(False)
-    
+
 
     def close_main_window(self):
-        if self.qr_window: 
+        if self.qr_window:
             self.qr_window.close()
             self.qr_window = None
 
-    
+
     def timer_actions(self):
         if self.qr_window:
             self.qr_window.qrw.update_qr()
@@ -171,7 +171,7 @@ class Plugin(BasePlugin):
             self.qr_window.setVisible(False)
 
 
-    
+
     def update_receive_item(self, address, item):
         try:
             amount, currency = self.requested_amounts.get(address, (None, None))
@@ -184,9 +184,9 @@ class Plugin(BasePlugin):
         item.setData(column_index,0,amount_str)
 
 
-    
+
     def current_item_changed(self, a):
-        if not self.wallet: 
+        if not self.wallet:
             return
         if a is not None and self.qr_window and self.qr_window.isVisible():
             address = str(a.text(0))
@@ -198,7 +198,7 @@ class Plugin(BasePlugin):
             self.qr_window.set_content( address, label, amount, currency )
 
 
-    
+
     def item_changed(self, item, column):
         if column != column_index:
             return
@@ -221,7 +221,7 @@ class Plugin(BasePlugin):
                 currency = 'BTC'
             else:
                 currency = currency.upper()
-                    
+
             self.requested_amounts[address] = (amount, currency)
             self.wallet.storage.put('requested_amounts', self.requested_amounts, True)
 
@@ -237,7 +237,7 @@ class Plugin(BasePlugin):
             item.setText(column,'')
             if address in self.requested_amounts:
                 self.requested_amounts.pop(address)
-            
+
         self.window.update_receive_item(self.window.receive_list.currentItem())
 
 
@@ -250,7 +250,7 @@ class Plugin(BasePlugin):
         l.editItem( item, column_index )
         item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
 
-    
+
     def receive_menu(self, menu, addr):
         menu.addAction(_("Request amount"), self.edit_amount)
         menu.addAction(_("Show Invoice"), lambda: self.toggle_QR_window(True))

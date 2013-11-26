@@ -48,7 +48,7 @@ class Plugin(BasePlugin):
         self.send_tab_grid.addWidget(b, 1, 5)
         b2 = QPushButton(_("Scan TxQR"))
         b2.clicked.connect(self.read_raw_qr)
-        
+
         if not wallet.seed:
             b3 = QPushButton(_("Show unsigned TxQR"))
             b3.clicked.connect(self.show_raw_qr)
@@ -84,7 +84,7 @@ class Plugin(BasePlugin):
                 if str(r.type) != 'QRCODE':
                     continue
                 return r.data
-        
+
     def show_raw_qr(self):
         r = unicode( self.gui.main_window.payto_e.text() )
         r = r.strip()
@@ -123,7 +123,7 @@ class Plugin(BasePlugin):
             "hex" : tx.hash(),
             "complete" : "false"
             }
-    
+
             input_info = []
 
         except Exception as e:
@@ -172,7 +172,7 @@ class Plugin(BasePlugin):
             if tx:
                 self.create_transaction_details_window(tx)
 
-    def create_transaction_details_window(self, tx):            
+    def create_transaction_details_window(self, tx):
         dialog = QDialog(self.gui.main_window)
         dialog.setMinimumWidth(500)
         dialog.setWindowTitle(_('Process Offline transaction'))
@@ -205,7 +205,7 @@ class Plugin(BasePlugin):
                     self.gui.main_window.show_message(_("There was a problem sending your transaction:") + '\n %s' % (result_message))
             b.clicked.connect(lambda: broadcast( tx ))
             l.addWidget(b,4,1)
-    
+
         closeButton = QPushButton(_("Close"))
         closeButton.clicked.connect(lambda: dialog.done(0))
         l.addWidget(closeButton, 4,2)
@@ -219,7 +219,7 @@ class Plugin(BasePlugin):
                 return
         else:
             password = None
-            
+
         if args != (False,):
             args = (self,) + args + (password,)
         else:
@@ -252,7 +252,7 @@ class Plugin(BasePlugin):
             self.gui.main_window.message_e.setText(qrcode['label'])
         if 'message' in qrcode:
             self.gui.main_window.message_e.setText("%s (%s)" % (self.gui.main_window.message_e.text(), qrcode['message']))
-                
+
     def video_device(self):
         device = self.config.get("video_device", "default")
         if device == 'default':
@@ -264,7 +264,7 @@ class Plugin(BasePlugin):
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'), self.settings_dialog)
-    
+
     def _find_system_cameras(self):
         device_root = "/sys/class/video4linux"
         devices = {} # Name -> device
@@ -346,20 +346,20 @@ def parse_uri(uri):
     if '//' not in uri:
         # Workaround for urlparse, it don't handle bitcoin: URI properly
         uri = uri.replace(':', '://')
-        
+
     uri = urlparse(uri)
-    result = {'address': uri.netloc} 
-    
+    result = {'address': uri.netloc}
+
     if uri.path.startswith('?'):
         params = parse_qs(uri.path[1:])
     else:
-        params = parse_qs(uri.path)    
+        params = parse_qs(uri.path)
 
     for k,v in params.items():
         if k in ('amount', 'label', 'message'):
             result[k] = v[0]
-        
-    return result    
+
+    return result
 
 
 
@@ -367,20 +367,20 @@ def parse_uri(uri):
 
 if __name__ == '__main__':
     # Run some tests
-    
+
     assert(parse_uri('1Marek48fwU7mugmSe186do2QpUkBnpzSN') ==
            {'address': '1Marek48fwU7mugmSe186do2QpUkBnpzSN'})
 
     assert(parse_uri('bitcoin://1Marek48fwU7mugmSe186do2QpUkBnpzSN') ==
            {'address': '1Marek48fwU7mugmSe186do2QpUkBnpzSN'})
-    
+
     assert(parse_uri('bitcoin:1Marek48fwU7mugmSe186do2QpUkBnpzSN') ==
            {'address': '1Marek48fwU7mugmSe186do2QpUkBnpzSN'})
-    
+
     assert(parse_uri('bitcoin:1Marek48fwU7mugmSe186do2QpUkBnpzSN?amount=10') ==
            {'amount': '10', 'address': '1Marek48fwU7mugmSe186do2QpUkBnpzSN'})
-    
+
     assert(parse_uri('bitcoin:1Marek48fwU7mugmSe186do2QpUkBnpzSN?amount=10&label=slush&message=Small%20tip%20to%20slush') ==
            {'amount': '10', 'label': 'slush', 'message': 'Small tip to slush', 'address': '1Marek48fwU7mugmSe186do2QpUkBnpzSN'})
-    
-    
+
+

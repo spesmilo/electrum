@@ -158,10 +158,10 @@ def protocol_dialog(host, protocol, z):
 def make_layout(s, scrollable = False):
     content = """
 
-      <LinearLayout 
+      <LinearLayout
         android:id="@+id/zz"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" 
+        android:layout_height="wrap_content"
         android:background="#ff222222">
 
         <TextView
@@ -179,13 +179,13 @@ def make_layout(s, scrollable = False):
 
     if scrollable:
         content = """
-      <ScrollView 
+      <ScrollView
         android:id="@+id/scrollview"
         android:layout_width="match_parent"
         android:layout_height="match_parent" >
 
       <LinearLayout
-        android:orientation="vertical" 
+        android:orientation="vertical"
         android:layout_width="match_parent"
         android:layout_height="wrap_content" >
 
@@ -199,12 +199,12 @@ def make_layout(s, scrollable = False):
     return """<?xml version="1.0" encoding="utf-8"?>
       <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
         android:id="@+id/background"
-        android:orientation="vertical" 
+        android:orientation="vertical"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" 
+        android:layout_height="match_parent"
         android:background="#ff000022">
 
-      %s 
+      %s
       </LinearLayout>"""%content
 
 
@@ -212,21 +212,21 @@ def make_layout(s, scrollable = False):
 
 def main_layout():
     return make_layout("""
-        <TextView android:id="@+id/balanceTextView" 
+        <TextView android:id="@+id/balanceTextView"
                 android:layout_width="match_parent"
                 android:text=""
                 android:textColor="#ffffffff"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:textAppearance="?android:attr/textAppearanceLarge"
                 android:padding="7dip"
                 android:textSize="8pt"
                 android:gravity="center_vertical|center_horizontal|left">
         </TextView>
 
-        <TextView android:id="@+id/historyTextView" 
+        <TextView android:id="@+id/historyTextView"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
+                android:layout_height="wrap_content"
                 android:text="Recent transactions"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:textAppearance="?android:attr/textAppearanceLarge"
                 android:gravity="center_vertical|center_horizontal|center">
         </TextView>
 
@@ -237,11 +237,11 @@ def main_layout():
 def qr_layout(addr):
     return make_layout("""
 
-     <TextView android:id="@+id/addrTextView" 
+     <TextView android:id="@+id/addrTextView"
                 android:layout_width="match_parent"
-                android:layout_height="50" 
+                android:layout_height="50"
                 android:text="%s"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:textAppearance="?android:attr/textAppearanceLarge"
                 android:gravity="center_vertical|center_horizontal|center">
      </TextView>
 
@@ -251,13 +251,13 @@ def qr_layout(addr):
         android:layout_width="match_parent"
         android:layout_height="350"
         android:antialias="false"
-        android:src="file:///sdcard/sl4a/qrcode.bmp" /> 
+        android:src="file:///sdcard/sl4a/qrcode.bmp" />
 
-     <TextView android:id="@+id/labelTextView" 
+     <TextView android:id="@+id/labelTextView"
                 android:layout_width="match_parent"
-                android:layout_height="50" 
+                android:layout_height="50"
                 android:text="%s"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:textAppearance="?android:attr/textAppearanceLarge"
                 android:gravity="center_vertical|center_horizontal|center">
      </TextView>
 
@@ -265,18 +265,18 @@ def qr_layout(addr):
 
 payto_layout = make_layout("""
 
-        <TextView android:id="@+id/recipientTextView" 
+        <TextView android:id="@+id/recipientTextView"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
+                android:layout_height="wrap_content"
                 android:text="Pay to:"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:textAppearance="?android:attr/textAppearanceLarge"
                 android:gravity="left">
         </TextView>
 
 
         <EditText android:id="@+id/recipient"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
+                android:layout_height="wrap_content"
                 android:tag="Tag Me" android:inputType="text">
         </EditText>
 
@@ -290,31 +290,31 @@ payto_layout = make_layout("""
         </LinearLayout>
 
 
-        <TextView android:id="@+id/labelTextView" 
+        <TextView android:id="@+id/labelTextView"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
+                android:layout_height="wrap_content"
                 android:text="Description:"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:textAppearance="?android:attr/textAppearanceLarge"
                 android:gravity="left">
         </TextView>
 
         <EditText android:id="@+id/label"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
+                android:layout_height="wrap_content"
                 android:tag="Tag Me" android:inputType="text">
         </EditText>
 
-        <TextView android:id="@+id/amountLabelTextView" 
+        <TextView android:id="@+id/amountLabelTextView"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
+                android:layout_height="wrap_content"
                 android:text="Amount:"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
+                android:textAppearance="?android:attr/textAppearanceLarge"
                 android:gravity="left">
         </TextView>
 
         <EditText android:id="@+id/amount"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" 
+                android:layout_height="wrap_content"
                 android:tag="Tag Me" android:inputType="numberDecimal">
         </EditText>
 
@@ -327,7 +327,7 @@ payto_layout = make_layout("""
 
 
 settings_layout = make_layout(""" <ListView
-           android:id="@+id/myListView" 
+           android:id="@+id/myListView"
            android:layout_width="match_parent"
            android:layout_height="wrap_content" />""")
 
@@ -365,23 +365,23 @@ def get_history_layout(n):
         rows += """
         <TableRow>
           <TextView
-            android:id="@+id/hl_%d_col1" 
+            android:id="@+id/hl_%d_col1"
             android:layout_column="0"
             android:text="%s"
             android:textColor="%s"
             android:padding="3" />
           <TextView
-            android:id="@+id/hl_%d_col2" 
+            android:id="@+id/hl_%d_col2"
             android:layout_column="1"
             android:text="%s"
             android:padding="3" />
           <TextView
-            android:id="@+id/hl_%d_col3" 
+            android:id="@+id/hl_%d_col3"
             android:layout_column="2"
             android:text="%s"
             android:padding="3" />
           <TextView
-            android:id="@+id/hl_%d_col4" 
+            android:id="@+id/hl_%d_col4"
             android:layout_column="3"
             android:text="%s"
             android:padding="4" />
@@ -427,7 +427,7 @@ def update_layout():
         text = "Synchronizing..."
     else:
         c, u = wallet.get_balance()
-        text = "Balance:"+format_satoshis(c) 
+        text = "Balance:"+format_satoshis(c)
         if u : text += '   [' + format_satoshis(u,True).strip() + ']'
 
 
@@ -463,7 +463,7 @@ def pay_to(recipient, amount, fee, label):
         droid.dialogDismiss()
         return
 
-    if label: 
+    if label:
         wallet.labels[tx.hash()] = label
 
     droid.dialogDismiss()
@@ -518,7 +518,7 @@ def main_loop():
 
         event = droid.eventWait(1000).result
         if event is None:
-            if do_refresh: 
+            if do_refresh:
                 update_layout()
                 do_refresh = False
             continue
@@ -533,7 +533,7 @@ def main_loop():
             if event["data"]["key"] == '4':
                 if quitting:
                     out = 'quit'
-                else: 
+                else:
                     quitting = True
         else: quitting = False
 
@@ -568,7 +568,7 @@ def main_loop():
 
 
     return out
-                    
+
 
 def payto_loop():
     global recipient
@@ -626,7 +626,7 @@ def payto_loop():
                         else:
                             droid.fullSetProperty("recipient", "text", data)
 
-                    
+
         elif event["name"] in menu_commands:
             out = event["name"]
 
@@ -715,7 +715,7 @@ def show_seed():
         if not password: return
     else:
         password = None
-    
+
     try:
         seed = wallet.get_seed(password)
     except Exception:
@@ -876,7 +876,7 @@ def make_bitmap(addr):
     finally:
         droid.dialogDismiss()
 
-        
+
 
 
 droid = android.Android()
@@ -893,7 +893,7 @@ class ElectrumGui:
         network.register_callback('connected', update_callback)
         network.register_callback('disconnected', update_callback)
         network.register_callback('disconnecting', update_callback)
-        
+
         storage = WalletStorage(config)
         if not storage.file_exists:
             action = self.restore_or_create()
@@ -905,7 +905,7 @@ class ElectrumGui:
                 self.show_seed()
                 wallet.save_seed()
                 wallet.synchronize()  # generate first addresses offline
-                
+
             elif action == 'restore':
                 seed = self.seed_dialog()
                 if not seed:
@@ -999,7 +999,7 @@ class ElectrumGui:
     def verify_seed(self):
         wallet.save_seed()
         return True
-        
+
     def show_seed(self):
         modal_dialog('Your seed is:', wallet.seed)
         modal_dialog('Mnemonic code:', ' '.join(mnemonic_encode(wallet.seed)) )

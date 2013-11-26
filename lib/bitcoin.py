@@ -50,7 +50,7 @@ def op_push(i):
         return '4d' + int_to_hex(i,2)
     else:
         return '4e' + int_to_hex(i,4)
-    
+
 
 
 def Hash(x):
@@ -86,9 +86,9 @@ def i2d_ECPrivateKey(pkey, compressed=False):
               '022100' + \
               '%064x' % _r + \
               '020101a144034200'
-        
+
     return key.decode('hex') + i2o_ECPublicKey(pkey.pubkey, compressed)
-    
+
 def i2o_ECPublicKey(pubkey, compressed=False):
     # public keys are 65 bytes long (520 bits)
     # 0x04 + 32-byte X-coordinate + 32-byte Y-coordinate
@@ -103,14 +103,14 @@ def i2o_ECPublicKey(pubkey, compressed=False):
         key = '04' + \
               '%064x' % pubkey.point.x() + \
               '%064x' % pubkey.point.y()
-            
+
     return key.decode('hex')
-            
+
 # end pywallet openssl private key implementation
 
-                                                
-            
-############ functions from pywallet ##################### 
+
+
+############ functions from pywallet #####################
 
 def hash_160(public_key):
     try:
@@ -376,7 +376,7 @@ BIP32_PRIME = 0x80000000
 
 def bip32_init(seed):
     import hmac
-    seed = seed.decode('hex')        
+    seed = seed.decode('hex')
     I = hmac.new("Bitcoin seed", seed, hashlib.sha512).digest()
 
     master_secret = I[0:32]
@@ -397,7 +397,7 @@ def get_pubkeys_from_secret(secret):
 
 
 
-    
+
 def CKD(k, c, n):
     import hmac
     from ecdsa.util import string_to_number, number_to_string
@@ -410,7 +410,7 @@ def CKD(k, c, n):
         I = hmac.new(c, data, hashlib.sha512).digest()
     else:
         I = hmac.new(c, K + rev_hex(int_to_hex(n,4)).decode('hex'), hashlib.sha512).digest()
-        
+
     k_n = number_to_string( (string_to_number(I[0:32]) + string_to_number(k)) % order , order )
     c_n = I[32:]
     return k_n, c_n
@@ -482,7 +482,7 @@ def test_bip32(seed, sequence):
     """
 
     master_secret, master_chain, master_public_key, master_public_key_compressed = bip32_init(seed)
-        
+
     print "secret key", master_secret.encode('hex')
     print "chain code", master_chain.encode('hex')
 
@@ -499,7 +499,7 @@ def test_bip32(seed, sequence):
     for n in sequence.split('/'):
         s.append(n)
         print "Chain [%s]" % '/'.join(s)
-        
+
         n = int(n[:-1]) + BIP32_PRIME if n[-1] == "'" else int(n)
         k0, c0 = CKD(k, c, n)
         K0, K0_compressed = get_pubkeys_from_secret(k0)
@@ -518,7 +518,7 @@ def test_bip32(seed, sequence):
         c = c0
     print "----"
 
-        
+
 
 
 if __name__ == '__main__':

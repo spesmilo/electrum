@@ -69,7 +69,7 @@ class InstallWizard(QDialog):
 
         if not self.exec_():
             return
-        
+
         if b1.isChecked():
             answer = 'create'
         elif b2.isChecked():
@@ -100,7 +100,7 @@ class InstallWizard(QDialog):
         else:
             msg = _("Your seed is important!") \
                 + "\n" + _("To make sure that you have properly saved your seed, please retype it here.")
-        
+
         logo = QLabel()
         logo.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(56))
         logo.setMaximumWidth(60)
@@ -159,13 +159,13 @@ class InstallWizard(QDialog):
         grid = QGridLayout()
         grid.setSpacing(8)
 
-        label = QLabel(_("Key")) 
+        label = QLabel(_("Key"))
         grid.addWidget(label, 0, 0)
         mpk_e = QTextEdit()
         mpk_e.setMaximumHeight(100)
         grid.addWidget(mpk_e, 0, 1)
 
-        label = QLabel(_("Chain")) 
+        label = QLabel(_("Chain"))
         #grid.addWidget(label, 1, 0)
         chain_e = QTextEdit()
         chain_e.setMaximumHeight(100)
@@ -185,7 +185,7 @@ class InstallWizard(QDialog):
 
 
     def network_dialog(self):
-        
+
         grid = QGridLayout()
         grid.setSpacing(5)
 
@@ -219,7 +219,7 @@ class InstallWizard(QDialog):
         self.set_layout(vbox)
         if not self.exec_():
             return
-        
+
         if b2.isChecked():
             return NetworkDialog(self.network, self.config, None).do_exec()
 
@@ -231,7 +231,7 @@ class InstallWizard(QDialog):
             self.config.set_key("server", None, True)
             self.config.set_key('auto_cycle', False, True)
             return
-        
+
 
 
     def show_seed(self, wallet):
@@ -254,7 +254,7 @@ class InstallWizard(QDialog):
     def run(self):
 
         action = self.restore_or_create()
-        if not action: 
+        if not action:
             return
 
         wallet = Wallet(self.storage)
@@ -298,7 +298,7 @@ class InstallWizard(QDialog):
             wallet.create_watching_only_wallet(mpk)
 
         else: raise
-                
+
         #if not self.config.get('server'):
         if self.network:
             self.network_dialog()

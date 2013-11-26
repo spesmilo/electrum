@@ -126,7 +126,7 @@ class WalletStorage:
 
     def get(self, key, default=None):
         v = self.data.get(key)
-        if v is None: 
+        if v is None:
             v = default
         return v
 
@@ -137,7 +137,7 @@ class WalletStorage:
                 self.data[key] = value
             else:
                 self.data.pop(key)
-            if save: 
+            if save:
                 self.write()
 
     def write(self):
@@ -217,7 +217,7 @@ class Wallet:
         # there is a difference between wallet.up_to_date and interface.is_up_to_date()
         # interface.is_up_to_date() returns true when all requests have been answered and processed
         # wallet.up_to_date is true when the wallet is synchronized (stronger requirement)
-        
+
         self.up_to_date = False
         self.lock = threading.Lock()
         self.transaction_lock = threading.Lock()
@@ -236,7 +236,7 @@ class Wallet:
                 for tx2 in self.transactions.values():
                     tx2.add_extra_addresses({h:tx})
 
-            
+
 
 
     def set_up_to_date(self,b):
@@ -249,7 +249,7 @@ class Wallet:
 
     def update(self):
         self.up_to_date = False
-        while not self.is_up_to_date(): 
+        while not self.is_up_to_date():
             time.sleep(0.1)
 
 
@@ -263,14 +263,14 @@ class Wallet:
 
         if self.is_mine(address):
             raise Exception('Address already in wallet')
-        
+
         # store the originally requested keypair into the imported keys table
         self.imported_keys[address] = pw_encode(sec, password )
         self.storage.put('imported_keys', self.imported_keys, True)
         if self.synchronizer:
             self.synchronizer.subscribe_to_addresses([address])
         return address
-        
+
     def delete_imported_key(self, addr):
         if addr in self.imported_keys:
             self.imported_keys.pop(addr)
@@ -285,10 +285,10 @@ class Wallet:
             ss = "%040x"%(entropy+nonce)
             s = hashlib.sha256(ss.decode('hex')).digest().encode('hex')
             # we keep only 13 words, that's approximately 139 bits of entropy
-            words = mnemonic.mn_encode(s)[0:13] 
+            words = mnemonic.mn_encode(s)[0:13]
             seed = ' '.join(words)
-            if mnemonic_hash(seed).startswith(SEED_PREFIX): 
-                break  # this removes 12 bits of entropy 
+            if mnemonic_hash(seed).startswith(SEED_PREFIX):
+                break  # this removes 12 bits of entropy
             nonce += 1
 
         return seed
@@ -296,8 +296,8 @@ class Wallet:
 
     def init_seed(self, seed):
         import mnemonic
-        
-        if self.seed: 
+
+        if self.seed:
             raise Exception("a seed exists")
 
         if not seed:
@@ -322,7 +322,7 @@ class Wallet:
         words = seed.split()
         self.seed_version = 4
         self.seed = mnemonic.mn_decode(words)
-        
+
         #try:
         #    mnemonic.mn_decode(words)
         #    uses_electrum_words = True
@@ -336,7 +336,7 @@ class Wallet:
         #    assert mnemonic_hash(seed).startswith(SEED_PREFIX)
         #    self.seed_version = SEED_VERSION
         #    self.seed = seed
-            
+
 
     def save_seed(self):
         self.storage.put('seed', self.seed, True)
@@ -364,7 +364,7 @@ class Wallet:
         self.create_account('1','Main account')
 
 
-    def create_accounts(self): 
+    def create_accounts(self):
         if self.seed_version == 4:
             mpk = OldAccount.mpk_from_seed(self.seed)
             self.create_old_account(mpk)
@@ -460,7 +460,7 @@ class Wallet:
         k = self.account_id(account_type,i)
 
         addr = self.next_addresses.get(k)
-        if not addr: 
+        if not addr:
             account_id, account = self.next_account(account_type)
             addr = account.first_address()
             self.next_addresses[k] = addr
@@ -542,7 +542,7 @@ class Wallet:
             d[k] = v.dump()
         self.storage.put('accounts', d, True)
 
-    
+
 
     def load_accounts(self):
         d = self.storage.get('accounts', {})
@@ -648,7 +648,7 @@ class Wallet:
             return self.seed is not None
 
         for root in self.get_roots(account):
-            if root not in self.master_private_keys.keys(): 
+            if root not in self.master_private_keys.keys():
                 return False
         return True
 
@@ -662,7 +662,7 @@ class Wallet:
             num = int(m.group(2))
             dd.append( (root, [num,c,i] ) )
         return dd
-        
+
 
     def get_keyID(self, account, sequence):
         if account == 0:
@@ -688,7 +688,7 @@ class Wallet:
         else:
             seed = mnemonic_hash(s)
         return seed
-        
+
 
     def get_mnemonic(self, password):
         import mnemonic
@@ -698,7 +698,7 @@ class Wallet:
         else:
             return s
 
-        
+
 
     def get_private_key(self, address, password):
         if self.is_watching_only():
@@ -706,7 +706,7 @@ class Wallet:
 
         # first check the provided password
         seed = self.get_seed(password)
-        
+
         out = []
         if address in self.imported_keys.keys():
             out.append( pw_decode( self.imported_keys[address], password ) )
@@ -726,7 +726,7 @@ class Wallet:
                 master_c, _, _ = self.master_public_keys[root]
                 pk = bip32_private_key( public_sequence, master_k.decode('hex'), master_c.decode('hex'))
                 out.append(pk)
-                    
+
         return out
 
 
@@ -750,7 +750,7 @@ class Wallet:
                     m = re.match("old\(([0-9a-f]+),(\d+),(\d+)", keyid)
                     if not m: continue
                     mpk = m.group(1)
-                    if mpk != self.storage.get('master_public_key'): continue 
+                    if mpk != self.storage.get('master_public_key'): continue
                     index = int(m.group(2))
                     num = int(m.group(3))
                     account = self.accounts[0]
@@ -775,7 +775,7 @@ class Wallet:
                     sequence = map(lambda x:int(x), sequence.strip('/').split('/'))
                     root = root + '%d'%sequence[0]
                     sequence = sequence[1:]
-                    roots.append((root,sequence)) 
+                    roots.append((root,sequence))
 
                 account_id = " & ".join( map(lambda x:x[0], roots) )
                 account = self.accounts.get(account_id)
@@ -891,7 +891,7 @@ class Wallet:
         for tx_hash, tx_height in h:
             if tx_height == 0:
                 tx_age = 0
-            else: 
+            else:
                 tx_age = self.verifier.blockchain.height() - tx_height + 1
             if tx_age > age:
                 age = tx_age
@@ -917,7 +917,7 @@ class Wallet:
                 new_addresses.append( address )
 
         return new_addresses
-        
+
 
 
     def create_pending_accounts(self):
@@ -951,13 +951,13 @@ class Wallet:
 
 
     def is_found(self):
-        return self.history.values() != [[]] * len(self.history) 
+        return self.history.values() != [[]] * len(self.history)
 
 
     def add_contact(self, address, label=None):
         self.addressbook.append(address)
         self.storage.put('contacts', self.addressbook, True)
-        if label:  
+        if label:
             self.set_label(address, label)
 
 
@@ -978,23 +978,23 @@ class Wallet:
         # self.update_tx_labels()
 
     def get_num_tx(self, address):
-        n = 0 
+        n = 0
         for tx in self.transactions.values():
             if address in map(lambda x:x[0], tx.outputs): n += 1
         return n
 
 
     def get_address_flags(self, addr):
-        flags = "C" if self.is_change(addr) else "I" if addr in self.imported_keys.keys() else "-" 
+        flags = "C" if self.is_change(addr) else "I" if addr in self.imported_keys.keys() else "-"
         flags += "F" if addr in self.frozen_addresses else "-"
         return flags
-        
+
 
     def get_tx_value(self, tx, account=None):
         domain = self.get_account_addresses(account)
         return tx.get_value(domain, self.prevout_values)
 
-    
+
     def update_tx_outputs(self, tx_hash):
         tx = self.transactions.get(tx_hash)
 
@@ -1034,7 +1034,7 @@ class Wallet:
                 if addr == address:
                     key = item['prevout_hash']  + ':%d'%item['prevout_n']
                     value = self.prevout_values.get( key )
-                    if key in received_coins: 
+                    if key in received_coins:
                         v -= value
 
             for i, (addr, value) in enumerate(tx.outputs):
@@ -1051,7 +1051,7 @@ class Wallet:
 
     def get_account_name(self, k):
         if k == 0:
-            if self.seed_version == 4: 
+            if self.seed_version == 4:
                 name = 'Main account'
             else:
                 name = 'Old account'
@@ -1064,7 +1064,7 @@ class Wallet:
                     default = "Main account"
                 else:
                     default = "Account %s"%num
-                    
+
             m = re.match("m/1'/(\d+) & m/2'/(\d+)", k)
             if m:
                 num = m.group(1)
@@ -1100,7 +1100,7 @@ class Wallet:
 
     def get_frozen_balance(self):
         return self.get_balance(self.frozen_addresses)
-        
+
     def get_balance(self, domain=None):
         if domain is None: domain = self.addresses(True)
         cc = uu = 0
@@ -1135,7 +1135,7 @@ class Wallet:
         if coins:
             coins = sorted(coins)
             if coins[-1][0] != 0:
-                while coins[0][0] == 0: 
+                while coins[0][0] == 0:
                     coins = coins[1:] + [ coins[0] ]
         return [x[1] for x in coins]
 
@@ -1172,7 +1172,7 @@ class Wallet:
         if self.fee != fee:
             self.fee = fee
             self.storage.put('fee_per_kb', self.fee, True)
-        
+
     def estimated_fee(self, inputs):
         estimated_size =  len(inputs) * 180 + 80     # this assumes non-compressed keys
         fee = self.fee * int(round(estimated_size/1024.))
@@ -1226,7 +1226,7 @@ class Wallet:
             self.transactions[tx_hash] = tx
             self.network.interface.pending_transactions_for_notifications.append(tx)
             self.save_transactions()
-            if self.verifier and tx_height>0: 
+            if self.verifier and tx_height>0:
                 self.verifier.add(tx_hash, tx_height)
             self.update_tx_outputs(tx_hash)
 
@@ -1241,7 +1241,7 @@ class Wallet:
 
         if not self.check_new_history(addr, hist):
             raise Exception("error: received history for %s is not consistent with known transactions"%addr)
-            
+
         with self.lock:
             self.history[addr] = hist
             self.storage.put('addr_history', self.history, True)
@@ -1261,7 +1261,7 @@ class Wallet:
             history = self.transactions.items()
             history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
             result = []
-    
+
             balance = 0
             for tx_hash, tx in history:
                 is_relevant, is_mine, v, fee = self.get_tx_value(tx, account)
@@ -1361,7 +1361,7 @@ class Wallet:
             account, sequence = self.get_address_index(address)
             txin['KeyID'] = self.get_keyID(account, sequence)
             redeemScript = self.accounts[account].redeem_script(sequence)
-            if redeemScript: 
+            if redeemScript:
                 txin['redeemScript'] = redeemScript
             else:
                 txin['redeemPubkey'] = self.accounts[account].get_pubkey(*sequence)
@@ -1389,7 +1389,7 @@ class Wallet:
         self.tx_event.set()
 
     def receive_tx(self,tx_hash):
-        out = self.tx_result 
+        out = self.tx_result
         if out != tx_hash:
             return False, "error: " + out
         return True, out
@@ -1455,7 +1455,7 @@ class Wallet:
 
 
     def check_new_history(self, addr, hist):
-        
+
         # check that all tx in hist are relevant
         if hist != ['*']:
             for tx_hash, height in hist:
@@ -1483,7 +1483,7 @@ class Wallet:
                 tx = self.transactions.get(tx_hash)
                 # tx might not be there
                 if not tx: continue
-                
+
                 # already verified?
                 if self.verifier.get_height(tx_hash):
                     continue
@@ -1515,12 +1515,12 @@ class Wallet:
 
 
     def check_new_tx(self, tx_hash, tx):
-        # 1 check that tx is referenced in addr_history. 
+        # 1 check that tx is referenced in addr_history.
         addresses = []
         for addr, hist in self.history.items():
             if hist == ['*']:continue
             for txh, height in hist:
-                if txh == tx_hash: 
+                if txh == tx_hash:
                     addresses.append(addr)
 
         if not addresses:
@@ -1561,8 +1561,8 @@ class Wallet:
                 msg = "%s\n%s %d\n%s %.1f"%(
                     _("Please wait..."),
                     _("Addresses generated:"),
-                    len(self.addresses(True)), 
-                    _("Kilobytes received:"), 
+                    len(self.addresses(True)),
+                    _("Kilobytes received:"),
                     self.network.interface.bytes_received/1024.)
 
                 apply(callback, (msg,))
@@ -1580,7 +1580,7 @@ class Wallet:
             wait_for_wallet()
         else:
             self.synchronize()
-            
+
         self.fill_addressbook()
 
 
@@ -1605,7 +1605,7 @@ class WalletSynchronizer(threading.Thread):
     def is_running(self):
         with self.lock: return self.running
 
-    
+
     def subscribe_to_addresses(self, addresses):
         messages = []
         for addr in addresses:
@@ -1618,11 +1618,11 @@ class WalletSynchronizer(threading.Thread):
             self.running = True
 
         while self.is_running():
-            
+
             if not self.network.is_connected():
                 print_error("synchronizer: waiting for interface")
                 self.network.wait_until_connected()
-                
+
             self.run_interface(self.network.interface)
 
 
@@ -1684,7 +1684,7 @@ class WalletSynchronizer(threading.Thread):
 
             if interface != self.network.interface:
                 break
-            
+
             if not r:
                 continue
 
@@ -1727,11 +1727,11 @@ class WalletSynchronizer(threading.Thread):
                     rs = requested_histories.pop(addr)
                     if self.wallet.get_status(hist) != rs:
                         raise Exception("error: status mismatch: %s"%addr)
-                
+
                     # store received history
                     self.wallet.receive_history_callback(addr, hist)
 
-                    # request transactions that we don't have 
+                    # request transactions that we don't have
                     for tx_hash, tx_height in hist:
                         if self.wallet.transactions.get(tx_hash) is None:
                             if (tx_hash, tx_height) not in requested_tx and (tx_hash, tx_height) not in missing_tx:

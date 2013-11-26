@@ -56,7 +56,7 @@ class BCDataStream(object):
 
     def seek_file(self, position):
         self.read_cursor = position
-        
+
     def close_file(self):
         self.input.close()
 
@@ -333,7 +333,7 @@ def get_address_from_input_script(bytes):
         if match_decoded(dec2, match2):
             pubkeys = [ dec2[1][1].encode('hex'), dec2[2][1].encode('hex') ]
             return pubkeys, signatures, hash_160_to_bc_address(hash_160(redeemScript), 5)
- 
+
         # 2 of 3
         match2 = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_3, opcodes.OP_CHECKMULTISIG ]
         if match_decoded(dec2, match2):
@@ -369,7 +369,7 @@ def get_address_from_output_script(bytes):
 
 
 class Transaction:
-    
+
     def __init__(self, raw, is_complete = True):
         self.raw = raw
         self.deserialize()
@@ -377,7 +377,7 @@ class Transaction:
         self.outputs = self.d['outputs']
         self.outputs = map(lambda x: (x['address'],x['value']), self.outputs)
         self.is_complete = is_complete
-        
+
     def __str__(self):
         return self.raw
 
@@ -396,14 +396,14 @@ class Transaction:
         if num is None: num = n
         # supports only "2 of 2", and "2 of 3" transactions
         assert num <= n and n in [2,3]
-    
+
         if num==2:
             s = '52'
         elif num == 3:
             s = '53'
         else:
             raise
-    
+
         for k in public_keys:
             s += var_int(len(k)/2)
             s += k
@@ -479,7 +479,7 @@ class Transaction:
                 script += '87'                                       # op_equal
             else:
                 raise
-            
+
             s += var_int( len(script)/2 )                           #  script length
             s += script                                             #  script
         s += int_to_hex(0,4)                                        #  lock time
@@ -530,7 +530,7 @@ class Transaction:
                     assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
                     signatures.append( sig.encode('hex') )
                     print_error("adding signature for", pubkey)
-            
+
             txin["signatures"] = signatures
             is_complete = is_complete and len(signatures) == num
 
@@ -555,7 +555,7 @@ class Transaction:
         d['lockTime'] = vds.read_uint32()
         self.d = d
         return self.d
-    
+
 
     def parse_input(self, vds):
         d = {}
@@ -601,7 +601,7 @@ class Transaction:
     def has_address(self, addr):
         found = False
         for txin in self.inputs:
-            if addr == txin.get('address'): 
+            if addr == txin.get('address'):
                 found = True
                 break
         for txout in self.outputs:
@@ -634,7 +634,7 @@ class Transaction:
                 is_partial = True
 
         if not is_send: is_partial = False
-                    
+
         for item in self.outputs:
             addr, value = item
             v_out += value
@@ -668,8 +668,8 @@ class Transaction:
     def get_input_info(self):
         info = []
         for i in self.inputs:
-            item = { 
-                'prevout_hash':i['prevout_hash'], 
+            item = {
+                'prevout_hash':i['prevout_hash'],
                 'prevout_n':i['prevout_n'],
                 'address':i['address'],
                 'KeyID':i.get('KeyID'),
@@ -701,7 +701,7 @@ class Transaction:
         # see https://en.bitcoin.it/wiki/Transaction_fees
         threshold = 57600000
         size = len(self.raw)/2
-        if size >= 10000: 
+        if size >= 10000:
             return True
 
         for o in self.outputs:
@@ -714,7 +714,7 @@ class Transaction:
             sum += i["value"] * age
         priority = sum / size
         print_error(priority, threshold)
-        return priority < threshold 
+        return priority < threshold
 
 
 
