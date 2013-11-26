@@ -65,6 +65,7 @@ class Plugin(BasePlugin):
                 rm_local_oauth_credentials()
         # TODO(ortutay): android flow
 
+
 def propose_rebuy_qt(amount):
     web = QWebView()
     box = QMessageBox()
@@ -89,7 +90,71 @@ def propose_rebuy_qt(amount):
         do_oauth_flow(web, amount)
     return web
 
+def do_buy(credentials, amount):
+    h = httplib2.Http(ca_certs=CERTS_PATH)
+    h = credentials.authorize(h)
+    params = {
+        'qty': float(amount)/SATOSHIS_PER_BTC,
+        'agree_btc_amount_varies': False
+    }
+    resp, content = h.request(
+        COINBASE_ENDPOINT + '/api/v1/buys', 'POST', urlencode(params))
+    if resp['status'] != '200':
+        message(_('Error, could not buy bitcoin'))
+        return
+    content = json.loads(content)
+    if content['success']:
+        message(_('Success!\n') + content['transfer']['description'])
+    else:
+        if content['errors']:
+            message(_('Error: ') + string.join(content['errors'], '\n'))
+        else:
+            message(_('Error, could not buy bitcoin'))
 
+def get_coinbase_total_price(credentials, amount):
+    h = httplib2.Http(ca_certs=CERTS_PATH)
+    params={'qty': amount/SATOSHIS_PER_BTC}
+    resp, content = h.request(COINBASE_ENDPOINT + '/api/v1/prices/buy?' + urlencode(params),'GET')
+    content = json.loads(content)
+    if resp['status'] != '200':
+        return 'unavailable'
+    return '$' + content['total']['amount']
+
+def do_oauth_flow(web, amount):
+    # QT expects un-escaped URL
+    auth_uri = step1_get_authorize_url()
+    web.load(QUrl(auth_uri))
+    web.setFixedSize(500, 700)
+    web.show()
+    web.titleChanged.connect(lambda(title): complete_oauth_flow(title, web, amount) if re.search('^[a-z0-9]+$', title) else False)
+
+def complete_oauth_flow(token, web, amount):
+    web.close()
+    http = httplib2.Http(ca_certs=CERTS_PATH)
+    credentials = step2_exchange(str(token), http)
+    credentials.store_locally()
+    do_buy(credentials, amount)
+
+def token_path():
+    dir = user_dir() + '/coinbalance'
+    if not os.access(dir, os.F_OK):
+        os.mkdir(dir)
+    return dir + '/token'
+
+def read_local_oauth_credentials():
+    if not os.access(token_path(), os.F_OK):
+        return None
+    f = open(token_path(), 'r')
+    data = f.read()
+    f.close()
+    try:
+        credentials = Credentials.from_json(data)
+        return credentials
+    except Exception as e:
+        return None
+
+def rm_local_oauth_credentials():
+    os.remove(token_path())
 
 def step1_get_authorize_url():
     return ('https://coinbase.com/oauth/authorize'
@@ -122,14 +187,14 @@ def step2_exchange(code, http):
         if 'expires_in' in d:
             token_expiry = datetime.datetime.utcnow() + datetime.timedelta(
                 seconds=int(d['expires_in']))
-        return OAuth2Credentials2(access_token, refresh_token, token_expiry)
+        return Credentials(access_token, refresh_token, token_expiry)
     else:
         raise OAuth2Exception(content)
 
 class OAuth2Exception(Exception):
     """An error related to OAuth2"""
 
-class OAuth2Credentials2(object):
+class Credentials(object):
     def __init__(self, access_token, refresh_token, token_expiry):
         self.access_token = access_token
         self.refresh_token = refresh_token
@@ -165,7 +230,7 @@ class OAuth2Credentials2(object):
                     data['token_expiry'], EXPIRY_FORMAT)
             except:
                 data['token_expiry'] = None
-        retval = OAuth2Credentials2(
+        retval = Credentials(
             data['access_token'],
             data['refresh_token'],
             data['token_expiry'])
@@ -232,72 +297,6 @@ class OAuth2Credentials2(object):
                     seconds=int(d['expires_in'])) + datetime.datetime.utcnow()
         else:
             raise OAuth2Exception('Refresh failed, ' + content)
-
-def do_oauth_flow(web, amount):
-    # QT expects un-escaped URL
-    auth_uri = step1_get_authorize_url()
-    web.load(QUrl(auth_uri))
-    web.setFixedSize(500, 700)
-    web.show()
-    web.titleChanged.connect(lambda(title): complete_oauth_flow(title, web, amount) if re.search('^[a-z0-9]+$', title) else False)
-
-def complete_oauth_flow(token, web, amount):
-    web.close()
-    http = httplib2.Http(ca_certs=CERTS_PATH)
-    credentials = step2_exchange(str(token), http)
-    credentials.store_locally()
-    do_buy(credentials, amount)
-
-def read_local_oauth_credentials():
-    if not os.access(token_path(), os.F_OK):
-        return None
-    f = open(token_path(), 'r')
-    data = f.read()
-    f.close()
-    try:
-        credentials = OAuth2Credentials2.from_json(data)
-        return credentials
-    except Exception as e:
-        return None
-
-def rm_local_oauth_credentials():
-    os.remove(token_path())
-
-def do_buy(credentials, amount):
-    h = httplib2.Http(ca_certs=CERTS_PATH)
-    h = credentials.authorize(h)
-    params = {
-        'qty': float(amount)/SATOSHIS_PER_BTC,
-        'agree_btc_amount_varies': False
-    }
-    resp, content = h.request(
-        COINBASE_ENDPOINT + '/api/v1/buys', 'POST', urlencode(params))
-    if resp['status'] != '200':
-        message(_('Error, could not buy bitcoin'))
-        return
-    content = json.loads(content)
-    if content['success']:
-        message(_('Success!\n') + content['transfer']['description'])
-    else:
-        if content['errors']:
-            message(_('Error: ') + string.join(content['errors'], '\n'))
-        else:
-            message(_('Error, could not buy bitcoin'))
-
-def token_path():
-    dir = user_dir() + '/coinbalance'
-    if not os.access(dir, os.F_OK):
-        os.mkdir(dir)
-    return dir + '/token'
-
-def get_coinbase_total_price(credentials, amount):
-    h = httplib2.Http(ca_certs=CERTS_PATH)
-    params={'qty': amount/SATOSHIS_PER_BTC}
-    resp, content = h.request(COINBASE_ENDPOINT + '/api/v1/prices/buy?' + urlencode(params),'GET')
-    content = json.loads(content)
-    if resp['status'] != '200':
-        return 'unavailable'
-    return '$' + content['total']['amount']
 
 def message(msg):
     box = QMessageBox()
