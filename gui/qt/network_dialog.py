@@ -50,10 +50,10 @@ class NetworkDialog(QDialog):
                 status = _("Not connected")
 
             if network.is_connected():
-                status += "\n" + _("Server") + ": %s"%(network.interface.host) 
+                status += "\n" + _("Server") + ": %s"%(network.interface.host)
             else:
                 status += "\n" + _("Disconnected from server")
-                
+
         else:
             import random
             status = _("Please choose a server.") + "\n" + _("Select 'Cancel' if you are offline.")
@@ -124,8 +124,8 @@ class NetworkDialog(QDialog):
 
         self.set_protocol(self.network.protocol)
 
-        self.servers_list_widget.connect(self.servers_list_widget, 
-                                         SIGNAL('currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)'), 
+        self.servers_list_widget.connect(self.servers_list_widget,
+                                         SIGNAL('currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)'),
                                          lambda x,y: self.server_changed(x))
         grid.addWidget(self.servers_list_widget, 1, 1, 1, 3)
 
@@ -133,7 +133,7 @@ class NetworkDialog(QDialog):
             for w in [self.server_host, self.server_port, self.server_protocol, self.servers_list_widget]: w.setEnabled(False)
 
 
-        
+
         def enable_set_server():
             enabled = not self.autocycle_cb.isChecked()
             self.server_host.setEnabled(enabled)
@@ -177,7 +177,7 @@ class NetworkDialog(QDialog):
 
         # buttons
         vbox.addLayout(ok_cancel_buttons(self))
-        self.setLayout(vbox) 
+        self.setLayout(vbox)
 
 
     def init_servers_list(self):
@@ -192,7 +192,7 @@ class NetworkDialog(QDialog):
         if protocol != self.protocol:
             self.protocol = protocol
             self.init_servers_list()
-        
+
     def change_protocol(self, index):
         p = protocol_letters[index]
         host = unicode(self.server_host.text())
@@ -205,7 +205,7 @@ class NetworkDialog(QDialog):
         self.set_protocol(p)
 
     def server_changed(self, x):
-        if x: 
+        if x:
             self.change_server(str(x.text(0)), self.protocol)
 
     def change_server(self, host, protocol):
@@ -214,7 +214,7 @@ class NetworkDialog(QDialog):
         if protocol:
             port = pp.get(protocol)
             if not port: protocol = None
-                    
+
         if not protocol:
             if 's' in pp.keys():
                 protocol = 's'
@@ -222,7 +222,7 @@ class NetworkDialog(QDialog):
             else:
                 protocol = pp.keys()[0]
                 port = pp.get(protocol)
-            
+
         self.server_host.setText( host )
         self.server_port.setText( port )
         self.server_protocol.setCurrentIndex(protocol_letters.index(protocol))
@@ -247,8 +247,8 @@ class NetworkDialog(QDialog):
         protocol = protocol_letters[self.server_protocol.currentIndex()]
 
         if self.proxy_mode.currentText() != 'NONE':
-            proxy = { 'mode':str(self.proxy_mode.currentText()).lower(), 
-                      'host':str(self.proxy_host.text()), 
+            proxy = { 'mode':str(self.proxy_mode.currentText()).lower(),
+                      'host':str(self.proxy_host.text()),
                       'port':str(self.proxy_port.text()) }
         else:
             proxy = None

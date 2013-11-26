@@ -12,7 +12,7 @@ from electrum.i18n import _
 
 from electrum import util
 
-ALIAS_REGEXP = '^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$'    
+ALIAS_REGEXP = '^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$'
 
 
 
@@ -85,7 +85,7 @@ class Plugin(BasePlugin):
 
         if target:
             self.aliases[alias] = (signing_address, target)
-            
+
         return target
 
 
@@ -96,7 +96,7 @@ class Plugin(BasePlugin):
         m1 = re.match('([\w\-\.]+)@((\w[\w\-]+\.)+[\w\-]+)', alias)
         m2 = re.match('((\w[\w\-]+\.)+[\w\-]+)', alias)
         if m1:
-            url = 'https://' + m1.group(2) + '/bitcoin.id/' + m1.group(1) 
+            url = 'https://' + m1.group(2) + '/bitcoin.id/' + m1.group(1)
         elif m2:
             url = 'https://' + alias + '/bitcoin.id'
         else:
@@ -116,7 +116,7 @@ class Plugin(BasePlugin):
             msg = "alias:%s:%s:%s"%(alias,target,auth_name)
             print msg, signature
             EC_KEY.verify_message(signing_addr, signature, msg)
-        
+
         # other lines are signed updates
         for line in lines[1:]:
             line = line.strip()

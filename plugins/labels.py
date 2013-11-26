@@ -58,7 +58,7 @@ class Plugin(BasePlugin):
         self.encode_password = hashlib.sha1(mpk).digest().encode('hex')[:32]
         self.wallet_id = hashlib.sha256(mpk).digest().encode('hex')
 
-        addresses = [] 
+        addresses = []
         for account in self.wallet.accounts.values():
             for address in account.get_addresses(0):
                 addresses.append(address)
@@ -80,7 +80,7 @@ class Plugin(BasePlugin):
 
     def set_label(self, item,label, changed):
         if not changed:
-            return 
+            return
         try:
             bundle = {"label": {"external_id": self.encode(item), "text": self.encode(label)}}
             params = json.dumps(bundle)
@@ -222,10 +222,10 @@ class Plugin(BasePlugin):
                 return False
 
             for label in response:
-                 decoded_key = self.decode(label["external_id"]) 
-                 decoded_label = self.decode(label["text"]) 
+                 decoded_key = self.decode(label["external_id"])
+                 decoded_label = self.decode(label["text"])
                  if force or not self.wallet.labels.get(decoded_key):
-                     self.wallet.labels[decoded_key] = decoded_label 
+                     self.wallet.labels[decoded_key] = decoded_label
             return True
         except socket.gaierror as e:
             print_error('Error connecting to service: %s ' %  e)

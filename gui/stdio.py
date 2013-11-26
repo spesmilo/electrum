@@ -32,7 +32,7 @@ class ElectrumGui:
 
         self.wallet = Wallet(storage)
         self.wallet.start_threads(network)
-        
+
         self.wallet.network.register_callback('updated', self.updated)
         self.wallet.network.register_callback('connected', self.connected)
         self.wallet.network.register_callback('disconnected', self.disconnected)
@@ -96,7 +96,7 @@ class ElectrumGui:
         delta = (80 - sum(width) - 4)/3
         format_str = "%"+"%d"%width[0]+"s"+"%"+"%d"%(width[1]+delta)+"s"+"%" \
         + "%d"%(width[2]+delta)+"s"+"%"+"%d"%(width[3]+delta)+"s"
-        b = 0 
+        b = 0
         messages = []
 
         for item in self.wallet.get_tx_history():
@@ -122,13 +122,13 @@ class ElectrumGui:
         if self.wallet.network.interface and self.wallet.network.interface.is_connected:
             if not self.wallet.up_to_date:
                 msg = _( "Synchronizing..." )
-            else: 
+            else:
                 c, u =  self.wallet.get_balance()
                 msg = _("Balance")+": %f  "%(Decimal( c ) / 100000000)
                 if u: msg += "  [%f unconfirmed]"%(Decimal( u ) / 100000000)
         else:
                 msg = _( "Not connected" )
-            
+
         return(msg)
 
 
@@ -165,7 +165,7 @@ class ElectrumGui:
             msg = list[i] if i < len(list) else ""
             print(msg)
 
-           
+
     def main(self,url):
         while self.done == 0: self.main_command()
 
@@ -201,8 +201,8 @@ class ElectrumGui:
         except Exception as e:
             print(str(e))
             return
-            
-        if self.str_description: 
+
+        if self.str_description:
             self.wallet.labels[tx.hash()] = self.str_description
 
         h = self.wallet.send_tx(tx)
@@ -228,7 +228,7 @@ class ElectrumGui:
 
     def password_dialog(self):
         return getpass.getpass()
-        
+
 
 #   XXX unused
 
@@ -236,7 +236,7 @@ class ElectrumGui:
         #if c == 10:
         #    out = self.run_popup('Address', ["Edit label", "Freeze", "Prioritize"])
         return
-            
+
     def run_contacts_tab(self, c):
         pass
 #        if c == 10 and self.wallet.addressbook:
@@ -244,7 +244,7 @@ class ElectrumGui:
 #            address = self.wallet.addressbook[self.pos%len(self.wallet.addressbook)]
 #            if out == "Pay to":
 #                self.tab = 1
-#                self.str_recipient = address 
+#                self.str_recipient = address
 #                self.pos = 2
 #            elif out == "Edit label":
 #                s = self.get_string(6 + self.pos, 18)

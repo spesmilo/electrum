@@ -8,7 +8,7 @@ is_verbose = True
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
         from transaction import Transaction
-        if isinstance(obj, Transaction): 
+        if isinstance(obj, Transaction):
             return obj.as_dict()
         return super(MyEncoder, self).default(obj)
 
@@ -36,7 +36,7 @@ def print_json(obj):
         s = repr(obj)
     sys.stdout.write(s + "\n")
     sys.stdout.flush()
-    
+
 
 def user_dir():
     if "HOME" in os.environ:
@@ -49,7 +49,7 @@ def user_dir():
         return "/sdcard/electrum/"
     else:
         #raise Exception("No home directory found in environment variables.")
-        return 
+        return
 
 def appdata_dir():
     """Find the path to the application data directory; add an electrum folder and return path."""
@@ -86,7 +86,7 @@ def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespa
         digits.insert(0,'0')
     digits.insert(-decimal_point,'.')
     s = ''.join(digits).rstrip('0')
-    if sign: 
+    if sign:
         s = '-' + s
     elif is_diff:
         s = "+" + s
@@ -95,7 +95,7 @@ def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespa
     s += "0"*( 1 + num_zeros - ( len(s) - p ))
     if whitespaces:
         s += " "*( 1 + decimal_point - ( len(s) - p ))
-        s = " "*( 13 - decimal_point - ( p )) + s 
+        s = " "*( 13 - decimal_point - ( p )) + s
     return s
 
 
@@ -173,7 +173,7 @@ def parse_url(url):
         elif k == 'signature':
             identity, signature = uv.split(':')
             url = url.replace('&%s=%s'%(k,v),'')
-        else: 
+        else:
             print k,v
 
     return address, amount, label, message, signature, identity, url

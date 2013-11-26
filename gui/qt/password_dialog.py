@@ -31,7 +31,7 @@ def make_password_dialog(self, wallet, msg):
     self.new_pw.setEchoMode(2)
     self.conf_pw = QLineEdit()
     self.conf_pw.setEchoMode(2)
-    
+
     vbox = QVBoxLayout()
     label = QLabel(msg)
     label.setWordWrap(True)
@@ -54,11 +54,11 @@ def make_password_dialog(self, wallet, msg):
     grid.setSpacing(8)
     grid.setColumnMinimumWidth(0, 250)
     grid.setColumnStretch(1,1)
-    
+
     if wallet.use_encryption:
         grid.addWidget(QLabel(_('Password')), 0, 0)
         grid.addWidget(self.pw, 0, 1)
-        
+
     grid.addWidget(QLabel(_('New Password')), 1, 0)
     grid.addWidget(self.new_pw, 1, 1)
 
@@ -72,7 +72,7 @@ def make_password_dialog(self, wallet, msg):
 
 
 def run_password_dialog(self, wallet, parent):
-        
+
     if not wallet.seed:
         QMessageBox.information(parent, _('Error'), _('No seed'), _('OK'))
         return
@@ -92,7 +92,7 @@ def run_password_dialog(self, wallet, parent):
     if new_password != new_password2:
         QMessageBox.warning(parent, _('Error'), _('Passwords do not match'), _('OK'))
         # Retry
-        run_password_dialog(self, wallet, parent) 
+        run_password_dialog(self, wallet, parent)
         return
 
     try:

@@ -86,12 +86,12 @@ class ElectrumGui:
             import installwizard
             wizard = installwizard.InstallWizard(self.config, self.network, storage)
             wallet = wizard.run()
-            if not wallet: 
+            if not wallet:
                 exit()
         else:
             wallet = Wallet(storage)
             wallet.start_threads(self.network)
-            
+
         self.main_window = w = ElectrumWindow(self.config, self.network)
 
         # plugins that need to change the GUI do it here

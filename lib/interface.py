@@ -39,9 +39,9 @@ def check_cert(host, cert):
     m = "host: %s\n"%host
     m += "has_expired: %s\n"% _cert.has_expired()
     m += "pubkey: %s bits\n" % _cert.get_pubkey().bits()
-    m += "serial number: %s\n"% _cert.get_serial_number() 
+    m += "serial number: %s\n"% _cert.get_serial_number()
     #m += "issuer: %s\n"% _cert.get_issuer()
-    #m += "algo: %s\n"% _cert.get_signature_algorithm() 
+    #m += "algo: %s\n"% _cert.get_signature_algorithm()
     m += "version: %s\n"% _cert.get_version()
     print_msg(m)
 
@@ -69,7 +69,7 @@ def check_certificates():
         with open(p) as f:
             cert = f.read()
         check_cert(c, cert)
-    
+
 
 def cert_verify_hostname(s):
     # hostname verification (disabled)
@@ -139,18 +139,18 @@ class Interface(threading.Thread):
 
         msg_id = c.get('id')
         error = c.get('error')
-        
+
         if error:
             print_error("received error:", c)
             if msg_id is not None:
-                with self.lock: 
+                with self.lock:
                     method, params, callback = self.unanswered_requests.pop(msg_id)
                 callback(self,{'method':method, 'params':params, 'error':error, 'id':msg_id})
 
             return
 
         if msg_id is not None:
-            with self.lock: 
+            with self.lock:
                 method, params, callback = self.unanswered_requests.pop(msg_id)
             result = c.get('result')
 
@@ -221,10 +221,10 @@ class Interface(threading.Thread):
             except Exception:
                 traceback.print_exc(file=sys.stdout)
                 break
-            
+
         self.is_connected = False
 
-                
+
     def poll(self):
         self.send([], None)
 
@@ -232,7 +232,7 @@ class Interface(threading.Thread):
     def send_http(self, messages, callback):
         import urllib2, json, time, cookielib
         print_error( "send_http", messages )
-        
+
         if self.proxy:
             socks.setdefaultproxy(self.proxy_mode, self.proxy["host"], int(self.proxy["port"]) )
             socks.wrapmodule(urllib2)
@@ -255,9 +255,9 @@ class Interface(threading.Thread):
             data_json = json.dumps(data)
         else:
             # poll with GET
-            data_json = None 
+            data_json = None
 
-            
+
         headers = {'content-type': 'application/json'}
         if self.session_id:
             headers['cookie'] = 'SESSION=%s'%self.session_id
@@ -274,7 +274,7 @@ class Interface(threading.Thread):
 
         response = response_stream.read()
         self.bytes_received += len(response)
-        if response: 
+        if response:
             response = json.loads( response )
             if type(response) is not type([]):
                 self.queue_json_response(response)
@@ -282,10 +282,10 @@ class Interface(threading.Thread):
                 for item in response:
                     self.queue_json_response(item)
 
-        if response: 
+        if response:
             self.poll_interval = 1
         else:
-            if self.poll_interval < 15: 
+            if self.poll_interval < 15:
                 self.poll_interval += 1
         #print self.poll_interval, response
 
@@ -404,7 +404,7 @@ class Interface(threading.Thread):
             #if self.use_ssl: self.s.do_handshake()
             out = ''
             while self.is_connected:
-                try: 
+                try:
                     timeout = False
                     msg = self.s.recv(1024)
                 except socket.timeout:
@@ -427,7 +427,7 @@ class Interface(threading.Thread):
 
                 out += msg
                 self.bytes_received += len(msg)
-                if msg == '': 
+                if msg == '':
                     self.is_connected = False
 
                 while True:
@@ -449,7 +449,7 @@ class Interface(threading.Thread):
         out = ''
         ids = []
         for m in messages:
-            method, params = m 
+            method, params = m
             request = json.dumps( { 'id':self.message_id, 'method':method, 'params':params } )
             self.unanswered_requests[self.message_id] = method, params, callback
             ids.append(self.message_id)
@@ -504,13 +504,13 @@ class Interface(threading.Thread):
 
         if sub:
             with self.lock:
-                if self.subscriptions.get(callback) is None: 
+                if self.subscriptions.get(callback) is None:
                     self.subscriptions[callback] = []
                 for message in sub:
                     if message not in self.subscriptions[callback]:
                         self.subscriptions[callback].append(message)
 
-        if not self.is_connected: 
+        if not self.is_connected:
             print_error("interface: trying to send while not connected")
             return
 
@@ -526,7 +526,7 @@ class Interface(threading.Thread):
 
     def parse_proxy_options(self, s):
         if type(s) == type({}): return s  # fixme: type should be fixed
-        if type(s) != type(""): return None  
+        if type(s) != type(""): return None
         if s.lower() == 'none': return None
         proxy = { "mode":"socks5", "host":"localhost" }
         args = s.split(':')
@@ -572,7 +572,7 @@ class Interface(threading.Thread):
             self.change_status()
             self.run_tcp() if self.protocol in 'st' else self.run_http()
         self.change_status()
-        
+
 
     def change_status(self):
         #print "change status", self.server, self.is_connected

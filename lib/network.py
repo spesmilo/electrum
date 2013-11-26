@@ -30,7 +30,7 @@ def filter_protocol(servers, p):
         if p in protocols:
             l.append( ':'.join([k, protocols[p], p]) )
     return l
-    
+
 
 def pick_random_server(p='s'):
     return random.choice( filter_protocol(DEFAULT_SERVERS,p) )
@@ -87,7 +87,7 @@ class Network(threading.Thread):
 
     def subscribe(self, messages, callback):
         with self.lock:
-            if self.subscriptions.get(callback) is None: 
+            if self.subscriptions.get(callback) is None:
                 self.subscriptions[callback] = []
             for message in messages:
                 if message not in self.subscriptions[callback]:
@@ -127,13 +127,13 @@ class Network(threading.Thread):
                 continue
             else:
                 choice_list.append(s)
-        
-        if not choice_list: 
+
+        if not choice_list:
             if not self.interfaces:
                 # we are probably offline, retry later
                 self.disconnected_servers = []
             return
-        
+
         server = random.choice( choice_list )
         return server
 
@@ -164,7 +164,7 @@ class Network(threading.Thread):
 
         for i in range(self.num_server):
             self.start_random_interface()
-            
+
         if not self.interface:
             self.interface = self.interfaces.values()[0]
 
@@ -228,7 +228,7 @@ class Network(threading.Thread):
 
 
     def stop_interface(self):
-        self.interface.stop() 
+        self.interface.stop()
         self.interface = None
 
     def set_server(self, server):
@@ -253,7 +253,7 @@ class Network(threading.Thread):
         else:
             self.start_interface(server)
             self.interface = self.interfaces[server]
-        
+
 
     def add_recent_server(self, i):
         # list is ordered
@@ -276,7 +276,7 @@ class Network(threading.Thread):
                         self.set_server(i.server)
             else:
                 print_error('no height for main interface')
-        
+
         self.trigger_callback('updated')
 
 
@@ -346,7 +346,7 @@ class Network(threading.Thread):
     def is_running(self):
         with self.lock: return self.running
 
-    
+
     def synchronous_get(self, requests, timeout=100000000):
         queue = Queue.Queue()
         ids = self.interface.send(requests, lambda i,r: queue.put(r))
@@ -391,7 +391,7 @@ class Network(threading.Thread):
                     elif re.match("p\d*", v):
                         pruning_level = v[1:]
                     if pruning_level == '': pruning_level = '0'
-            try: 
+            try:
                 is_recent = float(version)>=float(PROTOCOL_VERSION)
             except Exception:
                 is_recent = False

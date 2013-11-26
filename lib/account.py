@@ -41,7 +41,7 @@ class Account(object):
 
     def get_address(self, for_change, n):
         pass
-        
+
     def get_pubkeys(self, sequence):
         return [ self.get_pubkey( *sequence )]
 
@@ -96,7 +96,7 @@ class OldAccount(Account):
         pk = number_to_string( secexp, generator_secp256k1.order() )
         compressed = False
         return SecretToASecret( pk, compressed )
-        
+
     def get_private_key(self, seed, sequence):
         for_change, n = sequence
         secexp = self.stretch_key(seed)

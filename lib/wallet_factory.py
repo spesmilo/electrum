@@ -5,7 +5,7 @@ class WalletFactory(object):
             # import Bitkey driver
             from wallet_bitkey import WalletBitkey
             return WalletBitkey(config)
-        
+
         # Load standard wallet
         from wallet import Wallet
         return Wallet(config)

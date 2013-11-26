@@ -156,10 +156,10 @@ class Commands:
         redeem_script = Transaction.multisig_script(pubkeys, num)
         address = hash_160_to_bc_address(hash_160(redeem_script.decode('hex')), 5)
         return {'address':address, 'redeemScript':redeem_script}
-    
+
     def freeze(self,addr):
         return self.wallet.freeze(addr)
-        
+
     def unfreeze(self,addr):
         return self.wallet.unfreeze(addr)
 
@@ -246,7 +246,7 @@ class Commands:
             for addr in domain:
                 if not is_valid(addr):
                     raise Exception("invalid Bitcoin address", addr)
-            
+
                 if not self.wallet.is_mine(addr):
                     raise Exception("address not in wallet", addr)
 
@@ -264,7 +264,7 @@ class Commands:
 
             amount = int(100000000*amount)
             final_outputs.append((to_address, amount))
-            
+
         if fee: fee = int(100000000*fee)
         return self.wallet.mktx(final_outputs, self.password, fee , change_addr, domain)
 
@@ -312,7 +312,7 @@ class Commands:
     def setlabel(self, key, label):
         self.wallet.set_label(key, label)
 
-            
+
 
     def contacts(self):
         c = {}
@@ -335,7 +335,7 @@ class Commands:
                     item = addr
                 out.append( item )
         return out
-                         
+
     def help(self, cmd=None):
         if cmd not in known_commands:
             print_msg("\nList of commands:", ', '.join(sorted(known_commands)))

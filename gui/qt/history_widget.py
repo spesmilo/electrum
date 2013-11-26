@@ -15,7 +15,7 @@ class HistoryWidget(QTreeWidget):
     def append(self, address, amount, date):
         if address is None:
           address = _("Unknown")
-        if amount is None: 
+        if amount is None:
           amount = _("Unknown")
         if date is None:
           date = _("Unknown")

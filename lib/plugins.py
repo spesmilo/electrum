@@ -31,7 +31,7 @@ def init_plugins(self):
 
 
 def run_hook(name, *args):
-    
+
     global plugins
 
     for p in plugins:
@@ -48,7 +48,7 @@ def run_hook(name, *args):
         except Exception:
             print_error("Plugin error")
             traceback.print_exc(file=sys.stdout)
-            
+
     return
 
 
@@ -79,7 +79,7 @@ class BasePlugin:
 
         return self.is_enabled()
 
-    
+
     def enable(self):
         self.set_enabled(True)
         return True

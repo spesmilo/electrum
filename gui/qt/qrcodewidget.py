@@ -56,7 +56,7 @@ class QRCodeWidget(QWidget):
             qp.drawRect(0, 0, 198, 198)
             qp.end()
             return
- 
+
         k = self.qr.getModuleCount()
         qp = QtGui.QPainter()
         qp.begin(self)
@@ -64,7 +64,7 @@ class QRCodeWidget(QWidget):
         boxsize = min(r.width(), r.height())*0.8/k
         size = k*boxsize
         left = (r.width() - size)/2
-        top = (r.height() - size)/2         
+        top = (r.height() - size)/2
 
         # Make a white margin around the QR in case of dark theme use:
         margin = 10
@@ -81,4 +81,4 @@ class QRCodeWidget(QWidget):
                     qp.setPen(white)
                 qp.drawRect(left+c*boxsize, top+r*boxsize, boxsize, boxsize)
         qp.end()
-        
+

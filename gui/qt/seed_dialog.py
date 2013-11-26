@@ -64,7 +64,7 @@ def make_seed_dialog(seed, imported_keys):
         seed_text = QTextEdit(seed)
         seed_text.setReadOnly(True)
         seed_text.setMaximumHeight(130)
-        
+
         msg2 =  _("Please write down or memorize these %d words (order is important).")%len(words) + " " \
               + _("This seed will allow you to recover your wallet in case of computer failure.") + " " \
               + _("Your seed is also displayed as QR code, in case you want to transfer it to a mobile phone.") + "<p>" \

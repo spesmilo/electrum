@@ -40,7 +40,7 @@ class Plugin(BasePlugin):
             chars = 'ABCDEFGHIJKLMNOPQRTSUVWXYZ '
         elif i == 2:
             chars = '1234567890!?.,;:/%&()[]{}+-'
-            
+
         n = len(chars)
         s = []
         for i in xrange(n):
@@ -52,7 +52,7 @@ class Plugin(BasePlugin):
 
         def add_target(t):
             return lambda: pw.setText(str( pw.text() ) + t)
-            
+
         vbox = QVBoxLayout()
         grid = QGridLayout()
         grid.setSpacing(2)

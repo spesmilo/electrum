@@ -52,7 +52,7 @@ def check_create_table(conn):
     c = conn.cursor()
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='electrum_payments';")
     data = c.fetchall()
-    if not data: 
+    if not data:
         c.execute("""CREATE TABLE electrum_payments (address VARCHAR(40), amount FLOAT, confirmations INT(8), received_at TIMESTAMP, expires_at TIMESTAMP, paid INT(1), processed INT(1));""")
         conn.commit()
 
@@ -80,7 +80,7 @@ def on_wallet_update():
 
         s = (value)/1.e8
         print "balance for %s:"%addr, s, requested_amount
-        if s>= requested_amount: 
+        if s>= requested_amount:
             print "payment accepted", addr
             out_queue.put( ('payment', addr))
 
@@ -122,7 +122,7 @@ def server_thread(conn):
     server.register_function(process_request, 'request')
     server.register_function(do_stop, 'stop')
     server.serve_forever()
-    
+
 
 
 
@@ -172,7 +172,7 @@ if __name__ == '__main__':
     wallet.synchronize = lambda: None # prevent address creation by the wallet
     wallet.start_threads(network)
     network.register_callback('updated', on_wallet_update)
-    
+
     out_queue = Queue.Queue()
     thread.start_new_thread(server_thread, (conn,))
 
@@ -184,9 +184,9 @@ if __name__ == '__main__':
         data = cur.fetchall()
 
         # add pending requests to the wallet
-        for item in data: 
+        for item in data:
             addr, amount, confirmations = item
-            if addr in pending_requests: 
+            if addr in pending_requests:
                 continue
             else:
                 with wallet.lock:
@@ -214,7 +214,7 @@ if __name__ == '__main__':
             print sql
             cur.execute(sql)
 
-        # set paid=0 for expired requests 
+        # set paid=0 for expired requests
         cur.execute("""UPDATE electrum_payments set paid=0 WHERE expires_at < CURRENT_TIMESTAMP and paid is NULL;""")
 
         # do callback for addresses that received payment or expired
@@ -236,7 +236,7 @@ if __name__ == '__main__':
             except ValueError, e:
                 print e
                 print "cannot do callback", data_json
-        
+
         conn.commit()
 
     conn.close()
