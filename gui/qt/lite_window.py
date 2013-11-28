@@ -355,8 +355,7 @@ class MiniWindow(QDialog):
     def closeEvent(self, event):
         g = self.geometry()
         self.config.set_key("winpos-lite", [g.left(),g.top(),g.width(),g.height()],True)
-        
-        super(MiniWindow, self).closeEvent(event)
+        self.actuator.g.closeEvent(event)
         qApp.quit()
 
     def set_payment_fields(self, dest_address, amount):
