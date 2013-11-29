@@ -30,8 +30,7 @@ a SimpleConfig instance then reads the wallet file.
 
         # user conf, writeable
         self.user_config = {}
-        if options.get('portable') == False:
-            self.read_user_config()
+        self.read_user_config()
 
 
 
