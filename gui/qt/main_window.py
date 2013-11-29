@@ -1238,6 +1238,7 @@ class ElectrumWindow(QMainWindow):
         if address in self.wallet.frozen_addresses: 
             item.setBackgroundColor(0, QColor('lightblue'))
 
+        return (c,u)
 
     def update_receive_tab(self):
         l = self.receive_list
@@ -1320,10 +1321,15 @@ class ElectrumWindow(QMainWindow):
             account_item = QTreeWidgetItem( [ _('Imported'), '', self.format_amount(c+u), ''] )
             l.addTopLevelItem(account_item)
             account_item.setExpanded(True)
-            for address in self.wallet.imported_keys.keys():
+            last_nonzero_balance = 0
+            for address in sorted(self.wallet.imported_keys.keys()):
                 item = QTreeWidgetItem( [ address, '', '', ''] )
-                self.update_receive_item(item)
-                account_item.addChild(item)
+                addr_c, addr_u = self.update_receive_item(item)
+                if addr_c + addr_u:
+                    account_item.insertChild(last_nonzero_balance,item)
+                    last_nonzero_balance += 1
+                else:
+                    account_item.addChild(item)
                 
 
         # we use column 1 because column 0 may be hidden
