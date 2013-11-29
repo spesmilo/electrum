@@ -1322,7 +1322,7 @@ class ElectrumWindow(QMainWindow):
             l.addTopLevelItem(account_item)
             account_item.setExpanded(True)
             last_nonzero_balance = 0
-            for address in sorted(self.wallet.imported_keys.keys()):
+            for address in sorted(self.wallet.imported_keys.keys(), lambda a,b: cmp(a.upper(), b.upper())):
                 item = QTreeWidgetItem( [ address, '', '', ''] )
                 addr_c, addr_u = self.update_receive_item(item)
                 if addr_c + addr_u:
