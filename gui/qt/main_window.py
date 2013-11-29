@@ -1882,7 +1882,7 @@ class ElectrumWindow(QMainWindow):
         try:
             for row in csvReader:
                 address = row[0]
-                amount = float(row[1])
+                amount = Decimal(row[1])
                 amount = int(100000000*amount)
                 outputs.append((address, amount))
         except (ValueError, IOError, os.error), reason:
