@@ -32,12 +32,16 @@ class AmountEdit(QLineEdit):
             self.is_shortcut = True
         pos = self.cursorPosition()
         chars = '0123456789'
-        if not self.is_int: chars +='.'
+        if not self.is_int: chars +='.,'
         s = ''.join([i for i in text if i in chars])
         if not self.is_int:
             if '.' in s:
                 p = s.find('.')
                 s = s.replace('.','')
+                s = s[:p] + '.' + s[p:p+8]
+            if ',' in s:
+                p = s.find(',')
+                s = s.replace(',','')
                 s = s[:p] + '.' + s[p:p+8]
         self.setText(s)
         self.setCursorPosition(pos)
