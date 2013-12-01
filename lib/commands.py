@@ -208,7 +208,7 @@ class Commands:
     def getservers(self):
         return self.network.get_servers()
 
-    def getversion():
+    def getversion(self):
         import electrum 
         return electrum.ELECTRUM_VERSION
  
