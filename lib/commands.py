@@ -67,6 +67,7 @@ register_command('dumpprivkeys',         0, 0, False, True,  True,  'dump all pr
 register_command('freeze',               1, 1, False, True,  True,  'Freeze the funds at one of your wallet\'s addresses', 'freeze <address>')
 register_command('getbalance',           0, 1, True,  True,  False, 'Return the balance of your wallet, or of one account in your wallet', 'getbalance [<account>]')
 register_command('getservers',           0, 0, True,  False, False, 'Return the list of available servers')
+register_command('getversion',           1, 1, False,  False,  False, 'Return the version of your client', 'getversion')
 register_command('getaddressbalance',    1, 1, True,  True,  False, 'Return the balance of an address', 'getbalance <address>')
 register_command('getaddresshistory',    1, 1, True,  True,  False, 'Return the transaction history of a wallet address', 'getaddresshistory <address>')
 register_command('getconfig',            1, 1, False, False, False, 'Return a configuration variable', 'getconfig <name>')
@@ -207,6 +208,10 @@ class Commands:
     def getservers(self):
         return self.network.get_servers()
 
+    def getversion():
+        import electrum 
+        return electrum.ELECTRUM_VERSION
+ 
     def getmpk(self):
         return self.wallet.get_master_public_key()
 
