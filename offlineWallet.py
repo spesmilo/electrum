@@ -25,6 +25,7 @@
 
 # Dependencies:
 #  - https://pypi.python.org/pypi/ecdsa
+#  - https://pypi.python.org/pypi/slowaes
 
 import sys
 
