@@ -17,11 +17,12 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
+'''\
+offlineWallet is a utility to create an Electrum wallet on a offline computer.
+It requires ecdsa and slowaes Python library installed
 
-# offlineWallet is a utility to create an Electrum wallet on a offline computer.
-# It requires lib/ folder and ecdsa Python library
-#
-# USAGE: ./offlineWallet.py [gap-limit]
+ USAGE: ./offlineWallet.py [gap-limit]\
+'''
 
 # Dependencies:
 #  - https://pypi.python.org/pypi/ecdsa
@@ -51,7 +52,7 @@ if __name__=="__main__":
     # options
     if sys.argv[1:]:
         if sys.argv[1] in ['-h','--help','-?']:
-            print ''
+            print __doc__
             sys.exit(0)
         gap_limit = int(sys.argv[1]) if int(sys.argv[1]) >= 5 else 5
     else:
