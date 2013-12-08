@@ -50,6 +50,7 @@ class Network(threading.Thread):
         self.queue = Queue.Queue()
         self.callbacks = {}
         self.protocol = self.config.get('protocol','s')
+        self.running = False
 
         # Server for addresses and transactions
         self.default_server = self.config.get('server')
