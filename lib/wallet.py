@@ -742,24 +742,26 @@ class Wallet:
 
 
     def add_keypairs_from_KeyID(self, tx, keypairs, password):
+        # first check the provided password
+        seed = self.get_seed(password)
+
         for txin in tx.inputs:
             keyid = txin.get('KeyID')
             if keyid:
 
-                if self.seed_version==4:
+                if self.seed_version == 4:
                     m = re.match("old\(([0-9a-f]+),(\d+),(\d+)", keyid)
                     if not m: continue
                     mpk = m.group(1)
                     if mpk != self.storage.get('master_public_key'): continue 
-                    index = int(m.group(2))
+                    for_change = int(m.group(2))
                     num = int(m.group(3))
                     account = self.accounts[0]
-                    addr = account.get_address(index, num)
+                    addr = account.get_address(for_change, num)
                     txin['address'] = addr # fixme: side effect
-                    pk = self.get_private_key(addr, password)
-                    for sec in pk:
-                        pubkey = public_key_from_private_key(sec)
-                        keypairs[pubkey] = sec
+                    pk = account.get_private_key(seed, (for_change, num))
+                    pubkey = public_key_from_private_key(pk)
+                    keypairs[pubkey] = pk
                     continue
 
 
