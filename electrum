@@ -391,7 +391,7 @@ if __name__ == '__main__':
 
     elif cmd.name == 'password':
         new_password = prompt_password('New password:')
-        wallet.update_password(seed, password, new_password)
+        wallet.update_password(password, new_password)
 
     else:
         run_command(cmd.name, password, args)
