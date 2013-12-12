@@ -186,6 +186,8 @@ class Wallet:
                 print msg
                 sys.exit(1)
 
+        # This attribute is set when wallet.start_threads is called.
+        self.synchronizer = None
 
         self.load_accounts()
 
