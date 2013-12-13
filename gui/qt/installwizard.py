@@ -247,8 +247,7 @@ class InstallWizard(QDialog):
               +_("Leave these fields empty if you want to disable encryption.")
         from password_dialog import make_password_dialog, run_password_dialog
         self.set_layout( make_password_dialog(self, wallet, msg) )
-
-        run_password_dialog(self, wallet, self)
+        return run_password_dialog(self, wallet, self)
 
 
     def run(self):
@@ -269,13 +268,14 @@ class InstallWizard(QDialog):
                 return
             if not self.verify_seed(wallet):
                 return
+            ok, _, password = self.password_dialog(wallet)
             def create():
-                wallet.save_seed()
+                wallet.save_seed(password)
                 wallet.synchronize()  # generate first addresses offline
             self.waiting_dialog(create)
 
+
         elif action == 'restore':
-            # ask for seed and gap.
             seed = self.seed_dialog()
             if not seed:
                 return
@@ -287,10 +287,11 @@ class InstallWizard(QDialog):
                 QMessageBox.warning(None, _('Error'), _('Incorrect seed'), _('OK'))
                 return
 
-            wallet.save_seed()
+            ok, _, password = self.password_dialog(wallet)
+            wallet.save_seed(password)
+
 
         elif action == 'watching':
-            # ask for seed and gap.
             mpk = self.mpk_dialog()
             if not mpk:
                 return
@@ -317,7 +318,5 @@ class InstallWizard(QDialog):
                     QMessageBox.information(None, _('Information'), _("No transactions found for this seed"), _('OK'))
             else:
                 QMessageBox.information(None, _('Information'), _("This wallet was restored offline. It may contain more addresses than displayed."), _('OK'))
-
-        self.password_dialog(wallet)
 
         return wallet

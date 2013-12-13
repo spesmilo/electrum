@@ -75,37 +75,24 @@ def run_password_dialog(self, wallet, parent):
         
     if not wallet.seed:
         QMessageBox.information(parent, _('Error'), _('No seed'), _('OK'))
-        return
+        return False, None, None
 
-    if not self.exec_(): return
+    if not self.exec_():
+        return False, None, None
 
     password = unicode(self.pw.text()) if wallet.use_encryption else None
     new_password = unicode(self.new_pw.text())
     new_password2 = unicode(self.conf_pw.text())
 
-    try:
-        wallet.get_seed(password)
-    except Exception:
-        QMessageBox.warning(parent, _('Error'), _('Incorrect Password'), _('OK'))
-        return
-
     if new_password != new_password2:
         QMessageBox.warning(parent, _('Error'), _('Passwords do not match'), _('OK'))
         # Retry
-        run_password_dialog(self, wallet, parent) 
-        return
+        return run_password_dialog(self, wallet, parent)
 
-    try:
-        wallet.update_password(password, new_password)
-    except Exception:
-        QMessageBox.warning(parent, _('Error'), _('Failed to update password'), _('OK'))
-        return
+    if not new_password:
+        new_password = None
 
-    if new_password:
-        QMessageBox.information(parent, _('Success'), _('Password was updated successfully'), _('OK'))
-    else:
-        QMessageBox.information(parent, _('Success'), _('This wallet is not encrypted'), _('OK'))
-
+    return True, password, new_password
 
 
 
@@ -123,7 +110,27 @@ class PasswordDialog(QDialog):
 
 
     def run(self):
-        run_password_dialog(self, self.wallet, self.parent)
+        ok, password, new_password = run_password_dialog(self, self.wallet, self.parent)
+        if not ok:
+            return
+
+        try:
+            self.wallet.get_seed(password)
+        except Exception:
+            QMessageBox.warning(self.parent, _('Error'), _('Incorrect Password'), _('OK'))
+            return False, None, None
+
+        try:
+            self.wallet.update_password(password, new_password)
+        except:
+            QMessageBox.warning(self.parent, _('Error'), _('Failed to update password'), _('OK'))
+            return
+
+        if new_password:
+            QMessageBox.information(self.parent, _('Success'), _('Password was updated successfully'), _('OK'))
+        else:
+            QMessageBox.information(self.parent, _('Success'), _('This wallet is not encrypted'), _('OK'))
+
 
 
 

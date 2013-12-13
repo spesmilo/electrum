@@ -235,7 +235,7 @@ if __name__ == '__main__':
                 sys.exit("Error: No seed")
 
             wallet.init_seed(str(seed))
-            wallet.save_seed()
+            wallet.save_seed(password)
             if not options.offline:
                 network = Network(config)
                 network.start()
@@ -254,15 +254,12 @@ if __name__ == '__main__':
 
         else:
             wallet.init_seed(None)
-            wallet.save_seed()
+            wallet.save_seed(password)
             wallet.synchronize()
             print_msg("Your wallet generation seed is:\n\"%s\"" % wallet.get_mnemonic(None))
             print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
 
         print_msg("Wallet saved in '%s'" % wallet.storage.path)
-
-        if password:
-            wallet.update_password(None, password)
 
         # terminate
         sys.exit(0)

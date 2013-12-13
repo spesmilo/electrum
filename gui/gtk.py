@@ -69,7 +69,7 @@ def show_seed_dialog(wallet, password, parent):
         show_message("No seed")
         return
     try:
-        seed = wallet.get_seed(password)
+        mnemonic = wallet.get_mnemonic(password)
     except Exception:
         show_message("Incorrect password")
         return
@@ -77,9 +77,8 @@ def show_seed_dialog(wallet, password, parent):
         parent = parent,
         flags = gtk.DIALOG_MODAL, 
         buttons = gtk.BUTTONS_OK, 
-        message_format = "Your wallet generation seed is:\n\n" + seed \
-            + "\n\nPlease keep it in a safe place; if you lose it, you will not be able to restore your wallet.\n\n" \
-            + "Equivalently, your wallet seed can be stored and recovered with the following mnemonic code:\n\n\"" + ' '.join(mnemonic.mn_encode(seed)) + "\"" )
+        message_format = "Your wallet generation seed is:\n\n" + '"' + mnemonic + '"'\
+            + "\n\nPlease keep it in a safe place; if you lose it, you will not be able to restore your wallet.\n\n" )
     dialog.set_title("Seed")
     dialog.show()
     dialog.run()
@@ -404,13 +403,11 @@ def password_dialog(parent):
     dialog.destroy()
     if result != gtk.RESPONSE_CANCEL: return pw
 
-def change_password_dialog(wallet, parent, icon):
-    if not wallet.seed:
-        show_message("No seed")
-        return
+
+def change_password_dialog(is_encrypted, parent):
 
     if parent:
-        msg = 'Your wallet is encrypted. Use this dialog to change the password. To disable wallet encryption, enter an empty new password.' if wallet.use_encryption else 'Your wallet keys are not encrypted'
+        msg = 'Your wallet is encrypted. Use this dialog to change the password. To disable wallet encryption, enter an empty new password.' if is_encrypted else 'Your wallet keys are not encrypted'
     else:
         msg = "Please choose a password to encrypt your wallet keys"
 
@@ -421,7 +418,7 @@ def change_password_dialog(wallet, parent, icon):
     image.show()
     dialog.set_image(image)
 
-    if wallet.use_encryption:
+    if is_encrypted:
         current_pw, current_pw_entry = password_line('Current password:')
         dialog.vbox.pack_start(current_pw, False, True, 0)
 
@@ -432,30 +429,22 @@ def change_password_dialog(wallet, parent, icon):
 
     dialog.show()
     result = dialog.run()
-    password = current_pw_entry.get_text() if wallet.use_encryption else None
+    password = current_pw_entry.get_text() if is_encrypted else None
     new_password = password_entry.get_text()
     new_password2 = password2_entry.get_text()
     dialog.destroy()
     if result == gtk.RESPONSE_CANCEL: 
         return
 
-    try:
-        wallet.get_seed(password)
-    except Exception:
-        show_message("Incorrect password")
-        return
-
     if new_password != new_password2:
         show_message("passwords do not match")
-        return
+        return change_password_dialog(is_encrypted, parent)
 
-    wallet.update_password(password, new_password)
+    if not new_password:
+        new_password = None
 
-    if icon:
-        if wallet.use_encryption:
-            icon.set_tooltip_text('wallet is encrypted')
-        else:
-            icon.set_tooltip_text('wallet is unencrypted')
+    return True, password, new_password
+
 
 
 def add_help_button(hbox, message):
@@ -548,16 +537,16 @@ class ElectrumWindow:
         prefs_button.show()
         self.status_bar.pack_end(prefs_button,False,False)
 
-        pw_icon = gtk.Image()
-        pw_icon.set_from_stock(gtk.STOCK_DIALOG_AUTHENTICATION, gtk.ICON_SIZE_MENU)
-        pw_icon.set_alignment(0.5, 0.5)
-        pw_icon.set_size_request(16,16 )
-        pw_icon.show()
+        self.pw_icon = gtk.Image()
+        self.pw_icon.set_from_stock(gtk.STOCK_DIALOG_AUTHENTICATION, gtk.ICON_SIZE_MENU)
+        self.pw_icon.set_alignment(0.5, 0.5)
+        self.pw_icon.set_size_request(16,16 )
+        self.pw_icon.show()
 
         if self.wallet.seed:
             password_button = gtk.Button()
-            password_button.connect("clicked", lambda x: change_password_dialog(self.wallet, self.window, pw_icon))
-            password_button.add(pw_icon)
+            password_button.connect("clicked", self.do_update_password)
+            password_button.add(self.pw_icon)
             password_button.set_relief(gtk.RELIEF_NONE)
             password_button.show()
             self.status_bar.pack_end(password_button,False,False)
@@ -605,6 +594,28 @@ class ElectrumWindow:
 
     def update_callback(self):
         self.wallet_updated = True
+
+    def do_update_password(self):
+        if not wallet.seed:
+            show_message("No seed")
+            return
+
+        res = change_password_dialog(self.wallet.use_encryption, self.window)
+        if res:
+            _, password, new_password = res
+
+            try:
+                wallet.get_seed(password)
+            except Exception:
+                show_message("Incorrect password")
+                return
+
+            wallet.update_password(password, new_password)
+
+            if wallet.use_encryption:
+                self.pw_icon.set_tooltip_text('wallet is encrypted')
+            else:
+                self.pw_icon.set_tooltip_text('wallet is unencrypted')
 
 
     def add_tab(self, page, name):
@@ -1293,23 +1304,33 @@ class ElectrumGui():
                 wallet.gap_limit = gap
                 wallet.storage.put('gap_limit', gap, True)
 
-            self.wallet.start_threads(self.network)
 
             if action == 'create':
                 wallet.init_seed(None)
-                wallet.save_seed()
+                show_seed_dialog(wallet, None, None)
+                r = change_password_dialog(False, None)
+                password = r[2] if r else None
+                print "password", password
+                wallet.save_seed(password)
                 wallet.synchronize()  # generate first addresses offline
+
             elif action == 'restore':
                 seed = self.seed_dialog()
                 wallet.init_seed(seed)
-                wallet.save_seed()
-                self.restore_wallet(wallet)
+                r = change_password_dialog(False, None)
+                password = r[2] if r else None
+                wallet.save_seed(password)
                 
             else:
                 exit()
         else:
             self.wallet = Wallet(storage)
-            self.wallet.start_threads(self.network)
+            action = None
+
+        self.wallet.start_threads(self.network)
+
+        if action == 'restore':
+            self.restore_wallet(wallet)
 
         w = ElectrumWindow(self.wallet, self.config, self.network)
         if url: w.set_url(url)
@@ -1321,18 +1342,9 @@ class ElectrumGui():
     def seed_dialog(self):
         return run_recovery_dialog()
 
-    def verify_seed(self):
-        self.wallet.save_seed()
-        return True
-
     def network_dialog(self):
         return run_network_dialog( self.network, parent=None )
 
-    def show_seed(self):
-        show_seed_dialog(self.wallet, None, None)
-
-    def password_dialog(self):
-        change_password_dialog(self.wallet, None, None)
 
     def restore_wallet(self, wallet):
 
