@@ -151,8 +151,9 @@ class Network(threading.Thread):
         if server in self.interfaces.keys():
             return
         i = interface.Interface(server, self.config)
-        self.interfaces[server] = i
+        # add it only if it gets connected
         i.start(self.queue)
+        return i 
 
     def start_random_interface(self):
         server = self.random_server()
@@ -160,8 +161,8 @@ class Network(threading.Thread):
             self.start_interface(server)
 
     def start_interfaces(self):
-        self.start_interface(self.default_server)
-        self.interface = self.interfaces[self.default_server]
+        self.interface = self.start_interface(self.default_server)
+        #self.interface = self.interfaces[self.default_server]
 
         for i in range(self.num_server):
             self.start_random_interface()
@@ -252,8 +253,7 @@ class Network(threading.Thread):
         if server in self.interfaces.keys():
             self.switch_to_interface( self.interfaces[server] )
         else:
-            self.start_interface(server)
-            self.interface = self.interfaces[server]
+            self.interface = self.start_interface(server)
         
 
     def add_recent_server(self, i):
@@ -296,6 +296,8 @@ class Network(threading.Thread):
                 continue
 
             if i.is_connected:
+                #if i.server in self.interfaces: raise
+                self.interfaces[i.server] = i
                 self.add_recent_server(i)
                 i.send([ ('blockchain.headers.subscribe',[])], self.on_header)
                 if i == self.interface:
@@ -304,7 +306,8 @@ class Network(threading.Thread):
                     self.trigger_callback('connected')
             else:
                 self.disconnected_servers.append(i.server)
-                self.interfaces.pop(i.server)
+                if i.server in self.interfaces:
+                    self.interfaces.pop(i.server)
                 if i.server in self.heights:
                     self.heights.pop(i.server)
                 if i == self.interface:

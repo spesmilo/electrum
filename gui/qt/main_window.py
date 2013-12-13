@@ -533,7 +533,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def update_status(self):
-        if self.network is None:
+        if self.network is None or not self.network.is_running():
             text = _("Offline")
             icon = QIcon(":icons/status_disconnected.png")
 

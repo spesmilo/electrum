@@ -268,7 +268,7 @@ class InstallWizard(QDialog):
                 return
             if not self.verify_seed(wallet):
                 return
-            ok, _, password = self.password_dialog(wallet)
+            ok, old_password, password = self.password_dialog(wallet)
             def create():
                 wallet.save_seed(password)
                 wallet.synchronize()  # generate first addresses offline
@@ -287,7 +287,7 @@ class InstallWizard(QDialog):
                 QMessageBox.warning(None, _('Error'), _('Incorrect seed'), _('OK'))
                 return
 
-            ok, _, password = self.password_dialog(wallet)
+            ok, old_password, password = self.password_dialog(wallet)
             wallet.save_seed(password)
 
 
@@ -302,7 +302,11 @@ class InstallWizard(QDialog):
                 
         #if not self.config.get('server'):
         if self.network:
-            self.network_dialog()
+            if self.network.interfaces:
+                self.network_dialog()
+            else:
+                QMessageBox.information(None, _('Warning'), _('You are offline'), _('OK'))
+                self.network.stop()
 
         # start wallet threads
         wallet.start_threads(self.network)
