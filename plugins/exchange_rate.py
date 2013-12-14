@@ -20,6 +20,7 @@ class Exchanger(threading.Thread):
         self.parent = parent
         self.quote_currencies = None
         self.lock = threading.Lock()
+        self.is_running = False
 
     def exchange(self, btc_amount, quote_currency):
         with self.lock:
@@ -30,7 +31,16 @@ class Exchanger(threading.Thread):
             return None
         return btc_amount * quote_currencies[quote_currency]
 
+    def stop(self):
+        self.is_running = False
+
     def run(self):
+        self.is_running = True
+        while self.is_running:
+            self.update()
+            time.sleep(120)
+
+    def update(self):
         try:
             connection = httplib.HTTPConnection('blockchain.info')
             connection.request("GET", "/ticker")
@@ -49,9 +59,10 @@ class Exchanger(threading.Thread):
                 quote_currencies[r] = self._lookup_rate(response, r)
             with self.lock:
                 self.quote_currencies = quote_currencies
-            self.parent.set_currencies(quote_currencies)
         except KeyError:
             pass
+        self.parent.set_currencies(quote_currencies)
+        # print "updating exchange rate", self.quote_currencies["USD"]
 
             
     def get_currencies(self):
@@ -108,6 +119,10 @@ class Plugin(BasePlugin):
         out = BasePlugin.toggle(self)
         self.win.update_status()
         return out
+
+
+    def close(self):
+        self.exchanger.stop()
 
 
     def settings_widget(self, window):
