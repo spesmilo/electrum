@@ -62,7 +62,7 @@ class Exchanger(threading.Thread):
         except KeyError:
             pass
         self.parent.set_currencies(quote_currencies)
-        # print "updating exchange rate", self.quote_currencies["USD"]
+        # print "updating exchange rate", self.quote_currencies["USD"]
 
             
     def get_currencies(self):
