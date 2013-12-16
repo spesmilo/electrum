@@ -3,10 +3,15 @@
 import time, electrum
 
 electrum.set_verbosity(False)     # default is True
-
 network = electrum.Network({'verbose':False})
-network.start(wait=True)
-time.sleep(1)
-electrum.print_json( network.heights )
+network.register_callback('peers',lambda: electrum.print_json(network.irc_servers.keys()))
+
+if not network.start(wait=True):
+    print "Not connected [%s]"% network.interface.server
+    exit(1)
+
+print "Connected to", network.interface.server
+while not network.irc_servers:
+    time.sleep(1)
 
 
