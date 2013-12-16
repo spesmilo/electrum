@@ -903,6 +903,11 @@ class ElectrumWindow(QMainWindow):
         if amount >= confirm_amount:
             if not self.question(_("send %(amount)s to %(address)s?")%{ 'amount' : self.format_amount(amount) + ' '+ self.base_unit(), 'address' : to_address}):
                 return
+            
+        confirm_fee = self.config.get('confirm_fee', 100000)
+        if fee >= confirm_fee:
+            if not self.question(_("The fee for this transaction seems unusually high.\nAre you really sure you want to pay %(fee)s in fees?")%{ 'fee' : self.format_amount(fee) + ' '+ self.base_unit()}):
+                return
 
         self.send_tx(to_address, amount, fee, label)
 
