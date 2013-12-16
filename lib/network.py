@@ -94,12 +94,12 @@ class Network(threading.Thread):
                 if message not in self.subscriptions[callback]:
                     self.subscriptions[callback].append(message)
 
-        if self.interface and self.interface.is_connected:
+        if self.is_connected():
             self.interface.send( messages, callback )
 
 
     def send(self, messages, callback):
-        if self.interface and self.interface.is_connected:
+        if self.is_connected():
             self.interface.send( messages, callback )
             return True
         else:
@@ -162,14 +162,10 @@ class Network(threading.Thread):
 
     def start_interfaces(self):
         self.interface = self.start_interface(self.default_server)
-        #self.interface = self.interfaces[self.default_server]
 
         for i in range(self.num_server):
             self.start_random_interface()
             
-        if not self.interface:
-            self.interface = self.interfaces.values()[0]
-
 
     def start(self, wait=False):
         self.start_interfaces()
@@ -180,9 +176,8 @@ class Network(threading.Thread):
 
 
     def wait_until_connected(self):
-        while not self.interface:
+        while not self.is_connected():
             time.sleep(1)
-        self.interface.connect_event.wait()
 
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
