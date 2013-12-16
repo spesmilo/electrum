@@ -203,7 +203,7 @@ class Network(threading.Thread):
                 return
 
         if auto_connect:
-            if not self.interface.s_connected:
+            if not self.interface.is_connected:
                 self.switch_to_random_interface()
             else:
                 if self.server_lag > 0:
