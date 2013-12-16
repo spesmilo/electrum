@@ -1694,7 +1694,20 @@ class ElectrumWindow(QMainWindow):
         except Exception as e:
             self.show_message(str(e))
             return
-        QMessageBox.information(self, _('Private key'), _('Address')+ ': ' + address + '\n\n' + _('Private key') + ': ' + '\n'.join(pk_list), _('OK'))
+
+        d = QDialog(self)
+        d.setMinimumSize(600, 200)
+        d.setModal(1)
+        vbox = QVBoxLayout()
+        vbox.addWidget( QLabel(_("Address") + ': ' + address))
+        vbox.addWidget( QLabel(_("Private key") + ':'))
+        keys = QTextEdit()
+        keys.setReadOnly(True)
+        keys.setText('\n'.join(pk_list))
+        vbox.addWidget(keys)
+        vbox.addLayout(close_button(d))
+        d.setLayout(vbox)
+        d.exec_()
 
 
     @protected
