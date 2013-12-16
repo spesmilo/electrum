@@ -177,7 +177,8 @@ class Network(threading.Thread):
     def wait_until_connected(self):
         "wait until connection status is known"
         if self.config.get('auto_cycle'): 
-            while not self.is_connected():
+            # self.random_server() returns None if all servers have been tried
+            while not self.is_connected() and self.random_server():
                 time.sleep(0.1)
         else:
             self.interface.connect_event.wait()
