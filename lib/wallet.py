@@ -1628,10 +1628,9 @@ class WalletSynchronizer(threading.Thread):
             self.running = True
 
         while self.is_running():
-            
+
             if not self.network.is_connected():
-                print_error("synchronizer: waiting for interface")
-                self.network.interface.connect_event.wait()
+                self.network.wait_until_connected()
                 
             self.run_interface(self.network.interface)
 

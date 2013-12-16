@@ -133,7 +133,7 @@ class Network(threading.Thread):
         if not choice_list: 
             if not self.interfaces:
                 # we are probably offline, retry later
-                self.disconnected_servers = []
+                self.disconnected_servers = set([])
             return
         
         server = random.choice( choice_list )
@@ -172,12 +172,17 @@ class Network(threading.Thread):
         self.start_interfaces()
         threading.Thread.start(self)
         if wait:
-            if self.config.get('auto_cycle'): 
-                while not self.is_connected():
-                    time.sleep(0.1)
-            else:
-                self.interface.connect_event.wait()
-                return self.interface.is_connected
+            return self.wait_until_connected()
+
+    def wait_until_connected(self):
+        "wait until connection status is known"
+        if self.config.get('auto_cycle'): 
+            while not self.is_connected():
+                time.sleep(0.1)
+        else:
+            self.interface.connect_event.wait()
+
+        return self.interface.is_connected
 
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
@@ -193,11 +198,11 @@ class Network(threading.Thread):
             self.protocol = protocol
             for i in self.interfaces.values(): i.stop()
             if auto_connect:
-                self.interface = None
+                #self.interface = None
                 return
 
         if auto_connect:
-            if not self.interface:
+            if not self.interface.s_connected:
                 self.switch_to_random_interface()
             else:
                 if self.server_lag > 0:
@@ -211,7 +216,7 @@ class Network(threading.Thread):
             self.switch_to_interface(random.choice(self.interfaces.values()))
 
     def switch_to_interface(self, interface):
-        assert self.interface is None
+        assert not self.interface.is_connected
         server = interface.server
         print_error("switching to", server)
         self.interface = interface
@@ -226,17 +231,17 @@ class Network(threading.Thread):
 
     def stop_interface(self):
         self.interface.stop() 
-        self.interface = None
+        #self.interface = None
 
     def set_server(self, server):
-        if self.default_server == server and self.interface:
+        if self.default_server == server and self.interface.is_connected:
             return
 
         if self.protocol != server.split(':')[2]:
             return
 
         # stop the interface in order to terminate subscriptions
-        if self.interface:
+        if self.interface.is_connected:
             self.stop_interface()
 
         # notify gui
@@ -307,10 +312,10 @@ class Network(threading.Thread):
                 if i.server in self.heights:
                     self.heights.pop(i.server)
                 if i == self.interface:
-                    self.interface = None
+                    #self.interface = None
                     self.trigger_callback('disconnected')
 
-            if self.interface is None and self.config.get('auto_cycle'):
+            if not self.interface.is_connected and self.config.get('auto_cycle'):
                 self.switch_to_random_interface()
 
 
