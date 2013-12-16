@@ -58,7 +58,8 @@ class Network(threading.Thread):
             self.default_server = pick_random_server(self.protocol)
 
         self.irc_servers = [] # returned by interface (list from irc)
-        self.disconnected_servers = []
+        self.pending_servers = set([])
+        self.disconnected_servers = set([])
         self.recent_servers = self.config.get('recent_servers',[]) # successful connections
 
         self.banner = ''
@@ -124,7 +125,7 @@ class Network(threading.Thread):
         choice_list = []
         l = filter_protocol(self.get_servers(), self.protocol)
         for s in l:
-            if s in self.disconnected_servers or s in self.interfaces.keys():
+            if s in self.pending_servers or s in self.disconnected_servers or s in self.interfaces.keys():
                 continue
             else:
                 choice_list.append(s)
@@ -151,7 +152,7 @@ class Network(threading.Thread):
         if server in self.interfaces.keys():
             return
         i = interface.Interface(server, self.config)
-        # add it only if it gets connected
+        self.pending_servers.add(server)
         i.start(self.queue)
         return i 
 
@@ -171,13 +172,12 @@ class Network(threading.Thread):
         self.start_interfaces()
         threading.Thread.start(self)
         if wait:
-            self.interface.connect_event.wait()
-            return self.interface.is_connected
-
-
-    def wait_until_connected(self):
-        while not self.is_connected():
-            time.sleep(1)
+            if self.config.get('auto_cycle'): 
+                while not self.is_connected():
+                    time.sleep(0.1)
+            else:
+                self.interface.connect_event.wait()
+                return self.interface.is_connected
 
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
@@ -290,6 +290,7 @@ class Network(threading.Thread):
                     self.start_random_interface()
                 continue
 
+            self.pending_servers.remove(i.server)
             if i.is_connected:
                 #if i.server in self.interfaces: raise
                 self.interfaces[i.server] = i
@@ -300,7 +301,7 @@ class Network(threading.Thread):
                     self.send_subscriptions()
                     self.trigger_callback('connected')
             else:
-                self.disconnected_servers.append(i.server)
+                self.disconnected_servers.add(i.server)
                 if i.server in self.interfaces:
                     self.interfaces.pop(i.server)
                 if i.server in self.heights:
