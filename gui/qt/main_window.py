@@ -182,9 +182,11 @@ class ElectrumWindow(QMainWindow):
 
         QShortcut(QKeySequence("Ctrl+W"), self, self.close)
         QShortcut(QKeySequence("Ctrl+R"), self, self.update_wallet)
-        QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
         QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() - 1 )%tabs.count() ))
         QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() + 1 )%tabs.count() ))
+
+        for i in range(tabs.count()):
+            QShortcut(QKeySequence("Alt+" + str(i + 1)), self, lambda i=i: tabs.setCurrentIndex(i))
 
         self.connect(self, QtCore.SIGNAL('update_status'), self.update_status)
         self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.network.banner) )
@@ -353,15 +355,19 @@ class ElectrumWindow(QMainWindow):
 
         file_menu = menubar.addMenu(_("&File"))
         open_wallet_action = file_menu.addAction(_("&Open"))
+        open_wallet_action.setShortcut(QKeySequence.Open)
         open_wallet_action.triggered.connect(self.open_wallet)
 
-        new_wallet_action = file_menu.addAction(_("&Create/Restore"))
+        new_wallet_action = file_menu.addAction(_("&New/Restore"))
+        new_wallet_action.setShortcut(QKeySequence.New)
         new_wallet_action.triggered.connect(self.new_wallet)
 
-        wallet_backup = file_menu.addAction(_("&Copy"))
+        wallet_backup = file_menu.addAction(_("&Save Copy"))
+        wallet_backup.setShortcut(QKeySequence.SaveAs)
         wallet_backup.triggered.connect(self.backup_wallet)
 
-        quit_item = file_menu.addAction(_("&Close"))
+        quit_item = file_menu.addAction(_("&Quit"))
+        quit_item.setShortcut(QKeySequence.Quit)
         quit_item.triggered.connect(self.close)
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
@@ -407,6 +413,7 @@ class ElectrumWindow(QMainWindow):
         # Settings / Preferences are all reserved keywords in OSX using this as work around
         preferences_name = _("Electrum preferences") if sys.platform == 'darwin' else _("Preferences")
         preferences_menu = tools_menu.addAction(preferences_name)
+        preferences_menu.setShortcut(QKeySequence.Preferences)
         preferences_menu.triggered.connect(self.settings_dialog)
 
         network = tools_menu.addAction(_("&Network"))
@@ -442,6 +449,7 @@ class ElectrumWindow(QMainWindow):
 
         help_menu.addSeparator()
         doc_open = help_menu.addAction(_("&Documentation"))
+        doc_open.setShortcut(QKeySequence.HelpContents)
         doc_open.triggered.connect(lambda: webbrowser.open("http://electrum.org/documentation.html"))
         report_bug = help_menu.addAction(_("&Report Bug"))
         report_bug.triggered.connect(self.show_report_bug)
