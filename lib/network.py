@@ -296,7 +296,9 @@ class Network(threading.Thread):
                     self.start_random_interface()
                 continue
 
-            self.pending_servers.remove(i.server)
+            if i.server in self.pending_servers:
+                self.pending_servers.remove(i.server)
+
             if i.is_connected:
                 #if i.server in self.interfaces: raise
                 self.interfaces[i.server] = i
