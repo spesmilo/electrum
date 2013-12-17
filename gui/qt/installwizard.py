@@ -54,7 +54,7 @@ class InstallWizard(QDialog):
         b2.setText(_("Restore wallet from seed"))
 
         b3 = QRadioButton(gb)
-        b3.setText(_("Restore wallet from master public key"))
+        b3.setText(_("Create a watching-only version of an existing wallet"))
 
         grid.addWidget(b1,1,0)
         grid.addWidget(b2,2,0)
