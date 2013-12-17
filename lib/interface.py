@@ -315,7 +315,13 @@ class Interface(threading.Thread):
                 is_new = True
                 # get server certificate.
                 # Do not use ssl.get_server_certificate because it does not work with proxy
-                for res in socket.getaddrinfo(self.host, self.port, socket.AF_UNSPEC, socket.SOCK_STREAM):
+                try:
+                    l = socket.getaddrinfo(self.host, self.port, socket.AF_UNSPEC, socket.SOCK_STREAM)
+                except socket.gaierror:
+                    print_error("error: cannot resolve", self.host)
+                    return
+
+                for res in l:
                     try:
                         s = socket.socket( res[0], socket.SOCK_STREAM )
                         s.connect(res[4])
@@ -346,7 +352,13 @@ class Interface(threading.Thread):
             else:
                 is_new = False
 
-        for res in socket.getaddrinfo(self.host, self.port, socket.AF_UNSPEC, socket.SOCK_STREAM):
+        try:
+            addrinfo = socket.getaddrinfo(self.host, self.port, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        except socket.gaierror:
+            print_error("error: cannot resolve", self.host)
+            return
+
+        for res in addrinfo:
             try:
                 s = socket.socket( res[0], socket.SOCK_STREAM )
                 s.settimeout(2)

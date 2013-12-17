@@ -38,11 +38,16 @@ if __name__ == '__main__':
     e4a_name = "e4a-%s.zip"%version
     e4a_name2 = e4a_name.replace(".","")
     os.system( "mv %s %s"%(e4a_name, e4a_name2) )
-    os.chdir("..")
 
-    md5_tgz = hashlib.md5(file('dist/'+_tgz, 'r').read()).digest().encode('hex')
-    md5_zip = hashlib.md5(file('dist/'+_zip, 'r').read()).digest().encode('hex')
-    md5_android = hashlib.md5(file('dist/'+e4a_name2, 'r').read()).digest().encode('hex')
+    import getpass
+    password = getpass.getpass("Password:")
+    for f in os.listdir("."):
+        os.system( "gpg --sign --armor --detach --passphrase \"%s\" %s"%(password, f) )
+
+    md5_tgz = hashlib.md5(file(_tgz, 'r').read()).digest().encode('hex')
+    md5_zip = hashlib.md5(file(_zip, 'r').read()).digest().encode('hex')
+    md5_android = hashlib.md5(file(e4a_name2, 'r').read()).digest().encode('hex')
+    os.chdir("..")
 
     print ""
     print "Packages are ready:"

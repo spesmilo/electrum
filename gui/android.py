@@ -903,7 +903,7 @@ class ElectrumGui:
             if action == 'create':
                 wallet.init_seed(None)
                 self.show_seed()
-                wallet.save_seed()
+                wallet.save_seed(None)
                 wallet.synchronize()  # generate first addresses offline
                 
             elif action == 'restore':
@@ -911,7 +911,7 @@ class ElectrumGui:
                 if not seed:
                     exit()
                 wallet.init_seed(str(seed))
-                wallet.save_seed()
+                wallet.save_seed(None)
             else:
                 exit()
 
@@ -996,9 +996,6 @@ class ElectrumGui:
     def network_dialog(self):
         return True
 
-    def verify_seed(self):
-        wallet.save_seed()
-        return True
         
     def show_seed(self):
         modal_dialog('Your seed is:', wallet.seed)

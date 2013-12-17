@@ -32,17 +32,21 @@ if (len(sys.argv) > 1 and (sys.argv[1] == "sdist")) or (platform.system() != 'Wi
         if os.path.exists('locale/%s/LC_MESSAGES/electrum.mo' % lang):
             data_files.append((os.path.join(usr_share, 'locale/%s/LC_MESSAGES' % lang), ['locale/%s/LC_MESSAGES/electrum.mo' % lang]))
 
+appdata_dir = util.appdata_dir()
+if not os.access(appdata_dir, os.W_OK):
+    appdata_dir = os.path.join(usr_share, "electrum")
+
 data_files += [
-    (util.appdata_dir(), ["data/README"]),
-    (os.path.join(util.appdata_dir(), "cleanlook"), [
+    (appdata_dir, ["data/README"]),
+    (os.path.join(appdata_dir, "cleanlook"), [
         "data/cleanlook/name.cfg",
         "data/cleanlook/style.css"
     ]),
-    (os.path.join(util.appdata_dir(), "sahara"), [
+    (os.path.join(appdata_dir, "sahara"), [
         "data/sahara/name.cfg",
         "data/sahara/style.css"
     ]),
-    (os.path.join(util.appdata_dir(), "dark"), [
+    (os.path.join(appdata_dir, "dark"), [
         "data/dark/background.png",
         "data/dark/name.cfg",
         "data/dark/style.css"

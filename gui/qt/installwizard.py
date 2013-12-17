@@ -39,7 +39,8 @@ class InstallWizard(QDialog):
         grid = QGridLayout()
         grid.setSpacing(5)
 
-        msg = _("Electrum could not find an existing wallet.")+"\n\n"+_("Did you use Electrum before and want to restore a previous wallet or is this your first time and do you want to create a new wallet?")+"\n"
+        msg = _("Electrum could not find an existing wallet.") + "\n\n" \
+            + _("What do you want to do?") + "\n"
         label = QLabel(msg)
         label.setWordWrap(True)
         grid.addWidget(label, 0, 0)
@@ -51,10 +52,10 @@ class InstallWizard(QDialog):
         b1.setChecked(True)
 
         b2 = QRadioButton(gb)
-        b2.setText(_("Restore wallet from seed"))
+        b2.setText(_("Restore an existing wallet from its seed"))
 
         b3 = QRadioButton(gb)
-        b3.setText(_("Restore wallet from master public key"))
+        b3.setText(_("Create a watching-only version of an existing wallet"))
 
         grid.addWidget(b1,1,0)
         grid.addWidget(b2,2,0)
@@ -177,7 +178,8 @@ class InstallWizard(QDialog):
         vbox.addLayout(ok_cancel_buttons(self, _('Next')))
 
         self.set_layout(vbox)
-        if not self.exec_(): return None, None
+        if not self.exec_(): 
+            return None
 
         mpk = str(mpk_e.toPlainText()).strip()
         chain = str(chain_e.toPlainText()).strip()
@@ -247,8 +249,7 @@ class InstallWizard(QDialog):
               +_("Leave these fields empty if you want to disable encryption.")
         from password_dialog import make_password_dialog, run_password_dialog
         self.set_layout( make_password_dialog(self, wallet, msg) )
-
-        run_password_dialog(self, wallet, self)
+        return run_password_dialog(self, wallet, self)
 
 
     def run(self):
@@ -269,13 +270,14 @@ class InstallWizard(QDialog):
                 return
             if not self.verify_seed(wallet):
                 return
+            ok, old_password, password = self.password_dialog(wallet)
             def create():
-                wallet.save_seed()
+                wallet.save_seed(password)
                 wallet.synchronize()  # generate first addresses offline
             self.waiting_dialog(create)
 
+
         elif action == 'restore':
-            # ask for seed and gap.
             seed = self.seed_dialog()
             if not seed:
                 return
@@ -287,10 +289,11 @@ class InstallWizard(QDialog):
                 QMessageBox.warning(None, _('Error'), _('Incorrect seed'), _('OK'))
                 return
 
-            wallet.save_seed()
+            ok, old_password, password = self.password_dialog(wallet)
+            wallet.save_seed(password)
+
 
         elif action == 'watching':
-            # ask for seed and gap.
             mpk = self.mpk_dialog()
             if not mpk:
                 return
@@ -301,7 +304,11 @@ class InstallWizard(QDialog):
                 
         #if not self.config.get('server'):
         if self.network:
-            self.network_dialog()
+            if self.network.interfaces:
+                self.network_dialog()
+            else:
+                QMessageBox.information(None, _('Warning'), _('You are offline'), _('OK'))
+                self.network.stop()
 
         # start wallet threads
         wallet.start_threads(self.network)
@@ -317,7 +324,5 @@ class InstallWizard(QDialog):
                     QMessageBox.information(None, _('Information'), _("No transactions found for this seed"), _('OK'))
             else:
                 QMessageBox.information(None, _('Information'), _("This wallet was restored offline. It may contain more addresses than displayed."), _('OK'))
-
-        self.password_dialog(wallet)
 
         return wallet
