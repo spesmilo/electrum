@@ -181,6 +181,7 @@ class ElectrumWindow(QMainWindow):
         self.init_menubar()
 
         QShortcut(QKeySequence("Ctrl+W"), self, self.close)
+        QShortcut(QKeySequence("Ctrl+Q"), self, self.close)
         QShortcut(QKeySequence("Ctrl+R"), self, self.update_wallet)
         QShortcut(QKeySequence("Ctrl+PgUp"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() - 1 )%tabs.count() ))
         QShortcut(QKeySequence("Ctrl+PgDown"), self, lambda: tabs.setCurrentIndex( (tabs.currentIndex() + 1 )%tabs.count() ))
@@ -367,7 +368,7 @@ class ElectrumWindow(QMainWindow):
         wallet_backup.triggered.connect(self.backup_wallet)
 
         quit_item = file_menu.addAction(_("&Quit"))
-        quit_item.setShortcut(QKeySequence.Quit)
+        #quit_item.setShortcut(QKeySequence.Quit)
         quit_item.triggered.connect(self.close)
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
@@ -413,7 +414,7 @@ class ElectrumWindow(QMainWindow):
         # Settings / Preferences are all reserved keywords in OSX using this as work around
         preferences_name = _("Electrum preferences") if sys.platform == 'darwin' else _("Preferences")
         preferences_menu = tools_menu.addAction(preferences_name)
-        preferences_menu.setShortcut(QKeySequence.Preferences)
+        #preferences_menu.setShortcut(QKeySequence.Preferences)
         preferences_menu.triggered.connect(self.settings_dialog)
 
         network = tools_menu.addAction(_("&Network"))
