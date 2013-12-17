@@ -232,7 +232,7 @@ class Network(threading.Thread):
 
     def stop_interface(self):
         self.interface.stop() 
-        #self.interface = None
+
 
     def set_server(self, server):
         if self.default_server == server and self.interface.is_connected:

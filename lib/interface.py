@@ -562,6 +562,8 @@ class Interface(threading.Thread):
             self.s.shutdown(socket.SHUT_RDWR)
             self.s.close()
 
+        self.is_connected = False
+
 
     def is_up_to_date(self):
         return self.unanswered_requests == {}
