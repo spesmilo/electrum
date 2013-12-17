@@ -39,7 +39,8 @@ class InstallWizard(QDialog):
         grid = QGridLayout()
         grid.setSpacing(5)
 
-        msg = _("Electrum could not find an existing wallet.")+"\n\n"+_("Did you use Electrum before and want to restore a previous wallet or is this your first time and do you want to create a new wallet?")+"\n"
+        msg = _("Electrum could not find an existing wallet.") + "\n\n" \
+            + _("What do you want to do?") + "\n"
         label = QLabel(msg)
         label.setWordWrap(True)
         grid.addWidget(label, 0, 0)
@@ -51,7 +52,7 @@ class InstallWizard(QDialog):
         b1.setChecked(True)
 
         b2 = QRadioButton(gb)
-        b2.setText(_("Restore wallet from seed"))
+        b2.setText(_("Restore an existing wallet from its seed"))
 
         b3 = QRadioButton(gb)
         b3.setText(_("Create a watching-only version of an existing wallet"))
