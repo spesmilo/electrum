@@ -178,7 +178,8 @@ class InstallWizard(QDialog):
         vbox.addLayout(ok_cancel_buttons(self, _('Next')))
 
         self.set_layout(vbox)
-        if not self.exec_(): return None, None
+        if not self.exec_(): 
+            return None
 
         mpk = str(mpk_e.toPlainText()).strip()
         chain = str(chain_e.toPlainText()).strip()
