@@ -50,6 +50,7 @@ class Network(threading.Thread):
         self.queue = Queue.Queue()
         self.callbacks = {}
         self.protocol = self.config.get('protocol','s')
+        self.running = False
 
         # Server for addresses and transactions
         self.default_server = self.config.get('server')
@@ -57,7 +58,8 @@ class Network(threading.Thread):
             self.default_server = pick_random_server(self.protocol)
 
         self.irc_servers = [] # returned by interface (list from irc)
-        self.disconnected_servers = []
+        self.pending_servers = set([])
+        self.disconnected_servers = set([])
         self.recent_servers = self.config.get('recent_servers',[]) # successful connections
 
         self.banner = ''
@@ -93,12 +95,12 @@ class Network(threading.Thread):
                 if message not in self.subscriptions[callback]:
                     self.subscriptions[callback].append(message)
 
-        if self.interface and self.interface.is_connected:
+        if self.is_connected():
             self.interface.send( messages, callback )
 
 
     def send(self, messages, callback):
-        if self.interface and self.interface.is_connected:
+        if self.is_connected():
             self.interface.send( messages, callback )
             return True
         else:
@@ -123,7 +125,7 @@ class Network(threading.Thread):
         choice_list = []
         l = filter_protocol(self.get_servers(), self.protocol)
         for s in l:
-            if s in self.disconnected_servers or s in self.interfaces.keys():
+            if s in self.pending_servers or s in self.disconnected_servers or s in self.interfaces.keys():
                 continue
             else:
                 choice_list.append(s)
@@ -131,7 +133,7 @@ class Network(threading.Thread):
         if not choice_list: 
             if not self.interfaces:
                 # we are probably offline, retry later
-                self.disconnected_servers = []
+                self.disconnected_servers = set([])
             return
         
         server = random.choice( choice_list )
@@ -150,8 +152,9 @@ class Network(threading.Thread):
         if server in self.interfaces.keys():
             return
         i = interface.Interface(server, self.config)
-        self.interfaces[server] = i
+        self.pending_servers.add(server)
         i.start(self.queue)
+        return i 
 
     def start_random_interface(self):
         server = self.random_server()
@@ -159,28 +162,28 @@ class Network(threading.Thread):
             self.start_interface(server)
 
     def start_interfaces(self):
-        self.start_interface(self.default_server)
-        self.interface = self.interfaces[self.default_server]
+        self.interface = self.start_interface(self.default_server)
 
         for i in range(self.num_server):
             self.start_random_interface()
             
-        if not self.interface:
-            self.interface = self.interfaces.values()[0]
-
 
     def start(self, wait=False):
         self.start_interfaces()
         threading.Thread.start(self)
         if wait:
-            self.interface.connect_event.wait()
-            return self.interface.is_connected
-
+            return self.wait_until_connected()
 
     def wait_until_connected(self):
-        while not self.interface:
-            time.sleep(1)
-        self.interface.connect_event.wait()
+        "wait until connection status is known"
+        if self.config.get('auto_cycle'): 
+            # self.random_server() returns None if all servers have been tried
+            while not self.is_connected() and self.random_server():
+                time.sleep(0.1)
+        else:
+            self.interface.connect_event.wait()
+
+        return self.interface.is_connected
 
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
@@ -196,11 +199,11 @@ class Network(threading.Thread):
             self.protocol = protocol
             for i in self.interfaces.values(): i.stop()
             if auto_connect:
-                self.interface = None
+                #self.interface = None
                 return
 
         if auto_connect:
-            if not self.interface:
+            if not self.interface.is_connected:
                 self.switch_to_random_interface()
             else:
                 if self.server_lag > 0:
@@ -214,7 +217,7 @@ class Network(threading.Thread):
             self.switch_to_interface(random.choice(self.interfaces.values()))
 
     def switch_to_interface(self, interface):
-        assert self.interface is None
+        assert not self.interface.is_connected
         server = interface.server
         print_error("switching to", server)
         self.interface = interface
@@ -229,17 +232,17 @@ class Network(threading.Thread):
 
     def stop_interface(self):
         self.interface.stop() 
-        self.interface = None
+
 
     def set_server(self, server):
-        if self.default_server == server and self.interface:
+        if self.default_server == server and self.interface.is_connected:
             return
 
         if self.protocol != server.split(':')[2]:
             return
 
         # stop the interface in order to terminate subscriptions
-        if self.interface:
+        if self.interface.is_connected:
             self.stop_interface()
 
         # notify gui
@@ -251,8 +254,7 @@ class Network(threading.Thread):
         if server in self.interfaces.keys():
             self.switch_to_interface( self.interfaces[server] )
         else:
-            self.start_interface(server)
-            self.interface = self.interfaces[server]
+            self.interface = self.start_interface(server)
         
 
     def add_recent_server(self, i):
@@ -294,7 +296,12 @@ class Network(threading.Thread):
                     self.start_random_interface()
                 continue
 
+            if i.server in self.pending_servers:
+                self.pending_servers.remove(i.server)
+
             if i.is_connected:
+                #if i.server in self.interfaces: raise
+                self.interfaces[i.server] = i
                 self.add_recent_server(i)
                 i.send([ ('blockchain.headers.subscribe',[])], self.on_header)
                 if i == self.interface:
@@ -302,15 +309,16 @@ class Network(threading.Thread):
                     self.send_subscriptions()
                     self.trigger_callback('connected')
             else:
-                self.disconnected_servers.append(i.server)
-                self.interfaces.pop(i.server)
+                self.disconnected_servers.add(i.server)
+                if i.server in self.interfaces:
+                    self.interfaces.pop(i.server)
                 if i.server in self.heights:
                     self.heights.pop(i.server)
                 if i == self.interface:
-                    self.interface = None
+                    #self.interface = None
                     self.trigger_callback('disconnected')
 
-            if self.interface is None and self.config.get('auto_cycle'):
+            if not self.interface.is_connected and self.config.get('auto_cycle'):
                 self.switch_to_random_interface()
 
 

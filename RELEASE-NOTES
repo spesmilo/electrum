@@ -1,3 +1,8 @@
+# Release 1.9.6
+* During wallet creation, do not write seed to disk until it is encrypted.
+* Confirmation dialog if the transaction fee is higher than 1mBTC.
+* bugfixes
+
 # Release 1.9.5
 
 * Coin control: select addresses to send from

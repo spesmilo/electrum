@@ -97,7 +97,7 @@ def print_help(parser):
     print_msg("Type 'electrum help <command>' to see the help for a specific command")
     print_msg("Type 'electrum --help' to see the list of options")
     run_command('help')
-    exit(1)
+    sys.exit(1)
 
 
 def print_help_cb(self, opt, value, parser):
@@ -235,7 +235,7 @@ if __name__ == '__main__':
                 sys.exit("Error: No seed")
 
             wallet.init_seed(str(seed))
-            wallet.save_seed()
+            wallet.save_seed(password)
             if not options.offline:
                 network = Network(config)
                 network.start()
@@ -254,15 +254,12 @@ if __name__ == '__main__':
 
         else:
             wallet.init_seed(None)
-            wallet.save_seed()
+            wallet.save_seed(password)
             wallet.synchronize()
             print_msg("Your wallet generation seed is:\n\"%s\"" % wallet.get_mnemonic(None))
             print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
 
         print_msg("Wallet saved in '%s'" % wallet.storage.path)
-
-        if password:
-            wallet.update_password(None, password)
 
         # terminate
         sys.exit(0)
@@ -275,17 +272,20 @@ if __name__ == '__main__':
 
     # commands needing password
     if cmd.requires_password:
-        if wallet.use_encryption:
+        if wallet.seed == '':
+            seed = ''
+            password = None
+        elif wallet.use_encryption:
             password = prompt_password('Password:', False)
             if not password:
                 print_msg("Error: Password required")
-                exit(1)
+                sys.exit(1)
             # check password
             try:
                 seed = wallet.get_seed(password)
             except Exception:
                 print_msg("Error: This password does not decode this wallet.")
-                exit(1)
+                sys.exit(1)
         else:
             password = None
             seed = wallet.get_seed(None)
@@ -320,7 +320,7 @@ if __name__ == '__main__':
         for i in range(1, len(args), 2):
             if len(args) < i+2:
                 print_msg("Error: Mismatched arguments.")
-                exit(1)
+                sys.exit(1)
             outputs.append((args[i], Decimal(args[i+1])))
         args = ['mksendmanytx', outputs, Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, domain]
 
@@ -391,7 +391,7 @@ if __name__ == '__main__':
 
     elif cmd.name == 'password':
         new_password = prompt_password('New password:')
-        wallet.update_password(seed, password, new_password)
+        wallet.update_password(password, new_password)
 
     else:
         run_command(cmd.name, password, args)

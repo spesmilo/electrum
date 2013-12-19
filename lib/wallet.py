@@ -186,6 +186,8 @@ class Wallet:
                 print msg
                 sys.exit(1)
 
+        # This attribute is set when wallet.start_threads is called.
+        self.synchronizer = None
 
         self.load_accounts()
 
@@ -338,10 +340,14 @@ class Wallet:
         #    self.seed = seed
             
 
-    def save_seed(self):
+    def save_seed(self, password):
+        if password: 
+            self.seed = pw_encode( self.seed, password)
+            self.use_encryption = True
         self.storage.put('seed', self.seed, True)
         self.storage.put('seed_version', self.seed_version, True)
-        self.create_accounts()
+        self.storage.put('use_encryption', self.use_encryption,True)
+        self.create_accounts(password)
 
 
     def create_watching_only_wallet(self, params):
@@ -364,29 +370,31 @@ class Wallet:
         self.create_account('1','Main account')
 
 
-    def create_accounts(self): 
+    def create_accounts(self, password):
+        seed = pw_decode(self.seed, password)
+
         if self.seed_version == 4:
-            mpk = OldAccount.mpk_from_seed(self.seed)
+            mpk = OldAccount.mpk_from_seed(seed)
             self.create_old_account(mpk)
         else:
             # create default account
-            self.create_master_keys('1')
+            self.create_master_keys('1', password)
             self.create_account('1','Main account')
 
 
-    def create_master_keys(self, account_type):
+    def create_master_keys(self, account_type, password):
         master_k, master_c, master_K, master_cK = bip32_init(self.get_seed(None))
         if account_type == '1':
             k0, c0, K0, cK0 = bip32_private_derivation(master_k, master_c, "m/", "m/0'/")
             self.master_public_keys["m/0'/"] = (c0, K0, cK0)
-            self.master_private_keys["m/0'/"] = k0
+            self.master_private_keys["m/0'/"] = pw_encode(k0, password)
         elif account_type == '2of2':
             k1, c1, K1, cK1 = bip32_private_derivation(master_k, master_c, "m/", "m/1'/")
             k2, c2, K2, cK2 = bip32_private_derivation(master_k, master_c, "m/", "m/2'/")
             self.master_public_keys["m/1'/"] = (c1, K1, cK1)
             self.master_public_keys["m/2'/"] = (c2, K2, cK2)
-            self.master_private_keys["m/1'/"] = k1
-            self.master_private_keys["m/2'/"] = k2
+            self.master_private_keys["m/1'/"] = pw_encode(k1, password)
+            self.master_private_keys["m/2'/"] = pw_encode(k2, password)
         elif account_type == '2of3':
             k3, c3, K3, cK3 = bip32_private_derivation(master_k, master_c, "m/", "m/3'/")
             k4, c4, K4, cK4 = bip32_private_derivation(master_k, master_c, "m/", "m/4'/")
@@ -394,9 +402,9 @@ class Wallet:
             self.master_public_keys["m/3'/"] = (c3, K3, cK3)
             self.master_public_keys["m/4'/"] = (c4, K4, cK4)
             self.master_public_keys["m/5'/"] = (c5, K5, cK5)
-            self.master_private_keys["m/3'/"] = k3
-            self.master_private_keys["m/4'/"] = k4
-            self.master_private_keys["m/5'/"] = k5
+            self.master_private_keys["m/3'/"] = pw_encode(k3, password)
+            self.master_private_keys["m/4'/"] = pw_encode(k4, password)
+            self.master_private_keys["m/5'/"] = pw_encode(k5, password)
 
         self.storage.put('master_public_keys', self.master_public_keys, True)
         self.storage.put('master_private_keys', self.master_private_keys, True)
@@ -742,24 +750,26 @@ class Wallet:
 
 
     def add_keypairs_from_KeyID(self, tx, keypairs, password):
+        # first check the provided password
+        seed = self.get_seed(password)
+
         for txin in tx.inputs:
             keyid = txin.get('KeyID')
             if keyid:
 
-                if self.seed_version==4:
+                if self.seed_version == 4:
                     m = re.match("old\(([0-9a-f]+),(\d+),(\d+)", keyid)
                     if not m: continue
                     mpk = m.group(1)
                     if mpk != self.storage.get('master_public_key'): continue 
-                    index = int(m.group(2))
+                    for_change = int(m.group(2))
                     num = int(m.group(3))
                     account = self.accounts[0]
-                    addr = account.get_address(index, num)
+                    addr = account.get_address(for_change, num)
                     txin['address'] = addr # fixme: side effect
-                    pk = self.get_private_key(addr, password)
-                    for sec in pk:
-                        pubkey = public_key_from_private_key(sec)
-                        keypairs[pubkey] = sec
+                    pk = account.get_private_key(seed, (for_change, num))
+                    pubkey = public_key_from_private_key(pk)
+                    keypairs[pubkey] = pk
                     continue
 
 
@@ -1618,9 +1628,8 @@ class WalletSynchronizer(threading.Thread):
             self.running = True
 
         while self.is_running():
-            
+
             if not self.network.is_connected():
-                print_error("synchronizer: waiting for interface")
                 self.network.wait_until_connected()
                 
             self.run_interface(self.network.interface)
