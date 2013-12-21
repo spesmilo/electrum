@@ -149,8 +149,7 @@ class Commands:
 
     def sendrawtransaction(self, raw):
         tx = Transaction(raw)
-        r, h = self.wallet.sendtx( tx )
-        return h
+        return self.network.synchronous_get([('blockchain.transaction.broadcast', [str(tx)])])[0]
 
     def createmultisig(self, num, pubkeys):
         assert isinstance(pubkeys, list)
