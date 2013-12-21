@@ -741,6 +741,8 @@ class Wallet:
     def add_keypairs_from_wallet(self, tx, keypairs, password):
         for txin in tx.inputs:
             address = txin['address']
+            if not self.is_mine(address):
+                continue
             private_keys = self.get_private_key(address, password)
             for sec in private_keys:
                 pubkey = public_key_from_private_key(sec)
