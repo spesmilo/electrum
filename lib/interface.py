@@ -244,11 +244,13 @@ class Interface(threading.Thread):
         t1 = time.time()
 
         data = []
+        ids = []
         for m in messages:
             method, params = m
             if type(params) != type([]): params = [params]
             data.append( { 'method':method, 'id':self.message_id, 'params':params } )
             self.unanswered_requests[self.message_id] = method, params, callback
+            ids.append(self.message_id)
             self.message_id += 1
 
         if data:
@@ -291,6 +293,7 @@ class Interface(threading.Thread):
 
         self.rtime = time.time() - t1
         self.is_connected = True
+        return ids
 
 
 
