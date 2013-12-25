@@ -1217,18 +1217,20 @@ class ElectrumWindow(QMainWindow):
 
     def create_contact_menu(self, position):
         item = self.contacts_list.itemAt(position)
-        if not item: return
-        addr = unicode(item.text(0))
-        label = unicode(item.text(1))
-        is_editable = item.data(0,32).toBool()
-        payto_addr = item.data(0,33).toString()
         menu = QMenu()
-        menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
-        menu.addAction(_("Pay to"), lambda: self.payto(payto_addr))
-        menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")))
-        if is_editable:
-            menu.addAction(_("Edit label"), lambda: self.edit_label(False))
-            menu.addAction(_("Delete"), lambda: self.delete_contact(addr))
+        if not item:
+            menu.addAction(_("New contact"), lambda: self.new_contact_dialog())
+        else:
+            addr = unicode(item.text(0))
+            label = unicode(item.text(1))
+            is_editable = item.data(0,32).toBool()
+            payto_addr = item.data(0,33).toString()
+            menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
+            menu.addAction(_("Pay to"), lambda: self.payto(payto_addr))
+            menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")))
+            if is_editable:
+                menu.addAction(_("Edit label"), lambda: self.edit_label(False))
+                menu.addAction(_("Delete"), lambda: self.delete_contact(addr))
 
         run_hook('create_contact_menu', menu, item)
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
