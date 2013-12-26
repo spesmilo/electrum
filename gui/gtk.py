@@ -1310,7 +1310,6 @@ class ElectrumGui():
                 show_seed_dialog(wallet, None, None)
                 r = change_password_dialog(False, None)
                 password = r[2] if r else None
-                print "password", password
                 wallet.save_seed(password)
                 wallet.synchronize()  # generate first addresses offline
 
