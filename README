@@ -40,6 +40,11 @@ On Mac OS X:
   sudo hdiutil create -fs HFS+ -volname "Electrum" -srcfolder dist/Electrum.app dist/electrum-VERSION-macosx.dmg
 
 
+== HOW TESTS ARE RUN ==
+
+python -m unittest discover
+
+
 == BROWSER CONFIGURATION ==
 
 See http://electrum.org/bitcoin_URIs.html
