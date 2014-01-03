@@ -38,7 +38,7 @@ EXPIRY_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 
 class Plugin(BasePlugin):
 
-    def fullname(self): return 'Coinbalance: rebuy bitcoin via Coinbase'
+    def fullname(self): return 'Coinbase BuyBack'
 
     def description(self): return 'After sending bitcoin, prompt the user with the option to rebuy them via Coinbase.\n\nMarcell Ortutay, 1FNGQvm29tKM7y3niq63RKi7Qbg7oZ3jrB'
 
