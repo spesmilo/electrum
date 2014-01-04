@@ -59,6 +59,7 @@ def appdata_dir():
         return os.path.join(sys.prefix, "share", "electrum")
     elif (platform.system() == "Darwin" or
           platform.system() == "DragonFly" or
+          platform.system() == "OpenBSD" or
 	  platform.system() == "NetBSD"):
         return "/Library/Application Support/Electrum"
     else:
