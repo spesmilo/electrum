@@ -134,7 +134,7 @@ def complete_oauth_flow(token, web, amount):
     do_buy(credentials, amount)
 
 def token_path():
-    dir = user_dir() + '/coinbalance'
+    dir = user_dir() + '/coinbase_buyback'
     if not os.access(dir, os.F_OK):
         os.mkdir(dir)
     return dir + '/token'

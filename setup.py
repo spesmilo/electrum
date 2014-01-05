@@ -110,7 +110,7 @@ setup(
         'electrum_gui.stdio',
         'electrum_gui.text',
         'electrum_plugins.aliases',
-        'electrum_plugins.coinbalance',
+        'electrum_plugins.coinbase_buyback',
         'electrum_plugins.exchange_rate',
         'electrum_plugins.labels',
         'electrum_plugins.pointofsale',
