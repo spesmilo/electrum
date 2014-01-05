@@ -26,7 +26,6 @@ from electrum_gui.qt import ElectrumGui
 
 SATOSHIS_PER_BTC = float(100000000)
 COINBASE_ENDPOINT = 'https://coinbase.com'
-# TODO(ortutay): verify unix file mode on cert during setup
 CERTS_PATH = appdata_dir() + '/certs/ca-coinbase.crt'
 SCOPE = 'buy'
 REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob'
@@ -71,7 +70,6 @@ def propose_rebuy_qt(amount):
     box = QMessageBox()
     box.setFixedSize(200, 200)
 
-    # TODO(marcell): in the case of OAuth failure, remove local token
     credentials = read_local_oauth_credentials()
     questionText = _('Rebuy ') + format_satoshis(amount) + _(' BTC?')
     if credentials:
@@ -307,16 +305,3 @@ def question(widget, msg):
     return (QMessageBox.question(
         widget, _('Message'), msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             == QMessageBox.Yes)
-
-if __name__ == "__main__":
-    if 0:
-        c = read_local_oauth_credentials()
-        c.store_locally()
-        c.refresh()
-        print "STORING REFRESH"
-        print c
-        c.store_locally()
-    else:
-        app = QApplication(sys.argv)
-        propose_rebuy_qt(100000)
-        sys.exit(app.exec_())
