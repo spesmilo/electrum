@@ -758,7 +758,7 @@ class MiniActuator:
 
             self.waiting_dialog(lambda: False if self.g.wallet.tx_event.isSet() else _("Sending transaction, please wait..."))
               
-            status, message = self.g.wallet.receive_tx(h)
+            status, message = self.g.wallet.receive_tx(h, tx)
 
             if not status:
                 import tempfile
