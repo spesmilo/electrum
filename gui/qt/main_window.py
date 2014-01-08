@@ -941,7 +941,7 @@ class ElectrumWindow(QMainWindow):
         if tx.is_complete:
             h = self.wallet.send_tx(tx)
             waiting_dialog(lambda: False if self.wallet.tx_event.isSet() else _("Please wait..."))
-            status, msg = self.wallet.receive_tx( h )
+            status, msg = self.wallet.receive_tx( h, tx )
             if status:
                 QMessageBox.information(self, '', _('Payment sent.')+'\n'+msg, _('OK'))
                 self.do_clear()

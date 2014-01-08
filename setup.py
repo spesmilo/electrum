@@ -50,6 +50,9 @@ data_files += [
         "data/dark/background.png",
         "data/dark/name.cfg",
         "data/dark/style.css"
+    ]),
+    (os.path.join(util.appdata_dir(), "certs"), [
+        "data/certs/ca-coinbase.crt",
     ])
 ]
 
@@ -107,6 +110,7 @@ setup(
         'electrum_gui.stdio',
         'electrum_gui.text',
         'electrum_plugins.aliases',
+        'electrum_plugins.coinbase_buyback',
         'electrum_plugins.exchange_rate',
         'electrum_plugins.labels',
         'electrum_plugins.pointofsale',
