@@ -681,9 +681,6 @@ class ElectrumWindow(QMainWindow):
     def current_item_changed(self, a):
         run_hook('current_item_changed', a)
 
-        self.pay_from = []
-        self.tabs.emit(SIGNAL('currentChanged(int)'), 1)
-
 
 
     def update_history_tab(self):
@@ -766,7 +763,6 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.message_e, 2, 1, 1, 3)
         grid.addWidget(HelpButton(_('Description of the transaction (not mandatory).') + '\n\n' + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.')), 2, 4)
 
-        self.pay_from = []
         self.from_label = QLabel(_('From'))
         grid.addWidget(self.from_label, 3, 0)
         self.from_list = QTreeWidget(self)
@@ -776,7 +772,7 @@ class ElectrumWindow(QMainWindow):
         self.from_list.setHeaderHidden (True)
         self.from_list.setMaximumHeight(80)
         grid.addWidget(self.from_list, 3, 1, 1, 3)
-        self.connect(self.tabs, SIGNAL('currentChanged(int)'), lambda: self.update_pay_from_list(grid))
+        self.set_pay_from([])
 
         self.amount_e = AmountEdit(self.base_unit)
         grid.addWidget(QLabel(_('Amount')), 4, 0)
@@ -859,7 +855,8 @@ class ElectrumWindow(QMainWindow):
         return w2
 
 
-    def update_pay_from_list(self, grid):
+    def set_pay_from(self, l):
+        self.pay_from = l
         self.from_list.clear()
         self.from_label.setHidden(len(self.pay_from) == 0)
         self.from_list.setHidden(len(self.pay_from) == 0)
@@ -1003,9 +1000,7 @@ class ElectrumWindow(QMainWindow):
             e.setText('')
             self.set_frozen(e,False)
 
-        self.pay_from = []
-        self.tabs.emit(SIGNAL('currentChanged(int)'), 1)
-
+        self.set_pay_from([])
         self.update_status()
 
     def set_frozen(self,entry,frozen):
@@ -1193,7 +1188,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def send_from_addresses(self, addrs):
-        self.pay_from = addrs[:]
+        self.set_pay_from( addrs )
         self.tabs.setCurrentIndex(1)
 
 
