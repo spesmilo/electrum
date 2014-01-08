@@ -156,6 +156,7 @@ _ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
 urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
 def parse_url(url):
+    from decimal import Decimal
     url = str(url)
     o = url[8:].split('?')
     address = o[0]
@@ -168,9 +169,18 @@ def parse_url(url):
     for p in params:
         k,v = p.split('=')
         uv = urldecode(v)
-        if k == 'amount': amount = uv
-        elif k == 'message': message = uv
-        elif k == 'label': label = uv
+        if k == 'amount': 
+            amount = uv
+            m = re.match('([0-9\.]+)X([0-9])', uv)
+            if m:
+                k = int(m.group(2)) - 8 
+                amount = Decimal(m.group(1)) * pow(  Decimal(10) , k)
+            else:
+                amount = Decimal(uv)
+        elif k == 'message': 
+            message = uv
+        elif k == 'label': 
+            label = uv
         elif k == 'signature':
             identity, signature = uv.split(':')
             url = url.replace('&%s=%s'%(k,v),'')
