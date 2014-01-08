@@ -309,6 +309,7 @@ class InstallWizard(QDialog):
             else:
                 QMessageBox.information(None, _('Warning'), _('You are offline'), _('OK'))
                 self.network.stop()
+                self.network = None
 
         # start wallet threads
         wallet.start_threads(self.network)
