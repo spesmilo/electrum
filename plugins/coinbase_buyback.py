@@ -2,11 +2,12 @@ import PyQt4
 import sys
 
 import PyQt4.QtCore as QtCore
+import base64
 import urllib
 import re
 import time
 import os
-import httplib2
+import httplib
 import datetime
 import json
 import string
@@ -26,7 +27,6 @@ from electrum_gui.qt import ElectrumGui
 
 SATOSHIS_PER_BTC = float(100000000)
 COINBASE_ENDPOINT = 'https://coinbase.com'
-CERTS_PATH = appdata_dir() + '/certs/ca-coinbase.crt'
 SCOPE = 'buy'
 REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob'
 TOKEN_URI = 'https://coinbase.com/oauth/token'
@@ -89,18 +89,18 @@ def propose_rebuy_qt(amount):
     return web
 
 def do_buy(credentials, amount):
-    h = httplib2.Http(ca_certs=CERTS_PATH)
-    h = credentials.authorize(h)
+    conn = httplib.HTTPSConnection('coinbase.com')
+    credentials.authorize(conn)
     params = {
         'qty': float(amount)/SATOSHIS_PER_BTC,
         'agree_btc_amount_varies': False
     }
-    resp, content = h.request(
-        COINBASE_ENDPOINT + '/api/v1/buys', 'POST', urlencode(params))
-    if resp['status'] != '200':
+    resp = conn.auth_request('POST', '/api/v1/buys', urlencode(params), None)
+
+    if resp.status != 200:
         message(_('Error, could not buy bitcoin'))
         return
-    content = json.loads(content)
+    content = json.loads(resp.read())
     if content['success']:
         message(_('Success!\n') + content['transfer']['description'])
     else:
@@ -110,12 +110,13 @@ def do_buy(credentials, amount):
             message(_('Error, could not buy bitcoin'))
 
 def get_coinbase_total_price(credentials, amount):
-    h = httplib2.Http(ca_certs=CERTS_PATH)
+    conn = httplib.HTTPSConnection('coinbase.com')
     params={'qty': amount/SATOSHIS_PER_BTC}
-    resp, content = h.request(COINBASE_ENDPOINT + '/api/v1/prices/buy?' + urlencode(params),'GET')
-    content = json.loads(content)
-    if resp['status'] != '200':
+    conn.request('GET', '/api/v1/prices/buy?' + urlencode(params))
+    resp = conn.getresponse()
+    if resp.status != 200:
         return 'unavailable'
+    content = json.loads(resp.read())
     return '$' + content['total']['amount']
 
 def do_oauth_flow(web, amount):
@@ -128,8 +129,7 @@ def do_oauth_flow(web, amount):
 
 def complete_oauth_flow(token, web, amount):
     web.close()
-    http = httplib2.Http(ca_certs=CERTS_PATH)
-    credentials = step2_exchange(str(token), http)
+    credentials = step2_exchange(str(token))
     credentials.store_locally()
     do_buy(credentials, amount)
 
@@ -162,7 +162,7 @@ def step1_get_authorize_url():
             + '&client_id=' + CLIENT_ID
             + '&access_type=offline')
 
-def step2_exchange(code, http):
+def step2_exchange(code):
     body = urllib.urlencode({
         'grant_type': 'authorization_code',
         'client_id': CLIENT_ID,
@@ -175,10 +175,11 @@ def step2_exchange(code, http):
         'content-type': 'application/x-www-form-urlencoded',
     }
 
-    resp, content = http.request(TOKEN_URI, method='POST', body=body,
-                                 headers=headers)
+    conn = httplib.HTTPSConnection('coinbase.com')
+    conn.request('POST', TOKEN_URI, body, headers)
+    resp = conn.getresponse()
     if resp.status == 200:
-        d = json.loads(content)
+        d = json.loads(resp.read())
         access_token = d['access_token']
         refresh_token = d.get('refresh_token', None)
         token_expiry = None
@@ -237,43 +238,38 @@ class Credentials(object):
     def apply(self, headers):
         headers['Authorization'] = 'Bearer ' + self.access_token
 
-    def authorize(self, http):
-        request_orig = http.request
+    def authorize(self, conn):
+        request_orig = conn.request
 
-        # The closure that will replace 'httplib2.Http.request'.
-        def new_request(uri, method='GET', body=None, headers=None,
-                        redirections=httplib2.DEFAULT_MAX_REDIRECTS,
-                        connection_type=None):
-            headers = {}
-            if headers is None:
+        def new_request(method, uri, params, headers):
+            if headers == None:
                 headers = {}
                 self.apply(headers)
-
-            resp, content = request_orig(uri, method, body, headers,
-                                         redirections, connection_type)
+            request_orig(method, uri, params, headers)
+            resp = conn.getresponse()
             if resp.status == 401:
+                # Refresh and try again
                 self._refresh(request_orig)
                 self.store_locally()
                 self.apply(headers)
-                return request_orig(uri, method, body, headers,
-                                    redirections, connection_type)
+                request_orig(method, uri, params, headers)
+                return conn.getresponse()
             else:
-                return (resp, content)
-
-        http.request = new_request
-        setattr(http.request, 'credentials', self)
-        return http
+                return resp
+        
+        conn.auth_request = new_request
+        return conn
 
     def refresh(self):
-        h = httplib2.Http(ca_certs=CERTS_PATH)
         try:
-            self._refresh(h.request)
+            self._refresh()
         except OAuth2Exception as e:
             rm_local_oauth_credentials()
             self.invalid = True
             raise e
 
-    def _refresh(self, http_request):
+    def _refresh(self):
+        conn = httplib.HTTPSConnection('coinbase.com')
         body = urllib.urlencode({
             'grant_type': 'refresh_token',
             'refresh_token': self.refresh_token,
@@ -283,10 +279,10 @@ class Credentials(object):
         headers = {
             'content-type': 'application/x-www-form-urlencoded',
         }
-        resp, content = http_request(
-            TOKEN_URI, method='POST', body=body, headers=headers)
+        conn.request('POST', TOKEN_URI, body, headers)
+        resp = conn.getresponse()
         if resp.status == 200:
-            d = json.loads(content)
+            d = json.loads(resp.read())
             self.token_response = d
             self.access_token = d['access_token']
             self.refresh_token = d.get('refresh_token', self.refresh_token)
@@ -305,3 +301,12 @@ def question(widget, msg):
     return (QMessageBox.question(
         widget, _('Message'), msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             == QMessageBox.Yes)
+
+def main():
+    app = QApplication(sys.argv)
+    print sys.argv[1]
+    propose_rebuy_qt(int(sys.argv[1]))
+    sys.exit(app.exec_())
+
+if __name__ == "__main__":
+    main()
