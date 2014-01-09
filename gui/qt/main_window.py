@@ -1307,7 +1307,7 @@ class ElectrumWindow(QMainWindow):
                         item.setBackgroundColor(1, QColor('red'))
                     if len(h) > 0 and c == -u:
                         if not used_flag:
-                            seq_item.addChild(used_item)
+                            seq_item.insertChild(0,used_item)
                             used_flag = True
                         used_item.addChild(item)
                     else:
