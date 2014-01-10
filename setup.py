@@ -51,9 +51,6 @@ data_files += [
         "data/dark/name.cfg",
         "data/dark/style.css"
     ]),
-    (os.path.join(util.appdata_dir(), "certs"), [
-        "data/certs/ca-coinbase.crt",
-    ])
 ]
 
 
