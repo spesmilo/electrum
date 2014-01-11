@@ -1,3 +1,9 @@
+# Release 1.9.7
+* Fix for offline signing
+* Various bugfixes
+* GUI usability improvements
+* Coinbase Buyback plugin
+
 # Release 1.9.6
 * During wallet creation, do not write seed to disk until it is encrypted.
 * Confirmation dialog if the transaction fee is higher than 1mBTC.
