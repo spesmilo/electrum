@@ -1170,7 +1170,8 @@ class ElectrumWindow(QMainWindow):
         if any(addr in self.wallet.frozen_addresses for addr in addrs):
             menu.addAction(_("Unfreeze"), lambda: self.set_addrs_frozen(addrs, False))
 
-        menu.addAction(_("Send From"), lambda: self.send_from_addresses(addrs))
+        if any(addr not in self.wallet.frozen_addresses for addr in addrs):
+            menu.addAction(_("Send From"), lambda: self.send_from_addresses(addrs))
 
         run_hook('receive_menu', menu, addrs)
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
