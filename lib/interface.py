@@ -427,7 +427,9 @@ class Interface(threading.Thread):
                 except ssl.SSLError:
                     timeout = True
                 except socket.error, err:
-                    if err.errno in [11, 10035]:
+                    if err.errno == 60:
+                        timeout = True
+                    elif err.errno in [11, 10035]:
                         print_error("socket errno", err.errno)
                         time.sleep(0.1)
                         continue
