@@ -16,7 +16,11 @@ from urllib import urlencode
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-from PyQt4.QtWebKit import QWebView
+try:
+    from PyQt4.QtWebKit import QWebView
+    loaded_qweb = True
+except ImportError as e:
+    loaded_qweb = False
 
 from electrum import BasePlugin
 from electrum.i18n import _, set_language
@@ -46,7 +50,7 @@ class Plugin(BasePlugin):
         self._is_available = self._init()
 
     def _init(self):
-        return True
+        return loaded_qweb
 
     def is_available(self):
         return self._is_available
