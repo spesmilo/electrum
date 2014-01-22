@@ -98,37 +98,22 @@ class StatusBarButton(QPushButton):
 default_column_widths = { "history":[40,140,350,140], "contacts":[350,330], "receive": [370,200,130] }
 
 class ElectrumWindow(QMainWindow):
-    def changeEvent(self, event):
-        flags = self.windowFlags();
-        if event and event.type() == QtCore.QEvent.WindowStateChange:
-            if self.windowState() & QtCore.Qt.WindowMinimized:
-                self.build_menu(True)
-                # The only way to toggle the icon in the window managers taskbar is to use the Qt.Tooltip flag
-                # The problem is that it somehow creates an (in)visible window that will stay active and prevent
-                # Electrum from closing.
-                # As for now I have no clue how to implement a proper 'hide to tray' functionality.
-                # self.setWindowFlags(flags & ~Qt.ToolTip)
-            elif event.oldState() & QtCore.Qt.WindowMinimized:
-                self.build_menu(False)
-                #self.setWindowFlags(flags | Qt.ToolTip)
-
-    def build_menu(self, is_hidden = False):
+    def build_menu(self):
         m = QMenu()
-        if self.isMinimized():
-            m.addAction(_("Show"), self.showNormal)
-        else:
-            m.addAction(_("Hide"), self.showMinimized)
-
+        m.addAction(_("Show/Hide"), self.show_or_hide)
         m.addSeparator()
         m.addAction(_("Exit Electrum"), self.close)
         self.tray.setContextMenu(m)
 
+    def show_or_hide(self):
+        self.tray_activated(QSystemTrayIcon.DoubleClick)
+
     def tray_activated(self, reason):
         if reason == QSystemTrayIcon.DoubleClick:
-            self.showNormal()
-
-    def showNormal(self):
-        self.setWindowState(self.windowState() & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
+            if self.isMinimized() or self.isHidden():
+                self.show()
+            else:
+                self.hide()
 
     def __init__(self, config, network):
         QMainWindow.__init__(self)
