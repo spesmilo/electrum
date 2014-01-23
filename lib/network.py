@@ -82,6 +82,14 @@ class Network(threading.Thread):
         return self.interface and self.interface.is_connected
 
 
+    def is_up_to_date(self):
+        return self.interface.is_up_to_date()
+
+
+    def main_server(self):
+        return self.interface.server
+
+
     def send_subscriptions(self):
         for cb, sub in self.subscriptions.items():
             self.interface.send(sub, cb)
@@ -372,11 +380,11 @@ class Network(threading.Thread):
         return out
 
 
-    def retrieve_transaction(self, tx_hash, tx_height=0):
-        import transaction
-        r = self.synchronous_get([ ('blockchain.transaction.get',[tx_hash, tx_height]) ])[0]
-        if r:
-            return transaction.Transaction(r)
+    #def retrieve_transaction(self, tx_hash, tx_height=0):
+    #    import transaction
+    #    r = self.synchronous_get([ ('blockchain.transaction.get',[tx_hash, tx_height]) ])[0]
+    #    if r:
+    #        return transaction.Transaction(r)
 
 
     def parse_servers(self, result):
