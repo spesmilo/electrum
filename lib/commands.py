@@ -96,8 +96,8 @@ register_command('unfreeze',             1, 1, False, True,  False, 'Unfreeze th
 register_command('validateaddress',      1, 1, False, False, False, 'Check that the address is valid', 'validateaddress <address>')
 register_command('verifymessage',        3,-1, False, False, False, 'Verifies a signature', verifymessage_syntax)
 
-register_command('start_network',        0, 0, False, False, False, 'start the daemon')
-register_command('stop_network',         0, 0, True,  False, False, 'stop the daemon')
+register_command('daemon',               1, 1, True, False, False, 'start/stop daemon')
+
 
 
 
@@ -126,8 +126,16 @@ class Commands:
         return self.network.synchronous_get([ ('blockchain.address.get_history',[addr]) ])[0]
 
 
-    def stop_network(self):
-        return self.network.stop()
+    def daemon(self, arg):
+        if arg=='stop':
+            return self.network.stop()
+        elif arg=='status':
+            return { 
+                'server':self.network.main_server(), 
+                'connected':self.network.is_connected()
+            }
+        else:
+            return "unknown command \"%s\""% arg
 
 
     def listunspent(self):
@@ -138,7 +146,7 @@ class Commands:
 
 
     def getaddressunspent(self, addr):
-        return self.network.synchronous_get([ ('blockchain.address.getunspent',[addr]) ])[0]
+        return self.network.synchronous_get([ ('blockchain.address.listunspent',[addr]) ])[0]
 
 
     def createrawtransaction(self, inputs, outputs):
@@ -211,11 +219,8 @@ class Commands:
         return out
 
     def getaddressbalance(self, addr):
-        #    c, u = self.wallet.get_addr_balance(addr)
-        #    out = { "confirmed": str(Decimal(c)/100000000) }
-        #    if u: out["unconfirmed"] = str(Decimal(u)/100000000)
-        #    return out
-        return self.network.synchronous_get([ ('blockchain.address.get_balance',[addr]) ])[0]
+        b = self.network.synchronous_get([ ('blockchain.address.get_balance',[addr]) ])[0]
+        return str(Decimal(b)/100000000)
 
     def getservers(self):
         return self.network.get_servers()

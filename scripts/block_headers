@@ -5,7 +5,7 @@
 import time, electrum
 
 # 1. start the interface and wait for connection
-interface = electrum.Interface('electrum.no-ip.org:50002:s')
+interface = electrum.Interface('ecdsa.net:50002:s')
 interface.start(wait = True)
 if not interface.is_connected:
     print "not connected"

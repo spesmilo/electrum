@@ -121,7 +121,7 @@ def run_command(cmd, password=None, args=[]):
     try:
         result = func(*args[1:])
     except socket.error:
-        print "Network server not found."
+        print "Daemon not running"
         sys.exit(1)
     except Exception:
         traceback.print_exc(file=sys.stdout)
@@ -219,9 +219,6 @@ if __name__ == '__main__':
         print_msg("Error: Wallet file not found.")
         print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
-
-
-
 
 
 
@@ -370,7 +367,7 @@ if __name__ == '__main__':
             args = args[0:cmd.min_args] + [message]
 
 
-    if cmd.name == 'start_network':
+    if cmd.name == 'daemon' and args[1] == 'start':
         pid = os.fork()
         if (pid == 0): # The first child.
             os.chdir("/")
@@ -397,13 +394,9 @@ if __name__ == '__main__':
                 server.running = True
                 while server.running:
                     server.handle_request()
-                print_msg("Server stopped")
-                sys.exit(0)
-            else:
-                sys.exit(0)
-        else:
-            sys.exit(0)
+                print_msg("Daemon stopped")
 
+        sys.exit(0)
 
     # run the command
     if cmd.name == 'deseed':
