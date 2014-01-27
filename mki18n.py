@@ -6,8 +6,8 @@ crowdin_identifier = 'electrum'
 crowdin_file_name = 'electrum-client/messages.pot'
 locale_file_name = 'locale/messages.pot'
 
-if os.path.exists('build/crowdin_api_key.txt'):
-    crowdin_api_key = open('build/crowdin_api_key.txt').read()
+if os.path.exists('contrib/crowdin_api_key.txt'):
+    crowdin_api_key = open('contrib/crowdin_api_key.txt').read()
 
     # Generate fresh translation template
     if not os.path.exists('locale'):
