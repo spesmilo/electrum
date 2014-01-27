@@ -66,6 +66,8 @@ class Network(threading.Thread):
         self.interface = None
         self.proxy = self.config.get('proxy')
         self.heights = {}
+        self.merkle_roots = {}
+        self.utxo_roots = {}
         self.server_lag = 0
 
         dir_path = os.path.join( self.config.path, 'certs')
@@ -335,6 +337,8 @@ class Network(threading.Thread):
         if not result: return
         height = result.get('block_height')
         self.heights[i.server] = height
+        self.merkle_roots[i.server] = result.get('merkle_root')
+        self.utxo_roots[i.server] = result.get('utxo_root')
         # notify blockchain about the new height
         self.blockchain.queue.put((i,result))
 
