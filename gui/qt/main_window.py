@@ -2080,7 +2080,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(unit_combo, 3, 1)
         grid.addWidget(HelpButton(_('Base unit of your wallet.')\
                                              + '\n1BTC=1000mBTC.\n' \
-                                             + _(' This settings affects the fields in the Send tab')+' '), 3, 2)
+                                             + _(' These settings affects the fields in the Send tab')+' '), 3, 2)
 
         usechange_cb = QCheckBox(_('Use change addresses'))
         usechange_cb.setChecked(self.wallet.use_change)
