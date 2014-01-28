@@ -127,7 +127,8 @@ class InstallWizard(QDialog):
         if not self.exec_():
             return
 
-        seed = unicode(seed_e.toPlainText())
+        seed = seed_e.toPlainText()
+        seed = unicode(seed.toLower())
 
         if not seed:
             QMessageBox.warning(None, _('Error'), _('No seed'), _('OK'))
