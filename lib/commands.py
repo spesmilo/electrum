@@ -97,6 +97,7 @@ register_command('validateaddress',      1, 1, False, False, False, 'Check that 
 register_command('verifymessage',        3,-1, False, False, False, 'Verifies a signature', verifymessage_syntax)
 
 register_command('daemon',               1, 1, True, False, False, 'start/stop daemon')
+register_command('getproof',             1, 1, True, False, False, 'start/stop daemon')
 
 
 
@@ -221,6 +222,13 @@ class Commands:
     def getaddressbalance(self, addr):
         b = self.network.synchronous_get([ ('blockchain.address.get_balance',[addr]) ])[0]
         return str(Decimal(b)/100000000)
+
+    def getproof(self, addr):
+        p = self.network.synchronous_get([ ('blockchain.address.get_proof',[addr]) ])[0]
+        out = []
+        for i,s in p:
+            out.append(i)
+        return out
 
     def getservers(self):
         return self.network.get_servers()
