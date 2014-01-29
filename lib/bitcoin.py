@@ -61,6 +61,8 @@ hash_decode = lambda x: x.decode('hex')[::-1]
 
 hmac_sha_512 = lambda x,y: hmac.new(x, y, hashlib.sha512).digest()
 mnemonic_hash = lambda x: hmac_sha_512("Bitcoin mnemonic", x).encode('hex')
+from version import SEED_PREFIX
+is_seed = lambda x: hmac_sha_512("Seed version", x).encode('hex')[0:2].startswith(SEED_PREFIX)
 
 # pywallet openssl private key implementation
 

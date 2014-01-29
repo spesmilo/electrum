@@ -289,8 +289,8 @@ class Wallet:
             # we keep only 13 words, that's approximately 139 bits of entropy
             words = mnemonic.mn_encode(s)[0:13] 
             seed = ' '.join(words)
-            if mnemonic_hash(seed).startswith(SEED_PREFIX): 
-                break  # this removes 12 bits of entropy 
+            if is_seed(seed):
+                break  # this will remove 8 bits of entropy
             nonce += 1
 
         return seed
@@ -303,14 +303,9 @@ class Wallet:
             raise Exception("a seed exists")
 
         if not seed:
-            self.seed = random_seed(128)
-            self.seed_version = 4
+            self.seed = self.make_seed()
+            self.seed_version = SEED_VERSION
             return
-
-        #if not seed:
-        #    self.seed = self.make_seed()
-        #    self.seed_version = SEED_VERSION
-        #    return
 
         # find out what kind of wallet we are
         try:
@@ -322,22 +317,19 @@ class Wallet:
             pass
 
         words = seed.split()
-        self.seed_version = 4
-        self.seed = mnemonic.mn_decode(words)
+        try:
+            mnemonic.mn_decode(words)
+            uses_electrum_words = True
+        except Exception:
+            uses_electrum_words = False
         
-        #try:
-        #    mnemonic.mn_decode(words)
-        #    uses_electrum_words = True
-        #except Exception:
-        #    uses_electrum_words = False
-        #
-        #if uses_electrum_words and len(words) != 13:
-        #    self.seed_version = 4
-        #    self.seed = mnemonic.mn_decode(words)
-        #else:
-        #    assert mnemonic_hash(seed).startswith(SEED_PREFIX)
-        #    self.seed_version = SEED_VERSION
-        #    self.seed = seed
+        if uses_electrum_words and len(words) != 13:
+            self.seed_version = 4
+            self.seed = mnemonic.mn_decode(words)
+        else:
+            #assert is_seed(seed)
+            self.seed_version = SEED_VERSION
+            self.seed = seed
             
 
     def save_seed(self, password):
@@ -433,9 +425,10 @@ class Wallet:
 
     def deseed_branch(self, k):
         # check that parent has no seed
-        assert self.seed == ''
-        self.master_private_keys.pop(k)
+        # assert self.seed == ''
+        k = self.master_private_keys.pop(k)
         self.storage.put('master_private_keys', self.master_private_keys, True)
+        return k
 
     def is_watching_only(self):
         return (self.seed == '') and (self.master_private_keys == {})
