@@ -395,9 +395,9 @@ class Commands:
     def encrypt(self, pubkey, message):
         return EC_KEY.encrypt_message(message, pubkey.decode('hex'))
 
-    def decrypt(self, private_key, message):
-        eck = EC_KEY(private_key.decode('hex'))
-        decrypted = eck.decrypt_message(message)
+    def decrypt(self, secret, message):
+        ec = regenerate_key(secret)
+        decrypted = ec.decrypt_message(message)
         return decrypted[0]
 
 
