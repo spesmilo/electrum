@@ -230,8 +230,7 @@ def regenerate_key(sec):
     if not b:
         return False
     b = b[0:32]
-    secret = int('0x' + b.encode('hex'), 16)
-    return EC_KEY(secret)
+    return EC_KEY(b)
 
 def GetPubKey(pubkey, compressed=False):
     return i2o_ECPublicKey(pubkey, compressed)
@@ -368,7 +367,8 @@ def ser_to_point(Aser):
 
 
 class EC_KEY(object):
-    def __init__( self, secret ):
+    def __init__( self, k ):
+        secret = string_to_number(k)
         self.pubkey = ecdsa.ecdsa.Public_key( generator_secp256k1, generator_secp256k1 * secret )
         self.privkey = ecdsa.ecdsa.Private_key( self.pubkey, secret )
         self.secret = secret
@@ -557,7 +557,7 @@ def CKD(k, c, n):
     import hmac
     from ecdsa.util import string_to_number, number_to_string
     order = generator_secp256k1.order()
-    keypair = EC_KEY(string_to_number(k))
+    keypair = EC_KEY(k)
     K = GetPubKey(keypair.pubkey,True)
 
     if n & BIP32_PRIME: # We want to make a "secret" address that can't be determined from K
@@ -698,7 +698,7 @@ def test_crypto():
 
     message = "Chancellor on brink of second bailout for banks"
     enc = EC_KEY.encrypt_message(message,pubkey_c)
-    eck = EC_KEY(pvk)
+    eck = EC_KEY(number_to_string(pvk,_r))
     dec = eck.decrypt_message(enc)
     print "decrypted", dec
 
