@@ -95,11 +95,12 @@ register_command('signmessage',          2,-1, False, True,  True,  'Sign a mess
 register_command('unfreeze',             1, 1, False, True,  False, 'Unfreeze the funds at one of your wallet\'s address', 'unfreeze <address>')
 register_command('validateaddress',      1, 1, False, False, False, 'Check that the address is valid', 'validateaddress <address>')
 register_command('verifymessage',        3,-1, False, False, False, 'Verifies a signature', verifymessage_syntax)
-register_command('encrypt',              2,-1, False, False, False, 'encrypt a message with pubkey')
-register_command('decrypt',              2,-1, False, False, False, 'decrypt a message with privkey')
 
+register_command('encrypt',              2,-1, False, False, False, 'encrypt a message with pubkey','encrypt <pubkey> <message>')
+register_command('decrypt',              2,-1, False, False, False, 'decrypt a message with privkey','decrypt <privkey> <message>')
 register_command('daemon',               1, 1, True, False, False, 'start/stop daemon')
-register_command('getproof',             1, 1, True, False, False, 'start/stop daemon')
+register_command('getproof',             1, 1, True, False, False, 'get merkle proof', 'getproof <address>')
+register_command('getunspentaddress',    2, 2, True, False, False, 'get the address of an unspent','getunspentaddress <txid> <pos>')
 
 
 
@@ -150,6 +151,10 @@ class Commands:
 
     def getaddressunspent(self, addr):
         return self.network.synchronous_get([ ('blockchain.address.listunspent',[addr]) ])[0]
+
+
+    def getunspentaddress(self, txid, num):
+        return self.network.synchronous_get([ ('blockchain.utxo.get_address',[txid, num]) ])[0]
 
 
     def createrawtransaction(self, inputs, outputs):
