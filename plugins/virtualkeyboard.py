@@ -9,7 +9,7 @@ class Plugin(BasePlugin):
         return 'Virtual Keyboard'
 
     def description(self):
-        return '%s\n%s' % (_("Add an optional, mouse keyboard to the password dialog."), _("Warning: do not use this if it makes you pick a weaker password."))
+        return '%s\n%s' % (_("Add an optional virtual keyboard to the password dialog."), _("Warning: do not use this if it makes you pick a weaker password."))
 
     def init(self):
         self.vkb = None

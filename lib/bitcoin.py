@@ -388,7 +388,6 @@ def bip32_init(seed):
 
 def get_pubkeys_from_secret(secret):
     # public key
-    curve = SECP256k1
     private_key = ecdsa.SigningKey.from_string( secret, curve = SECP256k1 )
     public_key = private_key.get_verifying_key()
     K = public_key.to_string()
@@ -397,7 +396,14 @@ def get_pubkeys_from_secret(secret):
 
 
 
-    
+# Child private key derivation function (from master private key)
+# k = master private key (32 bytes)
+# c = master chain code (extra entropy for key derivation) (32 bytes)
+# n = the index of the key we want to derive. (only 32 bits will be used)
+# If n is negative (i.e. the 32nd bit is set), the resulting private key's
+#  corresponding public key can NOT be determined without the master private key.
+# However, if n is positive, the resulting private key's corresponding
+#  public key can be determined without the master private key.
 def CKD(k, c, n):
     import hmac
     from ecdsa.util import string_to_number, number_to_string
@@ -405,17 +411,22 @@ def CKD(k, c, n):
     keypair = EC_KEY(string_to_number(k))
     K = GetPubKey(keypair.pubkey,True)
 
-    if n & BIP32_PRIME:
+    if n & BIP32_PRIME: # We want to make a "secret" address that can't be determined from K
         data = chr(0) + k + rev_hex(int_to_hex(n,4)).decode('hex')
         I = hmac.new(c, data, hashlib.sha512).digest()
-    else:
+    else: # We want a "non-secret" address that can be determined from K
         I = hmac.new(c, K + rev_hex(int_to_hex(n,4)).decode('hex'), hashlib.sha512).digest()
         
     k_n = number_to_string( (string_to_number(I[0:32]) + string_to_number(k)) % order , order )
     c_n = I[32:]
     return k_n, c_n
 
-
+# Child public key derivation function (from public key only)
+# K = master public key 
+# c = master chain code
+# n = index of key we want to derive
+# This function allows us to find the nth public key, as long as n is 
+#  non-negative. If n is negative, we need the master private key to find it.
 def CKD_prime(K, c, n):
     import hmac
     from ecdsa.util import string_to_number, number_to_string

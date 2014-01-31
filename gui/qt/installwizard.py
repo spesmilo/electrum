@@ -127,7 +127,8 @@ class InstallWizard(QDialog):
         if not self.exec_():
             return
 
-        seed = unicode(seed_e.toPlainText())
+        seed = seed_e.toPlainText()
+        seed = unicode(seed.toLower())
 
         if not seed:
             QMessageBox.warning(None, _('Error'), _('No seed'), _('OK'))
@@ -309,6 +310,7 @@ class InstallWizard(QDialog):
             else:
                 QMessageBox.information(None, _('Warning'), _('You are offline'), _('OK'))
                 self.network.stop()
+                self.network = None
 
         # start wallet threads
         wallet.start_threads(self.network)

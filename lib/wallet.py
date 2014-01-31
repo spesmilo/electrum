@@ -741,6 +741,8 @@ class Wallet:
     def add_keypairs_from_wallet(self, tx, keypairs, password):
         for txin in tx.inputs:
             address = txin['address']
+            if not self.is_mine(address):
+                continue
             private_keys = self.get_private_key(address, password)
             for sec in private_keys:
                 pubkey = public_key_from_private_key(sec)
@@ -1386,7 +1388,7 @@ class Wallet:
         # synchronous
         h = self.send_tx(tx)
         self.tx_event.wait()
-        return self.receive_tx(h)
+        return self.receive_tx(h, tx)
 
     def send_tx(self, tx):
         # asynchronous
@@ -1398,10 +1400,11 @@ class Wallet:
         self.tx_result = r.get('result')
         self.tx_event.set()
 
-    def receive_tx(self,tx_hash):
+    def receive_tx(self, tx_hash, tx):
         out = self.tx_result 
         if out != tx_hash:
             return False, "error: " + out
+        run_hook('receive_tx', tx, self)
         return True, out
 
 

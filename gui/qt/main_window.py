@@ -98,37 +98,22 @@ class StatusBarButton(QPushButton):
 default_column_widths = { "history":[40,140,350,140], "contacts":[350,330], "receive": [370,200,130] }
 
 class ElectrumWindow(QMainWindow):
-    def changeEvent(self, event):
-        flags = self.windowFlags();
-        if event and event.type() == QtCore.QEvent.WindowStateChange:
-            if self.windowState() & QtCore.Qt.WindowMinimized:
-                self.build_menu(True)
-                # The only way to toggle the icon in the window managers taskbar is to use the Qt.Tooltip flag
-                # The problem is that it somehow creates an (in)visible window that will stay active and prevent
-                # Electrum from closing.
-                # As for now I have no clue how to implement a proper 'hide to tray' functionality.
-                # self.setWindowFlags(flags & ~Qt.ToolTip)
-            elif event.oldState() & QtCore.Qt.WindowMinimized:
-                self.build_menu(False)
-                #self.setWindowFlags(flags | Qt.ToolTip)
-
-    def build_menu(self, is_hidden = False):
+    def build_menu(self):
         m = QMenu()
-        if self.isMinimized():
-            m.addAction(_("Show"), self.showNormal)
-        else:
-            m.addAction(_("Hide"), self.showMinimized)
-
+        m.addAction(_("Show/Hide"), self.show_or_hide)
         m.addSeparator()
         m.addAction(_("Exit Electrum"), self.close)
         self.tray.setContextMenu(m)
 
+    def show_or_hide(self):
+        self.tray_activated(QSystemTrayIcon.DoubleClick)
+
     def tray_activated(self, reason):
         if reason == QSystemTrayIcon.DoubleClick:
-            self.showNormal()
-
-    def showNormal(self):
-        self.setWindowState(self.windowState() & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
+            if self.isMinimized() or self.isHidden():
+                self.show()
+            else:
+                self.hide()
 
     def __init__(self, config, network):
         QMainWindow.__init__(self)
@@ -681,9 +666,6 @@ class ElectrumWindow(QMainWindow):
     def current_item_changed(self, a):
         run_hook('current_item_changed', a)
 
-        self.pay_from = []
-        self.tabs.emit(SIGNAL('currentChanged(int)'), 1)
-
 
 
     def update_history_tab(self):
@@ -766,7 +748,6 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.message_e, 2, 1, 1, 3)
         grid.addWidget(HelpButton(_('Description of the transaction (not mandatory).') + '\n\n' + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.')), 2, 4)
 
-        self.pay_from = []
         self.from_label = QLabel(_('From'))
         grid.addWidget(self.from_label, 3, 0)
         self.from_list = QTreeWidget(self)
@@ -776,7 +757,7 @@ class ElectrumWindow(QMainWindow):
         self.from_list.setHeaderHidden (True)
         self.from_list.setMaximumHeight(80)
         grid.addWidget(self.from_list, 3, 1, 1, 3)
-        self.connect(self.tabs, SIGNAL('currentChanged(int)'), lambda: self.update_pay_from_list(grid))
+        self.set_pay_from([])
 
         self.amount_e = AmountEdit(self.base_unit)
         grid.addWidget(QLabel(_('Amount')), 4, 0)
@@ -859,7 +840,8 @@ class ElectrumWindow(QMainWindow):
         return w2
 
 
-    def update_pay_from_list(self, grid):
+    def set_pay_from(self, l):
+        self.pay_from = l
         self.from_list.clear()
         self.from_label.setHidden(len(self.pay_from) == 0)
         self.from_list.setHidden(len(self.pay_from) == 0)
@@ -941,7 +923,7 @@ class ElectrumWindow(QMainWindow):
         if tx.is_complete:
             h = self.wallet.send_tx(tx)
             waiting_dialog(lambda: False if self.wallet.tx_event.isSet() else _("Please wait..."))
-            status, msg = self.wallet.receive_tx( h )
+            status, msg = self.wallet.receive_tx( h, tx )
             if status:
                 QMessageBox.information(self, '', _('Payment sent.')+'\n'+msg, _('OK'))
                 self.do_clear()
@@ -1003,9 +985,7 @@ class ElectrumWindow(QMainWindow):
             e.setText('')
             self.set_frozen(e,False)
 
-        self.pay_from = []
-        self.tabs.emit(SIGNAL('currentChanged(int)'), 1)
-
+        self.set_pay_from([])
         self.update_status()
 
     def set_frozen(self,entry,frozen):
@@ -1175,7 +1155,8 @@ class ElectrumWindow(QMainWindow):
         if any(addr in self.wallet.frozen_addresses for addr in addrs):
             menu.addAction(_("Unfreeze"), lambda: self.set_addrs_frozen(addrs, False))
 
-        menu.addAction(_("Send From"), lambda: self.send_from_addresses(addrs))
+        if any(addr not in self.wallet.frozen_addresses for addr in addrs):
+            menu.addAction(_("Send From"), lambda: self.send_from_addresses(addrs))
 
         run_hook('receive_menu', menu, addrs)
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
@@ -1193,7 +1174,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def send_from_addresses(self, addrs):
-        self.pay_from = addrs[:]
+        self.set_pay_from( addrs )
         self.tabs.setCurrentIndex(1)
 
 
@@ -1217,18 +1198,20 @@ class ElectrumWindow(QMainWindow):
 
     def create_contact_menu(self, position):
         item = self.contacts_list.itemAt(position)
-        if not item: return
-        addr = unicode(item.text(0))
-        label = unicode(item.text(1))
-        is_editable = item.data(0,32).toBool()
-        payto_addr = item.data(0,33).toString()
         menu = QMenu()
-        menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
-        menu.addAction(_("Pay to"), lambda: self.payto(payto_addr))
-        menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")))
-        if is_editable:
-            menu.addAction(_("Edit label"), lambda: self.edit_label(False))
-            menu.addAction(_("Delete"), lambda: self.delete_contact(addr))
+        if not item:
+            menu.addAction(_("New contact"), lambda: self.new_contact_dialog())
+        else:
+            addr = unicode(item.text(0))
+            label = unicode(item.text(1))
+            is_editable = item.data(0,32).toBool()
+            payto_addr = item.data(0,33).toString()
+            menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
+            menu.addAction(_("Pay to"), lambda: self.payto(payto_addr))
+            menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")))
+            if is_editable:
+                menu.addAction(_("Edit label"), lambda: self.edit_label(False))
+                menu.addAction(_("Delete"), lambda: self.delete_contact(addr))
 
         run_hook('create_contact_menu', menu, item)
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
@@ -1311,7 +1294,7 @@ class ElectrumWindow(QMainWindow):
                         item.setBackgroundColor(1, QColor('red'))
                     if len(h) > 0 and c == -u:
                         if not used_flag:
-                            seq_item.addChild(used_item)
+                            seq_item.insertChild(0,used_item)
                             used_flag = True
                         used_item.addChild(item)
                     else:
@@ -2103,7 +2086,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(unit_combo, 3, 1)
         grid.addWidget(HelpButton(_('Base unit of your wallet.')\
                                              + '\n1BTC=1000mBTC.\n' \
-                                             + _(' This settings affects the fields in the Send tab')+' '), 3, 2)
+                                             + _(' These settings affects the fields in the Send tab')+' '), 3, 2)
 
         usechange_cb = QCheckBox(_('Use change addresses'))
         usechange_cb.setChecked(self.wallet.use_change)

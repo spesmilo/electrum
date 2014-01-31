@@ -204,8 +204,6 @@ class TxDialog(QDialog):
         result, result_message = self.wallet.sendtx( self.tx )
         if result:
             self.show_message(_("Transaction successfully sent")+': %s' % (result_message))
-            if dialog:
-                dialog.done(0)
         else:
             self.show_message(_("There was a problem sending your transaction:") + '\n %s' % (result_message))
 

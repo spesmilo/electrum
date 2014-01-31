@@ -256,7 +256,7 @@ if __name__ == '__main__':
             wallet.init_seed(None)
             wallet.save_seed(password)
             wallet.synchronize()
-            print_msg("Your wallet generation seed is:\n\"%s\"" % wallet.get_mnemonic(None))
+            print_msg("Your wallet generation seed is:\n\"%s\"" % wallet.get_mnemonic(password))
             print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
 
         print_msg("Wallet saved in '%s'" % wallet.storage.path)

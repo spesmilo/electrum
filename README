@@ -26,7 +26,7 @@ https://en.bitcoin.it/wiki/Electrum
 == HOW OFFICIAL PACKAGES ARE CREATED ==
 
 python mki18n.py
-pyrcc4 icons.qrc -o gui/icons_rc.py
+pyrcc4 icons.qrc -o gui/qt/icons_rc.py
 python setup.py sdist --format=zip,gztar
 
 On Mac OS X:
