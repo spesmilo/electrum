@@ -375,7 +375,7 @@ class Wallet:
 
 
     def create_master_keys(self, account_type, password):
-        master_k, master_c, master_K, master_cK = bip32_init(self.get_seed(None))
+        master_k, master_c, master_K, master_cK = bip32_init(self.get_seed(password))
         if account_type == '1':
             k0, c0, K0, cK0 = bip32_private_derivation(master_k, master_c, "m/", "m/0'/")
             self.master_public_keys["m/0'/"] = (c0, K0, cK0)
@@ -426,9 +426,9 @@ class Wallet:
     def deseed_branch(self, k):
         # check that parent has no seed
         # assert self.seed == ''
-        k = self.master_private_keys.pop(k)
+        self.master_private_keys.pop(k)
         self.storage.put('master_private_keys', self.master_private_keys, True)
-        return k
+
 
     def is_watching_only(self):
         return (self.seed == '') and (self.master_private_keys == {})
@@ -608,7 +608,9 @@ class Wallet:
             return repr((c, K))
 
     def get_master_private_key(self, account, password):
-        master_k = pw_decode( self.master_private_keys[account], password)
+        k = self.master_private_keys.get(account)
+        if not k: return
+        master_k = pw_decode( k, password)
         master_c, master_K, master_Kc = self.master_public_keys[account]
         try:
             K, Kc = get_pubkeys_from_secret(master_k.decode('hex'))
