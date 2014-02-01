@@ -150,6 +150,9 @@ class WalletStorage:
             os.chmod(self.path,stat.S_IREAD | stat.S_IWRITE)
 
 
+
+    
+
 class Wallet:
 
     def __init__(self, storage):
@@ -179,12 +182,6 @@ class Wallet:
 
         self.next_addresses = storage.get('next_addresses',{})
 
-        if self.seed_version not in [4, 6]:
-            msg = "This wallet seed is not supported."
-            if self.seed_version in [5]:
-                msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%self.seed_version
-                print msg
-                sys.exit(1)
 
         # This attribute is set when wallet.start_threads is called.
         self.synchronizer = None
@@ -297,7 +294,7 @@ class Wallet:
 
 
     def init_seed(self, seed):
-        import mnemonic
+        import mnemonic, unicodedata
         
         if self.seed: 
             raise Exception("a seed exists")
@@ -306,6 +303,10 @@ class Wallet:
             self.seed = self.make_seed()
             self.seed_version = SEED_VERSION
             return
+
+        self.seed_version = SEED_VERSION
+        self.seed = unicodedata.normalize('NFC', unicode(seed.strip()))
+        return
 
         # find out what kind of wallet we are
         try:
@@ -682,14 +683,13 @@ class Wallet:
         return '&'.join(dd)
 
 
-
     def get_seed(self, password):
         s = pw_decode(self.seed, password)
         if self.seed_version == 4:
             seed = s
             self.accounts[0].check_seed(seed)
         else:
-            seed = mnemonic_hash(s)
+            seed = mnemonic_to_seed(s,'').encode('hex')
         return seed
         
 
@@ -700,7 +700,6 @@ class Wallet:
             return ' '.join(mnemonic.mn_encode(s))
         else:
             return s
-
         
 
     def get_private_key(self, address, password):
@@ -1763,3 +1762,5 @@ class WalletSynchronizer(threading.Thread):
                 # Updated gets called too many times from other places as well; if we use that signal we get the notification three times
                 self.network.trigger_callback("new_transaction") 
                 self.was_updated = False
+
+

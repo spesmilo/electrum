@@ -62,9 +62,14 @@ def Hash(x):
 
 hash_encode = lambda x: x[::-1].encode('hex')
 hash_decode = lambda x: x.decode('hex')[::-1]
-
 hmac_sha_512 = lambda x,y: hmac.new(x, y, hashlib.sha512).digest()
-mnemonic_hash = lambda x: hmac_sha_512("Bitcoin mnemonic", x).encode('hex')
+
+def mnemonic_to_seed(mnemonic, passphrase):
+    from pbkdf2 import PBKDF2
+    import hmac
+    PBKDF2_ROUNDS = 2048
+    return PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
+
 from version import SEED_PREFIX
 is_seed = lambda x: hmac_sha_512("Seed version", x).encode('hex')[0:2].startswith(SEED_PREFIX)
 
