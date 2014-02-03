@@ -348,17 +348,6 @@ def point_to_ser(P, comp=True ):
     return ( '04'+('%064x'%P.x())+('%064x'%P.y()) ).decode('hex')
 
 
-def encode_point(pubkey, compressed=False):
-    order = generator_secp256k1.order()
-    p = pubkey.pubkey.point
-    x_str = ecdsa.util.number_to_string(p.x(), order)
-    y_str = ecdsa.util.number_to_string(p.y(), order)
-    if compressed:
-        return chr(2 + (p.y() & 1)) + x_str
-    else:
-        return chr(4) + pubkey.to_string() #x_str + y_str
-
-
 def ser_to_point(Aser):
     curve = curve_secp256k1
     generator = generator_secp256k1
@@ -435,7 +424,7 @@ class EC_KEY(object):
         # check that Q is the public key
         public_key.verify_digest( sig[1:], h, sigdecode = ecdsa.util.sigdecode_string)
         # check that we get the original signing address
-        addr = public_key_to_bc_address( encode_point(public_key, compressed) )
+        addr = public_key_to_bc_address( point_to_ser(public_key.pubkey.point, compressed) )
         if address != addr:
             raise Exception("Bad signature")
 
