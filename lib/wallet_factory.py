@@ -28,6 +28,9 @@ class WalletFactory(object):
     @classmethod
     def from_seed(self, seed, storage):
         import mnemonic
+        if not seed:
+            return 
+
         words = seed.strip().split()
         try:
             mnemonic.mn_decode(words)
@@ -49,5 +52,6 @@ class WalletFactory(object):
             #assert is_seed(seed)
             w = Wallet(storage)
             w.init_seed(seed)
+
 
         return w

@@ -327,19 +327,19 @@ class Wallet:
             }
         self.storage.put('master_public_keys', self.master_public_keys, True)
         self.storage.put('seed_version', self.seed_version, True)
-        self.create_account('1','Main account')
+        self.create_account('1of1','Main account')
 
 
     def create_accounts(self, password):
         seed = pw_decode(self.seed, password)
         # create default account
-        self.create_master_keys('1', password)
-        self.create_account('1','Main account')
+        self.create_master_keys('1of1', password)
+        self.create_account('1of1','Main account')
 
 
     def create_master_keys(self, account_type, password):
         master_k, master_c, master_K, master_cK = bip32_init(self.get_seed(password))
-        if account_type == '1':
+        if account_type == '1of1':
             k0, c0, K0, cK0 = bip32_private_derivation(master_k, master_c, "m/", "m/0'/")
             self.master_public_keys["m/0'/"] = (c0, K0, cK0)
             self.master_private_keys["m/0'/"] = pw_encode(k0, password)
@@ -365,7 +365,7 @@ class Wallet:
         self.storage.put('master_private_keys', self.master_private_keys, True)
 
     def has_master_public_keys(self, account_type):
-        if account_type == '1':
+        if account_type == '1of1':
             return "m/0'/" in self.master_public_keys
         elif account_type == '2of2':
             return set(["m/1'/", "m/2'/"]) <= set(self.master_public_keys.keys())
@@ -399,7 +399,7 @@ class Wallet:
 
 
     def account_id(self, account_type, i):
-        if account_type == '1':
+        if account_type == '1of1':
             return "m/0'/%d"%i
         elif account_type == '2of2':
             return "m/1'/%d & m/2'/%d"%(i,i)
@@ -419,7 +419,7 @@ class Wallet:
         return i
 
 
-    def new_account_address(self, account_type = '1'):
+    def new_account_address(self, account_type = '1of1'):
         i = self.num_accounts(account_type)
         k = self.account_id(account_type,i)
 
@@ -433,12 +433,12 @@ class Wallet:
         return k, addr
 
 
-    def next_account(self, account_type = '1'):
+    def next_account(self, account_type = '1of1'):
 
         i = self.num_accounts(account_type)
         account_id = self.account_id(account_type,i)
 
-        if account_type is '1':
+        if account_type is '1of1':
             master_c0, master_K0, _ = self.master_public_keys["m/0'/"]
             c0, K0, cK0 = bip32_public_derivation(master_c0.decode('hex'), master_K0.decode('hex'), "m/0'/", "m/0'/%d"%i)
             account = BIP32_Account({ 'c':c0, 'K':K0, 'cK':cK0 })
@@ -482,7 +482,7 @@ class Wallet:
 
 
 
-    def create_account(self, account_type = '1', name = None):
+    def create_account(self, account_type = '1of1', name = None):
         k, account = self.next_account(account_type)
         if k in self.pending_accounts:
             self.pending_accounts.pop(k)
@@ -854,7 +854,7 @@ class Wallet:
 
 
     def create_pending_accounts(self):
-        for account_type in ['1','2of2','2of3']:
+        for account_type in ['1of1','2of2','2of3']:
             if not self.has_master_public_keys(account_type):
                 continue
             k, a = self.new_account_address(account_type)
