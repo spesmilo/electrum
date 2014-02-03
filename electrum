@@ -210,17 +210,6 @@ if __name__ == '__main__':
     # instanciate wallet for command-line
     storage = WalletStorage(config)
 
-    if cmd.requires_wallet:
-        wallet = Wallet(storage)
-    else:
-        wallet = None
-
-    if cmd.name not in ['create', 'restore'] and cmd.requires_wallet and not storage.file_exists:
-        print_msg("Error: Wallet file not found.")
-        print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
-        sys.exit(0)
-
-
 
     if cmd.name in ['create', 'restore']:
         if storage.file_exists:
@@ -236,35 +225,26 @@ if __name__ == '__main__':
         if not config.get('server'):
             config.set_key('server', pick_random_server())
 
-        fee = options.tx_fee if options.tx_fee else raw_input("fee (default:%s):" % (str(Decimal(wallet.fee)/100000000)))
-        gap = options.gap_limit if options.gap_limit else raw_input("gap limit (default 5):")
-
-        if fee:
-            wallet.set_fee(float(fee)*100000000)
-        if gap:
-            wallet.change_gap_limit(int(gap))
+        #fee = options.tx_fee if options.tx_fee else raw_input("fee (default:%s):" % (str(Decimal(wallet.fee)/100000000)))
+        #gap = options.gap_limit if options.gap_limit else raw_input("gap limit (default 5):")
+        #if fee:
+        #    wallet.set_fee(float(fee)*100000000)
+        #if gap:
+        #    wallet.change_gap_limit(int(gap))
 
         if cmd.name == 'restore':
             import getpass
             seed = getpass.getpass(prompt="seed:", stream=None) if options.concealed else raw_input("seed:")
-            try:
-                seed.decode('hex')
-            except Exception:
-                print_error("Warning: Not hex, trying decode.")
-                seed = mnemonic_decode(seed.split(' '))
-            if not seed:
-                sys.exit("Error: No seed")
-
-            wallet.init_seed(str(seed))
+            wallet = Wallet.from_seed(str(seed),storage)
+            if not wallet:
+                sys.exit("Error: Invalid seed")
             wallet.save_seed(password)
             if not options.offline:
                 network = Network(config)
                 network.start()
                 wallet.start_threads(network)
-
                 print_msg("Recovering wallet...")
                 wallet.restore(lambda x: x)
-
                 if wallet.is_found():
                     print_msg("Recovery successful")
                 else:
@@ -274,6 +254,7 @@ if __name__ == '__main__':
                 print_msg("Warning: This wallet was restored offline. It may contain more addresses than displayed.")
 
         else:
+            wallet = Wallet(storage)
             wallet.init_seed(None)
             wallet.save_seed(password)
             wallet.synchronize()
@@ -284,6 +265,19 @@ if __name__ == '__main__':
 
         # terminate
         sys.exit(0)
+
+
+    if cmd.name not in ['create', 'restore'] and cmd.requires_wallet and not storage.file_exists:
+        print_msg("Error: Wallet file not found.")
+        print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
+        sys.exit(0)
+
+
+    if cmd.requires_wallet:
+        wallet = Wallet(storage)
+    else:
+        wallet = None
+
 
     # important warning
     if cmd.name in ['dumpprivkey', 'dumpprivkeys']:

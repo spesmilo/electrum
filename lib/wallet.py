@@ -308,29 +308,6 @@ class Wallet:
         self.seed = unicodedata.normalize('NFC', unicode(seed.strip()))
         return
 
-        # find out what kind of wallet we are
-        try:
-            seed.strip().decode('hex')
-            self.seed_version = 4
-            self.seed = str(seed)
-            return
-        except Exception:
-            pass
-
-        words = seed.split()
-        try:
-            mnemonic.mn_decode(words)
-            uses_electrum_words = True
-        except Exception:
-            uses_electrum_words = False
-        
-        if uses_electrum_words and len(words) != 13:
-            self.seed_version = 4
-            self.seed = mnemonic.mn_decode(words)
-        else:
-            #assert is_seed(seed)
-            self.seed_version = SEED_VERSION
-            self.seed = seed
             
 
     def save_seed(self, password):
@@ -343,18 +320,8 @@ class Wallet:
         self.create_accounts(password)
 
 
-    def create_watching_only_wallet(self, params):
-        K0, c0 = params
-        if not K0:
-            return
-
-        if not c0:
-            self.seed_version = 4
-            self.storage.put('seed_version', self.seed_version, True)
-            self.create_old_account(K0)
-            return
-
-        cK0 = ""
+    def create_watching_only_wallet(self, K0, c0):
+        cK0 = "" #FIXME
         self.master_public_keys = {
             "m/0'/": (c0, K0, cK0),
             }
@@ -365,14 +332,9 @@ class Wallet:
 
     def create_accounts(self, password):
         seed = pw_decode(self.seed, password)
-
-        if self.seed_version == 4:
-            mpk = OldAccount.mpk_from_seed(seed)
-            self.create_old_account(mpk)
-        else:
-            # create default account
-            self.create_master_keys('1', password)
-            self.create_account('1','Main account')
+        # create default account
+        self.create_master_keys('1', password)
+        self.create_account('1','Main account')
 
 
     def create_master_keys(self, account_type, password):
@@ -532,12 +494,6 @@ class Wallet:
             self.set_label(k, name)
 
 
-    def create_old_account(self, mpk):
-        self.storage.put('master_public_key', mpk, True)
-        self.accounts[0] = OldAccount({'mpk':mpk, 0:[], 1:[]})
-        self.save_accounts()
-
-
     def save_accounts(self):
         d = {}
         for k, v in self.accounts.items():
@@ -602,11 +558,8 @@ class Wallet:
         return s[0] == 1
 
     def get_master_public_key(self):
-        if self.seed_version == 4:
-            return self.storage.get("master_public_key")
-        else:
-            c, K, cK = self.storage.get("master_public_keys")["m/0'/"]
-            return repr((c, K))
+        c, K, cK = self.storage.get("master_public_keys")["m/0'/"]
+        return repr((c, K))
 
     def get_master_private_key(self, account, password):
         k = self.master_private_keys.get(account)
@@ -685,21 +638,12 @@ class Wallet:
 
     def get_seed(self, password):
         s = pw_decode(self.seed, password)
-        if self.seed_version == 4:
-            seed = s
-            self.accounts[0].check_seed(seed)
-        else:
-            seed = mnemonic_to_seed(s,'').encode('hex')
+        seed = mnemonic_to_seed(s,'').encode('hex')
         return seed
-        
+
 
     def get_mnemonic(self, password):
-        import mnemonic
-        s = pw_decode(self.seed, password)
-        if self.seed_version == 4:
-            return ' '.join(mnemonic.mn_encode(s))
-        else:
-            return s
+        return pw_decode(self.seed, password)
         
 
     def get_private_key(self, address, password):
@@ -752,23 +696,6 @@ class Wallet:
         for txin in tx.inputs:
             keyid = txin.get('KeyID')
             if keyid:
-
-                if self.seed_version == 4:
-                    m = re.match("old\(([0-9a-f]+),(\d+),(\d+)", keyid)
-                    if not m: continue
-                    mpk = m.group(1)
-                    if mpk != self.storage.get('master_public_key'): continue 
-                    for_change = int(m.group(2))
-                    num = int(m.group(3))
-                    account = self.accounts[0]
-                    addr = account.get_address(for_change, num)
-                    txin['address'] = addr # fixme: side effect
-                    pk = account.get_private_key(seed, (for_change, num))
-                    pubkey = public_key_from_private_key(pk)
-                    keypairs[pubkey] = pk
-                    continue
-
-
                 roots = []
                 for s in keyid.split('&'):
                     m = re.match("bip32\(([0-9a-f]+),([0-9a-f]+),(/\d+/\d+/\d+)", s)
@@ -1056,28 +983,22 @@ class Wallet:
 
 
     def get_account_name(self, k):
-        if k == 0:
-            if self.seed_version == 4: 
-                name = 'Main account'
+        default = "Unnamed account"
+        m = re.match("m/0'/(\d+)", k)
+        if m:
+            num = m.group(1)
+            if num == '0':
+                default = "Main account"
             else:
-                name = 'Old account'
-        else:
-            default = "Unnamed account"
-            m = re.match("m/0'/(\d+)", k)
-            if m:
-                num = m.group(1)
-                if num == '0':
-                    default = "Main account"
-                else:
-                    default = "Account %s"%num
+                default = "Account %s"%num
                     
-            m = re.match("m/1'/(\d+) & m/2'/(\d+)", k)
-            if m:
-                num = m.group(1)
-                default = "2of2 account %s"%num
-            name = self.labels.get(k, default)
-
+        m = re.match("m/1'/(\d+) & m/2'/(\d+)", k)
+        if m:
+            num = m.group(1)
+            default = "2of2 account %s"%num
+        name = self.labels.get(k, default)
         return name
+
 
     def get_account_names(self):
         accounts = {}
@@ -1086,6 +1007,7 @@ class Wallet:
         if self.imported_keys:
             accounts[-1] = 'Imported keys'
         return accounts
+
 
     def get_account_addresses(self, a, include_change=True):
         if a is None:
@@ -1763,4 +1685,89 @@ class WalletSynchronizer(threading.Thread):
                 self.network.trigger_callback("new_transaction") 
                 self.was_updated = False
 
+
+
+
+class OldWallet(Wallet):
+
+    def init_seed(self, seed):
+        import mnemonic
+        
+        if self.seed: 
+            raise Exception("a seed exists")
+
+        if not seed:
+            raise
+
+        self.seed_version = 4
+
+        # see if seed was entered as hex
+        try:
+            seed.strip().decode('hex')
+            self.seed = str(seed)
+            return
+        except Exception:
+            pass
+
+        words = seed.split()
+        try:
+            mnemonic.mn_decode(words)
+        except Exception:
+            raise
+
+        self.seed = mnemonic.mn_decode(words)
+            
+
+    def get_master_public_key(self):
+        return self.storage.get("master_public_key")
+
+    def create_accounts(self, password):
+        seed = pw_decode(self.seed, password)
+        mpk = OldAccount.mpk_from_seed(seed)
+        self.create_account(mpk)
+
+    def create_account(self, mpk):
+        self.storage.put('master_public_key', mpk, True)
+        self.accounts[0] = OldAccount({'mpk':mpk, 0:[], 1:[]})
+        self.save_accounts()
+
+    def create_watching_only_wallet(self, K0):
+        self.seed_version = 4
+        self.storage.put('seed_version', self.seed_version, True)
+        self.create_account(K0)
+
+    def get_seed(self, password):
+        seed = pw_decode(self.seed, password)
+        self.accounts[0].check_seed(seed)
+        return seed
+
+    def get_mnemonic(self, password):
+        import mnemonic
+        s = pw_decode(self.seed, password)
+        return ' '.join(mnemonic.mn_encode(s))
+
+
+    def add_keypairs_from_KeyID(self, tx, keypairs, password):
+        # first check the provided password
+        seed = self.get_seed(password)
+        for txin in tx.inputs:
+            keyid = txin.get('KeyID')
+            if keyid:
+                m = re.match("old\(([0-9a-f]+),(\d+),(\d+)", keyid)
+                if not m: continue
+                mpk = m.group(1)
+                if mpk != self.storage.get('master_public_key'): continue 
+                for_change = int(m.group(2))
+                num = int(m.group(3))
+                account = self.accounts[0]
+                addr = account.get_address(for_change, num)
+                txin['address'] = addr # fixme: side effect
+                pk = account.get_private_key(seed, (for_change, num))
+                pubkey = public_key_from_private_key(pk)
+                keypairs[pubkey] = pk
+
+
+    def get_account_name(self, k):
+        assert k == 0
+        return 'Main account'
 
