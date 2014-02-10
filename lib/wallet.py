@@ -29,6 +29,7 @@ import random
 import aes
 import Queue
 import time
+import math
 
 from util import print_msg, print_error, format_satoshis
 from bitcoin import *
@@ -1186,9 +1187,8 @@ class Wallet:
             self.storage.put('fee_per_kb', self.fee, True)
         
     def estimated_fee(self, inputs):
-        estimated_size =  len(inputs) * 180 + 80     # this assumes non-compressed keys
-        fee = self.fee * int(round(estimated_size/1024.))
-        if fee == 0: fee = self.fee
+        estimated_size =  len(inputs) * 180 + 80    # this assumes non-compressed keys
+        fee = self.fee * int(math.ceil(estimated_size/1000.))
         return fee
 
 
