@@ -308,14 +308,11 @@ class Wallet:
             self.seed_version = 4
             return
 
-        #if not seed:
-        #    self.seed = self.make_seed()
-        #    self.seed_version = SEED_VERSION
-        #    return
-
-        # find out what kind of wallet we are
+        # check if seed is hexadecimal
+        seed = seed.strip()
         try:
-            seed.strip().decode('hex')
+            assert seed
+            seed.decode('hex')
             self.seed_version = 4
             self.seed = str(seed)
             return
