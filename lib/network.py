@@ -22,6 +22,37 @@ DEFAULT_SERVERS = {
 }
 
 
+def parse_servers(result):
+    """ parse servers list into dict format"""
+    from version import PROTOCOL_VERSION
+    servers = {}
+    for item in result:
+        host = item[1]
+        out = {}
+        version = None
+        pruning_level = '-'
+        if len(item) > 2:
+            for v in item[2]:
+                if re.match("[stgh]\d*", v):
+                    protocol, port = v[0], v[1:]
+                    if port == '': port = DEFAULT_PORTS[protocol]
+                    out[protocol] = port
+                elif re.match("v(.?)+", v):
+                    version = v[1:]
+                elif re.match("p\d*", v):
+                    pruning_level = v[1:]
+                if pruning_level == '': pruning_level = '0'
+        try: 
+            is_recent = float(version)>=float(PROTOCOL_VERSION)
+        except Exception:
+            is_recent = False
+
+        if out and is_recent:
+            out['pruning'] = pruning_level
+            servers[host] = out
+
+    return servers
+
 
 
 def filter_protocol(servers, p):
@@ -353,7 +384,7 @@ class Network(threading.Thread):
 
     def on_peers(self, i, r):
         if not r: return
-        self.irc_servers = self.parse_servers(r.get('result'))
+        self.irc_servers = parse_servers(r.get('result'))
         self.trigger_callback('peers')
 
     def on_banner(self, i, r):
@@ -378,37 +409,6 @@ class Network(threading.Thread):
     #    if r:
     #        return transaction.Transaction(r)
 
-
-    def parse_servers(self, result):
-        """ parse servers list into dict format"""
-        from version import PROTOCOL_VERSION
-        servers = {}
-        for item in result:
-            host = item[1]
-            out = {}
-            version = None
-            pruning_level = '-'
-            if len(item) > 2:
-                for v in item[2]:
-                    if re.match("[stgh]\d*", v):
-                        protocol, port = v[0], v[1:]
-                        if port == '': port = DEFAULT_PORTS[protocol]
-                        out[protocol] = port
-                    elif re.match("v(.?)+", v):
-                        version = v[1:]
-                    elif re.match("p\d*", v):
-                        pruning_level = v[1:]
-                    if pruning_level == '': pruning_level = '0'
-            try: 
-                is_recent = float(version)>=float(PROTOCOL_VERSION)
-            except Exception:
-                is_recent = False
-
-            if out and is_recent:
-                out['pruning'] = pruning_level
-                servers[host] = out
-
-        return servers
 
 
 
