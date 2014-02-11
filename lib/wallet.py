@@ -325,20 +325,10 @@ class Wallet:
         words = seed.split()
         self.seed_version = 4
         self.seed = mnemonic.mn_decode(words)
+
+        if not self.seed:
+            raise Exception("Invalid seed")
         
-        #try:
-        #    mnemonic.mn_decode(words)
-        #    uses_electrum_words = True
-        #except Exception:
-        #    uses_electrum_words = False
-        #
-        #if uses_electrum_words and len(words) != 13:
-        #    self.seed_version = 4
-        #    self.seed = mnemonic.mn_decode(words)
-        #else:
-        #    assert mnemonic_hash(seed).startswith(SEED_PREFIX)
-        #    self.seed_version = SEED_VERSION
-        #    self.seed = seed
             
 
     def save_seed(self, password):
