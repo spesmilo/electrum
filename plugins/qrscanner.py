@@ -350,10 +350,10 @@ def parse_uri(uri):
     uri = urlparse(uri)
     result = {'address': uri.netloc} 
     
-    if uri.path.startswith('?'):
-        params = parse_qs(uri.path[1:])
+    if uri.query.startswith('?'):
+        params = parse_qs(uri.query[1:])
     else:
-        params = parse_qs(uri.path)    
+        params = parse_qs(uri.query)    
 
     for k,v in params.items():
         if k in ('amount', 'label', 'message'):
