@@ -111,7 +111,11 @@ class TxDialog(QDialog):
         if fileName:
             with open(fileName, "w+") as f:
                 f.write(json.dumps(self.tx.as_dict(),indent=4) + '\n')
-            self.show_message(_("Transaction saved successfully"))
+                if not self.tx.is_complete:
+                    f.write("xhistoryx" + str(self.wallet.history) + "xcontactsx" + str(self.wallet.addressbook) + "xlabelsx" + str(self.wallet.labels) + "xgaplimx" + str(self.wallet.gap_limit) + '\n')
+                    self.show_message(_("Transaction saved successfully"))
+                else:
+                    self.show_message(_("Transaction saved successfully"))
 
 
 

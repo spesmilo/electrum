@@ -1864,6 +1864,24 @@ class ElectrumWindow(QMainWindow):
         try:
             with open(fileName, "r") as f:
                 file_content = f.read()
+                if file_content.find('xhistoryx')>0: #Check to see if history is in the file.
+                    imphistory = file_content[file_content.find('xhistoryx')+9:file_content.find('xcontactsx')]
+                    impcontacts = file_content[file_content.find('xcontactsx')+10:file_content.find('xlabelsx')]
+                    implabels = file_content[file_content.find('xlabelsx')+8:file_content.find('xgaplimx')]
+                    impgap = file_content[file_content.find('xgaplimx')+8:len(file_content)-1]
+                    dicthist = ast.literal_eval(imphistory)
+                    dictcont = ast.literal_eval(impcontacts)
+                    dictlab = ast.literal_eval(implabels)
+                    vargap = ast.literal_eval(impgap)
+                    file_content = file_content[0:file_content.find('xhistoryx')]
+                    self.wallet.addressbook = dictcont
+                    self.wallet.history = dicthist
+                    self.wallet.labels = dictlab
+                    self.wallet.gap_limit = vargap
+                    self.wallet.storage.put('contacts', self.wallet.addressbook, True)
+                    self.wallet.storage.put('addr_history', self.wallet.history, True)
+                    self.wallet.storage.put('labels', self.wallet.labels, True)
+                    self.wallet.storage.put('gap_limit', self.wallet.gap_limit, True)
         except (ValueError, IOError, os.error), reason:
             QMessageBox.critical(None, _("Unable to read file or no transaction found"), _("Electrum was unable to open your transaction file") + "\n" + str(reason))
 
