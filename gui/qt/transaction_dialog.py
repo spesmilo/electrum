@@ -43,6 +43,7 @@ class TxDialog(QDialog):
         tx_dict = tx.as_dict()
         self.parent = parent
         self.wallet = parent.wallet
+        self.blockchain = self.wallet.verifier.blockchain
             
         QDialog.__init__(self)
         self.setMinimumWidth(600)
@@ -84,6 +85,11 @@ class TxDialog(QDialog):
         b.hide()
         buttons.addWidget(b)
 
+        self.offdata_button = b = QPushButton(_("Update Offline Wallet"))
+        b.clicked.connect(self.offdata)
+        b.hide()
+        buttons.addWidget(b)
+
         self.save_button = b = QPushButton(_("Save"))
         b.clicked.connect(self.save)
         buttons.addWidget(b)
@@ -103,6 +109,19 @@ class TxDialog(QDialog):
         input_info = json.loads(tx_dict["input_info"])
         self.parent.sign_raw_transaction(self.tx, input_info)
         self.update()
+
+    def offdata(self):
+        name = 'offline_data.offwall'
+        fileName = self.parent.getSaveFileName(_("Save Wallet balance and labels for offline wallet."), name, "*.offwall")
+        if fileName:
+            offstr = ("xhistoryx" + str(self.wallet.history) + "xcontactsx" + str(self.wallet.addressbook) + 
+            "xlabelsx" + str(self.wallet.labels) + "xgaplimx" + str(self.wallet.gap_limit) + 
+            "xtransx" + str(self.wallet.storage.get('transactions',{})) + "xverifiedx" + str(self.wallet.storage.get('verified_tx3',{})) + 
+            "xaccountsx" + str(self.wallet.storage.get('accounts',{})) + "xblockhtx" + str(self.blockchain.local_height) + '\n')
+            offstr = str(offstr.encode('base64','strict'))
+            with open(fileName, "w+") as f:
+                f.write(offstr)
+            self.show_message(_("Info saved Successfully!"))
 
 
     def save(self):
@@ -142,6 +161,7 @@ class TxDialog(QDialog):
             if not self.wallet.is_watching_only():
                 self.sign_button.show()
             else:
+                self.offdata_button.show()
                 self.sign_button.hide()
             self.broadcast_button.hide()
             tx_hash = 'unknown'
