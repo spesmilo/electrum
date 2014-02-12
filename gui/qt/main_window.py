@@ -98,22 +98,37 @@ class StatusBarButton(QPushButton):
 default_column_widths = { "history":[40,140,350,140], "contacts":[350,330], "receive": [370,200,130] }
 
 class ElectrumWindow(QMainWindow):
-    def build_menu(self):
+    def changeEvent(self, event):
+        flags = self.windowFlags();
+        if event and event.type() == QtCore.QEvent.WindowStateChange:
+            if self.windowState() & QtCore.Qt.WindowMinimized:
+                self.build_menu(True)
+                # The only way to toggle the icon in the window managers taskbar is to use the Qt.Tooltip flag
+                # The problem is that it somehow creates an (in)visible window that will stay active and prevent
+                # Electrum from closing.
+                # As for now I have no clue how to implement a proper 'hide to tray' functionality.
+                # self.setWindowFlags(flags & ~Qt.ToolTip)
+            elif event.oldState() & QtCore.Qt.WindowMinimized:
+                self.build_menu(False)
+                #self.setWindowFlags(flags | Qt.ToolTip)
+
+    def build_menu(self, is_hidden = False):
         m = QMenu()
-        m.addAction(_("Show/Hide"), self.show_or_hide)
+        if self.isMinimized():
+            m.addAction(_("Show"), self.showNormal)
+        else:
+            m.addAction(_("Hide"), self.showMinimized)
+
         m.addSeparator()
         m.addAction(_("Exit Electrum"), self.close)
         self.tray.setContextMenu(m)
 
-    def show_or_hide(self):
-        self.tray_activated(QSystemTrayIcon.DoubleClick)
-
     def tray_activated(self, reason):
         if reason == QSystemTrayIcon.DoubleClick:
-            if self.isMinimized() or self.isHidden():
-                self.show()
-            else:
-                self.hide()
+            self.showNormal()
+
+    def showNormal(self):
+        self.setWindowState(self.windowState() & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
 
     def __init__(self, config, network):
         QMainWindow.__init__(self)
@@ -1155,8 +1170,7 @@ class ElectrumWindow(QMainWindow):
         if any(addr in self.wallet.frozen_addresses for addr in addrs):
             menu.addAction(_("Unfreeze"), lambda: self.set_addrs_frozen(addrs, False))
 
-        if any(addr not in self.wallet.frozen_addresses for addr in addrs):
-            menu.addAction(_("Send From"), lambda: self.send_from_addresses(addrs))
+        menu.addAction(_("Send From"), lambda: self.send_from_addresses(addrs))
 
         run_hook('receive_menu', menu, addrs)
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
@@ -1864,6 +1878,24 @@ class ElectrumWindow(QMainWindow):
         try:
             with open(fileName, "r") as f:
                 file_content = f.read()
+                if file_content.find('xhistoryx')>0: #Check to see if history is in the file.
+                    imphistory = file_content[file_content.find('xhistoryx')+9:file_content.find('xcontactsx')]
+                    impcontacts = file_content[file_content.find('xcontactsx')+10:file_content.find('xlabelsx')]
+                    implabels = file_content[file_content.find('xlabelsx')+8:file_content.find('xgaplimx')]
+                    impgap = file_content[file_content.find('xgaplimx')+8:len(file_content)-1]
+                    dicthist = ast.literal_eval(imphistory)
+                    dictcont = ast.literal_eval(impcontacts)
+                    dictlab = ast.literal_eval(implabels)
+                    vargap = ast.literal_eval(impgap)
+                    file_content = file_content[0:file_content.find('xhistoryx')]
+                    self.wallet.addressbook = dictcont
+                    self.wallet.history = dicthist
+                    self.wallet.labels = dictlab
+                    self.wallet.gap_limit = vargap
+                    self.wallet.storage.put('contacts', self.wallet.addressbook, True)
+                    self.wallet.storage.put('addr_history', self.wallet.history, True)
+                    self.wallet.storage.put('labels', self.wallet.labels, True)
+                    self.wallet.storage.put('gap_limit', self.wallet.gap_limit, True)
         except (ValueError, IOError, os.error), reason:
             QMessageBox.critical(None, _("Unable to read file or no transaction found"), _("Electrum was unable to open your transaction file") + "\n" + str(reason))
 
@@ -2080,7 +2112,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(unit_combo, 3, 1)
         grid.addWidget(HelpButton(_('Base unit of your wallet.')\
                                              + '\n1BTC=1000mBTC.\n' \
-                                             + _(' These settings affects the fields in the Send tab')+' '), 3, 2)
+                                             + _(' This settings affects the fields in the Send tab')+' '), 3, 2)
 
         usechange_cb = QCheckBox(_('Use change addresses'))
         usechange_cb.setChecked(self.wallet.use_change)
