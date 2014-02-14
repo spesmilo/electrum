@@ -95,6 +95,10 @@ class NetworkDialog(QDialog):
         grid.addWidget(QLabel(_('Protocol') + ':'), 3, 0)
         grid.addWidget(self.server_protocol, 3, 1)
 
+        #one server only
+        self.oneserver_cb = QCheckBox(_('Connect to one server only'))
+        self.oneserver_cb.setChecked(self.config.get('oneserver', False))
+        grid.addWidget(self.oneserver_cb, 3, 2)
 
         # server
         grid.addWidget(QLabel(_('Server') + ':'), 0, 0)
@@ -139,6 +143,7 @@ class NetworkDialog(QDialog):
             self.server_host.setEnabled(enabled)
             self.server_port.setEnabled(enabled)
             self.servers_list_widget.setEnabled(enabled)
+            self.oneserver_cb.setEnabled(enabled)
 
         self.autocycle_cb.clicked.connect(enable_set_server)
         enable_set_server()
@@ -254,6 +259,7 @@ class NetworkDialog(QDialog):
             proxy = None
 
         auto_connect = self.autocycle_cb.isChecked()
+        oneserver = self.oneserver_cb.isChecked()
 
-        self.network.set_parameters(host, port, protocol, proxy, auto_connect)
+        self.network.set_parameters(host, port, protocol, proxy, auto_connect, oneserver)
         return True
