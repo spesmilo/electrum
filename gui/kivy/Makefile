@@ -1,0 +1,29 @@
+PYTHON = python
+# needs kivy installed or in PYTHONPATH
+
+.PHONY: theming apk clean
+
+theming:
+	$(PYTHON) -m kivy.atlas theming/light 1024 theming/light/*.png
+apk:
+	# running pre build setup
+	@cp build/buildozer.spec ../../buildozer.spec
+	# get aes.py
+	@cd ../..; wget -4 https://raw.github.com/devrandom/slowaes/master/python/aes.py
+	# rename electrum to main.py
+	@mv ../../electrum ../../main.py
+	@-if [ ! -d "../../.buildozer" ];then \
+		cd ../..; buildozer android debug;\
+		cp -f gui/kivy/build/blacklist.txt .buildozer/android/platform/python-for-android/src/blacklist.txt;\
+		rm -rf ./.buildozer/android/platform/python-for-android/dist;\
+	fi
+	@-cd ../..; buildozer android debug deploy run
+	@make clean
+clean:
+	# Cleaning up
+	# remove aes
+	@-rm ../../aes.py
+	# rename main.py to electrum
+	@-mv ../../main.py ../../electrum
+	# remove buildozer.spec
+	@-rm ../../buildozer.spec
