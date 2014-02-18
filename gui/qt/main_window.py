@@ -259,6 +259,10 @@ class ElectrumWindow(QMainWindow):
     def load_wallet(self, wallet):
         import electrum
         self.wallet = wallet
+        self.blockchain = self.wallet.verifier.blockchain
+        test_height_store = self.wallet.storage.get('blockht')
+        if test_height_store and not self.network.is_connected():
+            self.blockchain.local_height = self.wallet.storage.get('blockht')
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
 
@@ -426,6 +430,10 @@ class ElectrumWindow(QMainWindow):
         raw_transaction_text = raw_transaction_menu.addAction(_("&From text"))
         raw_transaction_text.triggered.connect(self.do_process_from_text)
 
+        tools_menu.addSeparator()
+
+        offlinedata_transfer_menu = tools_menu.addAction(_("&Update Offline Wallet"))
+        offlinedata_transfer_menu.triggered.connect(self.update_offline)
 
         help_menu = menubar.addMenu(_("&Help"))
         show_about = help_menu.addAction(_("&About"))
@@ -554,6 +562,11 @@ class ElectrumWindow(QMainWindow):
         else:
             text = _("Not connected")
             icon = QIcon(":icons/status_disconnected.png")
+
+        offhdrname = os.path.join( self.config.path, 'blockchain_headers_offline')
+        if os.path.exists(offhdrname) and self.network.is_connected():
+            os.remove(offhdrname[0:len(offhdrname)-8])
+            os.rename(offhdrname, offhdrname[0:len(offhdrname)-8])
 
         self.balance_label.setText(text)
         self.status_button.setIcon( icon )
@@ -1855,6 +1868,59 @@ class ElectrumWindow(QMainWindow):
 
         QMessageBox.critical(None, _("Unable to parse transaction"), _("Electrum was unable to parse your transaction"))
 
+
+    def update_offline(self):
+        if self.wallet.is_watching_only() or self.network.is_connected():
+            QMessageBox.information(self, _('Warning'), "Importing data should only be done on an offline Wallet.", _('OK'))
+            return
+        fileName = self.getOpenFileName(_("Select your Watch-only wallet data"), "*.offwall")
+        if not fileName:
+            return
+        try:
+            with open(fileName, "r") as f:
+                file_content = f.read()
+                file_content = file_content.decode('base64','strict')
+                acctstr = str(self.wallet.storage.get('master_public_key'))
+                acctstr = acctstr[0:128]
+                if file_content[file_content.find('\'mpk\': \'')+8:file_content.find('\'mpk\': \'')+136] != acctstr:
+                    QMessageBox.information(self, _('Warning'), "Data does not match Current Wallet!!! Aborting...", _('OK'))
+                    return
+                imphistory = file_content[file_content.find('xhistoryx')+9:file_content.find('xcontactsx')]
+                impcontacts = file_content[file_content.find('xcontactsx')+10:file_content.find('xlabelsx')]
+                implabels = file_content[file_content.find('xlabelsx')+8:file_content.find('xgaplimx')]
+                impgap = file_content[file_content.find('xgaplimx')+8:file_content.find('xtransx')]
+                imptrans = file_content[file_content.find('xtransx')+7:file_content.find('xverifiedx')]
+                impvertx = file_content[file_content.find('xverifiedx')+10:file_content.find('xaccountsx')]
+                impacc = file_content[file_content.find('xaccountsx')+10:file_content.find('xblockhtx')]
+                impblockht = file_content[file_content.find('xblockhtx')+9:len(file_content)-1]
+                dicthist = ast.literal_eval(imphistory)
+                dictcont = ast.literal_eval(impcontacts)
+                dictlab = ast.literal_eval(implabels)
+                vargap = ast.literal_eval(impgap)
+                dicttrans = ast.literal_eval(imptrans)
+                dictver = ast.literal_eval(impvertx)
+                dictacc = ast.literal_eval(impacc)
+                varblockht = ast.literal_eval(impblockht)
+                self.wallet.addressbook = dictcont
+                self.wallet.history = dicthist
+                self.wallet.labels = dictlab
+                self.wallet.gap_limit = vargap
+                self.wallet.storage.put('contacts', self.wallet.addressbook, True)
+                self.wallet.storage.put('addr_history', self.wallet.history, True)
+                self.wallet.storage.put('labels', self.wallet.labels, True)
+                self.wallet.storage.put('gap_limit', self.wallet.gap_limit, True)
+                self.wallet.storage.put('transactions', dicttrans, True)
+                self.wallet.storage.put('verified_tx3', dictver, True)
+                self.wallet.storage.put('accounts', dictacc, True)
+                self.wallet.storage.put('blockht', varblockht, True)
+                headername = os.path.join( self.config.path, 'blockchain_headers')
+                if os.path.exists(headername) and not os.path.exists(headername + "_offline"):
+                    os.rename(headername, headername + "_offline")
+                self.blockchain.local_height = varblockht
+                self.update_history_tab()
+        except (ValueError, IOError, os.error), reason:
+            QMessageBox.critical(None, _("Unable to read file or no data found"), _("Electrum was unable to open your data file") + "\n" + str(reason))
+        QMessageBox.information(self, _('Message'), "Data loaded OK! Please close and then re-open Electrum.", _('OK'))
 
 
     def read_tx_from_file(self):
