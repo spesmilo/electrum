@@ -92,9 +92,9 @@
     size_hint: None, None
     width: '270dp' if root.fs else min(self.width, dp(270))
     height: self.width if self.fs else (lbl.texture_size[1] + dp(27))
-    on_touch_down: self.hide()
     BoxLayout:
         padding: '5dp'
+        spacing: '5dp'
         Widget:
             size_hint: None, 1
             width: '4dp' if root.fs else '2dp'
@@ -179,8 +179,8 @@
                 size_hint: 1, None
                 height: grid_logo.height/2.5 if self.opacity else 0
         Widget:
-            size_hint: 1, None
-            height: '5dp'
+            size_hint: None, None
+            size: '5dp', '5dp'
         GridLayout:
             cols: 1
             id: crcontent
@@ -218,6 +218,53 @@
         #    id: watching
         #    text: _('Create a Watching only wallet')
         #    root: root
+
+<RestoreSeedDialog>
+    GridLayout
+        # leave room for future selection of gap through a widget
+        # removed for mobile
+        id: text_input_gap
+        text: '5'
+
+        cols: 1
+        padding: 0, '12dp'
+        orientation: 'vertical'
+        spacing: '12dp'
+        size_hint: 1, None
+        height: self.minimum_height
+        CreateAccountTextInput:
+            id: text_input_seed
+            size_hint: 1, None
+            height: '110dp'
+            hint_text:
+                _('Enter your seedphrase')
+        Label:
+            font_size: '12sp'
+            text_size: self.width, None
+            size_hint: 1, None
+            height: self.texture_size[1]
+            halign: 'justify'
+            valign: 'middle'
+            text:
+                _('If you need additional information, please check '
+                '[color=#0000ff][ref=1]'
+                'https://electrum.org/faq.html#seed[/ref][/color]')
+            on_ref_press:
+                import webbrowser
+                webbrowser.open('https://electrum.org/faq.html#seed')
+    GridLayout:
+        rows: 1
+        spacing: '12dp'
+        size_hint: 1, None
+        height: self.minimum_height
+        CreateAccountButtonBlue:
+            id: back
+            text: _('Back')
+            root: root
+        CreateAccountButtonGreen:
+            id: next
+            text: _('Next')
+            root: root
 
 <InitSeedDialog>
     spacing: '12dp'
@@ -281,37 +328,50 @@
 
 <ChangePasswordDialog>
     padding: '7dp'
-    CreateAccountTextInput:
-        id: ti_wallet_name
-        hint_text: 'Your Wallet Name'
-        multiline: False
-        on_text_validate:
-            next = ti_new_password if ti_password.disabled else ti_password
-            next.focus = True
-    CreateAccountTextInput:
-        id: ti_password
-        hint_text: 'Enter old pincode'
+    GridLayout:
         size_hint_y: None
-        height: 0 if self.disabled else '38sp'
-        password: True
-        disabled: True if root.mode in ('new', 'create') else False
-        opacity: 0 if self.disabled else 1
-        multiline: False
-        on_text_validate:
-            #root.validate_old_password()
-            ti_new_password.focus = True
-    CreateAccountTextInput:
-        id: ti_new_password
-        hint_text: 'Enter new pincode'
-        multiline: False
-        password: True
-        on_text_validate: ti_confirm_password.focus = True
-    CreateAccountTextInput:
-        id: ti_confirm_password
-        hint_text: 'Confirm pincode'
-        password: True
-        multiline: False
-        on_text_validate: root.validate_new_passowrd()
+        height: self.minimum_height
+        cols: 1
+        CreateAccountTextInput:
+            id: ti_wallet_name
+            hint_text: 'Your Wallet Name'
+            multiline: False
+            on_text_validate:
+                next = ti_new_password if ti_password.disabled else ti_password
+                next.focus = True
+        Widget:
+            size_hint_y: None
+            height: '13dp'
+        CreateAccountTextInput:
+            id: ti_password
+            hint_text: 'Enter old pincode'
+            size_hint_y: None
+            height: 0 if self.disabled else '38sp'
+            password: True
+            disabled: True if root.mode in ('new', 'create', 'restore') else False
+            opacity: 0 if self.disabled else 1
+            multiline: False
+            on_text_validate:
+                #root.validate_old_password()
+                ti_new_password.focus = True
+        Widget:
+            size_hint_y: None
+            height: 0 if ti_password.disabled else '13dp'
+        CreateAccountTextInput:
+            id: ti_new_password
+            hint_text: 'Enter new pincode'
+            multiline: False
+            password: True
+            on_text_validate: ti_confirm_password.focus = True
+        Widget:
+            size_hint_y: None
+            height: '13dp'
+        CreateAccountTextInput:
+            id: ti_confirm_password
+            hint_text: 'Confirm pincode'
+            password: True
+            multiline: False
+            on_text_validate: root.validate_new_password()
     Widget
     GridLayout:
         rows: 1
@@ -322,9 +382,10 @@
             id: back
             text: _('Back')
             root: root
+            disabled: True if root.mode[0] == 'r' else self.disabled
         CreateAccountButtonGreen:
             id: next
-            text: _('Next')
+            text: _('Confirm') if root.mode[0] == 'r' else _('Next')
             root: root
 
 ###############################################

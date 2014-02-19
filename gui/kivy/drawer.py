@@ -31,7 +31,7 @@ class Drawer(StencilView):
     and defaults to 200 (milliseconds)
     '''
 
-    scroll_distance = NumericProperty('4dp')
+    scroll_distance = NumericProperty('9dp')
     '''Distance to move before scrolling the :class:`Drawer` in pixels.
     As soon as the distance has been traveled, the :class:`Drawer` will
     start to scroll, and no touch event will go to children.
@@ -68,6 +68,11 @@ class Drawer(StencilView):
         if self.disabled:
             return
 
+        if not self.collide_point(*touch.pos):
+            return
+
+        touch.grab(self)
+
         global app
         if not app:
             from kivy.app import App
@@ -91,10 +96,9 @@ class Drawer(StencilView):
         return
 
     def on_touch_move(self, touch):
-        global app
-        if not app:
-            from kivy.app import App
-            app = App.get_running_app()
+        if not touch.grab_current:
+            return
+
         # skip on tablet mode
         if app.ui_mode[0] == 't':
             return super(Drawer, self).on_touch_move(touch)
@@ -124,6 +128,9 @@ class Drawer(StencilView):
         return
 
     def on_touch_up(self, touch):
+        if not touch.grab_current:
+            return
+
         # skip on tablet mode
         if app.ui_mode[0] == 't':
             return super(Drawer, self).on_touch_down(touch)

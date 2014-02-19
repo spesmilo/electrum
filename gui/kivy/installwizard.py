@@ -1,14 +1,12 @@
 from electrum import Wallet
 from electrum.i18n import _
-from electrum_gui.kivy.dialog import (CreateRestoreDialog, InitSeedDialog,
-    ChangePasswordDialog)
 
 from kivy.app import App
 from kivy.uix.widget import Widget
 from kivy.core.window import Window
 from kivy.clock import Clock
 
-#from seed_dialog import SeedDialog
+from electrum_gui.kivy.dialog import CreateRestoreDialog
 #from network_dialog import NetworkDialog
 #from util import *
 #from amountedit import AmountEdit
@@ -33,13 +31,18 @@ class InstallWizard(Widget):
 
     def waiting_dialog(self, task,
                        msg= _("Electrum is generating your addresses,"
-                              " please wait.")):
+                              " please wait."),
+                       on_complete=None):
+
         def target():
+            # run your threaded function
             task()
+            # on  completion hide message
             Clock.schedule_once(lambda dt:
-                app.show_info_bubble(text="Complete", duration=.5,
-                    icon='atlas://gui/kivy/theming/light/important',
-                    pos=Window.center, width='200dp', arrow_pos=None))
+                app.show_info_bubble(text="Complete", arrow_pos=None))
+            # call completion routine
+            if on_complete:
+                Clock.schedule_once(lambda dt: on_complete())
 
         app.show_info_bubble(
             text=msg, icon='atlas://gui/kivy/theming/light/important',
@@ -66,12 +69,57 @@ class InstallWizard(Widget):
             self.change_password_dialog(wallet=wallet)
         elif button == dialog.ids.restore:
             # restore
-            wallet.init_seed(None)
-            self.restore_seed_dialog()
+            self.restore_seed_dialog(wallet)
         #elif button == dialog.ids.watching:
+        #TODO: not available in the new design
         #    self.action = 'watching'
         else:
             self.dispatch('on_wizard_complete', None)
+
+    def restore_seed_dialog(self, wallet):
+        from electrum_gui.kivy.dialog import RestoreSeedDialog
+        RestoreSeedDialog(
+            on_release=partial(self.on_verify_restore_ok, wallet)).open()
+
+    def on_verify_restore_ok(self, wallet, _dlg, btn, restore=False):
+
+        if _dlg.ids.back == btn:
+            _dlg.close()
+            CreateRestoreDialog(
+                on_release=self.on_creatrestore_complete).open()
+            return
+
+        seed = unicode(_dlg.ids.text_input_seed.text)
+        if not seed:
+            app.show_error(_("No seed!"))
+            return
+
+        try:
+            wallet.init_seed(seed)
+        except Exception:
+            import traceback
+            traceback.print_exc(file=sys.stdout)
+            app.show_error(_('No account tied to this seedphrase'), exit=True)
+            return
+
+        _dlg.close()
+        self.change_password_dialog(wallet=wallet, mode='restore')
+        return
+
+        from pudb import set_trace; set_trace()
+        wallet = self.wallet
+        #is_restore = bool(_dlg.__class__ == RestoreSeedDialog)
+
+        # Restore
+        if len(seed) == 128:
+            wallet.seed = ''
+            wallet.init_sequence(str(seed))
+        else:
+            wallet.seed = ''
+            wallet.init_seed(str(seed))
+            wallet.save_seed()
+
+        return self.change_network_dialog()
 
     def init_seed_dialog(self, wallet=None, instance=None, password=None,
                          wallet_name=None):
@@ -125,15 +173,16 @@ class InstallWizard(Widget):
                         Clock.schedule_once(lambda dt:
                             app.show_error(err))
                     wallet.synchronize()  # generate first addresses offline
-                self.waiting_dialog(partial(create, password))
+                self.waiting_dialog(partial(create, password),
+                                    on_complete=self.load_network)
 
-
+        from electrum_gui.kivy.dialog import InitSeedDialog
         InitSeedDialog(message=msg2,
                         seed_msg=brainwallet,
                         seed=seed,
                         on_release=on_ok_press).open()
 
-    def change_password_dialog(self, wallet=None, instance=None):
+    def change_password_dialog(self, wallet=None, instance=None, mode='create'):
         """Can be called directly (instance is None)
         or from a callback (instance is not None)"""
 
@@ -154,13 +203,14 @@ class InstallWizard(Widget):
             msg = _("Please choose a password to encrypt your wallet keys.") +\
                 '\n' + _("Leave these fields empty if you want to disable" + \
                 " encryption.")
-            mode = 'create'
 
         def on_release(_dlg, _btn):
             ti_password = _dlg.ids.ti_password
             ti_new_password = _dlg.ids.ti_new_password
             ti_confirm_password = _dlg.ids.ti_confirm_password
             if _btn != _dlg.ids.next:
+                if mode == 'restore':
+                    return
                 _dlg.close()
                 if not instance:
                     CreateRestoreDialog(
@@ -185,25 +235,29 @@ class InstallWizard(Widget):
                     ti_password.focus = True
                 return app.show_error(_('Passwords do not match'))
 
-            if not instance:
+            if mode == 'restore':
                 _dlg.close()
-                self.init_seed_dialog(password=new_password,
+                wallet.save_seed(new_password)
+                self.load_network(wallet, mode='restore')
+                return
+            if not instance:
+                # create
+                _dlg.close()
+                self.load_network(wallet, mode='create')
+                return self.init_seed_dialog(password=new_password,
                                       wallet=wallet,
                                       wallet_name=wallet_name)
-                return
 
             try:
                 seed = wallet.decode_seed(password)
             except BaseException:
-                return MessageBoxError(
-                    message=_('Incorrect Password')).open()
+                return app.show_error(_('Incorrect Password'))
 
             # test carefully
             try:
                 wallet.update_password(seed, password, new_password)
             except BaseException:
-                return MessageBoxExit(
-                    message=_('Failed to update password')).open()
+                return app.show_error(_('Failed to update password'), exit=True)
             else:
                 app.show_info_bubble(
                     text=_('Password successfully updated'), duration=1,
@@ -213,12 +267,56 @@ class InstallWizard(Widget):
 
             if instance is None:  # in initial phase
                 self.load_wallet()
-            self.app.gui.main_gui.update_wallet()
+            self.app.update_wallet()
 
+        from electrum_gui.kivy.dialog import ChangePasswordDialog
         cpd = ChangePasswordDialog(
                              message=msg,
                              mode=mode,
                              on_release=on_release).open()
+
+    def load_network(self, wallet, mode=None):
+        #if not self.config.get('server'):
+        if not self.network:
+            return wallet.start_threads(self.network)
+
+        if not self.network.interfaces:
+            app.show_error(_('You are offline'))
+            self.network.stop()
+            self.network = None
+            return wallet.start_threads(self.network)
+
+        if mode not in ('restore', 'create'):
+            self.network_dialog()
+            return wallet.start_threads(self.network)
+
+        self.config.set_key('auto_cycle', True, True)
+        wallet.start_threads(self.network)
+
+        def get_text(text):
+            def set_text(*l): app.info_bubble.ids.lbl.text=text
+            Clock.schedule_once(set_text)
+
+        def on_complete(*l):
+            if not self.network:
+                app.show_info_bubble(
+                    text=_("This wallet was restored offline. It may contain"
+                           " more addresses than displayed."),
+                    width='200dp',
+                    pos=Window.center)
+                return
+
+            if wallet.is_found():
+                app.show_info_bubble(_("Recovery successful"),
+                                     width='200dp',
+                                     pos=Window.center)
+            else:
+                app.show_info_bubble(_("No transactions found for this seed"),
+                                     width='200dp',
+                                     pos=Window.center)
+
+        self.waiting_dialog(lambda: wallet.restore(get_text),
+                            on_complete=on_complete)
 
     def on_wizard_complete(self, instance, wallet):
         pass

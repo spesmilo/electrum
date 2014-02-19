@@ -106,7 +106,7 @@ class ElectrumWindow(App):
     def on_start(self):
         Window.bind(size=self.on_size,
                     on_keyboard=self.on_keyboard)
-        Window.bind(keyboard_height=self.on_keyboard_height)
+        #Window.bind(keyboard_height=self.on_keyboard_height)
         self.on_size(Window, Window.size)
         config = self.electrum_config
         storage = WalletStorage(config)
@@ -229,7 +229,8 @@ class ElectrumWindow(App):
     def show_error(self, error,
                    width='200dp',
                    pos=None,
-                   arrow_pos=None):
+                   arrow_pos=None,
+                   exit=False):
         ''' Show a error Message Bubble.
         '''
         self.show_info_bubble(
@@ -237,7 +238,8 @@ class ElectrumWindow(App):
                     icon='atlas://gui/kivy/theming/light/error',
                     width=width,
                     pos=pos or Window.center,
-                    arrow_pos=arrow_pos)
+                    arrow_pos=arrow_pos,
+                    exit=exit)
 
     def show_info_bubble(self,
                     text=_('Hello World'),
@@ -246,7 +248,8 @@ class ElectrumWindow(App):
                     arrow_pos='bottom_mid',
                     width=None,
                     icon='',
-                    modal=False):
+                    modal=False,
+                    exit=False):
         '''Method to show a Information Bubble
 
         .. parameters::
@@ -291,4 +294,4 @@ class ElectrumWindow(App):
             info_bubble.dim_background = False
             info_bubble.background_image = 'atlas://data/images/defaulttheme/bubble'
         info_bubble.message = text
-        info_bubble.show(pos, duration, width, modal=modal)
+        info_bubble.show(pos, duration, width, modal=modal, exit=exit)

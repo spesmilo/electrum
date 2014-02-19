@@ -131,20 +131,24 @@ class InfoBubble(Bubble):
     ''' Allow bubble to be hidden on touch.
     '''
 
+    exit = BooleanProperty(False)
+    ''' exit app after bubble is closes
+    '''
+
     dim_background = BooleanProperty(False)
     ''' Whether to draw a background on the windows behind the bubble
     '''
 
     def on_touch_down(self, touch):
         if self.modal:
-            return
+            return True
         self.hide()
         if self.collide_point(*touch.pos):
             return True
 
-    def show(self, pos, duration, width=None, modal=False):
+    def show(self, pos, duration, width=None, modal=False, exit=False):
         '''Animate the bubble into position'''
-        self.modal = modal
+        self.modal, self.exit = modal, exit
         if width:
             self.width = width
         Window.add_widget(self)
@@ -177,6 +181,11 @@ class InfoBubble(Bubble):
         '''
         def on_stop(*l):
             Window.remove_widget(self)
+            if self.exit:
+                App.get_running_app().stop()
+                import sys
+                sys.exit()
+
         anim = Animation(opacity=0, d=.25)
         anim.bind(on_complete=on_stop)
         anim.cancel_all(self)
@@ -412,6 +421,23 @@ class CreateAccountDialog(EventsDialog):
             self.crcontent.add_widget(widget, index=index)
 
 
+class CreateRestoreDialog(CreateAccountDialog):
+    ''' Initial Dialog for creating or restoring seed'''
+
+    def on_parent(self, instance, value):
+        if value:
+            self.ids.but_close.disabled = True
+            self.ids.but_close.opacity = 0
+            self._back = _back = partial(app.dispatch, 'on_back')
+            app.navigation_higherarchy.append(_back)
+
+    def close(self):
+        if self._back in app.navigation_higherarchy:
+            app.navigation_higherarchy.pop()
+            self._back = None
+        super(CreateRestoreDialog, self).close()
+
+
 class InitSeedDialog(CreateAccountDialog):
 
     seed_msg = StringProperty('')
@@ -436,30 +462,25 @@ class InitSeedDialog(CreateAccountDialog):
             self._back = None
         super(InitSeedDialog, self).close()
 
-class CreateRestoreDialog(CreateAccountDialog):
-    ''' Initial Dialog for creating or restoring seed'''
-
-    def on_parent(self, instance, value):
-        if value:
-            self.ids.but_close.disabled = True
-            self.ids.but_close.opacity = 0
-            self._back = _back = partial(app.dispatch, 'on_back')
-            app.navigation_higherarchy.append(_back)
-
-    def close(self):
-        if self._back in app.navigation_higherarchy:
-            app.navigation_higherarchy.pop()
-            self._back = None
-        super(CreateRestoreDialog, self).close()
-
-
 class VerifySeedDialog(CreateAccountDialog):
 
     pass
 
 class RestoreSeedDialog(CreateAccountDialog):
 
-    pass
+    def on_parent(self, instance, value):
+        if value:
+            stepper = self.ids.stepper;
+            stepper.opacity = 1
+            stepper.source = 'atlas://gui/kivy/theming/light/stepper_restore_seed'
+            self._back = _back = partial(self.ids.back.dispatch, 'on_release')
+            app.navigation_higherarchy.append(_back)
+
+    def close(self):
+        if self._back in app.navigation_higherarchy:
+            app.navigation_higherarchy.pop()
+            self._back = None
+        super(RestoreSeedDialog, self).close()
 
 class NewContactDialog(Popup):
 
@@ -508,11 +529,12 @@ class ChangePasswordDialog(CreateAccountDialog):
     message = StringProperty(_('Empty Message'))
     '''Message to be displayed.'''
 
-    mode = OptionProperty('new', options=('new', 'confirm', 'create'))
+    mode = OptionProperty('new',
+                          options=('new', 'confirm', 'create', 'restore'))
     ''' Defines the mode of the password dialog.'''
 
     def validate_new_password(self):
-        self.ids.confirm.dispatch('on_release')
+        self.ids.next.dispatch('on_release')
 
     def on_parent(self, instance, value):
         if value:
