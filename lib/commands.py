@@ -295,7 +295,6 @@ class Commands:
 
     def history(self):
         import datetime
-        balance = 0
         out = []
         for item in self.wallet.get_tx_history():
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
@@ -306,7 +305,7 @@ class Commands:
 
             label, is_default_label = self.wallet.get_label(tx_hash)
             if not label: label = tx_hash
-            else: label = label + ' '*(64 - len(label) )
+            else: label += ' '*(64 - len(label) )
 
             out.append( "%16s"%time_str + "  " + label + "  " + format_satoshis(value)+ "  "+ format_satoshis(balance) )
         return out

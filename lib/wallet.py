@@ -17,12 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import sys
-import base64
 import os
-import re
-import hashlib
-import copy
-import operator
 import ast
 import threading
 import random
@@ -31,8 +26,7 @@ import Queue
 import time
 import math
 
-from util import print_msg, print_error, format_satoshis
-from bitcoin import *
+from util import print_msg
 from account import *
 from transaction import Transaction
 from plugins import run_hook
@@ -78,7 +72,7 @@ class WalletStorage:
         self.path = self.init_path(config)
         print_error( "wallet path", self.path )
         if self.path:
-            self.read(self.path)
+            self.read()
 
 
     def init_path(self, config):
@@ -109,7 +103,7 @@ class WalletStorage:
         return new_path
 
 
-    def read(self, path):
+    def read(self):
         """Read the contents of the wallet file."""
         try:
             with open(self.path, "r") as f:
@@ -288,10 +282,10 @@ class Wallet:
             ss = "%040x"%(entropy+nonce)
             s = hashlib.sha256(ss.decode('hex')).digest().encode('hex')
             # we keep only 13 words, that's approximately 139 bits of entropy
-            words = mnemonic.mn_encode(s)[0:13] 
+            words = mnemonic.mn_encode(s)[0:13]
             seed = ' '.join(words)
-            if mnemonic_hash(seed).startswith(SEED_PREFIX): 
-                break  # this removes 12 bits of entropy 
+            if mnemonic_hash(seed).startswith(SEED_PREFIX):
+                break  # this removes 12 bits of entropy
             nonce += 1
 
         return seed
@@ -414,9 +408,9 @@ class Wallet:
         if account_type == '1':
             return "m/0'/" in self.master_public_keys
         elif account_type == '2of2':
-            return set(["m/1'/", "m/2'/"]) <= set(self.master_public_keys.keys())
+            return {"m/1'/", "m/2'/"} <= set(self.master_public_keys.keys())
         elif account_type == '2of3':
-            return set(["m/3'/", "m/4'/", "m/5'/"]) <= set(self.master_public_keys.keys())
+            return {"m/3'/", "m/4'/", "m/5'/"} <= set(self.master_public_keys.keys())
 
     def find_root_by_master_key(self, c, K):
         for key, v in self.master_public_keys.items():
@@ -786,7 +780,7 @@ class Wallet:
                     root = self.find_root_by_master_key(c,K)
                     if not root: continue
                     sequence = map(lambda x:int(x), sequence.strip('/').split('/'))
-                    root = root + '%d'%sequence[0]
+                    root += '%d'%sequence[0]
                     sequence = sequence[1:]
                     roots.append((root,sequence)) 
 
@@ -876,7 +870,7 @@ class Wallet:
         k = 0
         for a in addresses[::-1]:
             if self.history.get(a):break
-            k = k + 1
+            k += 1
         return k
 
     def min_acceptable_gap(self):
@@ -1193,7 +1187,7 @@ class Wallet:
 
 
     def add_tx_change( self, inputs, outputs, amount, fee, total, change_addr=None):
-        "add change to a transaction"
+        """add change to a transaction"""
         change_amount = total - ( amount + fee )
         if change_amount > DUST_THRESHOLD:
             if not change_addr:
@@ -1414,8 +1408,8 @@ class Wallet:
         decoded = self.get_seed(old_password)
         self.seed = pw_encode( decoded, new_password)
         self.storage.put('seed', self.seed, True)
-        self.use_encryption = (new_password != None)
-        self.storage.put('use_encryption', self.use_encryption,True)
+        self.use_encryption = (new_password is not None)
+        self.storage.put('use_encryption', self.use_encryption, True)
         for k in self.imported_keys.keys():
             a = self.imported_keys[k]
             b = pw_decode(a, old_password)

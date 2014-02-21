@@ -73,9 +73,7 @@ class Network(threading.Thread):
             os.mkdir(dir_path)
 
         # default subscriptions
-        self.subscriptions = {}
-        self.subscriptions[self.on_banner] = [('server.banner',[])]
-        self.subscriptions[self.on_peers] = [('server.peers.subscribe',[])]
+        self.subscriptions = {self.on_banner: [('server.banner', [])], self.on_peers: [('server.peers.subscribe', [])]}
 
 
     def is_connected(self):
@@ -175,7 +173,7 @@ class Network(threading.Thread):
             return self.wait_until_connected()
 
     def wait_until_connected(self):
-        "wait until connection status is known"
+        """wait until connection status is known"""
         if self.config.get('auto_cycle'): 
             # self.random_server() returns None if all servers have been tried
             while not self.is_connected() and self.random_server():

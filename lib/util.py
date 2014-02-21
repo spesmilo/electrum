@@ -1,6 +1,8 @@
-import os, sys, re, json
+import os
+import sys
+import re
+import json
 import platform
-import shutil
 from datetime import datetime
 is_verbose = True
 
@@ -169,8 +171,7 @@ def parse_url(url):
     for p in params:
         k,v = p.split('=')
         uv = urldecode(v)
-        if k == 'amount': 
-            amount = uv
+        if k == 'amount':
             m = re.match('([0-9\.]+)X([0-9])', uv)
             if m:
                 k = int(m.group(2)) - 8 
@@ -192,10 +193,10 @@ def parse_url(url):
 
 # Python bug (http://bugs.python.org/issue1927) causes raw_input
 # to be redirected improperly between stdin/stderr on Unix systems
-def raw_input(prompt=None):
+def new_raw_input(prompt=None):
     if prompt:
         sys.stdout.write(prompt)
     return builtin_raw_input()
 import __builtin__
 builtin_raw_input = __builtin__.raw_input
-__builtin__.raw_input = raw_input
+__builtin__.raw_input = new_raw_input

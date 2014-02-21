@@ -25,7 +25,7 @@ bmp.py - module for constructing simple BMP graphics files
 __version__ = "0.3"
 __about =  "bmp module, version %s, written by Paul McGuire, October, 2003, updated by Margus Laak, September, 2009" % __version__ 
 
-from math import ceil, hypot
+from math import ceil
 
 
 def shortToString(i):
@@ -93,9 +93,9 @@ class Color(object):
     
   def fromLong( l ):
     b = l & 0xff
-    l = l >> 8
+    l >>= 8
     g = l & 0xff
-    l = l >> 8
+    l >>= 8
     r = l & 0xff
     return Color( r, g, b )
   fromLong = staticmethod(fromLong)

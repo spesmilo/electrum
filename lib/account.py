@@ -59,15 +59,15 @@ class OldAccount(Account):
         return {0:self.addresses, 1:self.change}
 
     @classmethod
-    def mpk_from_seed(klass, seed):
+    def mpk_from_seed(cls, seed):
         curve = SECP256k1
-        secexp = klass.stretch_key(seed)
+        secexp = cls.stretch_key(seed)
         master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
         master_public_key = master_private_key.get_verifying_key().to_string().encode('hex')
         return master_public_key
 
     @classmethod
-    def stretch_key(self,seed):
+    def stretch_key(cls, seed):
         oldseed = seed
         for i in range(100000):
             seed = hashlib.sha256(seed + oldseed).digest()

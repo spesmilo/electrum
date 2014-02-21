@@ -134,8 +134,8 @@ def hash_160_to_bc_address(h160, addrtype = 0):
     return b58encode(addr)
 
 def bc_address_to_hash_160(addr):
-    bytes = b58decode(addr, 25)
-    return ord(bytes[0]), bytes[1:21]
+    _bytes = b58decode(addr, 25)
+    return ord(_bytes[0]), _bytes[1:21]
 
 def encode_point(pubkey, compressed=False):
     order = generator_secp256k1.order()
@@ -199,15 +199,15 @@ def b58decode(v, length):
 
 
 def EncodeBase58Check(vchIn):
-    hash = Hash(vchIn)
-    return b58encode(vchIn + hash[0:4])
+    _hash = Hash(vchIn)
+    return b58encode(vchIn + _hash[0:4])
 
 def DecodeBase58Check(psz):
     vchRet = b58decode(psz, None)
     key = vchRet[0:-4]
     csum = vchRet[-4:]
-    hash = Hash(key)
-    cs32 = hash[0:4]
+    _hash = Hash(key)
+    cs32 = _hash[0:4]
     if cs32 != csum:
         return None
     else:
@@ -324,7 +324,7 @@ class EC_KEY(object):
             raise Exception("error: cannot sign message")
 
     @classmethod
-    def verify_message(self, address, signature, message):
+    def verify_message(cls, address, signature, message):
         """ See http://www.secg.org/download/aid-780/sec1-v2.pdf for the math """
         from ecdsa import numbertheory, ellipticcurve, util
         import msqr
@@ -333,7 +333,8 @@ class EC_KEY(object):
         order = G.order()
         # extract r,s from signature
         sig = base64.b64decode(signature)
-        if len(sig) != 65: raise Exception("Wrong encoding")
+        if len(sig) != 65:
+            raise Exception("Wrong encoding")
         r,s = util.sigdecode_string(sig[1:], order)
         nV = ord(sig[0])
         if nV < 27 or nV >= 35:
