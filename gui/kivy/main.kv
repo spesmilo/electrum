@@ -94,7 +94,6 @@
     height: self.width if self.fs else (lbl.texture_size[1] + dp(27))
     BoxLayout:
         padding: '5dp'
-        spacing: '5dp'
         Widget:
             size_hint: None, 1
             width: '4dp' if root.fs else '2dp'
@@ -104,6 +103,9 @@
             mipmap: True
             size_hint: None, 1
             width: (root.width - dp(20)) if root.fs  else (0 if not root.icon else '32dp')
+        Widget:
+            size_hint_y: None
+            width: '5dp'
         Label:
             id: lbl
             markup: True

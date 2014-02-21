@@ -117,26 +117,36 @@ class InfoBubble(Bubble):
     '''Bubble to be used to display short Help Information'''
 
     message = StringProperty(_('Nothing set !'))
-    '''Message to be displayed defaults to "nothing set"'''
+    '''Message to be displayed; defaults to "nothing set"'''
 
     icon = StringProperty('')
     ''' Icon to be displayed along with the message defaults to ''
+
+    :attr:`icon` is a  `StringProperty` defaults to `''`
     '''
 
     fs = BooleanProperty(False)
     ''' Show Bubble in half screen mode
+
+    :attr:`fs` is a `BooleanProperty` defaults to `False`
     '''
 
     modal = BooleanProperty(False)
     ''' Allow bubble to be hidden on touch.
+
+    :attr:`modal` is a `BooleanProperty` defauult to `False`.
     '''
 
     exit = BooleanProperty(False)
-    ''' exit app after bubble is closes
+    '''Indicates whether to exit app after bubble is closed.
+
+    :attr:`exit` is a `BooleanProperty` defaults to False.
     '''
 
     dim_background = BooleanProperty(False)
-    ''' Whether to draw a background on the windows behind the bubble
+    ''' Indicates Whether to draw a background on the windows behind the bubble.
+
+    :attr:`dim` is a `BooleanProperty` defaults to `False`.
     '''
 
     def on_touch_down(self, touch):
@@ -151,7 +161,13 @@ class InfoBubble(Bubble):
         self.modal, self.exit = modal, exit
         if width:
             self.width = width
-        Window.add_widget(self)
+        if self.modal:
+            from kivy.uix.modalview import ModalView
+            self._modal_view = m = ModalView()
+            Window.add_widget(m)
+            m.add_widget(self)
+        else:
+            Window.add_widget(self)
         # wait for the bubble to adjust it's size according to text then animate
         Clock.schedule_once(lambda dt: self._show(pos, duration))
 
@@ -180,6 +196,10 @@ class InfoBubble(Bubble):
         ''' Auto fade out the Bubble
         '''
         def on_stop(*l):
+            if self.modal:
+                m = self._modal_view
+                m.remove_widget(self)
+                Window.remove_widget(m)
             Window.remove_widget(self)
             if self.exit:
                 App.get_running_app().stop()
@@ -470,13 +490,33 @@ class RestoreSeedDialog(CreateAccountDialog):
 
     def on_parent(self, instance, value):
         if value:
-            stepper = self.ids.stepper;
+            tis = self.ids.text_input_seed
+            tis.focus = True
+            tis._keyboard.bind(on_key_down=self.on_key_down)
+            stepper = self.ids.stepper
             stepper.opacity = 1
             stepper.source = 'atlas://gui/kivy/theming/light/stepper_restore_seed'
             self._back = _back = partial(self.ids.back.dispatch, 'on_release')
             app.navigation_higherarchy.append(_back)
 
+    def on_key_down(self, keyboard, keycode, key, modifiers):
+        if keycode[1] == 'enter':
+            self.on_enter()
+        #super
+
+    def on_enter(self):
+        self._remove_keyboard()
+        # press next
+        self.ids.next.dispatch('on_release')
+
+    def _remove_keyboard(self):
+        tis = self.ids.text_input_seed
+        if tis._keyboard:
+            tis._keyboard.unbind(on_key_down=self.on_key_down)
+            tis.focus = False
+
     def close(self):
+        self._remove_keyboard()
         if self._back in app.navigation_higherarchy:
             app.navigation_higherarchy.pop()
             self._back = None
@@ -540,6 +580,7 @@ class ChangePasswordDialog(CreateAccountDialog):
         if value:
             stepper = self.ids.stepper
             stepper.opacity = 1
+            self.ids.ti_wallet_name.focus = True
             stepper.source = 'atlas://gui/kivy/theming/light/stepper_left'
             self._back = _back = partial(self.ids.back.dispatch, 'on_release')
             app.navigation_higherarchy.append(_back)

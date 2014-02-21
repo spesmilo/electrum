@@ -106,7 +106,7 @@ class ElectrumWindow(App):
     def on_start(self):
         Window.bind(size=self.on_size,
                     on_keyboard=self.on_keyboard)
-        #Window.bind(keyboard_height=self.on_keyboard_height)
+        Window.bind(keyboard_height=self.on_keyboard_height)
         self.on_size(Window, Window.size)
         config = self.electrum_config
         storage = WalletStorage(config)
@@ -230,16 +230,26 @@ class ElectrumWindow(App):
                    width='200dp',
                    pos=None,
                    arrow_pos=None,
-                   exit=False):
+                   exit=False,
+                   icon='atlas://gui/kivy/theming/light/error',):
         ''' Show a error Message Bubble.
         '''
         self.show_info_bubble(
                     text=error,
-                    icon='atlas://gui/kivy/theming/light/error',
+                    icon=icon,
                     width=width,
                     pos=pos or Window.center,
                     arrow_pos=arrow_pos,
                     exit=exit)
+
+    def show_info(self, error,
+                   width='200dp',
+                   pos=None,
+                   arrow_pos=None,
+                   exit=False):
+        ''' Show a Info Message Bubble.
+        '''
+        self.show_error(error, icon='atlas://gui/kivy/theming/light/error')
 
     def show_info_bubble(self,
                     text=_('Hello World'),
@@ -265,8 +275,9 @@ class ElectrumWindow(App):
             info_bubble = self.info_bubble = InfoBubble()
 
         if info_bubble.parent:
-            info_bubble.hide()
-            return
+            Window.remove_widget(info_bubble
+                                 if not info_bubble.modal else
+                                 info_bubble._modal_view)
 
         if not arrow_pos:
             info_bubble.show_arrow = False

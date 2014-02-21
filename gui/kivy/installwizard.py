@@ -20,6 +20,13 @@ app = App.get_running_app()
 
 
 class InstallWizard(Widget):
+    '''Instalation Wizzard. Responsible for instantiating the
+    creation/restoration of wallets.
+
+    events::
+        `on_wizard_complete` Fired when the wizard is done creating/ restoring
+        wallet/s.
+    '''
 
     __events__ = ('on_wizard_complete', )
 
@@ -33,13 +40,15 @@ class InstallWizard(Widget):
                        msg= _("Electrum is generating your addresses,"
                               " please wait."),
                        on_complete=None):
+        '''Perform a blocking task in the background by running the passed
+        method in a thread.
+        '''
 
         def target():
             # run your threaded function
             task()
             # on  completion hide message
-            Clock.schedule_once(lambda dt:
-                app.show_info_bubble(text="Complete", arrow_pos=None))
+            Clock.schedule_once(lambda dt: app.info_bubble.hide())
             # call completion routine
             if on_complete:
                 Clock.schedule_once(lambda dt: on_complete())
@@ -51,12 +60,14 @@ class InstallWizard(Widget):
         t.start()
 
     def run(self):
+        '''Entry point of our Installation wizard
+        '''
         CreateRestoreDialog(on_release=self.on_creatrestore_complete).open()
 
     def on_creatrestore_complete(self, dialog, button):
         if not button:
-            self.dispatch('on_wizard_complete', None)
-            return
+            return self.dispatch('on_wizard_complete', None)
+
         wallet = Wallet(self.storage)
         gap = self.config.get('gap_limit', 5)
         if gap !=5:
@@ -70,7 +81,7 @@ class InstallWizard(Widget):
         elif button == dialog.ids.restore:
             # restore
             self.restore_seed_dialog(wallet)
-        #elif button == dialog.ids.watching:
+        #if button == dialog.ids.watching:
         #TODO: not available in the new design
         #    self.action = 'watching'
         else:
@@ -99,30 +110,15 @@ class InstallWizard(Widget):
         except Exception:
             import traceback
             traceback.print_exc(file=sys.stdout)
-            app.show_error(_('No account tied to this seedphrase'), exit=True)
+            app.show_error(_('No account tied to this seedphrase'))#, exit=True)
             return
 
         _dlg.close()
         self.change_password_dialog(wallet=wallet, mode='restore')
         return
 
-        from pudb import set_trace; set_trace()
-        wallet = self.wallet
-        #is_restore = bool(_dlg.__class__ == RestoreSeedDialog)
-
-        # Restore
-        if len(seed) == 128:
-            wallet.seed = ''
-            wallet.init_sequence(str(seed))
-        else:
-            wallet.seed = ''
-            wallet.init_seed(str(seed))
-            wallet.save_seed()
-
-        return self.change_network_dialog()
-
     def init_seed_dialog(self, wallet=None, instance=None, password=None,
-                         wallet_name=None):
+                         wallet_name=None, mode='create'):
         # renamed from show_seed()
         '''Can be called directly (password is None)
         or from a password-protected callback (password is not None)'''
@@ -131,7 +127,7 @@ class InstallWizard(Widget):
             if instance == None:
                 wallet.init_seed(None)
             else:
-                return MessageBoxError(message=_('No seed')).open()
+                return app.show_error(_('No seed'))
 
         if password is None or not instance:
             seed = wallet.get_mnemonic(None)
@@ -139,7 +135,7 @@ class InstallWizard(Widget):
             try:
                 seed = self.wallet.get_seed(password)
             except Exception:
-                return MessageBoxError(message=_('Incorrect Password'))
+                return app.show_error(_('Incorrect Password'))
 
         brainwallet = seed
 
@@ -160,8 +156,10 @@ class InstallWizard(Widget):
         def on_ok_press(_dlg, _btn):
             _dlg.close()
             if _btn != _dlg.ids.confirm:
-                self.change_password_dialog(wallet)
+                if not instance:
+                    self.change_password_dialog(wallet)
                 return
+            # confirm
             if instance is None:
                 # in initial phase
                 def create(password):
@@ -173,21 +171,20 @@ class InstallWizard(Widget):
                         Clock.schedule_once(lambda dt:
                             app.show_error(err))
                     wallet.synchronize()  # generate first addresses offline
-                self.waiting_dialog(partial(create, password),
-                                    on_complete=self.load_network)
+                self.waiting_dialog(
+                    partial(create, password),
+                    on_complete=partial(self.load_network, wallet, mode=mode))
 
         from electrum_gui.kivy.dialog import InitSeedDialog
         InitSeedDialog(message=msg2,
-                        seed_msg=brainwallet,
-                        seed=seed,
-                        on_release=on_ok_press).open()
+            seed_msg=brainwallet, seed=seed, on_release=on_ok_press).open()
 
     def change_password_dialog(self, wallet=None, instance=None, mode='create'):
         """Can be called directly (instance is None)
         or from a callback (instance is not None)"""
 
         if instance and not wallet.seed:
-            return MessageBoxExit(message=_('No seed !!')).open()
+            return ShowError(_('No seed !!'), exit=True, modal=True)
 
         if instance is not None:
             if wallet.use_encryption:
@@ -210,9 +207,11 @@ class InstallWizard(Widget):
             ti_confirm_password = _dlg.ids.ti_confirm_password
             if _btn != _dlg.ids.next:
                 if mode == 'restore':
+                    # back is disabled cause seed is already set
                     return
                 _dlg.close()
                 if not instance:
+                    # back on create
                     CreateRestoreDialog(
                         on_release=self.on_creatrestore_complete).open()
                 return
@@ -236,17 +235,20 @@ class InstallWizard(Widget):
                 return app.show_error(_('Passwords do not match'))
 
             if mode == 'restore':
+                try:
+                    wallet.save_seed(new_password)
+                except Exception as err:
+                    app.show_error(str(err))
+                    return
                 _dlg.close()
-                wallet.save_seed(new_password)
                 self.load_network(wallet, mode='restore')
                 return
             if not instance:
                 # create
                 _dlg.close()
-                self.load_network(wallet, mode='create')
+                #self.load_network(wallet, mode='create')
                 return self.init_seed_dialog(password=new_password,
-                                      wallet=wallet,
-                                      wallet_name=wallet_name)
+                    wallet=wallet, wallet_name=wallet_name, mode=mode)
 
             try:
                 seed = wallet.decode_seed(password)
@@ -275,23 +277,25 @@ class InstallWizard(Widget):
                              mode=mode,
                              on_release=on_release).open()
 
-    def load_network(self, wallet, mode=None):
+    def load_network(self, wallet, mode='create'):
         #if not self.config.get('server'):
-        if not self.network:
-            return wallet.start_threads(self.network)
+        if self.network:
+            if self.network.interfaces:
+                if mode not in ('restore', 'create'):
+                    self.network_dialog()
+            else:
+                app.show_error(_('You are offline'))
+                self.network.stop()
+                self.network = None
 
-        if not self.network.interfaces:
-            app.show_error(_('You are offline'))
-            self.network.stop()
-            self.network = None
-            return wallet.start_threads(self.network)
-
-        if mode not in ('restore', 'create'):
-            self.network_dialog()
-            return wallet.start_threads(self.network)
-
-        self.config.set_key('auto_cycle', True, True)
+        if mode in ('restore', 'create'):
+            # auto cycle
+            self.config.set_key('auto_cycle', True, True)
+        # start wallet threads
         wallet.start_threads(self.network)
+
+        if not mode == 'restore':
+            return
 
         def get_text(text):
             def set_text(*l): app.info_bubble.ids.lbl.text=text
@@ -299,24 +303,18 @@ class InstallWizard(Widget):
 
         def on_complete(*l):
             if not self.network:
-                app.show_info_bubble(
-                    text=_("This wallet was restored offline. It may contain"
-                           " more addresses than displayed."),
-                    width='200dp',
-                    pos=Window.center)
-                return
+                app.show_info(_("This wallet was restored offline."
+                    "It may contain more addresses than displayed."))
+                return self.dispatch('on_wizard_complete', wallet)
 
             if wallet.is_found():
-                app.show_info_bubble(_("Recovery successful"),
-                                     width='200dp',
-                                     pos=Window.center)
+                app.show_info(_("Recovery successful"))
             else:
-                app.show_info_bubble(_("No transactions found for this seed"),
-                                     width='200dp',
-                                     pos=Window.center)
+                app.show_info(_("No transactions found for this seed"))
+            self.dispatch('on_wizard_complete', wallet)
 
         self.waiting_dialog(lambda: wallet.restore(get_text),
                             on_complete=on_complete)
 
-    def on_wizard_complete(self, instance, wallet):
+    def on_wizard_complete(self, wallet):
         pass
