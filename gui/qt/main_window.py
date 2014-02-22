@@ -1889,8 +1889,22 @@ class ElectrumWindow(QMainWindow):
 
     def do_process_from_csvReader(self, csvReader):
         outputs = []
+        errors = []
+        errtext = ""
+        csvfee = ""
+        csvchange = ""
         try:
             for row in csvReader:
+                if row[0] == "fee":
+                    csvfee = Decimal(row[1])
+                    csvfee = int(100000000*csvfee)
+                    continue
+                if row[0] == "change":
+                    csvchange = row[1].strip()
+                    if not self.wallet.is_mine(csvchange):
+                        csvchange = None
+                        QMessageBox.critical(None, _("Wrong Change Address"), _("The change address you specified is not yours. Selecting next change address."))
+                    continue
                 address = row[0]
                 amount = Decimal(row[1])
                 amount = int(100000000*amount)
@@ -1900,7 +1914,14 @@ class ElectrumWindow(QMainWindow):
             return
 
         try:
-            tx = self.wallet.make_unsigned_transaction(outputs, None, None)
+            if csvfee and csvchange:
+                tx = self.wallet.make_unsigned_transaction(outputs, csvfee, csvchange)
+            elif csvfee:
+                tx = self.wallet.make_unsigned_transaction(outputs, csvfee, None)
+            elif csvchange:
+                tx = self.wallet.make_unsigned_transaction(outputs, None, csvchange)
+            else:
+                tx = self.wallet.make_unsigned_transaction(outputs, None, None)
         except Exception as e:
             self.show_message(str(e))
             return
