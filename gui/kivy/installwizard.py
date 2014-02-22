@@ -295,7 +295,7 @@ class InstallWizard(Widget):
         wallet.start_threads(self.network)
 
         if not mode == 'restore':
-            return
+            return self.dispatch('on_wizard_complete', wallet)
 
         def get_text(text):
             def set_text(*l): app.info_bubble.ids.lbl.text=text
@@ -311,7 +311,7 @@ class InstallWizard(Widget):
                 app.show_info(_("Recovery successful"))
             else:
                 app.show_info(_("No transactions found for this seed"))
-            self.dispatch('on_wizard_complete', wallet)
+            return self.dispatch('on_wizard_complete', wallet)
 
         self.waiting_dialog(lambda: wallet.restore(get_text),
                             on_complete=on_complete)

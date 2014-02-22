@@ -158,8 +158,8 @@ class ElectrumWindow(App):
     def on_wizard_complete(self, instance, wallet):
         if not wallet:
             Logger.debug('Electrum: No Wallet set/found. Exiting...')
-            self.stop()
-            sys.exit()
+            app.show_error('Electrum: No Wallet set/found. Exiting...',
+                           exit=True)
         return
 
         # plugins that need to change the GUI do it here

@@ -495,17 +495,19 @@ class RestoreSeedDialog(CreateAccountDialog):
             tis._keyboard.bind(on_key_down=self.on_key_down)
             stepper = self.ids.stepper
             stepper.opacity = 1
-            stepper.source = 'atlas://gui/kivy/theming/light/stepper_restore_seed'
+            stepper.source = ('atlas://gui/kivy/theming"
+                              "/light/stepper_restore_seed')
             self._back = _back = partial(self.ids.back.dispatch, 'on_release')
             app.navigation_higherarchy.append(_back)
 
     def on_key_down(self, keyboard, keycode, key, modifiers):
         if keycode[1] == 'enter':
             self.on_enter()
+            return True
         #super
 
     def on_enter(self):
-        self._remove_keyboard()
+        #self._remove_keyboard()
         # press next
         self.ids.next.dispatch('on_release')
 
