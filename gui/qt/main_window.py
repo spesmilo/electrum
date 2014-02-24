@@ -1906,11 +1906,19 @@ class ElectrumWindow(QMainWindow):
                         QMessageBox.critical(None, _("Wrong Change Address"), _("The change address you specified is not yours. Selecting next change address."))
                     continue
                 address = row[0]
+                if not is_valid(address):
+                    errors.append((position, address))
+                    continue
                 amount = Decimal(row[1])
                 amount = int(100000000*amount)
                 outputs.append((address, amount))
         except (ValueError, IOError, os.error), reason:
             QMessageBox.critical(None, _("Unable to read file or no transaction found"), _("Electrum was unable to open your transaction file") + "\n" + str(reason))
+            return
+        if errors != []:
+            for x in errors:
+                errtext += "CSV Row " + str(x[0]+1) + ": " + x[1] + "\n"
+            QMessageBox.critical(None, _("Invalid Addresses"), _("ABORTING! Invalid Addresses found:") + "\n\n" + errtext)
             return
 
         try:
