@@ -1333,7 +1333,7 @@ class Wallet:
 
     def make_unsigned_transaction(self, outputs, fee=None, change_addr=None, domain=None ):
         for address, x in outputs:
-            assert is_valid(address)
+            assert is_valid(address), "Address " + address + " is invalid!"
         amount = sum( map(lambda x:x[1], outputs) )
         inputs, total, fee = self.choose_tx_inputs( amount, fee, domain )
         if not inputs:
