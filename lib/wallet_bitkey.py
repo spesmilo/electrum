@@ -22,7 +22,8 @@ from wallet import Wallet
 #import bitkeylib.bitkey_pb2 as proto
 
 from version import ELECTRUM_VERSION
-SEED_VERSION = 4 # Version of bitkey algorithm
+SEED_VERSION = 4  # Version of bitkey algorithm
+
 
 class WalletBitkey(Wallet):
     pass

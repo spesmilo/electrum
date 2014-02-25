@@ -6,14 +6,15 @@ import os
 from util import user_dir, print_error
 
 
-
 class SimpleConfig:
+
     """
 The SimpleConfig class is responsible for handling operations involving
 configuration files.  The constructor reads and stores the system and 
 user configurations from electrum.conf into separate dictionaries within
 a SimpleConfig instance then reads the wallet file.
 """
+
     def __init__(self, options={}):
         self.lock = threading.Lock()
 
@@ -32,10 +33,6 @@ a SimpleConfig instance then reads the wallet file.
         self.user_config = {}
         self.read_user_config()
 
-
-
-
-
     def init_path(self):
 
         # Read electrum path in the command line configuration
@@ -53,30 +50,28 @@ a SimpleConfig instance then reads the wallet file.
         if not os.path.exists(self.path):
             os.mkdir(self.path)
 
-        print_error( "electrum directory", self.path)
+        print_error("electrum directory", self.path)
 
         # portable wallet: use the same directory for wallet and headers file
-        #if options.get('portable'):
+        # if options.get('portable'):
         #    self.wallet_config['blockchain_headers_path'] = os.path.dirname(self.path)
-            
-    def set_key(self, key, value, save = True):
+
+    def set_key(self, key, value, save=True):
         # find where a setting comes from and save it there
         if self.options_config.get(key) is not None:
-            print "Warning: not changing '%s' because it was passed as a command-line option"%key
+            print "Warning: not changing '%s' because it was passed as a command-line option" % key
             return
 
         elif self.system_config.get(key) is not None:
             if str(self.system_config[key]) != str(value):
-                print "Warning: not changing '%s' because it was set in the system configuration"%key
+                print "Warning: not changing '%s' because it was set in the system configuration" % key
 
         else:
 
             with self.lock:
                 self.user_config[key] = value
-                if save: 
+                if save:
                     self.save_user_config()
-
-
 
     def get(self, key, default=None):
 
@@ -86,7 +81,7 @@ a SimpleConfig instance then reads the wallet file.
         if self.options_config.has_key(key) and self.options_config.get(key) is not None:
             out = self.options_config.get(key)
 
-        # 2. user configuration 
+        # 2. user configuration
         elif self.user_config.has_key(key):
             out = self.user_config.get(key)
 
@@ -103,11 +98,10 @@ a SimpleConfig instance then reads the wallet file.
             try:
                 out = ast.literal_eval(out)
             except Exception:
-                print "type error for '%s': using default value"%key
+                print "type error for '%s': using default value" % key
                 out = default
 
         return out
-
 
     def is_modifiable(self, key):
         """Check if the config file is modifiable."""
@@ -120,7 +114,6 @@ a SimpleConfig instance then reads the wallet file.
         else:
             return True
 
-
     def read_system_config(self):
         """Parse and store the system config settings in electrum.conf into system_config[]."""
         name = '/etc/electrum.conf'
@@ -130,7 +123,7 @@ a SimpleConfig instance then reads the wallet file.
             except ImportError:
                 print "cannot parse electrum.conf. please install ConfigParser"
                 return
-                
+
             p = ConfigParser.ConfigParser()
             p.read(name)
             try:
@@ -139,10 +132,10 @@ a SimpleConfig instance then reads the wallet file.
             except ConfigParser.NoSectionError:
                 pass
 
-
     def read_user_config(self):
         """Parse and store the user config settings in electrum.conf into user_config[]."""
-        if not self.path: return
+        if not self.path:
+            return
 
         path = os.path.join(self.path, "config")
         if os.path.exists(path):
@@ -152,20 +145,21 @@ a SimpleConfig instance then reads the wallet file.
             except IOError:
                 return
             try:
-                d = ast.literal_eval( data )  #parse raw data from reading wallet file
+                # parse raw data from reading wallet file
+                d = ast.literal_eval(data)
             except Exception:
                 raise IOError("Cannot read config file.")
 
             self.user_config = d
 
-
     def save_user_config(self):
-        if not self.path: return
+        if not self.path:
+            return
 
         path = os.path.join(self.path, "config")
         s = repr(self.user_config)
-        f = open(path,"w")
-        f.write( s )
+        f = open(path, "w")
+        f.write(s)
         f.close()
         if self.get('gui') != 'android':
             import stat
