@@ -36,7 +36,8 @@ if sys.platform == 'darwin':
         setup_requires=['py2app'],
         app=[mainscript],
         options=dict(py2app=dict(argv_emulation=True,
-                                 includes=['PyQt4.QtCore', 'PyQt4.QtGui', 'PyQt4.QtWebKit', 'PyQt4.QtNetwork', 'sip'],
+                                 includes=[
+                                     'PyQt4.QtCore', 'PyQt4.QtGui', 'PyQt4.QtWebKit', 'PyQt4.QtNetwork', 'sip'],
                                  packages=['lib', 'gui', 'plugins'],
                                  iconfile='electrum.icns',
                                  plist=plist,
@@ -74,10 +75,12 @@ if sys.platform == 'darwin':
     else:
         # No dice? Then let's try the brew version
         if os.path.exists("/usr/local/Cellar"):
-            qt_menu_location = os.popen("find /usr/local/Cellar -name qt_menu.nib | tail -n 1").read()
+            qt_menu_location = os.popen(
+                "find /usr/local/Cellar -name qt_menu.nib | tail -n 1").read()
         # no brew, check /opt/local
         else:
-            qt_menu_location = os.popen("find /opt/local -name qt_menu.nib | tail -n 1").read()
+            qt_menu_location = os.popen(
+                "find /opt/local -name qt_menu.nib | tail -n 1").read()
         qt_menu_location = re.sub('\n', '', qt_menu_location)
 
     if (len(qt_menu_location) == 0):
