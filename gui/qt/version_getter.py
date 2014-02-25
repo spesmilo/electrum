@@ -16,7 +16,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import threading, httplib, re, socket
+import threading
+import httplib
+import re
+import socket
 import webbrowser
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -25,12 +28,13 @@ import PyQt4.QtCore as QtCore
 from electrum.i18n import _
 from electrum import ELECTRUM_VERSION, print_error
 
+
 class VersionGetter(threading.Thread):
 
     def __init__(self, label):
         threading.Thread.__init__(self)
         self.label = label
-        
+
     def run(self):
         try:
             con = httplib.HTTPConnection('electrum.org', 80, timeout=5)
@@ -39,21 +43,24 @@ class VersionGetter(threading.Thread):
         except socket.error as msg:
             print_error("Could not retrieve version information")
             return
-            
+
         if res.status == 200:
             latest_version = res.read()
-            latest_version = latest_version.replace("\n","")
+            latest_version = latest_version.replace("\n", "")
             if(re.match('^\d+(\.\d+)*$', latest_version)):
                 self.label.callback(latest_version)
 
+
 class UpdateLabel(QLabel):
+
     def __init__(self, config, sb):
         QLabel.__init__(self)
         self.new_version = False
         self.sb = sb
         self.config = config
         self.current_version = ELECTRUM_VERSION
-        self.connect(self, QtCore.SIGNAL('new_electrum_version'), self.new_electrum_version)
+        self.connect(
+            self, QtCore.SIGNAL('new_electrum_version'), self.new_electrum_version)
         # prevent HTTP leaks if a proxy is set
         if self.config.get('proxy'):
             return
@@ -62,33 +69,37 @@ class UpdateLabel(QLabel):
     def callback(self, version):
         self.latest_version = version
         if(self.compare_versions(self.latest_version, self.current_version) == 1):
-            latest_seen = self.config.get("last_seen_version",ELECTRUM_VERSION)
+            latest_seen = self.config.get(
+                "last_seen_version", ELECTRUM_VERSION)
             if(self.compare_versions(self.latest_version, latest_seen) == 1):
                 self.new_version = True
                 self.emit(QtCore.SIGNAL('new_electrum_version'))
 
     def new_electrum_version(self):
         if self.new_version:
-            self.setText(_("New version available") + ": " + self.latest_version)
+            self.setText(
+                _("New version available") + ": " + self.latest_version)
             self.sb.insertPermanentWidget(1, self)
 
     def compare_versions(self, version1, version2):
         def normalize(v):
-            return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
+            return [int(x) for x in re.sub(r'(\.0+)*$', '', v).split(".")]
         return cmp(normalize(version1), normalize(version2))
 
     def ignore_this_version(self):
         self.setText("")
         self.config.set_key("last_seen_version", self.latest_version, True)
-        QMessageBox.information(self, _("Preference saved"), _("Notifications about this update will not be shown again."))
+        QMessageBox.information(self, _("Preference saved"), _(
+            "Notifications about this update will not be shown again."))
         self.dialog.done(0)
 
     def ignore_all_version(self):
         self.setText("")
         self.config.set_key("last_seen_version", "9.9.9", True)
-        QMessageBox.information(self, _("Preference saved"), _("No more notifications about version updates will be shown."))
+        QMessageBox.information(self, _("Preference saved"), _(
+            "No more notifications about version updates will be shown."))
         self.dialog.done(0)
-  
+
     def open_website(self):
         webbrowser.open("http://electrum.org/download.html")
         self.dialog.done(0)
@@ -99,8 +110,9 @@ class UpdateLabel(QLabel):
         dialog.setModal(1)
 
         main_layout = QGridLayout()
-        main_layout.addWidget(QLabel(_("A new version of Electrum is available:")+" " + self.latest_version), 0,0,1,3)
-        
+        main_layout.addWidget(QLabel(
+            _("A new version of Electrum is available:") + " " + self.latest_version), 0, 0, 1, 3)
+
         ignore_version = QPushButton(_("Ignore this version"))
         ignore_version.clicked.connect(self.ignore_this_version)
 
@@ -117,7 +129,6 @@ class UpdateLabel(QLabel):
         dialog.setLayout(main_layout)
 
         self.dialog = dialog
-        
-        if not dialog.exec_(): return
 
-
+        if not dialog.exec_():
+            return

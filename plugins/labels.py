@@ -1,10 +1,9 @@
 from electrum.util import print_error
 
-import httplib, urllib
+import httplib
 import socket
 import hashlib
 import json
-from urlparse import urlparse, parse_qs
 try:
     import PyQt4
 except Exception:
@@ -16,7 +15,8 @@ import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 import aes
 import base64
-from electrum import bmp, pyqrnative
+from electrum import bmp
+from electrum import pyqrnative
 from electrum.plugins import BasePlugin
 from electrum.i18n import _
 

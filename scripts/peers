@@ -1,10 +1,14 @@
 #!/usr/bin/env python
 
-import time, electrum
+import time
+import electrum
 
 electrum.set_verbosity(False)     # default is True
-network = electrum.Network({'auto_cycle':True})
-network.register_callback('peers',lambda: electrum.print_json(network.irc_servers.keys()))
+network = electrum.Network({'auto_cycle': True})
+network.register_callback(
+    'peers',
+    lambda: electrum.print_json(network.irc_servers.keys())
+)
 
 if not network.start(wait=True):
     print "Not connected"
@@ -13,5 +17,3 @@ if not network.start(wait=True):
 print "Connected to", network.interface.server
 while not network.irc_servers:
     time.sleep(1)
-
-

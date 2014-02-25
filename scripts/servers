@@ -2,19 +2,21 @@
 
 from electrum import Interface, SimpleConfig, set_verbosity
 from electrum.network import DEFAULT_SERVERS, filter_protocol
-import time, Queue
+import time
+import Queue
 from collections import defaultdict
 
 set_verbosity(False)
 
 config = SimpleConfig()
-servers = filter_protocol(DEFAULT_SERVERS,'t')
-interfaces = map ( lambda server: Interface(server, config), servers )
+servers = filter_protocol(DEFAULT_SERVERS, 't')
+interfaces = map(lambda server: Interface(server, config), servers)
 
 q = Queue.Queue()
 results_queue = Queue.Queue()
 
-for i in interfaces: i.start(q)
+for i in interfaces:
+    i.start(q)
 
 reached_servers = []
 
@@ -22,7 +24,8 @@ while servers:
     i = q.get(timeout=1000)
     servers.remove(i.server)
     if i.is_connected:
-        i.send([('blockchain.numblocks.subscribe',[])], lambda i,x: results_queue.put((i,x)))
+        i.send([('blockchain.numblocks.subscribe', [])],
+               lambda i, x: results_queue.put((i, x)))
         reached_servers.append(i.server)
         i.status = "ok"
     else:
@@ -41,9 +44,9 @@ numblocks = d.keys()[v.index(max(v))]
 
 for i in interfaces:
     if i.status == "ok":
-        if abs(i.blocks-numblocks)>1: i.status = "lagging" 
+        if abs(i.blocks - numblocks) > 1:
+            i.status = "lagging"
     else:
         i.blocks = 0
 
-    print "%30s   %d   %s   "%(i.host, i.blocks, i.status)
-
+    print "%30s   %d   %s   " % (i.host, i.blocks, i.status)

@@ -6,6 +6,7 @@ import time
 
 
 class Timer(QThread):
+
     def run(self):
         while True:
             self.emit(SIGNAL('timersignal'))
@@ -13,6 +14,7 @@ class Timer(QThread):
 
 
 class EnterButton(QPushButton):
+
     def __init__(self, text, func):
         QPushButton.__init__(self, text)
         self.func = func
@@ -20,7 +22,7 @@ class EnterButton(QPushButton):
 
     def keyPressEvent(self, e):
         if e.key() == Qt.Key_Return:
-            apply(self.func,())
+            apply(self.func, ())
 
 
 def waiting_dialog(f, w=None):
@@ -32,32 +34,36 @@ def waiting_dialog(f, w=None):
         w.resize(200, 70)
         w.setWindowTitle('Electrum')
     else:
-        if w.layout(): QWidget().setLayout(w.layout())
+        if w.layout():
+            QWidget().setLayout(w.layout())
 
     l = QLabel('')
     vbox = QVBoxLayout(w)
     vbox.addWidget(l)
     w.show()
+
     def ff():
         s = f()
-        if s: l.setText(s)
-        else: w.accept()
+        if s:
+            l.setText(s)
+        else:
+            w.accept()
     w.connect(s, SIGNAL('timersignal'), ff)
     w.exec_()
-    #w.destroy()
+    # w.destroy()
 
 
 class HelpButton(QPushButton):
+
     def __init__(self, text):
         QPushButton.__init__(self, '?')
         self.setFocusPolicy(Qt.NoFocus)
         self.setFixedWidth(20)
-        self.clicked.connect(lambda: QMessageBox.information(self, 'Help', text, 'OK') )
+        self.clicked.connect(
+            lambda: QMessageBox.information(self, 'Help', text, 'OK'))
 
 
-
-
-def close_button(dialog, label=_("Close") ):
+def close_button(dialog, label=_("Close")):
     hbox = QHBoxLayout()
     hbox.addStretch(1)
     b = QPushButton(label)
@@ -66,7 +72,8 @@ def close_button(dialog, label=_("Close") ):
     b.setDefault(True)
     return hbox
 
-def ok_cancel_buttons(dialog, ok_label=_("OK") ):
+
+def ok_cancel_buttons(dialog, ok_label=_("OK")):
     hbox = QHBoxLayout()
     hbox.addStretch(1)
     b = QPushButton(_("Cancel"))
@@ -77,6 +84,7 @@ def ok_cancel_buttons(dialog, ok_label=_("OK") ):
     b.clicked.connect(dialog.accept)
     b.setDefault(True)
     return hbox
+
 
 def text_dialog(parent, title, label, ok_label):
     dialog = QDialog(parent)
@@ -94,20 +102,23 @@ def text_dialog(parent, title, label, ok_label):
 
 
 class MyTreeWidget(QTreeWidget):
+
     def __init__(self, parent):
         QTreeWidget.__init__(self, parent)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.connect(self, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.itemactivated)
+        self.connect(
+            self, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.itemactivated)
 
     def itemactivated(self, item):
-        if not item: return
-        for i in range(0,self.viewport().height()/5):
-            if self.itemAt(QPoint(0,i*5)) == item:
+        if not item:
+            return
+        for i in range(0, self.viewport().height() / 5):
+            if self.itemAt(QPoint(0, i * 5)) == item:
                 break
         else:
             return
-        for j in range(0,30):
-            if self.itemAt(QPoint(0,i*5 + j)) != item:
+        for j in range(0, 30):
+            if self.itemAt(QPoint(0, i * 5 + j)) != item:
                 break
-        self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), QPoint(50, i*5 + j - 1))
-
+        self.emit(
+            SIGNAL('customContextMenuRequested(const QPoint&)'), QPoint(50, i * 5 + j - 1))
