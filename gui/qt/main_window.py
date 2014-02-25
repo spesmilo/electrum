@@ -1894,7 +1894,7 @@ class ElectrumWindow(QMainWindow):
         csvfee = ""
         csvchange = ""
         try:
-            for row in csvReader:
+            for position, row in enumerate(csvReader):
                 if row[0] == "fee":
                     csvfee = Decimal(row[1])
                     csvfee = int(100000000*csvfee)
