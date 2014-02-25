@@ -5,7 +5,6 @@ import decimal
 import httplib
 import json
 import threading
-import re
 from decimal import Decimal
 from electrum.plugins import BasePlugin
 from electrum.i18n import _
