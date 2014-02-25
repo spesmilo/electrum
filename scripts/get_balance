@@ -5,7 +5,6 @@ from electrum import Interface
 from electrum import bitcoin, Transaction, Network
 
 
-
 def get_transaction(network, tx_hash, tx_height):
     raw_tx = network.synchronous_get([(
         'blockchain.transaction.get', [tx_hash, tx_height])])[0]
