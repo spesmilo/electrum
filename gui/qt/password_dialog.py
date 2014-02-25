@@ -22,7 +22,6 @@ from electrum.i18n import _
 from util import *
 
 
-
 def make_password_dialog(self, wallet, msg):
 
     self.pw = QLineEdit()
@@ -31,7 +30,7 @@ def make_password_dialog(self, wallet, msg):
     self.new_pw.setEchoMode(2)
     self.conf_pw = QLineEdit()
     self.conf_pw.setEchoMode(2)
-    
+
     vbox = QVBoxLayout()
     label = QLabel(msg)
     label.setWordWrap(True)
@@ -39,7 +38,7 @@ def make_password_dialog(self, wallet, msg):
     grid = QGridLayout()
     grid.setSpacing(8)
     grid.setColumnMinimumWidth(0, 70)
-    grid.setColumnStretch(1,1)
+    grid.setColumnStretch(1, 1)
 
     logo = QLabel()
     lockfile = ":icons/lock.png" if wallet.use_encryption else ":icons/unlock.png"
@@ -53,12 +52,12 @@ def make_password_dialog(self, wallet, msg):
     grid = QGridLayout()
     grid.setSpacing(8)
     grid.setColumnMinimumWidth(0, 250)
-    grid.setColumnStretch(1,1)
-    
+    grid.setColumnStretch(1, 1)
+
     if wallet.use_encryption:
         grid.addWidget(QLabel(_('Password')), 0, 0)
         grid.addWidget(self.pw, 0, 1)
-        
+
     grid.addWidget(QLabel(_('New Password')), 1, 0)
     grid.addWidget(self.new_pw, 1, 1)
 
@@ -72,7 +71,7 @@ def make_password_dialog(self, wallet, msg):
 
 
 def run_password_dialog(self, wallet, parent):
-        
+
     if not wallet.seed:
         QMessageBox.information(parent, _('Error'), _('No seed'), _('OK'))
         return False, None, None
@@ -85,7 +84,8 @@ def run_password_dialog(self, wallet, parent):
     new_password2 = unicode(self.conf_pw.text())
 
     if new_password != new_password2:
-        QMessageBox.warning(parent, _('Error'), _('Passwords do not match'), _('OK'))
+        QMessageBox.warning(
+            parent, _('Error'), _('Passwords do not match'), _('OK'))
         # Retry
         return run_password_dialog(self, wallet, parent)
 
@@ -95,7 +95,6 @@ def run_password_dialog(self, wallet, parent):
     return True, password, new_password
 
 
-
 class PasswordDialog(QDialog):
 
     def __init__(self, wallet, parent):
@@ -103,34 +102,34 @@ class PasswordDialog(QDialog):
         self.setModal(1)
         self.wallet = wallet
         self.parent = parent
-        msg = (_('Your wallet is encrypted. Use this dialog to change your password.') + ' '\
-               +_('To disable wallet encryption, enter an empty new password.')) \
-               if wallet.use_encryption else _('Your wallet keys are not encrypted')
+        msg = (_('Your wallet is encrypted. Use this dialog to change your password.') + ' '
+               + _('To disable wallet encryption, enter an empty new password.')) \
+            if wallet.use_encryption else _('Your wallet keys are not encrypted')
         self.setLayout(make_password_dialog(self, wallet, msg))
 
-
     def run(self):
-        ok, password, new_password = run_password_dialog(self, self.wallet, self.parent)
+        ok, password, new_password = run_password_dialog(
+            self, self.wallet, self.parent)
         if not ok:
             return
 
         try:
             self.wallet.get_seed(password)
         except Exception:
-            QMessageBox.warning(self.parent, _('Error'), _('Incorrect Password'), _('OK'))
+            QMessageBox.warning(
+                self.parent, _('Error'), _('Incorrect Password'), _('OK'))
             return False, None, None
 
         try:
             self.wallet.update_password(password, new_password)
         except:
-            QMessageBox.warning(self.parent, _('Error'), _('Failed to update password'), _('OK'))
+            QMessageBox.warning(
+                self.parent, _('Error'), _('Failed to update password'), _('OK'))
             return
 
         if new_password:
-            QMessageBox.information(self.parent, _('Success'), _('Password was updated successfully'), _('OK'))
+            QMessageBox.information(
+                self.parent, _('Success'), _('Password was updated successfully'), _('OK'))
         else:
-            QMessageBox.information(self.parent, _('Success'), _('This wallet is not encrypted'), _('OK'))
-
-
-
-
+            QMessageBox.information(
+                self.parent, _('Success'), _('This wallet is not encrypted'), _('OK'))

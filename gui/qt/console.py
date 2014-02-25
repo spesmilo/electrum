@@ -1,7 +1,11 @@
-# source: http://stackoverflow.com/questions/2758159/how-to-embed-a-python-interpreter-in-a-pyqt-widget
+# source:
+# http://stackoverflow.com/questions/2758159/how-to-embed-a-python-interpreter-in-a-pyqt-widget
 
-import sys, os, re
-import traceback, platform
+import sys
+import os
+import re
+import traceback
+import platform
 from PyQt4 import QtCore
 from PyQt4 import QtGui
 from electrum import util
@@ -16,6 +20,7 @@ else:
 
 
 class Console(QtGui.QPlainTextEdit):
+
     def __init__(self, prompt='>> ', startup_message='', parent=None):
         QtGui.QPlainTextEdit.__init__(self, parent)
 
@@ -27,23 +32,22 @@ class Console(QtGui.QPlainTextEdit):
         self.setGeometry(50, 75, 600, 400)
         self.setWordWrapMode(QtGui.QTextOption.WrapAnywhere)
         self.setUndoRedoEnabled(False)
-        self.document().setDefaultFont(QtGui.QFont(MONOSPACE_FONT, 10, QtGui.QFont.Normal))
+        self.document().setDefaultFont(
+            QtGui.QFont(MONOSPACE_FONT, 10, QtGui.QFont.Normal))
         self.showMessage(startup_message)
 
-        self.updateNamespace({'run':self.run_script})
+        self.updateNamespace({'run': self.run_script})
         self.set_json(False)
 
     def set_json(self, b):
         self.is_json = b
-    
+
     def run_script(self, filename):
         with open(filename) as f:
             script = f.read()
 
         # eval is generally considered bad practice. use it wisely!
         result = eval(script, self.namespace, self.namespace)
-
-
 
     def updateNamespace(self, namespace):
         self.namespace.update(namespace)
@@ -70,7 +74,8 @@ class Console(QtGui.QPlainTextEdit):
 
     def getCommand(self):
         doc = self.document()
-        curr_line = unicode(doc.findBlockByLineNumber(doc.lineCount() - 1).text())
+        curr_line = unicode(
+            doc.findBlockByLineNumber(doc.lineCount() - 1).text())
         curr_line = curr_line.rstrip()
         curr_line = curr_line[len(self.prompt):]
         return curr_line
@@ -80,15 +85,16 @@ class Console(QtGui.QPlainTextEdit):
             return
 
         doc = self.document()
-        curr_line = unicode(doc.findBlockByLineNumber(doc.lineCount() - 1).text())
+        curr_line = unicode(
+            doc.findBlockByLineNumber(doc.lineCount() - 1).text())
         self.moveCursor(QtGui.QTextCursor.End)
         for i in range(len(curr_line) - len(self.prompt)):
-            self.moveCursor(QtGui.QTextCursor.Left, QtGui.QTextCursor.KeepAnchor)
+            self.moveCursor(
+                QtGui.QTextCursor.Left, QtGui.QTextCursor.KeepAnchor)
 
         self.textCursor().removeSelectedText()
         self.textCursor().insertText(command)
         self.moveCursor(QtGui.QTextCursor.End)
-
 
     def show_completions(self, completions):
         if self.completions_visible:
@@ -106,7 +112,6 @@ class Console(QtGui.QPlainTextEdit):
 
         self.moveCursor(QtGui.QTextCursor.End)
         self.completions_visible = True
-        
 
     def hide_completions(self):
         if not self.completions_visible:
@@ -114,11 +119,11 @@ class Console(QtGui.QPlainTextEdit):
         c = self.textCursor()
         c.setPosition(self.completions_pos)
         l = self.completions_end - self.completions_pos
-        for x in range(l): c.deleteChar()
+        for x in range(l):
+            c.deleteChar()
 
         self.moveCursor(QtGui.QTextCursor.End)
         self.completions_visible = False
-
 
     def getConstruct(self, command):
         if self.construct:
@@ -146,7 +151,7 @@ class Console(QtGui.QPlainTextEdit):
     def addToHistory(self, command):
         if command.find("importprivkey") > -1:
             return
-        
+
         if command and (not self.history or self.history[-1] != command):
             self.history.append(command)
         self.history_index = len(self.history)
@@ -175,9 +180,8 @@ class Console(QtGui.QPlainTextEdit):
             self.moveCursor(QtGui.QTextCursor.Right)
 
     def register_command(self, c, func):
-        methods = { c: func}
+        methods = {c: func}
         self.updateNamespace(methods)
-        
 
     def runCommand(self):
         command = self.getCommand()
@@ -189,6 +193,7 @@ class Console(QtGui.QPlainTextEdit):
             tmp_stdout = sys.stdout
 
             class stdoutProxy():
+
                 def __init__(self, write_func):
                     self.write_func = write_func
                     self.skip = False
@@ -203,8 +208,9 @@ class Console(QtGui.QPlainTextEdit):
                         QtCore.QCoreApplication.processEvents()
                     self.skip = not self.skip
 
-            if type(self.namespace.get(command)) == type(lambda:None):
-                self.appendPlainText("'%s' is a function. Type '%s()' to use it in the Python console."%(command, command))
+            if type(self.namespace.get(command)) == type(lambda: None):
+                self.appendPlainText(
+                    "'%s' is a function. Type '%s()' to use it in the Python console." % (command, command))
                 self.newPrompt()
                 return
 
@@ -226,13 +232,12 @@ class Console(QtGui.QPlainTextEdit):
             except Exception:
                 traceback_lines = traceback.format_exc().split('\n')
                 # Remove traceback mentioning this file, and a linebreak
-                for i in (3,2,1,-1):
+                for i in (3, 2, 1, -1):
                     traceback_lines.pop(i)
                 self.appendPlainText('\n'.join(traceback_lines))
             sys.stdout = tmp_stdout
         self.newPrompt()
         self.set_json(False)
-                    
 
     def keyPressEvent(self, event):
         if event.key() == QtCore.Qt.Key_Tab:
@@ -263,11 +268,9 @@ class Console(QtGui.QPlainTextEdit):
 
         super(Console, self).keyPressEvent(event)
 
-
-
     def completions(self):
         cmd = self.getCommand()
-        lastword = re.split(' |\(|\)',cmd)[-1]
+        lastword = re.split(' |\(|\)', cmd)[-1]
         beginning = cmd[0:-len(lastword)]
 
         path = lastword.split('.')
@@ -280,16 +283,16 @@ class Console(QtGui.QPlainTextEdit):
             obj = self.namespace.get(path[0])
             prefix = path[0] + '.'
             ns = dir(obj)
-            
 
         completions = []
         for x in ns:
-            if x[0] == '_':continue
+            if x[0] == '_':
+                continue
             xx = prefix + x
             if xx.startswith(lastword):
                 completions.append(xx)
         completions.sort()
-                
+
         if not completions:
             self.hide_completions()
         elif len(completions) == 1:
@@ -298,7 +301,7 @@ class Console(QtGui.QPlainTextEdit):
         else:
             # find common prefix
             p = os.path.commonprefix(completions)
-            if len(p)>len(lastword):
+            if len(p) > len(lastword):
                 self.hide_completions()
                 self.setCommand(beginning + p)
             else:
@@ -314,6 +317,6 @@ welcome_message = '''
 if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)
     console = Console(startup_message=welcome_message)
-    console.updateNamespace({'myVar1' : app, 'myVar2' : 1234})
-    console.show();
+    console.updateNamespace({'myVar1': app, 'myVar2': 1234})
+    console.show()
     sys.exit(app.exec_())

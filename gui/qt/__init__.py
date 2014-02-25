@@ -16,18 +16,26 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import sys, time, datetime, re, threading
+import sys
+import time
+import datetime
+import re
+import threading
 from electrum.i18n import _, set_language
 from electrum.util import print_error, print_msg, parse_url
 from electrum.plugins import run_hook
-import os.path, json, ast, traceback
+import os.path
+import json
+import ast
+import traceback
 import shutil
 
 
 try:
     import PyQt4
 except Exception:
-    sys.exit("Error: Could not import PyQt4 on Linux systems, you may try 'sudo apt-get install python-qt4'")
+    sys.exit(
+        "Error: Could not import PyQt4 on Linux systems, you may try 'sudo apt-get install python-qt4'")
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -40,19 +48,24 @@ from electrum.bitcoin import MIN_RELAY_TX_FEE
 try:
     import icons_rc
 except Exception:
-    sys.exit("Error: Could not import icons_rc.py, please generate it with: 'pyrcc4 icons.qrc -o gui/qt/icons_rc.py'")
+    sys.exit(
+        "Error: Could not import icons_rc.py, please generate it with: 'pyrcc4 icons.qrc -o gui/qt/icons_rc.py'")
 
 from util import *
 from main_window import ElectrumWindow
 from electrum.plugins import init_plugins
 
+
 class Timer(QtCore.QThread):
+
     def run(self):
         while True:
             self.emit(QtCore.SIGNAL('timersignal'))
             time.sleep(0.5)
 
+
 class OpenFileEventFilter(QObject):
+
     def __init__(self, windows):
         self.windows = windows
         super(OpenFileEventFilter, self).__init__()
@@ -78,20 +91,20 @@ class ElectrumGui:
 
         init_plugins(self)
 
-
     def main(self, url):
 
         storage = WalletStorage(self.config)
         if not storage.file_exists:
             import installwizard
-            wizard = installwizard.InstallWizard(self.config, self.network, storage)
+            wizard = installwizard.InstallWizard(
+                self.config, self.network, storage)
             wallet = wizard.run()
-            if not wallet: 
+            if not wallet:
                 exit()
         else:
             wallet = Wallet(storage)
             wallet.start_threads(self.network)
-            
+
         self.main_window = w = ElectrumWindow(self.config, self.network)
 
         # plugins that need to change the GUI do it here
@@ -103,7 +116,8 @@ class ElectrumGui:
         s.start()
 
         self.windows.append(w)
-        if url: w.set_url(url)
+        if url:
+            w.set_url(url)
         w.app = self.app
         w.connect_slots(s)
         w.update_wallet()
@@ -111,5 +125,3 @@ class ElectrumGui:
         self.app.exec_()
 
         wallet.stop_threads()
-
-
