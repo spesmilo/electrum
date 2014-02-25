@@ -29,7 +29,9 @@ if os.path.exists('contrib/crowdin_api_key.txt'):
     c.setopt(c.URL, url)
     c.setopt(c.POST, 1)
     fields = [
-        ('files[' + crowdin_file_name + ']', (pycurl.FORM_FILE, locale_file_name))]
+        ('files[' + crowdin_file_name + ']',
+         (pycurl.FORM_FILE, locale_file_name))
+    ]
     c.setopt(c.HTTPPOST, fields)
     c.perform()
 
@@ -65,7 +67,6 @@ for lang in os.listdir('./locale'):
     mo_dir = 'locale/%s/LC_MESSAGES' % lang
     if not os.path.exists(mo_dir):
         os.mkdir(mo_dir)
-    cmd = 'msgfmt --output-file="%s/electrum.mo" "locale/%s/electrum.po"' % (
-        mo_dir, lang)
+    cmd = 'msgfmt --output-file="%s/electrum.mo" "locale/%s/electrum.po"' % (mo_dir, lang)
     print 'Installing', lang
     os.system(cmd)

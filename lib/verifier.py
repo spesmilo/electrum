@@ -37,11 +37,9 @@ class TxVerifier(threading.Thread):
         self.storage = storage
         self.network = network
         self.blockchain = network.blockchain
-        # requested verifications (with height sent by the requestor)
-        self.transactions = {}
-        # height, timestamp of verified transactions
-        self.verified_tx = storage.get('verified_tx3', {})
-        self.merkle_roots = storage.get('merkle_roots', {})      # hashed by me
+        self.transactions    = {}  # requested verifications (with height sent by the requestor)
+        self.verified_tx     = storage.get('verified_tx3',{})  # height, timestamp of verified transactions
+        self.merkle_roots    = storage.get('merkle_roots',{})  # hashed by me
         self.lock = threading.Lock()
         self.running = False
         self.queue = Queue.Queue()
@@ -138,8 +136,7 @@ class TxVerifier(threading.Thread):
     def verify_merkle(self, tx_hash, result):
         tx_height = result.get('block_height')
         pos = result.get('pos')
-        self.merkle_roots[tx_hash] = self.hash_merkle_root(
-            result['merkle'], tx_hash, pos)
+        self.merkle_roots[tx_hash] = self.hash_merkle_root(result['merkle'], tx_hash, pos)
         header = self.blockchain.read_header(tx_height)
         if not header:
             return
@@ -156,8 +153,7 @@ class TxVerifier(threading.Thread):
         h = hash_decode(target_hash)
         for i in range(len(merkle_s)):
             item = merkle_s[i]
-            h = Hash(hash_decode(item) + h) if ((pos >> i)
-                                                & 1) else Hash(h + hash_decode(item))
+            h = Hash(hash_decode(item) + h) if ((pos >> i) & 1) else Hash(h + hash_decode(item))
         return hash_encode(h)
 
     def undo_verifications(self, height):

@@ -59,82 +59,44 @@ verifymessage_syntax = 'verifymessage <address> <signature> <message>\nIf you wa
 #                                              requires_network
 #                                                     requires_wallet
 #                                                            requires_password
-register_command('contacts',             0, 0, False, True,
-                 False, 'Show your list of contacts')
-register_command(
-    'create',               0, 0, False, True,  False, 'Create a new wallet')
-register_command('createmultisig',       2, 2, False, True,
-                 False, 'similar to bitcoind\'s command')
-register_command('createrawtransaction', 2, 2, False, True,
-                 False, 'similar to bitcoind\'s command')
-register_command('deseed',               0, 0, False, True,  False,
-                 'Remove seed from wallet, creating a seedless, watching-only wallet.')
-register_command('decoderawtransaction', 1, 1, False, False,
-                 False, 'similar to bitcoind\'s command')
-register_command('dumpprivkey',          1, 1, False, True,  True,
-                 'Dumps a specified private key for a given address', 'dumpprivkey <bitcoin address>')
-register_command(
-    'dumpprivkeys',         0, 0, False, True,  True,  'dump all private keys')
-register_command('freeze',               1, 1, False, True,  True,
-                 'Freeze the funds at one of your wallet\'s addresses', 'freeze <address>')
-register_command('getbalance',           0, 1, True,  True,  False,
-                 'Return the balance of your wallet, or of one account in your wallet', 'getbalance [<account>]')
-register_command('getservers',           0, 0, True,  False,
-                 False, 'Return the list of available servers')
-register_command('getversion',           0, 0, False,  False,
-                 False, 'Return the version of your client', 'getversion')
-register_command('getaddressbalance',    1, 1, True,  True,  False,
-                 'Return the balance of an address', 'getaddressbalance <address>')
-register_command('getaddresshistory',    1, 1, True,  True,  False,
-                 'Return the transaction history of a wallet address', 'getaddresshistory <address>')
-register_command('getconfig',            1, 1, False, False,
-                 False, 'Return a configuration variable', 'getconfig <name>')
-register_command('getpubkeys',           1, 1, False, True,  False,
-                 'Return the public keys for a wallet address', 'getpubkeys <bitcoin address>')
-register_command('getrawtransaction',    1, 1, True,  False,
-                 False, 'Retrieve a transaction', 'getrawtransaction <txhash>')
-register_command('getseed',              0, 0, False, True,
-                 True,  'Print the generation seed of your wallet.')
-register_command('getmpk',               0, 0, False, True,
-                 False, 'Return your wallet\'s master public key', 'getmpk')
-register_command(
-    'help',                 0, 1, False, False, False, 'Prints this help')
-register_command('history',              0, 0, True,  True,
-                 False, 'Returns the transaction history of your wallet')
-register_command('importprivkey',        1, 1, False, True,
-                 True,  'Import a private key', 'importprivkey <privatekey>')
-register_command('listaddresses',        2, 2, False, True,
-                 False, 'Returns your list of addresses.', '', listaddr_options)
-register_command('listunspent',          0, 0, True,  True,
-                 False, 'Returns the list of unspent inputs in your wallet.')
-register_command('mktx',                 5, 5, False, True,  True,
-                 'Create a signed transaction', 'mktx <recipient> <amount> [label]', payto_options)
-register_command('mksendmanytx',         4, 4, False, True,  True,
-                 'Create a signed transaction', mksendmany_syntax, payto_options)
-register_command('payto',                5, 5, True,  True,  True,
-                 'Create and broadcast a transaction.', payto_syntax, payto_options)
-register_command('paytomany',            4, 4, True,  True,  True,
-                 'Create and broadcast a transaction.', paytomany_syntax, payto_options)
-register_command(
-    'password',             0, 0, False, True,  True,  'Change your password')
-register_command('restore',              0, 0, True,  True,
-                 False, 'Restore a wallet', '', restore_options)
-register_command('setconfig',            2, 2, False, False, False,
-                 'Set a configuration variable', 'setconfig <name> <value>')
-register_command('setlabel',             2, -1, False, True,
-                 False, 'Assign a label to an item', 'setlabel <tx_hash> <label>')
-register_command('sendrawtransaction',   1, 1, True,  False, False,
-                 'Broadcasts a transaction to the network.', 'sendrawtransaction <tx in hexadecimal>')
-register_command('signrawtransaction',   1, 3, False, True,
-                 True,  'similar to bitcoind\'s command')
-register_command('signmessage',          2, -1, False, True,
-                 True,  'Sign a message with a key', signmessage_syntax)
-register_command('unfreeze',             1, 1, False, True,  False,
-                 'Unfreeze the funds at one of your wallet\'s address', 'unfreeze <address>')
-register_command('validateaddress',      1, 1, False, False, False,
-                 'Check that the address is valid', 'validateaddress <address>')
-register_command('verifymessage',        3, -1, False, False,
-                 False, 'Verifies a signature', verifymessage_syntax)
+register_command('contacts',             0, 0, False, True,  False, 'Show your list of contacts')
+register_command('create',               0, 0, False, True,  False, 'Create a new wallet')
+register_command('createmultisig',       2, 2, False, True,  False, 'similar to bitcoind\'s command')
+register_command('createrawtransaction', 2, 2, False, True,  False, 'similar to bitcoind\'s command')
+register_command('deseed',               0, 0, False, True,  False, 'Remove seed from wallet, creating a seedless, watching-only wallet.')
+register_command('decoderawtransaction', 1, 1, False, False, False, 'similar to bitcoind\'s command')
+register_command('dumpprivkey',          1, 1, False, True,  True,  'Dumps a specified private key for a given address', 'dumpprivkey <bitcoin address>')
+register_command('dumpprivkeys',         0, 0, False, True,  True,  'dump all private keys')
+register_command('freeze',               1, 1, False, True,  True,  'Freeze the funds at one of your wallet\'s addresses', 'freeze <address>')
+register_command('getbalance',           0, 1, True,  True,  False, 'Return the balance of your wallet, or of one account in your wallet', 'getbalance [<account>]')
+register_command('getservers',           0, 0, True,  False, False, 'Return the list of available servers')
+register_command('getversion',           0, 0, False,  False,  False, 'Return the version of your client', 'getversion')
+register_command('getaddressbalance',    1, 1, True,  True,  False, 'Return the balance of an address', 'getaddressbalance <address>')
+register_command('getaddresshistory',    1, 1, True,  True,  False, 'Return the transaction history of a wallet address', 'getaddresshistory <address>')
+register_command('getconfig',            1, 1, False, False, False, 'Return a configuration variable', 'getconfig <name>')
+register_command('getpubkeys',           1, 1, False, True,  False, 'Return the public keys for a wallet address', 'getpubkeys <bitcoin address>')
+register_command('getrawtransaction',    1, 1, True,  False, False, 'Retrieve a transaction', 'getrawtransaction <txhash>')
+register_command('getseed',              0, 0, False, True,  True,  'Print the generation seed of your wallet.')
+register_command('getmpk',               0, 0, False, True,  False, 'Return your wallet\'s master public key', 'getmpk')
+register_command('help',                 0, 1, False, False, False, 'Prints this help')
+register_command('history',              0, 0, True,  True,  False, 'Returns the transaction history of your wallet')
+register_command('importprivkey',        1, 1, False, True,  True,  'Import a private key', 'importprivkey <privatekey>')
+register_command('listaddresses',        2, 2, False, True,  False, 'Returns your list of addresses.', '', listaddr_options)
+register_command('listunspent',          0, 0, True,  True,  False, 'Returns the list of unspent inputs in your wallet.')
+register_command('mktx',                 5, 5, False, True,  True,  'Create a signed transaction', 'mktx <recipient> <amount> [label]', payto_options)
+register_command('mksendmanytx',         4, 4, False, True,  True,  'Create a signed transaction', mksendmany_syntax, payto_options)
+register_command('payto',                5, 5, True,  True,  True,  'Create and broadcast a transaction.', payto_syntax, payto_options)
+register_command('paytomany',            4, 4, True,  True,  True,  'Create and broadcast a transaction.', paytomany_syntax, payto_options)
+register_command('password',             0, 0, False, True,  True,  'Change your password')
+register_command('restore',              0, 0, True,  True,  False, 'Restore a wallet', '', restore_options)
+register_command('setconfig',            2, 2, False, False, False, 'Set a configuration variable', 'setconfig <name> <value>')
+register_command('setlabel',             2,-1, False, True,  False, 'Assign a label to an item', 'setlabel <tx_hash> <label>')
+register_command('sendrawtransaction',   1, 1, True,  False, False, 'Broadcasts a transaction to the network.', 'sendrawtransaction <tx in hexadecimal>')
+register_command('signrawtransaction',   1, 3, False, True,  True,  'similar to bitcoind\'s command')
+register_command('signmessage',          2,-1, False, True,  True,  'Sign a message with a key', signmessage_syntax)
+register_command('unfreeze',             1, 1, False, True,  False, 'Unfreeze the funds at one of your wallet\'s address', 'unfreeze <address>')
+register_command('validateaddress',      1, 1, False, False, False, 'Check that the address is valid', 'validateaddress <address>')
+register_command('verifymessage',        3,-1, False, False, False, 'Verifies a signature', verifymessage_syntax)
 
 
 class Commands:
@@ -182,8 +144,7 @@ class Commands:
 
     def signrawtransaction(self, raw_tx, input_info, private_keys):
         tx = Transaction(raw_tx)
-        self.wallet.signrawtransaction(
-            tx, input_info, private_keys, self.password)
+        self.wallet.signrawtransaction(tx, input_info, private_keys, self.password)
         return tx
 
     def decoderawtransaction(self, raw):
@@ -197,8 +158,7 @@ class Commands:
     def createmultisig(self, num, pubkeys):
         assert isinstance(pubkeys, list)
         redeem_script = Transaction.multisig_script(pubkeys, num)
-        address = hash_160_to_bc_address(
-            hash_160(redeem_script.decode('hex')), 5)
+        address = hash_160_to_bc_address(hash_160(redeem_script.decode('hex')), 5)
         return {'address': address, 'redeemScript': redeem_script}
 
     def freeze(self, addr):

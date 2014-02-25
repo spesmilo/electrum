@@ -35,13 +35,13 @@ if sys.platform == 'darwin':
     extra_options = dict(
         setup_requires=['py2app'],
         app=[mainscript],
-        options=dict(py2app=dict(argv_emulation=True,
-                                 includes=[
-                                     'PyQt4.QtCore', 'PyQt4.QtGui', 'PyQt4.QtWebKit', 'PyQt4.QtNetwork', 'sip'],
-                                 packages=['lib', 'gui', 'plugins'],
-                                 iconfile='electrum.icns',
-                                 plist=plist,
-                                 resources=["data", "icons"])),
+        options=dict(
+            py2app=dict(argv_emulation=True,
+                        includes=['PyQt4.QtCore', 'PyQt4.QtGui', 'PyQt4.QtWebKit', 'PyQt4.QtNetwork', 'sip'],
+                        packages=['lib', 'gui', 'plugins'],
+                        iconfile='electrum.icns',
+                        plist=plist,
+                        resources=["data", "icons"])),
     )
 elif sys.platform == 'win32':
     extra_options = dict(

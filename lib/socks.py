@@ -204,8 +204,11 @@ class socksocket(socket.socket):
         elif chosenauth[1:2] == chr(0x02).encode():
             # Okay, we need to perform a basic username/password
             # authentication.
-            self.sendall(chr(0x01).encode(
-            ) + chr(len(self.__proxy[4])) + self.__proxy[4] + chr(len(self.__proxy[5])) + self.__proxy[5])
+            self.sendall(chr(0x01).encode() +
+                         chr(len(self.__proxy[4])) +
+                         self.__proxy[4] +
+                         chr(len(self.__proxy[5])) +
+                         self.__proxy[5])
             authstat = self.__recvall(2)
             if authstat[0:1] != chr(0x01).encode():
                 # Bad response
@@ -235,8 +238,7 @@ class socksocket(socket.socket):
             if self.__proxy[3]:
                 # Resolve remotely
                 ipaddr = None
-                req = req + chr(0x03).encode() + \
-                    chr(len(destaddr)).encode() + destaddr
+                req = req + chr(0x03).encode() + chr(len(destaddr)).encode() + destaddr
             else:
                 # Resolve locally
                 ipaddr = socket.inet_aton(socket.gethostbyname(destaddr))
@@ -252,8 +254,7 @@ class socksocket(socket.socket):
             # Connection failed
             self.close()
             if ord(resp[1:2]) <= 8:
-                raise Socks5Error(
-                    (ord(resp[1:2]), _socks5errors[ord(resp[1:2])]))
+                raise Socks5Error((ord(resp[1:2]), _socks5errors[ord(resp[1:2])]))
             else:
                 raise Socks5Error((9, _socks5errors[9]))
         # Get the bound address/port
@@ -329,13 +330,11 @@ class socksocket(socket.socket):
             self.close()
             if ord(resp[1:2]) in (91, 92, 93):
                 self.close()
-                raise Socks4Error(
-                    (ord(resp[1:2]), _socks4errors[ord(resp[1:2]) - 90]))
+                raise Socks4Error((ord(resp[1:2]), _socks4errors[ord(resp[1:2]) - 90]))
             else:
                 raise Socks4Error((94, _socks4errors[4]))
         # Get the bound address/port
-        self.__proxysockname = (
-            socket.inet_ntoa(resp[4:]), struct.unpack(">H", resp[2:4])[0])
+        self.__proxysockname = (socket.inet_ntoa(resp[4:]), struct.unpack(">H", resp[2:4])[0])
         if rmtrslv != None:
             self.__proxypeername = (socket.inet_ntoa(ipaddr), destport)
         else:

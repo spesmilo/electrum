@@ -398,8 +398,7 @@ class EC_KEY(object):
         Q = inv_r * (s * R + minus_e * G)
         public_key = ecdsa.VerifyingKey.from_public_point(Q, curve=SECP256k1)
         # check that Q is the public key
-        public_key.verify_digest(
-            sig[1:], h, sigdecode=ecdsa.util.sigdecode_string)
+        public_key.verify_digest(sig[1:], h, sigdecode=ecdsa.util.sigdecode_string)
         # check that we get the original signing address
         addr = public_key_to_bc_address(encode_point(public_key, compressed))
         if address != addr:
@@ -453,11 +452,9 @@ def CKD(k, c, n):
         data = chr(0) + k + rev_hex(int_to_hex(n, 4)).decode('hex')
         I = hmac.new(c, data, hashlib.sha512).digest()
     else:  # We want a "non-secret" address that can be determined from K
-        I = hmac.new(
-            c, K + rev_hex(int_to_hex(n, 4)).decode('hex'), hashlib.sha512).digest()
+        I = hmac.new(c, K + rev_hex(int_to_hex(n, 4)).decode('hex'), hashlib.sha512).digest()
 
-    k_n = number_to_string(
-        (string_to_number(I[0:32]) + string_to_number(k)) % order, order)
+    k_n = number_to_string((string_to_number(I[0:32]) + string_to_number(k)) % order, order)
     c_n = I[32:]
     return k_n, c_n
 
@@ -480,14 +477,11 @@ def CKD_prime(K, c, n):
     K_public_key = ecdsa.VerifyingKey.from_string(K, curve=SECP256k1)
     K_compressed = GetPubKey(K_public_key.pubkey, True)
 
-    I = hmac.new(
-        c, K_compressed + rev_hex(int_to_hex(n, 4)).decode('hex'), hashlib.sha512).digest()
+    I = hmac.new(c, K_compressed + rev_hex(int_to_hex(n, 4)).decode('hex'), hashlib.sha512).digest()
 
     curve = SECP256k1
-    pubkey_point = string_to_number(
-        I[0:32]) * curve.generator + K_public_key.pubkey.point
-    public_key = ecdsa.VerifyingKey.from_public_point(
-        pubkey_point, curve=SECP256k1)
+    pubkey_point = string_to_number(I[0:32]) * curve.generator + K_public_key.pubkey.point
+    public_key = ecdsa.VerifyingKey.from_public_point(pubkey_point, curve=SECP256k1)
 
     K_n = public_key.to_string()
     K_n_compressed = GetPubKey(public_key.pubkey, True)
@@ -534,8 +528,7 @@ def test_bip32(seed, sequence):
     see https://en.bitcoin.it/wiki/BIP_0032_TestVectors
     """
 
-    master_secret, master_chain, master_public_key, master_public_key_compressed = bip32_init(
-        seed)
+    master_secret, master_chain, master_public_key, master_public_key_compressed = bip32_init(seed)
 
     print "secret key", master_secret.encode('hex')
     print "chain code", master_chain.encode('hex')
@@ -575,5 +568,5 @@ def test_bip32(seed, sequence):
 
 if __name__ == '__main__':
     test_bip32("000102030405060708090a0b0c0d0e0f", "0'/1/2'/2/1000000000")
-    test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542",
-               "0/2147483647'/1/2147483646'/2")
+    test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","0/2147483647'/1/2147483646'/2")
+

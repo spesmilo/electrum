@@ -36,6 +36,7 @@ from bitcoin import *
 from account import *
 from transaction import Transaction
 from plugins import run_hook
+from version import *
 
 COINBASE_MATURITY = 100
 DUST_THRESHOLD = 5430
@@ -63,9 +64,6 @@ def pw_decode(s, password):
         return d
     else:
         return s
-
-
-from version import *
 
 
 class WalletStorage:
@@ -157,26 +155,25 @@ class Wallet:
         self.gap_limit_for_change = 3  # constant
 
         # saved fields
-        self.seed_version = storage.get('seed_version', SEED_VERSION)
+        self.seed_version        = storage.get('seed_version', SEED_VERSION)
 
-        self.gap_limit = storage.get('gap_limit', 5)
-        self.use_change = storage.get('use_change', True)
-        self.use_encryption = storage.get('use_encryption', False)
-        self.seed = storage.get('seed', '')               # encrypted
-        self.labels = storage.get('labels', {})
-        self.frozen_addresses = storage.get('frozen_addresses', [])
-        self.addressbook = storage.get('contacts', [])
+        self.gap_limit           = storage.get('gap_limit', 5)
+        self.use_change          = storage.get('use_change', True)
+        self.use_encryption      = storage.get('use_encryption', False)
+        self.seed                = storage.get('seed', '')  # encrypted
+        self.labels              = storage.get('labels', {})
+        self.frozen_addresses    = storage.get('frozen_addresses', [])
+        self.addressbook         = storage.get('contacts', [])
 
-        self.imported_keys = storage.get('imported_keys', {})
-        # address -> list(txid, height)
-        self.history = storage.get('addr_history', {})
+        self.imported_keys       = storage.get('imported_keys', {})
+        self.history             = storage.get('addr_history', {})  # address -> list(txid, height)
 
-        self.fee = int(storage.get('fee_per_kb', 20000))
+        self.fee                 = int(storage.get('fee_per_kb',20000))
 
-        self.master_public_keys = storage.get('master_public_keys', {})
+        self.master_public_keys  = storage.get('master_public_keys', {})
         self.master_private_keys = storage.get('master_private_keys', {})
 
-        self.next_addresses = storage.get('next_addresses', {})
+        self.next_addresses      = storage.get('next_addresses', {})
 
         if self.seed_version not in [4, 6]:
             msg = "This wallet seed is not supported."
@@ -462,32 +459,40 @@ class Wallet:
 
         if account_type is '1':
             master_c0, master_K0, _ = self.master_public_keys["m/0'/"]
-            c0, K0, cK0 = bip32_public_derivation(
-                master_c0.decode('hex'), master_K0.decode('hex'), "m/0'/", "m/0'/%d" % i)
+            c0, K0, cK0 = bip32_public_derivation(master_c0.decode('hex'),
+                                                  master_K0.decode('hex'),
+                                                  "m/0'/", "m/0'/%d" % i)
             account = BIP32_Account({'c': c0, 'K': K0, 'cK': cK0})
 
         elif account_type == '2of2':
             master_c1, master_K1, _ = self.master_public_keys["m/1'/"]
-            c1, K1, cK1 = bip32_public_derivation(
-                master_c1.decode('hex'), master_K1.decode('hex'), "m/1'/", "m/1'/%d" % i)
+            c1, K1, cK1 = bip32_public_derivation(master_c1.decode('hex'),
+                                                  master_K1.decode('hex'),
+                                                  "m/1'/", "m/1'/%d" % i)
             master_c2, master_K2, _ = self.master_public_keys["m/2'/"]
-            c2, K2, cK2 = bip32_public_derivation(
-                master_c2.decode('hex'), master_K2.decode('hex'), "m/2'/", "m/2'/%d" % i)
+            c2, K2, cK2 = bip32_public_derivation(master_c2.decode('hex'),
+                                                  master_K2.decode('hex'),
+                                                  "m/2'/", "m/2'/%d" % i)
             account = BIP32_Account_2of2(
                 {'c': c1, 'K': K1, 'cK': cK1, 'c2': c2, 'K2': K2, 'cK2': cK2})
 
         elif account_type == '2of3':
             master_c3, master_K3, _ = self.master_public_keys["m/3'/"]
-            c3, K3, cK3 = bip32_public_derivation(
-                master_c3.decode('hex'), master_K3.decode('hex'), "m/3'/", "m/3'/%d" % i)
+            c3, K3, cK3 = bip32_public_derivation(master_c3.decode('hex'),
+                                                  master_K3.decode('hex'),
+                                                  "m/3'/", "m/3'/%d" % i)
             master_c4, master_K4, _ = self.master_public_keys["m/4'/"]
-            c4, K4, cK4 = bip32_public_derivation(
-                master_c4.decode('hex'), master_K4.decode('hex'), "m/4'/", "m/4'/%d" % i)
+            c4, K4, cK4 = bip32_public_derivation(master_c4.decode('hex'),
+                                                  master_K4.decode('hex'),
+                                                  "m/4'/", "m/4'/%d" % i)
             master_c5, master_K5, _ = self.master_public_keys["m/5'/"]
-            c5, K5, cK5 = bip32_public_derivation(
-                master_c5.decode('hex'), master_K5.decode('hex'), "m/5'/", "m/5'/%d" % i)
+            c5, K5, cK5 = bip32_public_derivation(master_c5.decode('hex'),
+                                                  master_K5.decode('hex'),
+                                                  "m/5'/", "m/5'/%d" % i)
             account = BIP32_Account_2of3(
-                {'c': c3, 'K': K3, 'cK': cK3, 'c2': c4, 'K2': K4, 'cK2': cK4, 'c3': c5, 'K3': K5, 'cK3': cK5})
+                {'c': c3, 'K': K3, 'cK': cK3,
+                 'c2': c4, 'K2': K4, 'cK2': cK4,
+                 'c3': c5, 'K3': K5, 'cK3': cK5})
 
         return account_id, account
 
@@ -748,8 +753,7 @@ class Wallet:
 
                 roots = []
                 for s in keyid.split('&'):
-                    m = re.match(
-                        "bip32\(([0-9a-f]+),([0-9a-f]+),(/\d+/\d+/\d+)", s)
+                    m = re.match("bip32\(([0-9a-f]+),([0-9a-f]+),(/\d+/\d+/\d+)", s)
                     if not m:
                         continue
                     c = m.group(1)
@@ -758,8 +762,7 @@ class Wallet:
                     root = self.find_root_by_master_key(c, K)
                     if not root:
                         continue
-                    sequence = map(
-                        lambda x: int(x), sequence.strip('/').split('/'))
+                    sequence = map(lambda x: int(x), sequence.strip('/').split('/'))
                     root = root + '%d' % sequence[0]
                     sequence = sequence[1:]
                     roots.append((root, sequence))
@@ -793,8 +796,7 @@ class Wallet:
                     txin['scriptPubKey'] = item['scriptPubKey']
                     account, sequence = self.get_address_index(item['address'])
                     if account != -1:
-                        txin['redeemScript'] = self.accounts[
-                            account].redeem_script(sequence)
+                        txin['redeemScript'] = self.accounts[account].redeem_script(sequence)
                         print_error("added redeemScript", txin['redeemScript'])
                     break
 
@@ -825,7 +827,6 @@ class Wallet:
         if value >= self.gap_limit:
             self.gap_limit = value
             self.storage.put('gap_limit', self.gap_limit, True)
-            # self.interface.poke('synchronizer')
             return True
 
         elif value >= self.min_acceptable_gap():
@@ -960,8 +961,7 @@ class Wallet:
         return n
 
     def get_address_flags(self, addr):
-        flags = "C" if self.is_change(
-            addr) else "I" if addr in self.imported_keys.keys() else "-"
+        flags = "C" if self.is_change(addr) else "I" if addr in self.imported_keys.keys() else "-"
         flags += "F" if addr in self.frozen_addresses else "-"
         return flags
 
@@ -1141,8 +1141,7 @@ class Wallet:
             v = item.get('value')
             total += v
             inputs.append(item)
-            fee = self.estimated_fee(
-                inputs) if fixed_fee is None else fixed_fee
+            fee = self.estimated_fee(inputs) if fixed_fee is None else fixed_fee
             if total >= amount + fee:
                 break
         else:
@@ -1202,12 +1201,10 @@ class Wallet:
             self.add_extra_addresses(tx)
             if not self.check_new_tx(tx_hash, tx):
                 # may happen due to pruning
-                print_error(
-                    "received transaction that is no longer referenced in history", tx_hash)
+                print_error("received transaction that is no longer referenced in history", tx_hash)
                 return
             self.transactions[tx_hash] = tx
-            self.network.interface.pending_transactions_for_notifications.append(
-                tx)
+            self.network.interface.pending_transactions_for_notifications.append(tx)
             self.save_transactions()
             if self.verifier and tx_height > 0:
                 self.verifier.add(tx_hash, tx_height)
@@ -1222,8 +1219,7 @@ class Wallet:
     def receive_history_callback(self, addr, hist):
 
         if not self.check_new_history(addr, hist):
-            raise Exception(
-                "error: received history for %s is not consistent with known transactions" % addr)
+            raise Exception("error: received history for %s is not consistent with known transactions" % addr)
 
         with self.lock:
             self.history[addr] = hist
@@ -1254,22 +1250,18 @@ class Wallet:
             c, u = self.get_account_balance(account)
 
             if balance != c + u:
-                result.append(
-                    ('', 1000, 0, c + u - balance, None, c + u - balance, None))
+                result.append('', 1000, 0, c + u - balance, None, c + u - balance, None)
 
             balance = c + u - balance
             for tx_hash, tx in history:
-                is_relevant, is_mine, value, fee = self.get_tx_value(
-                    tx, account)
+                is_relevant, is_mine, value, fee = self.get_tx_value(tx, account)
                 if not is_relevant:
                     continue
                 if value is not None:
                     balance += value
 
-                conf, timestamp = self.verifier.get_confirmations(
-                    tx_hash) if self.verifier else (None, None)
-                result.append(
-                    (tx_hash, conf, is_mine, value, fee, balance, timestamp))
+                conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
+                result.append( (tx_hash, conf, is_mine, value, fee, balance, timestamp) )
 
         return result
 
@@ -1349,8 +1341,7 @@ class Wallet:
             if redeemScript:
                 txin['redeemScript'] = redeemScript
             else:
-                txin['redeemPubkey'] = self.accounts[
-                    account].get_pubkey(*sequence)
+                txin['redeemPubkey'] = self.accounts[account].get_pubkey(*sequence)
 
     def sign_transaction(self, tx, keypairs):
         tx.sign(keypairs)
@@ -1365,8 +1356,7 @@ class Wallet:
     def send_tx(self, tx):
         # asynchronous
         self.tx_event.clear()
-        self.network.interface.send(
-            [('blockchain.transaction.broadcast', [str(tx)])], self.on_broadcast)
+        self.network.interface.send([('blockchain.transaction.broadcast', [str(tx)])], self.on_broadcast)
         return tx.hash()
 
     def on_broadcast(self, i, r):
@@ -1430,8 +1420,7 @@ class Wallet:
                     self.verifier.add(tx_hash, tx_height)
 
         # if we are on a pruning server, remove unverified transactions
-        vr = self.verifier.transactions.keys(
-        ) + self.verifier.verified_tx.keys()
+        vr = self.verifier.transactions.keys() + self.verifier.verified_tx.keys()
         for tx_hash in self.transactions.keys():
             if tx_hash not in vr:
                 self.transactions.pop(tx_hash)
@@ -1480,8 +1469,7 @@ class Wallet:
                 ext_requests = []
                 for _addr, _v in tx.outputs:
                     # assert not self.is_mine(_addr)
-                    ext_requests.append(
-                        ('blockchain.address.get_history', [_addr]))
+                    ext_requests.append('blockchain.address.get_history', [_addr])
 
                 ext_h = self.network.synchronous_get(ext_requests)
                 print_error("sync:", ext_requests, ext_h)
@@ -1642,8 +1630,7 @@ class WalletSynchronizer(threading.Thread):
             # request missing transactions
             for tx_hash, tx_height in missing_tx:
                 if (tx_hash, tx_height) not in requested_tx:
-                    interface.send(
-                        [('blockchain.transaction.get', [tx_hash, tx_height])], lambda i, r: self.queue.put(r))
+                    interface.send([('blockchain.transaction.get', [tx_hash, tx_height])], lambda i, r: self.queue.put(r))
                     requested_tx.append((tx_hash, tx_height))
             missing_tx = []
 
@@ -1686,8 +1673,7 @@ class WalletSynchronizer(threading.Thread):
                 addr = params[0]
                 if self.wallet.get_status(self.wallet.get_history(addr)) != result:
                     if requested_histories.get(addr) is None:
-                        interface.send(
-                            [('blockchain.address.get_history', [addr])], lambda i, r: self.queue.put(r))
+                        interface.send([('blockchain.address.get_history', [addr])], lambda i, r: self.queue.put(r))
                         requested_histories[addr] = result
 
             elif method == 'blockchain.address.get_history':
@@ -1707,8 +1693,7 @@ class WalletSynchronizer(threading.Thread):
                             hist.append((tx_hash, item['height']))
 
                     if len(hist) != len(result):
-                        raise Exception(
-                            "error: server sent history with non-unique txid", result)
+                        raise Exception("error: server sent history with non-unique txid", result)
 
                     # check that the status corresponds to what was announced
                     rs = requested_histories.pop(addr)
@@ -1735,8 +1720,7 @@ class WalletSynchronizer(threading.Thread):
                 print_error("received tx:", tx_hash, len(tx.raw))
 
             else:
-                print_error(
-                    "Error: Unknown message:" + method + ", " + repr(params) + ", " + repr(result))
+                print_error("Error: Unknown message:" + method + ", " + repr(params) + ", " + repr(result))
 
             if self.was_updated and not requested_tx:
                 self.wallet.network.trigger_callback('updated')

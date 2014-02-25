@@ -6,7 +6,9 @@ import electrum
 electrum.set_verbosity(False)     # default is True
 network = electrum.Network({'auto_cycle': True})
 network.register_callback(
-    'peers', lambda: electrum.print_json(network.irc_servers.keys()))
+    'peers',
+    lambda: electrum.print_json(network.irc_servers.keys())
+)
 
 if not network.start(wait=True):
     print "Not connected"

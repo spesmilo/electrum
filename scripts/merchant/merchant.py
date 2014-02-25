@@ -56,12 +56,11 @@ num = 0
 def check_create_table(conn):
     global num
     c = conn.cursor()
-    c.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='electrum_payments';")
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='electrum_payments';")
     data = c.fetchall()
     if not data:
-        c.execute(
-            """CREATE TABLE electrum_payments (address VARCHAR(40), amount FLOAT, confirmations INT(8), received_at TIMESTAMP, expires_at TIMESTAMP, paid INT(1), processed INT(1));""")
+        c.execute("CREATE TABLE electrum_payments (address VARCHAR(40), amount FLOAT, confirmations INT(8), "
+                  "received_at TIMESTAMP, expires_at TIMESTAMP, paid INT(1), processed INT(1));")
         conn.commit()
 
     c.execute("SELECT Count(address) FROM 'electrum_payments'")
@@ -187,8 +186,7 @@ if __name__ == '__main__':
         cur = conn.cursor()
 
         # read pending requests from table
-        cur.execute(
-            "SELECT address, amount, confirmations FROM electrum_payments WHERE paid IS NULL;")
+        cur.execute("SELECT address, amount, confirmations FROM electrum_payments WHERE paid IS NULL;")
         data = cur.fetchall()
 
         # add pending requests to the wallet
@@ -213,40 +211,38 @@ if __name__ == '__main__':
             addr = params
             # set paid=1 for received payments
             print "received payment from", addr
-            cur.execute(
-                "update electrum_payments set paid=1 where address='%s'" % addr)
+            cur.execute("update electrum_payments set paid=1 where address='%s'" % addr)
 
         elif cmd == 'request':
             # add a new request to the table.
             addr, amount, confs, minutes = params
-            sql = "INSERT INTO electrum_payments (address, amount, confirmations, received_at, expires_at, paid, processed)"\
-                + \
-                " VALUES ('%s', %f, %d, datetime('now'), datetime('now', '+%d Minutes'), NULL, NULL);" % (addr,
-                                                                                                          amount, confs, minutes)
+            sql = (
+                "INSERT INTO electrum_payments (address, amount, confirmations, received_at, expires_at, paid, processed)"
+                " VALUES ('%s', %f, %d, datetime('now'), datetime('now', '+%d Minutes'), NULL, NULL);" %
+                (addr, amount, confs, minutes)
+            )
             print sql
             cur.execute(sql)
 
         # set paid=0 for expired requests
-        cur.execute(
-            """UPDATE electrum_payments set paid=0 WHERE expires_at < CURRENT_TIMESTAMP and paid is NULL;""")
+        cur.execute("UPDATE electrum_payments set paid=0 WHERE expires_at < CURRENT_TIMESTAMP and paid is NULL;")
 
         # do callback for addresses that received payment or expired
-        cur.execute(
-            """SELECT address, paid from electrum_payments WHERE paid is not NULL and processed is NULL;""")
+        cur.execute("SELECT address, paid from electrum_payments WHERE paid is not NULL and processed is NULL;")
         data = cur.fetchall()
         for item in data:
             address, paid = item
             paid = bool(paid)
             headers = {'content-type': 'application/json'}
-            data_json = {
-                'address': address, 'password': cb_password, 'paid': paid}
+            data_json = {'address': address,
+                         'password': cb_password,
+                         'paid': paid}
             data_json = json.dumps(data_json)
             url = received_url if paid else expired_url
             req = urllib2.Request(url, data_json, headers)
             try:
                 response_stream = urllib2.urlopen(req)
-                cur.execute(
-                    "UPDATE electrum_payments SET processed=1 WHERE id=%d;" % (id))
+                cur.execute("UPDATE electrum_payments SET processed=1 WHERE id=%d;" % (id))
             except urllib2.HTTPError:
                 print "cannot do callback", data_json
             except ValueError, e:

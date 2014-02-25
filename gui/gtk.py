@@ -188,8 +188,7 @@ def run_settings_dialog(self):
     fee_entry.connect('changed', numbify, False)
     fee_entry.show()
     fee.pack_start(fee_entry, False, False, 10)
-    add_help_button(
-        fee, 'Fee per kilobyte of transaction. Recommended value:0.0001')
+    add_help_button(fee, 'Fee per kilobyte of transaction. Recommended value:0.0001')
     fee.show()
     vbox.pack_start(fee, False, False, 5)
 
@@ -203,8 +202,7 @@ def run_settings_dialog(self):
     nz_entry.connect('changed', numbify, True)
     nz_entry.show()
     nz.pack_start(nz_entry, False, False, 10)
-    add_help_button(
-        nz, "Number of zeros displayed after the decimal point.\nFor example, if this number is 2, then '5.' is displayed as '5.00'")
+    add_help_button(nz, "Number of zeros displayed after the decimal point.\nFor example, if this number is 2, then '5.' is displayed as '5.00'")
     nz.show()
     vbox.pack_start(nz, False, False, 5)
 
@@ -336,11 +334,6 @@ def run_network_dialog(network, parent):
     vbox.pack_start(host_box, False, False, 5)
     vbox.pack_start(p_box, True, True, 0)
 
-    #scroll = gtk.ScrolledWindow()
-    #scroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_ALWAYS)
-    # scroll.add_with_viewport(treeview)
-    # scroll.show()
-    #vbox.pack_start(scroll, True)
     vbox.pack_start(treeview, True)
 
     def my_treeview_cb(treeview):
@@ -601,14 +594,12 @@ class ElectrumWindow:
                     r = r.strip()
                     if re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r):
                         try:
-                            to_address = self.wallet.get_alias(
-                                r, interactive=False)
+                            to_address = self.wallet.get_alias(r, interactive=False)
                         except Exception:
                             continue
                         if to_address:
                             s = r + ' <' + to_address + '>'
-                            gobject.idle_add(
-                                lambda: self.payto_entry.set_text(s))
+                            gobject.idle_add(lambda: self.payto_entry.set_text(s))
 
         thread.start_new_thread(update_status_bar_thread, ())
         if self.wallet.seed:
@@ -696,10 +687,8 @@ class ElectrumWindow:
         clear_button = gtk.Button("Clear")
         clear_button.show()
         end_box.pack_start(clear_button, False, False, 15)
-        send_button.connect(
-            "clicked", self.do_send, (payto_entry, message_entry, amount_entry, fee_entry))
-        clear_button.connect("clicked", self.do_clear, (
-            payto_entry, message_entry, amount_entry, fee_entry))
+        send_button.connect("clicked", self.do_send, (payto_entry, message_entry, amount_entry, fee_entry))
+        clear_button.connect("clicked", self.do_clear, (payto_entry, message_entry, amount_entry, fee_entry))
 
         vbox.pack_start(end_box, False, False, 5)
 
@@ -724,17 +713,13 @@ class ElectrumWindow:
                 fee_entry.set_text(str(Decimal(fee) / 100000000))
                 self.fee_box.show()
             if inputs:
-                amount_entry.modify_text(
-                    gtk.STATE_NORMAL, gtk.gdk.color_parse("#000000"))
-                fee_entry.modify_text(
-                    gtk.STATE_NORMAL, gtk.gdk.color_parse("#000000"))
+                amount_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#000000"))
+                fee_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#000000"))
                 send_button.set_sensitive(True)
             else:
                 send_button.set_sensitive(False)
-                amount_entry.modify_text(
-                    gtk.STATE_NORMAL, gtk.gdk.color_parse("#cc0000"))
-                fee_entry.modify_text(
-                    gtk.STATE_NORMAL, gtk.gdk.color_parse("#cc0000"))
+                amount_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#cc0000"))
+                fee_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#cc0000"))
                 self.funds_error = True
 
         amount_entry.connect('changed', entry_changed, False)
@@ -759,8 +744,7 @@ class ElectrumWindow:
             entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#ffffff"))
 
     def set_url(self, url):
-        payto, amount, label, message, signature, identity, url = self.wallet.parse_url(
-            url, self.show_message, self.question)
+        payto, amount, label, message, signature, identity, url = self.wallet.parse_url(url, self.show_message, self.question)
         self.notebook.set_current_page(1)
         self.payto_entry.set_text(payto)
         self.message_entry.set_text(message)
@@ -769,8 +753,7 @@ class ElectrumWindow:
             self.set_frozen(self.payto_entry, True)
             self.set_frozen(self.amount_entry, True)
             self.set_frozen(self.message_entry, True)
-            self.payto_sig_id.set_text(
-                '      The bitcoin URI was signed by ' + identity)
+            self.payto_sig_id.set_text( '      The bitcoin URI was signed by ' + identity )
         else:
             self.payto_sig.set_visible(False)
 
@@ -796,8 +779,7 @@ class ElectrumWindow:
             entry.set_text('')
 
     def question(self, msg):
-        dialog = gtk.MessageDialog(
-            self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, msg)
+        dialog = gtk.MessageDialog( self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, msg)
         dialog.show()
         result = dialog.run()
         dialog.destroy()
@@ -810,12 +792,10 @@ class ElectrumWindow:
         r = r.strip()
 
         m1 = re.match('^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$', r)
-        m2 = re.match(
-            '(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+) \<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
+        m2 = re.match('(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+) \<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
 
         if m1:
-            to_address = self.wallet.get_alias(
-                r, True, self.show_message, self.question)
+            to_address = self.wallet.get_alias(r, True, self.show_message, self.question)
             if not to_address:
                 return
             else:
@@ -855,8 +835,7 @@ class ElectrumWindow:
             return
 
         if tx.requires_fee(self.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
-            self.show_message(
-                "This transaction requires a higher fee, or it will not be propagated by the network.")
+            self.show_message("This transaction requires a higher fee, or it will not be propagated by the network.")
             return
 
         if label:
@@ -878,20 +857,10 @@ class ElectrumWindow:
         if event.type == gtk.gdk._2BUTTON_PRESS:
             c = treeview.get_cursor()[0]
             if treeview == self.history_treeview:
-                tx_details = self.history_list.get_value(
-                    self.history_list.get_iter(c), 8)
+                tx_details = self.history_list.get_value(self.history_list.get_iter(c), 8)
                 self.show_message(tx_details)
             elif treeview == self.contacts_treeview:
-                m = self.addressbook_list.get_value(
-                    self.addressbook_list.get_iter(c), 0)
-                #a = self.wallet.aliases.get(m)
-                # if a:
-                #    if a[0] in self.wallet.authorities.keys():
-                #        s = self.wallet.authorities.get(a[0])
-                #    else:
-                #        s = "self-signed"
-                #    msg = 'Alias: '+ m + '\nTarget address: '+ a[1] + '\n\nSigned by: ' + s + '\nSigning address:' + a[0]
-                #    self.show_message(msg)
+                m = self.addressbook_list.get_value(self.addressbook_list.get_iter(c), 0)
 
     def treeview_key_press(self, treeview, event):
         c = treeview.get_cursor()[0]
@@ -901,27 +870,16 @@ class ElectrumWindow:
                 treeview.set_cursor((0,))
         elif event.keyval == gtk.keysyms.Return:
             if treeview == self.history_treeview:
-                tx_details = self.history_list.get_value(
-                    self.history_list.get_iter(c), 8)
+                tx_details = self.history_list.get_value(self.history_list.get_iter(c), 8)
                 self.show_message(tx_details)
             elif treeview == self.contacts_treeview:
-                m = self.addressbook_list.get_value(
-                    self.addressbook_list.get_iter(c), 0)
-                #a = self.wallet.aliases.get(m)
-                # if a:
-                #    if a[0] in self.wallet.authorities.keys():
-                #        s = self.wallet.authorities.get(a[0])
-                #    else:
-                #        s = "self"
-                #    msg = 'Alias:'+ m + '\n\nTarget: '+ a[1] + '\nSigned by: ' + s + '\nSigning address:' + a[0]
-                #    self.show_message(msg)
+                m = self.addressbook_list.get_value(self.addressbook_list.get_iter(c), 0)
 
         return False
 
     def create_history_tab(self):
 
-        self.history_list = gtk.ListStore(
-            str, str, str, str, 'gboolean',  str, str, str, str)
+        self.history_list = gtk.ListStore(str, str, str, str, 'gboolean',  str, str, str, str)
         treeview = gtk.TreeView(model=self.history_list)
         self.history_treeview = treeview
         treeview.set_tooltip_column(7)
@@ -1080,16 +1038,13 @@ class ElectrumWindow:
                 k = qr.getModuleCount()
                 for r in range(k):
                     for c in range(k):
-                        gc = style.black_gc if qr.isDark(
-                            r, c) else style.white_gc
-                        area.window.draw_rectangle(
-                            gc, True, c * boxsize, r * boxsize, boxsize, boxsize)
+                        gc = style.black_gc if qr.isDark(r, c) else style.white_gc
+                        area.window.draw_rectangle(gc, True, c*boxsize, r*boxsize, boxsize, boxsize)
             area = gtk.DrawingArea()
             area.set_size_request(size, size)
             area.connect("expose-event", area_expose_cb)
             area.show()
-            dialog = gtk.Dialog(
-                address, parent=self.window, flags=gtk.DIALOG_MODAL | gtk.DIALOG_NO_SEPARATOR, buttons=("ok", 1))
+            dialog = gtk.Dialog(address, parent=self.window, flags=gtk.DIALOG_MODAL|gtk.DIALOG_NO_SEPARATOR, buttons = ("ok",1))
             dialog.vbox.add(area)
             dialog.run()
             dialog.destroy()
@@ -1132,8 +1087,7 @@ class ElectrumWindow:
                     else:
                         wallet.freeze(address)
                     self.update_receiving_tab()
-            button.connect(
-                "clicked", freeze_address, treeview, liststore, self.wallet)
+            button.connect("clicked", freeze_address, treeview, liststore, self.wallet)
             button.show()
             hbox.pack_start(button, False)
 
@@ -1162,23 +1116,17 @@ class ElectrumWindow:
         if self.funds_error:
             text = "Not enough funds"
         elif interface and interface.is_connected:
-            self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks" % (
-                interface.host, interface.port, self.network.blockchain.height()))
+            self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(interface.host, interface.port, self.network.blockchain.height()))
             if not self.wallet.up_to_date:
-                self.status_image.set_from_stock(
-                    gtk.STOCK_REFRESH, gtk.ICON_SIZE_MENU)
+                self.status_image.set_from_stock(gtk.STOCK_REFRESH, gtk.ICON_SIZE_MENU)
                 text = "Synchronizing..."
             else:
-                self.status_image.set_from_stock(
-                    gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
-                self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks" % (
-                    interface.host, interface.port, self.network.blockchain.height()))
+                self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
+                self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(interface.host, interface.port, self.network.blockchain.height()))
                 c, u = self.wallet.get_balance()
-                text = "Balance: %s " % (
-                    format_satoshis(c, False, self.num_zeros))
+                text = "Balance: %s " % (format_satoshis(c, False, self.num_zeros))
                 if u:
-                    text += "[%s unconfirmed]" % (format_satoshis(u,
-                                                  True, self.num_zeros).strip())
+                    text += "[%s unconfirmed]" % (format_satoshis(u, True, self.num_zeros).strip())
         else:
             self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
             self.network_button.set_tooltip_text("Not connected.")
@@ -1250,10 +1198,15 @@ class ElectrumWindow:
             tooltip = tx_hash + "\n%d confirmations" % conf if tx_hash else ''
             details = self.get_tx_details(tx_hash)
 
-            self.history_list.prepend([tx_hash, conf_icon, time_str, label, is_default_label,
-                                       format_satoshis(
-                                           value, True, self.num_zeros, whitespaces=True),
-                                       format_satoshis(balance, False, self.num_zeros, whitespaces=True), tooltip, details])
+            self.history_list.prepend([tx_hash,
+                                       conf_icon,
+                                       time_str,
+                                       label,
+                                       is_default_label,
+                                       format_satoshis(value, True, self.num_zeros, whitespaces=True),
+                                       format_satoshis(balance, False, self.num_zeros, whitespaces=True),
+                                       tooltip,
+                                       details])
         if cursor:
             self.history_treeview.set_cursor(cursor)
 
@@ -1273,23 +1226,22 @@ class ElectrumWindow:
 
         inputs = map(lambda x: x.get('address'), tx.inputs)
         outputs = map(lambda x: x.get('address'), tx.d['outputs'])
-        tx_details = "Transaction Details" + "\n\n" \
-            + "Transaction ID:\n" + tx_hash + "\n\n" \
-            + "Status: %d confirmations\n" % conf
+        tx_details = ("Transaction Details" + "\n\n" +
+                      "Transaction ID:\n" + tx_hash + "\n\n" +
+                      "Status: %d confirmations\n" % conf)
         if is_mine:
             if fee:
-                tx_details += "Amount sent: %s\n" % format_satoshis(v - fee, False) \
-                              + \
-                    "Transaction fee: %s\n" % format_satoshis(fee, False)
+                tx_details += ("Amount sent: %s\n" % format_satoshis(v - fee, False) +
+                               "Transaction fee: %s\n" % format_satoshis(fee, False))
             else:
-                tx_details += "Amount sent: %s\n" % format_satoshis(v, False) \
-                              + "Transaction fee: unknown\n"
+                tx_details += ("Amount sent: %s\n" % format_satoshis(v, False) +
+                               "Transaction fee: unknown\n")
         else:
-            tx_details += "Amount received: %s\n" % format_satoshis(v, False) \
+            tx_details += "Amount received: %s\n" % format_satoshis(v, False)
 
-        tx_details += "Date: %s\n\n" % time_str \
-            + "Inputs:\n-" + '\n-'.join(inputs) + "\n\n" \
-            + "Outputs:\n-" + '\n-'.join(outputs)
+        tx_details += ("Date: %s\n\n" % time_str +
+                       "Inputs:\n-" + '\n-'.join(inputs) + "\n\n" +
+                       "Outputs:\n-" + '\n-'.join(outputs))
 
         return tx_details
 

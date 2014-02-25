@@ -64,8 +64,7 @@ class OldAccount(Account):
     def mpk_from_seed(klass, seed):
         curve = SECP256k1
         secexp = klass.stretch_key(seed)
-        master_private_key = ecdsa.SigningKey.from_secret_exponent(
-            secexp, curve=SECP256k1)
+        master_private_key = ecdsa.SigningKey.from_secret_exponent(secexp, curve=SECP256k1)
         master_public_key = master_private_key.get_verifying_key(
         ).to_string().encode('hex')
         return master_public_key
@@ -89,11 +88,9 @@ class OldAccount(Account):
         curve = SECP256k1
         mpk = self.mpk
         z = self.get_sequence(for_change, n)
-        master_public_key = ecdsa.VerifyingKey.from_string(
-            mpk, curve=SECP256k1)
+        master_public_key = ecdsa.VerifyingKey.from_string(mpk, curve=SECP256k1)
         pubkey_point = master_public_key.pubkey.point + z * curve.generator
-        public_key2 = ecdsa.VerifyingKey.from_public_point(
-            pubkey_point, curve=SECP256k1)
+        public_key2 = ecdsa.VerifyingKey.from_public_point(pubkey_point, curve=SECP256k1)
         return '04' + public_key2.to_string().encode('hex')
 
     def get_private_key_from_stretched_exponent(self, for_change, n, secexp):
@@ -111,12 +108,10 @@ class OldAccount(Account):
     def check_seed(self, seed):
         curve = SECP256k1
         secexp = self.stretch_key(seed)
-        master_private_key = ecdsa.SigningKey.from_secret_exponent(
-            secexp, curve=SECP256k1)
+        master_private_key = ecdsa.SigningKey.from_secret_exponent(secexp, curve=SECP256k1)
         master_public_key = master_private_key.get_verifying_key().to_string()
         if master_public_key != self.mpk:
-            print_error('invalid password (mpk)', self.mpk.encode(
-                'hex'), master_public_key.encode('hex'))
+            print_error('invalid password (mpk)', self.mpk.encode('hex'), master_public_key.encode('hex'))
             raise Exception('Invalid password')
         return True
 
@@ -187,8 +182,7 @@ class BIP32_Account_2of2(BIP32_Account):
         return Transaction.multisig_script([pubkey1, pubkey2], 2)
 
     def get_address(self, for_change, n):
-        address = hash_160_to_bc_address(
-            hash_160(self.redeem_script((for_change, n)).decode('hex')), 5)
+        address = hash_160_to_bc_address(hash_160(self.redeem_script((for_change, n)).decode('hex')), 5)
         return address
 
     def get_pubkeys(self, sequence):
