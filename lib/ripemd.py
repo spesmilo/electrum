@@ -369,7 +369,6 @@ def RMD160Transform(state, block):  # uint32 state[5], uchar block[64]
     state[4] = (state[0] + bb + c) % 0x100000000
     state[0] = t % 0x100000000
 
-    pass
 
 
 def RMD160Update(ctx, inp, inplen):

@@ -18,12 +18,11 @@
 
 
 import threading
-import time
 import Queue
 import os
-import sys
-import shutil
-from util import user_dir, appdata_dir, print_error
+from util import appdata_dir
+from util import print_error
+from util import user_dir
 from bitcoin import *
 
 

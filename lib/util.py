@@ -3,7 +3,6 @@ import sys
 import re
 import json
 import platform
-import shutil
 from datetime import datetime
 is_verbose = True
 

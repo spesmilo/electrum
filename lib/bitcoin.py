@@ -311,7 +311,8 @@ except Exception:
     print "cannot import ecdsa.curve_secp256k1. You probably need to upgrade ecdsa.\nTry: sudo pip install --upgrade ecdsa"
     exit()
 from ecdsa.curves import SECP256k1
-from ecdsa.util import string_to_number, number_to_string
+from ecdsa.util import number_to_string
+from ecdsa.util import string_to_number
 
 
 def msg_magic(message):
@@ -468,7 +469,8 @@ def CKD(k, c, n):
 
 def CKD_prime(K, c, n):
     import hmac
-    from ecdsa.util import string_to_number, number_to_string
+    from ecdsa.util import number_to_string
+    from ecdsa.util import string_to_number
     order = generator_secp256k1.order()
 
     if n & BIP32_PRIME:

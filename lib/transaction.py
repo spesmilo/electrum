@@ -22,14 +22,12 @@
 
 from bitcoin import *
 from util import print_error
-import time
 import struct
 
 #
 # Workalike python implementation of Bitcoin's CDataStream class.
 #
 import struct
-import StringIO
 import mmap
 
 #
@@ -37,7 +35,6 @@ import mmap
 # From the Python Cookbook, downloaded from http://code.activestate.com/recipes/67107/
 #
 import types
-import string
 import exceptions
 
 
