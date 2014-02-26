@@ -1716,7 +1716,11 @@ class OldWallet(Wallet):
             raise
 
         self.seed = mnemonic.mn_decode(words)
+
+        if not self.seed:
+            raise Exception("Invalid seed")
             
+
 
     def get_master_public_key(self):
         return self.storage.get("master_public_key")
