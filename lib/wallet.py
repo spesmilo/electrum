@@ -1702,8 +1702,10 @@ class OldWallet(Wallet):
         self.seed_version = 4
 
         # see if seed was entered as hex
+        seed = seed.strip()
         try:
-            seed.strip().decode('hex')
+            assert seed
+            seed.decode('hex')
             self.seed = str(seed)
             return
         except Exception:
