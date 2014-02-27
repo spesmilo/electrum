@@ -72,6 +72,7 @@ class WalletStorage:
 
     def __init__(self, config):
         self.lock = threading.Lock()
+        self.config = config
         self.data = {}
         self.file_exists = False
         self.path = self.init_path(config)
@@ -153,7 +154,7 @@ class WalletStorage:
 
     
 
-class Wallet:
+class NewWallet:
 
     def __init__(self, storage):
 
@@ -162,7 +163,7 @@ class Wallet:
         self.gap_limit_for_change = 3 # constant
 
         # saved fields
-        self.seed_version          = storage.get('seed_version', SEED_VERSION)
+        self.seed_version          = storage.get('seed_version', NEW_SEED_VERSION)
 
         self.gap_limit             = storage.get('gap_limit', 5)
         self.use_change            = storage.get('use_change',True)
@@ -299,14 +300,13 @@ class Wallet:
         if self.seed: 
             raise Exception("a seed exists")
 
+        self.seed_version = NEW_SEED_VERSION
+
         if not seed:
             self.seed = self.make_seed()
-            self.seed_version = SEED_VERSION
             return
 
-        self.seed_version = SEED_VERSION
         self.seed = unicodedata.normalize('NFC', unicode(seed.strip()))
-        return
 
             
 
@@ -1688,7 +1688,7 @@ class WalletSynchronizer(threading.Thread):
 
 
 
-class OldWallet(Wallet):
+class OldWallet(NewWallet):
 
     def init_seed(self, seed):
         import mnemonic
@@ -1697,9 +1697,9 @@ class OldWallet(Wallet):
             raise Exception("a seed exists")
 
         if not seed:
-            raise
+            seed = random_seed(128)
 
-        self.seed_version = 4
+        self.seed_version = OLD_SEED_VERSION
 
         # see if seed was entered as hex
         seed = seed.strip()
@@ -1738,7 +1738,7 @@ class OldWallet(Wallet):
         self.save_accounts()
 
     def create_watching_only_wallet(self, K0):
-        self.seed_version = 4
+        self.seed_version = OLD_SEED_VERSION
         self.storage.put('seed_version', self.seed_version, True)
         self.create_account(K0)
 
@@ -1777,3 +1777,66 @@ class OldWallet(Wallet):
         assert k == 0
         return 'Main account'
 
+
+
+
+# former WalletFactory
+class Wallet(object):
+
+    def __new__(self, storage):
+        config = storage.config
+        if config.get('bitkey', False):
+            # if user requested support for Bitkey device,
+            # import Bitkey driver
+            from wallet_bitkey import WalletBitkey
+            return WalletBitkey(config)
+
+        if not storage.file_exists:
+            seed_version = NEW_SEED_VERSION if config.get('bip32') is True else OLD_SEED_VERSION
+        else:
+            seed_version = storage.get('seed_version')
+
+        if seed_version == OLD_SEED_VERSION:
+            return OldWallet(storage)
+        elif seed_version == NEW_SEED_VERSION:
+            return NewWallet(storage)
+        else:
+            msg = "This wallet seed is not supported."
+            if seed_version in [5]:
+                msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
+            print msg
+            sys.exit(1)
+
+
+
+
+    @classmethod
+    def from_seed(self, seed, storage):
+        import mnemonic
+        if not seed:
+            return 
+
+        words = seed.strip().split()
+        try:
+            mnemonic.mn_decode(words)
+            uses_electrum_words = True
+        except Exception:
+            uses_electrum_words = False
+
+        try:
+            seed.decode('hex')
+            is_hex = True
+        except Exception:
+            is_hex = False
+         
+        if is_hex or (uses_electrum_words and len(words) != 13):
+            print "old style wallet", len(words), words
+            w = OldWallet(storage)
+            w.init_seed(seed) #hex
+        else:
+            #assert is_seed(seed)
+            w = Wallet(storage)
+            w.init_seed(seed)
+
+
+        return w
