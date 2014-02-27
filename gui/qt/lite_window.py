@@ -122,6 +122,7 @@ def csv_transaction(wallet):
 
                     if tx_hash:
                         label, is_default_label = wallet.get_label(tx_hash)
+                        label = label.encode('utf-8')
                     else:
                       label = ""
 
