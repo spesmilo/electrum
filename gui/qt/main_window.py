@@ -1904,18 +1904,47 @@ class ElectrumWindow(QMainWindow):
 
     def do_process_from_csvReader(self, csvReader):
         outputs = []
+        errors = []
+        errtext = ""
+        csvfee = ""
+        csvchange = ""
         try:
-            for row in csvReader:
+            for position, row in enumerate(csvReader):
+                if row[0] == "fee":
+                    csvfee = Decimal(row[1])
+                    csvfee = int(100000000*csvfee)
+                    continue
+                if row[0] == "change":
+                    csvchange = row[1].strip()
+                    if not self.wallet.is_mine(csvchange):
+                        csvchange = None
+                        QMessageBox.critical(None, _("Wrong Change Address"), _("The change address you specified is not yours. Selecting next change address."))
+                    continue
                 address = row[0]
+                if not is_valid(address):
+                    errors.append((position, address))
+                    continue
                 amount = Decimal(row[1])
                 amount = int(100000000*amount)
                 outputs.append((address, amount))
         except (ValueError, IOError, os.error), reason:
             QMessageBox.critical(None, _("Unable to read file or no transaction found"), _("Electrum was unable to open your transaction file") + "\n" + str(reason))
             return
+        if errors != []:
+            for x in errors:
+                errtext += "CSV Row " + str(x[0]+1) + ": " + x[1] + "\n"
+            QMessageBox.critical(None, _("Invalid Addresses"), _("ABORTING! Invalid Addresses found:") + "\n\n" + errtext)
+            return
 
         try:
-            tx = self.wallet.make_unsigned_transaction(outputs, None, None)
+            if csvfee and csvchange:
+                tx = self.wallet.make_unsigned_transaction(outputs, csvfee, csvchange)
+            elif csvfee:
+                tx = self.wallet.make_unsigned_transaction(outputs, csvfee, None)
+            elif csvchange:
+                tx = self.wallet.make_unsigned_transaction(outputs, None, csvchange)
+            else:
+                tx = self.wallet.make_unsigned_transaction(outputs, None, None)
         except Exception as e:
             self.show_message(str(e))
             return
