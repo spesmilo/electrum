@@ -3,7 +3,7 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
 from electrum.i18n import _
-from electrum import Wallet, mnemonic
+from electrum import Wallet
 
 from seed_dialog import SeedDialog
 from network_dialog import NetworkDialog
@@ -259,13 +259,13 @@ class InstallWizard(QDialog):
         if not action: 
             return
 
-        wallet = Wallet(self.storage)
-        gap = self.config.get('gap_limit', 5)
-        if gap != 5:
-            wallet.gap_limit = gap
-            wallet.storage.put('gap_limit', gap, True)
+        #gap = self.config.get('gap_limit', 5)
+        #if gap != 5:
+        #    wallet.gap_limit = gap
+        #    wallet.storage.put('gap_limit', gap, True)
 
         if action == 'create':
+            wallet = Wallet(self.storage)
             wallet.init_seed(None)
             if not self.show_seed(wallet):
                 return
@@ -277,22 +277,13 @@ class InstallWizard(QDialog):
                 wallet.synchronize()  # generate first addresses offline
             self.waiting_dialog(create)
 
-
         elif action == 'restore':
             seed = self.seed_dialog()
             if not seed:
                 return
-            try:
-                wallet.init_seed(seed)
-            except Exception:
-                import traceback
-                traceback.print_exc(file=sys.stdout)
-                QMessageBox.warning(None, _('Error'), _('Incorrect seed'), _('OK'))
-                return
-
+            wallet = Wallet.from_seed(seed, self.storage)
             ok, old_password, password = self.password_dialog(wallet)
             wallet.save_seed(password)
-
 
         elif action == 'watching':
             mpk = self.mpk_dialog()

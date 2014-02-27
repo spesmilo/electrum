@@ -426,6 +426,9 @@ class ElectrumWindow(QMainWindow):
         raw_transaction_text = raw_transaction_menu.addAction(_("&From text"))
         raw_transaction_text.triggered.connect(self.do_process_from_text)
 
+        raw_transaction_text = raw_transaction_menu.addAction(_("&From the blockchain"))
+        raw_transaction_text.triggered.connect(self.do_process_from_txid)
+
 
         help_menu = menubar.addMenu(_("&Help"))
         show_about = help_menu.addAction(_("&About"))
@@ -1886,6 +1889,18 @@ class ElectrumWindow(QMainWindow):
         tx = self.read_tx_from_file()
         if tx:
             self.show_transaction(tx)
+
+    def do_process_from_txid(self):
+        from electrum import transaction
+        txid, ok = QInputDialog.getText(self, _('Lookup transaction'), _('Transaction ID') + ':')
+        if ok and txid:
+            r = self.network.synchronous_get([ ('blockchain.transaction.get',[str(txid)]) ])[0]
+            if r:
+                tx = transaction.Transaction(r)
+                if tx:
+                    self.show_transaction(tx)
+                else:
+                    self.show_message("unknown transaction")
 
     def do_process_from_csvReader(self, csvReader):
         outputs = []

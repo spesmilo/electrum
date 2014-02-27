@@ -22,6 +22,37 @@ DEFAULT_SERVERS = {
 }
 
 
+def parse_servers(result):
+    """ parse servers list into dict format"""
+    from version import PROTOCOL_VERSION
+    servers = {}
+    for item in result:
+        host = item[1]
+        out = {}
+        version = None
+        pruning_level = '-'
+        if len(item) > 2:
+            for v in item[2]:
+                if re.match("[stgh]\d*", v):
+                    protocol, port = v[0], v[1:]
+                    if port == '': port = DEFAULT_PORTS[protocol]
+                    out[protocol] = port
+                elif re.match("v(.?)+", v):
+                    version = v[1:]
+                elif re.match("p\d*", v):
+                    pruning_level = v[1:]
+                if pruning_level == '': pruning_level = '0'
+        try: 
+            is_recent = float(version)>=float(PROTOCOL_VERSION)
+        except Exception:
+            is_recent = False
+
+        if out and is_recent:
+            out['pruning'] = pruning_level
+            servers[host] = out
+
+    return servers
+
 
 
 def filter_protocol(servers, p):
@@ -66,6 +97,8 @@ class Network(threading.Thread):
         self.interface = None
         self.proxy = self.config.get('proxy')
         self.heights = {}
+        self.merkle_roots = {}
+        self.utxo_roots = {}
         self.server_lag = 0
 
         dir_path = os.path.join( self.config.path, 'certs')
@@ -80,6 +113,14 @@ class Network(threading.Thread):
 
     def is_connected(self):
         return self.interface and self.interface.is_connected
+
+
+    def is_up_to_date(self):
+        return self.interface.is_up_to_date()
+
+
+    def main_server(self):
+        return self.interface.server
 
 
     def send_subscriptions(self):
@@ -327,6 +368,8 @@ class Network(threading.Thread):
         if not result: return
         height = result.get('block_height')
         self.heights[i.server] = height
+        self.merkle_roots[i.server] = result.get('merkle_root')
+        self.utxo_roots[i.server] = result.get('utxo_root')
         # notify blockchain about the new height
         self.blockchain.queue.put((i,result))
 
@@ -341,7 +384,7 @@ class Network(threading.Thread):
 
     def on_peers(self, i, r):
         if not r: return
-        self.irc_servers = self.parse_servers(r.get('result'))
+        self.irc_servers = parse_servers(r.get('result'))
         self.trigger_callback('peers')
 
     def on_banner(self, i, r):
@@ -356,59 +399,26 @@ class Network(threading.Thread):
 
     
     def synchronous_get(self, requests, timeout=100000000):
-        queue = Queue.Queue()
-        ids = self.interface.send(requests, lambda i,r: queue.put(r))
-        id2 = ids[:]
-        res = {}
-        while ids:
-            r = queue.get(True, timeout)
-            _id = r.get('id')
-            if _id in ids:
-                ids.remove(_id)
-                res[_id] = r.get('result')
-        out = []
-        for _id in id2:
-            out.append(res[_id])
-        return out
+        return self.interface.synchronous_get(requests)
 
 
-    def retrieve_transaction(self, tx_hash, tx_height=0):
-        import transaction
-        r = self.synchronous_get([ ('blockchain.transaction.get',[tx_hash, tx_height]) ])[0]
-        if r:
-            return transaction.Transaction(r)
+
+    #def retrieve_transaction(self, tx_hash, tx_height=0):
+    #    import transaction
+    #    r = self.synchronous_get([ ('blockchain.transaction.get',[tx_hash, tx_height]) ])[0]
+    #    if r:
+    #        return transaction.Transaction(r)
 
 
-    def parse_servers(self, result):
-        """ parse servers list into dict format"""
-        from version import PROTOCOL_VERSION
-        servers = {}
-        for item in result:
-            host = item[1]
-            out = {}
-            version = None
-            pruning_level = '-'
-            if len(item) > 2:
-                for v in item[2]:
-                    if re.match("[stgh]\d*", v):
-                        protocol, port = v[0], v[1:]
-                        if port == '': port = DEFAULT_PORTS[protocol]
-                        out[protocol] = port
-                    elif re.match("v(.?)+", v):
-                        version = v[1:]
-                    elif re.match("p\d*", v):
-                        pruning_level = v[1:]
-                    if pruning_level == '': pruning_level = '0'
-            try: 
-                is_recent = float(version)>=float(PROTOCOL_VERSION)
-            except Exception:
-                is_recent = False
 
-            if out and is_recent:
-                out['pruning'] = pruning_level
-                servers[host] = out
 
-        return servers
+
+class NetworkProxy:
+    # interface to the network object. 
+    # handle subscriptions and callbacks
+    # the network object can be jsonrpc server 
+    def __init__(self, network):
+        self.network = network
 
 
 

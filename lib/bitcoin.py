@@ -53,14 +53,25 @@ def op_push(i):
     
 
 
+def sha256(x):
+    return hashlib.sha256(x).digest()
+
 def Hash(x):
     if type(x) is unicode: x=x.encode('utf-8')
-    return hashlib.sha256(hashlib.sha256(x).digest()).digest()
+    return sha256(sha256(x))
+
 hash_encode = lambda x: x[::-1].encode('hex')
 hash_decode = lambda x: x.decode('hex')[::-1]
-
 hmac_sha_512 = lambda x,y: hmac.new(x, y, hashlib.sha512).digest()
-mnemonic_hash = lambda x: hmac_sha_512("Bitcoin mnemonic", x).encode('hex')
+
+def mnemonic_to_seed(mnemonic, passphrase):
+    from pbkdf2 import PBKDF2
+    import hmac
+    PBKDF2_ROUNDS = 2048
+    return PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
+
+from version import SEED_PREFIX
+is_seed = lambda x: hmac_sha_512("Seed version", x).encode('hex')[0:2].startswith(SEED_PREFIX)
 
 # pywallet openssl private key implementation
 
@@ -115,11 +126,11 @@ def i2o_ECPublicKey(pubkey, compressed=False):
 def hash_160(public_key):
     try:
         md = hashlib.new('ripemd160')
-        md.update(hashlib.sha256(public_key).digest())
+        md.update(sha256(public_key))
         return md.digest()
     except Exception:
         import ripemd
-        md = ripemd.new(hashlib.sha256(public_key).digest())
+        md = ripemd.new(sha256(public_key))
         return md.digest()
 
 
@@ -137,15 +148,6 @@ def bc_address_to_hash_160(addr):
     bytes = b58decode(addr, 25)
     return ord(bytes[0]), bytes[1:21]
 
-def encode_point(pubkey, compressed=False):
-    order = generator_secp256k1.order()
-    p = pubkey.pubkey.point
-    x_str = ecdsa.util.number_to_string(p.x(), order)
-    y_str = ecdsa.util.number_to_string(p.y(), order)
-    if compressed:
-        return chr(2 + (p.y() & 1)) + x_str
-    else:
-        return chr(4) + pubkey.to_string() #x_str + y_str
 
 __b58chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 __b58base = len(__b58chars)
@@ -233,8 +235,7 @@ def regenerate_key(sec):
     if not b:
         return False
     b = b[0:32]
-    secret = int('0x' + b.encode('hex'), 16)
-    return EC_KEY(secret)
+    return EC_KEY(b)
 
 def GetPubKey(pubkey, compressed=False):
     return i2o_ECPublicKey(pubkey, compressed)
@@ -282,13 +283,14 @@ try:
 except Exception:
     print "cannot import ecdsa.curve_secp256k1. You probably need to upgrade ecdsa.\nTry: sudo pip install --upgrade ecdsa"
     exit()
+
 from ecdsa.curves import SECP256k1
+from ecdsa.ellipticcurve import Point
 from ecdsa.util import string_to_number, number_to_string
 
 def msg_magic(message):
     varint = var_int(len(message))
     encoded_varint = "".join([chr(int(varint[i:i+2], 16)) for i in xrange(0, len(varint), 2)])
-
     return "\x18Bitcoin Signed Message:\n" + encoded_varint + message
 
 
@@ -301,9 +303,66 @@ def verify_message(address, signature, message):
         return False
 
 
+def chunks(l, n):
+    return [l[i:i+n] for i in xrange(0, len(l), n)]
+
+
+def ECC_YfromX(x,curved=curve_secp256k1, odd=True):
+    _p = curved.p()
+    _a = curved.a()
+    _b = curved.b()
+    for offset in range(128):
+        Mx = x + offset
+        My2 = pow(Mx, 3, _p) + _a * pow(Mx, 2, _p) + _b % _p
+        My = pow(My2, (_p+1)/4, _p )
+
+        if curved.contains_point(Mx,My):
+            if odd == bool(My&1):
+                return [My,offset]
+            return [_p-My,offset]
+    raise Exception('ECC_YfromX: No Y found')
+
+def private_header(msg,v):
+    assert v<1, "Can't write version %d private header"%v
+    r = ''
+    if v==0:
+        r += ('%08x'%len(msg)).decode('hex')
+        r += sha256(msg)[:2]
+    return ('%02x'%v).decode('hex') + ('%04x'%len(r)).decode('hex') + r
+
+def public_header(pubkey,v):
+    assert v<1, "Can't write version %d public header"%v
+    r = ''
+    if v==0:
+        r = sha256(pubkey)[:2]
+    return '\x6a\x6a' + ('%02x'%v).decode('hex') + ('%04x'%len(r)).decode('hex') + r
+
+
+def negative_point(P):
+    return Point( P.curve(), P.x(), -P.y(), P.order() )
+
+
+def point_to_ser(P, comp=True ):
+    if comp:
+        return ( ('%02x'%(2+(P.y()&1)))+('%064x'%P.x()) ).decode('hex')
+    return ( '04'+('%064x'%P.x())+('%064x'%P.y()) ).decode('hex')
+
+
+def ser_to_point(Aser):
+    curve = curve_secp256k1
+    generator = generator_secp256k1
+    _r  = generator.order()
+    assert Aser[0] in ['\x02','\x03','\x04']
+    if Aser[0] == '\x04':
+        return Point( curve, str_to_long(Aser[1:33]), str_to_long(Aser[33:]), _r )
+    Mx = string_to_number(Aser[1:])
+    return Point( curve, Mx, ECC_YfromX(Mx, curve, Aser[0]=='\x03')[0], _r )
+
+
 
 class EC_KEY(object):
-    def __init__( self, secret ):
+    def __init__( self, k ):
+        secret = string_to_number(k)
         self.pubkey = ecdsa.ecdsa.Public_key( generator_secp256k1, generator_secp256k1 * secret )
         self.privkey = ecdsa.ecdsa.Private_key( self.pubkey, secret )
         self.secret = secret
@@ -323,10 +382,11 @@ class EC_KEY(object):
         else:
             raise Exception("error: cannot sign message")
 
+
     @classmethod
     def verify_message(self, address, signature, message):
         """ See http://www.secg.org/download/aid-780/sec1-v2.pdf for the math """
-        from ecdsa import numbertheory, ellipticcurve, util
+        from ecdsa import numbertheory, util
         import msqr
         curve = curve_secp256k1
         G = generator_secp256k1
@@ -352,7 +412,7 @@ class EC_KEY(object):
         beta = msqr.modular_sqrt(alpha, curve.p())
         y = beta if (beta - recid) % 2 == 0 else curve.p() - beta
         # 1.4 the constructor checks that nR is at infinity
-        R = ellipticcurve.Point(curve, x, y, order)
+        R = Point(curve, x, y, order)
         # 1.5 compute e from message:
         h = Hash( msg_magic(message) )
         e = string_to_number(h)
@@ -364,9 +424,92 @@ class EC_KEY(object):
         # check that Q is the public key
         public_key.verify_digest( sig[1:], h, sigdecode = ecdsa.util.sigdecode_string)
         # check that we get the original signing address
-        addr = public_key_to_bc_address( encode_point(public_key, compressed) )
+        addr = public_key_to_bc_address( point_to_ser(public_key.pubkey.point, compressed) )
         if address != addr:
             raise Exception("Bad signature")
+
+
+    # ecdsa encryption/decryption methods
+    # credits: jackjack, https://github.com/jackjack-jj/jeeq
+
+    @classmethod
+    def encrypt_message(self, message, pubkey):
+        generator = generator_secp256k1
+        curved = curve_secp256k1
+        r = ''
+        msg = private_header(message,0) + message
+        msg = msg + ('\x00'*( 32-(len(msg)%32) ))
+        msgs = chunks(msg,32)
+
+        _r  = generator.order()
+        str_to_long = string_to_number
+
+        P = generator
+        if len(pubkey)==33: #compressed
+            pk = Point( curve_secp256k1, str_to_long(pubkey[1:33]), ECC_YfromX(str_to_long(pubkey[1:33]), curve_secp256k1, pubkey[0]=='\x03')[0], _r )
+        else:
+            pk = Point( curve_secp256k1, str_to_long(pubkey[1:33]), str_to_long(pubkey[33:65]), _r )
+
+        for i in range(len(msgs)):
+            n = ecdsa.util.randrange( pow(2,256) )
+            Mx = str_to_long(msgs[i])
+            My, xoffset = ECC_YfromX(Mx, curved)
+            M = Point( curved, Mx+xoffset, My, _r )
+            T = P*n
+            U = pk*n + M
+            toadd = point_to_ser(T) + point_to_ser(U)
+            toadd = chr(ord(toadd[0])-2 + 2*xoffset) + toadd[1:]
+            r += toadd
+
+        return base64.b64encode(public_header(pubkey,0) + r)
+
+
+    def decrypt_message(self, enc):
+        G = generator_secp256k1
+        curved = curve_secp256k1
+        pvk = self.secret
+        pubkeys = [point_to_ser(G*pvk,True), point_to_ser(G*pvk,False)]
+        enc = base64.b64decode(enc)
+        str_to_long = string_to_number
+
+        assert enc[:2]=='\x6a\x6a'
+
+        phv = str_to_long(enc[2])
+        assert phv==0, "Can't read version %d public header"%phv
+        hs = str_to_long(enc[3:5])
+        public_header=enc[5:5+hs]
+        checksum_pubkey=public_header[:2]
+        address=filter(lambda x:sha256(x)[:2]==checksum_pubkey, pubkeys)
+        assert len(address)>0, 'Bad private key'
+        address=address[0]
+        enc=enc[5+hs:]
+        r = ''
+        for Tser,User in map(lambda x:[x[:33],x[33:]], chunks(enc,66)):
+            ots = ord(Tser[0])
+            xoffset = ots>>1
+            Tser = chr(2+(ots&1))+Tser[1:]
+            T = ser_to_point(Tser)
+            U = ser_to_point(User)
+            V = T*pvk
+            Mcalc = U + negative_point(V)
+            r += ('%064x'%(Mcalc.x()-xoffset)).decode('hex')
+
+        pvhv = str_to_long(r[0])
+        assert pvhv==0, "Can't read version %d private header"%pvhv
+        phs = str_to_long(r[1:3])
+        private_header = r[3:3+phs]
+        size = str_to_long(private_header[:4])
+        checksum = private_header[4:6]
+        r = r[3+phs:]
+
+        msg = r[:size]
+        hashmsg = sha256(msg)[:2]
+        checksumok = hashmsg==checksum
+
+        return [msg, checksumok, address]
+
+
+
 
 
 ###################################### BIP32 ##############################
@@ -408,7 +551,7 @@ def CKD(k, c, n):
     import hmac
     from ecdsa.util import string_to_number, number_to_string
     order = generator_secp256k1.order()
-    keypair = EC_KEY(string_to_number(k))
+    keypair = EC_KEY(k)
     K = GetPubKey(keypair.pubkey,True)
 
     if n & BIP32_PRIME: # We want to make a "secret" address that can't be determined from K
@@ -531,8 +674,35 @@ def test_bip32(seed, sequence):
 
         
 
+def test_crypto():
+
+    G = generator_secp256k1
+    _r  = G.order()
+    pvk = ecdsa.util.randrange( pow(2,256) ) %_r
+
+    Pub = pvk*G
+    pubkey_c = point_to_ser(Pub,True)
+    pubkey_u = point_to_ser(Pub,False)
+    addr_c = public_key_to_bc_address(pubkey_c)
+    addr_u = public_key_to_bc_address(pubkey_u)
+
+    print "Private key            ", '%064x'%pvk
+    print "Compressed public key  ", pubkey_c.encode('hex')
+    print "Uncompressed public key", pubkey_u.encode('hex')
+
+    message = "Chancellor on brink of second bailout for banks"
+    enc = EC_KEY.encrypt_message(message,pubkey_c)
+    eck = EC_KEY(number_to_string(pvk,_r))
+    dec = eck.decrypt_message(enc)
+    print "decrypted", dec
+
+    signature = eck.sign_message(message, True, addr_c)
+    print signature
+    EC_KEY.verify_message(addr_c, signature, message)
+
 
 if __name__ == '__main__':
-    test_bip32("000102030405060708090a0b0c0d0e0f", "0'/1/2'/2/1000000000")
-    test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","0/2147483647'/1/2147483646'/2")
+    test_crypto()
+    #test_bip32("000102030405060708090a0b0c0d0e0f", "0'/1/2'/2/1000000000")
+    #test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","0/2147483647'/1/2147483646'/2")
 

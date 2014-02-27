@@ -89,6 +89,7 @@ def arg_parser():
     parser.add_option("-G", "--gap", dest="gap_limit", default=None, help="gap limit")
     parser.add_option("-W", "--password", dest="password", default=None, help="set password for usage with commands (currently only implemented for create command, do not use it for longrunning gui session since the password is visible in /proc)")
     parser.add_option("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
+    parser.add_option("--bip32", action="store_true", dest="bip32", default=False, help="bip32")
     return parser
 
 
@@ -105,14 +106,33 @@ def print_help_cb(self, opt, value, parser):
 
 
 def run_command(cmd, password=None, args=[]):
+    import xmlrpclib, socket
     cmd_runner = Commands(wallet, network)
-    func = getattr(cmd_runner, cmd)
+    func = getattr(cmd_runner, cmd.name)
     cmd_runner.password = password
+
+    if cmd.requires_network and not options.offline:
+        cmd_runner.network = xmlrpclib.ServerProxy('http://localhost:8000')
+        if wallet:
+            wallet.start_threads(cmd_runner.network)
+            wallet.update()
+    else:
+        cmd_runner.network = None
+
     try:
         result = func(*args[1:])
+    except socket.error:
+        print "Daemon not running"
+        sys.exit(1)
     except Exception:
         traceback.print_exc(file=sys.stdout)
         sys.exit(1)
+
+
+    if cmd.requires_network and not options.offline:
+        if wallet:
+            wallet.stop_threads()
+
 
     if type(result) == str:
         util.print_msg(result)
@@ -191,15 +211,6 @@ if __name__ == '__main__':
     # instanciate wallet for command-line
     storage = WalletStorage(config)
 
-    if cmd.requires_wallet:
-        wallet = Wallet(storage)
-    else:
-        wallet = None
-
-    if cmd.name not in ['create', 'restore'] and cmd.requires_wallet and not storage.file_exists:
-        print_msg("Error: Wallet file not found.")
-        print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
-        sys.exit(0)
 
     if cmd.name in ['create', 'restore']:
         if storage.file_exists:
@@ -215,35 +226,26 @@ if __name__ == '__main__':
         if not config.get('server'):
             config.set_key('server', pick_random_server())
 
-        fee = options.tx_fee if options.tx_fee else raw_input("fee (default:%s):" % (str(Decimal(wallet.fee)/100000000)))
-        gap = options.gap_limit if options.gap_limit else raw_input("gap limit (default 5):")
-
-        if fee:
-            wallet.set_fee(float(fee)*100000000)
-        if gap:
-            wallet.change_gap_limit(int(gap))
+        #fee = options.tx_fee if options.tx_fee else raw_input("fee (default:%s):" % (str(Decimal(wallet.fee)/100000000)))
+        #gap = options.gap_limit if options.gap_limit else raw_input("gap limit (default 5):")
+        #if fee:
+        #    wallet.set_fee(float(fee)*100000000)
+        #if gap:
+        #    wallet.change_gap_limit(int(gap))
 
         if cmd.name == 'restore':
             import getpass
             seed = getpass.getpass(prompt="seed:", stream=None) if options.concealed else raw_input("seed:")
-            try:
-                seed.decode('hex')
-            except Exception:
-                print_error("Warning: Not hex, trying decode.")
-                seed = mnemonic_decode(seed.split(' '))
-            if not seed:
-                sys.exit("Error: No seed")
-
-            wallet.init_seed(str(seed))
+            wallet = Wallet.from_seed(str(seed),storage)
+            if not wallet:
+                sys.exit("Error: Invalid seed")
             wallet.save_seed(password)
             if not options.offline:
                 network = Network(config)
                 network.start()
                 wallet.start_threads(network)
-
                 print_msg("Recovering wallet...")
                 wallet.restore(lambda x: x)
-
                 if wallet.is_found():
                     print_msg("Recovery successful")
                 else:
@@ -253,6 +255,7 @@ if __name__ == '__main__':
                 print_msg("Warning: This wallet was restored offline. It may contain more addresses than displayed.")
 
         else:
+            wallet = Wallet(storage)
             wallet.init_seed(None)
             wallet.save_seed(password)
             wallet.synchronize()
@@ -263,6 +266,19 @@ if __name__ == '__main__':
 
         # terminate
         sys.exit(0)
+
+
+    if cmd.name not in ['create', 'restore'] and cmd.requires_wallet and not storage.file_exists:
+        print_msg("Error: Wallet file not found.")
+        print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
+        sys.exit(0)
+
+
+    if cmd.requires_wallet:
+        wallet = Wallet(storage)
+    else:
+        wallet = None
+
 
     # important warning
     if cmd.name in ['dumpprivkey', 'dumpprivkeys']:
@@ -345,19 +361,37 @@ if __name__ == '__main__':
             print_msg("Warning: Final argument was reconstructed from several arguments:", repr(message))
             args = args[0:cmd.min_args] + [message]
 
-    # open session
-    if cmd.requires_network and not options.offline:
-        network = Network(config)
-        if not network.start(wait=True):
-            print_msg("Not connected, aborting.")
-            sys.exit(1)
-        print_error("Connected to " + network.interface.connection_msg)
 
-        if wallet:
-            wallet.start_threads(network)
-            wallet.update()
-    else:
-        network = None
+    if cmd.name == 'daemon' and args[1] == 'start':
+        pid = os.fork()
+        if (pid == 0): # The first child.
+            os.chdir("/")
+            os.setsid()
+            os.umask(0)
+            pid2 = os.fork()
+            if (pid2 == 0):  # Second child
+                from SimpleXMLRPCServer import SimpleXMLRPCServer
+                # start the daemon
+                network = Network(config)
+                if not network.start(wait=True):
+                    print_msg("Not connected, aborting.")
+                    sys.exit(1)
+                print_msg("Connected to " + network.interface.connection_msg)
+                server = SimpleXMLRPCServer(('localhost',8000), allow_none=True, logRequests=False)
+                server.register_function(network.synchronous_get, 'synchronous_get')
+                server.register_function(network.get_servers, 'get_servers')
+                server.register_function(network.main_server, 'main_server')
+                server.register_function(network.send, 'send')
+                server.register_function(network.subscribe, 'subscribe')
+                server.register_function(network.is_connected, 'is_connected')
+                server.register_function(network.is_up_to_date, 'is_up_to_date')
+                server.register_function(lambda: setattr(server,'running', False), 'stop')
+                server.running = True
+                while server.running:
+                    server.handle_request()
+                print_msg("Daemon stopped")
+
+        sys.exit(0)
 
     # run the command
     if cmd.name == 'deseed':
@@ -394,11 +428,8 @@ if __name__ == '__main__':
         wallet.update_password(password, new_password)
 
     else:
-        run_command(cmd.name, password, args)
+        run_command(cmd, password, args)
 
-    if network:
-        if wallet:
-            wallet.stop_threads()
-        network.stop()
-        time.sleep(0.1)
-        sys.exit(0)
+
+    time.sleep(0.1)
+    sys.exit(0)
