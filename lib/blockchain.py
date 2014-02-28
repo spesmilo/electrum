@@ -263,7 +263,8 @@ class Blockchain(threading.Thread):
         target = (a) * pow(2, 8 * (bits / MM - 3))
 
         # new target
-        new_target = min(max_target, (target * nActualTimespan) / nTargetTimespan)
+        new_target = min(
+            max_target, (target * nActualTimespan) / nTargetTimespan)
 
         # convert it to bits
         c = ("%064X" % new_target)[2:]

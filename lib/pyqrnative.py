@@ -261,7 +261,8 @@ class QRCode:
         for i in range(len(dataList)):
             data = dataList[i]
             buffer.put(data.mode, 4)
-            buffer.put(data.getLength(), QRUtil.getLengthInBits(data.mode, typeNumber))
+            buffer.put(
+                data.getLength(), QRUtil.getLengthInBits(data.mode, typeNumber))
             data.write(buffer)
 
         #// calc num max data.
@@ -462,15 +463,23 @@ class QRUtil(object):
 
     @staticmethod
     def getMask(maskPattern, i, j):
-        if maskPattern == QRMaskPattern.PATTERN000 : return (i + j) % 2 == 0
-        if maskPattern == QRMaskPattern.PATTERN001 : return i % 2 == 0
-        if maskPattern == QRMaskPattern.PATTERN010 : return j % 3 == 0
-        if maskPattern == QRMaskPattern.PATTERN011 : return (i + j) % 3 == 0
-        if maskPattern == QRMaskPattern.PATTERN100 : return (math.floor(i / 2) + math.floor(j / 3)) % 2 == 0
-        if maskPattern == QRMaskPattern.PATTERN101 : return (i * j) % 2 + (i * j) % 3 == 0
-        if maskPattern == QRMaskPattern.PATTERN110 : return ((i * j) % 2 + (i * j) % 3) % 2 == 0
-        if maskPattern == QRMaskPattern.PATTERN111 : return ((i * j) % 3 + (i + j) % 2) % 2 == 0
-        raise Exception("bad maskPattern:" + maskPattern);
+        if maskPattern == QRMaskPattern.PATTERN000:
+            return (i + j) % 2 == 0
+        if maskPattern == QRMaskPattern.PATTERN001:
+            return i % 2 == 0
+        if maskPattern == QRMaskPattern.PATTERN010:
+            return j % 3 == 0
+        if maskPattern == QRMaskPattern.PATTERN011:
+            return (i + j) % 3 == 0
+        if maskPattern == QRMaskPattern.PATTERN100:
+            return (math.floor(i / 2) + math.floor(j / 3)) % 2 == 0
+        if maskPattern == QRMaskPattern.PATTERN101:
+            return (i * j) % 2 + (i * j) % 3 == 0
+        if maskPattern == QRMaskPattern.PATTERN110:
+            return ((i * j) % 2 + (i * j) % 3) % 2 == 0
+        if maskPattern == QRMaskPattern.PATTERN111:
+            return ((i * j) % 3 + (i + j) % 2) % 2 == 0
+        raise Exception("bad maskPattern:" + maskPattern)
 
     @staticmethod
     def getErrorCorrectPolynomial(errorCorrectLength):
@@ -565,10 +574,14 @@ class QRUtil(object):
         for row in range(moduleCount - 1):
             for col in range(moduleCount - 1):
                 count = 0
-                if (qrCode.isDark(row,     col    ) ): count+=1
-                if (qrCode.isDark(row + 1, col    ) ): count+=1
-                if (qrCode.isDark(row,     col + 1) ): count+=1
-                if (qrCode.isDark(row + 1, col + 1) ): count+=1
+                if (qrCode.isDark(row,     col)):
+                    count += 1
+                if (qrCode.isDark(row + 1, col)):
+                    count += 1
+                if (qrCode.isDark(row,     col + 1)):
+                    count += 1
+                if (qrCode.isDark(row + 1, col + 1)):
+                    count += 1
                 if (count == 0 or count == 4):
                     lostPoint += 3
 
@@ -669,7 +682,8 @@ class QRPolynomial:
 
         for i in range(self.getLength()):
             for j in range(e.getLength()):
-                num[i + j] ^= QRMath.gexp(QRMath.glog(self.get(i)) + QRMath.glog(e.get(j)))
+                num[i +
+                    j] ^= QRMath.gexp(QRMath.glog(self.get(i)) + QRMath.glog(e.get(j)))
 
         return QRPolynomial(num, 0)
 

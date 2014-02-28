@@ -370,7 +370,6 @@ def RMD160Transform(state, block):  # uint32 state[5], uchar block[64]
     state[0] = t % 0x100000000
 
 
-
 def RMD160Update(ctx, inp, inplen):
     if type(inp) == str:
         inp = [ord(i) & 0xff for i in inp]
