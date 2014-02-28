@@ -18,17 +18,7 @@
 
 import sys
 import time
-import datetime
-import re
-import threading
-from electrum.i18n import _, set_language
-from electrum.util import print_error, print_msg, parse_url
 from electrum.plugins import run_hook
-import os.path
-import json
-import ast
-import traceback
-import shutil
 
 
 try:

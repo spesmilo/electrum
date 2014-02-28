@@ -1,9 +1,8 @@
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
-from electrum import bmp, pyqrnative
+from electrum import pyqrnative
 
 
 class QRCodeWidget(QWidget):

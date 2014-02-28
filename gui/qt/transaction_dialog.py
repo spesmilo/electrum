@@ -17,18 +17,9 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import sys
-import time
 import datetime
-import re
-import threading
-from electrum.i18n import _, set_language
-from electrum.util import print_error, print_msg
-import os.path
+from electrum.i18n import _
 import json
-import ast
-import traceback
-import shutil
-import StringIO
 
 
 try:
@@ -39,10 +30,7 @@ except Exception:
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-import PyQt4.QtCore as QtCore
 
-from electrum import transaction
-from util import MyTreeWidget
 
 
 class TxDialog(QDialog):

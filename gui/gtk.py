@@ -20,14 +20,12 @@
 import datetime
 import thread
 import time
-import ast
-import sys
 import re
-import socket
-import traceback
 import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, Gdk, GObject, cairo
+from gi.repository import GObject
+from gi.repository import Gdk
+from gi.repository import Gtk
 from decimal import Decimal
 from electrum.util import print_error
 from electrum.bitcoin import is_valid
@@ -40,7 +38,6 @@ MONOSPACE_FONT = 'Lucida Console' if platform.system(
 ) == 'Windows' else 'monospace'
 
 from electrum.util import format_satoshis
-from electrum.network import DEFAULT_SERVERS
 from electrum.bitcoin import MIN_RELAY_TX_FEE
 
 
@@ -246,7 +243,6 @@ def run_network_dialog(network, parent):
         else:
             status = "Not connected"
     else:
-        import random
         status = "Please choose a server.\nSelect cancel if you are offline."
 
     if network.is_connected():

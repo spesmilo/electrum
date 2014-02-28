@@ -5,12 +5,9 @@ import PyQt4.QtCore as QtCore
 from electrum.i18n import _
 from electrum import Wallet
 
-from seed_dialog import SeedDialog
 from network_dialog import NetworkDialog
 from util import *
-from amountedit import AmountEdit
 
-import sys
 import threading
 
 

@@ -17,7 +17,6 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import sys
-import time
 import datetime
 import re
 import threading
@@ -25,13 +24,10 @@ from electrum.i18n import _, set_language
 from electrum.util import print_error, print_msg
 import os.path
 import json
-import ast
 import traceback
-import shutil
 import StringIO
 
 
-import PyQt4
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
@@ -39,16 +35,18 @@ import PyQt4.QtCore as QtCore
 from electrum.bitcoin import MIN_RELAY_TX_FEE, is_valid
 from electrum.plugins import run_hook
 
-import icons_rc
 
 from electrum.wallet import format_satoshis
 from electrum import Transaction
-from electrum import mnemonic
-from electrum import util, bitcoin, commands, Interface, Wallet
-from electrum import SimpleConfig, Wallet, WalletStorage
+from electrum import Wallet
+from electrum import bitcoin
+from electrum import commands
+from electrum import util
+from electrum import Wallet
+from electrum import WalletStorage
 
 
-from electrum import bmp, pyqrnative
+from electrum import bmp
 
 from amountedit import AmountEdit
 from network_dialog import NetworkDialog
@@ -57,8 +55,6 @@ from qrcodewidget import QRCodeWidget
 from decimal import Decimal
 
 import platform
-import httplib
-import socket
 import webbrowser
 import csv
 
@@ -69,7 +65,6 @@ elif platform.system() == 'Darwin':
 else:
     MONOSPACE_FONT = 'monospace'
 
-from electrum import ELECTRUM_VERSION
 import re
 
 from util import *
@@ -263,7 +258,6 @@ class ElectrumWindow(QMainWindow):
             self.account_selector.hide()
 
     def load_wallet(self, wallet):
-        import electrum
         self.wallet = wallet
         self.accounts_expanded = self.wallet.storage.get(
             'accounts_expanded', {})

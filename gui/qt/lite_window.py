@@ -22,7 +22,6 @@ import os.path
 import random
 import re
 import time
-from electrum.wallet import Wallet, WalletStorage
 import webbrowser
 import history_widget
 import receiving_widget
@@ -33,8 +32,6 @@ import datetime
 from electrum.version import ELECTRUM_VERSION as electrum_version
 from electrum.util import format_satoshis, age
 
-from main_window import ElectrumWindow
-import shutil
 
 from util import *
 
@@ -113,7 +110,6 @@ def csv_transaction(wallet):
                                     timestamp).isoformat(' ')[:-3]
                             except [RuntimeError, TypeError, NameError] as reason:
                                 time_string = "unknown"
-                                pass
                         else:
                             time_string = "unknown"
                     else:

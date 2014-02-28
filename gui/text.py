@@ -297,7 +297,6 @@ class ElectrumGui:
 
     def run_banner_tab(self, c):
         self.show_message(repr(c))
-        pass
 
     def main(self, url):
 
