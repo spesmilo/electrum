@@ -21,8 +21,6 @@ import base64
 import os
 import re
 import hashlib
-import copy
-import operator
 import ast
 import threading
 import random
@@ -31,7 +29,8 @@ import Queue
 import time
 import math
 
-from util import print_msg, print_error, format_satoshis
+from util import print_error
+from util import print_msg
 from bitcoin import *
 from account import *
 from transaction import Transaction
@@ -284,7 +283,6 @@ class NewWallet:
         return seed
 
     def init_seed(self, seed):
-        import mnemonic
         import unicodedata
 
         if self.seed:

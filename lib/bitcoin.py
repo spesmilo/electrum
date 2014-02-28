@@ -88,26 +88,26 @@ is_seed = lambda x: hmac_sha_512("Seed version", x).encode(
 
 def i2d_ECPrivateKey(pkey, compressed=False):
     if compressed:
-        key = '3081d30201010420' + \
-              '%064x' % pkey.secret + \
-              'a081a53081a2020101302c06072a8648ce3d0101022100' + \
-              '%064x' % _p + \
-              '3006040100040107042102' + \
-              '%064x' % _Gx + \
-              '022100' + \
-              '%064x' % _r + \
-              '020101a124032200'
+        key = ('3081d30201010420' +
+               '%064x' % pkey.secret +
+               'a081a53081a2020101302c06072a8648ce3d0101022100' +
+               '%064x' % _p +
+               '3006040100040107042102' +
+               '%064x' % _Gx +
+               '022100' +
+               '%064x' % _r +
+               '020101a124032200')
     else:
-        key = '308201130201010420' + \
-              '%064x' % pkey.secret + \
-              'a081a53081a2020101302c06072a8648ce3d0101022100' + \
-              '%064x' % _p + \
-              '3006040100040107044104' + \
-              '%064x' % _Gx + \
-              '%064x' % _Gy + \
-              '022100' + \
-              '%064x' % _r + \
-              '020101a144034200'
+        key = ('308201130201010420' +
+               '%064x' % pkey.secret +
+               'a081a53081a2020101302c06072a8648ce3d0101022100' +
+               '%064x' % _p +
+               '3006040100040107044104' +
+               '%064x' % _Gx +
+               '%064x' % _Gy +
+               '022100' +
+               '%064x' % _r +
+               '020101a144034200')
 
     return key.decode('hex') + i2o_ECPublicKey(pkey.pubkey, compressed)
 
@@ -124,9 +124,9 @@ def i2o_ECPublicKey(pubkey, compressed=False):
         else:
             key = '02' + '%064x' % pubkey.point.x()
     else:
-        key = '04' + \
-              '%064x' % pubkey.point.x() + \
-              '%064x' % pubkey.point.y()
+        key = ('04' +
+               '%064x' % pubkey.point.x() +
+               '%064x' % pubkey.point.y())
 
     return key.decode('hex')
 
@@ -613,7 +613,7 @@ def CKD(k, c, n):
 
 def CKD_prime(K, c, n):
     import hmac
-    from ecdsa.util import string_to_number, number_to_string
+    from ecdsa.util import string_to_number
     order = generator_secp256k1.order()
 
     if n & BIP32_PRIME:

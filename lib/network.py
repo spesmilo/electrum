@@ -2,10 +2,8 @@ import threading
 import time
 import Queue
 import os
-import sys
-import shutil
 import random
-from util import user_dir, appdata_dir, print_error, print_msg
+from util import print_error
 from bitcoin import *
 import interface
 from blockchain import Blockchain

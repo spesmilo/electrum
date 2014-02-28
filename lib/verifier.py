@@ -19,9 +19,7 @@
 
 import threading
 import Queue
-from util import appdata_dir
 from util import print_error
-from util import user_dir
 from bitcoin import *
 
 
