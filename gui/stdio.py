@@ -111,8 +111,9 @@ class ElectrumGui:
     def print_history(self):
         width = [20, 40, 14, 14]
         delta = (80 - sum(width) - 4) / 3
-        format_str = "%"+"%d"%width[0]+"s"+"%"+"%d"%(width[1]+delta)+"s"+"%" \
-        + "%d"%(width[2]+delta)+"s"+"%"+"%d"%(width[3]+delta)+"s"
+        format_str = "%" + "%d" % width[0] + "s" + "%" + "%d" % (width[1] + delta) + "s" + "%" \
+            + "%d" % (width[2] + delta) + "s" + "%" + \
+            "%d" % (width[3] + delta) + "s"
         b = 0
         messages = []
 
@@ -120,14 +121,16 @@ class ElectrumGui:
             tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
             if confirmations:
                 try:
-                    time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+                    time_str = datetime.datetime.fromtimestamp(
+                        timestamp).isoformat(' ')[:-3]
                 except Exception:
                     time_str = "unknown"
             else:
                 time_str = 'pending'
 
             label, is_default_label = self.wallet.get_label(tx_hash)
-            messages.append(format_str % (time_str, label, format_satoshis(value, whitespaces=True), format_satoshis(balance, whitespaces=True)))
+            messages.append(format_str % (time_str, label, format_satoshis(
+                value, whitespaces=True), format_satoshis(balance, whitespaces=True)))
 
         self.print_list(messages[::-1], format_str %
                         (_("Date"), _("Description"), _("Amount"), _("Balance")))
