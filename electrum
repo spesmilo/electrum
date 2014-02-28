@@ -97,7 +97,7 @@ def print_help(parser):
     parser.print_help()
     print_msg("Type 'electrum help <command>' to see the help for a specific command")
     print_msg("Type 'electrum --help' to see the list of options")
-    run_command('help')
+    run_command(known_commands['help'])
     sys.exit(1)
 
 
@@ -113,6 +113,18 @@ def run_command(cmd, password=None, args=[]):
 
     if cmd.requires_network and not options.offline:
         cmd_runner.network = xmlrpclib.ServerProxy('http://localhost:8000')
+
+        while True:
+            try:
+                if cmd_runner.network.ping() == 'pong':
+                    break
+            except socket.error:
+                if cmd.name != 'daemon':
+                    start_daemon()
+                else:
+                    print "Daemon not running"
+                    sys.exit(1)
+
         if wallet:
             wallet.start_threads(cmd_runner.network)
             wallet.update()
@@ -121,10 +133,8 @@ def run_command(cmd, password=None, args=[]):
 
     try:
         result = func(*args[1:])
-    except socket.error:
-        print "Daemon not running"
-        sys.exit(1)
     except Exception:
+        print "ecxeption"
         traceback.print_exc(file=sys.stdout)
         sys.exit(1)
 
@@ -138,6 +148,44 @@ def run_command(cmd, password=None, args=[]):
         util.print_msg(result)
     elif result is not None:
         util.print_json(result)
+
+
+
+def start_server():
+    network = Network(config)
+    if not network.start(wait=True):
+        print_msg("Not connected, aborting.")
+        sys.exit(1)
+    print_msg("Network daemon connected to " + network.interface.connection_msg)
+    from SimpleXMLRPCServer import SimpleXMLRPCServer
+    server = SimpleXMLRPCServer(('localhost',8000), allow_none=True, logRequests=False)
+    server.register_function(lambda: 'pong', 'ping')
+    server.register_function(network.synchronous_get, 'synchronous_get')
+    server.register_function(network.get_servers, 'get_servers')
+    server.register_function(network.main_server, 'main_server')
+    server.register_function(network.send, 'send')
+    server.register_function(network.subscribe, 'subscribe')
+    server.register_function(network.is_connected, 'is_connected')
+    server.register_function(network.is_up_to_date, 'is_up_to_date')
+    server.register_function(lambda: setattr(server,'running', False), 'stop')
+    return server
+
+def start_daemon():
+    pid = os.fork()
+    if (pid == 0): # The first child.
+        os.chdir("/")
+        os.setsid()
+        os.umask(0)
+        pid2 = os.fork()
+        if (pid2 == 0):  # Second child
+            server = start_server()
+            server.running = True
+            while server.running:
+                server.handle_request()
+            print_msg("Daemon stopped")
+        sys.exit(0)
+
+    time.sleep(2)
 
 
 if __name__ == '__main__':
@@ -362,36 +410,6 @@ if __name__ == '__main__':
             args = args[0:cmd.min_args] + [message]
 
 
-    if cmd.name == 'daemon' and args[1] == 'start':
-        pid = os.fork()
-        if (pid == 0): # The first child.
-            os.chdir("/")
-            os.setsid()
-            os.umask(0)
-            pid2 = os.fork()
-            if (pid2 == 0):  # Second child
-                from SimpleXMLRPCServer import SimpleXMLRPCServer
-                # start the daemon
-                network = Network(config)
-                if not network.start(wait=True):
-                    print_msg("Not connected, aborting.")
-                    sys.exit(1)
-                print_msg("Connected to " + network.interface.connection_msg)
-                server = SimpleXMLRPCServer(('localhost',8000), allow_none=True, logRequests=False)
-                server.register_function(network.synchronous_get, 'synchronous_get')
-                server.register_function(network.get_servers, 'get_servers')
-                server.register_function(network.main_server, 'main_server')
-                server.register_function(network.send, 'send')
-                server.register_function(network.subscribe, 'subscribe')
-                server.register_function(network.is_connected, 'is_connected')
-                server.register_function(network.is_up_to_date, 'is_up_to_date')
-                server.register_function(lambda: setattr(server,'running', False), 'stop')
-                server.running = True
-                while server.running:
-                    server.handle_request()
-                print_msg("Daemon stopped")
-
-        sys.exit(0)
 
     # run the command
     if cmd.name == 'deseed':
