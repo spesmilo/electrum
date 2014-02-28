@@ -90,6 +90,7 @@ def arg_parser():
     parser.add_option("-W", "--password", dest="password", default=None, help="set password for usage with commands (currently only implemented for create command, do not use it for longrunning gui session since the password is visible in /proc)")
     parser.add_option("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
     parser.add_option("--bip32", action="store_true", dest="bip32", default=False, help="bip32")
+    parser.add_option("--mpk", dest="mpk", default=False, help="master public key")
     return parser
 
 
@@ -265,6 +266,8 @@ if __name__ == '__main__':
             sys.exit("Error: Remove the existing wallet first!")
         if options.password is not None:
             password = options.password
+        elif cmd.name == 'restore' and options.mpk:
+            password = None
         else:
             password = prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
 
@@ -282,12 +285,16 @@ if __name__ == '__main__':
         #    wallet.change_gap_limit(int(gap))
 
         if cmd.name == 'restore':
-            import getpass
-            seed = getpass.getpass(prompt="seed:", stream=None) if options.concealed else raw_input("seed:")
-            wallet = Wallet.from_seed(str(seed),storage)
-            if not wallet:
-                sys.exit("Error: Invalid seed")
-            wallet.save_seed(password)
+            if options.mpk:
+                wallet = Wallet.from_mpk(options.mpk, storage)
+            else:
+                import getpass
+                seed = getpass.getpass(prompt="seed:", stream=None) if options.concealed else raw_input("seed:")
+                wallet = Wallet.from_seed(str(seed),storage)
+                if not wallet:
+                    sys.exit("Error: Invalid seed")
+                wallet.save_seed(password)
+
             if not options.offline:
                 network = Network(config)
                 network.start()

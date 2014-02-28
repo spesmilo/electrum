@@ -1809,7 +1809,6 @@ class Wallet(object):
 
 
 
-
     @classmethod
     def from_seed(self, seed, storage):
         import mnemonic
@@ -1835,8 +1834,26 @@ class Wallet(object):
             w.init_seed(seed) #hex
         else:
             #assert is_seed(seed)
-            w = Wallet(storage)
+            w = NewWallet(storage)
             w.init_seed(seed)
 
+        return w
+
+
+    @classmethod
+    def from_mpk(self, s, storage):
+        try:
+            mpk, chain = s.split(':')
+        except:
+            mpk = s
+            chain = False
+
+        if chain:
+            w = NewWallet(storage)
+            w.create_watching_only_wallet(mpk, chain)
+        else:
+            w = OldWallet(storage)
+            w.seed = ''
+            w.create_watching_only_wallet(mpk)
 
         return w
