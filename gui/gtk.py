@@ -16,21 +16,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-# use this because this file is named gtk.py
-from __future__ import absolute_import
 
 import datetime
 import thread, time, ast, sys, re
 import socket, traceback
-import pygtk
-pygtk.require('2.0')
-import gtk, gobject
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk, Gdk, GObject, cairo
 from decimal import Decimal
 from electrum.util import print_error
 from electrum.bitcoin import is_valid
 from electrum import mnemonic, pyqrnative, WalletStorage, Wallet
 
-gtk.gdk.threads_init()
+Gdk.threads_init()
 APP_NAME = "Electrum"
 import platform
 MONOSPACE_FONT = 'Lucida Console' if platform.system() == 'Windows' else 'monospace'
@@ -73,10 +71,10 @@ def show_seed_dialog(wallet, password, parent):
     except Exception:
         show_message("Incorrect password")
         return
-    dialog = gtk.MessageDialog(
+    dialog = Gtk.MessageDialog(
         parent = parent,
-        flags = gtk.DIALOG_MODAL, 
-        buttons = gtk.BUTTONS_OK, 
+        flags = Gtk.DialogFlags.MODAL, 
+        buttons = Gtk.ButtonsType.OK, 
         message_format = "Your wallet generation seed is:\n\n" + '"' + mnemonic + '"'\
             + "\n\nPlease keep it in a safe place; if you lose it, you will not be able to restore your wallet.\n\n" )
     dialog.set_title("Seed")
@@ -88,13 +86,13 @@ def restore_create_dialog():
 
     # ask if the user wants to create a new wallet, or recover from a seed. 
     # if he wants to recover, and nothing is found, do not create wallet
-    dialog = gtk.Dialog("electrum", parent=None, 
-                        flags=gtk.DIALOG_MODAL|gtk.DIALOG_NO_SEPARATOR, 
+    dialog = Gtk.Dialog("electrum", parent=None, 
+                        flags=Gtk.DialogFlags.MODAL|Gtk.DialogFlags.NO_SEPARATOR, 
                         buttons= ("create", 0, "restore",1, "cancel",2)  )
 
-    label = gtk.Label("Wallet file not found.\nDo you want to create a new wallet,\n or to restore an existing one?"  )
+    label = Gtk.Label("Wallet file not found.\nDo you want to create a new wallet,\n or to restore an existing one?"  )
     label.show()
-    dialog.vbox.pack_start(label)
+    dialog.vbox.pack_start(label, True, True, 0)
     dialog.show()
     r = dialog.run()
     dialog.destroy()
@@ -106,22 +104,22 @@ def restore_create_dialog():
 
 def run_recovery_dialog():
     message = "Please enter your wallet seed or the corresponding mnemonic list of words, and the gap limit of your wallet."
-    dialog = gtk.MessageDialog(
+    dialog = Gtk.MessageDialog(
         parent = None,
-        flags = gtk.DIALOG_MODAL, 
-        buttons = gtk.BUTTONS_OK_CANCEL,
+        flags = Gtk.DialogFlags.MODAL, 
+        buttons = Gtk.ButtonsType.OK_CANCEL,
         message_format = message)
 
     vbox = dialog.vbox
-    dialog.set_default_response(gtk.RESPONSE_OK)
+    dialog.set_default_response(Gtk.ResponseType.OK)
 
     # ask seed, server and gap in the same dialog
-    seed_box = gtk.HBox()
-    seed_label = gtk.Label('Seed or mnemonic:')
+    seed_box = Gtk.HBox()
+    seed_label = Gtk.Label(label='Seed or mnemonic:')
     seed_label.set_size_request(150,-1)
     seed_box.pack_start(seed_label, False, False, 10)
     seed_label.show()
-    seed_entry = gtk.Entry()
+    seed_entry = Gtk.Entry()
     seed_entry.show()
     seed_entry.set_size_request(450,-1)
     seed_box.pack_start(seed_entry, False, False, 10)
@@ -134,7 +132,7 @@ def run_recovery_dialog():
     seed = seed_entry.get_text()
     dialog.destroy()
 
-    if r==gtk.RESPONSE_CANCEL:
+    if r==Gtk.ResponseType.CANCEL:
         return False
 
     try:
@@ -154,24 +152,24 @@ def run_settings_dialog(self):
 
     message = "Here are the settings of your wallet. For more explanations, click on the question mark buttons next to each input field."
         
-    dialog = gtk.MessageDialog(
+    dialog = Gtk.MessageDialog(
         parent = self.window,
-        flags = gtk.DIALOG_MODAL, 
-        buttons = gtk.BUTTONS_OK_CANCEL,
+        flags = Gtk.DialogFlags.MODAL, 
+        buttons = Gtk.ButtonsType.OK_CANCEL,
         message_format = message)
 
-    image = gtk.Image()
-    image.set_from_stock(gtk.STOCK_PREFERENCES, gtk.ICON_SIZE_DIALOG)
+    image = Gtk.Image()
+    image.set_from_stock(Gtk.STOCK_PREFERENCES, Gtk.IconSize.DIALOG)
     image.show()
     dialog.set_image(image)
     dialog.set_title("Settings")
 
     vbox = dialog.vbox
-    dialog.set_default_response(gtk.RESPONSE_OK)
+    dialog.set_default_response(Gtk.ResponseType.OK)
 
-    fee = gtk.HBox()
-    fee_entry = gtk.Entry()
-    fee_label = gtk.Label('Transaction fee:')
+    fee = Gtk.HBox()
+    fee_entry = Gtk.Entry()
+    fee_label = Gtk.Label(label='Transaction fee:')
     fee_label.set_size_request(150,10)
     fee_label.show()
     fee.pack_start(fee_label,False, False, 10)
@@ -183,9 +181,9 @@ def run_settings_dialog(self):
     fee.show()
     vbox.pack_start(fee, False,False, 5)
             
-    nz = gtk.HBox()
-    nz_entry = gtk.Entry()
-    nz_label = gtk.Label('Display zeros:')
+    nz = Gtk.HBox()
+    nz_entry = Gtk.Entry()
+    nz_label = Gtk.Label(label='Display zeros:')
     nz_label.set_size_request(150,10)
     nz_label.show()
     nz.pack_start(nz_label,False, False, 10)
@@ -203,7 +201,7 @@ def run_settings_dialog(self):
     nz = nz_entry.get_text()
         
     dialog.destroy()
-    if r==gtk.RESPONSE_CANCEL:
+    if r==Gtk.ResponseType.CANCEL:
         return
 
     try:
@@ -229,8 +227,8 @@ def run_settings_dialog(self):
 
 
 def run_network_dialog( network, parent ):
-    image = gtk.Image()
-    image.set_from_stock(gtk.STOCK_NETWORK, gtk.ICON_SIZE_DIALOG)
+    image = Gtk.Image()
+    image.set_from_stock(Gtk.STOCK_NETWORK, Gtk.IconSize.DIALOG)
     if parent:
         if network.is_connected():
             interface = network.interface
@@ -247,19 +245,19 @@ def run_network_dialog( network, parent ):
 
     servers = network.get_servers()
 
-    dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
-                                    gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, status)
+    dialog = Gtk.MessageDialog( parent, Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
+                                    Gtk.MessageType.QUESTION, Gtk.ButtonsType.OK_CANCEL, status)
     dialog.set_title("Server")
     dialog.set_image(image)
     image.show()
     
     vbox = dialog.vbox
-    host_box = gtk.HBox()
-    host_label = gtk.Label('Connect to:')
+    host_box = Gtk.HBox()
+    host_label = Gtk.Label(label='Connect to:')
     host_label.set_size_request(100,-1)
     host_label.show()
     host_box.pack_start(host_label, False, False, 10)
-    host_entry = gtk.Entry()
+    host_entry = Gtk.Entry()
     host_entry.set_size_request(200,-1)
     if network.is_connected():
         host_entry.set_text(server)
@@ -270,15 +268,15 @@ def run_network_dialog( network, parent ):
     add_help_button(host_box, 'The name, port number and protocol of your Electrum server, separated by a colon. Example: "ecdsa.org:50002:s". Some servers allow you to connect through http (port 80) or https (port 443)')
     host_box.show()
 
-    p_box = gtk.HBox(False, 10)
+    p_box = Gtk.HBox(False, 10)
     p_box.show()
 
-    p_label = gtk.Label('Protocol:')
+    p_label = Gtk.Label(label='Protocol:')
     p_label.set_size_request(100,-1)
     p_label.show()
     p_box.pack_start(p_label, False, False, 10)
 
-    combobox = gtk.combo_box_new_text()
+    combobox = Gtk.ComboBoxText()
     combobox.show()
     combobox.append_text("TCP")
     combobox.append_text("SSL")
@@ -306,29 +304,29 @@ def run_network_dialog( network, parent ):
     if network.is_connected():
         set_combobox(protocol)
         
-    server_list = gtk.ListStore(str)
+    server_list = Gtk.ListStore(str)
     for host in servers.keys():
         server_list.append([host])
     
-    treeview = gtk.TreeView(model=server_list)
+    treeview = Gtk.TreeView(model=server_list)
     treeview.show()
 
     label = 'Active Servers' if network.irc_servers else 'Default Servers'
-    tvcolumn = gtk.TreeViewColumn(label)
+    tvcolumn = Gtk.TreeViewColumn(label)
     treeview.append_column(tvcolumn)
-    cell = gtk.CellRendererText()
+    cell = Gtk.CellRendererText()
     tvcolumn.pack_start(cell, False)
     tvcolumn.add_attribute(cell, 'text', 0)
 
     vbox.pack_start(host_box, False,False, 5)
     vbox.pack_start(p_box, True, True, 0)
 
-    #scroll = gtk.ScrolledWindow()
-    #scroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_ALWAYS)
+    #scroll = Gtk.ScrolledWindow()
+    #scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.ALWAYS)
     #scroll.add_with_viewport(treeview)
     #scroll.show()
     #vbox.pack_start(scroll, True)
-    vbox.pack_start(treeview, True)
+    vbox.pack_start(treeview, True, True, 0)
 
     def my_treeview_cb(treeview):
         path, view_column = treeview.get_cursor()
@@ -350,7 +348,7 @@ def run_network_dialog( network, parent ):
     server = host_entry.get_text()
     dialog.destroy()
 
-    if r==gtk.RESPONSE_CANCEL:
+    if r==Gtk.ResponseType.CANCEL:
         return False
 
     try:
@@ -367,22 +365,22 @@ def run_network_dialog( network, parent ):
 
 
 def show_message(message, parent=None):
-    dialog = gtk.MessageDialog(
+    dialog = Gtk.MessageDialog(
         parent = parent,
-        flags = gtk.DIALOG_MODAL, 
-        buttons = gtk.BUTTONS_CLOSE, 
+        flags = Gtk.DialogFlags.MODAL, 
+        buttons = Gtk.ButtonsType.CLOSE, 
         message_format = message )
     dialog.show()
     dialog.run()
     dialog.destroy()
 
 def password_line(label):
-    password = gtk.HBox()
-    password_label = gtk.Label(label)
+    password = Gtk.HBox()
+    password_label = Gtk.Label(label=label)
     password_label.set_size_request(120,10)
     password_label.show()
     password.pack_start(password_label,False, False, 10)
-    password_entry = gtk.Entry()
+    password_entry = Gtk.Entry()
     password_entry.set_size_request(300,-1)
     password_entry.set_visibility(False)
     password_entry.show()
@@ -391,17 +389,17 @@ def password_line(label):
     return password, password_entry
 
 def password_dialog(parent):
-    dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
-                                gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL,  "Please enter your password.")
+    dialog = Gtk.MessageDialog( parent, Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
+                                Gtk.MessageType.QUESTION, Gtk.ButtonsType.OK_CANCEL,  "Please enter your password.")
     dialog.get_image().set_visible(False)
     current_pw, current_pw_entry = password_line('Password:')
-    current_pw_entry.connect("activate", lambda entry, dialog, response: dialog.response(response), dialog, gtk.RESPONSE_OK)
+    current_pw_entry.connect("activate", lambda entry, dialog, response: dialog.response(response), dialog, Gtk.ResponseType.OK)
     dialog.vbox.pack_start(current_pw, False, True, 0)
     dialog.show()
     result = dialog.run()
     pw = current_pw_entry.get_text()
     dialog.destroy()
-    if result != gtk.RESPONSE_CANCEL: return pw
+    if result != Gtk.ResponseType.CANCEL: return pw
 
 
 def change_password_dialog(is_encrypted, parent):
@@ -411,10 +409,10 @@ def change_password_dialog(is_encrypted, parent):
     else:
         msg = "Please choose a password to encrypt your wallet keys"
 
-    dialog = gtk.MessageDialog( parent, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, msg)
+    dialog = Gtk.MessageDialog( parent, Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT, Gtk.MessageType.QUESTION, Gtk.ButtonsType.OK_CANCEL, msg)
     dialog.set_title("Change password")
-    image = gtk.Image()
-    image.set_from_stock(gtk.STOCK_DIALOG_AUTHENTICATION, gtk.ICON_SIZE_DIALOG)
+    image = Gtk.Image()
+    image.set_from_stock(Gtk.STOCK_DIALOG_AUTHENTICATION, Gtk.IconSize.DIALOG)
     image.show()
     dialog.set_image(image)
 
@@ -433,7 +431,7 @@ def change_password_dialog(is_encrypted, parent):
     new_password = password_entry.get_text()
     new_password2 = password2_entry.get_text()
     dialog.destroy()
-    if result == gtk.RESPONSE_CANCEL: 
+    if result == Gtk.ResponseType.CANCEL: 
         return
 
     if new_password != new_password2:
@@ -448,17 +446,18 @@ def change_password_dialog(is_encrypted, parent):
 
 
 def add_help_button(hbox, message):
-    button = gtk.Button('?')
+    button = Gtk.Button('?')
     button.connect("clicked", lambda x: show_message(message))
     button.show()
-    hbox.pack_start(button,False, False)
+    hbox.pack_start(button,False, False, 0)
 
 
-class MyWindow(gtk.Window): __gsignals__ = dict( mykeypress = (gobject.SIGNAL_RUN_LAST | gobject.SIGNAL_ACTION, None, (str,)) )
+class MyWindow(Gtk.Window): __gsignals__ = dict( mykeypress = (GObject.SignalFlags.RUN_LAST | GObject.SignalFlags.ACTION, None, (str,)) )
 
-gobject.type_register(MyWindow)
-gtk.binding_entry_add_signal(MyWindow, gtk.keysyms.W, gtk.gdk.CONTROL_MASK, 'mykeypress', str, 'ctrl+W')
-gtk.binding_entry_add_signal(MyWindow, gtk.keysyms.Q, gtk.gdk.CONTROL_MASK, 'mykeypress', str, 'ctrl+Q')
+GObject.type_register(MyWindow)
+#FIXME: can't find docs how to create keybindings in PyGI
+#Gtk.binding_entry_add_signall(MyWindow, Gdk.KEY_W, Gdk.ModifierType.CONTROL_MASK, 'mykeypress', ['ctrl+W'])
+#Gtk.binding_entry_add_signall(MyWindow, Gdk.KEY_Q, Gdk.ModifierType.CONTROL_MASK, 'mykeypress', ['ctrl+Q'])
 
 
 class ElectrumWindow:
@@ -473,19 +472,19 @@ class ElectrumWindow:
         self.funds_error = False # True if not enough funds
         self.num_zeros = int(self.config.get('num_zeros',0))
 
-        self.window = MyWindow(gtk.WINDOW_TOPLEVEL)
+        self.window = MyWindow(Gtk.WindowType.TOPLEVEL)
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.config.path
         if not self.wallet.seed: title += ' [seedless]'
         self.window.set_title(title)
-        self.window.connect("destroy", gtk.main_quit)
+        self.window.connect("destroy", Gtk.main_quit)
         self.window.set_border_width(0)
-        self.window.connect('mykeypress', gtk.main_quit)
+        self.window.connect('mykeypress', Gtk.main_quit)
         self.window.set_default_size(720, 350)
         self.wallet_updated = False
 
-        vbox = gtk.VBox()
+        vbox = Gtk.VBox()
 
-        self.notebook = gtk.Notebook()
+        self.notebook = Gtk.Notebook()
         self.create_history_tab()
         if self.wallet.seed:
             self.create_send_tab()
@@ -495,20 +494,20 @@ class ElectrumWindow:
         self.notebook.show()
         vbox.pack_start(self.notebook, True, True, 2)
         
-        self.status_bar = gtk.Statusbar()
+        self.status_bar = Gtk.Statusbar()
         vbox.pack_start(self.status_bar, False, False, 0)
 
-        self.status_image = gtk.Image()
-        self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
+        self.status_image = Gtk.Image()
+        self.status_image.set_from_stock(Gtk.STOCK_NO, Gtk.IconSize.MENU)
         self.status_image.set_alignment(True, 0.5  )
         self.status_image.show()
 
-        self.network_button = gtk.Button()
+        self.network_button = Gtk.Button()
         self.network_button.connect("clicked", lambda x: run_network_dialog(self.network, self.window) )
         self.network_button.add(self.status_image)
-        self.network_button.set_relief(gtk.RELIEF_NONE)
+        self.network_button.set_relief(Gtk.ReliefStyle.NONE)
         self.network_button.show()
-        self.status_bar.pack_end(self.network_button, False, False)
+        self.status_bar.pack_end(self.network_button, False, False, 0)
 
         if self.wallet.seed:
             def seedb(w, wallet):
@@ -517,39 +516,45 @@ class ElectrumWindow:
                     if not password: return
                 else: password = None
                 show_seed_dialog(wallet, password, self.window)
-            button = gtk.Button('S')
-            button.connect("clicked", seedb, wallet )
-            button.set_relief(gtk.RELIEF_NONE)
+            button = Gtk.Button('S')
+            button.connect("clicked", seedb, self.wallet )
+            button.set_relief(Gtk.ReliefStyle.NONE)
             button.show()
-            self.status_bar.pack_end(button,False, False)
+            self.status_bar.pack_end(button,False, False, 0)
 
-        settings_icon = gtk.Image()
-        settings_icon.set_from_stock(gtk.STOCK_PREFERENCES, gtk.ICON_SIZE_MENU)
+        settings_icon = Gtk.Image()
+        settings_icon.set_from_stock(Gtk.STOCK_PREFERENCES, Gtk.IconSize.MENU)
         settings_icon.set_alignment(0.5, 0.5)
         settings_icon.set_size_request(16,16 )
         settings_icon.show()
 
-        prefs_button = gtk.Button()
+        prefs_button = Gtk.Button()
         prefs_button.connect("clicked", lambda x: run_settings_dialog(self) )
         prefs_button.add(settings_icon)
         prefs_button.set_tooltip_text("Settings")
-        prefs_button.set_relief(gtk.RELIEF_NONE)
+        prefs_button.set_relief(Gtk.ReliefStyle.NONE)
         prefs_button.show()
-        self.status_bar.pack_end(prefs_button,False,False)
+        self.status_bar.pack_end(prefs_button,False,False, 0)
 
-        self.pw_icon = gtk.Image()
-        self.pw_icon.set_from_stock(gtk.STOCK_DIALOG_AUTHENTICATION, gtk.ICON_SIZE_MENU)
+        self.pw_icon = Gtk.Image()
+        self.pw_icon.set_from_stock(Gtk.STOCK_DIALOG_AUTHENTICATION, Gtk.IconSize.MENU)
         self.pw_icon.set_alignment(0.5, 0.5)
         self.pw_icon.set_size_request(16,16 )
         self.pw_icon.show()
 
         if self.wallet.seed:
-            password_button = gtk.Button()
-            password_button.connect("clicked", self.do_update_password)
+
+            if self.wallet.use_encryption:
+                self.pw_icon.set_tooltip_text('Wallet is encrypted')
+            else:
+                self.pw_icon.set_tooltip_text('Wallet is unencrypted')
+
+            password_button = Gtk.Button()
+            password_button.connect("clicked", self.do_update_password, self.wallet)
             password_button.add(self.pw_icon)
-            password_button.set_relief(gtk.RELIEF_NONE)
+            password_button.set_relief(Gtk.ReliefStyle.NONE)
             password_button.show()
-            self.status_bar.pack_end(password_button,False,False)
+            self.status_bar.pack_end(password_button,False,False, 0)
 
         self.window.add(vbox)
         self.window.show_all()
@@ -563,7 +568,7 @@ class ElectrumWindow:
 
         def update_status_bar_thread():
             while True:
-                gobject.idle_add( self.update_status_bar )
+                GObject.idle_add( self.update_status_bar )
                 time.sleep(0.5)
 
 
@@ -584,7 +589,7 @@ class ElectrumWindow:
                             continue
                         if to_address:
                             s = r + ' <' + to_address + '>'
-                            gobject.idle_add( lambda: self.payto_entry.set_text(s) )
+                            GObject.idle_add( lambda: self.payto_entry.set_text(s) )
                 
 
         thread.start_new_thread(update_status_bar_thread, ())
@@ -595,12 +600,12 @@ class ElectrumWindow:
     def update_callback(self):
         self.wallet_updated = True
 
-    def do_update_password(self):
+    def do_update_password(self, button, wallet):
         if not wallet.seed:
             show_message("No seed")
             return
 
-        res = change_password_dialog(self.wallet.use_encryption, self.window)
+        res = change_password_dialog(wallet.use_encryption, self.window)
         if res:
             _, password, new_password = res
 
@@ -613,66 +618,66 @@ class ElectrumWindow:
             wallet.update_password(password, new_password)
 
             if wallet.use_encryption:
-                self.pw_icon.set_tooltip_text('wallet is encrypted')
+                self.pw_icon.set_tooltip_text('Wallet is encrypted')
             else:
-                self.pw_icon.set_tooltip_text('wallet is unencrypted')
+                self.pw_icon.set_tooltip_text('Wallet is unencrypted')
 
 
     def add_tab(self, page, name):
-        tab_label = gtk.Label(name)
+        tab_label = Gtk.Label(label=name)
         tab_label.show()
         self.notebook.append_page(page, tab_label)
 
 
     def create_send_tab(self):
         
-        page = vbox = gtk.VBox()
+        page = vbox = Gtk.VBox()
         page.show()
 
-        payto = gtk.HBox()
-        payto_label = gtk.Label('Pay to:')
+        payto = Gtk.HBox()
+        payto_label = Gtk.Label(label='Pay to:')
         payto_label.set_size_request(100,-1)
-        payto.pack_start(payto_label, False)
-        payto_entry = gtk.Entry()
+        payto.pack_start(payto_label, False, False, 0)
+        payto_entry = Gtk.Entry()
         payto_entry.set_size_request(450, 26)
-        payto.pack_start(payto_entry, False)
+        payto.pack_start(payto_entry, False, False, 0)
         vbox.pack_start(payto, False, False, 5)
 
-        message = gtk.HBox()
-        message_label = gtk.Label('Description:')
+        message = Gtk.HBox()
+        message_label = Gtk.Label(label='Description:')
         message_label.set_size_request(100,-1)
-        message.pack_start(message_label, False)
-        message_entry = gtk.Entry()
+        message.pack_start(message_label, False, False, 0)
+        message_entry = Gtk.Entry()
         message_entry.set_size_request(450, 26)
-        message.pack_start(message_entry, False)
+        message.pack_start(message_entry, False, False, 0)
         vbox.pack_start(message, False, False, 5)
 
-        amount_box = gtk.HBox()
-        amount_label = gtk.Label('Amount:')
+        amount_box = Gtk.HBox()
+        amount_label = Gtk.Label(label='Amount:')
         amount_label.set_size_request(100,-1)
-        amount_box.pack_start(amount_label, False)
-        amount_entry = gtk.Entry()
+        amount_box.pack_start(amount_label, False, False, 0)
+        amount_entry = Gtk.Entry()
         amount_entry.set_size_request(120, -1)
-        amount_box.pack_start(amount_entry, False)
+        amount_box.pack_start(amount_entry, False, False, 0)
         vbox.pack_start(amount_box, False, False, 5)
 
-        self.fee_box = fee_box = gtk.HBox()
-        fee_label = gtk.Label('Fee:')
+        self.fee_box = fee_box = Gtk.HBox()
+        fee_label = Gtk.Label(label='Fee:')
         fee_label.set_size_request(100,-1)
-        fee_box.pack_start(fee_label, False)
-        fee_entry = gtk.Entry()
+        fee_box.pack_start(fee_label, False, False, 0)
+        fee_entry = Gtk.Entry()
         fee_entry.set_size_request(60, 26)
-        fee_box.pack_start(fee_entry, False)
+        fee_box.pack_start(fee_entry, False, False, 0)
         vbox.pack_start(fee_box, False, False, 5)
 
-        end_box = gtk.HBox()
-        empty_label = gtk.Label('')
+        end_box = Gtk.HBox()
+        empty_label = Gtk.Label(label='')
         empty_label.set_size_request(100,-1)
-        end_box.pack_start(empty_label, False)
-        send_button = gtk.Button("Send")
+        end_box.pack_start(empty_label, False, False, 0)
+        send_button = Gtk.Button("Send")
         send_button.show()
         end_box.pack_start(send_button, False, False, 0)
-        clear_button = gtk.Button("Clear")
+        clear_button = Gtk.Button("Clear")
         clear_button.show()
         end_box.pack_start(clear_button, False, False, 15)
         send_button.connect("clicked", self.do_send, (payto_entry, message_entry, amount_entry, fee_entry))
@@ -681,9 +686,9 @@ class ElectrumWindow:
         vbox.pack_start(end_box, False, False, 5)
 
         # display this line only if there is a signature
-        payto_sig = gtk.HBox()
-        payto_sig_id = gtk.Label('')
-        payto_sig.pack_start(payto_sig_id, False)
+        payto_sig = Gtk.HBox()
+        payto_sig_id = Gtk.Label(label='')
+        payto_sig.pack_start(payto_sig_id, False, False, 0)
         vbox.pack_start(payto_sig, True, True, 5)
         
 
@@ -701,13 +706,13 @@ class ElectrumWindow:
                 fee_entry.set_text( str( Decimal( fee ) / 100000000 ) )
                 self.fee_box.show()
             if inputs:
-                amount_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#000000"))
-                fee_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#000000"))
+                amount_entry.modify_text(Gtk.StateType.NORMAL, Gdk.color_parse("#000000"))
+                fee_entry.modify_text(Gtk.StateType.NORMAL, Gdk.color_parse("#000000"))
                 send_button.set_sensitive(True)
             else:
                 send_button.set_sensitive(False)
-                amount_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#cc0000"))
-                fee_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("#cc0000"))
+                amount_entry.modify_text(Gtk.StateType.NORMAL, Gdk.color_parse("#cc0000"))
+                fee_entry.modify_text(Gtk.StateType.NORMAL, Gdk.color_parse("#cc0000"))
                 self.funds_error = True
 
         amount_entry.connect('changed', entry_changed, False)
@@ -725,11 +730,11 @@ class ElectrumWindow:
         if frozen:
             entry.set_editable(False)
             entry.set_has_frame(False)
-            entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#eeeeee"))
+            entry.modify_base(Gtk.StateType.NORMAL, Gdk.color_parse("#eeeeee"))
         else:
             entry.set_editable(True)
             entry.set_has_frame(True)
-            entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#ffffff"))
+            entry.modify_base(Gtk.StateType.NORMAL, Gdk.color_parse("#ffffff"))
 
     def set_url(self, url):
         payto, amount, label, message, signature, identity, url = self.wallet.parse_url(url, self.show_message, self.question)
@@ -746,16 +751,16 @@ class ElectrumWindow:
             self.payto_sig.set_visible(False)
 
     def create_about_tab(self):
-        import pango
-        page = gtk.VBox()
+        from gi.repository import Pango
+        page = Gtk.VBox()
         page.show()
-        tv = gtk.TextView()
+        tv = Gtk.TextView()
         tv.set_editable(False)
         tv.set_cursor_visible(False)
-        tv.modify_font(pango.FontDescription(MONOSPACE_FONT))
-        scroll = gtk.ScrolledWindow()
+        tv.modify_font(Pango.FontDescription(MONOSPACE_FONT))
+        scroll = Gtk.ScrolledWindow()
         scroll.add(tv)
-        page.pack_start(scroll)
+        page.pack_start(scroll, True, True, 0)
         self.info = tv.get_buffer()
         self.add_tab(page, 'Wall')
 
@@ -767,11 +772,11 @@ class ElectrumWindow:
             entry.set_text('')
 
     def question(self,msg):
-        dialog = gtk.MessageDialog( self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, msg)
+        dialog = Gtk.MessageDialog( self.window, Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT, Gtk.MessageType.QUESTION, Gtk.ButtonsType.OK_CANCEL, msg)
         dialog.show()
         result = dialog.run()
         dialog.destroy()
-        return result == gtk.RESPONSE_OK
+        return result == Gtk.ResponseType.OK
 
     def do_send(self, w, data):
         payto_entry, label_entry, amount_entry, fee_entry = data
@@ -844,7 +849,7 @@ class ElectrumWindow:
 
 
     def treeview_button_press(self, treeview, event):
-        if event.type == gtk.gdk._2BUTTON_PRESS:
+        if event.type == Gdk.EventType.DOUBLE_BUTTON_PRESS:
             c = treeview.get_cursor()[0]
             if treeview == self.history_treeview:
                 tx_details = self.history_list.get_value( self.history_list.get_iter(c), 8)
@@ -863,11 +868,11 @@ class ElectrumWindow:
 
     def treeview_key_press(self, treeview, event):
         c = treeview.get_cursor()[0]
-        if event.keyval == gtk.keysyms.Up:
+        if event.keyval == Gdk.KEY_Up:
             if c and c[0] == 0:
                 treeview.parent.grab_focus()
                 treeview.set_cursor((0,))
-        elif event.keyval == gtk.keysyms.Return:
+        elif event.keyval == Gdk.KEY_Return:
             if treeview == self.history_treeview:
                 tx_details = self.history_list.get_value( self.history_list.get_iter(c), 8)
                 self.show_message(tx_details)
@@ -886,29 +891,29 @@ class ElectrumWindow:
 
     def create_history_tab(self):
 
-        self.history_list = gtk.ListStore(str, str, str, str, 'gboolean',  str, str, str, str)
-        treeview = gtk.TreeView(model=self.history_list)
+        self.history_list = Gtk.ListStore(str, str, str, str, 'gboolean',  str, str, str, str)
+        treeview = Gtk.TreeView(model=self.history_list)
         self.history_treeview = treeview
         treeview.set_tooltip_column(7)
         treeview.show()
         treeview.connect('key-press-event', self.treeview_key_press)
         treeview.connect('button-press-event', self.treeview_button_press)
 
-        tvcolumn = gtk.TreeViewColumn('')
+        tvcolumn = Gtk.TreeViewColumn('')
         treeview.append_column(tvcolumn)
-        cell = gtk.CellRendererPixbuf()
+        cell = Gtk.CellRendererPixbuf()
         tvcolumn.pack_start(cell, False)
         tvcolumn.set_attributes(cell, stock_id=1)
 
-        tvcolumn = gtk.TreeViewColumn('Date')
+        tvcolumn = Gtk.TreeViewColumn('Date')
         treeview.append_column(tvcolumn)
-        cell = gtk.CellRendererText()
+        cell = Gtk.CellRendererText()
         tvcolumn.pack_start(cell, False)
         tvcolumn.add_attribute(cell, 'text', 2)
 
-        tvcolumn = gtk.TreeViewColumn('Description')
+        tvcolumn = Gtk.TreeViewColumn('Description')
         treeview.append_column(tvcolumn)
-        cell = gtk.CellRendererText()
+        cell = Gtk.CellRendererText()
         cell.set_property('foreground', 'grey')
         cell.set_property('family', MONOSPACE_FONT)
         cell.set_property('editable', True)
@@ -925,31 +930,31 @@ class ElectrumWindow:
         tvcolumn.pack_start(cell, True)
         tvcolumn.set_attributes(cell, text=3, foreground_set = 4)
 
-        tvcolumn = gtk.TreeViewColumn('Amount')
+        tvcolumn = Gtk.TreeViewColumn('Amount')
         treeview.append_column(tvcolumn)
-        cell = gtk.CellRendererText()
+        cell = Gtk.CellRendererText()
         cell.set_alignment(1, 0.5)
         cell.set_property('family', MONOSPACE_FONT)
         tvcolumn.pack_start(cell, False)
         tvcolumn.add_attribute(cell, 'text', 5)
 
-        tvcolumn = gtk.TreeViewColumn('Balance')
+        tvcolumn = Gtk.TreeViewColumn('Balance')
         treeview.append_column(tvcolumn)
-        cell = gtk.CellRendererText()
+        cell = Gtk.CellRendererText()
         cell.set_alignment(1, 0.5)
         cell.set_property('family', MONOSPACE_FONT)
         tvcolumn.pack_start(cell, False)
         tvcolumn.add_attribute(cell, 'text', 6)
 
-        tvcolumn = gtk.TreeViewColumn('Tooltip')
+        tvcolumn = Gtk.TreeViewColumn('Tooltip')
         treeview.append_column(tvcolumn)
-        cell = gtk.CellRendererText()
+        cell = Gtk.CellRendererText()
         tvcolumn.pack_start(cell, False)
         tvcolumn.add_attribute(cell, 'text', 7)
         tvcolumn.set_visible(False)
 
-        scroll = gtk.ScrolledWindow()
-        scroll.set_policy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroll.add(treeview)
 
         self.add_tab(scroll, 'History')
@@ -957,35 +962,35 @@ class ElectrumWindow:
 
 
     def create_recv_tab(self):
-        self.recv_list = gtk.ListStore(str, str, str, str, str)
+        self.recv_list = Gtk.ListStore(str, str, str, str, str)
         self.add_tab( self.make_address_list(True), 'Receive')
         self.update_receiving_tab()
 
     def create_book_tab(self):
-        self.addressbook_list = gtk.ListStore(str, str, str)
+        self.addressbook_list = Gtk.ListStore(str, str, str)
         self.add_tab( self.make_address_list(False), 'Contacts')
         self.update_sending_tab()
 
     def make_address_list(self, is_recv):
         liststore = self.recv_list if is_recv else self.addressbook_list
-        treeview = gtk.TreeView(model= liststore)
+        treeview = Gtk.TreeView(model= liststore)
         treeview.connect('key-press-event', self.treeview_key_press)
         treeview.connect('button-press-event', self.treeview_button_press)
         treeview.show()
         if not is_recv:
             self.contacts_treeview = treeview
 
-        tvcolumn = gtk.TreeViewColumn('Address')
+        tvcolumn = Gtk.TreeViewColumn('Address')
         treeview.append_column(tvcolumn)
-        cell = gtk.CellRendererText()
+        cell = Gtk.CellRendererText()
         cell.set_property('family', MONOSPACE_FONT)
         tvcolumn.pack_start(cell, True)
         tvcolumn.add_attribute(cell, 'text', 0)
 
-        tvcolumn = gtk.TreeViewColumn('Label')
+        tvcolumn = Gtk.TreeViewColumn('Label')
         tvcolumn.set_expand(True)
         treeview.append_column(tvcolumn)
-        cell = gtk.CellRendererText()
+        cell = Gtk.CellRendererText()
         cell.set_property('editable', True)
         def edited_cb2(cell, path, new_text, liststore):
             address = liststore.get_value( liststore.get_iter(path), 0)
@@ -997,34 +1002,34 @@ class ElectrumWindow:
         tvcolumn.pack_start(cell, True)
         tvcolumn.add_attribute(cell, 'text', 1)
 
-        tvcolumn = gtk.TreeViewColumn('Tx')
+        tvcolumn = Gtk.TreeViewColumn('Tx')
         treeview.append_column(tvcolumn)
-        cell = gtk.CellRendererText()
+        cell = Gtk.CellRendererText()
         tvcolumn.pack_start(cell, True)
         tvcolumn.add_attribute(cell, 'text', 2)
 
         if is_recv:
-            tvcolumn = gtk.TreeViewColumn('Balance')
+            tvcolumn = Gtk.TreeViewColumn('Balance')
             treeview.append_column(tvcolumn)
-            cell = gtk.CellRendererText()
+            cell = Gtk.CellRendererText()
             tvcolumn.pack_start(cell, True)
             tvcolumn.add_attribute(cell, 'text', 3)
-            tvcolumn = gtk.TreeViewColumn('Type')
+            tvcolumn = Gtk.TreeViewColumn('Type')
             treeview.append_column(tvcolumn)
-            cell = gtk.CellRendererText()
+            cell = Gtk.CellRendererText()
             tvcolumn.pack_start(cell, True)
             tvcolumn.add_attribute(cell, 'text', 4)
 
-        scroll = gtk.ScrolledWindow()
-        scroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         scroll.add(treeview)
 
-        hbox = gtk.HBox()
+        hbox = Gtk.HBox()
         if not is_recv:
-            button = gtk.Button("New")
+            button = Gtk.Button("New")
             button.connect("clicked", self.newaddress_dialog)
             button.show()
-            hbox.pack_start(button,False)
+            hbox.pack_start(button,False, False, 0)
 
         def showqrcode(w, treeview, liststore):
             path, col = treeview.get_cursor()
@@ -1034,29 +1039,34 @@ class ElectrumWindow:
             qr.addData(address)
             qr.make()
             boxsize = 7
-            size = qr.getModuleCount()*boxsize
-            def area_expose_cb(area, event):
+            boxcount_row = qr.getModuleCount()
+            size = (boxcount_row + 4) * boxsize
+            def area_expose_cb(area, cr):
                 style = area.get_style()
-                k = qr.getModuleCount()
-                for r in range(k):
-                    for c in range(k):
-                        gc = style.black_gc if qr.isDark(r, c) else style.white_gc
-                        area.window.draw_rectangle(gc, True, c*boxsize, r*boxsize, boxsize, boxsize)
-            area = gtk.DrawingArea()
+                Gdk.cairo_set_source_color(cr, style.white)
+                cr.rectangle(0, 0, size, size)
+                cr.fill()
+                Gdk.cairo_set_source_color(cr, style.black)
+                for r in range(boxcount_row):
+                    for c in range(boxcount_row):
+                        if qr.isDark(r, c):
+                            cr.rectangle((c + 2) * boxsize, (r + 2) * boxsize, boxsize, boxsize)
+                            cr.fill()
+            area = Gtk.DrawingArea()
             area.set_size_request(size, size)
-            area.connect("expose-event", area_expose_cb)
+            area.connect("draw", area_expose_cb)
             area.show()
-            dialog = gtk.Dialog(address, parent=self.window, flags=gtk.DIALOG_MODAL|gtk.DIALOG_NO_SEPARATOR, buttons = ("ok",1))
+            dialog = Gtk.Dialog(address, parent=self.window, flags=Gtk.DialogFlags.MODAL, buttons = ("ok",1))
             dialog.vbox.add(area)
             dialog.run()
             dialog.destroy()
 
-        button = gtk.Button("QR")
+        button = Gtk.Button("QR")
         button.connect("clicked", showqrcode, treeview, liststore)
         button.show()
-        hbox.pack_start(button,False)
+        hbox.pack_start(button,False, False, 0)
 
-        button = gtk.Button("Copy to clipboard")
+        button = Gtk.Button("Copy to clipboard")
         def copy2clipboard(w, treeview, liststore):
             import platform
             path, col =  treeview.get_cursor()
@@ -1070,14 +1080,15 @@ class ElectrumWindow:
                     r.clipboard_append( address )
                     r.destroy()
                 else:
-                    c = gtk.clipboard_get()
-                    c.set_text( address )
+                    atom = Gdk.atom_intern('CLIPBOARD', True)
+                    c = Gtk.Clipboard.get(atom)
+                    c.set_text( address, len(address) )
         button.connect("clicked", copy2clipboard, treeview, liststore)
         button.show()
-        hbox.pack_start(button,False)
+        hbox.pack_start(button,False, False, 0)
 
         if is_recv:
-            button = gtk.Button("Freeze")
+            button = Gtk.Button("Freeze")
             def freeze_address(w, treeview, liststore, wallet):
                 path, col = treeview.get_cursor()
                 if path:
@@ -1089,10 +1100,10 @@ class ElectrumWindow:
                     self.update_receiving_tab()
             button.connect("clicked", freeze_address, treeview, liststore, self.wallet)
             button.show()
-            hbox.pack_start(button,False)
+            hbox.pack_start(button,False, False, 0)
 
         if not is_recv:
-            button = gtk.Button("Pay to")
+            button = Gtk.Button("Pay to")
             def payto(w, treeview, liststore):
                 path, col =  treeview.get_cursor()
                 if path:
@@ -1103,11 +1114,11 @@ class ElectrumWindow:
 
             button.connect("clicked", payto, treeview, liststore)
             button.show()
-            hbox.pack_start(button,False)
+            hbox.pack_start(button,False, False, 0)
 
-        vbox = gtk.VBox()
-        vbox.pack_start(scroll,True)
-        vbox.pack_start(hbox, False)
+        vbox = Gtk.VBox()
+        vbox.pack_start(scroll,True, True, 0)
+        vbox.pack_start(hbox, False, False, 0)
         return vbox
 
     def update_status_bar(self):
@@ -1117,16 +1128,16 @@ class ElectrumWindow:
         elif interface and interface.is_connected:
             self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(interface.host, interface.port, self.network.blockchain.height()))
             if not self.wallet.up_to_date:
-                self.status_image.set_from_stock(gtk.STOCK_REFRESH, gtk.ICON_SIZE_MENU)
+                self.status_image.set_from_stock(Gtk.STOCK_REFRESH, Gtk.IconSize.MENU)
                 text = "Synchronizing..."
             else:
-                self.status_image.set_from_stock(gtk.STOCK_YES, gtk.ICON_SIZE_MENU)
+                self.status_image.set_from_stock(Gtk.STOCK_YES, Gtk.IconSize.MENU)
                 self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(interface.host, interface.port, self.network.blockchain.height()))
                 c, u = self.wallet.get_balance()
                 text =  "Balance: %s "%( format_satoshis(c,False,self.num_zeros) )
                 if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True,self.num_zeros).strip() )
         else:
-            self.status_image.set_from_stock(gtk.STOCK_NO, gtk.ICON_SIZE_MENU)
+            self.status_image.set_from_stock(Gtk.STOCK_NO, Gtk.IconSize.MENU)
             self.network_button.set_tooltip_text("Not connected.")
             text = "Not connected"
 
@@ -1180,13 +1191,13 @@ class ElectrumWindow:
                     time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
                 except Exception:
                     time_str = "------"
-                conf_icon = gtk.STOCK_APPLY
+                conf_icon = Gtk.STOCK_APPLY
             elif conf == -1:
                 time_str = 'unverified'
                 conf_icon = None
             else:
                 time_str = 'pending'
-                conf_icon = gtk.STOCK_EXECUTE
+                conf_icon = Gtk.STOCK_EXECUTE
 
             label, is_default_label = self.wallet.get_label(tx_hash)
             tooltip = tx_hash + "\n%d confirmations"%conf if tx_hash else ''
@@ -1236,30 +1247,30 @@ class ElectrumWindow:
     def newaddress_dialog(self, w):
 
         title = "New Contact" 
-        dialog = gtk.Dialog(title, parent=self.window, 
-                            flags=gtk.DIALOG_MODAL|gtk.DIALOG_NO_SEPARATOR, 
+        dialog = Gtk.Dialog(title, parent=self.window, 
+                            flags=Gtk.DialogFlags.MODAL,
                             buttons= ("cancel", 0, "ok",1)  )
         dialog.show()
 
-        label = gtk.HBox()
-        label_label = gtk.Label('Label:')
+        label = Gtk.HBox()
+        label_label = Gtk.Label(label='Label:')
         label_label.set_size_request(120,10)
         label_label.show()
-        label.pack_start(label_label)
-        label_entry = gtk.Entry()
+        label.pack_start(label_label, True, True, 0)
+        label_entry = Gtk.Entry()
         label_entry.show()
-        label.pack_start(label_entry)
+        label.pack_start(label_entry, True, True, 0)
         label.show()
         dialog.vbox.pack_start(label, False, True, 5)
 
-        address = gtk.HBox()
-        address_label = gtk.Label('Address:')
+        address = Gtk.HBox()
+        address_label = Gtk.Label(label='Address:')
         address_label.set_size_request(120,10)
         address_label.show()
-        address.pack_start(address_label)
-        address_entry = gtk.Entry()
+        address.pack_start(address_label, True, True, 0)
+        address_entry = Gtk.Entry()
         address_entry.show()
-        address.pack_start(address_entry)
+        address.pack_start(address_entry, True, True, 0)
         address.show()
         dialog.vbox.pack_start(address, False, True, 5)
         
@@ -1273,10 +1284,10 @@ class ElectrumWindow:
                 self.wallet.add_contact(address,label)
                 self.update_sending_tab()
             else:
-                errorDialog = gtk.MessageDialog(
+                errorDialog = Gtk.MessageDialog(
                     parent=self.window,
-                    flags=gtk.DIALOG_MODAL, 
-                    buttons= gtk.BUTTONS_CLOSE, 
+                    flags=Gtk.DialogFlags.MODAL, 
+                    buttons= Gtk.ButtonsType.CLOSE, 
                     message_format = "Invalid address")
                 errorDialog.show()
                 errorDialog.run()
@@ -1333,7 +1344,7 @@ class ElectrumGui():
 
         w = ElectrumWindow(self.wallet, self.config, self.network)
         if url: w.set_url(url)
-        gtk.main()
+        Gtk.main()
 
     def restore_or_create(self):
         return restore_create_dialog()
@@ -1347,21 +1358,21 @@ class ElectrumGui():
 
     def restore_wallet(self, wallet):
 
-        dialog = gtk.MessageDialog(
+        dialog = Gtk.MessageDialog(
             parent = None,
-            flags = gtk.DIALOG_MODAL, 
-            buttons = gtk.BUTTONS_CANCEL, 
+            flags = Gtk.DialogFlags.MODAL, 
+            buttons = Gtk.ButtonsType.CANCEL, 
             message_format = "Please wait..."  )
         dialog.show()
 
         def recover_thread( wallet, dialog ):
             wallet.restore(lambda x:x)
-            gobject.idle_add( dialog.destroy )
+            GObject.idle_add( dialog.destroy )
 
         thread.start_new_thread( recover_thread, ( wallet, dialog ) )
         r = dialog.run()
         dialog.destroy()
-        if r==gtk.RESPONSE_CANCEL: return False
+        if r==Gtk.ResponseType.CANCEL: return False
         if not wallet.is_found():
             show_message("No transactions found for this seed")
 
