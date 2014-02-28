@@ -10,7 +10,9 @@ import PyQt4.QtGui as QtGui
 
 from electrum_gui.qt.qrcodewidget import QRCodeWidget
 
-from electrum import bmp, pyqrnative, BasePlugin
+from electrum import BasePlugin
+from electrum import bmp
+from electrum import pyqrnative
 from electrum.i18n import _
 
 

@@ -2,10 +2,8 @@ import PyQt4
 import sys
 
 import PyQt4.QtCore as QtCore
-import base64
 import urllib
 import re
-import time
 import os
 import httplib
 import datetime
@@ -23,7 +21,8 @@ except ImportError as e:
     loaded_qweb = False
 
 from electrum import BasePlugin
-from electrum.i18n import _, set_language
+from electrum.i18n import _
+from electrum.i18n import set_language
 from electrum.util import user_dir
 from electrum.util import appdata_dir
 from electrum.util import format_satoshis

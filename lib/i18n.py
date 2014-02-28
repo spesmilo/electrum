@@ -16,41 +16,46 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import gettext, os
+import gettext
+import os
 
 if os.path.exists('./locale'):
     LOCALE_DIR = './locale'
 else:
     LOCALE_DIR = '/usr/share/locale'
 
-language = gettext.translation('electrum', LOCALE_DIR, fallback = True)
+language = gettext.translation('electrum', LOCALE_DIR, fallback=True)
+
 
 def _(x):
     global language
     return language.ugettext(x)
 
+
 def set_language(x):
     global language
-    if x: language = gettext.translation('electrum', LOCALE_DIR, fallback = True, languages=[x])
-    
-    
+    if x:
+        language = gettext.translation(
+            'electrum', LOCALE_DIR, fallback=True, languages=[x])
+
+
 languages = {
-    '':_('Default'),
-    'pt_PT':_('Portuguese'),
-    'pt_BR':_('Brasilian'),
-    'cs_CZ':_('Czech'),
-    'de_DE':_('German'),
-    'eo_UY':_('Esperanto'),
-    'en_UK':_('English'),
-    'es_ES':_('Spanish'),
-    'fr_FR':_('French'),
-    'it_IT':_('Italian'),
-    'ja_JP':_('Japanese'),
-    'lv_LV':_('Latvian'),
-    'nl_NL':_('Dutch'),
-    'ru_RU':_('Russian'),
-    'sl_SI':_('Slovenian'),
-    'ta_IN':_('Tamil'),
-    'vi_VN':_('Vietnamese'),
-    'zh_CN':_('Chinese')
-    }
+    '': _('Default'),
+    'pt_PT': _('Portuguese'),
+    'pt_BR': _('Brasilian'),
+    'cs_CZ': _('Czech'),
+    'de_DE': _('German'),
+    'eo_UY': _('Esperanto'),
+    'en_UK': _('English'),
+    'es_ES': _('Spanish'),
+    'fr_FR': _('French'),
+    'it_IT': _('Italian'),
+    'ja_JP': _('Japanese'),
+    'lv_LV': _('Latvian'),
+    'nl_NL': _('Dutch'),
+    'ru_RU': _('Russian'),
+    'sl_SI': _('Slovenian'),
+    'ta_IN': _('Tamil'),
+    'vi_VN': _('Vietnamese'),
+    'zh_CN': _('Chinese')
+}
