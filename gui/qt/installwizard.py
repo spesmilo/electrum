@@ -3,7 +3,7 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
 from electrum.i18n import _
-from electrum import Wallet, mnemonic
+from electrum import Wallet
 
 from seed_dialog import SeedDialog
 from network_dialog import NetworkDialog
@@ -12,7 +12,6 @@ from amountedit import AmountEdit
 
 import sys
 import threading
-
 
 class InstallWizard(QDialog):
 
@@ -28,10 +27,12 @@ class InstallWizard(QDialog):
         self.stack = QStackedLayout()
         self.setLayout(self.stack)
 
+
     def set_layout(self, layout):
         w = QWidget()
         w.setLayout(layout)
         self.stack.setCurrentIndex(self.stack.addWidget(w))
+
 
     def restore_or_create(self):
 
@@ -56,9 +57,9 @@ class InstallWizard(QDialog):
         b3 = QRadioButton(gb)
         b3.setText(_("Create a watching-only version of an existing wallet"))
 
-        grid.addWidget(b1, 1, 0)
-        grid.addWidget(b2, 2, 0)
-        grid.addWidget(b3, 3, 0)
+        grid.addWidget(b1,1,0)
+        grid.addWidget(b2,2,0)
+        grid.addWidget(b3,3,0)
 
         vbox = QVBoxLayout()
         self.set_layout(vbox)
@@ -69,7 +70,7 @@ class InstallWizard(QDialog):
 
         if not self.exec_():
             return
-
+        
         if b1.isChecked():
             answer = 'create'
         elif b2.isChecked():
@@ -78,6 +79,7 @@ class InstallWizard(QDialog):
             answer = 'watching'
 
         return answer
+
 
     def verify_seed(self, wallet):
         r = self.seed_dialog(False)
@@ -90,6 +92,7 @@ class InstallWizard(QDialog):
         else:
             return True
 
+
     def seed_dialog(self, is_restore=True):
 
         vbox = QVBoxLayout()
@@ -97,9 +100,8 @@ class InstallWizard(QDialog):
             msg = _("Please enter your wallet seed.") + "\n"
         else:
             msg = _("Your seed is important!") \
-                + "\n" + \
-                _("To make sure that you have properly saved your seed, please retype it here.")
-
+                + "\n" + _("To make sure that you have properly saved your seed, please retype it here.")
+        
         logo = QLabel()
         logo.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(56))
         logo.setMaximumWidth(60)
@@ -134,7 +136,9 @@ class InstallWizard(QDialog):
 
         return seed
 
-    def waiting_dialog(self, task, msg=_("Electrum is generating your addresses, please wait.")):
+
+
+    def waiting_dialog(self, task, msg= _("Electrum is generating your addresses, please wait.")):
         def target():
             task()
             self.emit(QtCore.SIGNAL('accept'))
@@ -143,9 +147,11 @@ class InstallWizard(QDialog):
         self.waiting_label = QLabel(msg)
         vbox.addWidget(self.waiting_label)
         self.set_layout(vbox)
-        t = threading.Thread(target=target)
+        t = threading.Thread(target = target)
         t.start()
         self.exec_()
+
+
 
     def mpk_dialog(self):
 
@@ -155,17 +161,11 @@ class InstallWizard(QDialog):
         grid = QGridLayout()
         grid.setSpacing(8)
 
-        label = QLabel(_("Key"))
+        label = QLabel(_("Key")) 
         grid.addWidget(label, 0, 0)
         mpk_e = QTextEdit()
         mpk_e.setMaximumHeight(100)
         grid.addWidget(mpk_e, 0, 1)
-
-        label = QLabel(_("Chain"))
-        #grid.addWidget(label, 1, 0)
-        chain_e = QTextEdit()
-        chain_e.setMaximumHeight(100)
-        #grid.addWidget(chain_e, 1, 1)
 
         vbox.addLayout(grid)
 
@@ -173,20 +173,20 @@ class InstallWizard(QDialog):
         vbox.addLayout(ok_cancel_buttons(self, _('Next')))
 
         self.set_layout(vbox)
-        if not self.exec_():
+        if not self.exec_(): 
             return None
 
         mpk = str(mpk_e.toPlainText()).strip()
-        chain = str(chain_e.toPlainText()).strip()
-        return mpk, chain
+        return mpk
+
 
     def network_dialog(self):
-
+        
         grid = QGridLayout()
         grid.setSpacing(5)
 
-        label = QLabel(_("Electrum communicates with remote servers to get information about your transactions and addresses. The servers all fulfil the same purpose only differing in hardware. In most cases you simply want to let Electrum pick one at random if you have a preference though feel free to select a server manually.") + "\n\n"
-                       + _("How do you want to connect to a server:") + " ")
+        label = QLabel(_("Electrum communicates with remote servers to get information about your transactions and addresses. The servers all fulfil the same purpose only differing in hardware. In most cases you simply want to let Electrum pick one at random if you have a preference though feel free to select a server manually.") + "\n\n" \
+                      + _("How do you want to connect to a server:")+" ")
         label.setWordWrap(True)
         grid.addWidget(label, 0, 0)
 
@@ -202,9 +202,9 @@ class InstallWizard(QDialog):
         #b3 = QRadioButton(gb)
         #b3.setText(_("Stay offline"))
 
-        grid.addWidget(b1, 1, 0)
-        grid.addWidget(b2, 2, 0)
-        # grid.addWidget(b3,3,0)
+        grid.addWidget(b1,1,0)
+        grid.addWidget(b2,2,0)
+        #grid.addWidget(b3,3,0)
 
         vbox = QVBoxLayout()
         vbox.addLayout(grid)
@@ -215,7 +215,7 @@ class InstallWizard(QDialog):
         self.set_layout(vbox)
         if not self.exec_():
             return
-
+        
         if b2.isChecked():
             return NetworkDialog(self.network, self.config, None).do_exec()
 
@@ -227,42 +227,44 @@ class InstallWizard(QDialog):
             self.config.set_key("server", None, True)
             self.config.set_key('auto_cycle', False, True)
             return
+        
+
 
     def show_seed(self, wallet):
         from seed_dialog import make_seed_dialog
-        vbox = make_seed_dialog(
-            wallet.get_mnemonic(None), wallet.imported_keys)
+        vbox = make_seed_dialog(wallet.get_mnemonic(None), wallet.imported_keys)
         vbox.addLayout(ok_cancel_buttons(self, _("Next")))
         self.set_layout(vbox)
         return self.exec_()
 
+
     def password_dialog(self, wallet):
-        msg = _("Please choose a password to encrypt your wallet keys.") + '\n'\
-            + _("Leave these fields empty if you want to disable encryption.")
+        msg = _("Please choose a password to encrypt your wallet keys.")+'\n'\
+              +_("Leave these fields empty if you want to disable encryption.")
         from password_dialog import make_password_dialog, run_password_dialog
-        self.set_layout(make_password_dialog(self, wallet, msg))
+        self.set_layout( make_password_dialog(self, wallet, msg) )
         return run_password_dialog(self, wallet, self)
+
 
     def run(self):
 
         action = self.restore_or_create()
-        if not action:
+        if not action: 
             return
 
-        wallet = Wallet(self.storage)
-        gap = self.config.get('gap_limit', 5)
-        if gap != 5:
-            wallet.gap_limit = gap
-            wallet.storage.put('gap_limit', gap, True)
+        #gap = self.config.get('gap_limit', 5)
+        #if gap != 5:
+        #    wallet.gap_limit = gap
+        #    wallet.storage.put('gap_limit', gap, True)
 
         if action == 'create':
+            wallet = Wallet(self.storage)
             wallet.init_seed(None)
             if not self.show_seed(wallet):
                 return
             if not self.verify_seed(wallet):
                 return
             ok, old_password, password = self.password_dialog(wallet)
-
             def create():
                 wallet.save_seed(password)
                 wallet.synchronize()  # generate first addresses offline
@@ -272,15 +274,7 @@ class InstallWizard(QDialog):
             seed = self.seed_dialog()
             if not seed:
                 return
-            try:
-                wallet.init_seed(seed)
-            except Exception:
-                import traceback
-                traceback.print_exc(file=sys.stdout)
-                QMessageBox.warning(
-                    None, _('Error'), _('Incorrect seed'), _('OK'))
-                return
-
+            wallet = Wallet.from_seed(seed, self.storage)
             ok, old_password, password = self.password_dialog(wallet)
             wallet.save_seed(password)
 
@@ -288,19 +282,16 @@ class InstallWizard(QDialog):
             mpk = self.mpk_dialog()
             if not mpk:
                 return
-            wallet.seed = ''
-            wallet.create_watching_only_wallet(mpk)
+            wallet = Wallet.from_mpk(mpk, self.storage)
 
-        else:
-            raise
-
-        # if not self.config.get('server'):
+        else: raise
+                
+        #if not self.config.get('server'):
         if self.network:
             if self.network.interfaces:
                 self.network_dialog()
             else:
-                QMessageBox.information(
-                    None, _('Warning'), _('You are offline'), _('OK'))
+                QMessageBox.information(None, _('Warning'), _('You are offline'), _('OK'))
                 self.network.stop()
                 self.network = None
 
@@ -309,18 +300,14 @@ class InstallWizard(QDialog):
 
         if action == 'restore':
 
-            self.waiting_dialog(
-                lambda: wallet.restore(self.waiting_label.setText))
+            self.waiting_dialog(lambda: wallet.restore(self.waiting_label.setText))
 
             if self.network:
                 if wallet.is_found():
-                    QMessageBox.information(
-                        None, _('Information'), _("Recovery successful"), _('OK'))
+                    QMessageBox.information(None, _('Information'), _("Recovery successful"), _('OK'))
                 else:
-                    QMessageBox.information(
-                        None, _('Information'), _("No transactions found for this seed"), _('OK'))
+                    QMessageBox.information(None, _('Information'), _("No transactions found for this seed"), _('OK'))
             else:
-                QMessageBox.information(None, _('Information'), _(
-                    "This wallet was restored offline. It may contain more addresses than displayed."), _('OK'))
+                QMessageBox.information(None, _('Information'), _("This wallet was restored offline. It may contain more addresses than displayed."), _('OK'))
 
         return wallet
