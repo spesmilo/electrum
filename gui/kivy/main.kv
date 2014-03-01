@@ -104,7 +104,7 @@
             size_hint: None, 1
             width: (root.width - dp(20)) if root.fs  else (0 if not root.icon else '32dp')
         Widget:
-            size_hint_y: None
+            size_hint_x: None
             width: '5dp'
         Label:
             id: lbl
@@ -112,7 +112,8 @@
             font_size: '12sp'
             text: root.message
             text_size: self.width, None
-            size_hint: None, 1
+            valign: 'middle'
+            size_hint: 1, 1
             width: 0 if root.fs else (root.width - img.width)
 
 <-CreateAccountDialog>

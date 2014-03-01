@@ -20,7 +20,7 @@ app = App.get_running_app()
 
 
 class InstallWizard(Widget):
-    '''Instalation Wizzard. Responsible for instantiating the
+    '''Installation Wizard. Responsible for instantiating the
     creation/restoration of wallets.
 
     events::
@@ -232,7 +232,7 @@ class InstallWizard(Widget):
                     ti_new_password.focus = True
                 else:
                     ti_password.focus = True
-                return app.show_error(_('Passwords do not match'))
+                return app.show_error(_('Passwords do not match'), duration=.5)
 
             if mode == 'restore':
                 try:
@@ -253,7 +253,7 @@ class InstallWizard(Widget):
             try:
                 seed = wallet.decode_seed(password)
             except BaseException:
-                return app.show_error(_('Incorrect Password'))
+                return app.show_error(_('Incorrect Password'), duration=.5)
 
             # test carefully
             try:
@@ -291,6 +291,7 @@ class InstallWizard(Widget):
         if mode in ('restore', 'create'):
             # auto cycle
             self.config.set_key('auto_cycle', True, True)
+
         # start wallet threads
         wallet.start_threads(self.network)
 
@@ -303,14 +304,16 @@ class InstallWizard(Widget):
 
         def on_complete(*l):
             if not self.network:
-                app.show_info(_("This wallet was restored offline."
-                    "It may contain more addresses than displayed."))
+                app.show_info(
+                    _("This wallet was restored offline. It may contain more"
+                      " addresses than displayed."), duration=.5)
                 return self.dispatch('on_wizard_complete', wallet)
 
             if wallet.is_found():
-                app.show_info(_("Recovery successful"))
+                app.show_info(_("Recovery successful"), duration=.5)
             else:
-                app.show_info(_("No transactions found for this seed"))
+                app.show_info(_("No transactions found for this seed"),
+                              duration=.5)
             return self.dispatch('on_wizard_complete', wallet)
 
         self.waiting_dialog(lambda: wallet.restore(get_text),

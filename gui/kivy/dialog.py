@@ -495,8 +495,8 @@ class RestoreSeedDialog(CreateAccountDialog):
             tis._keyboard.bind(on_key_down=self.on_key_down)
             stepper = self.ids.stepper
             stepper.opacity = 1
-            stepper.source = ('atlas://gui/kivy/theming"
-                              "/light/stepper_restore_seed')
+            stepper.source = ('atlas://gui/kivy/theming'
+                              '/light/stepper_restore_seed')
             self._back = _back = partial(self.ids.back.dispatch, 'on_release')
             app.navigation_higherarchy.append(_back)
 
@@ -582,7 +582,15 @@ class ChangePasswordDialog(CreateAccountDialog):
         if value:
             stepper = self.ids.stepper
             stepper.opacity = 1
-            self.ids.ti_wallet_name.focus = True
+            t_wallet_name = self.ids.ti_wallet_name
+            if self.mode in ('create', 'restore'):
+                t_wallet_name.text = 'Default Wallet'
+                t_wallet_name.readonly = True
+                self.ids.ti_new_password.focus = True
+            else:
+                t_wallet_name.text = ''
+                t_wallet_name.readonly = False
+                t_wallet_name.focus = True
             stepper.source = 'atlas://gui/kivy/theming/light/stepper_left'
             self._back = _back = partial(self.ids.back.dispatch, 'on_release')
             app.navigation_higherarchy.append(_back)
