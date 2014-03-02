@@ -160,13 +160,11 @@ class Commands:
 
 
     def createrawtransaction(self, inputs, outputs):
-        # convert to own format
-        for i in inputs:
-            i['tx_hash'] = i['txid']
-            i['index'] = i['vout']
+        inputs = map(lambda i: {'prevout_hash': i['txid'], 'prevout_n':i['vout']}, inputs )
         outputs = map(lambda x: (x[0],int(1e8*x[1])), outputs.items())
         tx = Transaction.from_io(inputs, outputs)
         return tx
+
 
     def signrawtransaction(self, raw_tx, input_info, private_keys):
         tx = Transaction(raw_tx)

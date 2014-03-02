@@ -671,7 +671,7 @@ class Transaction:
             item = { 
                 'prevout_hash':i['prevout_hash'], 
                 'prevout_n':i['prevout_n'],
-                'address':i['address'],
+                'address':i.get('address'),
                 'KeyID':i.get('KeyID'),
                 'scriptPubKey':i.get('scriptPubKey'),
                 'redeemScript':i.get('redeemScript'),
