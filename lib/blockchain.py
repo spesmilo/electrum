@@ -352,45 +352,24 @@ class Blockchain(threading.Thread):
 
 
     def get_and_verify_chunks(self, i, header, height):
-        requested_chunks = []
+
         queue = Queue.Queue()
         min_index = (self.local_height + 1)/2016
         max_index = (height + 1)/2016
-
-        for n in range(min_index, max_index + 1):
-            i.send([ ('blockchain.block.get_chunk',[n])], lambda i,r:queue.put(r))
-            requested_chunks.append(n)
-
-        print_error( "requested chunks:", requested_chunks )
-
-        while requested_chunks:
-            try:
-                r = queue.get(timeout=1)
-            except Queue.Empty:
+        n = min_index
+        while n < max_index + 1:
+            print_error( "Requesting chunk:", n )
+            r = i.synchronous_get([ ('blockchain.block.get_chunk',[n])])[0]
+            if not r: 
                 continue
-            if not r: continue
-
-            if r.get('error'):
-                print_error('Verifier received an error:', r)
-                continue
-
-            # 3. handle response
-            params = r['params']
-            result = r['result']
-
-            index = params[0]
             try:
-                self.verify_chunk(index, result)
+                self.verify_chunk(n, r)
+                n = n + 1
             except Exception:
-                print_error('Verify chunk failed!!')
-                return False
-            requested_chunks.remove(index)
+                print_error('Verify chunk failed!')
+                n = n - 1
+                if n < 0:
+                    return False
 
         return True
-
-
-
-
-
-
 
