@@ -178,8 +178,10 @@ class MiniWindow(QDialog):
         self.actuator = actuator
         self.config = config
         self.btc_balance = None
+        self.use_exchanges = ["Blockchain", "CoinDesk"]
         self.quote_currencies = ["BRL", "CNY", "EUR", "GBP", "RUB", "USD"]
         self.actuator.set_configured_currency(self.set_quote_currency)
+        self.actuator.set_configured_exchange(self.set_exchange)
 
         # Needed because price discovery is done in a different thread
         # which needs to be sent back to this main one to update the GUI
@@ -369,6 +371,13 @@ class MiniWindow(QDialog):
 
     def deactivate(self):
         pass
+
+    def set_exchange(self, use_exchange):
+        if use_exchange not in self.use_exchanges:
+            return
+        self.use_exchanges.remove(use_exchange)
+        self.use_exchanges.insert(0, use_exchange)
+        self.refresh_balance()
 
     def set_quote_currency(self, currency):
         """Set and display the fiat currency country."""
@@ -675,6 +684,11 @@ class MiniActuator:
         self.theme_name = theme_name
         self.g.config.set_key('litegui_theme',theme_name)
         self.load_theme()
+   
+    def set_configured_exchange(self, set_exchange):
+        use_exchange = self.g.config.get('use_exchange')
+        if use_exchange is not None:
+            set_exchange(use_exchange)
     
     def set_configured_currency(self, set_quote_currency):
         """Set the inital fiat currency conversion country (USD/EUR/GBP) in 
@@ -684,6 +698,10 @@ class MiniActuator:
         # time and no setting has been created yet.
         if currency is not None:
             set_quote_currency(currency)
+
+    def set_config_exchange(self, conversion_exchange):
+        self.g.config.set_key('exchange',conversion_exchange,True)
+        self.g.update_status()
 
     def set_config_currency(self, conversion_currency):
         """Change the wallet fiat currency country."""
