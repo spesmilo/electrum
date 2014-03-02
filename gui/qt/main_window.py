@@ -20,6 +20,7 @@ import sys, time, datetime, re, threading
 from electrum.i18n import _, set_language
 from electrum.util import print_error, print_msg
 import os.path, json, ast, traceback
+import webbrowser
 import shutil
 import StringIO
 
@@ -591,6 +592,7 @@ class ElectrumWindow(QMainWindow):
         menu.addAction(_("Copy ID to Clipboard"), lambda: self.app.clipboard().setText(tx_hash))
         menu.addAction(_("Details"), lambda: self.show_transaction(self.wallet.transactions.get(tx_hash)))
         menu.addAction(_("Edit description"), lambda: self.tx_label_clicked(item,2))
+        menu.addAction(_("View on Blockchain.info"), lambda: webbrowser.open("https://blockchain.info/tx/" + tx_hash))
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
 
