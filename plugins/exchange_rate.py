@@ -192,7 +192,7 @@ class Plugin(BasePlugin):
 
         def on_change_ex(x):
             cur_request = str(self.exchanges[x])
-            if cur_request != self.config.get('use_exchange', "CoinDesk"):
+            if cur_request != self.config.get('use_exchange', "Blockchain"):
                 self.config.set_key('use_exchange', cur_request, True)
                 self.win.update_status()
 
