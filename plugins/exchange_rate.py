@@ -118,6 +118,10 @@ class Plugin(BasePlugin):
     def toggle(self):
         out = BasePlugin.toggle(self)
         self.win.update_status()
+        if self.config.get('use_exchange_rate'):
+          self.win.fiat_e.setEnabled(True)
+        else:
+          self.win.fiat_e.setEnabled(False)
         return out
 
 
