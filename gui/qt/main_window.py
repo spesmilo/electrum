@@ -529,6 +529,14 @@ class ElectrumWindow(QMainWindow):
         assert self.decimal_point in [5,8]
         return "BTC" if self.decimal_point == 8 else "mBTC"
 
+    def fiat_unit(self):
+        r = {}
+        run_hook('set_quote_text', 100000000, r)
+        quote = r.get(0)
+        if quote:
+          return quote[-3:]
+        else:
+          return "???"
 
     def update_status(self):
         if self.network is None or not self.network.is_running():
@@ -552,6 +560,12 @@ class ElectrumWindow(QMainWindow):
                 quote = r.get(0)
                 if quote:
                     text += "  (%s)"%quote
+
+                r = {}
+                run_hook('set_quote_text', 100000000, r)
+                quote = r.get(0)
+                if quote:
+                    text += "  1 BTC=%s"%quote
 
                 self.tray.setToolTip(text)
                 icon = QIcon(":icons/status_connected.png")
@@ -768,27 +782,37 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(QLabel(_('Amount')), 4, 0)
         grid.addWidget(self.amount_e, 4, 1, 1, 2)
         grid.addWidget(HelpButton(
-                _('Amount to be sent.') + '\n\n' \
-                    + _('The amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') \
+                _('Amount to be sent.  You may enter the funds in either BTC or fiat by choosing the appropriate box.  Enable the Exchange Rate plugin to use fiat.') + '\n\n' \
+                    + _('The amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.  ') \
                     + '\n\n' + _('Keyboard shortcut: type "!" to send all your coins.')), 4, 3)
 
+        # fiat amount
+        self.fiat_e = AmountEdit(self.fiat_unit)
+        grid.addWidget(self.fiat_e, 5, 1, 1, 2)
+    
+        # disable fiat box if exchange rate not set
+        if self.config.get('use_exchange_rate'):
+          self.fiat_e.setEnabled(True)
+        else:
+          self.fiat_e.setEnabled(False)
+
         self.fee_e = AmountEdit(self.base_unit)
-        grid.addWidget(QLabel(_('Fee')), 5, 0)
-        grid.addWidget(self.fee_e, 5, 1, 1, 2)
+        grid.addWidget(QLabel(_('Fee')), 6, 0)
+        grid.addWidget(self.fee_e, 6, 1, 1, 2)
         grid.addWidget(HelpButton(
                 _('Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
                     + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
-                    + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')), 5, 3)
+                    + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')), 6, 3)
 
 
         self.send_button = EnterButton(_("Send"), self.do_send)
-        grid.addWidget(self.send_button, 6, 1)
+        grid.addWidget(self.send_button, 7, 1)
 
         b = EnterButton(_("Clear"),self.do_clear)
-        grid.addWidget(b, 6, 2)
+        grid.addWidget(b, 7, 2)
 
         self.payto_sig = QLabel('')
-        grid.addWidget(self.payto_sig, 7, 0, 1, 4)
+        grid.addWidget(self.payto_sig, 8, 0, 1, 4)
 
         QShortcut(QKeySequence("Up"), w, w.focusPreviousChild)
         QShortcut(QKeySequence("Down"), w, w.focusNextChild)
@@ -800,7 +824,8 @@ class ElectrumWindow(QMainWindow):
         vbox.addStretch(1)
         w2.setLayout(vbox)
 
-        def entry_changed( is_fee ):
+        def entry_changed( entry_type ):
+            
             self.funds_error = False
 
             if self.amount_e.is_shortcut:
@@ -811,24 +836,51 @@ class ElectrumWindow(QMainWindow):
                 amount = total - fee
                 self.amount_e.setText( self.format_amount(amount) )
                 self.fee_e.setText( self.format_amount( fee ) )
+
+                r = {}
+                run_hook('set_quote_text', amount, r)
+                quote = r.get(0)
+                if quote:
+                    self.fiat_e.setText( quote )
+
                 return
+
+            amount = self.read_amount(str(self.amount_e.text()))
+            fiat = self.read_amount(str(self.fiat_e.text()))
+
+            if entry_type == "amount":
+                r = {}
+                run_hook('set_quote_text', amount, r)
+                quote = r.get(0)
+                if quote:
+                    self.fiat_e.setText( quote )
+            elif entry_type == "fiat":
+                r = {}
+                run_hook('set_quote_text', 100000000, r)
+                quote = r.get(0)
+                quote = quote[:-4]
+                quote = str(float(fiat) / (float(quote)*100000000))
+                if quote:
+                    self.amount_e.setText( quote )
 
             amount = self.read_amount(str(self.amount_e.text()))
             fee = self.read_amount(str(self.fee_e.text()))
 
-            if not is_fee: fee = None
+            if not entry_type == "fee": fee = None
             if amount is None:
                 return
             inputs, total, fee = self.wallet.choose_tx_inputs(amount, fee, self.get_payment_sources())
-            if not is_fee:
+            if not entry_type == "fee":
                 self.fee_e.setText( self.format_amount( fee ) )
             if inputs:
                 palette = QPalette()
                 palette.setColor(self.amount_e.foregroundRole(), QColor('black'))
+                palette.setColor(self.fiat_e.foregroundRole(), QColor('black'))
                 text = ""
             else:
                 palette = QPalette()
                 palette.setColor(self.amount_e.foregroundRole(), QColor('red'))
+                palette.setColor(self.fiat_e.foregroundRole(), QColor('red'))
                 self.funds_error = True
                 text = _( "Not enough funds" )
                 c, u = self.wallet.get_frozen_balance()
@@ -836,10 +888,12 @@ class ElectrumWindow(QMainWindow):
 
             self.statusBar().showMessage(text)
             self.amount_e.setPalette(palette)
+            self.fiat_e.setPalette(palette)
             self.fee_e.setPalette(palette)
 
-        self.amount_e.textChanged.connect(lambda: entry_changed(False) )
-        self.fee_e.textChanged.connect(lambda: entry_changed(True) )
+        self.amount_e.textEdited.connect(lambda: entry_changed("amount") )
+        self.fiat_e.textEdited.connect(lambda: entry_changed("fiat") )
+        self.fee_e.textEdited.connect(lambda: entry_changed("fee") )
 
         run_hook('create_send_tab', grid)
         return w2
@@ -2192,6 +2246,8 @@ class ElectrumWindow(QMainWindow):
     def plugins_dialog(self):
         from electrum.plugins import plugins
 
+        self.fiat_e.setText( "" )
+        
         d = QDialog(self)
         d.setWindowTitle(_('Electrum Plugins'))
         d.setModal(1)
