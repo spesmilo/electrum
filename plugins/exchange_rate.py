@@ -179,10 +179,11 @@ class Plugin(BasePlugin):
     def settings_dialog(self):
         d = QDialog()
         layout = QGridLayout(d)
-        layout.addWidget(QLabel("Exchange rate API: "), 0, 0)
-        layout.addWidget(QLabel("Currency: "), 1, 0)
+        layout.addWidget(QLabel(_('Exchange rate API: ')), 0, 0)
+        layout.addWidget(QLabel(_('Currency: ')), 1, 0)
         combo = QComboBox()
         combo_ex = QComboBox()
+        ok_button = QPushButton(_("OK"))
 
         def on_change(x):
             cur_request = str(self.currencies[x])
@@ -195,15 +196,21 @@ class Plugin(BasePlugin):
             if cur_request != self.config.get('use_exchange', "Blockchain"):
                 self.config.set_key('use_exchange', cur_request, True)
                 self.win.update_status()
+                if cur_request == "Blockchain":
+                    self.exchanger.update_bc()
+                elif cur_request == "CoinDesk":
+                    self.exchanger.update_cd()
+                set_currencies(combo)
 
         def set_currencies(combo):
+            current_currency = self.config.get('currency', "EUR")
             try:
                 combo.clear()
             except Exception:
                 return
             combo.addItems(self.currencies)
             try:
-                index = self.currencies.index(self.config.get('currency', "EUR"))
+                index = self.currencies.index(current_currency)
             except Exception:
                 index = 0
             combo.setCurrentIndex(index)
@@ -220,14 +227,19 @@ class Plugin(BasePlugin):
                 index = 0
             combo_ex.setCurrentIndex(index)
 
+        def ok_clicked():
+            d.accept();
+
         set_exchanges(combo_ex)
         set_currencies(combo)
         combo.currentIndexChanged.connect(on_change)
         combo_ex.currentIndexChanged.connect(on_change_ex)
         combo.connect(d, SIGNAL('refresh_currencies_combo()'), lambda: set_currencies(combo))
         combo_ex.connect(d, SIGNAL('refresh_exchanges_combo()'), lambda: set_exchanges(combo_ex))
+        ok_button.clicked.connect(lambda: ok_clicked())
         layout.addWidget(combo,1,1)
         layout.addWidget(combo_ex,0,1)
+        layout.addWidget(ok_button,2,1)
         
         if d.exec_():
             return True
