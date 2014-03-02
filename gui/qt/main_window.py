@@ -1700,6 +1700,7 @@ class ElectrumWindow(QMainWindow):
         keys.setReadOnly(True)
         keys.setText('\n'.join(pk_list))
         vbox.addWidget(keys)
+        vbox.addWidget( QRCodeWidget('\n'.join(pk_list)) )
         vbox.addLayout(close_button(d))
         d.setLayout(vbox)
         d.exec_()
