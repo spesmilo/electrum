@@ -160,6 +160,7 @@ def start_server():
     print_msg("Network daemon connected to " + network.interface.connection_msg)
     from SimpleXMLRPCServer import SimpleXMLRPCServer
     server = SimpleXMLRPCServer(('localhost',8000), allow_none=True, logRequests=False)
+    server.network = network
     server.register_function(lambda: 'pong', 'ping')
     server.register_function(network.synchronous_get, 'synchronous_get')
     server.register_function(network.get_servers, 'get_servers')
@@ -181,9 +182,17 @@ def start_daemon():
         if (pid2 == 0):  # Second child
             server = start_server()
             server.running = True
+            timeout = 60
+            t0 = time.time()
+            server.socket.settimeout(timeout)
             while server.running:
                 server.handle_request()
-            print_msg("Daemon stopped")
+                t = time.time()
+                if t - t0 > 0.9*timeout:
+                    break
+                if not server.network.is_connected():
+                    break
+                t0 = t
         sys.exit(0)
 
     time.sleep(2)
