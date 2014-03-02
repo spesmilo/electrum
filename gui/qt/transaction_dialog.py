@@ -181,16 +181,15 @@ class TxDialog(QDialog):
     def add_io(self, vbox):
 
         vbox.addWidget(QLabel(_("Inputs")))
-        lines = map(lambda x: x.get('address') , self.tx.inputs )
-
-        i_text = QTextEdit('\n'.join(lines))
+        lines = map(lambda x: x.get('prevout_hash') + ":%d"%x.get('prevout_n') + u'\t' + "%s"%x.get('address') , self.tx.inputs )
+        i_text = QTextEdit()
+        i_text.setText('\n'.join(lines))
         i_text.setReadOnly(True)
         i_text.setMaximumHeight(100)
         vbox.addWidget(i_text)
 
         vbox.addWidget(QLabel(_("Outputs")))
         lines = map(lambda x: x[0] + u'\t\t' + self.parent.format_amount(x[1]), self.tx.outputs)
-
         o_text = QTextEdit()
         o_text.setText('\n'.join(lines))
         o_text.setReadOnly(True)
