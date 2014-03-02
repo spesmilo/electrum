@@ -1721,16 +1721,26 @@ class ElectrumWindow(QMainWindow):
         except Exception as e:
             self.show_message(str(e))
 
-    def sign_message(self,sign, address):
+    def do_verify(self, address, message, signature):
+        message = unicode(message.toPlainText())
+        message = message.encode('utf-8')
+        if bitcoin.verify_message(address.text(), str(signature.toPlainText()), message):
+            self.show_message(_("Signature verified"))
+        else:
+            self.show_message(_("Error: wrong signature"))
+
+
+    def sign_message(self, sign, address):
         if sign and not address: return
         d = QDialog(self)
         d.setModal(1)
-        d.setWindowTitle(_('Sign Message'))
+        if sign:
+            d.setWindowTitle(_('Sign Message'))
+        elif not sign:
+            d.setWindowTitle(_('Verify Message'))
         d.setMinimumSize(410, 290)
 
-        tab_widget = QTabWidget()
-        tab = QWidget()
-        layout = QGridLayout(tab)
+        layout = QGridLayout(d)
 
         sign_address = QLineEdit()
 
@@ -1748,60 +1758,21 @@ class ElectrumWindow(QMainWindow):
         layout.addWidget(sign_signature, 3, 1)
         layout.setRowStretch(3,1)
 
-
         hbox = QHBoxLayout()
-        b = QPushButton(_("Sign"))
+        if sign:
+            b = QPushButton(_("Sign"))
+        elif not sign:
+            b = QPushButton(_("Verify"))
         hbox.addWidget(b)
-        b.clicked.connect(lambda: self.do_sign(sign_address, sign_message, sign_signature))
+        if sign:
+            b.clicked.connect(lambda: self.do_sign(sign_address, sign_message, sign_signature))
+        elif not sign:
+            b.clicked.connect(lambda: self.do_verify(sign_address, sign_message, sign_signature))
         b = QPushButton(_("Close"))
         b.clicked.connect(d.accept)
         hbox.addWidget(b)
         layout.addLayout(hbox, 4, 1)
-        tab_widget.addTab(tab, _("Sign"))
-
-
-        tab = QWidget()
-        layout = QGridLayout(tab)
-
-        verify_address = QLineEdit()
-        layout.addWidget(QLabel(_('Address')), 1, 0)
-        layout.addWidget(verify_address, 1, 1)
-
-        verify_message = QTextEdit()
-        layout.addWidget(QLabel(_('Message')), 2, 0)
-        layout.addWidget(verify_message, 2, 1)
-        layout.setRowStretch(2,3)
-
-        verify_signature = QTextEdit()
-        layout.addWidget(QLabel(_('Signature')), 3, 0)
-        layout.addWidget(verify_signature, 3, 1)
-        layout.setRowStretch(3,1)
-
-        def do_verify():
-            message = unicode(verify_message.toPlainText())
-            message = message.encode('utf-8')
-            if bitcoin.verify_message(verify_address.text(), str(verify_signature.toPlainText()), message):
-                self.show_message(_("Signature verified"))
-            else:
-                self.show_message(_("Error: wrong signature"))
-
-        hbox = QHBoxLayout()
-        b = QPushButton(_("Verify"))
-        b.clicked.connect(do_verify)
-        hbox.addWidget(b)
-        b = QPushButton(_("Close"))
-        b.clicked.connect(d.accept)
-        hbox.addWidget(b)
-        layout.addLayout(hbox, 4, 1)
-        tab_widget.addTab(tab, _("Verify"))
-        if not sign:
-            tab_widget.setCurrentIndex(1)
-        vbox = QVBoxLayout()
-        vbox.addWidget(tab_widget)
-        d.setLayout(vbox)
         d.exec_()
-
-
 
 
     def question(self, msg):
