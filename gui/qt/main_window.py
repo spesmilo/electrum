@@ -409,6 +409,9 @@ class ElectrumWindow(QMainWindow):
         plugins_labels = tools_menu.addAction(_("&Plugins"))
         plugins_labels.triggered.connect(self.plugins_dialog)
 
+        verifymessage = tools_menu.addAction(_("&Verify message"))
+        verifymessage.triggered.connect(self.verify_message)
+
         tools_menu.addSeparator()
 
         csv_transaction_menu = tools_menu.addMenu(_("&Create transaction"))
@@ -1151,7 +1154,7 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Edit label"), lambda: self.edit_label(True))
             if self.wallet.seed:
                 menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
-                menu.addAction(_("Sign message"), lambda: self.sign_message(addr))
+                menu.addAction(_("Sign message"), lambda: self.sign_message(True,addr))
             if addr in self.wallet.imported_keys:
                 menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
 
@@ -1718,8 +1721,8 @@ class ElectrumWindow(QMainWindow):
         except Exception as e:
             self.show_message(str(e))
 
-    def sign_message(self, address):
-        if not address: return
+    def sign_message(self,sign, address):
+        if sign and not address: return
         d = QDialog(self)
         d.setModal(1)
         d.setWindowTitle(_('Sign Message'))
@@ -1791,7 +1794,8 @@ class ElectrumWindow(QMainWindow):
         hbox.addWidget(b)
         layout.addLayout(hbox, 4, 1)
         tab_widget.addTab(tab, _("Verify"))
-
+        if not sign:
+            tab_widget.setCurrentIndex(1)
         vbox = QVBoxLayout()
         vbox.addWidget(tab_widget)
         d.setLayout(vbox)
@@ -2188,6 +2192,8 @@ class ElectrumWindow(QMainWindow):
         event.accept()
 
 
+    def verify_message(self):
+        self.sign_message(False, "")
 
     def plugins_dialog(self):
         from electrum.plugins import plugins
