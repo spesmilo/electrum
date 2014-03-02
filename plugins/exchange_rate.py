@@ -20,8 +20,8 @@ class Exchanger(threading.Thread):
         self.parent = parent
         self.quote_currencies = None
         self.lock = threading.Lock()
-        self.use_exchange = self.parent.config.get('use_exchange', "CoinDesk")
-        self.parent.exchanges = ["CoinDesk", "Blockchain"]
+        self.use_exchange = self.parent.config.get('use_exchange', "Blockchain")
+        self.parent.exchanges = ["CoinDesk", "Blockchain", "Coinbase"]
         self.parent.currencies = ["EUR","GBP","USD"]
         self.parent.win.emit(SIGNAL("refresh_exchanges_combo()"))
         self.parent.win.emit(SIGNAL("refresh_currencies_combo()"))
@@ -61,7 +61,10 @@ class Exchanger(threading.Thread):
                 self.update_bc()
             elif self.use_exchange == "CoinDesk":
                 self.update_cd()
+            elif self.use_exchange == "Coinbase":
+                self.update_cb()
             time.sleep(150)
+
 
     def update_cd(self):
         try:
@@ -82,6 +85,32 @@ class Exchanger(threading.Thread):
             quote_currencies[str(cur["currency"])] = 0.0
         with self.lock:
             self.quote_currencies = quote_currencies
+        self.parent.set_currencies(quote_currencies)
+
+    def update_cb(self):
+        try:
+            connection = httplib.HTTPSConnection('coinbase.com')
+            connection.request("GET", "/api/v1/currencies/exchange_rates")
+        except Exception:
+            return
+        response = connection.getresponse()
+        if response.reason == httplib.responses[httplib.NOT_FOUND]:
+            return
+
+        try:
+            response = json.loads(response.read())
+        except Exception:
+            return
+
+        quote_currencies = {}
+        try:
+            for r in response:
+                if r[:7] == "btc_to_":
+                    quote_currencies[r[7:].upper()] = self._lookup_rate_cb(response, r)
+            with self.lock:
+                self.quote_currencies = quote_currencies
+        except KeyError:
+            pass
         self.parent.set_currencies(quote_currencies)
 
 
@@ -115,6 +144,9 @@ class Exchanger(threading.Thread):
 
     def _lookup_rate(self, response, quote_id):
         return decimal.Decimal(str(response[str(quote_id)]["15m"]))
+    def _lookup_rate_cb(self, response, quote_id):
+        return decimal.Decimal(str(response[str(quote_id)]))
+
 
 
 class Plugin(BasePlugin):
@@ -129,7 +161,7 @@ class Plugin(BasePlugin):
     def __init__(self,a,b):
         BasePlugin.__init__(self,a,b)
         self.currencies = [self.config.get('currency', "EUR")]
-        self.exchanges = [self.config.get('use_exchange', "CoinDesk")]
+        self.exchanges = [self.config.get('use_exchange', "Blockchain")]
 
     def init(self):
         self.win = self.gui.main_window
@@ -200,6 +232,8 @@ class Plugin(BasePlugin):
                     self.exchanger.update_bc()
                 elif cur_request == "CoinDesk":
                     self.exchanger.update_cd()
+                elif cur_request == "Coinbase":
+                    self.exchanger.update_cb()
                 set_currencies(combo)
 
         def set_currencies(combo):
