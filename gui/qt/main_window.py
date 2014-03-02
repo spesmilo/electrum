@@ -410,7 +410,7 @@ class ElectrumWindow(QMainWindow):
         plugins_labels.triggered.connect(self.plugins_dialog)
 
         verifymessage = tools_menu.addAction(_("&Verify message"))
-        verifymessage.triggered.connect(self.verify_message)
+        verifymessage.triggered.connect(lambda: self.sign_verify_message(False))
 
         tools_menu.addSeparator()
 
@@ -1154,7 +1154,7 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Edit label"), lambda: self.edit_label(True))
             if self.wallet.seed:
                 menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
-                menu.addAction(_("Sign message"), lambda: self.sign_message(True,addr))
+                menu.addAction(_("Sign message"), lambda: self.sign_verify_message(True,addr))
             if addr in self.wallet.imported_keys:
                 menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
 
@@ -1730,32 +1730,28 @@ class ElectrumWindow(QMainWindow):
             self.show_message(_("Error: wrong signature"))
 
 
-    def sign_message(self, sign, address):
+    def sign_verify_message(self, sign, address=''):
         if sign and not address: return
         d = QDialog(self)
         d.setModal(1)
-        if sign:
-            d.setWindowTitle(_('Sign Message'))
-        elif not sign:
-            d.setWindowTitle(_('Verify Message'))
+        d.setWindowTitle(_('Sign Message') if sign else _('Verify Message'))
         d.setMinimumSize(410, 290)
 
         layout = QGridLayout(d)
 
-        sign_address = QLineEdit()
-
-        sign_address.setText(address)
+        address_e = QLineEdit()
+        address_e.setText(address)
         layout.addWidget(QLabel(_('Address')), 1, 0)
-        layout.addWidget(sign_address, 1, 1)
+        layout.addWidget(address_e, 1, 1)
 
-        sign_message = QTextEdit()
+        message_e = QTextEdit()
         layout.addWidget(QLabel(_('Message')), 2, 0)
-        layout.addWidget(sign_message, 2, 1)
+        layout.addWidget(message_e, 2, 1)
         layout.setRowStretch(2,3)
 
-        sign_signature = QTextEdit()
+        signature_e = QTextEdit()
         layout.addWidget(QLabel(_('Signature')), 3, 0)
-        layout.addWidget(sign_signature, 3, 1)
+        layout.addWidget(signature_e, 3, 1)
         layout.setRowStretch(3,1)
 
         hbox = QHBoxLayout()
@@ -1764,10 +1760,8 @@ class ElectrumWindow(QMainWindow):
         elif not sign:
             b = QPushButton(_("Verify"))
         hbox.addWidget(b)
-        if sign:
-            b.clicked.connect(lambda: self.do_sign(sign_address, sign_message, sign_signature))
-        elif not sign:
-            b.clicked.connect(lambda: self.do_verify(sign_address, sign_message, sign_signature))
+        f = self.do_sign if sign else self.do_verify
+        b.clicked.connect(lambda: f(address_e, message_e, signature_e))
         b = QPushButton(_("Close"))
         b.clicked.connect(d.accept)
         hbox.addWidget(b)
@@ -2162,9 +2156,6 @@ class ElectrumWindow(QMainWindow):
         self.wallet.storage.put('accounts_expanded', self.accounts_expanded)
         event.accept()
 
-
-    def verify_message(self):
-        self.sign_message(False, "")
 
     def plugins_dialog(self):
         from electrum.plugins import plugins
