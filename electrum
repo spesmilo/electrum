@@ -21,6 +21,7 @@ import json
 import optparse
 import os
 import re
+import ast
 import sys
 import time
 import traceback
@@ -454,6 +455,10 @@ if __name__ == '__main__':
 
     elif cmd.name == 'setconfig':
         key, value = args[1:3]
+        try:
+            value = ast.literal_eval(value)
+        except:
+            pass
         config.set_key(key, value, True)
         print_msg(True)
 
