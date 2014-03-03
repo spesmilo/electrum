@@ -219,7 +219,7 @@ class Plugin(BasePlugin):
             tx_list = self.tx_list
             
             mintimestr = datetime.datetime.fromtimestamp(int(min(tx_list.items(), key=lambda x: x[1]['timestamp'])[1]['timestamp'])).strftime('%Y-%m-%d')
-            maxtimestr = datetime.datetime.fromtimestamp(int( max(tx_list.items(), key=lambda x: x[1]['timestamp'])[1]['timestamp'])).strftime('%Y-%m-%d')
+            maxtimestr = datetime.datetime.now().strftime('%Y-%m-%d')
             try:
                 connection = httplib.HTTPSConnection('api.coindesk.com')
                 connection.request("GET", "/v1/bpi/historical/close.json?start=" + mintimestr + "&end=" + maxtimestr)
@@ -240,7 +240,14 @@ class Plugin(BasePlugin):
             childcount = root.childCount()
             for i in range(childcount):
                 item = root.child(i)
-                tx_info = tx_list[str(item.data(0, Qt.UserRole).toPyObject())]
+                try:
+                    tx_info = tx_list[str(item.data(0, Qt.UserRole).toPyObject())]
+                except Exception:
+                    newtx = self.wallet.get_tx_history()
+                    v = newtx[[x[0] for x in newtx].index(str(item.data(0, Qt.UserRole).toPyObject()))][3]
+                   
+                    tx_info = {'timestamp':int(datetime.datetime.now().strftime("%s")), 'value': v }
+                    pass
                 tx_time = int(tx_info['timestamp'])
                 tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
                 tx_USD_val = "%.2f %s" % (Decimal(tx_info['value']) / 100000000 * Decimal(resp_hist['bpi'][tx_time_str]), "USD")
