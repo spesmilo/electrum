@@ -207,14 +207,10 @@ class Commands:
         return out
 
     def getpubkeys(self, addr):
-        assert is_valid(addr) and self.wallet.is_mine(addr)
         out = { 'address':addr }
-        account, sequence = self.wallet.get_address_index(addr)
-        if account != -1:
-            a = self.wallet.accounts[account]
-            out['pubkeys'] = a.get_pubkeys( sequence )
-
+        out['pubkeys'] = self.wallet.getpubkeys(addr)
         return out
+
 
     def getbalance(self, account= None):
         if account is None:
@@ -400,8 +396,10 @@ class Commands:
         else:
             return "unknown transaction"
 
+
     def encrypt(self, pubkey, message):
-        return EC_KEY.encrypt_message(message, pubkey.decode('hex'))
+        return bitcoin.encrypt_message(message, pubkey)
+
 
     def decrypt(self, secret, message):
         ec = regenerate_key(secret)

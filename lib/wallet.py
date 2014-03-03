@@ -593,6 +593,14 @@ class NewWallet:
         raise Exception("Address not found", address)
 
 
+    def getpubkeys(self, addr):
+        assert is_valid(addr) and self.is_mine(addr)
+        account, sequence = self.get_address_index(addr)
+        if account != -1:
+            a = self.accounts[account]
+            return a.get_pubkeys( sequence )
+
+
     def get_roots(self, account):
         roots = []
         for a in account.split('&'):
@@ -769,6 +777,16 @@ class NewWallet:
         key = regenerate_key(sec)
         compressed = is_compressed(sec)
         return key.sign_message(message, compressed, address)
+
+
+
+    def decrypt_message(self, pubkey, message, password):
+        address = public_key_to_bc_address(pubkey.decode('hex'))
+        keys = self.get_private_key(address, password)
+        secret = keys[0]
+        ec = regenerate_key(secret)
+        decrypted = ec.decrypt_message(message)
+        return decrypted[0]
 
 
     def change_gap_limit(self, value):

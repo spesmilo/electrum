@@ -303,6 +303,10 @@ def verify_message(address, signature, message):
         return False
 
 
+def encrypt_message(message, pubkey):
+    return EC_KEY.encrypt_message(message, pubkey.decode('hex'))
+
+
 def chunks(l, n):
     return [l[i:i+n] for i in xrange(0, len(l), n)]
 

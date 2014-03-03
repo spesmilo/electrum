@@ -403,16 +403,14 @@ class ElectrumWindow(QMainWindow):
         #preferences_menu.setShortcut(QKeySequence.Preferences)
         preferences_menu.triggered.connect(self.settings_dialog)
 
-        network = tools_menu.addAction(_("&Network"))
-        network.triggered.connect(self.run_network_dialog)
-
-        plugins_labels = tools_menu.addAction(_("&Plugins"))
-        plugins_labels.triggered.connect(self.plugins_dialog)
+        tools_menu.addAction(_("&Network"), self.run_network_dialog)
+        tools_menu.addAction(_("&Plugins"), self.plugins_dialog)
 
         tools_menu.addSeparator()
+        tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
+        tools_menu.addAction(_("&Encrypt/decrypt message"), self.encrypt_message)
 
-        verifymessage = tools_menu.addAction(_("&Verify message"))
-        verifymessage.triggered.connect(lambda: self.sign_verify_message(False))
+        tools_menu.addSeparator()
 
         csv_transaction_menu = tools_menu.addMenu(_("&Create transaction"))
 
@@ -1155,7 +1153,8 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Edit label"), lambda: self.edit_label(True))
             if self.wallet.seed:
                 menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
-                menu.addAction(_("Sign message"), lambda: self.sign_verify_message(True,addr))
+                menu.addAction(_("Sign/verify message"), lambda: self.sign_verify_message(addr))
+                menu.addAction(_("Encrypt/decrypt message"), lambda: self.encrypt_message(addr))
             if addr in self.wallet.imported_keys:
                 menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
 
@@ -1731,24 +1730,23 @@ class ElectrumWindow(QMainWindow):
             self.show_message(_("Error: wrong signature"))
 
 
-    def sign_verify_message(self, sign, address=''):
-        if sign and not address: return
+    def sign_verify_message(self, address=''):
         d = QDialog(self)
         d.setModal(1)
-        d.setWindowTitle(_('Sign Message') if sign else _('Verify Message'))
+        d.setWindowTitle(_('Sign/verify Message'))
         d.setMinimumSize(410, 290)
 
         layout = QGridLayout(d)
 
+        message_e = QTextEdit()
+        layout.addWidget(QLabel(_('Message')), 1, 0)
+        layout.addWidget(message_e, 1, 1)
+        layout.setRowStretch(2,3)
+
         address_e = QLineEdit()
         address_e.setText(address)
-        layout.addWidget(QLabel(_('Address')), 1, 0)
-        layout.addWidget(address_e, 1, 1)
-
-        message_e = QTextEdit()
-        layout.addWidget(QLabel(_('Message')), 2, 0)
-        layout.addWidget(message_e, 2, 1)
-        layout.setRowStretch(2,3)
+        layout.addWidget(QLabel(_('Address')), 2, 0)
+        layout.addWidget(address_e, 2, 1)
 
         signature_e = QTextEdit()
         layout.addWidget(QLabel(_('Signature')), 3, 0)
@@ -1756,13 +1754,80 @@ class ElectrumWindow(QMainWindow):
         layout.setRowStretch(3,1)
 
         hbox = QHBoxLayout()
-        b = QPushButton(_("Sign") if sign else _("Verify"))
+
+        b = QPushButton(_("Sign"))
+        b.clicked.connect(lambda: self.do_sign(address_e, message_e, signature_e))
         hbox.addWidget(b)
-        f = self.do_sign if sign else self.do_verify
-        b.clicked.connect(lambda: f(address_e, message_e, signature_e))
+
+        b = QPushButton(_("Verify"))
+        b.clicked.connect(lambda: self.do_verify(address_e, message_e, signature_e))
+        hbox.addWidget(b)
+
         b = QPushButton(_("Close"))
         b.clicked.connect(d.accept)
         hbox.addWidget(b)
+        layout.addLayout(hbox, 4, 1)
+        d.exec_()
+
+
+    @protected
+    def do_decrypt(self, message_e, pubkey_e, encrypted_e, password):
+        try:
+            decrypted = self.wallet.decrypt_message(str(pubkey_e.text()), str(encrypted_e.toPlainText()), password)
+            message_e.setText(decrypted)
+        except Exception as e:
+            self.show_message(str(e))
+
+
+    def do_encrypt(self, message_e, pubkey_e, encrypted_e):
+        message = unicode(message_e.toPlainText())
+        message = message.encode('utf-8')
+        try:
+            encrypted = bitcoin.encrypt_message(message, str(pubkey_e.text()))
+            encrypted_e.setText(encrypted)
+        except Exception as e:
+            self.show_message(str(e))
+
+
+
+    def encrypt_message(self, address = ''):
+        d = QDialog(self)
+        d.setModal(1)
+        d.setWindowTitle(_('Encrypt/decrypt Message'))
+        d.setMinimumSize(610, 490)
+
+        layout = QGridLayout(d)
+
+        message_e = QTextEdit()
+        layout.addWidget(QLabel(_('Message')), 1, 0)
+        layout.addWidget(message_e, 1, 1)
+        layout.setRowStretch(2,3)
+
+        pubkey_e = QLineEdit()
+        if address:
+            pubkey = self.wallet.getpubkeys(address)[0]
+            pubkey_e.setText(pubkey)
+        layout.addWidget(QLabel(_('Public key')), 2, 0)
+        layout.addWidget(pubkey_e, 2, 1)
+
+        encrypted_e = QTextEdit()
+        layout.addWidget(QLabel(_('Encrypted')), 3, 0)
+        layout.addWidget(encrypted_e, 3, 1)
+        layout.setRowStretch(3,1)
+
+        hbox = QHBoxLayout()
+        b = QPushButton(_("Encrypt"))
+        b.clicked.connect(lambda: self.do_encrypt(message_e, pubkey_e, encrypted_e))
+        hbox.addWidget(b)
+
+        b = QPushButton(_("Decrypt"))
+        b.clicked.connect(lambda: self.do_decrypt(message_e, pubkey_e, encrypted_e))
+        hbox.addWidget(b)
+
+        b = QPushButton(_("Close"))
+        b.clicked.connect(d.accept)
+        hbox.addWidget(b)
+
         layout.addLayout(hbox, 4, 1)
         d.exec_()
 
