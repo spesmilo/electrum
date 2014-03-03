@@ -1756,10 +1756,7 @@ class ElectrumWindow(QMainWindow):
         layout.setRowStretch(3,1)
 
         hbox = QHBoxLayout()
-        if sign:
-            b = QPushButton(_("Sign"))
-        elif not sign:
-            b = QPushButton(_("Verify"))
+        b = QPushButton(_("Sign") if sign else _("Verify"))
         hbox.addWidget(b)
         f = self.do_sign if sign else self.do_verify
         b.clicked.connect(lambda: f(address_e, message_e, signature_e))
