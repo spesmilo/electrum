@@ -729,6 +729,7 @@ class ElectrumWindow(QMainWindow):
 
 
         self.history_list.setCurrentItem(self.history_list.topLevelItem(0))
+        run_hook('history_tab_update')
 
 
     def create_send_tab(self):
