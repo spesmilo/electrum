@@ -409,10 +409,10 @@ class ElectrumWindow(QMainWindow):
         plugins_labels = tools_menu.addAction(_("&Plugins"))
         plugins_labels.triggered.connect(self.plugins_dialog)
 
+        tools_menu.addSeparator()
+
         verifymessage = tools_menu.addAction(_("&Verify message"))
         verifymessage.triggered.connect(lambda: self.sign_verify_message(False))
-
-        tools_menu.addSeparator()
 
         csv_transaction_menu = tools_menu.addMenu(_("&Create transaction"))
 
