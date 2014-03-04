@@ -27,7 +27,7 @@ reached_servers = []
 for i in interfaces: i.start(q)
 
 while peers:
-    i = q.get(timeout=1)
+    i = q.get(timeout=10)
     peers.remove(i.server)
     if i.is_connected:
         i.send([('blockchain.headers.subscribe',[])], lambda i,x: results_queue.put((i,x)))
