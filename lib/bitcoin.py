@@ -371,6 +371,9 @@ class EC_KEY(object):
         self.privkey = ecdsa.ecdsa.Private_key( self.pubkey, secret )
         self.secret = secret
 
+    def get_public_key(self, compressed=True):
+        return point_to_ser(self.pubkey.point, compressed).encode('hex')
+
     def sign_message(self, message, compressed, address):
         private_key = ecdsa.SigningKey.from_secret_exponent( self.secret, curve = SECP256k1 )
         public_key = private_key.get_verifying_key()
