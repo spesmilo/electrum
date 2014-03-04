@@ -40,7 +40,7 @@ class ElectrumWindow(App):
     status = StringProperty(_('Uninitialised'))
     '''The status of the connection should show the balance when connected
 
-    :attr:`status` is a `StringProperty` defaults to _'uninitialised'
+    :attr:`status` is a `StringProperty` defaults to 'uninitialised'
     '''
 
     def _get_num_zeros(self):
@@ -144,14 +144,15 @@ class ElectrumWindow(App):
         self.exchanger = None
 
         super(ElectrumWindow, self).__init__(**kwargs)
+
         self.network = network = kwargs.get('network')
         self.electrum_config = config = kwargs.get('config')
 
         # create triggers so as to minimize updation a max of 5 times a sec
-        self._trigger_update_status = Clock.create_trigger(self.update_status,
-                                                           .2)
-        self._trigger_update_console = Clock.create_trigger(self.update_console,
-                                                            .2)
+        self._trigger_update_status =\
+            Clock.create_trigger(self.update_status, .2)
+        self._trigger_update_console =\
+            Clock.create_trigger(self.update_console, .2)
         self._trigger_notify_transactions = \
             Clock.create_trigger(self.notify_transactions, .2)
 
@@ -197,7 +198,8 @@ class ElectrumWindow(App):
         self.on_resume()
 
     def on_stop(self):
-        self.wallet.stop_threads()
+        if self.wallet:
+            self.wallet.stop_threads()
 
     def on_back(self):
         ''' Manage screen hierarchy
@@ -251,7 +253,6 @@ class ElectrumWindow(App):
             Logger.debug('Electrum: No Wallet set/found. Exiting...')
             app.show_error('Electrum: No Wallet set/found. Exiting...',
                            exit=True)
-        Logger.info('wizard complete')
 
 
         self.init_ui()
@@ -322,7 +323,7 @@ class ElectrumWindow(App):
         '''
         '''
         if not self.exchanger:
-            from plugins.exchange_rate import Exchanger
+            from electrum_gui.kivy.plugins.exchange_rate import Exchanger
             self.exchanger = Exchanger(self)
             self.exchanger.start()
         quote_currency = self.electrum_config.get("currency", 'EUR')
@@ -701,7 +702,8 @@ class ElectrumWindow(App):
                    arrow_pos=None,
                    exit=False,
                    icon='atlas://gui/kivy/theming/light/error',
-                   duration=0):
+                   duration=0,
+                   modal=False):
         ''' Show a error Message Bubble.
         '''
         self.show_info_bubble(
@@ -711,18 +713,24 @@ class ElectrumWindow(App):
                     pos=pos or Window.center,
                     arrow_pos=arrow_pos,
                     exit=exit,
-                    duration=duration)
+                    duration=duration,
+                    modal=modal)
 
     def show_info(self, error,
                    width='200dp',
                    pos=None,
                    arrow_pos=None,
                    exit=False,
-                   duration=0):
+                   duration=0,
+                   modal=False):
         ''' Show a Info Message Bubble.
         '''
         self.show_error(error, icon='atlas://gui/kivy/theming/light/error',
-                        duration=duration)
+                        duration=duration,
+                        modal=modal,
+                        exit=exit,
+                        pos=pos,
+                        arrow_pos=arrow_pos)
 
     def show_info_bubble(self,
                     text=_('Hello World'),

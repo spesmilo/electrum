@@ -501,7 +501,7 @@ class RestoreSeedDialog(CreateAccountDialog):
             app.navigation_higherarchy.append(_back)
 
     def on_key_down(self, keyboard, keycode, key, modifiers):
-        if keycode[1] == 'enter':
+        if keycode[0] in (13, 271):
             self.on_enter()
             return True
         #super

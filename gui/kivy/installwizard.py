@@ -68,18 +68,19 @@ class InstallWizard(Widget):
         if not button:
             return self.dispatch('on_wizard_complete', None)
 
-        wallet = Wallet(self.storage)
-        gap = self.config.get('gap_limit', 5)
-        if gap !=5:
-            wallet.gap_limit = gap_limit
-            wallet.storage.put('gap_limit', gap, True)
+        #gap = self.config.get('gap_limit', 5)
+        #if gap !=5:
+        #    wallet.gap_limit = gap_limit
+        #    wallet.storage.put('gap_limit', gap, True)
 
         dialog.close()
         if button == dialog.ids.create:
             # create
+            wallet = Wallet(self.storage)
             self.change_password_dialog(wallet=wallet)
         elif button == dialog.ids.restore:
             # restore
+            wallet = None
             self.restore_seed_dialog(wallet)
         #if button == dialog.ids.watching:
         #TODO: not available in the new design
@@ -102,20 +103,18 @@ class InstallWizard(Widget):
 
         seed = unicode(_dlg.ids.text_input_seed.text)
         if not seed:
-            app.show_error(_("No seed!"))
+            app.show_error(_("No seed!"), duration=.5)
             return
 
         try:
-            wallet.init_seed(seed)
-        except Exception:
-            import traceback
-            traceback.print_exc(file=sys.stdout)
-            app.show_error(_('No account tied to this seedphrase'))#, exit=True)
-            return
-
+            wallet = Wallet.from_seed(seed, self.storage)
+        except Exception as err:
+            _dlg.close()
+            return app.show_error(str(err) + '\n App will now exit',
+                           exit=True, modal=True, duration=.5)
         _dlg.close()
-        self.change_password_dialog(wallet=wallet, mode='restore')
-        return
+        return self.change_password_dialog(wallet=wallet, mode='restore')
+
 
     def init_seed_dialog(self, wallet=None, instance=None, password=None,
                          wallet_name=None, mode='create'):
