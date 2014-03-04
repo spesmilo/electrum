@@ -1101,7 +1101,7 @@ class NewWallet:
         inputs = []
 
         for item in coins:
-            if item.get('coinbase') and item.get('height') + COINBASE_MATURITY > self.network.blockchain.height:
+            if item.get('coinbase') and item.get('height') + COINBASE_MATURITY > self.network.blockchain.height():
                 continue
             addr = item.get('address')
             v = item.get('value')
