@@ -13,6 +13,17 @@ from electrum.i18n import _
 from electrum_gui.qt.util import *
 
 
+EXCHANGES = ["BitcoinAverage",
+             "BitPay",
+             "Blockchain",
+             "BTCChina",
+             "CaVirtEx",
+             "Coinbase",
+             "CoinDesk",
+             "LocalBitcoins",
+             "Winkdex"]
+             
+
 class Exchanger(threading.Thread):
 
     def __init__(self, parent):
@@ -22,11 +33,27 @@ class Exchanger(threading.Thread):
         self.quote_currencies = None
         self.lock = threading.Lock()
         self.use_exchange = self.parent.config.get('use_exchange', "Blockchain")
-        self.parent.exchanges = ["Blockchain", "Coinbase", "CoinDesk"]
+        self.parent.exchanges = EXCHANGES
         self.parent.currencies = ["EUR","GBP","USD"]
         self.parent.win.emit(SIGNAL("refresh_exchanges_combo()"))
         self.parent.win.emit(SIGNAL("refresh_currencies_combo()"))
         self.is_running = False
+
+    def get_json(self, site, get_string):
+        try:
+            connection = httplib.HTTPSConnection(site)
+            connection.request("GET", get_string)
+        except Exception:
+            raise
+        resp = connection.getresponse()
+        if resp.reason == httplib.responses[httplib.NOT_FOUND]:
+            raise
+        try:
+            json_resp = json.loads(resp.read())
+        except Exception:
+            raise
+        return json_resp
+
 
     def exchange(self, btc_amount, quote_currency):
         with self.lock:
@@ -37,15 +64,7 @@ class Exchanger(threading.Thread):
             return None
         if self.use_exchange == "CoinDesk":
             try:
-                connection = httplib.HTTPSConnection('api.coindesk.com')
-                connection.request("GET", "/v1/bpi/currentprice/" + str(quote_currency) + ".json")
-            except Exception:
-                return
-            resp = connection.getresponse()
-            if resp.reason == httplib.responses[httplib.NOT_FOUND]:
-                return
-            try:
-                resp_rate = json.loads(resp.read())
+                resp_rate = self.get_json('api.coindesk.com', "/v1/bpi/currentprice/" + str(quote_currency) + ".json")
             except Exception:
                 return
             return btc_amount * decimal.Decimal(str(resp_rate["bpi"][str(quote_currency)]["rate_float"]))
@@ -54,30 +73,34 @@ class Exchanger(threading.Thread):
     def stop(self):
         self.is_running = False
 
+    def update_rate(self):
+        self.use_exchange = self.parent.config.get('use_exchange', "Blockchain")
+        update_rates = {
+            "BitcoinAverage": self.update_ba,
+            "BitPay": self.update_bp,
+            "Blockchain": self.update_bc,
+            "BTCChina": self.update_CNY,
+            "CaVirtEx": self.update_cv,
+            "CoinDesk": self.update_cd,
+            "Coinbase": self.update_cb,
+            "LocalBitcoins": self.update_lb,
+            "Winkdex": self.update_wd,
+        }
+        try:
+            update_rates[self.use_exchange]()
+        except KeyError:
+            return
+
     def run(self):
         self.is_running = True
         while self.is_running:
-            self.use_exchange = self.parent.config.get('use_exchange', "Blockchain")
-            if self.use_exchange == "Blockchain":
-                self.update_bc()
-            elif self.use_exchange == "CoinDesk":
-                self.update_cd()
-            elif self.use_exchange == "Coinbase":
-                self.update_cb()
+            self.update_rate()
             time.sleep(150)
 
 
     def update_cd(self):
         try:
-            connection = httplib.HTTPSConnection('api.coindesk.com')
-            connection.request("GET", "/v1/bpi/supported-currencies.json")
-        except Exception:
-            return
-        response = connection.getresponse()
-        if response.reason == httplib.responses[httplib.NOT_FOUND]:
-            return
-        try:
-            resp_currencies = json.loads(response.read())
+            resp_currencies = self.get_json('api.coindesk.com', "/v1/bpi/supported-currencies.json")
         except Exception:
             return
 
@@ -87,27 +110,81 @@ class Exchanger(threading.Thread):
         with self.lock:
             self.quote_currencies = quote_currencies
         self.parent.set_currencies(quote_currencies)
+    
+    def update_wd(self):
+        try:
+            winkresp = self.get_json('winkdex.com', "/static/data/0_600_288.json")
+            ####could need nonce value in GET, no Docs available
+        except Exception:
+            return
+        quote_currencies = {"USD": 0.0}
+        ####get y of highest x in "prices"
+        lenprices = len(winkresp["prices"])
+        usdprice = winkresp["prices"][lenprices-1]["y"]
+        try:
+            quote_currencies["USD"] = decimal.Decimal(usdprice)
+            with self.lock:
+                self.quote_currencies = quote_currencies
+        except KeyError:
+            pass
+        self.parent.set_currencies(quote_currencies)
+            
+    def update_cv(self):
+        try:
+            jsonresp = self.get_json('www.cavirtex.com', "/api/CAD/ticker.json")
+        except Exception:
+            return
+        quote_currencies = {"CAD": 0.0}
+        cadprice = jsonresp["last"]
+        try:
+            quote_currencies["CAD"] = decimal.Decimal(cadprice)
+            with self.lock:
+                self.quote_currencies = quote_currencies
+        except KeyError:
+            pass
+        self.parent.set_currencies(quote_currencies)
+
+    def update_CNY(self):
+        try:
+            jsonresp = self.get_json('data.btcchina.com', "/data/ticker")
+        except Exception:
+            return
+        quote_currencies = {"CNY": 0.0}
+        cnyprice = jsonresp["ticker"]["last"]
+        try:
+            quote_currencies["CNY"] = decimal.Decimal(cnyprice)
+            with self.lock:
+                self.quote_currencies = quote_currencies
+        except KeyError:
+            pass
+        self.parent.set_currencies(quote_currencies)
+
+    def update_bp(self):
+        try:
+            jsonresp = self.get_json('bitpay.com', "/api/rates")
+        except Exception:
+            return
+        quote_currencies = {}
+        try:
+            for r in jsonresp:
+                quote_currencies[str(r["code"])] = decimal.Decimal(r["rate"])
+            with self.lock:
+                self.quote_currencies = quote_currencies
+        except KeyError:
+            pass
+        self.parent.set_currencies(quote_currencies)
 
     def update_cb(self):
         try:
-            connection = httplib.HTTPSConnection('coinbase.com')
-            connection.request("GET", "/api/v1/currencies/exchange_rates")
-        except Exception:
-            return
-        response = connection.getresponse()
-        if response.reason == httplib.responses[httplib.NOT_FOUND]:
-            return
-
-        try:
-            response = json.loads(response.read())
+            jsonresp = self.get_json('coinbase.com', "/api/v1/currencies/exchange_rates")
         except Exception:
             return
 
         quote_currencies = {}
         try:
-            for r in response:
+            for r in jsonresp:
                 if r[:7] == "btc_to_":
-                    quote_currencies[r[7:].upper()] = self._lookup_rate_cb(response, r)
+                    quote_currencies[r[7:].upper()] = self._lookup_rate_cb(jsonresp, r)
             with self.lock:
                 self.quote_currencies = quote_currencies
         except KeyError:
@@ -117,21 +194,13 @@ class Exchanger(threading.Thread):
 
     def update_bc(self):
         try:
-            connection = httplib.HTTPSConnection('blockchain.info')
-            connection.request("GET", "/ticker")
-        except Exception:
-            return
-        response = connection.getresponse()
-        if response.reason == httplib.responses[httplib.NOT_FOUND]:
-            return
-        try:
-            response = json.loads(response.read())
+            jsonresp = self.get_json('blockchain.info', "/ticker")
         except Exception:
             return
         quote_currencies = {}
         try:
-            for r in response:
-                quote_currencies[r] = self._lookup_rate(response, r)
+            for r in jsonresp:
+                quote_currencies[r] = self._lookup_rate(jsonresp, r)
             with self.lock:
                 self.quote_currencies = quote_currencies
         except KeyError:
@@ -139,7 +208,39 @@ class Exchanger(threading.Thread):
         self.parent.set_currencies(quote_currencies)
         # print "updating exchange rate", self.quote_currencies["USD"]
 
-            
+    def update_lb(self):
+        try:
+            jsonresp = self.get_json('localbitcoins.com', "/bitcoinaverage/ticker-all-currencies/")
+        except Exception:
+            return
+        quote_currencies = {}
+        try:
+            for r in jsonresp:
+                quote_currencies[r] = self._lookup_rate_lb(jsonresp, r)
+            with self.lock:
+                self.quote_currencies = quote_currencies
+        except KeyError:
+            pass
+        self.parent.set_currencies(quote_currencies)
+                
+
+    def update_ba(self):
+        try:
+            jsonresp = self.get_json('api.bitcoinaverage.com', "/ticker/global/all")
+        except Exception:
+            return
+        quote_currencies = {}
+        try:
+            for r in jsonresp:
+                if not r == "timestamp":
+                    quote_currencies[r] = self._lookup_rate_ba(jsonresp, r)
+            with self.lock:
+                self.quote_currencies = quote_currencies
+        except KeyError:
+            pass
+        self.parent.set_currencies(quote_currencies)
+
+
     def get_currencies(self):
         return [] if self.quote_currencies == None else sorted(self.quote_currencies.keys())
 
@@ -147,7 +248,10 @@ class Exchanger(threading.Thread):
         return decimal.Decimal(str(response[str(quote_id)]["15m"]))
     def _lookup_rate_cb(self, response, quote_id):
         return decimal.Decimal(str(response[str(quote_id)]))
-
+    def _lookup_rate_ba(self, response, quote_id):
+        return decimal.Decimal(response[str(quote_id)]["last"])
+    def _lookup_rate_lb(self, response, quote_id):
+        return decimal.Decimal(response[str(quote_id)]["rates"]["last"])
 
 
 class Plugin(BasePlugin):
@@ -221,15 +325,7 @@ class Plugin(BasePlugin):
             mintimestr = datetime.datetime.fromtimestamp(int(min(tx_list.items(), key=lambda x: x[1]['timestamp'])[1]['timestamp'])).strftime('%Y-%m-%d')
             maxtimestr = datetime.datetime.now().strftime('%Y-%m-%d')
             try:
-                connection = httplib.HTTPSConnection('api.coindesk.com')
-                connection.request("GET", "/v1/bpi/historical/close.json?start=" + mintimestr + "&end=" + maxtimestr)
-            except Exception:
-                return
-            resp = connection.getresponse()
-            if resp.reason == httplib.responses[httplib.NOT_FOUND]:
-                return
-            try:
-                resp_hist = json.loads(resp.read())
+                resp_hist = self.exchanger.get_json('api.coindesk.com', "/v1/bpi/historical/close.json?start=" + mintimestr + "&end=" + maxtimestr)
             except Exception:
                 return
 
@@ -252,9 +348,10 @@ class Plugin(BasePlugin):
                 tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
                 tx_USD_val = "%.2f %s" % (Decimal(tx_info['value']) / 100000000 * Decimal(resp_hist['bpi'][tx_time_str]), "USD")
 
-
                 item.setText(5, tx_USD_val)
-            
+                if Decimal(tx_info['value']) < 0:
+                    item.setForeground(5, QBrush(QColor("#BC1E1E")))
+
             for i, width in enumerate(self.gui.main_window.column_widths['history']):
                 self.gui.main_window.history_list.setColumnWidth(i, width)
             self.gui.main_window.history_list.setColumnWidth(4, 140)
@@ -292,25 +389,22 @@ class Plugin(BasePlugin):
                     hist_checkbox.setEnabled(False)
                 self.win.update_status()
 
+        def disable_check():
+            hist_checkbox.setChecked(False)
+            hist_checkbox.setEnabled(False)
+
         def on_change_ex(x):
             cur_request = str(self.exchanges[x])
             if cur_request != self.config.get('use_exchange', "Blockchain"):
                 self.config.set_key('use_exchange', cur_request, True)
-                if cur_request == "Blockchain":
-                    self.exchanger.update_bc()
-                    hist_checkbox.setChecked(False)
-                    hist_checkbox.setEnabled(False)
-                elif cur_request == "CoinDesk":
-                    self.exchanger.update_cd()
+                self.exchanger.update_rate()
+                if cur_request == "CoinDesk":
                     if self.config.get('currency', "EUR") == "USD":
                         hist_checkbox.setEnabled(True)
                     else:
-                        hist_checkbox.setChecked(False)
-                        hist_checkbox.setEnabled(False)
-                elif cur_request == "Coinbase":
-                    self.exchanger.update_cb()
-                    hist_checkbox.setChecked(False)
-                    hist_checkbox.setEnabled(False)
+                        disable_check()
+                else:
+                    disable_check()
                 set_currencies(combo)
                 self.win.update_status()
 
