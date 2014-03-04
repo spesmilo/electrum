@@ -341,109 +341,58 @@ class ElectrumWindow(QMainWindow):
         menubar = QMenuBar()
 
         file_menu = menubar.addMenu(_("&File"))
-        open_wallet_action = file_menu.addAction(_("&Open"))
-        open_wallet_action.setShortcut(QKeySequence.Open)
-        open_wallet_action.triggered.connect(self.open_wallet)
-
-        new_wallet_action = file_menu.addAction(_("&New/Restore"))
-        new_wallet_action.setShortcut(QKeySequence.New)
-        new_wallet_action.triggered.connect(self.new_wallet)
-
-        wallet_backup = file_menu.addAction(_("&Save Copy"))
-        wallet_backup.setShortcut(QKeySequence.SaveAs)
-        wallet_backup.triggered.connect(self.backup_wallet)
-
-        quit_item = file_menu.addAction(_("&Quit"))
-        #quit_item.setShortcut(QKeySequence.Quit)
-        quit_item.triggered.connect(self.close)
+        file_menu.addAction(_("&Open"), self.open_wallet).setShortcut(QKeySequence.Open)
+        file_menu.addAction(_("&New/Restore"), self.new_wallet).setShortcut(QKeySequence.New)
+        file_menu.addAction(_("&Save Copy"), self.backup_wallet).setShortcut(QKeySequence.SaveAs)
+        file_menu.addAction(_("&Quit"), self.close)
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
-
-        new_contact = wallet_menu.addAction(_("&New contact"))
-        new_contact.triggered.connect(self.new_contact_dialog)
-
-        self.new_account = wallet_menu.addAction(_("&New account"))
-        self.new_account.triggered.connect(self.new_account_dialog)
+        wallet_menu.addAction(_("&New contact"), self.new_contact_dialog)
+        self.new_account = wallet_menu.addAction(_("&New account"), self.new_account_dialog)
 
         wallet_menu.addSeparator()
 
-        pw = wallet_menu.addAction(_("&Password"))
-        pw.triggered.connect(self.change_password_dialog)
-
-        show_seed = wallet_menu.addAction(_("&Seed"))
-        show_seed.triggered.connect(self.show_seed_dialog)
-
-        show_mpk = wallet_menu.addAction(_("&Master Public Key"))
-        show_mpk.triggered.connect(self.show_master_public_key)
+        wallet_menu.addAction(_("&Password"), self.change_password_dialog)
+        wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
+        wallet_menu.addAction(_("&Master Public Key"), self.show_master_public_key)
 
         wallet_menu.addSeparator()
-
         labels_menu = wallet_menu.addMenu(_("&Labels"))
-        import_labels = labels_menu.addAction(_("&Import"))
-        import_labels.triggered.connect(self.do_import_labels)
-        export_labels = labels_menu.addAction(_("&Export"))
-        export_labels.triggered.connect(self.do_export_labels)
+        labels_menu.addAction(_("&Import"), self.do_import_labels)
+        labels_menu.addAction(_("&Export"), self.do_export_labels)
 
         keys_menu = wallet_menu.addMenu(_("&Private keys"))
-        import_keys = keys_menu.addAction(_("&Import"))
-        import_keys.triggered.connect(self.do_import_privkey)
-        export_keys = keys_menu.addAction(_("&Export"))
-        export_keys.triggered.connect(self.do_export_privkeys)
+        keys_menu.addAction(_("&Import"), self.do_import_privkey)
+        keys_menu.addAction(_("&Export"), self.do_export_privkeys)
 
-        ex_history = wallet_menu.addAction(_("&Export History"))
-        ex_history.triggered.connect(self.do_export_history)
-
-
+        wallet_menu.addAction(_("&Export History"), self.do_export_history)
 
         tools_menu = menubar.addMenu(_("&Tools"))
 
         # Settings / Preferences are all reserved keywords in OSX using this as work around
-        preferences_name = _("Electrum preferences") if sys.platform == 'darwin' else _("Preferences")
-        preferences_menu = tools_menu.addAction(preferences_name)
-        #preferences_menu.setShortcut(QKeySequence.Preferences)
-        preferences_menu.triggered.connect(self.settings_dialog)
-
+        tools_menu.addAction(_("Electrum preferences") if sys.platform == 'darwin' else _("Preferences"), self.settings_dialog)
         tools_menu.addAction(_("&Network"), self.run_network_dialog)
         tools_menu.addAction(_("&Plugins"), self.plugins_dialog)
-
         tools_menu.addSeparator()
         tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
         tools_menu.addAction(_("&Encrypt/decrypt message"), self.encrypt_message)
-
         tools_menu.addSeparator()
 
         csv_transaction_menu = tools_menu.addMenu(_("&Create transaction"))
-
-        csv_transaction_file = csv_transaction_menu.addAction(_("&From CSV file"))
-        csv_transaction_file.triggered.connect(self.do_process_from_csv_file)
-
-        csv_transaction_text = csv_transaction_menu.addAction(_("&From CSV text"))
-        csv_transaction_text.triggered.connect(self.do_process_from_csv_text)
+        csv_transaction_menu.addAction(_("&From CSV file"), self.do_process_from_csv_file)
+        csv_transaction_menu.addAction(_("&From CSV text"), self.do_process_from_csv_text)
 
         raw_transaction_menu = tools_menu.addMenu(_("&Load transaction"))
-
-        raw_transaction_file = raw_transaction_menu.addAction(_("&From file"))
-        raw_transaction_file.triggered.connect(self.do_process_from_file)
-
-        raw_transaction_text = raw_transaction_menu.addAction(_("&From text"))
-        raw_transaction_text.triggered.connect(self.do_process_from_text)
-
-        raw_transaction_text = raw_transaction_menu.addAction(_("&From the blockchain"))
-        raw_transaction_text.triggered.connect(self.do_process_from_txid)
-
+        raw_transaction_menu.addAction(_("&From file"), self.do_process_from_file)
+        raw_transaction_menu.addAction(_("&From text"), self.do_process_from_text)
+        raw_transaction_menu.addAction(_("&From the blockchain"), self.do_process_from_txid)
 
         help_menu = menubar.addMenu(_("&Help"))
-        show_about = help_menu.addAction(_("&About"))
-        show_about.triggered.connect(self.show_about)
-        web_open = help_menu.addAction(_("&Official website"))
-        web_open.triggered.connect(lambda: webbrowser.open("http://electrum.org"))
-
+        help_menu.addAction(_("&About"), self.show_about)
+        help_menu.addAction(_("&Official website"), lambda: webbrowser.open("http://electrum.org"))
         help_menu.addSeparator()
-        doc_open = help_menu.addAction(_("&Documentation"))
-        doc_open.setShortcut(QKeySequence.HelpContents)
-        doc_open.triggered.connect(lambda: webbrowser.open("http://electrum.org/documentation.html"))
-        report_bug = help_menu.addAction(_("&Report Bug"))
-        report_bug.triggered.connect(self.show_report_bug)
+        help_menu.addAction(_("&Documentation"), lambda: webbrowser.open("http://electrum.org/documentation.html")).setShortcut(QKeySequence.HelpContents)
+        help_menu.addAction(_("&Report Bug"), self.show_report_bug)
 
         self.setMenuBar(menubar)
 
