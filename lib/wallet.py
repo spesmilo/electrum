@@ -1087,7 +1087,7 @@ class NewWallet:
         return [x[1] for x in coins]
 
 
-    def choose_tx_inputs( self, amount, fixed_fee, domain = None ):
+    def choose_tx_inputs( self, amount, fixed_fee, num_outputs, domain = None ):
         """ todo: minimize tx size """
         total = 0
         fee = self.fee if fixed_fee is None else fixed_fee
@@ -1107,7 +1107,7 @@ class NewWallet:
             v = item.get('value')
             total += v
             inputs.append(item)
-            fee = self.estimated_fee(inputs) if fixed_fee is None else fixed_fee
+            fee = self.estimated_fee(inputs, num_outputs) if fixed_fee is None else fixed_fee
             if total >= amount + fee: break
         else:
             inputs = []
@@ -1120,8 +1120,8 @@ class NewWallet:
             self.fee = fee
             self.storage.put('fee_per_kb', self.fee, True)
         
-    def estimated_fee(self, inputs):
-        estimated_size =  len(inputs) * 180 + 80    # this assumes non-compressed keys
+    def estimated_fee(self, inputs, num_outputs):
+        estimated_size =  len(inputs) * 180 + num_outputs * 34    # this assumes non-compressed keys
         fee = self.fee * int(math.ceil(estimated_size/1000.))
         return fee
 
@@ -1282,7 +1282,7 @@ class NewWallet:
         for address, x in outputs:
             assert is_valid(address), "Address " + address + " is invalid!"
         amount = sum( map(lambda x:x[1], outputs) )
-        inputs, total, fee = self.choose_tx_inputs( amount, fee, domain )
+        inputs, total, fee = self.choose_tx_inputs( amount, fee, len(outputs), domain )
         if not inputs:
             raise ValueError("Not enough funds")
         self.add_input_info(inputs)
