@@ -14,6 +14,7 @@ from electrum_gui.qt.util import *
 
 
 EXCHANGES = ["BitcoinAverage",
+             "BitcoinVenezuela",
              "BitPay",
              "Blockchain",
              "BTCChina",
@@ -78,6 +79,7 @@ class Exchanger(threading.Thread):
         self.use_exchange = self.parent.config.get('use_exchange', "Blockchain")
         update_rates = {
             "BitcoinAverage": self.update_ba,
+            "BitcoinVenezuela": self.update_bv,
             "BitPay": self.update_bp,
             "Blockchain": self.update_bc,
             "BTCChina": self.update_CNY,
@@ -225,6 +227,22 @@ class Exchanger(threading.Thread):
             pass
         self.parent.set_currencies(quote_currencies)
                 
+
+    def update_bv(self):
+        try:
+            jsonresp = self.get_json('api.bitcoinvenezuela.com', "/")
+        except Exception:
+            return
+        quote_currencies = {}
+        try:
+            for r in jsonresp["BTC"]:
+                quote_currencies[r] = Decimal(jsonresp["BTC"][r])
+            with self.lock:
+                self.quote_currencies = quote_currencies
+        except KeyError:
+            pass
+        self.parent.set_currencies(quote_currencies)
+
 
     def update_ba(self):
         try:
