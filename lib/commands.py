@@ -67,9 +67,9 @@ register_command('dumpprivkeys',         0, 0, False, True,  True,  'dump all pr
 register_command('freeze',               1, 1, False, True,  True,  'Freeze the funds at one of your wallet\'s addresses', 'freeze <address>')
 register_command('getbalance',           0, 1, True,  True,  False, 'Return the balance of your wallet, or of one account in your wallet', 'getbalance [<account>]')
 register_command('getservers',           0, 0, True,  False, False, 'Return the list of available servers')
-register_command('getversion',           0, 0, False,  False,  False, 'Return the version of your client', 'getversion')
-register_command('getaddressbalance',    1, 1, True,  True,  False, 'Return the balance of an address', 'getaddressbalance <address>')
-register_command('getaddresshistory',    1, 1, True,  True,  False, 'Return the transaction history of a wallet address', 'getaddresshistory <address>')
+register_command('getversion',           0, 0, False, False, False, 'Return the version of your client', 'getversion')
+register_command('getaddressbalance',    1, 1, True,  False, False, 'Return the balance of an address', 'getaddressbalance <address>')
+register_command('getaddresshistory',    1, 1, True,  False, False, 'Return the transaction history of a wallet address', 'getaddresshistory <address>')
 register_command('getconfig',            1, 1, False, False, False, 'Return a configuration variable', 'getconfig <name>')
 register_command('getpubkeys',           1, 1, False, True,  False, 'Return the public keys for a wallet address', 'getpubkeys <bitcoin address>')
 register_command('getrawtransaction',    1, 1, True,  False, False, 'Retrieve a transaction', 'getrawtransaction <txhash>')
@@ -80,6 +80,7 @@ register_command('history',              0, 0, True,  True,  False, 'Returns the
 register_command('importprivkey',        1, 1, False, True,  True,  'Import a private key', 'importprivkey <privatekey>')
 register_command('listaddresses',        2, 2, False, True,  False, 'Returns your list of addresses.', '', listaddr_options)
 register_command('listunspent',          0, 0, True,  True,  False, 'Returns the list of unspent inputs in your wallet.')
+register_command('getaddressunspent',    1, 1, True,  False, False, 'Returns the list of unspent inputs for an address.')
 register_command('mktx',                 5, 5, False, True,  True,  'Create a signed transaction', 'mktx <recipient> <amount> [label]', payto_options)
 register_command('mksendmanytx',         4, 4, False, True,  True,  'Create a signed transaction', mksendmany_syntax, payto_options)
 register_command('payto',                5, 5, True,  True,  True,  'Create and broadcast a transaction.', payto_syntax, payto_options)
@@ -95,6 +96,12 @@ register_command('unfreeze',             1, 1, False, True,  False, 'Unfreeze th
 register_command('validateaddress',      1, 1, False, False, False, 'Check that the address is valid', 'validateaddress <address>')
 register_command('verifymessage',        3,-1, False, False, False, 'Verifies a signature', verifymessage_syntax)
 
+register_command('encrypt',              2,-1, False, False, False, 'encrypt a message with pubkey','encrypt <pubkey> <message>')
+register_command('decrypt',              2,-1, False, False, False, 'decrypt a message with privkey','decrypt <privkey> <message>')
+register_command('daemon',               1, 1, True, False, False, 'start/stop daemon')
+register_command('getproof',             1, 1, True, False, False, 'get merkle proof', 'getproof <address>')
+register_command('getutxoaddress',       2, 2, True, False, False, 'get the address of an unspent transaction output','getutxoaddress <txid> <pos>')
+
 
 
 
@@ -105,6 +112,7 @@ class Commands:
         self.network = network
         self._callback = callback
         self.password = None
+
 
     def _run(self, method, args, password_getter):
         cmd = known_commands[method]
@@ -117,11 +125,22 @@ class Commands:
             apply(self._callback, ())
         return result
 
+
     def getaddresshistory(self, addr):
-        assert self.wallet.is_mine(addr)
-        h = self.wallet.get_history(addr)
-        if h is None: h = self.network.synchronous_get([ ('blockchain.address.get_history',[addr]) ])[0]
-        return h
+        return self.network.synchronous_get([ ('blockchain.address.get_history',[addr]) ])[0]
+
+
+    def daemon(self, arg):
+        if arg=='stop':
+            return self.network.stop()
+        elif arg=='status':
+            return { 
+                'server':self.network.main_server(), 
+                'connected':self.network.is_connected()
+            }
+        else:
+            return "unknown command \"%s\""% arg
+
 
     def listunspent(self):
         import copy
@@ -129,14 +148,23 @@ class Commands:
         for i in l: i["value"] = str(Decimal(i["value"])/100000000)
         return l
 
+
+    def getaddressunspent(self, addr):
+        return self.network.synchronous_get([ ('blockchain.address.listunspent',[addr]) ])[0]
+
+
+    def getutxoaddress(self, txid, num):
+        r = self.network.synchronous_get([ ('blockchain.utxo.get_address',[txid, num]) ])
+        if r: 
+            return {'address':r[0] }
+
+
     def createrawtransaction(self, inputs, outputs):
-        # convert to own format
-        for i in inputs:
-            i['tx_hash'] = i['txid']
-            i['index'] = i['vout']
+        inputs = map(lambda i: {'prevout_hash': i['txid'], 'prevout_n':i['vout']}, inputs )
         outputs = map(lambda x: (x[0],int(1e8*x[1])), outputs.items())
         tx = Transaction.from_io(inputs, outputs)
         return tx
+
 
     def signrawtransaction(self, raw_tx, input_info, private_keys):
         tx = Transaction(raw_tx)
@@ -179,14 +207,10 @@ class Commands:
         return out
 
     def getpubkeys(self, addr):
-        assert is_valid(addr) and self.wallet.is_mine(addr)
         out = { 'address':addr }
-        account, sequence = self.wallet.get_address_index(addr)
-        if account != -1:
-            a = self.wallet.accounts[account]
-            out['pubkeys'] = a.get_pubkeys( sequence )
-
+        out['pubkeys'] = self.wallet.getpubkeys(addr)
         return out
+
 
     def getbalance(self, account= None):
         if account is None:
@@ -199,9 +223,17 @@ class Commands:
         return out
 
     def getaddressbalance(self, addr):
-        c, u = self.wallet.get_addr_balance(addr)
-        out = { "confirmed": str(Decimal(c)/100000000) }
-        if u: out["unconfirmed"] = str(Decimal(u)/100000000)
+        out = self.network.synchronous_get([ ('blockchain.address.get_balance',[addr]) ])[0]
+        out["confirmed"] =  str(Decimal(out["confirmed"])/100000000)
+        out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/100000000)
+        return out
+
+
+    def getproof(self, addr):
+        p = self.network.synchronous_get([ ('blockchain.address.get_proof',[addr]) ])[0]
+        out = []
+        for i,s in p:
+            out.append(i)
         return out
 
     def getservers(self):
@@ -349,11 +381,29 @@ class Commands:
             if cmd.options: print_msg("options:\n" + cmd.options)
         return None
 
+
     def getrawtransaction(self, tx_hash):
+        import transaction
         if self.wallet:
             tx = self.wallet.transactions.get(tx_hash)
             if tx:
                 return tx
-        return self.network.retrieve_transaction(tx_hash)
+
+        r = self.network.synchronous_get([ ('blockchain.transaction.get',[tx_hash]) ])[0]
+        if r:
+            return transaction.Transaction(r)
+        else:
+            return "unknown transaction"
+
+
+    def encrypt(self, pubkey, message):
+        return bitcoin.encrypt_message(message, pubkey)
+
+
+    def decrypt(self, secret, message):
+        ec = regenerate_key(secret)
+        decrypted = ec.decrypt_message(message)
+        return decrypted[0]
+
 
 
