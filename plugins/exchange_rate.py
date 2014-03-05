@@ -32,6 +32,7 @@ class Exchanger(threading.Thread):
         self.parent = parent
         self.quote_currencies = None
         self.lock = threading.Lock()
+        self.query_rates = threading.Event()
         self.use_exchange = self.parent.config.get('use_exchange', "Blockchain")
         self.parent.exchanges = EXCHANGES
         self.parent.currencies = ["EUR","GBP","USD"]
@@ -94,8 +95,9 @@ class Exchanger(threading.Thread):
     def run(self):
         self.is_running = True
         while self.is_running:
+            self.query_rates.clear()
             self.update_rate()
-            time.sleep(150)
+            self.query_rates.wait(150)
 
 
     def update_cd(self):
@@ -379,7 +381,10 @@ class Plugin(BasePlugin):
         ok_button = QPushButton(_("OK"))
 
         def on_change(x):
-            cur_request = str(self.currencies[x])
+            try:
+                cur_request = str(self.currencies[x])
+            except Exception:
+                return
             if cur_request != self.config.get('currency', "EUR"):
                 self.config.set_key('currency', cur_request, True)
                 if cur_request == "USD" and self.config.get('use_exchange', "Blockchain") == "CoinDesk":
@@ -397,7 +402,9 @@ class Plugin(BasePlugin):
             cur_request = str(self.exchanges[x])
             if cur_request != self.config.get('use_exchange', "Blockchain"):
                 self.config.set_key('use_exchange', cur_request, True)
-                self.exchanger.update_rate()
+                self.currencies = []
+                combo.clear()
+                self.exchanger.query_rates.set()
                 if cur_request == "CoinDesk":
                     if self.config.get('currency', "EUR") == "USD":
                         hist_checkbox.setEnabled(True)
@@ -459,7 +466,7 @@ class Plugin(BasePlugin):
         combo.currentIndexChanged.connect(on_change)
         combo_ex.currentIndexChanged.connect(on_change_ex)
         hist_checkbox.stateChanged.connect(on_change_hist)
-        combo.connect(d, SIGNAL('refresh_currencies_combo()'), lambda: set_currencies(combo))
+        combo.connect(self.win, SIGNAL('refresh_currencies_combo()'), lambda: set_currencies(combo))
         combo_ex.connect(d, SIGNAL('refresh_exchanges_combo()'), lambda: set_exchanges(combo_ex))
         ok_button.clicked.connect(lambda: ok_clicked())
         layout.addWidget(combo,1,1)
