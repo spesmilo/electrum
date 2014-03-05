@@ -701,7 +701,8 @@ class ElectrumWindow:
             if not is_fee: fee = None
             if amount is None:
                 return
-            inputs, total, fee = self.wallet.choose_tx_inputs( amount, fee )
+            #assume two outputs - one for change
+            inputs, total, fee = self.wallet.choose_tx_inputs( amount, fee, 2 )
             if not is_fee:
                 fee_entry.set_text( str( Decimal( fee ) / 100000000 ) )
                 self.fee_box.show()
