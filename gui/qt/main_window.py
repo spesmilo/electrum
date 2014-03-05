@@ -757,8 +757,9 @@ class ElectrumWindow(QMainWindow):
             if self.amount_e.is_shortcut:
                 self.amount_e.is_shortcut = False
                 sendable = self.get_sendable_balance()
-                inputs, total, fee = self.wallet.choose_tx_inputs( sendable, 0, self.get_payment_sources())
-                fee = self.wallet.estimated_fee(inputs)
+                # there is only one output because we are completely spending inputs
+                inputs, total, fee = self.wallet.choose_tx_inputs( sendable, 0, 1, self.get_payment_sources())
+                fee = self.wallet.estimated_fee(inputs, 1)
                 amount = total - fee
                 self.amount_e.setText( self.format_amount(amount) )
                 self.fee_e.setText( self.format_amount( fee ) )
@@ -770,7 +771,8 @@ class ElectrumWindow(QMainWindow):
             if not is_fee: fee = None
             if amount is None:
                 return
-            inputs, total, fee = self.wallet.choose_tx_inputs(amount, fee, self.get_payment_sources())
+            # assume that there will be 2 outputs (one for change)
+            inputs, total, fee = self.wallet.choose_tx_inputs(amount, fee, 2, self.get_payment_sources())
             if not is_fee:
                 self.fee_e.setText( self.format_amount( fee ) )
             if inputs:
