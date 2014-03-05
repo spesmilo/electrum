@@ -1,5 +1,5 @@
-from util import print_error
-import traceback, sys
+
+import traceback
 from util import *
 from i18n import _
 

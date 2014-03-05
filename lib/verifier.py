@@ -61,7 +61,7 @@ class TxVerifier(threading.Thread):
 
 
     def get_txpos(self, tx_hash):
-        "return position, even if the tx is unverified"
+        """return position, even if the tx is unverified"""
         with self.lock:
             x = self.verified_tx.get(tx_hash)
             y = self.transactions.get(tx_hash)

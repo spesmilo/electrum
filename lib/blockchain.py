@@ -171,13 +171,9 @@ class Blockchain(threading.Thread):
 
     def header_from_string(self, s):
         hex_to_int = lambda s: int('0x' + s[::-1].encode('hex'), 16)
-        h = {}
-        h['version'] = hex_to_int(s[0:4])
-        h['prev_block_hash'] = hash_encode(s[4:36])
-        h['merkle_root'] = hash_encode(s[36:68])
-        h['timestamp'] = hex_to_int(s[68:72])
-        h['bits'] = hex_to_int(s[72:76])
-        h['nonce'] = hex_to_int(s[76:80])
+        h = {'version': hex_to_int(s[0:4]), 'prev_block_hash': hash_encode(s[4:36]),
+             'merkle_root': hash_encode(s[36:68]), 'timestamp': hex_to_int(s[68:72]), 'bits': hex_to_int(s[72:76]),
+             'nonce': hex_to_int(s[76:80])}
         return h
 
     def hash_header(self, header):
