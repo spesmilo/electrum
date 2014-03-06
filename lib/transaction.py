@@ -376,6 +376,7 @@ class Transaction:
         self.inputs = self.d['inputs']
         self.outputs = self.d['outputs']
         self.outputs = map(lambda x: (x['address'],x['value']), self.outputs)
+        self.locktime = self.d['lockTime']
         self.is_complete = is_complete
         
     def __str__(self):

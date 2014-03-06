@@ -180,6 +180,9 @@ class TxDialog(QDialog):
 
     def add_io(self, vbox):
 
+        if self.tx.locktime > 0:
+            vbox.addWidget(QLabel("LockTime: %d\n" % self.tx.locktime))
+
         vbox.addWidget(QLabel(_("Inputs")))
         lines = map(lambda x: x.get('prevout_hash') + ":%d"%x.get('prevout_n') + u'\t' + "%s"%x.get('address') , self.tx.inputs )
         i_text = QTextEdit()
