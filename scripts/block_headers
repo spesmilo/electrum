@@ -16,5 +16,5 @@ callback = lambda _,result: electrum.print_json(result.get('result'))
 interface.send([('blockchain.headers.subscribe',[])], callback)
 
 # 3. wait for results
-while True:
+while interface.is_connected:
     time.sleep(1)

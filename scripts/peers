@@ -72,7 +72,7 @@ while reached_servers:
 errors = analyze(results).keys()
 
 for n,v in results.items():
-    print "%30s"%n, v['block_height'], v['utxo_root'], "error" if n in errors else "ok"
+    print "%40s"%n, v['block_height'], v['utxo_root'], "error" if n in errors else "ok"
 
 
 
