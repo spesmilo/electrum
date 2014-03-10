@@ -402,6 +402,13 @@ class Network(threading.Thread):
         return self.interface.synchronous_get(requests)
 
 
+    def get_header(self, tx_height):
+        return self.blockchain.read_header(tx_height)
+
+    def get_local_height(self):
+        return self.blockchain.local_height
+
+
 
     #def retrieve_transaction(self, tx_hash, tx_height=0):
     #    import transaction
