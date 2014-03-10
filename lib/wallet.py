@@ -767,7 +767,7 @@ class NewWallet:
 
         # add private keys from wallet
         self.add_keypairs_from_wallet(tx, keypairs, password)
-        self.sign_transaction(tx, keypairs)
+        self.sign_transaction(tx, keypairs, password)
 
 
     def sign_message(self, address, message, password):
@@ -1295,7 +1295,7 @@ class NewWallet:
         keypairs = {}
         self.add_keypairs_from_wallet(tx, keypairs, password)
         if keypairs:
-            self.sign_transaction(tx, keypairs)
+            self.sign_transaction(tx, keypairs, password)
         return tx
 
 
@@ -1313,9 +1313,9 @@ class NewWallet:
                 txin['redeemPubkey'] = self.accounts[account].get_pubkey(*sequence)
 
 
-    def sign_transaction(self, tx, keypairs):
+    def sign_transaction(self, tx, keypairs, password):
         tx.sign(keypairs)
-        run_hook('sign_transaction', tx)
+        run_hook('sign_transaction', tx, password)
 
 
     def sendtx(self, tx):
