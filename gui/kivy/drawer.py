@@ -82,11 +82,13 @@ class Drawer(StencilView):
         if app.ui_mode[0] == 't':
             return super(Drawer, self).on_touch_down(touch)
 
+        state = self.state
         touch.ud['send_touch_down'] = False
+        start = 0 if state[0] == 'c' else self._hidden_widget.right
         drag_area = ((self.width * self.drag_area)
                     if self.state[0] == 'c' else
-                    self._hidden_widget.width)
-        if touch.x > drag_area:
+                    self.width)
+        if touch.x not in range(int(start), int(drag_area)):
             return super(Drawer, self).on_touch_down(touch)
         self._touch = touch
         Clock.schedule_once(self._change_touch_mode,
@@ -106,8 +108,13 @@ class Drawer(StencilView):
         if not touch.ud.get('in_drag_area', None):
             return super(Drawer, self).on_touch_move(touch)
 
-        self._overlay_widget.x = min(self._hidden_widget.width,
-                        max(self._overlay_widget.x + touch.dx*2, 0))
+        ov = self._overlay_widget
+        ov.x=min(self._hidden_widget.width,
+            max(ov.x + touch.dx*2, 0))
+        #_anim = Animation(x=x, duration=1/60)
+        #_anim.cancel_all(ov)
+        #_anim.start(ov)
+
         if abs(touch.x - touch.ox) < self.scroll_distance:
             return
         touch.ud['send_touch_down'] = False

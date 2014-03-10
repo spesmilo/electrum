@@ -45,10 +45,16 @@ class InstallWizard(Widget):
         '''
 
         def target():
+
             # run your threaded function
-            task()
+            try:
+                task()
+            except Exception as err:
+                Clock.schedule_once(lambda dt: app.show_error(str(err)))
+
             # on  completion hide message
-            Clock.schedule_once(lambda dt: app.info_bubble.hide())
+            Clock.schedule_once(lambda dt: app.info_bubble.hide(now=True), -1)
+
             # call completion routine
             if on_complete:
                 Clock.schedule_once(lambda dt: on_complete())
@@ -138,14 +144,14 @@ class InstallWizard(Widget):
 
         brainwallet = seed
 
-        msg2 = _("[color=#414141][b]"+\
+        msg2 = _("[color=#414141]"+\
                 "[b]PLEASE WRITE DOWN YOUR SEED PASS[/b][/color]"+\
                 "[size=9]\n\n[/size]" +\
                 "[color=#929292]If you ever forget your pincode, your seed" +\
                 " phrase will be the [color=#EB984E]"+\
                 "[b]only way to recover[/b][/color] your wallet. Your " +\
                 " [color=#EB984E][b]Bitcoins[/b][/color] will otherwise be" +\
-                " [color=#EB984E]lost forever![/color]")
+                " [color=#EB984E][b]lost forever![/b][/color]")
 
         if wallet.imported_keys:
             msg2 += "[b][color=#ff0000ff]" + _("WARNING") + "[/color]:[/b] " +\
@@ -234,13 +240,13 @@ class InstallWizard(Widget):
                 return app.show_error(_('Passwords do not match'), duration=.5)
 
             if mode == 'restore':
-                try:
-                    wallet.save_seed(new_password)
-                except Exception as err:
-                    app.show_error(str(err))
-                    return
-                _dlg.close()
-                self.load_network(wallet, mode='restore')
+                def on_complete(*l):
+                    _dlg.close()
+                    self.load_network(wallet, mode='restore')
+
+                self.waiting_dialog(lambda: wallet.save_seed(new_password),
+                                    msg=_("saving seed"),
+                                    on_complete=on_complete)
                 return
             if not instance:
                 # create

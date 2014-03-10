@@ -93,7 +93,7 @@ class ElectrumWindow(App):
                          'While trying to save value to config')
 
     base_unit = AliasProperty(_get_bu, _set_bu, bind=('decimal_point',))
-    '''BTC or UBTC or ...
+    '''BTC or UBTC or mBTC...
 
     :attr:`base_unit` is a `AliasProperty` defaults to the unit set in
     electrum config.
@@ -148,13 +148,13 @@ class ElectrumWindow(App):
         self.network = network = kwargs.get('network')
         self.electrum_config = config = kwargs.get('config')
 
-        # create triggers so as to minimize updation a max of 5 times a sec
+        # create triggers so as to minimize updation a max of 2 times a sec
         self._trigger_update_status =\
-            Clock.create_trigger(self.update_status, .2)
+            Clock.create_trigger(self.update_status, .5)
         self._trigger_update_console =\
-            Clock.create_trigger(self.update_console, .2)
+            Clock.create_trigger(self.update_console, .5)
         self._trigger_notify_transactions = \
-            Clock.create_trigger(self.notify_transactions, .2)
+            Clock.create_trigger(self.notify_transactions, .5)
 
     def build(self):
         from kivy.lang import Builder
@@ -174,6 +174,15 @@ class ElectrumWindow(App):
         Window.bind(size=self.on_size,
                     on_keyboard=self.on_keyboard)
         Window.bind(on_key_down=self.on_key_down)
+
+        # register fonts
+        from kivy.core.text import Label
+        Label.register('Roboto',
+                   'data/fonts/Roboto.ttf',
+                   'data/fonts/Roboto.ttf',
+                   'data/fonts/Roboto-Bold.ttf',
+                   'data/fonts/Roboto-Bold.ttf')
+
         if platform == 'android':
             #
             Window.bind(keyboard_height=self.on_keyboard_height)
@@ -261,17 +270,20 @@ class ElectrumWindow(App):
 
         self.load_wallet(wallet)
 
-        # check and remove this load_wallet calls update_wallet no
-        # need for this here
-        #Clock.schedule_once(update_wallet)
-
+        #TODO: URI handling
         #self.windows.append(w)
         #if url: w.set_url(url)
-        #w.app = self.app
-        #w.connect_slots(s)
-        #w.update_wallet()
 
-        #self.app.exec_()
+        # TODO:remove properties are used instead
+        #Clock.schedule_interval(self.timer_actions, .5)
+
+
+    #TODO: remove not needed properties allow on_property events
+    #def timer_actions(self):
+    #    if self.need_update.is_set():
+    #        self.update_wallet()
+    #        self.need_update.clear()
+    #    run_hook('timer_actions')
 
     def init_ui(self):
         ''' Initialize The Ux part of electrum. This function performs the basic
@@ -326,12 +338,12 @@ class ElectrumWindow(App):
             from electrum_gui.kivy.plugins.exchange_rate import Exchanger
             self.exchanger = Exchanger(self)
             self.exchanger.start()
-        quote_currency = self.electrum_config.get("currency", 'EUR')
+        quote_currency = self.exchanger.currency
         quote_balance = self.exchanger.exchange(btc_balance, quote_currency)
 
-        if mode == 'symbol':
-            if quote_currency:
-                quote_currency = self.exchanger.symbols[quote_currency]
+        if quote_currency and mode == 'symbol':
+            quote_currency = self.exchanger.symbols.get(quote_currency,
+                                                        quote_currency)
 
         if quote_balance is None:
             quote_text = ""
@@ -340,8 +352,9 @@ class ElectrumWindow(App):
         return quote_text
 
     def set_currencies(self, quote_currencies):
-        self._trigger_update_status
-        #self.currencies = sorted(quote_currencies.keys())
+        #TODO remove this and just directly update a observable property
+        self._trigger_update_status()
+        self.currencies = sorted(quote_currencies.keys())
 
     def update_console(self, *dt):
         if self.console:
@@ -399,7 +412,7 @@ class ElectrumWindow(App):
                 #if quote:
                 #    text += "  (%s)"%quote
 
-                self.notify(_("Balance: ") + text)
+                #self.notify(_("Balance: ") + text)
                 #icon = QIcon(":icons/status_connected.png")
         else:
             text = _("Not connected")

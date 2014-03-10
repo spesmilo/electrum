@@ -192,7 +192,7 @@ class InfoBubble(Bubble):
         anim.start(self)
 
 
-    def hide(self, *dt):
+    def hide(self, now=False):
         ''' Auto fade out the Bubble
         '''
         def on_stop(*l):
@@ -205,6 +205,8 @@ class InfoBubble(Bubble):
                 App.get_running_app().stop()
                 import sys
                 sys.exit()
+        if now:
+            return on_stop()
 
         anim = Animation(opacity=0, d=.25)
         anim.bind(on_complete=on_stop)
