@@ -86,10 +86,10 @@ class NetworkProxy(threading.Thread):
             method, params, callback = self.unanswered_requests.pop(msg_id)
 
         result = response.get('result')
-        callback({'method':method, 'params':params, 'result':result, 'id':msg_id})
+        callback(None, {'method':method, 'params':params, 'result':result, 'id':msg_id})
 
 
-    def send(self, messages, callback):
+    def subscribe(self, messages, callback):
         # detect if it is a subscription
         with self.lock:
             if self.subscriptions.get(callback) is None: 
@@ -121,7 +121,7 @@ class NetworkProxy(threading.Thread):
 
     def synchronous_get(self, requests, timeout=100000000):
         queue = Queue.Queue()
-        ids = self.do_send(requests, queue.put)
+        ids = self.do_send(requests, lambda i,x: queue.put(x))
         id2 = ids[:]
         res = {}
         while ids:
@@ -137,10 +137,29 @@ class NetworkProxy(threading.Thread):
 
 
     def get_servers(self):
-        return self.synchronous_get([('network.getservers',[])])[0]
+        return self.synchronous_get([('network.get_servers',[])])[0]
+
+    def get_header(self, height):
+        return self.synchronous_get([('network.get_header',[height])])[0]
+
+    def get_local_height(self):
+        return self.synchronous_get([('network.get_local_height',[])])[0]
+
+    def is_connected(self):
+        return self.synchronous_get([('network.is_connected',[])])[0]
+
+    def is_up_to_date(self):
+        return self.synchronous_get([('network.is_up_to_date',[])])[0]
+
+    def main_server(self):
+        return self.synchronous_get([('network.main_server',[])])[0]
 
     def stop(self):
-        return self.synchronous_get([('network.shutdown',[])])[0]
+        return self.synchronous_get([('daemon.shutdown',[])])[0]
+
+
+    def trigger_callback(self, cb):
+        pass
 
 
 
@@ -199,15 +218,20 @@ class ClientThread(threading.Thread):
         _id = request['id']
 
         if method.startswith('network.'):
-            if method == 'network.shutdown':
-                self.server.running = False
-                r = {'id':_id, 'result':True}
-            elif method == 'network.getservers':
-                servers = self.network.get_servers()
-                r = {'id':_id, 'result':servers}
-            else:
-                r = {'id':_id, 'error':'unknown method'}
-            self.queue.put(r) 
+            out = {'id':_id}
+            try:
+                f = getattr(self.network, method[8:])
+            except AttributeError:
+                out['error'] = "unknown method"
+            try:
+                out['result'] = f(*params)
+            except BaseException as e:
+                out['error'] =str(e)
+            self.queue.put(out) 
+
+        if method == 'daemon.shutdown':
+            self.server.running = False
+            self.queue.put({'id':_id, 'result':True})
             return
 
         def cb(i,r):
@@ -234,9 +258,6 @@ class ClientThread(threading.Thread):
             #print "-->", r
         
 
-#Server:
-#   start network() object
-#   accept connections, forward requests 
 
 
 class NetworkServer:
@@ -269,8 +290,6 @@ class NetworkServer:
             t = time.time()
             client = ClientThread(self, self.network, connection)
             client.start()
-        #print "Done."
-
 
 
 
