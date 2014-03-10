@@ -413,24 +413,14 @@ class Network(threading.Thread):
 
 
 
-class NetworkProxy:
-    # interface to the network object. 
-    # handle subscriptions and callbacks
-    # the network object can be jsonrpc server 
-    def __init__(self, network):
-        self.network = network
-
-
-
-
 if __name__ == "__main__":
-    import simple_config
-    config = simple_config.SimpleConfig({'verbose':True, 'server':'ecdsa.org:50002:s'})
-    network = Network(config)
+    network = NetworkProxy({})
     network.start()
+    print network.get_servers()
 
-    while 1:
-        time.sleep(1)
-
-
+    q = Queue.Queue()
+    network.send([('blockchain.headers.subscribe',[])], q.put)
+    while True:
+        r = q.get(timeout=10000)
+        print r
 

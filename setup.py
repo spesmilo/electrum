@@ -71,6 +71,7 @@ setup(
         'electrum.blockchain',
         'electrum.bmp',
         'electrum.commands',
+        'electrum.daemon',
         'electrum.i18n',
         'electrum.interface',
         'electrum.mnemonic',
