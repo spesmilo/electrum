@@ -1847,7 +1847,7 @@ class Wallet(object):
             is_hex = False
          
         if is_hex or (uses_electrum_words and len(words) != 13):
-            print "old style wallet", len(words), words
+            #print "old style wallet", len(words), words
             w = OldWallet(storage)
             w.init_seed(seed) #hex
         else:

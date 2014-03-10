@@ -14,6 +14,7 @@ from electrum_gui.qt.util import *
 
 
 EXCHANGES = ["BitcoinAverage",
+             "BitcoinVenezuela",
              "BitPay",
              "Blockchain",
              "BTCChina",
@@ -78,6 +79,7 @@ class Exchanger(threading.Thread):
         self.use_exchange = self.parent.config.get('use_exchange', "Blockchain")
         update_rates = {
             "BitcoinAverage": self.update_ba,
+            "BitcoinVenezuela": self.update_bv,
             "BitPay": self.update_bp,
             "Blockchain": self.update_bc,
             "BTCChina": self.update_CNY,
@@ -226,6 +228,22 @@ class Exchanger(threading.Thread):
         self.parent.set_currencies(quote_currencies)
                 
 
+    def update_bv(self):
+        try:
+            jsonresp = self.get_json('api.bitcoinvenezuela.com', "/")
+        except Exception:
+            return
+        quote_currencies = {}
+        try:
+            for r in jsonresp["BTC"]:
+                quote_currencies[r] = Decimal(jsonresp["BTC"][r])
+            with self.lock:
+                self.quote_currencies = quote_currencies
+        except KeyError:
+            pass
+        self.parent.set_currencies(quote_currencies)
+
+
     def update_ba(self):
         try:
             jsonresp = self.get_json('api.bitcoinaverage.com', "/ticker/global/all")
@@ -273,6 +291,7 @@ class Plugin(BasePlugin):
     def init(self):
         self.win = self.gui.main_window
         self.win.connect(self.win, SIGNAL("refresh_currencies()"), self.win.update_status)
+        self.btc_rate = Decimal(0.0)
         # Do price discovery
         self.exchanger = Exchanger(self)
         self.exchanger.start()
@@ -290,10 +309,12 @@ class Plugin(BasePlugin):
     def create_quote_text(self, btc_balance):
         quote_currency = self.config.get("currency", "EUR")
         self.exchanger.use_exchange = self.config.get("use_exchange", "Blockchain")
-        quote_balance = self.exchanger.exchange(btc_balance, quote_currency)
-        if quote_balance is None:
+        cur_rate = self.exchanger.exchange(Decimal(1.0), quote_currency)
+        if cur_rate is None:
             quote_text = ""
         else:
+            quote_balance = btc_balance * Decimal(cur_rate)
+            self.btc_rate = cur_rate
             quote_text = "%.2f %s" % (quote_balance, quote_currency)
         return quote_text
 
@@ -348,7 +369,10 @@ class Plugin(BasePlugin):
                     pass
                 tx_time = int(tx_info['timestamp'])
                 tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
-                tx_USD_val = "%.2f %s" % (Decimal(tx_info['value']) / 100000000 * Decimal(resp_hist['bpi'][tx_time_str]), "USD")
+                try:
+                    tx_USD_val = "%.2f %s" % (Decimal(tx_info['value']) / 100000000 * Decimal(resp_hist['bpi'][tx_time_str]), "USD")
+                except KeyError:
+                    tx_USD_val = "%.2f %s" % (self.btc_rate * Decimal(tx_info['value'])/100000000 , "USD")
 
                 item.setText(5, tx_USD_val)
                 if Decimal(tx_info['value']) < 0:
