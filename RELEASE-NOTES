@@ -14,9 +14,10 @@
 
   The encryption algorithm is ECIES, and code was was borrowed from
   https://github.com/jackjack-jj/jeeq.  In order to know the public
-  key corresponding to a Bitcoin address, you can use the 'getpubkeys'
-  command. The 'decrypt' command assumes that the wallet has the
-  private key corresponding to the public key passed as argument.
+  key corresponding to a Bitcoin address in your wallet, you can use
+  the 'getpubkeys' command. The 'decrypt' command assumes that the
+  wallet has the private key corresponding to the public key passed as
+  argument.
 
 * The encrypt and decrypt functions are available in the Qt GUI (from
   the menubar, or right click on one of your addresses if you want to
