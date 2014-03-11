@@ -26,7 +26,7 @@ import traceback
 import json
 import Queue
 from network import Network
-
+from util import print_msg
 
 
 class NetworkProxy(threading.Thread):
