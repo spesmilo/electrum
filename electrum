@@ -122,7 +122,7 @@ def run_command(cmd, password=None, args=[]):
                 break
             except socket.error:
                 if cmd.name != 'daemon':
-                    print "starting daemon"
+                    print "Starting daemon [%s]"%config.get('server')
                     start_daemon(config)
                 else:
                     print "Daemon not running"
