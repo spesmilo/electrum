@@ -154,7 +154,6 @@ def run_command(cmd, password=None, args=[]):
     try:
         result = func(*args[1:])
     except Exception:
-        print "ecxeption"
         traceback.print_exc(file=sys.stdout)
         sys.exit(1)
 
