@@ -97,8 +97,8 @@ register_command('validateaddress',      1, 1, False, False, False, 'Check that 
 register_command('verifymessage',        3,-1, False, False, False, 'Verifies a signature', verifymessage_syntax)
 
 register_command('encrypt',              2,-1, False, False, False, 'encrypt a message with pubkey','encrypt <pubkey> <message>')
-register_command('decrypt',              2,-1, False, False, False, 'decrypt a message with privkey','decrypt <privkey> <message>')
-register_command('daemon',               1, 1, True, False, False, 'start/stop daemon')
+register_command('decrypt',              2,-1, False, True, True,   'decrypt a message encrypted with pubkey','decrypt <pubkey> <message>')
+register_command('daemon',               1, 1, True, False, False,  '<stop|status>')
 register_command('getproof',             1, 1, True, False, False, 'get merkle proof', 'getproof <address>')
 register_command('getutxoaddress',       2, 2, True, False, False, 'get the address of an unspent transaction output','getutxoaddress <txid> <pos>')
 
@@ -401,10 +401,8 @@ class Commands:
         return bitcoin.encrypt_message(message, pubkey)
 
 
-    def decrypt(self, secret, message):
-        ec = regenerate_key(secret)
-        decrypted = ec.decrypt_message(message)
-        return decrypted[0]
+    def decrypt(self, pubkey, message):
+        return self.wallet.decrypt_message(pubkey, message, self.password)
 
 
 
