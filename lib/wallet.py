@@ -844,7 +844,7 @@ class NewWallet:
             if tx_height == 0:
                 tx_age = 0
             else: 
-                tx_age = self.verifier.blockchain.height() - tx_height + 1
+                tx_age = self.network.get_local_height() - tx_height + 1
             if tx_age > age:
                 age = tx_age
         return age > 2
@@ -1101,7 +1101,7 @@ class NewWallet:
         inputs = []
 
         for item in coins:
-            if item.get('coinbase') and item.get('height') + COINBASE_MATURITY > self.network.blockchain.height():
+            if item.get('coinbase') and item.get('height') + COINBASE_MATURITY > self.network.get_local_height():
                 continue
             addr = item.get('address')
             v = item.get('value')

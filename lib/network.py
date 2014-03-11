@@ -406,7 +406,7 @@ class Network(threading.Thread):
         return self.blockchain.read_header(tx_height)
 
     def get_local_height(self):
-        return self.blockchain.local_height
+        return self.blockchain.height()
 
 
 
