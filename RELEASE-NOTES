@@ -25,10 +25,10 @@
 
 * Command-line commands that require a connection to the network spawn
   a daemon, that remains connected and handles subsequent
-  commands. The daemon terminates if it remains unused for more than
-  one minute.
-
-
+  commands. The daemon terminates itself if it remains unused for more
+  than one minute. The purpose of this is to make scripting more
+  efficient. For example, a bash script using many electrum commands
+  will open only one connection.
 
 # Release 1.9.7
 * Fix for offline signing
