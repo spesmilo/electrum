@@ -343,9 +343,15 @@ class Plugin(BasePlugin):
 
     def history_tab_update(self):
         if self.config.get('history_rates', 'unchecked') == "checked":
-            tx_list = self.tx_list
-            
-            mintimestr = datetime.datetime.fromtimestamp(int(min(tx_list.items(), key=lambda x: x[1]['timestamp'])[1]['timestamp'])).strftime('%Y-%m-%d')
+            try:
+                tx_list = self.tx_list
+            except Exception:
+                return
+
+            try:
+                mintimestr = datetime.datetime.fromtimestamp(int(min(tx_list.items(), key=lambda x: x[1]['timestamp'])[1]['timestamp'])).strftime('%Y-%m-%d')
+            except ValueError:
+                return
             maxtimestr = datetime.datetime.now().strftime('%Y-%m-%d')
             try:
                 resp_hist = self.exchanger.get_json('api.coindesk.com', "/v1/bpi/historical/close.json?start=" + mintimestr + "&end=" + maxtimestr)
