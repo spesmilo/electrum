@@ -1,4 +1,5 @@
 # Release 1.9.8
+(This release includes features initially planned for version 2.0)
 
 * Electrum servers were upgraded to version 0.9. The new server stores
   a Patrica tree of all UTXOs, an idea proposed by Alan Reiner in the
