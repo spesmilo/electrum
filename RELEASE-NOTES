@@ -1,3 +1,34 @@
+# Release 1.9.8
+
+* Electrum servers were upgraded to version 0.9. The new server stores
+  a Patrica tree of all UTXOs, an idea proposed by Alan Reiner in the
+  bitcointalk forum. This property allows the client to directly
+  request the balance of any address. The new commands are:
+     1. getaddressbalance <address> 
+     2. getaddressunspent <address>
+     3. getutxoaddress <txid> <pos>
+
+* In addition, two commands for message encryption were added:
+     1. encrypt <pubkey> <message>
+     2. decrypt <pubkey> <message>  
+
+  The encryption algorithm is ECIES, and code was was borrowed from
+  https://github.com/jackjack-jj/jeeq.  In order to know the public
+  key corresponding to a Bitcoin address, you can use the 'getpubkeys'
+  command. The 'decrypt' command assumes that the wallet has the
+  private key corresponding to the public key passed as argument.
+
+* The encrypt and decrypt functions are available in the Qt GUI (from
+  the menubar, or right click on one of your addresses if you want to
+  use its public key).
+
+* Command-line commands that require a connection to the network spawn
+  a daemon, that remains connected and handles subsequent
+  commands. The daemon terminates if it remains unused for more than
+  one minute.
+
+
+
 # Release 1.9.7
 * Fix for offline signing
 * Various bugfixes
