@@ -295,28 +295,6 @@ class NetworkServer:
 
 
 
-def start_daemon(config):
-    pid = os.fork()
-    if (pid == 0): # The first child.
-        os.chdir("/")
-        os.setsid()
-        os.umask(0)
-        pid2 = os.fork()
-        if (pid2 == 0):  # Second child
-            server = NetworkServer(config)
-            try:
-                server.main_loop()
-            except KeyboardInterrupt:
-                print "Ctrl C - Stopping server"
-            sys.exit(1)
-
-        sys.exit(0)
-
-    # should use a signal
-    time.sleep(2)
-
-
-
 if __name__ == '__main__':
     import simple_config
     config = simple_config.SimpleConfig({'verbose':True, 'server':'ecdsa.net:50002:s'})

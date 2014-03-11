@@ -14,4 +14,4 @@ from plugins import BasePlugin
 from mnemonic import mn_encode as mnemonic_encode
 from mnemonic import mn_decode as mnemonic_decode
 from commands import Commands, known_commands
-from daemon import start_daemon, NetworkProxy
+from daemon import NetworkProxy, NetworkServer
