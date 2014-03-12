@@ -1251,7 +1251,7 @@ class NewWallet:
                         try:
                             default_label = self.labels[o_addr]
                         except KeyError:
-                            default_label = o_addr
+                            default_label = '>' + o_addr
                         break
                 else:
                     default_label = '(internal)'
@@ -1273,7 +1273,7 @@ class NewWallet:
                     try:
                         default_label = self.labels[o_addr]
                     except KeyError:
-                        default_label = o_addr
+                        default_label = '<' + o_addr
 
         return default_label
 
