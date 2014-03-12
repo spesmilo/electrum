@@ -8,6 +8,7 @@ plugins = []
 
 def init_plugins(self):
     import imp, pkgutil, __builtin__, os
+    from simple_config import SimpleConfig
     global plugins
 
     if __builtin__.use_local_modules:
@@ -20,6 +21,18 @@ def init_plugins(self):
         import electrum_plugins
         plugin_names = [name for a, name, b in pkgutil.iter_modules(electrum_plugins.__path__)]
         plugin_modules = [ __import__('electrum_plugins.'+name, fromlist=['electrum_plugins']) for name in plugin_names]
+
+    user_plugins = os.path.join(SimpleConfig().path, "plugins")
+
+    if os.path.exists(user_plugins):
+        user_plugin_names = [name for a, name, b in pkgutil.iter_modules([user_plugins])]
+        user_plugin_modules = [ imp.load_source(name, os.path.join(user_plugins, name+".py")) for name in user_plugin_names]
+
+        # Make sure the user isn't loading the same plugin twice
+        for name, p in zip(user_plugin_names, user_plugin_modules):
+            if name not in plugin_names:
+                plugin_names.append(name)
+                plugin_modules.append(p)
 
     for name, p in zip(plugin_names, plugin_modules):
         try:
