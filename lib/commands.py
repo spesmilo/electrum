@@ -337,10 +337,8 @@ class Commands:
                 time_str = "----"
 
             label, is_default_label = self.wallet.get_label(tx_hash)
-            if not label: label = tx_hash
-            else: label = label + ' '*(64 - len(label) )
 
-            out.append( "%16s"%time_str + "  " + label + "  " + format_satoshis(value)+ "  "+ format_satoshis(balance) )
+            out.append({'txid':tx_hash, 'date':"%16s"%time_str, 'label':label, 'value':format_satoshis(value)})
         return out
 
 
