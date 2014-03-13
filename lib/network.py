@@ -182,11 +182,14 @@ class Network(threading.Thread):
 
 
     def get_servers(self):
-        out = self.irc_servers if self.irc_servers else DEFAULT_SERVERS
-        for s in self.recent_servers:
-            host, port, protocol = s.split(':')
-            if host not in out:
-                out[host] = { protocol:port }
+        if self.irc_servers:
+            out = self.irc_servers  
+        else:
+            out = DEFAULT_SERVERS
+            for s in self.recent_servers:
+                host, port, protocol = s.split(':')
+                if host not in out:
+                    out[host] = { protocol:port }
         return out
 
     def start_interface(self, server):
