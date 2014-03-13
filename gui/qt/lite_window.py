@@ -659,7 +659,8 @@ class MiniActuator:
         self.g = main_window
         self.theme_name = self.g.config.get('litegui_theme','Cleanlook')
         self.themes = load_theme_paths()
-        self.load_theme()
+        # see issue 509
+        # self.load_theme()
 
     def load_theme(self):
         """Load theme retrieved from wallet file."""
