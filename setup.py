@@ -47,7 +47,6 @@ data_files += [
         "data/sahara/style.css"
     ]),
     (os.path.join(appdata_dir, "dark"), [
-        "data/dark/background.png",
         "data/dark/name.cfg",
         "data/dark/style.css"
     ])
