@@ -639,9 +639,9 @@ class NewWallet:
         rs = self.rebase_sequence(account, sequence)
         dd = []
         for root, public_sequence in rs:
-            c, K, _ = self.master_public_keys[root]
+            c, K, cK = self.master_public_keys[root]
             s = '/' + '/'.join( map(lambda x:str(x), public_sequence) )
-            dd.append( 'bip32(%s,%s,%s)'%(c,K, s) )
+            dd.append( 'bip32(%s,%s,%s)'%(c, cK, s) )
         return '&'.join(dd)
 
 
