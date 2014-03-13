@@ -1813,6 +1813,8 @@ class Wallet(object):
             seed_version = NEW_SEED_VERSION if config.get('bip32') is True else OLD_SEED_VERSION
         else:
             seed_version = storage.get('seed_version')
+            if not seed_version:
+                seed_version = OLD_SEED_VERSION if len(storage.get('master_public_key')) == 128 else NEW_SEED_VERSION
 
         if seed_version == OLD_SEED_VERSION:
             return OldWallet(storage)
