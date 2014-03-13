@@ -348,12 +348,10 @@ class MiniWindow(QDialog):
 
 
     def toggle_theme(self, theme_name):
-        old_path = QDir.currentPath()
         self.actuator.change_theme(theme_name)
         # Recompute style globally
         qApp.style().unpolish(self)
         qApp.style().polish(self)
-        QDir.setCurrent(old_path)
 
     def closeEvent(self, event):
         g = self.geometry()
@@ -659,7 +657,6 @@ class MiniActuator:
         self.g = main_window
         self.theme_name = self.g.config.get('litegui_theme','Cleanlook')
         self.themes = load_theme_paths()
-        # see issue 509
         self.load_theme()
 
     def load_theme(self):
@@ -669,8 +666,8 @@ class MiniActuator:
         except KeyError:
             util.print_error("Theme not found!", self.theme_name)
             return
-        full_theme_path = ("%s/%s/style.css" % (theme_prefix, theme_path))
-        with open(rsrc(full_theme_path)) as style_file:
+        full_theme_path = "%s/%s/style.css" % (theme_prefix, theme_path)
+        with open(full_theme_path) as style_file:
             qApp.setStyleSheet(style_file.read())
 
     def theme_names(self):

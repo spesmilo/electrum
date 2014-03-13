@@ -21,5 +21,6 @@
     <file>icons/electrum_dark_icon.png</file>
     <file>icons/unconfirmed.png</file>
     <file>icons/network.png</file>
+    <file>icons/dark_background.png</file>
   </qresource>
 </RCC>
