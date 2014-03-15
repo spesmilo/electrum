@@ -155,6 +155,13 @@ class TxDialog(QDialog):
         else:
             self.date_label.hide()
 
+
+        # if we are not synchronized, we cannot tell
+        if self.parent.network is None or not self.parent.network.is_running() or not self.parent.network.is_connected():
+            return
+        if not self.wallet.up_to_date:
+            return
+
         if is_relevant:    
             if is_mine:
                 if fee is not None: 
