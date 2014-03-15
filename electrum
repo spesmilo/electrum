@@ -90,7 +90,7 @@ def arg_parser():
     parser.add_option("-G", "--gap", dest="gap_limit", default=None, help="gap limit")
     parser.add_option("-W", "--password", dest="password", default=None, help="set password for usage with commands (currently only implemented for create command, do not use it for longrunning gui session since the password is visible in /proc)")
     parser.add_option("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
-    parser.add_option("--bip32", action="store_true", dest="bip32", default=False, help="bip32 (not final)")
+    #parser.add_option("--bip32", action="store_true", dest="bip32", default=False, help="bip32 (not final)")
     parser.add_option("--mpk", dest="mpk", default=False, help="restore from master public key")
     return parser
 
