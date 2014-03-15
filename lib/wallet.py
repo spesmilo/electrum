@@ -741,7 +741,13 @@ class NewWallet:
 
         # add redeem script for coins that are in the wallet
         # FIXME: add redeemPubkey too!
-        unspent_coins = self.get_unspent_coins()
+
+        try:
+            unspent_coins = self.get_unspent_coins()
+        except:
+            # an exception may be raised is the wallet is not synchronized
+            unspent_coins = []
+
         for txin in tx.inputs:
             for item in unspent_coins:
                 if txin['prevout_hash'] == item['prevout_hash'] and txin['prevout_n'] == item['prevout_n']:
