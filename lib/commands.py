@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import time
 from util import *
 from bitcoin import *
 from decimal import Decimal
@@ -237,6 +238,8 @@ class Commands:
         return out
 
     def getservers(self):
+        while not self.network.is_up_to_date():
+            time.sleep(0.1)
         return self.network.get_servers()
 
     def getversion(self):
