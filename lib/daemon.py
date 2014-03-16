@@ -17,7 +17,6 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import socket
-import select
 import time
 import sys
 import os
