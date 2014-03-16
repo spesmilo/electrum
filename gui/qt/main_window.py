@@ -368,7 +368,7 @@ class ElectrumWindow(QMainWindow):
         tools_menu.addAction(_("&Plugins"), self.plugins_dialog)
         tools_menu.addSeparator()
         tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
-        tools_menu.addAction(_("&Encrypt/decrypt message"), self.encrypt_message)
+        #tools_menu.addAction(_("&Encrypt/decrypt message"), self.encrypt_message)
         tools_menu.addSeparator()
 
         csv_transaction_menu = tools_menu.addMenu(_("&Create transaction"))
@@ -1099,7 +1099,7 @@ class ElectrumWindow(QMainWindow):
             if self.wallet.seed:
                 menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
                 menu.addAction(_("Sign/verify message"), lambda: self.sign_verify_message(addr))
-                menu.addAction(_("Encrypt/decrypt message"), lambda: self.encrypt_message(addr))
+                #menu.addAction(_("Encrypt/decrypt message"), lambda: self.encrypt_message(addr))
             if addr in self.wallet.imported_keys:
                 menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
 
