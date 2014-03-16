@@ -9,21 +9,6 @@
      2. getaddressunspent <address>
      3. getutxoaddress <txid> <pos>
 
-* In addition, two commands for message encryption were added:
-     1. encrypt <pubkey> <message>
-     2. decrypt <pubkey> <message>  
-
-  The encryption algorithm is ECIES, and code was was borrowed from
-  https://github.com/jackjack-jj/jeeq.  In order to know the public
-  key corresponding to a Bitcoin address in your wallet, you can use
-  the 'getpubkeys' command. The 'decrypt' command assumes that the
-  wallet has the private key corresponding to the public key passed as
-  argument.
-
-* The encrypt and decrypt functions are available in the Qt GUI (from
-  the menubar, or right click on one of your addresses if you want to
-  use its public key).
-
 * Command-line commands that require a connection to the network spawn
   a daemon, that remains connected and handles subsequent
   commands. The daemon terminates itself if it remains unused for more
