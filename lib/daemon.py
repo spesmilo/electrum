@@ -27,26 +27,60 @@ import json
 import Queue
 from network import Network
 from util import print_msg
+from simple_config import SimpleConfig
 
 
 class NetworkProxy(threading.Thread):
     # connects to daemon
     # sends requests, runs callbacks
 
-    def __init__(self, config):
+    def __init__(self, config = {}):
         threading.Thread.__init__(self)
         self.daemon = True
-        self.config = config
+        self.config = SimpleConfig(config) if type(config) == type({}) else config
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.daemon_port = config.get('daemon_port', 8000)
-        self.socket.connect(('', self.daemon_port))
         self.message_id = 0
         self.unanswered_requests = {}
         self.subscriptions = {}
         self.debug = False
         self.lock = threading.Lock()
-        
+
+
+    def start(self, start_daemon=False):
+        daemon_started = False
+        while True:
+            try:
+                self.socket.connect(('', self.daemon_port))
+                threading.Thread.start(self)
+                return True
+
+            except socket.error:
+                if not start_daemon:
+                    return False
+
+                elif not daemon_started:
+                    print "Starting daemon [%s]"%self.config.get('server')
+                    daemon_started = True
+                    pid = os.fork()
+                    if (pid == 0): # The first child.
+                        os.chdir("/")
+                        os.setsid()
+                        os.umask(0)
+                        pid2 = os.fork()
+                        if (pid2 == 0):  # Second child
+                            server = NetworkServer(self.config)
+                            try:
+                                server.main_loop()
+                            except KeyboardInterrupt:
+                                print "Ctrl C - Stopping server"
+                            sys.exit(1)
+                        sys.exit(0)
+                else:
+                    time.sleep(0.1)
+
+
 
     def parse_json(self, message):
         s = message.find('\n')

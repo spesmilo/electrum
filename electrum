@@ -110,38 +110,13 @@ def print_help_cb(self, opt, value, parser):
 def run_command(cmd, password=None, args=[]):
     import socket
     if cmd.requires_network and not options.offline:
-        daemon_started = False
-        while True:
-            try:
-                network = NetworkProxy(config)
-                break
-            except socket.error:
-                if cmd != 'daemon':
-                    if not daemon_started:
-                        print "Starting daemon [%s]"%config.get('server')
-                        daemon_started = True
-                        pid = os.fork()
-                        if (pid == 0): # The first child.
-                            os.chdir("/")
-                            os.setsid()
-                            os.umask(0)
-                            pid2 = os.fork()
-                            if (pid2 == 0):  # Second child
-                                server = NetworkServer(config)
-                                try:
-                                    server.main_loop()
-                                except KeyboardInterrupt:
-                                    print "Ctrl C - Stopping server"
-                                sys.exit(1)
-                            sys.exit(0)
-                    else:
-                        time.sleep(0.1)
-                else:
-                    print "Daemon not running"
-                    sys.exit(1)
+        network = NetworkProxy(config)
+        if not network.start(start_daemon= (True if cmd.name!='daemon' else False)):
+            print "Daemon not running"
+            sys.exit(1)
 
-        network = network
-        network.start()
+
+
         if wallet:
             wallet.start_threads(network)
             wallet.update()

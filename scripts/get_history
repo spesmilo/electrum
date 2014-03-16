@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import sys
-from electrum import Network
+from electrum import NetworkProxy, print_json
 
 try:
     addr = sys.argv[1]
@@ -9,9 +9,8 @@ except Exception:
     print "usage: get_history <bitcoin_address>"
     sys.exit(1)
 
-n = Network()
-n.start(wait=True)
+n = NetworkProxy()
+n.start(start_daemon=True)
 h = n.synchronous_get([ ('blockchain.address.get_history',[addr]) ])[0]
-for item in h:
-    print item['tx_hash'], item['height']
+print_json(h)
 
