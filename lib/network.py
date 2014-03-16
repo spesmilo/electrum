@@ -18,7 +18,9 @@ DEFAULT_SERVERS = {
     'electrum.electricnewyear.net': DEFAULT_PORTS,
     'erbium.sytes.net': DEFAULT_PORTS,
     'e2.pdmc.net':DEFAULT_PORTS,
+    'electrum.no-ip.org':{'h': '80', 's': '50002', 't': '50001', 'g': '443'},
     'electrum.thwg.org':DEFAULT_PORTS,
+    'electrum.stepkrav.pw':DEFAULT_PORTS,
 }
 
 
