@@ -86,7 +86,6 @@ setup(
         'electrum.version',
         'electrum.wallet',
         'electrum.wallet_bitkey',
-        'electrum.wallet_factory',
         'electrum_gui.gtk',
         'electrum_gui.qt.__init__',
         'electrum_gui.qt.amountedit',
