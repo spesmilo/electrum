@@ -70,7 +70,7 @@ class Exchanger(threading.Thread):
             except Exception:
                 return
             return btc_amount * decimal.Decimal(str(resp_rate["bpi"][str(quote_currency)]["rate_float"]))
-        return btc_amount * decimal.Decimal(quote_currencies[quote_currency])
+        return btc_amount * decimal.Decimal(str(quote_currencies[quote_currency]))
 
     def stop(self):
         self.is_running = False
@@ -126,7 +126,7 @@ class Exchanger(threading.Thread):
         lenprices = len(winkresp["prices"])
         usdprice = winkresp["prices"][lenprices-1]["y"]
         try:
-            quote_currencies["USD"] = decimal.Decimal(usdprice)
+            quote_currencies["USD"] = decimal.Decimal(str(usdprice))
             with self.lock:
                 self.quote_currencies = quote_currencies
         except KeyError:
@@ -141,7 +141,7 @@ class Exchanger(threading.Thread):
         quote_currencies = {"CAD": 0.0}
         cadprice = jsonresp["last"]
         try:
-            quote_currencies["CAD"] = decimal.Decimal(cadprice)
+            quote_currencies["CAD"] = decimal.Decimal(str(cadprice))
             with self.lock:
                 self.quote_currencies = quote_currencies
         except KeyError:
@@ -156,7 +156,7 @@ class Exchanger(threading.Thread):
         quote_currencies = {"CNY": 0.0}
         cnyprice = jsonresp["ticker"]["last"]
         try:
-            quote_currencies["CNY"] = decimal.Decimal(cnyprice)
+            quote_currencies["CNY"] = decimal.Decimal(str(cnyprice))
             with self.lock:
                 self.quote_currencies = quote_currencies
         except KeyError:
@@ -291,7 +291,7 @@ class Plugin(BasePlugin):
     def init(self):
         self.win = self.gui.main_window
         self.win.connect(self.win, SIGNAL("refresh_currencies()"), self.win.update_status)
-        self.btc_rate = Decimal(0.0)
+        self.btc_rate = Decimal("0.0")
         # Do price discovery
         self.exchanger = Exchanger(self)
         self.exchanger.start()
@@ -309,7 +309,7 @@ class Plugin(BasePlugin):
     def create_quote_text(self, btc_balance):
         quote_currency = self.config.get("currency", "EUR")
         self.exchanger.use_exchange = self.config.get("use_exchange", "Blockchain")
-        cur_rate = self.exchanger.exchange(Decimal(1.0), quote_currency)
+        cur_rate = self.exchanger.exchange(Decimal("1.0"), quote_currency)
         if cur_rate is None:
             quote_text = ""
         else:
@@ -376,12 +376,12 @@ class Plugin(BasePlugin):
                 tx_time = int(tx_info['timestamp'])
                 tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
                 try:
-                    tx_USD_val = "%.2f %s" % (Decimal(tx_info['value']) / 100000000 * Decimal(resp_hist['bpi'][tx_time_str]), "USD")
+                    tx_USD_val = "%.2f %s" % (Decimal(str(tx_info['value'])) / 100000000 * Decimal(resp_hist['bpi'][tx_time_str]), "USD")
                 except KeyError:
-                    tx_USD_val = "%.2f %s" % (self.btc_rate * Decimal(tx_info['value'])/100000000 , "USD")
+                    tx_USD_val = "%.2f %s" % (self.btc_rate * Decimal(str(tx_info['value']))/100000000 , "USD")
 
                 item.setText(5, tx_USD_val)
-                if Decimal(tx_info['value']) < 0:
+                if Decimal(str(tx_info['value'])) < 0:
                     item.setForeground(5, QBrush(QColor("#BC1E1E")))
 
             for i, width in enumerate(self.gui.main_window.column_widths['history']):
