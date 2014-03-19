@@ -1,0 +1,286 @@
+#:import TabbedCarousel electrum_gui.kivy.tabbed_carousel.TabbedCarousel
+#:import ScreenDashboard electrum_gui.kivy.screens.ScreenDashboard
+#:import Factory kivy.factory.Factory
+#:import Carousel electrum_gui.kivy.carousel.Carousel
+
+Screen:
+    canvas.before:
+        Color:
+            rgba: 0.917, 0.917, 0.917, 1
+        Rectangle:
+            size: self.size
+            pos: self.pos
+    BoxLayout:
+        orientation: 'vertical'
+        ActionBar:
+            id: action_bar
+            size_hint: 1, None
+            height: '40dp'
+            border: 4, 4, 4, 4
+            background_image: 'atlas://gui/kivy/theming/light/action_bar'
+        ScreenManager:
+            id: manager
+            ScreenTabs:
+                id: tabs
+                name: "tabs"
+            #ScreenPassword:
+            #    id: password
+            #    name: 'password'
+
+<TabbedCarousel>
+    carousel: carousel
+    do_default_tab: False
+    Carousel:
+        scroll_timeout: 190
+        anim_type: 'out_quart'
+        min_move: .05
+        anim_move_duration: .1
+        anim_cancel_duration: .54
+        scroll_distance: '10dp'
+        on_index: root.on_index(*args)
+        id: carousel
+
+################################
+##  Cards (under Dashboard)
+################################
+
+<Card@GridLayout>
+    cols: 1
+    padding: '12dp' , '22dp', '12dp' , '12dp'
+    spacing: '12dp'
+    size_hint: 1, None
+    height: max(100, self.minimum_height)
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 1
+        BorderImage:
+            border: 9, 9, 9, 9
+            source: 'atlas://gui/kivy/theming/light/card'
+            size: self.size
+            pos: self.pos
+
+<CardLabel@Label>
+    color: 0.45, 0.45, 0.45, 1
+    size_hint: 1, None
+    text: ''
+    text_size: self.width, None
+    height: self.texture_size[1]
+    halign: 'left'
+    valign: 'top'
+
+<CardButton@Button>
+    background_normal: 'atlas://gui/kivy/theming/light/card_btn'
+    bold: True
+    font_size: '10sp'
+    color: 0.699, 0.699, 0.699, 1
+    size_hint: None, None
+    size: self.texture_size[0] + dp(32), self.texture_size[1] + dp(7)
+
+<CardSeparator@Widget>
+    size_hint: 1, None
+    height: dp(1)
+    color: .909, .909, .909, 1
+    canvas:
+        Color:
+            rgba: root.color if root.color else (0, 0, 0, 0)
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
+<CardRecentActivity@Card>
+    BoxLayout:
+        size_hint: 1, None
+        height: lbl.height
+        CardLabel:
+            id: lbl
+            text: _('RECENT ACTIVITY')
+        CardButton:
+            id: btn_see_all
+            text: _('SEE ALL')
+            font_size: '12sp'
+            on_release: app.gui.main_gui.update_history(see_all=True)
+    GridLayout:
+        id: content
+        spacing: '7dp'
+        cols: 1
+        size_hint: 1, None
+        height: self.minimum_height
+        CardSeparator
+
+<CardPaymentRequest@Card>
+    CardLabel:
+        text: _('PAYMENT REQUEST')
+    CardSeparator:
+
+<CardStatusInfo@Card>
+    status: app.status
+    base_unit: 'BTC'
+    quote_text: '.'
+    unconfirmed: '.'
+    BoxLayout:
+        size_hint: 1, None
+        height: '72dp'
+        IconButton:
+            mipmap: True
+            color: .90, .90, .90, 1
+            source: 'atlas://gui/kivy/theming/light/qrcode'
+            size_hint: None, 1
+            width: self.height
+            on_release:
+                Factory.WalletAddressesDialog().open()
+        GridLayout:
+            id: grid
+            cols: 1
+            orientation: 'vertical'
+            CardLabel:
+                halign: 'right'
+                valign: 'top'
+                bold: True
+                size_hint: 1, None
+                font_size: '38sp'
+                text:
+                    '[color=#4E4F4F]{}[/color]'\
+                    '[sup][color=9b948d]{}[/color][/sup]'\
+                    .format(unicode(root.status), root.base_unit)
+            CardLabel
+                halign: 'right'
+                markup: True
+                font_size: '15dp'
+                text: '[color=#c3c3c3]{}[/color]'.format(root.quote_text)
+            CardLabel
+                halign: 'right'
+                markup: True
+                text: '[color=#c3c3c3]{}[/color]'.format(root.unconfirmed)
+
+<DashboardActionView@ActionView>
+    ActionPrevious:
+        id: action_previous
+        app_icon: 'atlas://gui/kivy/theming/light/wallets'
+        with_previous: False
+        size_hint: None, 1
+        mipmap: True
+        width: '77dp'
+    ActionButton:
+        id: action_logo
+        important: True
+        size_hint: 1, 1
+        markup: True
+        mipmap: True
+        bold: True
+        font_size: '22dp'
+        icon: 'atlas://gui/kivy/theming/light/logo'
+        minimum_width: '1dp'
+    ActionButton:
+        id: action_contact
+        important: True
+        width: '25dp'
+        icon: 'atlas://gui/kivy/theming/light/add_contact'
+        text: 'Add Contact'
+        on_release: NewContactDialog().open()
+    ActionOverflow:
+        id: action_preferences
+        canvas.after:
+            Color:
+                rgba: 1, 1, 1, 1
+        border: 0, 0, 0, 0
+        overflow_image: 'atlas://gui/kivy/theming/light/settings'
+        width: '32dp'
+        ActionButton:
+            text: _('Seed')
+            on_release:
+                action_preferences._dropdown.dismiss()
+                if app.wallet.seed: app.gui.main_gui.protected_seed_dialog(self)
+        ActionButton:
+            text: _('Password')
+        ActionButton:
+            text: _('Network')
+            on_release:
+                app.root.current = 'screen_network'
+                action_preferences._dropdown.dismiss()
+        ActionButton:
+            text: _('Preferences')
+            on_release:
+                action_preferences._dropdown.dismiss()
+                app.gui.main_gui.show_settings_dialog(self)
+
+<ScreenDashboard>
+    action_view: Factory.DashboardActionView()
+    ScrollView:
+        do_scroll_x: False
+        RelativeLayout:
+            size_hint: 1, None
+            height: grid.height
+            GridLayout
+                id: grid
+                cols: 1 #if root.width < root.height else 2
+                size_hint: 1, None
+                height: self.minimum_height
+                padding: '12dp'
+                spacing: '12dp'
+                GridLayout:
+                    cols: 1
+                    size_hint: 1, None
+                    height: self.minimum_height
+                    spacing: '12dp'
+                    orientation: 'vertical'
+                    CardStatusInfo:
+                        id: status_card
+                    CardPaymentRequest:
+                        id: payment_card
+                CardRecentActivity:
+                    id: recent_activity_card
+
+<CleanHeader@TabbedPanelHeader>
+    border: 0, 0, 4, 0
+    markup: False
+    color: (0.191, 0.558, 0.742, 1) if self.state == 'down' else (0.636, 0.636, 0.636, 1)
+    text_size: self.size
+    halign: 'center'
+    valign: 'middle'
+    bold: True
+    font_size: '12sp'
+    background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
+    background_disabled_normal: 'atlas://gui/kivy/theming/light/tab_btn_disabled'
+    background_down: 'atlas://gui/kivy/theming/light/tab_btn_pressed'
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, .7
+        Rectangle:
+            size: self.size
+            pos: self.x + 1, self.y - 1
+            texture: self.texture
+
+<ScreenTabs@Screen>
+    TabbedCarousel:
+        id: panel
+        background_image: 'atlas://gui/kivy/theming/light/tab'
+        strip_image: 'atlas://gui/kivy/theming/light/tab_strip'
+        strip_border: 4, 0, 2, 0
+        ScreenDashboard:
+            id: screen_dashboard
+            tab: tab_dashboard
+        #ScreenSend:
+        #    id: screen_send
+        #    tab: tab_send
+        #ScreenReceive:
+        #    id: screen_receive
+        #    tab: tab_receive
+        #ScreenContacts:
+        #    id: screen_contacts
+        #    tab: tab_contacts
+        CleanHeader:
+            id: tab_dashboard
+            text: _('DASHBOARD')
+            slide: 0
+        #CleanHeader:
+        #    id: tab_send
+        #    text: _('SEND')
+        #    slide: 1
+        #CleanHeader:
+        #    id: tab_receive
+        #    text: _('RECEIVE')
+        #    slide: 2
+        #CleanHeader:
+        #    id: tab_contacts
+        #    text: _('CONTACTS')
+        #    slide: 3

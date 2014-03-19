@@ -111,7 +111,7 @@ class Drawer(StencilView):
         ov = self._overlay_widget
         ov.x=min(self._hidden_widget.width,
             max(ov.x + touch.dx*2, 0))
-        #_anim = Animation(x=x, duration=1/60)
+        #_anim = Animation(x=x, duration=1/2, t='in_out_quart')
         #_anim.cancel_all(ov)
         #_anim.start(ov)
 

@@ -1,7 +1,7 @@
 from kivy.uix.carousel import Carousel
 from kivy.clock import Clock
 
-class CCarousel(Carousel):
+class Carousel(Carousel):
 
     def on_touch_move(self, touch):
         if self._get_uid('cavoid') in touch.ud:
@@ -30,11 +30,3 @@ class CCarousel(Carousel):
 
             self._offset += diff * 1.27
         return True
-
-if __name__ == "__main__":
-    from kivy.app import runTouchApp
-    from kivy.uix.button import Button
-    cc = CCarousel()
-    for i in range(10):
-        cc.add_widget(Button(text=str(i)))
-    runTouchApp(cc)

@@ -7,14 +7,14 @@ theming:
 	$(PYTHON) -m kivy.atlas theming/light 1024 theming/light/*.png
 apk:
 	# running pre build setup
-	@cp build/buildozer.spec ../../buildozer.spec
+	@cp tools/buildozer.spec ../../buildozer.spec
 	# get aes.py
 	@cd ../..; wget -4 https://raw.github.com/devrandom/slowaes/master/python/aes.py
 	# rename electrum to main.py
 	@mv ../../electrum ../../main.py
 	@-if [ ! -d "../../.buildozer" ];then \
 		cd ../..; buildozer android debug;\
-		cp -f gui/kivy/build/blacklist.txt .buildozer/android/platform/python-for-android/src/blacklist.txt;\
+		cp -f gui/kivy/tools/blacklist.txt .buildozer/android/platform/python-for-android/src/blacklist.txt;\
 		rm -rf ./.buildozer/android/platform/python-for-android/dist;\
 	fi
 	@-cd ../..; buildozer android debug deploy run

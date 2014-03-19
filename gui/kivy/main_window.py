@@ -7,16 +7,17 @@ from electrum.wallet import format_satoshis
 
 from kivy.app import App
 from kivy.core.window import Window
-from kivy.metrics import inch
+from kivy.lang import Builder
 from kivy.logger import Logger
+from kivy.metrics import inch
 from kivy.utils import platform
 from kivy.properties import (OptionProperty, AliasProperty, ObjectProperty,
                              StringProperty, ListProperty)
 from kivy.clock import Clock
 
 #inclusions for factory so that widgets can be used in kv
-from gui.kivy.drawer import Drawer
-from gui.kivy.dialog import InfoBubble
+from electrum_gui.kivy.drawer import Drawer
+from electrum_gui.kivy.dialog import InfoBubble
 
 # delayed imports
 notification = None
@@ -307,7 +308,8 @@ class ElectrumWindow(App):
         self.completions = []
 
         # setup UX
-        #self.load_dashboard
+        self.screens = ['mainscreen']
+        self.load_screen(index=0)
 
         self.icon = "icons/electrum.png"
 
@@ -352,8 +354,8 @@ class ElectrumWindow(App):
         return quote_text
 
     def set_currencies(self, quote_currencies):
-        #TODO remove this and just directly update a observable property
         self._trigger_update_status()
+        print quote_currencies
         self.currencies = sorted(quote_currencies.keys())
 
     def update_console(self, *dt):
@@ -683,19 +685,22 @@ class ElectrumWindow(App):
         Logger.debug('orientation: {} ui_mode: {}'.format(self._orientation,
                                                           self._ui_mode))
 
-    def load_screen(self, index=0, direction='left'):
+    def load_screen(self, index=0, direction='left', manager=None):
+        ''' Load the appropriate screen as mentioned in the parameters.
         '''
-        '''
-        screen = Builder.load_file('data/screens/' + self.screens[index])
+        manager = manager or self.root.manager
+        screen = Builder.load_file('gui/kivy/ui_screens/'\
+            + self.screens[index] + '.kv')
         screen.name = self.screens[index]
-        root.manager.switch_to(screen, direction=direction)
+        manager.switch_to(screen, direction=direction)
 
     def load_next_screen(self):
         '''
         '''
         manager = root.manager
         try:
-            self.load_screen(self.screens.index(manager.current_screen.name)+1)
+            self.load_screen(self.screens.index(manager.current_screen.name)+1,
+                             manager=manager)
         except IndexError:
             self.load_screen()
 
@@ -705,9 +710,10 @@ class ElectrumWindow(App):
         manager = root.manager
         try:
             self.load_screen(self.screens.index(manager.current_screen.name)-1,
-                             direction='right')
+                             direction='right',
+                             manager=manager)
         except IndexError:
-            self.load_screen(-1, direction='right')
+            pass
 
     def show_error(self, error,
                    width='200dp',

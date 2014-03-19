@@ -440,27 +440,23 @@ StencilView
                 Rectangle:
                     size: self.size
                     pos: self.pos
-            canvas.after:
-                Color
-                    rgba: 1, 1, 1, 1
-                BorderImage
-                    border: 0, 32, 0, 0
-                    source: 'atlas://gui/kivy/theming/light/shadow_right'
-                    pos: self.pos
-                    size: self.size
             width:
                 (root.width * .877) if app.ui_mode[0] == 'p'\
                 else root.width * .35 if app.orientation[0] == 'l'\
                 else root.width * .10
             height: root.height
-        ScreenManager:
-            id: manager
+        BoxLayout:
             x: wallet_management.width if app.ui_mode[0] == 't' else 0
-            size: root.size
+            width: (root.width - self.x) if app.ui_mode[0] == 't' else root.width
+            size_hint: None, None
+            height: root.height
             canvas.before:
                 Color
                     rgba: 1, 1, 1, 1
-                BorderImage:
-                    border: 2, 2, 2, 23
-                    size: self.size
-                    pos: self.x, self.y
+                BorderImage
+                    border: 0, 32, 0, 0
+                    source: 'atlas://gui/kivy/theming/light/shadow_right'
+                    pos: root.pos
+                    size: self.x, self.height
+            ScreenManager:
+                id: manager
