@@ -19,6 +19,7 @@ r = q.get(timeout=10000)
 peers = parse_servers(r.get('result'))
 peers = filter_protocol(peers,'s')
 
+print "Contacting %d servers"%len(peers)
 # start interfaces
 config = SimpleConfig()
 interfaces = map ( lambda server: Interface(server, config), peers )
@@ -27,11 +28,16 @@ reached_servers = []
 for i in interfaces: i.start(q)
 
 while peers:
-    i = q.get(timeout=10)
+    try:
+        i = q.get(timeout=3)
+    except:
+        break
     peers.remove(i.server)
     if i.is_connected:
         i.send([('blockchain.headers.subscribe',[])], lambda i,x: results_queue.put((i,x)))
         reached_servers.append(i.server)
+
+print "%d servers could be reached"%len(reached_servers)
 
 def analyze(results):
     out = {}
