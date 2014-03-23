@@ -337,7 +337,10 @@ class Plugin(BasePlugin):
         out = BasePlugin.toggle(self)
         self.win.update_status()
         if self.config.get('use_exchange_rate'):
-            self.gui.main_window.show_message("To see fiat amount when sending bitcoin, please restart Electrum to activate the new GUI settings.")
+            try:
+                self.fiat_button
+            except:
+                self.gui.main_window.show_message("To see fiat amount when sending bitcoin, please restart Electrum to activate the new GUI settings.")
         return out
 
 
@@ -427,7 +430,12 @@ class Plugin(BasePlugin):
                     hist_checkbox.setChecked(False)
                     hist_checkbox.setEnabled(False)
                 self.win.update_status()
-                self.fiat_button.setText(cur_request)
+                try:
+                    self.fiat_button
+                except:
+                    pass
+                else:
+                    self.fiat_button.setText(cur_request)
 
         def disable_check():
             hist_checkbox.setChecked(False)
