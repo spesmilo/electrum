@@ -11,6 +11,7 @@ from decimal import Decimal
 from electrum.plugins import BasePlugin
 from electrum.i18n import _
 from electrum_gui.qt.util import *
+from electrum_gui.qt.amountedit import AmountEdit
 
 
 EXCHANGES = ["BitcoinAverage",
@@ -335,6 +336,8 @@ class Plugin(BasePlugin):
     def toggle(self):
         out = BasePlugin.toggle(self)
         self.win.update_status()
+        if self.config.get('use_exchange_rate'):
+            self.gui.main_window.show_message("To see fiat amount when sending bitcoin, please restart Electrum to activate the new GUI settings.")
         return out
 
 
@@ -396,6 +399,7 @@ class Plugin(BasePlugin):
 
     def settings_dialog(self):
         d = QDialog()
+        d.setWindowTitle("Settings")
         layout = QGridLayout(d)
         layout.addWidget(QLabel(_('Exchange rate API: ')), 0, 0)
         layout.addWidget(QLabel(_('Currency: ')), 1, 0)
@@ -423,6 +427,7 @@ class Plugin(BasePlugin):
                     hist_checkbox.setChecked(False)
                     hist_checkbox.setEnabled(False)
                 self.win.update_status()
+                self.fiat_button.setText(cur_request)
 
         def disable_check():
             hist_checkbox.setChecked(False)
@@ -511,3 +516,60 @@ class Plugin(BasePlugin):
 
 
         
+    def fiat_unit(self):
+        r = {}
+        self.set_quote_text(100000000, r)
+        quote = r.get(0)
+        if quote:
+          return quote[-3:]
+        else:
+          return "???"
+
+    def fiat_dialog(self):
+        if not self.config.get('use_exchange_rate'):
+          self.gui.main_window.show_message("To use this feature, first enable the exchange rate plugin.")
+          return
+
+        quote_currency = self.config.get("currency", "EUR")
+
+        d = QDialog(self.gui.main_window)
+        d.setWindowTitle("Fiat")
+        vbox = QVBoxLayout(d)
+        text = "Amount to Send in " + quote_currency
+        vbox.addWidget(QLabel(_(text)+':'))
+
+        grid = QGridLayout()
+        fiat_e = AmountEdit(self.fiat_unit)
+        grid.addWidget(fiat_e, 1, 0)
+
+        r = {}
+        self.set_quote_text(100000000, r)
+        quote = r.get(0)
+        if quote:
+          text = "  1 BTC=%s"%quote
+          grid.addWidget(QLabel(_(text)), 4, 0, 3, 0)
+
+        vbox.addLayout(grid)
+        vbox.addLayout(ok_cancel_buttons(d))
+
+        if not d.exec_():
+            return
+
+        fiat = self.gui.main_window.read_amount(str(fiat_e.text()))
+
+        if str(fiat) == "None" or str(fiat) == "0":
+            self.gui.main_window.amount_e.setText( "" )
+            return
+
+        r = {}
+        self.set_quote_text(100000000, r)
+        quote = r.get(0)
+        quote = quote[:-4]
+        quote = str(Decimal(fiat) / (Decimal(quote)*100000000))
+        if quote:
+            self.gui.main_window.amount_e.setText( quote )
+
+    def exchange_rate_button(self, grid):
+        quote_currency = self.config.get("currency", "EUR")
+        self.fiat_button = EnterButton(_(quote_currency), self.fiat_dialog)
+        grid.addWidget(self.fiat_button, 4, 3, Qt.AlignHCenter)
