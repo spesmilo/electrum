@@ -430,7 +430,12 @@ class Plugin(BasePlugin):
                     hist_checkbox.setChecked(False)
                     hist_checkbox.setEnabled(False)
                 self.win.update_status()
-                self.fiat_button.setText(cur_request)
+                try:
+                    self.fiat_button
+                except:
+                    pass
+                else:
+                    self.fiat_button.setText(cur_request)
 
         def disable_check():
             hist_checkbox.setChecked(False)
