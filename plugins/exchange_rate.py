@@ -537,6 +537,10 @@ class Plugin(BasePlugin):
         if not self.config.get('use_exchange_rate'):
           self.gui.main_window.show_message("To use this feature, first enable the exchange rate plugin.")
           return
+        
+        if not self.gui.main_window.network.is_connected():
+          self.gui.main_window.show_message("To use this feature, you must have a connection.")
+          return
 
         quote_currency = self.config.get("currency", "EUR")
 
@@ -571,12 +575,15 @@ class Plugin(BasePlugin):
         r = {}
         self.set_quote_text(100000000, r)
         quote = r.get(0)
-        quote = quote[:-4]
-        btcamount = Decimal(fiat) / Decimal(quote)
-        if str(self.gui.main_window.base_unit()) == "mBTC":
-            btcamount = btcamount * 1000
-        quote = "%.8f"%btcamount
-        if quote:
+        if not quote:
+            self.gui.main_window.show_message("Exchange rate not available.  Please check your connection.")
+            return
+        else:
+            quote = quote[:-4]
+            btcamount = Decimal(fiat) / Decimal(quote)
+            if str(self.gui.main_window.base_unit()) == "mBTC":
+                btcamount = btcamount * 1000
+            quote = "%.8f"%btcamount
             self.gui.main_window.amount_e.setText( quote )
 
     def exchange_rate_button(self, grid):
