@@ -563,17 +563,19 @@ class Plugin(BasePlugin):
         if not d.exec_():
             return
 
-        fiat = self.gui.main_window.read_amount(str(fiat_e.text()))
+        fiat = str(fiat_e.text())
 
-        if str(fiat) == "None" or str(fiat) == "0":
-            self.gui.main_window.amount_e.setText( "" )
-            return
+        if str(fiat) == "" or str(fiat) == ".":
+            fiat = "0"
 
         r = {}
         self.set_quote_text(100000000, r)
         quote = r.get(0)
         quote = quote[:-4]
-        quote = str(Decimal(fiat) / (Decimal(quote)*100000000))
+        btcamount = Decimal(fiat) / Decimal(quote)
+        if str(self.gui.main_window.base_unit()) == "mBTC":
+            btcamount = btcamount * 1000
+        quote = "%.8f"%btcamount
         if quote:
             self.gui.main_window.amount_e.setText( quote )
 
