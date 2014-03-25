@@ -1398,6 +1398,7 @@ class ElectrumWindow(QMainWindow):
     def new_contact_dialog(self):
 
         d = QDialog(self)
+        d.setWindowTitle(_("New Contact"))
         vbox = QVBoxLayout(d)
         vbox.addWidget(QLabel(_('New Contact')+':'))
 
@@ -1787,6 +1788,7 @@ class ElectrumWindow(QMainWindow):
     def password_dialog(self ):
         d = QDialog(self)
         d.setModal(1)
+        d.setWindowTitle(_("Enter Password"))
 
         pw = QLineEdit()
         pw.setEchoMode(2)
