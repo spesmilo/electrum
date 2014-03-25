@@ -340,7 +340,7 @@ class Plugin(BasePlugin):
             try:
                 self.fiat_button
             except:
-                self.gui.main_window.show_message("To see fiat amount when sending bitcoin, please restart Electrum to activate the new GUI settings.")
+                self.gui.main_window.show_message(_("To see fiat amount when sending bitcoin, please restart Electrum to activate the new GUI settings."))
         return out
 
 
@@ -535,11 +535,11 @@ class Plugin(BasePlugin):
 
     def fiat_dialog(self):
         if not self.config.get('use_exchange_rate'):
-          self.gui.main_window.show_message("To use this feature, first enable the exchange rate plugin.")
+          self.gui.main_window.show_message(_("To use this feature, first enable the exchange rate plugin."))
           return
         
         if not self.gui.main_window.network.is_connected():
-          self.gui.main_window.show_message("To use this feature, you must have a connection.")
+          self.gui.main_window.show_message(_("To use this feature, you must have a network connection."))
           return
 
         quote_currency = self.config.get("currency", "EUR")
@@ -576,7 +576,7 @@ class Plugin(BasePlugin):
         self.set_quote_text(100000000, r)
         quote = r.get(0)
         if not quote:
-            self.gui.main_window.show_message("Exchange rate not available.  Please check your connection.")
+            self.gui.main_window.show_message(_("Exchange rate not available.  Please check your network connection."))
             return
         else:
             quote = quote[:-4]
