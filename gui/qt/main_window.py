@@ -1351,6 +1351,7 @@ class ElectrumWindow(QMainWindow):
         self.updatelabel = UpdateLabel(self.config, sb)
 
         self.account_selector = QComboBox()
+        self.account_selector.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.connect(self.account_selector,SIGNAL("activated(QString)"),self.change_account)
         sb.addPermanentWidget(self.account_selector)
 
