@@ -490,11 +490,12 @@ class ElectrumWindow(QMainWindow):
                 text =  _( "Balance" ) + ": %s "%( self.format_amount(c) ) + self.base_unit()
                 if u: text +=  " [%s unconfirmed]"%( self.format_amount(u,True).strip() )
 
+                # append fiat balance and price from exchange rate plugin
                 r = {}
-                run_hook('set_quote_text', c+u, r)
+                run_hook('get_fiat_status_text', c+u, r)
                 quote = r.get(0)
                 if quote:
-                    text += "  (%s)"%quote
+                    text += "%s"%quote
 
                 self.tray.setToolTip(text)
                 icon = QIcon(":icons/status_connected.png")

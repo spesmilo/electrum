@@ -437,7 +437,7 @@ class MiniWindow(QDialog):
         user has in bitcoins."""
         from electrum.plugins import run_hook
         r = {}
-        run_hook('set_quote_text', btc_balance, r)
+        run_hook('get_fiat_balance_text', btc_balance, r)
         return r.get(0,'')
 
     def send(self):
