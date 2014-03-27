@@ -496,6 +496,12 @@ class ElectrumWindow(QMainWindow):
                 if quote:
                     text += "  (%s)"%quote
 
+                r = {}
+                run_hook('set_quote_text', 100000000, r)
+                quote = r.get(0)
+                if quote:
+                    text += "      1 BTC~%s "%quote
+
                 self.tray.setToolTip(text)
                 icon = QIcon(":icons/status_connected.png")
         else:
