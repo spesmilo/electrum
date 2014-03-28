@@ -99,8 +99,10 @@ class WalletStorage:
             if os.path.exists(path):
               return path
             else:
-              msg = "Electrum was unable to find your last wallet file:\n\n"+path+"\n\nUsing default_wallet instead."
-              QMessageBox.information(None, _('Warning'), _(msg), _('OK'))
+              msg = _("Electrum was unable to find your last wallet file:")
+              msg += "\n\n" +path+ "\n\n"
+              msg += _("Using default_wallet instead.")
+              QMessageBox.information(None, _('Warning'), msg, _('OK'))
 
         # default path
         dirpath = os.path.join(config.path, "wallets")

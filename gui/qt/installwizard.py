@@ -293,12 +293,12 @@ class InstallWizard(QDialog):
 
         elif action == 'existing':
             wallet_folder = os.path.join(self.config.path)
-            filename = unicode( QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder) )
+            filename = unicode( QFileDialog.getOpenFileName(self, _("Select your wallet file"), wallet_folder) )
             if not filename:
                 return
             storage = WalletStorage({'wallet_path': filename})
             if not storage.file_exists:
-                self.show_message("file not found "+ filename)
+                self.show_message(_("file not found ") + filename)
                 return
             wallet = Wallet(storage)
 
