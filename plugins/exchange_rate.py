@@ -303,11 +303,33 @@ class Plugin(BasePlugin):
         self.win.emit(SIGNAL("refresh_currencies()"))
         self.win.emit(SIGNAL("refresh_currencies_combo()"))
 
+    def get_fiat_balance_text(self, btc_balance, r):
+        # return balance as: 1.23 USD
+        r[0] = self.create_fiat_balance_text(Decimal(btc_balance) / 100000000)
 
-    def set_quote_text(self, btc_balance, r):
-        r[0] = self.create_quote_text(Decimal(btc_balance) / 100000000)
+    def get_fiat_price_text(self, r):
+        # return BTC price as: 123.45 USD
+        r[0] = self.create_fiat_balance_text(1)
+        quote = r[0]
+        if quote:
+            r[0] = "%s"%quote
 
-    def create_quote_text(self, btc_balance):
+    def get_fiat_status_text(self, btc_balance, r2):
+        # return status as:   (1.23 USD)    1 BTC~123.45 USD
+        text = ""
+        r = {}
+        self.get_fiat_price_text(r)
+        quote = r.get(0)
+        if quote:
+            price_text = "1 BTC~%s"%quote
+            fiat_currency = quote[-3:]
+            btc_price = quote[:-4]
+            fiat_balance = Decimal(btc_price) * (Decimal(btc_balance)/100000000)
+            balance_text = "(%.2f %s)" % (fiat_balance,fiat_currency)
+            text = "  " + balance_text + "     " + price_text + " "
+        r2[0] = text
+
+    def create_fiat_balance_text(self, btc_balance):
         quote_currency = self.config.get("currency", "EUR")
         self.exchanger.use_exchange = self.config.get("use_exchange", "Blockchain")
         cur_rate = self.exchanger.exchange(Decimal("1.0"), quote_currency)
@@ -522,16 +544,9 @@ class Plugin(BasePlugin):
         else:
             return False
 
-
-        
     def fiat_unit(self):
-        r = {}
-        self.set_quote_text(100000000, r)
-        quote = r.get(0)
-        if quote:
-          return quote[-3:]
-        else:
-          return "???"
+        quote_currency = self.config.get("currency", "???")
+        return quote_currency
 
     def fiat_dialog(self):
         if not self.config.get('use_exchange_rate'):
@@ -542,7 +557,7 @@ class Plugin(BasePlugin):
           self.gui.main_window.show_message(_("To use this feature, you must have a network connection."))
           return
 
-        quote_currency = self.config.get("currency", "EUR")
+        quote_currency = self.fiat_unit()
 
         d = QDialog(self.gui.main_window)
         d.setWindowTitle("Fiat")
@@ -555,11 +570,14 @@ class Plugin(BasePlugin):
         grid.addWidget(fiat_e, 1, 0)
 
         r = {}
-        self.set_quote_text(100000000, r)
+        self.get_fiat_price_text(r)
         quote = r.get(0)
         if quote:
-          text = "  1 BTC=%s"%quote
+          text = "1 BTC~%s"%quote
           grid.addWidget(QLabel(_(text)), 4, 0, 3, 0)
+        else:
+            self.gui.main_window.show_message(_("Exchange rate not available.  Please check your network connection."))
+            return
 
         vbox.addLayout(grid)
         vbox.addLayout(ok_cancel_buttons(d))
@@ -572,19 +590,12 @@ class Plugin(BasePlugin):
         if str(fiat) == "" or str(fiat) == ".":
             fiat = "0"
 
-        r = {}
-        self.set_quote_text(100000000, r)
-        quote = r.get(0)
-        if not quote:
-            self.gui.main_window.show_message(_("Exchange rate not available.  Please check your network connection."))
-            return
-        else:
-            quote = quote[:-4]
-            btcamount = Decimal(fiat) / Decimal(quote)
-            if str(self.gui.main_window.base_unit()) == "mBTC":
-                btcamount = btcamount * 1000
-            quote = "%.8f"%btcamount
-            self.gui.main_window.amount_e.setText( quote )
+        quote = quote[:-4]
+        btcamount = Decimal(fiat) / Decimal(quote)
+        if str(self.gui.main_window.base_unit()) == "mBTC":
+            btcamount = btcamount * 1000
+        quote = "%.8f"%btcamount
+        self.gui.main_window.amount_e.setText( quote )
 
     def exchange_rate_button(self, grid):
         quote_currency = self.config.get("currency", "EUR")
