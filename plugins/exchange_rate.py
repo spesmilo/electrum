@@ -316,19 +316,17 @@ class Plugin(BasePlugin):
 
     def get_fiat_status_text(self, btc_balance, r2):
         # return status as:   (1.23 USD)    1 BTC~123.45 USD
-        # balance in fiat
         text = ""
-        r = {}
-        self.get_fiat_balance_text(btc_balance, r)
-        quote = r.get(0)
-        if quote:
-            text += "  (%s)"%quote
-        # BTC price in fiat
         r = {}
         self.get_fiat_price_text(r)
         quote = r.get(0)
         if quote:
-            text += "      1 BTC~%s "%quote
+            price_text = "1 BTC~%s"%quote
+            fiat_currency = quote[-3:]
+            btc_price = quote[:-4]
+            fiat_balance = Decimal(btc_price) * (Decimal(btc_balance)/100000000)
+            balance_text = "(%.2f %s)" % (fiat_balance,fiat_currency)
+            text = "  " + balance_text + "     " + price_text + " "
         r2[0] = text
 
     def create_fiat_balance_text(self, btc_balance):
@@ -577,6 +575,9 @@ class Plugin(BasePlugin):
         if quote:
           text = "1 BTC~%s"%quote
           grid.addWidget(QLabel(_(text)), 4, 0, 3, 0)
+        else:
+            self.gui.main_window.show_message(_("Exchange rate not available.  Please check your network connection."))
+            return
 
         vbox.addLayout(grid)
         vbox.addLayout(ok_cancel_buttons(d))
@@ -589,19 +590,12 @@ class Plugin(BasePlugin):
         if str(fiat) == "" or str(fiat) == ".":
             fiat = "0"
 
-        r = {}
-        self.get_fiat_price_text(r)
-        quote = r.get(0)
-        if not quote:
-            self.gui.main_window.show_message(_("Exchange rate not available.  Please check your network connection."))
-            return
-        else:
-            quote = quote[:-4]
-            btcamount = Decimal(fiat) / Decimal(quote)
-            if str(self.gui.main_window.base_unit()) == "mBTC":
-                btcamount = btcamount * 1000
-            quote = "%.8f"%btcamount
-            self.gui.main_window.amount_e.setText( quote )
+        quote = quote[:-4]
+        btcamount = Decimal(fiat) / Decimal(quote)
+        if str(self.gui.main_window.base_unit()) == "mBTC":
+            btcamount = btcamount * 1000
+        quote = "%.8f"%btcamount
+        self.gui.main_window.amount_e.setText( quote )
 
     def exchange_rate_button(self, grid):
         quote_currency = self.config.get("currency", "EUR")
