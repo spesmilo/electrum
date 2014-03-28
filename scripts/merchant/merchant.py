@@ -167,7 +167,7 @@ if __name__ == '__main__':
     wallet = Wallet(storage)
     if not storage.file_exists:
         wallet.seed = ''
-        wallet.create_watching_only_wallet(master_chain,master_public_key)
+        wallet.create_watching_only_wallet(master_public_key,master_chain)
 
     wallet.synchronize = lambda: None # prevent address creation by the wallet
     wallet.start_threads(network)
@@ -218,10 +218,10 @@ if __name__ == '__main__':
         cur.execute("""UPDATE electrum_payments set paid=0 WHERE expires_at < CURRENT_TIMESTAMP and paid is NULL;""")
 
         # do callback for addresses that received payment or expired
-        cur.execute("""SELECT address, paid from electrum_payments WHERE paid is not NULL and processed is NULL;""")
+        cur.execute("""SELECT oid, address, paid from electrum_payments WHERE paid is not NULL and processed is NULL;""")
         data = cur.fetchall()
         for item in data:
-            address, paid = item
+            oid, address, paid = item
             paid = bool(paid)
             headers = {'content-type':'application/json'}
             data_json = { 'address':address, 'password':cb_password, 'paid':paid }
@@ -230,7 +230,8 @@ if __name__ == '__main__':
             req = urllib2.Request(url, data_json, headers)
             try:
                 response_stream = urllib2.urlopen(req)
-                cur.execute("UPDATE electrum_payments SET processed=1 WHERE id=%d;"%(id))
+                print 'Got Response for %s' % address
+                cur.execute("UPDATE electrum_payments SET processed=1 WHERE oid=%d;"%(oid))
             except urllib2.HTTPError:
                 print "cannot do callback", data_json
             except ValueError, e:
