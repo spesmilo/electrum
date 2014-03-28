@@ -46,11 +46,6 @@ from util import *
 from main_window import ElectrumWindow
 from electrum.plugins import init_plugins
 
-class Timer(QtCore.QThread):
-    def run(self):
-        while True:
-            self.emit(QtCore.SIGNAL('timersignal'))
-            time.sleep(0.5)
 
 class OpenFileEventFilter(QObject):
     def __init__(self, windows):

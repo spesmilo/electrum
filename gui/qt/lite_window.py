@@ -45,11 +45,6 @@ def IconButton(filename, parent=None):
     icon = QIcon(pixmap)
     return QPushButton(icon, "", parent)
 
-class Timer(QThread):
-    def run(self):
-        while True:
-            self.emit(SIGNAL('timersignal'))
-            time.sleep(0.5)
 
 def resize_line_edit_width(line_edit, text_input):
     metrics = QFontMetrics(qApp.font())
