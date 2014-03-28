@@ -23,28 +23,7 @@ class EnterButton(QPushButton):
             apply(self.func,())
 
 
-def waiting_dialog(f, w=None):
 
-    s = Timer()
-    s.start()
-    if not w:
-        w = QDialog()
-        w.resize(200, 70)
-        w.setWindowTitle('Electrum')
-    else:
-        if w.layout(): QWidget().setLayout(w.layout())
-
-    l = QLabel('')
-    vbox = QVBoxLayout(w)
-    vbox.addWidget(l)
-    w.show()
-    def ff():
-        s = f()
-        if s: l.setText(s)
-        else: w.accept()
-    w.connect(s, SIGNAL('timersignal'), ff)
-    w.exec_()
-    #w.destroy()
 
 
 class HelpButton(QPushButton):

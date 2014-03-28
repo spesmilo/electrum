@@ -856,16 +856,53 @@ class ElectrumWindow(QMainWindow):
         self.send_tx(to_address, amount, fee, label)
 
 
+    def waiting_dialog(self, message):
+        d = QDialog(self)
+        d.setWindowTitle('Please wait')
+        l = QLabel(message)
+        vbox = QVBoxLayout(d)
+        vbox.addWidget(l)
+        d.show()
+        return d
+
+
     @protected
     def send_tx(self, to_address, amount, fee, label, password):
+
+        # first, create an unsigned tx 
+        domain = self.get_payment_sources()
+        outputs = [(to_address, amount)]
         try:
-            tx = self.wallet.mktx( [(to_address, amount)], password, fee,
-                    domain=self.get_payment_sources())
+            tx = self.wallet.make_unsigned_transaction(outputs, fee, None, domain)
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
             return
 
+        # call hook to see if plugin needs gui interaction
+        run_hook('send_tx', tx)
+
+        def sign_thread():
+            time.sleep(0.1)
+            keypairs = {}
+            self.wallet.add_keypairs_from_wallet(tx, keypairs, password)
+            self.wallet.sign_transaction(tx, keypairs, password)
+            self.signed_tx = tx
+            self.emit(SIGNAL('send_tx2'))
+
+        # sign the tx
+        dialog = self.waiting_dialog('Signing..')
+        self.connect(self, QtCore.SIGNAL('send_tx2'), lambda: self.send_tx2(self.signed_tx, fee, label, dialog, password))
+        threading.Thread(target=sign_thread).start()
+
+        # add recipient to addressbook
+        if to_address not in self.wallet.addressbook and not self.wallet.is_mine(to_address):
+            self.wallet.addressbook.append(to_address)
+
+
+    def send_tx2(self, tx, fee, label, dialog, password):
+        dialog.accept()
+        
         if tx.requires_fee(self.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
             QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
             return
@@ -874,8 +911,12 @@ class ElectrumWindow(QMainWindow):
             self.wallet.set_label(tx.hash(), label)
 
         if tx.is_complete:
+
+            d = self.waiting_dialog('Broadcasting...')
             h = self.wallet.send_tx(tx)
-            waiting_dialog(lambda: False if self.wallet.tx_event.isSet() else _("Please wait..."))
+            self.wallet.tx_event.wait()
+            d.accept()
+            
             status, msg = self.wallet.receive_tx( h, tx )
             if status:
                 QMessageBox.information(self, '', _('Payment sent.')+'\n'+msg, _('OK'))
@@ -886,10 +927,6 @@ class ElectrumWindow(QMainWindow):
         else:
 
             self.show_transaction(tx)
-
-        # add recipient to addressbook
-        if to_address not in self.wallet.addressbook and not self.wallet.is_mine(to_address):
-            self.wallet.addressbook.append(to_address)
 
 
 
