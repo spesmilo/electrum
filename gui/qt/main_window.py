@@ -874,6 +874,7 @@ class ElectrumWindow(QMainWindow):
         outputs = [(to_address, amount)]
         try:
             tx = self.wallet.make_unsigned_transaction(outputs, fee, None, domain)
+            tx.error = None
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
@@ -903,6 +904,10 @@ class ElectrumWindow(QMainWindow):
     def send_tx2(self, tx, fee, label, dialog, password):
         dialog.accept()
         
+        if tx.error:
+            self.show_message(tx.error)
+            return
+
         if tx.requires_fee(self.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
             QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
             return
