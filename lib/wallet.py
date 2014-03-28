@@ -31,6 +31,9 @@ import Queue
 import time
 import math
 
+from PyQt4.QtGui import *
+from electrum.i18n import _
+
 from util import print_msg, print_error, format_satoshis
 from bitcoin import *
 from account import *
@@ -93,7 +96,11 @@ class WalletStorage:
         # path in config file
         path = config.get('default_wallet_path')
         if path:
-            return path
+            if os.path.exists(path):
+              return path
+            else:
+              msg = "Electrum was unable to find your last wallet file:\n\n"+path+"\n\nUsing default_wallet instead."
+              QMessageBox.information(None, _('Warning'), _(msg), _('OK'))
 
         # default path
         dirpath = os.path.join(config.path, "wallets")
