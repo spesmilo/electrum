@@ -82,6 +82,57 @@ def load_theme_paths():
         theme_paths.update(theme_dirs_from_prefix(prefix))
     return theme_paths
 
+def json_transaction(wallet):
+    try:
+        select_export = _('Select file to export your wallet transactions to')
+        fileName = QFileDialog.getSaveFileName(QWidget(), select_export, os.path.expanduser('~/electrum-history.json'), "*.json")
+        if fileName:
+            with open(fileName, "w+") as jsonfile:
+                wallet_history = []
+                for item in wallet.get_tx_history():
+                    tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
+                    if confirmations:
+                        if timestamp is not None:
+                            try:
+                                time_string = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+                            except [RuntimeError, TypeError, NameError] as reason:
+                                time_string = "unknown"
+                                pass
+                        else:
+                          time_string = "unknown"
+                    else:
+                        time_string = "pending"
+
+                    if value is not None:
+                        value_string = format_satoshis(value, True)
+                    else:
+                        value_string = '--'
+
+                    if fee is not None:
+                        fee_string = format_satoshis(fee, True)
+                    else:
+                        fee_string = '0'
+
+                    if tx_hash:
+                        label, is_default_label = wallet.get_label(tx_hash)
+                        label = label.encode('utf-8')
+                    else:
+                      label = ""
+
+                    balance_string = format_satoshis(balance, False)
+                    
+                    wallet_history.append({"Date":time_string,"TXHash":tx_hash,"Label":label,"Confirmations":confirmations,"Amount":value_string,"Fee":fee_string,"Balance":balance_string})
+                try:
+                    history_str = json.dumps(wallet_history, sort_keys = False, indent = 4)
+                except TypeError:
+                    QMessageBox.critical(None,_("Unable to create json"),_("Unable to create json"))
+                    jsonfile.close()
+                    os.remove(fileName)
+                    return
+                jsonfile.write(history_str)
+    except (IOError, os.error), reason:
+        export_error_label = _("Electrum was unable to produce a transaction export.")
+        QMessageBox.critical(None,_("Unable to create json"), export_error_label + "\n" + str(reason))
 
 def csv_transaction(wallet):
     try:

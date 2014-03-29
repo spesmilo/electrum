@@ -358,7 +358,11 @@ class ElectrumWindow(QMainWindow):
         keys_menu.addAction(_("&Import"), self.do_import_privkey)
         keys_menu.addAction(_("&Export"), self.do_export_privkeys)
 
-        wallet_menu.addAction(_("&Export History"), self.do_export_history)
+        wallet_menu.addSeparator()
+
+        history_menu = wallet_menu.addMenu(_("&Export History"))
+        history_menu.addAction(_("&Export to CSV"), self.do_export_csv_history)
+        history_menu.addAction(_("&Export to JSON"), self.do_export_json_history)
 
         tools_menu = menubar.addMenu(_("&Tools"))
 
@@ -2041,10 +2045,14 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.critical(None, _("Unable to export labels"), _("Electrum was unable to export your labels.")+"\n" + str(reason))
 
 
-    def do_export_history(self):
+    def do_export_csv_history(self):
         from lite_window import csv_transaction
         csv_transaction(self.wallet)
 
+    def do_export_json_history(self):
+        from lite_window import json_transaction
+        json_transaction(self.wallet)
+        
 
     @protected
     def do_import_privkey(self, password):
