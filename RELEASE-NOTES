@@ -1,3 +1,21 @@
+# Release 1.9.8
+(This release includes features initially planned for version 2.0)
+
+* Electrum servers were upgraded to version 0.9. The new server stores
+  a Patrica tree of all UTXOs, an idea proposed by Alan Reiner in the
+  bitcointalk forum. This property allows the client to directly
+  request the balance of any address. The new commands are:
+     1. getaddressbalance <address> 
+     2. getaddressunspent <address>
+     3. getutxoaddress <txid> <pos>
+
+* Command-line commands that require a connection to the network spawn
+  a daemon, that remains connected and handles subsequent
+  commands. The daemon terminates itself if it remains unused for more
+  than one minute. The purpose of this is to make scripting more
+  efficient. For example, a bash script using many electrum commands
+  will open only one connection.
+
 # Release 1.9.7
 * Fix for offline signing
 * Various bugfixes

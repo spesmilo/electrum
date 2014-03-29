@@ -47,7 +47,6 @@ data_files += [
         "data/sahara/style.css"
     ]),
     (os.path.join(appdata_dir, "dark"), [
-        "data/dark/background.png",
         "data/dark/name.cfg",
         "data/dark/style.css"
     ])
@@ -71,6 +70,7 @@ setup(
         'electrum.blockchain',
         'electrum.bmp',
         'electrum.commands',
+        'electrum.daemon',
         'electrum.i18n',
         'electrum.interface',
         'electrum.mnemonic',
@@ -86,7 +86,6 @@ setup(
         'electrum.version',
         'electrum.wallet',
         'electrum.wallet_bitkey',
-        'electrum.wallet_factory',
         'electrum_gui.gtk',
         'electrum_gui.qt.__init__',
         'electrum_gui.qt.amountedit',

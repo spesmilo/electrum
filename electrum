@@ -21,6 +21,7 @@ import json
 import optparse
 import os
 import re
+import ast
 import sys
 import time
 import traceback
@@ -89,6 +90,8 @@ def arg_parser():
     parser.add_option("-G", "--gap", dest="gap_limit", default=None, help="gap limit")
     parser.add_option("-W", "--password", dest="password", default=None, help="set password for usage with commands (currently only implemented for create command, do not use it for longrunning gui session since the password is visible in /proc)")
     parser.add_option("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
+    #parser.add_option("--bip32", action="store_true", dest="bip32", default=False, help="bip32 (not final)")
+    parser.add_option("--mpk", dest="mpk", default=False, help="restore from master public key")
     return parser
 
 
@@ -96,7 +99,7 @@ def print_help(parser):
     parser.print_help()
     print_msg("Type 'electrum help <command>' to see the help for a specific command")
     print_msg("Type 'electrum --help' to see the list of options")
-    run_command('help')
+    run_command(known_commands['help'])
     sys.exit(1)
 
 
@@ -105,8 +108,23 @@ def print_help_cb(self, opt, value, parser):
 
 
 def run_command(cmd, password=None, args=[]):
+    import socket
+    if cmd.requires_network and not options.offline:
+        network = NetworkProxy(config)
+        if not network.start(start_daemon= (True if cmd.name!='daemon' else False)):
+            print "Daemon not running"
+            sys.exit(1)
+
+
+
+        if wallet:
+            wallet.start_threads(network)
+            wallet.update()
+    else:
+        network = None
+
     cmd_runner = Commands(wallet, network)
-    func = getattr(cmd_runner, cmd)
+    func = getattr(cmd_runner, cmd.name)
     cmd_runner.password = password
     try:
         result = func(*args[1:])
@@ -114,10 +132,20 @@ def run_command(cmd, password=None, args=[]):
         traceback.print_exc(file=sys.stdout)
         sys.exit(1)
 
+
+    if cmd.requires_network and not options.offline:
+        if wallet:
+            wallet.stop_threads()
+
+
     if type(result) == str:
         util.print_msg(result)
     elif result is not None:
         util.print_json(result)
+
+
+
+
 
 
 if __name__ == '__main__':
@@ -191,21 +219,14 @@ if __name__ == '__main__':
     # instanciate wallet for command-line
     storage = WalletStorage(config)
 
-    if cmd.requires_wallet:
-        wallet = Wallet(storage)
-    else:
-        wallet = None
-
-    if cmd.name not in ['create', 'restore'] and cmd.requires_wallet and not storage.file_exists:
-        print_msg("Error: Wallet file not found.")
-        print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
-        sys.exit(0)
 
     if cmd.name in ['create', 'restore']:
         if storage.file_exists:
             sys.exit("Error: Remove the existing wallet first!")
         if options.password is not None:
             password = options.password
+        elif cmd.name == 'restore' and options.mpk:
+            password = None
         else:
             password = prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
 
@@ -215,35 +236,30 @@ if __name__ == '__main__':
         if not config.get('server'):
             config.set_key('server', pick_random_server())
 
-        fee = options.tx_fee if options.tx_fee else raw_input("fee (default:%s):" % (str(Decimal(wallet.fee)/100000000)))
-        gap = options.gap_limit if options.gap_limit else raw_input("gap limit (default 5):")
-
-        if fee:
-            wallet.set_fee(float(fee)*100000000)
-        if gap:
-            wallet.change_gap_limit(int(gap))
+        #fee = options.tx_fee if options.tx_fee else raw_input("fee (default:%s):" % (str(Decimal(wallet.fee)/100000000)))
+        #gap = options.gap_limit if options.gap_limit else raw_input("gap limit (default 5):")
+        #if fee:
+        #    wallet.set_fee(float(fee)*100000000)
+        #if gap:
+        #    wallet.change_gap_limit(int(gap))
 
         if cmd.name == 'restore':
-            import getpass
-            seed = getpass.getpass(prompt="seed:", stream=None) if options.concealed else raw_input("seed:")
-            try:
-                seed.decode('hex')
-            except Exception:
-                print_error("Warning: Not hex, trying decode.")
-                seed = mnemonic_decode(seed.split(' '))
-            if not seed:
-                sys.exit("Error: No seed")
+            if options.mpk:
+                wallet = Wallet.from_mpk(options.mpk, storage)
+            else:
+                import getpass
+                seed = getpass.getpass(prompt="seed:", stream=None) if options.concealed else raw_input("seed:")
+                wallet = Wallet.from_seed(str(seed),storage)
+                if not wallet:
+                    sys.exit("Error: Invalid seed")
+                wallet.save_seed(password)
 
-            wallet.init_seed(str(seed))
-            wallet.save_seed(password)
             if not options.offline:
                 network = Network(config)
                 network.start()
                 wallet.start_threads(network)
-
                 print_msg("Recovering wallet...")
                 wallet.restore(lambda x: x)
-
                 if wallet.is_found():
                     print_msg("Recovery successful")
                 else:
@@ -253,6 +269,7 @@ if __name__ == '__main__':
                 print_msg("Warning: This wallet was restored offline. It may contain more addresses than displayed.")
 
         else:
+            wallet = Wallet(storage)
             wallet.init_seed(None)
             wallet.save_seed(password)
             wallet.synchronize()
@@ -263,6 +280,19 @@ if __name__ == '__main__':
 
         # terminate
         sys.exit(0)
+
+
+    if cmd.name not in ['create', 'restore'] and cmd.requires_wallet and not storage.file_exists:
+        print_msg("Error: Wallet file not found.")
+        print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
+        sys.exit(0)
+
+
+    if cmd.requires_wallet:
+        wallet = Wallet(storage)
+    else:
+        wallet = None
+
 
     # important warning
     if cmd.name in ['dumpprivkey', 'dumpprivkeys']:
@@ -345,19 +375,7 @@ if __name__ == '__main__':
             print_msg("Warning: Final argument was reconstructed from several arguments:", repr(message))
             args = args[0:cmd.min_args] + [message]
 
-    # open session
-    if cmd.requires_network and not options.offline:
-        network = Network(config)
-        if not network.start(wait=True):
-            print_msg("Not connected, aborting.")
-            sys.exit(1)
-        print_error("Connected to " + network.interface.connection_msg)
 
-        if wallet:
-            wallet.start_threads(network)
-            wallet.update()
-    else:
-        network = None
 
     # run the command
     if cmd.name == 'deseed':
@@ -386,6 +404,10 @@ if __name__ == '__main__':
 
     elif cmd.name == 'setconfig':
         key, value = args[1:3]
+        try:
+            value = ast.literal_eval(value)
+        except:
+            pass
         config.set_key(key, value, True)
         print_msg(True)
 
@@ -394,11 +416,8 @@ if __name__ == '__main__':
         wallet.update_password(password, new_password)
 
     else:
-        run_command(cmd.name, password, args)
+        run_command(cmd, password, args)
 
-    if network:
-        if wallet:
-            wallet.stop_threads()
-        network.stop()
-        time.sleep(0.1)
-        sys.exit(0)
+
+    time.sleep(0.1)
+    sys.exit(0)

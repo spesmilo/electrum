@@ -27,7 +27,7 @@ import webbrowser
 import history_widget
 import receiving_widget
 from electrum import util
-import csv 
+import csv
 import datetime
 
 from electrum.version import ELECTRUM_VERSION as electrum_version
@@ -45,11 +45,6 @@ def IconButton(filename, parent=None):
     icon = QIcon(pixmap)
     return QPushButton(icon, "", parent)
 
-class Timer(QThread):
-    def run(self):
-        while True:
-            self.emit(SIGNAL('timersignal'))
-            time.sleep(0.5)
 
 def resize_line_edit_width(line_edit, text_input):
     metrics = QFontMetrics(qApp.font())
@@ -122,6 +117,7 @@ def csv_transaction(wallet):
 
                     if tx_hash:
                         label, is_default_label = wallet.get_label(tx_hash)
+                        label = label.encode('utf-8')
                     else:
                       label = ""
 
@@ -177,8 +173,10 @@ class MiniWindow(QDialog):
         self.actuator = actuator
         self.config = config
         self.btc_balance = None
+        self.use_exchanges = ["Blockchain", "CoinDesk"]
         self.quote_currencies = ["BRL", "CNY", "EUR", "GBP", "RUB", "USD"]
         self.actuator.set_configured_currency(self.set_quote_currency)
+        self.actuator.set_configured_exchange(self.set_exchange)
 
         # Needed because price discovery is done in a different thread
         # which needs to be sent back to this main one to update the GUI
@@ -345,12 +343,10 @@ class MiniWindow(QDialog):
 
 
     def toggle_theme(self, theme_name):
-        old_path = QDir.currentPath()
         self.actuator.change_theme(theme_name)
         # Recompute style globally
         qApp.style().unpolish(self)
         qApp.style().polish(self)
-        QDir.setCurrent(old_path)
 
     def closeEvent(self, event):
         g = self.geometry()
@@ -368,6 +364,13 @@ class MiniWindow(QDialog):
 
     def deactivate(self):
         pass
+
+    def set_exchange(self, use_exchange):
+        if use_exchange not in self.use_exchanges:
+            return
+        self.use_exchanges.remove(use_exchange)
+        self.use_exchanges.insert(0, use_exchange)
+        self.refresh_balance()
 
     def set_quote_currency(self, currency):
         """Set and display the fiat currency country."""
@@ -429,7 +432,7 @@ class MiniWindow(QDialog):
         user has in bitcoins."""
         from electrum.plugins import run_hook
         r = {}
-        run_hook('set_quote_text', btc_balance, r)
+        run_hook('get_fiat_balance_text', btc_balance, r)
         return r.get(0,'')
 
     def send(self):
@@ -649,6 +652,7 @@ class MiniActuator:
         self.g = main_window
         self.theme_name = self.g.config.get('litegui_theme','Cleanlook')
         self.themes = load_theme_paths()
+        self.load_theme()
 
     def load_theme(self):
         """Load theme retrieved from wallet file."""
@@ -657,8 +661,8 @@ class MiniActuator:
         except KeyError:
             util.print_error("Theme not found!", self.theme_name)
             return
-        QDir.setCurrent(os.path.join(theme_prefix, theme_path))
-        with open(rsrc("style.css")) as style_file:
+        full_theme_path = "%s/%s/style.css" % (theme_prefix, theme_path)
+        with open(full_theme_path) as style_file:
             qApp.setStyleSheet(style_file.read())
 
     def theme_names(self):
@@ -674,6 +678,11 @@ class MiniActuator:
         self.theme_name = theme_name
         self.g.config.set_key('litegui_theme',theme_name)
         self.load_theme()
+   
+    def set_configured_exchange(self, set_exchange):
+        use_exchange = self.g.config.get('use_exchange')
+        if use_exchange is not None:
+            set_exchange(use_exchange)
     
     def set_configured_currency(self, set_quote_currency):
         """Set the inital fiat currency conversion country (USD/EUR/GBP) in 
@@ -683,6 +692,10 @@ class MiniActuator:
         # time and no setting has been created yet.
         if currency is not None:
             set_quote_currency(currency)
+
+    def set_config_exchange(self, conversion_exchange):
+        self.g.config.set_key('exchange',conversion_exchange,True)
+        self.g.update_status()
 
     def set_config_currency(self, conversion_currency):
         """Change the wallet fiat currency country."""

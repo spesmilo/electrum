@@ -598,6 +598,22 @@ class Interface(threading.Thread):
         self.queue.put(self)
 
 
+    def synchronous_get(self, requests, timeout=100000000):
+        queue = Queue.Queue()
+        ids = self.send(requests, lambda i,r: queue.put(r))
+        id2 = ids[:]
+        res = {}
+        while ids:
+            r = queue.get(True, timeout)
+            _id = r.get('id')
+            if _id in ids:
+                ids.remove(_id)
+                res[_id] = r.get('result')
+        out = []
+        for _id in id2:
+            out.append(res[_id])
+        return out
+
 
 if __name__ == "__main__":
 

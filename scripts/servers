@@ -22,7 +22,7 @@ while servers:
     i = q.get(timeout=1000)
     servers.remove(i.server)
     if i.is_connected:
-        i.send([('blockchain.numblocks.subscribe',[])], lambda i,x: results_queue.put((i,x)))
+        i.send([('blockchain.headers.subscribe',[])], lambda i,x: results_queue.put((i,x)))
         reached_servers.append(i.server)
         i.status = "ok"
     else:
@@ -32,7 +32,7 @@ d = defaultdict(int)
 
 while reached_servers:
     i, r = results_queue.get(timeout=1000)
-    i.blocks = r.get('result')
+    i.blocks = r.get('result').get('block_height')
     d[i.blocks] += 1
     reached_servers.remove(i.server)
 

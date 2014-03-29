@@ -32,7 +32,6 @@ class TxVerifier(threading.Thread):
         self.daemon = True
         self.storage = storage
         self.network = network
-        self.blockchain = network.blockchain
         self.transactions    = {}                                 # requested verifications (with height sent by the requestor)
         self.verified_tx     = storage.get('verified_tx3',{})      # height, timestamp of verified transactions
         self.merkle_roots    = storage.get('merkle_roots',{})      # hashed by me
@@ -46,7 +45,7 @@ class TxVerifier(threading.Thread):
         with self.lock:
             if tx in self.verified_tx:
                 height, timestamp, pos = self.verified_tx[tx]
-                conf = (self.blockchain.local_height - height + 1)
+                conf = (self.network.get_local_height() - height + 1)
                 if conf <= 0: timestamp = None
 
             elif tx in self.transactions:
@@ -134,7 +133,7 @@ class TxVerifier(threading.Thread):
         tx_height = result.get('block_height')
         pos = result.get('pos')
         self.merkle_roots[tx_hash] = self.hash_merkle_root(result['merkle'], tx_hash, pos)
-        header = self.blockchain.read_header(tx_height)
+        header = self.network.get_header(tx_height)
         if not header: return
         assert header.get('merkle_root') == self.merkle_roots[tx_hash]
         # we passed all the tests

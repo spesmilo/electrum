@@ -376,6 +376,7 @@ class Transaction:
         self.inputs = self.d['inputs']
         self.outputs = self.d['outputs']
         self.outputs = map(lambda x: (x['address'],x['value']), self.outputs)
+        self.locktime = self.d['lockTime']
         self.is_complete = is_complete
         
     def __str__(self):
@@ -671,7 +672,7 @@ class Transaction:
             item = { 
                 'prevout_hash':i['prevout_hash'], 
                 'prevout_n':i['prevout_n'],
-                'address':i['address'],
+                'address':i.get('address'),
                 'KeyID':i.get('KeyID'),
                 'scriptPubKey':i.get('scriptPubKey'),
                 'redeemScript':i.get('redeemScript'),

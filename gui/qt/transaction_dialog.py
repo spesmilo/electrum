@@ -155,6 +155,13 @@ class TxDialog(QDialog):
         else:
             self.date_label.hide()
 
+
+        # if we are not synchronized, we cannot tell
+        if self.parent.network is None or not self.parent.network.is_running() or not self.parent.network.is_connected():
+            return
+        if not self.wallet.up_to_date:
+            return
+
         if is_relevant:    
             if is_mine:
                 if fee is not None: 
@@ -180,17 +187,19 @@ class TxDialog(QDialog):
 
     def add_io(self, vbox):
 
-        vbox.addWidget(QLabel(_("Inputs")))
-        lines = map(lambda x: x.get('address') , self.tx.inputs )
+        if self.tx.locktime > 0:
+            vbox.addWidget(QLabel("LockTime: %d\n" % self.tx.locktime))
 
-        i_text = QTextEdit('\n'.join(lines))
+        vbox.addWidget(QLabel(_("Inputs")))
+        lines = map(lambda x: x.get('prevout_hash') + ":%d"%x.get('prevout_n') + u'\t' + "%s"%x.get('address') , self.tx.inputs )
+        i_text = QTextEdit()
+        i_text.setText('\n'.join(lines))
         i_text.setReadOnly(True)
         i_text.setMaximumHeight(100)
         vbox.addWidget(i_text)
 
         vbox.addWidget(QLabel(_("Outputs")))
         lines = map(lambda x: x[0] + u'\t\t' + self.parent.format_amount(x[1]), self.tx.outputs)
-
         o_text = QTextEdit()
         o_text.setText('\n'.join(lines))
         o_text.setReadOnly(True)

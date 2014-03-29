@@ -1,6 +1,6 @@
 #main_window
 {
-    background-image: url(background.png);
+    background-image: url(:/icons/dark_background.png);
 }
 
 #address_input[readOnly=true], #amount_input[readOnly=true]

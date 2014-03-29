@@ -7,20 +7,53 @@ from blockchain import Blockchain
 DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
 DEFAULT_SERVERS = {
-    #'electrum.coinwallet.me': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.hachre.de': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.novit.ro': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.stepkrav.pw': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    #'ecdsa.org': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.no-ip.org': {'h': '80', 's': '50002', 't': '50001', 'g': '443'},
-    'electrum.drollette.com': {'h': '5000', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.random.re': {'h': '80', 's': '110', 't': '50001', 'g': '443'},
-    'btc.medoix.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.stupidfoot.com': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    #'electrum.pdmc.net': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'},
-    'electrum.be': {'h': '8081', 's': '50002', 't': '50001', 'g': '8082'}
+    'ecdsa.org': DEFAULT_PORTS,
+    'ecdsa.net': DEFAULT_PORTS,
+    'electrum.hachre.de': DEFAULT_PORTS,
+    'electrum.novit.ro': DEFAULT_PORTS,
+    'electrum.coinwallet.me': DEFAULT_PORTS,
+    'cube.l0g.in': DEFAULT_PORTS,
+    'bitcoin.epicinet.net': DEFAULT_PORTS,
+    'h.1209k.com': DEFAULT_PORTS,
+    'electrum.electricnewyear.net': DEFAULT_PORTS,
+    'erbium.sytes.net': DEFAULT_PORTS,
+    'e2.pdmc.net':DEFAULT_PORTS,
+    'electrum.no-ip.org':{'h': '80', 's': '50002', 't': '50001', 'g': '443'},
+    'electrum.thwg.org':DEFAULT_PORTS,
+    'electrum.stepkrav.pw':DEFAULT_PORTS,
 }
 
+
+def parse_servers(result):
+    """ parse servers list into dict format"""
+    from version import PROTOCOL_VERSION
+    servers = {}
+    for item in result:
+        host = item[1]
+        out = {}
+        version = None
+        pruning_level = '-'
+        if len(item) > 2:
+            for v in item[2]:
+                if re.match("[stgh]\d*", v):
+                    protocol, port = v[0], v[1:]
+                    if port == '': port = DEFAULT_PORTS[protocol]
+                    out[protocol] = port
+                elif re.match("v(.?)+", v):
+                    version = v[1:]
+                elif re.match("p\d*", v):
+                    pruning_level = v[1:]
+                if pruning_level == '': pruning_level = '0'
+        try: 
+            is_recent = float(version)>=float(PROTOCOL_VERSION)
+        except Exception:
+            is_recent = False
+
+        if out and is_recent:
+            out['pruning'] = pruning_level
+            servers[host] = out
+
+    return servers
 
 
 
@@ -66,6 +99,8 @@ class Network(threading.Thread):
         self.interface = None
         self.proxy = self.config.get('proxy')
         self.heights = {}
+        self.merkle_roots = {}
+        self.utxo_roots = {}
         self.server_lag = 0
 
         dir_path = os.path.join( self.config.path, 'certs')
@@ -80,6 +115,14 @@ class Network(threading.Thread):
 
     def is_connected(self):
         return self.interface and self.interface.is_connected
+
+
+    def is_up_to_date(self):
+        return self.interface.is_up_to_date()
+
+
+    def main_server(self):
+        return self.interface.server
 
 
     def send_subscriptions(self):
@@ -141,11 +184,14 @@ class Network(threading.Thread):
 
 
     def get_servers(self):
-        out = self.irc_servers if self.irc_servers else DEFAULT_SERVERS
-        for s in self.recent_servers:
-            host, port, protocol = s.split(':')
-            if host not in out:
-                out[host] = { protocol:port }
+        if self.irc_servers:
+            out = self.irc_servers  
+        else:
+            out = DEFAULT_SERVERS
+            for s in self.recent_servers:
+                host, port, protocol = s.split(':')
+                if host not in out:
+                    out[host] = { protocol:port }
         return out
 
     def start_interface(self, server):
@@ -327,6 +373,8 @@ class Network(threading.Thread):
         if not result: return
         height = result.get('block_height')
         self.heights[i.server] = height
+        self.merkle_roots[i.server] = result.get('merkle_root')
+        self.utxo_roots[i.server] = result.get('utxo_root')
         # notify blockchain about the new height
         self.blockchain.queue.put((i,result))
 
@@ -341,7 +389,7 @@ class Network(threading.Thread):
 
     def on_peers(self, i, r):
         if not r: return
-        self.irc_servers = self.parse_servers(r.get('result'))
+        self.irc_servers = parse_servers(r.get('result'))
         self.trigger_callback('peers')
 
     def on_banner(self, i, r):
@@ -356,71 +404,35 @@ class Network(threading.Thread):
 
     
     def synchronous_get(self, requests, timeout=100000000):
-        queue = Queue.Queue()
-        ids = self.interface.send(requests, lambda i,r: queue.put(r))
-        id2 = ids[:]
-        res = {}
-        while ids:
-            r = queue.get(True, timeout)
-            _id = r.get('id')
-            if _id in ids:
-                ids.remove(_id)
-                res[_id] = r.get('result')
-        out = []
-        for _id in id2:
-            out.append(res[_id])
-        return out
+        return self.interface.synchronous_get(requests)
 
 
-    def retrieve_transaction(self, tx_hash, tx_height=0):
-        import transaction
-        r = self.synchronous_get([ ('blockchain.transaction.get',[tx_hash, tx_height]) ])[0]
-        if r:
-            return transaction.Transaction(r)
+    def get_header(self, tx_height):
+        return self.blockchain.read_header(tx_height)
+
+    def get_local_height(self):
+        return self.blockchain.height()
 
 
-    def parse_servers(self, result):
-        """ parse servers list into dict format"""
-        from version import PROTOCOL_VERSION
-        servers = {}
-        for item in result:
-            host = item[1]
-            out = {}
-            version = None
-            pruning_level = '-'
-            if len(item) > 2:
-                for v in item[2]:
-                    if re.match("[stgh]\d*", v):
-                        protocol, port = v[0], v[1:]
-                        if port == '': port = DEFAULT_PORTS[protocol]
-                        out[protocol] = port
-                    elif re.match("v(.?)+", v):
-                        version = v[1:]
-                    elif re.match("p\d*", v):
-                        pruning_level = v[1:]
-                    if pruning_level == '': pruning_level = '0'
-            try: 
-                is_recent = float(version)>=float(PROTOCOL_VERSION)
-            except Exception:
-                is_recent = False
 
-            if out and is_recent:
-                out['pruning'] = pruning_level
-                servers[host] = out
+    #def retrieve_transaction(self, tx_hash, tx_height=0):
+    #    import transaction
+    #    r = self.synchronous_get([ ('blockchain.transaction.get',[tx_hash, tx_height]) ])[0]
+    #    if r:
+    #        return transaction.Transaction(r)
 
-        return servers
 
 
 
 
 if __name__ == "__main__":
-    import simple_config
-    config = simple_config.SimpleConfig({'verbose':True, 'server':'ecdsa.org:50002:s'})
-    network = Network(config)
+    network = NetworkProxy({})
     network.start()
+    print network.get_servers()
 
-    while 1:
-        time.sleep(1)
-
-
+    q = Queue.Queue()
+    network.send([('blockchain.headers.subscribe',[])], q.put)
+    while True:
+        r = q.get(timeout=10000)
+        print r
 

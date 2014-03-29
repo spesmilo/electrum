@@ -103,6 +103,7 @@ class PasswordDialog(QDialog):
         self.setModal(1)
         self.wallet = wallet
         self.parent = parent
+        self.setWindowTitle(_("Set Password"))
         msg = (_('Your wallet is encrypted. Use this dialog to change your password.') + ' '\
                +_('To disable wallet encryption, enter an empty new password.')) \
                if wallet.use_encryption else _('Your wallet keys are not encrypted')

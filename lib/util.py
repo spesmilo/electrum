@@ -2,7 +2,7 @@ import os, sys, re, json
 import platform
 import shutil
 from datetime import datetime
-is_verbose = True
+is_verbose = False
 
 
 class MyEncoder(json.JSONEncoder):
