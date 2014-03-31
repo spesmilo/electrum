@@ -577,20 +577,22 @@ def CKD_pub(cK, c, n):
     return cK_n, c_n
 
 
-def parse_xprv(xprv):
-    xprv = DecodeBase58Check( xprv )
-    assert len(xprv) == 78
-    assert xprv[0:4] == "0488ADE4".decode('hex')
-    depth = ord(xprv[4])
-    fingerprint = xprv[5:9]
-    child_number = xprv[9:13]
-    c = xprv[13:13+32]
-    k = xprv[13+33:]
-    K, cK = get_pubkeys_from_secret(k)
-    key_id = hash_160(cK)
-    print "keyid", key_id.encode('hex')
-    print "address", hash_160_to_bc_address(key_id)
-    print "secret key", SecretToASecret(k, True)
+
+def deserialize_xkey(xkey):
+    xkey = DecodeBase58Check(xkey) 
+    assert len(xkey) == 78
+    assert xkey[0:4].encode('hex') in ["0488ADE4", "0488B21E"]
+    assert sequence.startswith(branch)
+    depth = ord(xkey[4])
+    fingerprint = xkey[5:9]
+    child_number = xkey[9:13]
+    c = xkey[13:13+32]
+    if xkey[0:4].encode('hex') == "0488ADE4":
+        K_or_k = xkey[13+33:]
+    else:
+        K_or_k = xkey[13+32:]
+    return depth, fingerprint, child_number, c, K_or_k
+
 
 
 def bip32_root(seed):
@@ -607,15 +609,8 @@ def bip32_root(seed):
 
 
 def bip32_private_derivation(xprv, branch, sequence):
-    xprv = DecodeBase58Check( xprv ) 
-    assert len(xprv) == 78
-    assert xprv[0:4] == "0488ADE4".decode('hex')
+    depth, fingerprint, child_number, c, k = deserialize_xkey(xprv)
     assert sequence.startswith(branch)
-    depth = ord(xprv[4])
-    fingerprint = xprv[5:9]
-    child_number = xprv[9:13]
-    c = xprv[13:13+32]
-    k = xprv[13+33:]
     sequence = sequence[len(branch):]
     for n in sequence.split('/'):
         if n == '': continue
@@ -635,15 +630,8 @@ def bip32_private_derivation(xprv, branch, sequence):
 
 
 def bip32_public_derivation(xpub, branch, sequence):
-    xpub = DecodeBase58Check( xpub ) 
-    assert len(xpub) == 78
-    assert xpub[0:4] == "0488B21E".decode('hex')
+    depth, fingerprint, child_number, c, cK = deserialize_xkey(xpub)
     assert sequence.startswith(branch)
-    depth = ord(xpub[4])
-    fingerprint = xpub[5:9]
-    child_number = xpub[9:13]
-    c = xpub[13:13+32]
-    cK = xpub[13+32:]
     sequence = sequence[len(branch):]
     for n in sequence.split('/'):
         if n == '': continue
@@ -683,7 +671,6 @@ def test_bip32(seed, sequence):
     xprv, xpub = bip32_root(seed)
     print xpub
     print xprv
-    #parse_xprv(xprv)
 
     assert sequence[0:2] == "m/"
     path = 'm'
