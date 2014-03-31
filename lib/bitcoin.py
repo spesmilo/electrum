@@ -581,13 +581,12 @@ def CKD_pub(cK, c, n):
 def deserialize_xkey(xkey):
     xkey = DecodeBase58Check(xkey) 
     assert len(xkey) == 78
-    assert xkey[0:4].encode('hex') in ["0488ADE4", "0488B21E"]
-    assert sequence.startswith(branch)
+    assert xkey[0:4].encode('hex') in ["0488ade4", "0488b21e"]
     depth = ord(xkey[4])
     fingerprint = xkey[5:9]
     child_number = xkey[9:13]
     c = xkey[13:13+32]
-    if xkey[0:4].encode('hex') == "0488ADE4":
+    if xkey[0:4].encode('hex') == "0488ade4":
         K_or_k = xkey[13+33:]
     else:
         K_or_k = xkey[13+32:]
