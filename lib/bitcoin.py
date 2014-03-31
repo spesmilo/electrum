@@ -452,10 +452,7 @@ class EC_KEY(object):
         str_to_long = string_to_number
 
         P = generator
-        if len(pubkey)==33: #compressed
-            pk = Point( curve_secp256k1, str_to_long(pubkey[1:33]), ECC_YfromX(str_to_long(pubkey[1:33]), curve_secp256k1, pubkey[0]=='\x03')[0], _r )
-        else:
-            pk = Point( curve_secp256k1, str_to_long(pubkey[1:33]), str_to_long(pubkey[33:65]), _r )
+        pk = ser_to_point(pubkey)
 
         for i in range(len(msgs)):
             n = ecdsa.util.randrange( pow(2,256) )
@@ -524,17 +521,6 @@ class EC_KEY(object):
 random_seed = lambda n: "%032x"%ecdsa.util.randrange( pow(2,n) )
 BIP32_PRIME = 0x80000000
 
-def bip32_init(seed):
-    import hmac
-    seed = seed.decode('hex')        
-    I = hmac.new("Bitcoin seed", seed, hashlib.sha512).digest()
-
-    master_secret = I[0:32]
-    master_chain = I[32:]
-
-    K, K_compressed = get_pubkeys_from_secret(master_secret)
-    return master_secret, master_chain, K, K_compressed
-
 
 def get_pubkeys_from_secret(secret):
     # public key
@@ -545,7 +531,6 @@ def get_pubkeys_from_secret(secret):
     return K, K_compressed
 
 
-
 # Child private key derivation function (from master private key)
 # k = master private key (32 bytes)
 # c = master chain code (extra entropy for key derivation) (32 bytes)
@@ -554,7 +539,7 @@ def get_pubkeys_from_secret(secret):
 #  corresponding public key can NOT be determined without the master private key.
 # However, if n is positive, the resulting private key's corresponding
 #  public key can be determined without the master private key.
-def CKD(k, c, n):
+def CKD_priv(k, c, n):
     import hmac
     from ecdsa.util import string_to_number, number_to_string
     order = generator_secp256k1.order()
@@ -577,54 +562,107 @@ def CKD(k, c, n):
 # n = index of key we want to derive
 # This function allows us to find the nth public key, as long as n is 
 #  non-negative. If n is negative, we need the master private key to find it.
-def CKD_prime(K, c, n):
+def CKD_pub(cK, c, n):
     import hmac
     from ecdsa.util import string_to_number, number_to_string
     order = generator_secp256k1.order()
-
     if n & BIP32_PRIME: raise
-
-    K_public_key = ecdsa.VerifyingKey.from_string( K, curve = SECP256k1 )
-    K_compressed = GetPubKey(K_public_key.pubkey,True)
-
-    I = hmac.new(c, K_compressed + rev_hex(int_to_hex(n,4)).decode('hex'), hashlib.sha512).digest()
-
+    I = hmac.new(c, cK + rev_hex(int_to_hex(n,4)).decode('hex'), hashlib.sha512).digest()
     curve = SECP256k1
-    pubkey_point = string_to_number(I[0:32])*curve.generator + K_public_key.pubkey.point
+    pubkey_point = string_to_number(I[0:32])*curve.generator + ser_to_point(cK)
     public_key = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
-
-    K_n = public_key.to_string()
-    K_n_compressed = GetPubKey(public_key.pubkey,True)
     c_n = I[32:]
+    cK_n = GetPubKey(public_key.pubkey,True)
 
-    return K_n, K_n_compressed, c_n
+    return cK_n, c_n
+
+
+def parse_xprv(xprv):
+    xprv = DecodeBase58Check( xprv )
+    assert len(xprv) == 78
+    assert xprv[0:4] == "0488ADE4".decode('hex')
+    depth = ord(xprv[4])
+    fingerprint = xprv[5:9]
+    child_number = xprv[9:13]
+    c = xprv[13:13+32]
+    k = xprv[13+33:]
+    K, cK = get_pubkeys_from_secret(k)
+    key_id = hash_160(cK)
+    print "keyid", key_id.encode('hex')
+    print "address", hash_160_to_bc_address(key_id)
+    print "secret key", SecretToASecret(k, True)
+
+
+def bip32_root(seed):
+    import hmac
+    seed = seed.decode('hex')        
+    I = hmac.new("Bitcoin seed", seed, hashlib.sha512).digest()
+    master_k = I[0:32]
+    master_c = I[32:]
+    K, cK = get_pubkeys_from_secret(master_k)
+    xprv = ("0488ADE4" + "00" + "00000000" + "00000000").decode("hex") + master_c + chr(0) + master_k
+    xpub = ("0488B21E" + "00" + "00000000" + "00000000").decode("hex") + master_c + cK
+    return EncodeBase58Check(xprv), EncodeBase58Check(xpub)
 
 
 
-def bip32_private_derivation(k, c, branch, sequence):
+def bip32_private_derivation(xprv, branch, sequence):
+    xprv = DecodeBase58Check( xprv ) 
+    assert len(xprv) == 78
+    assert xprv[0:4] == "0488ADE4".decode('hex')
     assert sequence.startswith(branch)
+    depth = ord(xprv[4])
+    fingerprint = xprv[5:9]
+    child_number = xprv[9:13]
+    c = xprv[13:13+32]
+    k = xprv[13+33:]
     sequence = sequence[len(branch):]
     for n in sequence.split('/'):
         if n == '': continue
-        n = int(n[:-1]) + BIP32_PRIME if n[-1] == "'" else int(n)
-        k, c = CKD(k, c, n)
-    K, K_compressed = get_pubkeys_from_secret(k)
-    return k.encode('hex'), c.encode('hex'), K.encode('hex'), K_compressed.encode('hex')
+        i = int(n[:-1]) + BIP32_PRIME if n[-1] == "'" else int(n)
+        parent_k = k
+        k, c = CKD_priv(k, c, i)
+        depth += 1
+
+    _, parent_cK = get_pubkeys_from_secret(parent_k)
+    fingerprint = hash_160(parent_cK)[0:4]
+    child_number = ("%08X"%i).decode('hex')
+    K, cK = get_pubkeys_from_secret(k)
+    xprv = "0488ADE4".decode('hex') + chr(depth) + fingerprint + child_number + c + chr(0) + k
+    xpub = "0488B21E".decode('hex') + chr(depth) + fingerprint + child_number + c + cK
+    return EncodeBase58Check(xprv), EncodeBase58Check(xpub)
 
 
-def bip32_public_derivation(c, K, branch, sequence):
+
+def bip32_public_derivation(xpub, branch, sequence):
+    xpub = DecodeBase58Check( xpub ) 
+    assert len(xpub) == 78
+    assert xpub[0:4] == "0488B21E".decode('hex')
     assert sequence.startswith(branch)
+    depth = ord(xpub[4])
+    fingerprint = xpub[5:9]
+    child_number = xpub[9:13]
+    c = xpub[13:13+32]
+    cK = xpub[13+32:]
     sequence = sequence[len(branch):]
     for n in sequence.split('/'):
-        n = int(n)
-        K, cK, c = CKD_prime(K, c, n)
+        if n == '': continue
+        i = int(n)
+        parent_cK = cK
+        cK, c = CKD_pub(cK, c, i)
+        depth += 1
 
-    return c.encode('hex'), K.encode('hex'), cK.encode('hex')
+    fingerprint = hash_160(parent_cK)[0:4]
+    child_number = ("%08X"%i).decode('hex')
+    xpub = "0488B21E".decode('hex') + chr(depth) + fingerprint + child_number + c + cK
+    return EncodeBase58Check(xpub)
+
+
 
 
 def bip32_private_key(sequence, k, chain):
     for i in sequence:
-        k, chain = CKD(k, chain, i)
+        k, chain = CKD_priv(k, chain, i)
     return SecretToASecret(k, True)
 
 
@@ -642,41 +680,28 @@ def test_bip32(seed, sequence):
     see https://en.bitcoin.it/wiki/BIP_0032_TestVectors
     """
 
-    master_secret, master_chain, master_public_key, master_public_key_compressed = bip32_init(seed)
-        
-    print "secret key", master_secret.encode('hex')
-    print "chain code", master_chain.encode('hex')
+    xprv, xpub = bip32_root(seed)
+    print xpub
+    print xprv
+    #parse_xprv(xprv)
 
-    key_id = hash_160(master_public_key_compressed)
-    print "keyid", key_id.encode('hex')
-    print "base58"
-    print "address", hash_160_to_bc_address(key_id)
-    print "secret key", SecretToASecret(master_secret, True)
-
-    k = master_secret
-    c = master_chain
-
-    s = ['m']
+    assert sequence[0:2] == "m/"
+    path = 'm'
+    sequence = sequence[2:]
     for n in sequence.split('/'):
-        s.append(n)
-        print "Chain [%s]" % '/'.join(s)
+        child_path = path + '/' + n
+        if n[-1] != "'":
+            xpub2 = bip32_public_derivation(xpub, path, child_path)
+        xprv, xpub = bip32_private_derivation(xprv, path, child_path)
+        if n[-1] != "'":
+            assert xpub == xpub2
         
-        n = int(n[:-1]) + BIP32_PRIME if n[-1] == "'" else int(n)
-        k0, c0 = CKD(k, c, n)
-        K0, K0_compressed = get_pubkeys_from_secret(k0)
 
-        print "* Identifier"
-        print "  * (main addr)", hash_160_to_bc_address(hash_160(K0_compressed))
+        path = child_path
+        print path
+        print xpub
+        print xprv
 
-        print "* Secret Key"
-        print "  * (hex)", k0.encode('hex')
-        print "  * (wif)", SecretToASecret(k0, True)
-
-        print "* Chain Code"
-        print "   * (hex)", c0.encode('hex')
-
-        k = k0
-        c = c0
     print "----"
 
         
@@ -709,7 +734,8 @@ def test_crypto():
 
 
 if __name__ == '__main__':
-    test_crypto()
-    #test_bip32("000102030405060708090a0b0c0d0e0f", "0'/1/2'/2/1000000000")
-    #test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","0/2147483647'/1/2147483646'/2")
+    #test_crypto()
+    test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000")
+    test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","m/0/2147483647'/1/2147483646'/2")
+
 
