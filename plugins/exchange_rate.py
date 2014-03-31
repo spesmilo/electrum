@@ -24,7 +24,7 @@ EXCHANGES = ["BitcoinAverage",
              "CoinDesk",
              "LocalBitcoins",
              "Winkdex"]
-             
+
 
 class Exchanger(threading.Thread):
 
@@ -115,7 +115,7 @@ class Exchanger(threading.Thread):
         with self.lock:
             self.quote_currencies = quote_currencies
         self.parent.set_currencies(quote_currencies)
-    
+
     def update_wd(self):
         try:
             winkresp = self.get_json('winkdex.com', "/static/data/0_600_288.json")
@@ -133,7 +133,7 @@ class Exchanger(threading.Thread):
         except KeyError:
             pass
         self.parent.set_currencies(quote_currencies)
-            
+
     def update_cv(self):
         try:
             jsonresp = self.get_json('www.cavirtex.com', "/api/CAD/ticker.json")
@@ -227,7 +227,7 @@ class Exchanger(threading.Thread):
         except KeyError:
             pass
         self.parent.set_currencies(quote_currencies)
-                
+
 
     def update_bv(self):
         try:
@@ -347,9 +347,9 @@ class Plugin(BasePlugin):
         for item in self.wallet.get_tx_history(self.wallet.storage.get("current_account", None)):
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
             tx_list[tx_hash] = {'value': value, 'timestamp': timestamp, 'balance': balance}
-            
+
         self.tx_list = tx_list
-        
+
 
     def requires_settings(self):
         return True
@@ -371,6 +371,7 @@ class Plugin(BasePlugin):
 
     def history_tab_update(self):
         if self.config.get('history_rates', 'unchecked') == "checked":
+            cur_exchange = self.config.get('use_exchange', "Blockchain")
             try:
                 tx_list = self.tx_list
             except Exception:
@@ -378,13 +379,34 @@ class Plugin(BasePlugin):
 
             try:
                 mintimestr = datetime.datetime.fromtimestamp(int(min(tx_list.items(), key=lambda x: x[1]['timestamp'])[1]['timestamp'])).strftime('%Y-%m-%d')
-            except ValueError:
-                return
-            maxtimestr = datetime.datetime.now().strftime('%Y-%m-%d')
-            try:
-                resp_hist = self.exchanger.get_json('api.coindesk.com', "/v1/bpi/historical/close.json?start=" + mintimestr + "&end=" + maxtimestr)
             except Exception:
                 return
+            maxtimestr = datetime.datetime.now().strftime('%Y-%m-%d')
+
+            if cur_exchange == "CoinDesk":
+                try:
+                    resp_hist = self.exchanger.get_json('api.coindesk.com', "/v1/bpi/historical/close.json?start=" + mintimestr + "&end=" + maxtimestr)
+                except Exception:
+                    return
+            elif cur_exchange == "Winkdex":
+                try:
+                    resp_hist = self.exchanger.get_json('winkdex.com', "/static/data/0_86400_730.json")['prices']
+                except Exception:
+                    return
+            elif cur_exchange == "BitcoinVenezuela":
+                cur_currency = self.config.get('currency', "EUR")
+                if cur_currency == "VEF":
+                    try:
+                        resp_hist = self.exchanger.get_json('api.bitcoinvenezuela.com', "/historical/index.php")['VEF_BTC']
+                    except Exception:
+                        return
+                elif cur_currency == "ARS":
+                    try:
+                        resp_hist = self.exchanger.get_json('api.bitcoinvenezuela.com', "/historical/index.php")['ARS_BTC']
+                    except Exception:
+                        return
+                else:
+                    return
 
             self.gui.main_window.is_edit = True
             self.gui.main_window.history_list.setColumnCount(6)
@@ -398,17 +420,35 @@ class Plugin(BasePlugin):
                 except Exception:
                     newtx = self.wallet.get_tx_history()
                     v = newtx[[x[0] for x in newtx].index(str(item.data(0, Qt.UserRole).toPyObject()))][3]
-                   
+
                     tx_info = {'timestamp':int(datetime.datetime.now().strftime("%s")), 'value': v }
                     pass
                 tx_time = int(tx_info['timestamp'])
-                tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
-                try:
-                    tx_USD_val = "%.2f %s" % (Decimal(str(tx_info['value'])) / 100000000 * Decimal(resp_hist['bpi'][tx_time_str]), "USD")
-                except KeyError:
-                    tx_USD_val = "%.2f %s" % (self.btc_rate * Decimal(str(tx_info['value']))/100000000 , "USD")
+                if cur_exchange == "CoinDesk":
+                    tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
+                    try:
+                        tx_USD_val = "%.2f %s" % (Decimal(str(tx_info['value'])) / 100000000 * Decimal(resp_hist['bpi'][tx_time_str]), "USD")
+                    except KeyError:
+                        tx_USD_val = "%.2f %s" % (self.btc_rate * Decimal(str(tx_info['value']))/100000000 , "USD")
+                elif cur_exchange == "Winkdex":
+                    tx_time_str = int(tx_time) - (int(tx_time) % (60 * 60 * 24))
+                    try:
+                        tx_rate = resp_hist[[x['x'] for x in resp_hist].index(tx_time_str)]['y']
+                        tx_USD_val = "%.2f %s" % (Decimal(tx_info['value']) / 100000000 * Decimal(tx_rate), "USD")
+                    except ValueError:
+                        tx_USD_val = "%.2f %s" % (self.btc_rate * Decimal(tx_info['value'])/100000000 , "USD")
+                elif cur_exchange == "BitcoinVenezuela":
+                    tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
+                    try:
+                        num = resp_hist[tx_time_str].replace(',','')
+                        tx_BTCVEN_val = "%.2f %s" % (Decimal(str(tx_info['value'])) / 100000000 * Decimal(num), cur_currency)
+                    except KeyError:
+                        tx_BTCVEN_val = _("No data")
 
-                item.setText(5, tx_USD_val)
+                if cur_exchange == "CoinDesk" or cur_exchange == "Winkdex":
+                    item.setText(5, tx_USD_val)
+                elif cur_exchange == "BitcoinVenezuela":
+                    item.setText(5, tx_BTCVEN_val)
                 if Decimal(str(tx_info['value'])) < 0:
                     item.setForeground(5, QBrush(QColor("#BC1E1E")))
 
@@ -417,7 +457,7 @@ class Plugin(BasePlugin):
             self.gui.main_window.history_list.setColumnWidth(4, 140)
             self.gui.main_window.history_list.setColumnWidth(5, 120)
             self.gui.main_window.is_edit = False
-       
+
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'), self.settings_dialog)
@@ -446,7 +486,12 @@ class Plugin(BasePlugin):
                 return
             if cur_request != self.config.get('currency', "EUR"):
                 self.config.set_key('currency', cur_request, True)
-                if cur_request == "USD" and self.config.get('use_exchange', "Blockchain") == "CoinDesk":
+                cur_exchange = self.config.get('use_exchange', "Blockchain")
+                if cur_request == "USD" and (cur_exchange == "CoinDesk" or cur_exchange == "Winkdex"):
+                    hist_checkbox.setEnabled(True)
+                elif cur_request == "VEF" and (cur_exchange == "BitcoinVenezuela"):
+                    hist_checkbox.setEnabled(True)
+                elif cur_request == "ARS" and (cur_exchange == "BitcoinVenezuela"):
                     hist_checkbox.setEnabled(True)
                 else:
                     hist_checkbox.setChecked(False)
@@ -470,8 +515,14 @@ class Plugin(BasePlugin):
                 self.currencies = []
                 combo.clear()
                 self.exchanger.query_rates.set()
-                if cur_request == "CoinDesk":
-                    if self.config.get('currency', "EUR") == "USD":
+                cur_currency = self.config.get('currency', "EUR")
+                if cur_request == "CoinDesk" or cur_request == "Winkdex":
+                    if cur_currency == "USD":
+                        hist_checkbox.setEnabled(True)
+                    else:
+                        disable_check()
+                elif cur_request == "BitcoinVenezuela":
+                    if cur_currency == "VEF" or cur_currency == "ARS":
                         hist_checkbox.setEnabled(True)
                     else:
                         disable_check()
@@ -492,11 +543,14 @@ class Plugin(BasePlugin):
                     self.gui.main_window.history_list.setColumnWidth(i, width)
 
         def set_hist_check(hist_checkbox):
-            if self.config.get('use_exchange', "Blockchain") == "CoinDesk":
+            cur_exchange = self.config.get('use_exchange', "Blockchain")
+            if cur_exchange == "CoinDesk" or cur_exchange == "Winkdex":
+                hist_checkbox.setEnabled(True)
+            elif cur_exchange == "BitcoinVenezuela":
                 hist_checkbox.setEnabled(True)
             else:
-                hist_checkbox.setEnabled(False) 
-        
+                hist_checkbox.setEnabled(False)
+
         def set_currencies(combo):
             current_currency = self.config.get('currency', "EUR")
             try:
@@ -538,7 +592,7 @@ class Plugin(BasePlugin):
         layout.addWidget(combo_ex,0,1)
         layout.addWidget(hist_checkbox,2,1)
         layout.addWidget(ok_button,3,1)
-        
+
         if d.exec_():
             return True
         else:
@@ -552,7 +606,7 @@ class Plugin(BasePlugin):
         if not self.config.get('use_exchange_rate'):
           self.gui.main_window.show_message(_("To use this feature, first enable the exchange rate plugin."))
           return
-        
+
         if not self.gui.main_window.network.is_connected():
           self.gui.main_window.show_message(_("To use this feature, you must have a network connection."))
           return
