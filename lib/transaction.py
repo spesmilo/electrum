@@ -468,7 +468,7 @@ class Transaction:
             addr, amount = output
             s += int_to_hex( amount, 8)                              # amount
             addrtype, hash_160 = bc_address_to_hash_160(addr)
-            if addrtype == 0:
+            if addrtype == 48:
                 script = '76a9'                                      # op_dup, op_hash_160
                 script += '14'                                       # push 0x14 bytes
                 script += hash_160.encode('hex')
