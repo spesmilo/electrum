@@ -177,7 +177,7 @@ class BIP32_Account_2of2(BIP32_Account):
     def get_pubkey2(self, for_change, n):
         _, _, _, c, cK = deserialize_xkey(self.xpub2)
         for i in [for_change, n]:
-            cK, c = CKD_prime(cK, c, i)
+            cK, c = CKD_pub(cK, c, i)
         return cK.encode('hex')
 
     def redeem_script(self, sequence):
@@ -214,7 +214,7 @@ class BIP32_Account_2of3(BIP32_Account_2of2):
     def get_pubkey3(self, for_change, n):
         _, _, _, c, cK = deserialize_xkey(self.xpub3)
         for i in [for_change, n]:
-            cK, c = CKD_prime(cK, c, i)
+            cK, c = CKD_pub(cK, c, i)
         return cK.encode('hex')
 
     def get_redeem_script(self, sequence):
