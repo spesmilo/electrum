@@ -122,6 +122,10 @@ class OldAccount(Account):
     def get_type(self):
         return _('Old Electrum format')
 
+    def get_keyID(self, sequence):
+        a, b = sequence
+        return 'old(%s,%d,%d)'%(self.mpk,a,b)
+
 
 
 class BIP32_Account(Account):
@@ -160,7 +164,10 @@ class BIP32_Account(Account):
 
     def get_type(self):
         return _('Standard 1 of 1')
-        #acctype = 'multisig 2 of 2' if len(roots) == 2 else 'multisig 2 of 3' if len(roots) == 3 else 'standard 1 of 1'
+
+    def get_keyID(self, sequence):
+        s = '/' + '/'.join( map(lambda x:str(x), sequence) )
+        return '&'.join( map(lambda x: 'bip32(%s,%s)'%(x, s), self.get_master_pubkeys() ) )
 
 
 class BIP32_Account_2of2(BIP32_Account):
@@ -182,7 +189,7 @@ class BIP32_Account_2of2(BIP32_Account):
 
     def redeem_script(self, sequence):
         pubkeys = self.get_pubkeys(sequence)
-        return Transaction.multisig_script(pubkeys, len(pubkeys))
+        return Transaction.multisig_script(pubkeys, 2)
 
     def get_address(self, for_change, n):
         address = hash_160_to_bc_address(hash_160(self.redeem_script((for_change, n)).decode('hex')), 5)
@@ -223,6 +230,7 @@ class BIP32_Account_2of3(BIP32_Account_2of2):
 
     def get_type(self):
         return _('Multisig 2 of 3')
+
 
 
 

@@ -517,6 +517,8 @@ class Transaction:
                 continue
 
             tx_for_sig = self.serialize( self.inputs, self.outputs, for_sig = i )
+
+            print_error("redeem pubkeys input %d"%i, redeem_pubkeys)
             for pubkey in redeem_pubkeys:
                 # check if we have the corresponding private key
                 if pubkey in keypairs.keys():
@@ -535,6 +537,7 @@ class Transaction:
             txin["signatures"] = signatures
             is_complete = is_complete and len(signatures) == num
 
+        print_error("is_complete", is_complete)
         self.is_complete = is_complete
         self.raw = self.serialize( self.inputs, self.outputs )
 
