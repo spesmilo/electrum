@@ -181,10 +181,8 @@ class BIP32_Account_2of2(BIP32_Account):
         return cK.encode('hex')
 
     def redeem_script(self, sequence):
-        chain, i = sequence
-        pubkey1 = self.get_pubkey(chain, i)
-        pubkey2 = self.get_pubkey2(chain, i)
-        return Transaction.multisig_script([pubkey1, pubkey2], 2)
+        pubkeys = self.get_pubkeys(sequence)
+        return Transaction.multisig_script(pubkeys, len(pubkeys))
 
     def get_address(self, for_change, n):
         address = hash_160_to_bc_address(hash_160(self.redeem_script((for_change, n)).decode('hex')), 5)
@@ -216,13 +214,6 @@ class BIP32_Account_2of3(BIP32_Account_2of2):
         for i in [for_change, n]:
             cK, c = CKD_pub(cK, c, i)
         return cK.encode('hex')
-
-    def get_redeem_script(self, sequence):
-        chain, i = sequence
-        pubkey1 = self.get_pubkey(chain, i)
-        pubkey2 = self.get_pubkey2(chain, i)
-        pubkey3 = self.get_pubkey3(chain, i)
-        return Transaction.multisig_script([pubkey1, pubkey2, pubkey3], 3)
 
     def get_pubkeys(self, sequence):
         return [ self.get_pubkey( *sequence ), self.get_pubkey2( *sequence ), self.get_pubkey3( *sequence )]
