@@ -6,6 +6,7 @@ import decimal
 import httplib
 import json
 import threading
+import time
 import re
 from decimal import Decimal
 from electrum.plugins import BasePlugin
@@ -421,7 +422,7 @@ class Plugin(BasePlugin):
                     newtx = self.wallet.get_tx_history()
                     v = newtx[[x[0] for x in newtx].index(str(item.data(0, Qt.UserRole).toPyObject()))][3]
 
-                    tx_info = {'timestamp':int(datetime.datetime.now().strftime("%s")), 'value': v }
+                    tx_info = {'timestamp':int(time.time()), 'value': v }
                     pass
                 tx_time = int(tx_info['timestamp'])
                 if cur_exchange == "CoinDesk":
