@@ -449,10 +449,14 @@ class NewWallet:
             if k == 0:
                 v['mpk'] = self.storage.get('master_public_key')
                 self.accounts[k] = OldAccount(v)
-            elif '&' in k:
+            elif v.get('xpub3'):
+                self.accounts[k] = BIP32_Account_2of3(v)
+            elif v.get('xpub2'):
                 self.accounts[k] = BIP32_Account_2of2(v)
-            else:
+            elif v.get('xpub'):
                 self.accounts[k] = BIP32_Account(v)
+            else:
+                raise
 
         self.pending_accounts = self.storage.get('pending_accounts',{})
 
