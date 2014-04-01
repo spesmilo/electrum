@@ -17,6 +17,8 @@ from electrum_gui.qt.amountedit import AmountEdit
 
 EXCHANGES = ["BitcoinAverage",
              "BitcoinVenezuela",
+             "Bitcurex",
+             "Bitmarket",
              "BitPay",
              "Blockchain",
              "BTCChina",
@@ -38,7 +40,7 @@ class Exchanger(threading.Thread):
         self.query_rates = threading.Event()
         self.use_exchange = self.parent.config.get('use_exchange', "Blockchain")
         self.parent.exchanges = EXCHANGES
-        self.parent.currencies = ["EUR","GBP","USD"]
+        self.parent.currencies = ["EUR","GBP","USD","PLN"]
         self.parent.win.emit(SIGNAL("refresh_exchanges_combo()"))
         self.parent.win.emit(SIGNAL("refresh_currencies_combo()"))
         self.is_running = False
@@ -82,6 +84,8 @@ class Exchanger(threading.Thread):
         update_rates = {
             "BitcoinAverage": self.update_ba,
             "BitcoinVenezuela": self.update_bv,
+            "Bitcurex": self.update_bx,
+            "Bitmarket": self.update_bm,
             "BitPay": self.update_bp,
             "Blockchain": self.update_bc,
             "BTCChina": self.update_CNY,
@@ -144,6 +148,36 @@ class Exchanger(threading.Thread):
         cadprice = jsonresp["last"]
         try:
             quote_currencies["CAD"] = decimal.Decimal(str(cadprice))
+            with self.lock:
+                self.quote_currencies = quote_currencies
+        except KeyError:
+            pass
+        self.parent.set_currencies(quote_currencies)
+
+    def update_bm(self):
+        try:
+            jsonresp = self.get_json('www.bitmarket.pl', "/json/BTCPLN/ticker.json")
+        except Exception:
+            return
+        quote_currencies = {"PLN": 0.0}
+        pln_price = jsonresp["last"]
+        try:
+            quote_currencies["PLN"] = decimal.Decimal(str(pln_price))
+            with self.lock:
+                self.quote_currencies = quote_currencies
+        except KeyError:
+            pass
+        self.parent.set_currencies(quote_currencies)
+
+    def update_bx(self):
+        try:
+            jsonresp = self.get_json('pln.bitcurex.com', "/data/ticker.json")
+        except Exception:
+            return
+        quote_currencies = {"PLN": 0.0}
+        pln_price = jsonresp["last"]
+        try:
+            quote_currencies["PLN"] = decimal.Decimal(str(pln_price))
             with self.lock:
                 self.quote_currencies = quote_currencies
         except KeyError:
