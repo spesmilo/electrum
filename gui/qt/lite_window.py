@@ -86,7 +86,7 @@ def load_theme_paths():
 def csv_transaction(wallet):
     try:
         select_export = _('Select file to export your wallet transactions to')
-        fileName = QFileDialog.getSaveFileName(QWidget(), select_export, os.path.expanduser('~/electrum-history.csv'), "*.csv")
+        fileName = QFileDialog.getSaveFileName(QWidget(), select_export, os.path.expanduser('~/electrum-ltc-history.csv'), "*.csv")
         if fileName:
             with open(fileName, "w+") as csvfile:
                 transaction = csv.writer(csvfile)

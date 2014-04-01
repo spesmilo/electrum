@@ -122,13 +122,13 @@ a SimpleConfig instance then reads the wallet file.
 
 
     def read_system_config(self):
-        """Parse and store the system config settings in electrum.conf into system_config[]."""
-        name = '/etc/electrum.conf'
+        """Parse and store the system config settings in electrum-ltc.conf into system_config[]."""
+        name = '/etc/electrum-ltc.conf'
         if os.path.exists(name):
             try:
                 import ConfigParser
             except ImportError:
-                print "cannot parse electrum.conf. please install ConfigParser"
+                print "cannot parse electrum-ltc.conf. please install ConfigParser"
                 return
                 
             p = ConfigParser.ConfigParser()
