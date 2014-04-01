@@ -18,6 +18,7 @@
 
 
 from bitcoin import *
+from i18n import _
 from transaction import Transaction
 
 class Account(object):
@@ -115,20 +116,23 @@ class OldAccount(Account):
     def redeem_script(self, sequence):
         return None
 
+    def get_master_pubkeys(self):
+        return [self.mpk]
+
+    def get_type(self):
+        return _('Old Electrum format')
+
+
 
 class BIP32_Account(Account):
 
     def __init__(self, v):
         Account.__init__(self, v)
-        self.c = v['c'].decode('hex')
-        self.K = v['K'].decode('hex')
-        self.cK = v['cK'].decode('hex')
+        self.xpub = v['xpub']
 
     def dump(self):
         d = Account.dump(self)
-        d['c'] = self.c.encode('hex')
-        d['K'] = self.K.encode('hex')
-        d['cK'] = self.cK.encode('hex')
+        d['xpub'] = self.xpub
         return d
 
     def get_address(self, for_change, n):
@@ -140,39 +144,41 @@ class BIP32_Account(Account):
         return self.get_address(0,0)
 
     def get_pubkey(self, for_change, n):
-        K = self.K
-        chain = self.c
+        _, _, _, c, cK = deserialize_xkey(self.xpub)
         for i in [for_change, n]:
-            K, K_compressed, chain = CKD_prime(K, chain, i)
-        return K_compressed.encode('hex')
+            cK, c = CKD_pub(cK, c, i)
+        return cK.encode('hex')
 
     def redeem_script(self, sequence):
         return None
 
+    def get_pubkeys(self, sequence):
+        return [self.get_pubkey(*sequence)]
 
+    def get_master_pubkeys(self):
+        return [self.xpub]
+
+    def get_type(self):
+        return _('Standard 1 of 1')
+        #acctype = 'multisig 2 of 2' if len(roots) == 2 else 'multisig 2 of 3' if len(roots) == 3 else 'standard 1 of 1'
 
 
 class BIP32_Account_2of2(BIP32_Account):
 
     def __init__(self, v):
         BIP32_Account.__init__(self, v)
-        self.c2 = v['c2'].decode('hex')
-        self.K2 = v['K2'].decode('hex')
-        self.cK2 = v['cK2'].decode('hex')
+        self.xpub2 = v['xpub2']
 
     def dump(self):
         d = BIP32_Account.dump(self)
-        d['c2'] = self.c2.encode('hex')
-        d['K2'] = self.K2.encode('hex')
-        d['cK2'] = self.cK2.encode('hex')
+        d['xpub2'] = self.xpub2
         return d
 
     def get_pubkey2(self, for_change, n):
-        K = self.K2
-        chain = self.c2
+        _, _, _, c, cK = deserialize_xkey(self.xpub2)
         for i in [for_change, n]:
-            K, K_compressed, chain = CKD_prime(K, chain, i)
-        return K_compressed.encode('hex')
+            cK, c = CKD_prime(cK, c, i)
+        return cK.encode('hex')
 
     def redeem_script(self, sequence):
         chain, i = sequence
@@ -187,27 +193,29 @@ class BIP32_Account_2of2(BIP32_Account):
     def get_pubkeys(self, sequence):
         return [ self.get_pubkey( *sequence ), self.get_pubkey2( *sequence )]
 
+    def get_master_pubkeys(self):
+        return [self.xpub, self.xpub2]
+
+    def get_type(self):
+        return _('Multisig 2 of 2')
+
+
 class BIP32_Account_2of3(BIP32_Account_2of2):
 
     def __init__(self, v):
         BIP32_Account_2of2.__init__(self, v)
-        self.c3 = v['c3'].decode('hex')
-        self.K3 = v['K3'].decode('hex')
-        self.cK3 = v['cK3'].decode('hex')
+        self.xpub3 = v['xpub3']
 
     def dump(self):
         d = BIP32_Account_2of2.dump(self)
-        d['c3'] = self.c3.encode('hex')
-        d['K3'] = self.K3.encode('hex')
-        d['cK3'] = self.cK3.encode('hex')
+        d['xpub3'] = self.xpub3
         return d
 
     def get_pubkey3(self, for_change, n):
-        K = self.K3
-        chain = self.c3
+        _, _, _, c, cK = deserialize_xkey(self.xpub3)
         for i in [for_change, n]:
-            K, K_compressed, chain = CKD_prime(K, chain, i)
-        return K_compressed.encode('hex')
+            cK, c = CKD_prime(cK, c, i)
+        return cK.encode('hex')
 
     def get_redeem_script(self, sequence):
         chain, i = sequence
@@ -218,6 +226,12 @@ class BIP32_Account_2of3(BIP32_Account_2of2):
 
     def get_pubkeys(self, sequence):
         return [ self.get_pubkey( *sequence ), self.get_pubkey2( *sequence ), self.get_pubkey3( *sequence )]
+
+    def get_master_pubkeys(self):
+        return [self.xpub, self.xpub2, self.xpub3]
+
+    def get_type(self):
+        return _('Multisig 2 of 3')
 
 
 

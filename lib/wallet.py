@@ -321,96 +321,40 @@ class NewWallet:
         self.create_accounts(password)
 
 
-    def create_watching_only_wallet(self, K0, c0):
-        cK0 = "" #FIXME
-        self.master_public_keys = {
-            "m/0'/": (c0, K0, cK0),
-            }
+    def create_watching_only_wallet(self, xpub):
+        self.master_public_keys = { "m/": xpub }
         self.storage.put('master_public_keys', self.master_public_keys, True)
         self.storage.put('seed_version', self.seed_version, True)
-        self.create_account('1of1','Main account')
+        account = BIP32_Account({'xpub':xpub})
+        self.add_account("m/", account)
 
 
     def create_accounts(self, password):
         seed = pw_decode(self.seed, password)
         # create default account
-        self.create_master_keys('1of1', password)
-        self.create_account('1of1','Main account')
+        self.create_master_keys(password)
+        self.create_account('Main account', password)
 
 
-    def create_master_keys(self, account_type, password):
-        master_k, master_c, master_K, master_cK = bip32_init(self.get_seed(password))
-        if account_type == '1of1':
-            k0, c0, K0, cK0 = bip32_private_derivation(master_k, master_c, "m/", "m/0'/")
-            self.master_public_keys["m/0'/"] = (c0, K0, cK0)
-            self.master_private_keys["m/0'/"] = pw_encode(k0, password)
-        elif account_type == '2of2':
-            k1, c1, K1, cK1 = bip32_private_derivation(master_k, master_c, "m/", "m/1'/")
-            k2, c2, K2, cK2 = bip32_private_derivation(master_k, master_c, "m/", "m/2'/")
-            self.master_public_keys["m/1'/"] = (c1, K1, cK1)
-            self.master_public_keys["m/2'/"] = (c2, K2, cK2)
-            self.master_private_keys["m/1'/"] = pw_encode(k1, password)
-            self.master_private_keys["m/2'/"] = pw_encode(k2, password)
-        elif account_type == '2of3':
-            k3, c3, K3, cK3 = bip32_private_derivation(master_k, master_c, "m/", "m/3'/")
-            k4, c4, K4, cK4 = bip32_private_derivation(master_k, master_c, "m/", "m/4'/")
-            k5, c5, K5, cK5 = bip32_private_derivation(master_k, master_c, "m/", "m/5'/")
-            self.master_public_keys["m/3'/"] = (c3, K3, cK3)
-            self.master_public_keys["m/4'/"] = (c4, K4, cK4)
-            self.master_public_keys["m/5'/"] = (c5, K5, cK5)
-            self.master_private_keys["m/3'/"] = pw_encode(k3, password)
-            self.master_private_keys["m/4'/"] = pw_encode(k4, password)
-            self.master_private_keys["m/5'/"] = pw_encode(k5, password)
-
+    def create_master_keys(self, password):
+        xpriv, xpub = bip32_root(self.get_seed(password))
+        self.master_public_keys["m/"] = xpub
+        self.master_private_keys["m/"] = pw_encode(xpriv, password)
         self.storage.put('master_public_keys', self.master_public_keys, True)
         self.storage.put('master_private_keys', self.master_private_keys, True)
 
-    def has_master_public_keys(self, account_type):
-        if account_type == '1of1':
-            return "m/0'/" in self.master_public_keys
-        elif account_type == '2of2':
-            return set(["m/1'/", "m/2'/"]) <= set(self.master_public_keys.keys())
-        elif account_type == '2of3':
-            return set(["m/3'/", "m/4'/", "m/5'/"]) <= set(self.master_public_keys.keys())
 
-    def find_root_by_master_key(self, c, K):
-        for key, v in self.master_public_keys.items():
+    def find_root_by_master_key(self, xpub):
+        for key, xpub2 in self.master_public_keys.items():
             if key == "m/":continue
-            cc, KK, _ = v
-            if (c == cc) and (K == KK):
+            if xpub == xpub2:
                 return key
-
-    def deseed_root(self, seed, password):
-        # for safety, we ask the user to enter their seed
-        assert seed == self.get_seed(password)
-        self.seed = ''
-        self.storage.put('seed', '', True)
-
-
-    def deseed_branch(self, k):
-        # check that parent has no seed
-        # assert self.seed == ''
-        self.master_private_keys.pop(k)
-        self.storage.put('master_private_keys', self.master_private_keys, True)
-
 
     def is_watching_only(self):
         return (self.seed == '') and (self.master_private_keys == {})
 
 
-
-    def account_id(self, account_type, i):
-        if account_type == '1of1':
-            return "m/0'/%d"%i
-        elif account_type == '2of2':
-            return "m/1'/%d & m/2'/%d"%(i,i)
-        elif account_type == '2of3':
-            return "m/3'/%d & m/4'/%d & m/5'/%d"%(i,i,i)
-        else:
-            raise Exception('unknown account type')
-
-
-    def num_accounts(self, account_type):
+    def num_accounts(self, account_type = '1of1'):
         keys = self.accounts.keys()
         i = 0
         while True:
@@ -420,47 +364,35 @@ class NewWallet:
         return i
 
 
-    def new_account_address(self, account_type = '1of1'):
+    def next_account_address(self, account_type, password):
         i = self.num_accounts(account_type)
-        k = self.account_id(account_type,i)
+        account_id = self.account_id(account_type, i)
 
-        addr = self.next_addresses.get(k)
+        addr = self.next_addresses.get(account_id)
         if not addr: 
-            account_id, account = self.next_account(account_type)
+            account = self.make_account(account_id, password)
             addr = account.first_address()
-            self.next_addresses[k] = addr
-            self.storage.put('next_addresses',self.next_addresses)
+            self.next_addresses[account_id] = addr
+            self.storage.put('next_addresses', self.next_addresses)
 
-        return k, addr
+        return account_id, addr
 
+    def account_id(self, account_type, i):
+        if account_type == '1of1':
+            return "m/%d'"%i
+        else:
+            raise
 
-    def next_account(self, account_type = '1of1'):
-
-        i = self.num_accounts(account_type)
-        account_id = self.account_id(account_type,i)
-
-        if account_type is '1of1':
-            master_c0, master_K0, _ = self.master_public_keys["m/0'/"]
-            c0, K0, cK0 = bip32_public_derivation(master_c0.decode('hex'), master_K0.decode('hex'), "m/0'/", "m/0'/%d"%i)
-            account = BIP32_Account({ 'c':c0, 'K':K0, 'cK':cK0 })
-
-        elif account_type == '2of2':
-            master_c1, master_K1, _ = self.master_public_keys["m/1'/"]
-            c1, K1, cK1 = bip32_public_derivation(master_c1.decode('hex'), master_K1.decode('hex'), "m/1'/", "m/1'/%d"%i)
-            master_c2, master_K2, _ = self.master_public_keys["m/2'/"]
-            c2, K2, cK2 = bip32_public_derivation(master_c2.decode('hex'), master_K2.decode('hex'), "m/2'/", "m/2'/%d"%i)
-            account = BIP32_Account_2of2({ 'c':c1, 'K':K1, 'cK':cK1, 'c2':c2, 'K2':K2, 'cK2':cK2 })
-
-        elif account_type == '2of3':
-            master_c3, master_K3, _ = self.master_public_keys["m/3'/"]
-            c3, K3, cK3 = bip32_public_derivation(master_c3.decode('hex'), master_K3.decode('hex'), "m/3'/", "m/3'/%d"%i)
-            master_c4, master_K4, _ = self.master_public_keys["m/4'/"]
-            c4, K4, cK4 = bip32_public_derivation(master_c4.decode('hex'), master_K4.decode('hex'), "m/4'/", "m/4'/%d"%i)
-            master_c5, master_K5, _ = self.master_public_keys["m/5'/"]
-            c5, K5, cK5 = bip32_public_derivation(master_c5.decode('hex'), master_K5.decode('hex'), "m/5'/", "m/5'/%d"%i)
-            account = BIP32_Account_2of3({ 'c':c3, 'K':K3, 'cK':cK3, 'c2':c4, 'K2':K4, 'cK2':cK4, 'c3':c5, 'K3':K5, 'cK3':cK5 })
-
-        return account_id, account
+    def make_account(self, account_id, password):
+        """Creates and saves the master keys, but does not save the account"""
+        master_xpriv = pw_decode( self.master_private_keys["m/"] , password )
+        xpriv, xpub = bip32_private_derivation(master_xpriv, "m/", account_id)
+        self.master_private_keys[account_id] = pw_encode(xpriv, password)
+        self.master_public_keys[account_id] = xpub
+        self.storage.put('master_public_keys', self.master_public_keys, True)
+        self.storage.put('master_private_keys', self.master_private_keys, True)
+        account = BIP32_Account({'xpub':xpub})
+        return account
 
 
     def set_label(self, name, text = None):
@@ -482,17 +414,24 @@ class NewWallet:
         return changed
 
 
-
-    def create_account(self, account_type = '1of1', name = None):
-        k, account = self.next_account(account_type)
-        if k in self.pending_accounts:
-            self.pending_accounts.pop(k)
-            self.storage.put('pending_accounts', self.pending_accounts)
-
-        self.accounts[k] = account
-        self.save_accounts()
+    def create_account(self, name, password):
+        i = self.num_accounts('1of1')
+        account_id = self.account_id('1of1', i)
+        account = self.make_account(account_id, password)
+        self.add_account(account_id, account)
         if name:
-            self.set_label(k, name)
+            self.set_label(account_id, name)
+
+        # add address of the next account
+        _, _ = self.next_account_address('1of1', password)
+
+
+    def add_account(self, account_id, account):
+        self.accounts[account_id] = account
+        if account_id in self.pending_accounts:
+            self.pending_accounts.pop(account_id)
+            self.storage.put('pending_accounts', self.pending_accounts)
+        self.save_accounts()
 
 
     def save_accounts(self):
@@ -525,10 +464,10 @@ class NewWallet:
     def account_is_pending(self, k):
         return k in self.pending_accounts
 
-    def create_pending_account(self, acct_type, name):
-        k, addr = self.new_account_address(acct_type)
-        self.set_label(k, name)
-        self.pending_accounts[k] = addr
+    def create_pending_account(self, acct_type, name, password):
+        account_id, addr = self.next_account_address(acct_type, password)
+        self.set_label(account_id, name)
+        self.pending_accounts[account_id] = addr
         self.storage.put('pending_accounts', self.pending_accounts)
 
     def get_pending_accounts(self):
@@ -559,20 +498,13 @@ class NewWallet:
         return s[0] == 1
 
     def get_master_public_key(self):
-        c, K, cK = self.storage.get("master_public_keys")["m/0'/"]
-        return repr((c, K))
+        return self.storage.get("master_public_keys")["m/"]
 
     def get_master_private_key(self, account, password):
         k = self.master_private_keys.get(account)
         if not k: return
-        master_k = pw_decode( k, password)
-        master_c, master_K, master_Kc = self.master_public_keys[account]
-        try:
-            K, Kc = get_pubkeys_from_secret(master_k.decode('hex'))
-            assert K.encode('hex') == master_K
-        except Exception:
-            raise Exception("Invalid password")
-        return master_k
+        xpriv = pw_decode( k, password)
+        return xpriv
 
 
     def get_address_index(self, address):
@@ -605,13 +537,14 @@ class NewWallet:
         roots = []
         for a in account.split('&'):
             s = a.strip()
-            m = re.match("(m/\d+'/)(\d+)", s)
+            m = re.match("m/(\d+')", s)
             roots.append( m.group(1) )
         return roots
 
+
     def is_seeded(self, account):
-        if type(account) is int:
-            return self.seed is not None
+        return True
+
 
         for root in self.get_roots(account):
             if root not in self.master_private_keys.keys(): 
@@ -619,29 +552,27 @@ class NewWallet:
         return True
 
     def rebase_sequence(self, account, sequence):
+        # account has one or more xpub
+        # sequence is a sequence of public derivations
         c, i = sequence
         dd = []
         for a in account.split('&'):
             s = a.strip()
-            m = re.match("(m/\d+'/)(\d+)", s)
-            root = m.group(1)
-            num = int(m.group(2))
+            m = re.match("m/(\d+)'", s)
+            root = "m/"
+            num = int(m.group(1))
             dd.append( (root, [num,c,i] ) )
         return dd
         
 
-    def get_keyID(self, account, sequence):
-        if account == 0:
-            a, b = sequence
-            mpk = self.storage.get('master_public_key')
-            return 'old(%s,%d,%d)'%(mpk,a,b)
 
+    def get_keyID(self, account, sequence):
         rs = self.rebase_sequence(account, sequence)
         dd = []
         for root, public_sequence in rs:
-            c, K, cK = self.master_public_keys[root]
+            xpub = self.master_public_keys[root]
             s = '/' + '/'.join( map(lambda x:str(x), public_sequence) )
-            dd.append( 'bip32(%s,%s,%s)'%(c, cK, s) )
+            dd.append( 'bip32(%s,%s)'%(xpub, s) )
         return '&'.join(dd)
 
 
@@ -666,20 +597,14 @@ class NewWallet:
         if address in self.imported_keys.keys():
             out.append( pw_decode( self.imported_keys[address], password ) )
         else:
-            account, sequence = self.get_address_index(address)
-            if account == 0:
-                pk = self.accounts[account].get_private_key(seed, sequence)
-                out.append(pk)
-                return out
-
-            # assert address == self.accounts[account].get_address(*sequence)
-            rs = self.rebase_sequence( account, sequence)
+            account_id, sequence = self.get_address_index(address)
+            #rs = self.rebase_sequence( account, sequence)
+            rs = [(account_id, sequence)]
             for root, public_sequence in rs:
-
-                if root not in self.master_private_keys.keys(): continue
-                master_k = self.get_master_private_key(root, password)
-                master_c, _, _ = self.master_public_keys[root]
-                pk = bip32_private_key( public_sequence, master_k.decode('hex'), master_c.decode('hex'))
+                xpriv = self.get_master_private_key(root, password)
+                if not xpriv: continue
+                _, _, _, c, k = deserialize_xkey(xpriv)
+                pk = bip32_private_key( public_sequence, k, c )
                 out.append(pk)
                     
         return out
@@ -849,7 +774,7 @@ class NewWallet:
         for tx_hash, tx_height in h:
             if tx_height == 0:
                 tx_age = 0
-            else: 
+            else:
                 tx_age = self.network.get_local_height() - tx_height + 1
             if tx_age > age:
                 age = tx_age
@@ -877,16 +802,14 @@ class NewWallet:
         return new_addresses
         
 
-
-    def create_pending_accounts(self):
-        for account_type in ['1of1','2of2','2of3']:
-            if not self.has_master_public_keys(account_type):
-                continue
-            k, a = self.new_account_address(account_type)
-            if self.address_is_old(a):
-                print_error( "creating account", a )
-                self.create_account(account_type)
-                self.next_addresses.pop(k)
+    def check_pending_accounts(self):
+        for account_id, addr in self.next_addresses.items():
+            if self.address_is_old(addr):
+                print_error( "creating account", account_id )
+                xpub = self.master_public_keys[account_id]
+                account = BIP32_Account({'xpub':xpub})
+                self.add_account(account_id, account)
+                self.next_addresses.pop(account_id)
 
 
     def synchronize_account(self, account):
@@ -897,8 +820,7 @@ class NewWallet:
 
 
     def synchronize(self):
-        if self.master_public_keys:
-            self.create_pending_accounts()
+        self.check_pending_accounts()
         new = []
         for account in self.accounts.values():
             new += self.synchronize_account(account)
@@ -1761,10 +1683,10 @@ class OldWallet(NewWallet):
         self.accounts[0] = OldAccount({'mpk':mpk, 0:[], 1:[]})
         self.save_accounts()
 
-    def create_watching_only_wallet(self, K0):
+    def create_watching_only_wallet(self, mpk):
         self.seed_version = OLD_SEED_VERSION
         self.storage.put('seed_version', self.seed_version, True)
-        self.create_account(K0)
+        self.create_account(mpk)
 
     def get_seed(self, password):
         seed = pw_decode(self.seed, password)
@@ -1801,7 +1723,32 @@ class OldWallet(NewWallet):
         assert k == 0
         return 'Main account'
 
+    def is_seeded(self, account):
+        return self.seed is not None
 
+    def get_private_key(self, address, password):
+        if self.is_watching_only():
+            return []
+
+        # first check the provided password
+        seed = self.get_seed(password)
+        
+        out = []
+        if address in self.imported_keys.keys():
+            out.append( pw_decode( self.imported_keys[address], password ) )
+        else:
+            account_id, sequence = self.get_address_index(address)
+            pk = self.accounts[0].get_private_key(seed, sequence)
+            out.append(pk)
+        return out
+
+    def get_keyID(self, account, sequence):
+        a, b = sequence
+        mpk = self.storage.get('master_public_key')
+        return 'old(%s,%d,%d)'%(mpk,a,b)
+
+    def check_pending_accounts(self):
+        pass
 
 
 # former WalletFactory
@@ -1867,19 +1814,20 @@ class Wallet(object):
 
 
     @classmethod
-    def from_mpk(self, s, storage):
-        try:
-            mpk, chain = s.split(':')
-        except:
-            mpk = s
-            chain = False
+    def from_mpk(self, mpk, storage):
 
-        if chain:
-            w = NewWallet(storage)
-            w.create_watching_only_wallet(mpk, chain)
-        else:
+        try:
+            int(mpk, 16)
+            old = True
+        except:
+            old = False
+
+        if old:
             w = OldWallet(storage)
             w.seed = ''
+            w.create_watching_only_wallet(mpk)
+        else:
+            w = NewWallet(storage)
             w.create_watching_only_wallet(mpk)
 
         return w

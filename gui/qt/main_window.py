@@ -1477,7 +1477,8 @@ class ElectrumWindow(QMainWindow):
         self.tabs.setCurrentIndex(3)
 
 
-    def new_account_dialog(self):
+    @protected
+    def new_account_dialog(self, password):
 
         dialog = QDialog(self)
         dialog.setModal(1)
@@ -1501,7 +1502,7 @@ class ElectrumWindow(QMainWindow):
         name = str(e.text())
         if not name: return
 
-        self.wallet.create_pending_account('1', name)
+        self.wallet.create_pending_account('1of1', name, password)
         self.update_receive_tab()
         self.tabs.setCurrentIndex(2)
 
@@ -1545,11 +1546,6 @@ class ElectrumWindow(QMainWindow):
         dialog.setModal(1)
         dialog.setWindowTitle(_("Master Public Keys"))
 
-        chain_text = QTextEdit()
-        chain_text.setReadOnly(True)
-        chain_text.setMaximumHeight(170)
-        chain_qrw = QRCodeWidget()
-
         mpk_text = QTextEdit()
         mpk_text.setReadOnly(True)
         mpk_text.setMaximumHeight(170)
@@ -1561,17 +1557,10 @@ class ElectrumWindow(QMainWindow):
         main_layout.addWidget(mpk_text, 1, 1)
         main_layout.addWidget(mpk_qrw, 1, 2)
 
-        main_layout.addWidget(QLabel(_('Chain')), 2, 0)
-        main_layout.addWidget(chain_text, 2, 1)
-        main_layout.addWidget(chain_qrw, 2, 2)
-
         def update(key):
-            c, K, cK = self.wallet.master_public_keys[str(key)]
-            chain_text.setText(c)
-            chain_qrw.set_addr(c)
-            chain_qrw.update_qr()
-            mpk_text.setText(K)
-            mpk_qrw.set_addr(K)
+            xpub = self.wallet.master_public_keys[str(key)]
+            mpk_text.setText(xpub)
+            mpk_qrw.set_addr(xpub)
             mpk_qrw.update_qr()
 
         key_selector = QComboBox()
@@ -1683,6 +1672,7 @@ class ElectrumWindow(QMainWindow):
         try:
             pk_list = self.wallet.get_private_key(address, password)
         except Exception as e:
+            traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
             return
 
@@ -2269,30 +2259,30 @@ class ElectrumWindow(QMainWindow):
 
 
     def show_account_details(self, k):
+        account = self.wallet.accounts[k]
+
         d = QDialog(self)
         d.setWindowTitle(_('Account Details'))
         d.setModal(1)
 
         vbox = QVBoxLayout(d)
-        roots = self.wallet.get_roots(k)
-
         name = self.wallet.get_account_name(k)
         label = QLabel('Name: ' + name)
         vbox.addWidget(label)
 
-        acctype = '2 of 2' if len(roots) == 2 else '2 of 3' if len(roots) == 3 else 'Single key'
-        vbox.addWidget(QLabel('Type: ' + acctype))
+        vbox.addWidget(QLabel(_('Address type') + ': ' + account.get_type()))
 
-        label = QLabel('Derivation: ' + k)
-        vbox.addWidget(label)
+        vbox.addWidget(QLabel(_('Derivation') + ': ' + k))
 
-        #for root in roots:
-        #    mpk = self.wallet.master_public_keys[root]
-        #    text = QTextEdit()
-        #    text.setReadOnly(True)
-        #    text.setMaximumHeight(120)
-        #    text.setText(repr(mpk))
-        #    vbox.addWidget(text)
+        vbox.addWidget(QLabel(_('Master Public Key:')))
+
+        text = QTextEdit()
+        text.setReadOnly(True)
+        text.setMaximumHeight(170)
+        vbox.addWidget(text)
+
+        mpk_text = '\n'.join( account.get_master_pubkeys() )
+        text.setText(mpk_text)
 
         vbox.addLayout(close_button(d))
         d.exec_()
