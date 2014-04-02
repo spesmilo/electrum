@@ -113,6 +113,7 @@ class ElectrumWindow(QMainWindow):
         if reason == QSystemTrayIcon.DoubleClick:
             if self.isMinimized() or self.isHidden():
                 self.show()
+                self.raise_()
             else:
                 self.hide()
 
@@ -200,11 +201,13 @@ class ElectrumWindow(QMainWindow):
         self.config.set_key('lite_mode', False, True)
         self.mini.hide()
         self.show()
+        self.raise_()
 
     def go_lite(self):
         self.config.set_key('lite_mode', True, True)
         self.hide()
         self.mini.show()
+        self.mini.raise_()
 
 
     def init_lite(self):
@@ -217,6 +220,7 @@ class ElectrumWindow(QMainWindow):
                 sys.exit(0)
             self.mini = None
             self.show()
+            self.raise_()
             return
 
         actuator = lite_window.MiniActuator(self)
