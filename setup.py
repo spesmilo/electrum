@@ -113,10 +113,10 @@ setup(
         'electrum_plugins.qrscanner',
         'electrum_plugins.virtualkeyboard',
     ],
-    description="Lightweight Bitcoin Wallet",
+    description="Lightweight Litecoin Wallet",
     author="ecdsa",
     author_email="ecdsa@github",
     license="GNU GPLv3",
     url="http://electrum.org",
-    long_description="""Lightweight Bitcoin Wallet"""
+    long_description="""Lightweight Litecoin Wallet"""
 )

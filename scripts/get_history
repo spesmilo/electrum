@@ -6,7 +6,7 @@ from electrum import NetworkProxy, print_json
 try:
     addr = sys.argv[1]
 except Exception:
-    print "usage: get_history <bitcoin_address>"
+    print "usage: get_history <litecoin_address>"
     sys.exit(1)
 
 n = NetworkProxy()

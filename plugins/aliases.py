@@ -96,9 +96,9 @@ class Plugin(BasePlugin):
         m1 = re.match('([\w\-\.]+)@((\w[\w\-]+\.)+[\w\-]+)', alias)
         m2 = re.match('((\w[\w\-]+\.)+[\w\-]+)', alias)
         if m1:
-            url = 'https://' + m1.group(2) + '/bitcoin.id/' + m1.group(1) 
+            url = 'https://' + m1.group(2) + '/litecoin.id/' + m1.group(1) 
         elif m2:
-            url = 'https://' + alias + '/bitcoin.id'
+            url = 'https://' + alias + '/litecoin.id'
         else:
             return ''
         try:
@@ -128,7 +128,7 @@ class Plugin(BasePlugin):
             EC_KEY.verify_message(previous, signature, "alias:%s:%s"%(alias,target))
 
         if not is_valid(target):
-            raise ValueError("Invalid bitcoin address")
+            raise ValueError("Invalid Litecoin address")
 
         return target, signing_addr, auth_name
 

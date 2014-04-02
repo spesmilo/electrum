@@ -747,7 +747,7 @@ class ElectrumWindow:
             self.set_frozen(self.payto_entry,True)
             self.set_frozen(self.amount_entry,True)
             self.set_frozen(self.message_entry,True)
-            self.payto_sig_id.set_text( '      The bitcoin URI was signed by ' + identity )
+            self.payto_sig_id.set_text( '      The litecoin URI was signed by ' + identity )
         else:
             self.payto_sig.set_visible(False)
 
@@ -801,7 +801,7 @@ class ElectrumWindow:
             to_address = r
 
         if not is_valid(to_address):
-            self.show_message( "invalid bitcoin address:\n"+to_address)
+            self.show_message( "invalid litecoin address:\n"+to_address)
             return
 
         try:

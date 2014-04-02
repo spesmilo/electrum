@@ -2,13 +2,13 @@
 # sudo desktop-file-install electrum.desktop
 
 [Desktop Entry]
-Comment=Lightweight Bitcoin Client
+Comment=Lightweight Litecoin Client
 Exec=electrum %u
 GenericName[en_US]=Electrum
 GenericName=Electrum
 Icon=/usr/share/app-install/icons/electrum.png
-Name[en_US]=Electrum Bitcoin Wallet
-Name=Electrum Bitcoin Wallet
+Name[en_US]=Electrum Litecoin Wallet
+Name=Electrum Litecoin Wallet
 Categories=Network;
 StartupNotify=false
 Terminal=false
