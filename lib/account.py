@@ -188,7 +188,7 @@ class BIP32_Account_2of2(BIP32_Account):
         return cK.encode('hex')
 
     def redeem_script(self, sequence):
-        pubkeys = self.get_pubkeys(sequence)
+        pubkeys = sorted(self.get_pubkeys(sequence))
         return Transaction.multisig_script(pubkeys, 2)
 
     def get_address(self, for_change, n):
