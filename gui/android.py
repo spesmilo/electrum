@@ -487,7 +487,7 @@ def make_new_contact():
     if r:
         data = r['extras']['SCAN_RESULT']
         if data:
-            if re.match('^bitcoin:', data):
+            if re.match('^litecoin:', data):
                 address, _, _, _, _, _, _ = util.parse_url(data)
             elif is_valid(data):
                 address = data
@@ -561,7 +561,7 @@ def main_loop():
                 if receive_addr:
                     amount = modal_input('Amount', 'Amount you want receive. ', '', "numberDecimal")
                     if amount:
-                        receive_addr = 'bitcoin:%s?amount=%s'%(receive_addr, amount)
+                        receive_addr = 'litecoin:%s?amount=%s'%(receive_addr, amount)
 
                 if not receive_addr:
                     out = None
@@ -618,7 +618,7 @@ def payto_loop():
                 if r:
                     data = r['extras']['SCAN_RESULT']
                     if data:
-                        if re.match('^bitcoin:', data):
+                        if re.match('^litecoin:', data):
                             payto, amount, label, _, _, _, _ = util.parse_url(data)
                             droid.fullSetProperty("recipient", "text",payto)
                             droid.fullSetProperty("amount", "text", amount)

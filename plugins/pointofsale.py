@@ -86,7 +86,7 @@ class QR_Window(QWidget):
         label_text = "<span style='font-size: 21pt'>%s</span>" % label if label else ""
         self.label_label.setText(label_text)
 
-        msg = 'bitcoin:'+self.address
+        msg = 'litecoin:'+self.address
         if self.amount is not None:
             msg += '?amount=%s'%(str( self.amount))
             if self.label is not None:

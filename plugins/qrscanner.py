@@ -368,19 +368,19 @@ def parse_uri(uri):
 if __name__ == '__main__':
     # Run some tests
     
-    assert(parse_uri('1Marek48fwU7mugmSe186do2QpUkBnpzSN') ==
-           {'address': '1Marek48fwU7mugmSe186do2QpUkBnpzSN'})
+    assert(parse_uri('LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx') ==
+           {'address': 'LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx'})
 
-    assert(parse_uri('bitcoin://1Marek48fwU7mugmSe186do2QpUkBnpzSN') ==
-           {'address': '1Marek48fwU7mugmSe186do2QpUkBnpzSN'})
+    assert(parse_uri('litecoin://LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx') ==
+           {'address': 'LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx'})
     
-    assert(parse_uri('bitcoin:1Marek48fwU7mugmSe186do2QpUkBnpzSN') ==
-           {'address': '1Marek48fwU7mugmSe186do2QpUkBnpzSN'})
+    assert(parse_uri('litecoin:LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx') ==
+           {'address': 'LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx'})
     
-    assert(parse_uri('bitcoin:1Marek48fwU7mugmSe186do2QpUkBnpzSN?amount=10') ==
-           {'amount': '10', 'address': '1Marek48fwU7mugmSe186do2QpUkBnpzSN'})
+    assert(parse_uri('litecoin:LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx?amount=10') ==
+           {'amount': '10', 'address': 'LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx'})
     
-    assert(parse_uri('bitcoin:1Marek48fwU7mugmSe186do2QpUkBnpzSN?amount=10&label=slush&message=Small%20tip%20to%20slush') ==
-           {'amount': '10', 'label': 'slush', 'message': 'Small tip to slush', 'address': '1Marek48fwU7mugmSe186do2QpUkBnpzSN'})
+    assert(parse_uri('litecoin:LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx?amount=10&label=devfund&message=Donation%20to%20the%20dev%20fund') ==
+           {'amount': '10', 'label': 'devfund', 'message': 'Donation to the dev fund', 'address': 'LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx'})
     
     
