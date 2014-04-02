@@ -657,7 +657,7 @@ def bip32_private_key(sequence, k, chain):
 
 ################################## transactions
 
-MIN_RELAY_TX_FEE = 10000
+MIN_RELAY_TX_FEE = 100000
 
 
 

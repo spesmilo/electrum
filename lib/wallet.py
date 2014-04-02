@@ -38,7 +38,7 @@ from transaction import Transaction
 from plugins import run_hook
 
 COINBASE_MATURITY = 100
-DUST_THRESHOLD = 5430
+DUST_THRESHOLD = 0
 
 # AES encryption
 EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
@@ -177,7 +177,7 @@ class NewWallet:
         self.imported_keys         = storage.get('imported_keys',{})
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
 
-        self.fee                   = int(storage.get('fee_per_kb',20000))
+        self.fee                   = int(storage.get('fee_per_kb',200000))
 
         self.master_public_keys = storage.get('master_public_keys',{})
         self.master_private_keys = storage.get('master_private_keys', {})
