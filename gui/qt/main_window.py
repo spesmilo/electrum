@@ -539,7 +539,8 @@ class ElectrumWindow(QMainWindow):
         menu.addAction(_("Copy ID to Clipboard"), lambda: self.app.clipboard().setText(tx_hash))
         menu.addAction(_("Details"), lambda: self.show_transaction(self.wallet.transactions.get(tx_hash)))
         menu.addAction(_("Edit description"), lambda: self.tx_label_clicked(item,2))
-        menu.addAction(_("View on Blockchain.info"), lambda: webbrowser.open("https://blockchain.info/tx/" + tx_hash))
+        menu.addAction(_("View on explorer.litecoin.net"), lambda: webbrowser.open("http://explorer.litecoin.net/tx/" + tx_hash))
+        menu.addAction(_("View on block-explorer.com"), lambda: webbrowser.open("http://block-explorer.com/tx/" + tx_hash))
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
 
