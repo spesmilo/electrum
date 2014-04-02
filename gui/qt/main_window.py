@@ -178,6 +178,7 @@ class ElectrumWindow(QMainWindow):
         self.connect(self, QtCore.SIGNAL('update_status'), self.update_status)
         self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.network.banner) )
         self.connect(self, QtCore.SIGNAL('transaction_signal'), lambda: self.notify_transactions() )
+        self.connect(self, QtCore.SIGNAL('send_tx2'), self.send_tx2)
 
         self.history_list.setFocus(True)
 
@@ -888,12 +889,11 @@ class ElectrumWindow(QMainWindow):
             keypairs = {}
             self.wallet.add_keypairs_from_wallet(tx, keypairs, password)
             self.wallet.sign_transaction(tx, keypairs, password)
-            self.signed_tx = tx
+            self.signed_tx_data = (tx, fee, label)
             self.emit(SIGNAL('send_tx2'))
 
         # sign the tx
-        dialog = self.waiting_dialog('Signing..')
-        self.connect(self, QtCore.SIGNAL('send_tx2'), lambda: self.send_tx2(self.signed_tx, fee, label, dialog, password))
+        self.tx_wait_dialog = self.waiting_dialog('Signing..')
         threading.Thread(target=sign_thread).start()
 
         # add recipient to addressbook
@@ -901,8 +901,9 @@ class ElectrumWindow(QMainWindow):
             self.wallet.addressbook.append(to_address)
 
 
-    def send_tx2(self, tx, fee, label, dialog, password):
-        dialog.accept()
+    def send_tx2(self):
+        tx, fee, label = self.signed_tx_data
+        self.tx_wait_dialog.accept()
         
         if tx.error:
             self.show_message(tx.error)
