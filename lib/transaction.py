@@ -443,7 +443,9 @@ class Transaction:
                     script += pubkey
                 else:
                     script = '00'                                    # op_0
-                    for sig in signatures:
+                    for pubkey in pubkeys:
+                        sig = signatures.get(pubkey)
+                        if not sig: continue
                         sig = sig + '01'
                         script += op_push(len(sig)/2)
                         script += sig
@@ -511,7 +513,7 @@ class Transaction:
             # add pubkeys
             txin["pubkeys"] = redeem_pubkeys
             # get list of already existing signatures
-            signatures = txin.get("signatures",[])
+            signatures = txin.get("signatures",{})
             # continue if this txin is complete
             if len(signatures) == num:
                 continue
@@ -531,7 +533,9 @@ class Transaction:
                     public_key = private_key.get_verifying_key()
                     sig = private_key.sign_digest_deterministic( Hash( tx_for_sig.decode('hex') ), hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der )
                     assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
-                    signatures.append( sig.encode('hex') )
+
+                    # insert signature in the list
+                    signatures[pubkey] = sig.encode('hex')
                     print_error("adding signature for", pubkey)
             
             txin["signatures"] = signatures
@@ -572,7 +576,7 @@ class Transaction:
             pubkeys, signatures, address = get_address_from_input_script(scriptSig)
         else:
             pubkeys = []
-            signatures = []
+            signatures = {}
             address = None
 
         d['address'] = address
@@ -681,7 +685,7 @@ class Transaction:
                 'redeemScript':i.get('redeemScript'),
                 'redeemPubkey':i.get('redeemPubkey'),
                 'pubkeys':i.get('pubkeys'),
-                'signatures':i.get('signatures',[]),
+                'signatures':i.get('signatures',{}),
                 }
             info.append(item)
         return info
