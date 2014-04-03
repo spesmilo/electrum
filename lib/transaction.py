@@ -421,6 +421,7 @@ class Transaction:
     @classmethod
     def serialize( klass, inputs, outputs, for_sig = None ):
 
+        push_script = lambda x: op_push(len(x)/2) + x
         s  = int_to_hex(1,4)                                         # version
         s += var_int( len(inputs) )                                  # number of inputs
         for i in range(len(inputs)):
@@ -431,28 +432,23 @@ class Transaction:
             if for_sig is None:
                 signatures = txin['signatures']
                 pubkeys = txin['pubkeys']
+                sig_list = ''
+                for pubkey in pubkeys:
+                    sig = signatures.get(pubkey)
+                    if not sig: 
+                        continue
+                    sig = sig + '01'
+                    sig_list += push_script(sig)
+
                 if not txin.get('redeemScript'):
-                    pubkey = pubkeys[0]
-                    script = ''
-                    if signatures:
-                        sig = signatures[0]
-                        sig = sig + '01'                                 # hashtype
-                        script += op_push(len(sig)/2)
-                        script += sig
-                    script += op_push(len(pubkey)/2)
-                    script += pubkey
+                    script = sig_list
+                    script += push_script(pubkeys[0])
                 else:
                     script = '00'                                    # op_0
-                    for pubkey in pubkeys:
-                        sig = signatures.get(pubkey)
-                        if not sig: continue
-                        sig = sig + '01'
-                        script += op_push(len(sig)/2)
-                        script += sig
-
+                    script += sig_list
                     redeem_script = klass.multisig_script(pubkeys,2)
-                    script += op_push(len(redeem_script)/2)
-                    script += redeem_script
+                    assert redeem_script == txin.get('redeemScript')
+                    script += push_script(redeem_script)
 
             elif for_sig==i:
                 if txin.get('redeemScript'):
