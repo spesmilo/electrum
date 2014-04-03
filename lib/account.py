@@ -190,7 +190,7 @@ class BIP32_Account_2of2(BIP32_Account):
         return address
 
     def get_pubkeys(self, sequence):
-        return sorted([ self.get_pubkey(self.xpub, *sequence ), self.get_pubkey(self.xpub2, *sequence )])
+        return sorted(map(lambda x: self.get_pubkey(x, *sequence ), self.get_master_pubkeys()))
 
     def get_master_pubkeys(self):
         return [self.xpub, self.xpub2]
@@ -209,9 +209,6 @@ class BIP32_Account_2of3(BIP32_Account_2of2):
         d = BIP32_Account_2of2.dump(self)
         d['xpub3'] = self.xpub3
         return d
-
-    def get_pubkeys(self, sequence):
-        return sorted([ self.get_pubkey(self.xpub, *sequence ), self.get_pubkey(self.xpub2, *sequence ), self.get_pubkey(self.xpub3, *sequence )])
 
     def get_master_pubkeys(self):
         return [self.xpub, self.xpub2, self.xpub3]
