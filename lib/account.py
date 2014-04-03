@@ -140,7 +140,7 @@ class BIP32_Account(Account):
         return d
 
     def get_address(self, for_change, n):
-        pubkey = self.get_pubkey(for_change, n)
+        pubkey = self.get_pubkey(self.xpub, for_change, n)
         address = public_key_to_bc_address( pubkey.decode('hex') )
         return address
 
