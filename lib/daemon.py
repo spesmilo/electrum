@@ -332,7 +332,7 @@ class NetworkServer:
 
 if __name__ == '__main__':
     import simple_config
-    config = simple_config.SimpleConfig({'verbose':True, 'server':'ecdsa.net:50002:s'})
+    config = simple_config.SimpleConfig({'verbose':True, 'server':'electrum-ltc.bysh.me:50002:s'})
     server = NetworkServer(config)
     try:
         server.main_loop()

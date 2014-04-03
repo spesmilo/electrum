@@ -6,7 +6,7 @@
 # that can be rewritten by the client
 
 [client]
-server = electrum.novit.ro:50001:t
+server = electrum-ltc.bysh.me:50001:t
 proxy = None
 gap_limit = 5
 # booleans use python syntax

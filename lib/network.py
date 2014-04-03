@@ -7,20 +7,8 @@ from blockchain import Blockchain
 DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
 DEFAULT_SERVERS = {
-    'ecdsa.org': DEFAULT_PORTS,
-    'ecdsa.net': DEFAULT_PORTS,
-    'electrum.hachre.de': DEFAULT_PORTS,
-    'electrum.novit.ro': DEFAULT_PORTS,
-    'electrum.coinwallet.me': DEFAULT_PORTS,
-    'cube.l0g.in': DEFAULT_PORTS,
-    'bitcoin.epicinet.net': DEFAULT_PORTS,
-    'h.1209k.com': DEFAULT_PORTS,
-    'electrum.electricnewyear.net': DEFAULT_PORTS,
-    'erbium.sytes.net': DEFAULT_PORTS,
-    'e2.pdmc.net':DEFAULT_PORTS,
-    'electrum.no-ip.org':{'h': '80', 's': '50002', 't': '50001', 'g': '443'},
-    'electrum.thwg.org':DEFAULT_PORTS,
-    'electrum.stepkrav.pw':DEFAULT_PORTS,
+    'electrum-ltc.bysh.me': DEFAULT_PORTS,
+    'electrum.ltc.xurious.com': DEFAULT_PORTS,
 }
 
 
