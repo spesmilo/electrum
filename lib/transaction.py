@@ -698,24 +698,26 @@ class Transaction:
         return out
 
 
-    def requires_fee(self, verifier):
+    def required_fee(self, verifier):
         # see https://en.bitcoin.it/wiki/Transaction_fees
         threshold = 57600000*4
         size = len(self.raw)/2
-        if size >= 10000: 
-            return True
 
+        fee = 0
         for o in self.outputs:
             value = o[1]
-            if value < 100000:
-                return True
+            if value < DUST_SOFT_LIMIT:
+                fee += MIN_RELAY_TX_FEE
         sum = 0
         for i in self.inputs:
             age = verifier.get_confirmations(i["prevout_hash"])[0]
             sum += i["value"] * age
         priority = sum / size
         print_error(priority, threshold)
-        return priority < threshold 
+        if size < 5000 and fee == 0 and priority > threshold:
+            return 0
+        fee += (1 + size / 1000) * MIN_RELAY_TX_FEE
+        return fee
 
 
 

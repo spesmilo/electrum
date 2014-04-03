@@ -114,7 +114,7 @@ class Plugin(BasePlugin):
             self.gui.main_window.show_message(str(e))
             return
 
-        if tx.requires_fee(self.gui.main_window.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
+        if fee < tx.required_fee(self.gui.main_window.wallet.verifier):
             QMessageBox.warning(self.gui.main_window, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
             return
 

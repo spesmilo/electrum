@@ -828,7 +828,7 @@ class ElectrumWindow:
             self.show_message(str(e))
             return
 
-        if tx.requires_fee(self.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
+        if fee < tx.required_fee(self.wallet.verifier):
             self.show_message( "This transaction requires a higher fee, or it will not be propagated by the network." )
             return
 

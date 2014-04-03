@@ -658,6 +658,7 @@ def bip32_private_key(sequence, k, chain):
 ################################## transactions
 
 MIN_RELAY_TX_FEE = 100000
+DUST_SOFT_LIMIT = 100000
 
 
 

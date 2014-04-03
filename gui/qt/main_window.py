@@ -909,7 +909,7 @@ class ElectrumWindow(QMainWindow):
             self.show_message(tx.error)
             return
 
-        if tx.requires_fee(self.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
+        if fee < tx.required_fee(self.wallet.verifier):
             QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
             return
 
