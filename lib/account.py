@@ -157,7 +157,7 @@ class BIP32_Account(Account):
         return None
 
     def get_pubkeys(self, sequence):
-        return [self.get_pubkey(self.xpub, *sequence)]
+        return sorted(map(lambda x: self.get_pubkey(x, *sequence ), self.get_master_pubkeys()))
 
     def get_master_pubkeys(self):
         return [self.xpub]
@@ -188,9 +188,6 @@ class BIP32_Account_2of2(BIP32_Account):
     def get_address(self, for_change, n):
         address = hash_160_to_bc_address(hash_160(self.redeem_script((for_change, n)).decode('hex')), 5)
         return address
-
-    def get_pubkeys(self, sequence):
-        return sorted(map(lambda x: self.get_pubkey(x, *sequence ), self.get_master_pubkeys()))
 
     def get_master_pubkeys(self):
         return [self.xpub, self.xpub2]
