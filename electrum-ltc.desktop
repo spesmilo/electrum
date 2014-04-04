@@ -3,10 +3,10 @@
 
 [Desktop Entry]
 Comment=Lightweight Litecoin Client
-Exec=electrum %u
-GenericName[en_US]=Electrum
-GenericName=Electrum
-Icon=/usr/share/app-install/icons/electrum.png
+Exec=electrum-ltc %u
+GenericName[en_US]=Electrum-LTC
+GenericName=Electrum-LTC
+Icon=/usr/share/app-install/icons/electrum-ltc.png
 Name[en_US]=Electrum Litecoin Wallet
 Name=Electrum Litecoin Wallet
 Categories=Network;

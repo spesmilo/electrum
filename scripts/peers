@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
-import time, electrum, Queue
-from electrum import Interface, SimpleConfig
-from electrum.network import filter_protocol, parse_servers
+import time, electrum_ltc as electrum, Queue
+from electrum_ltc import Interface, SimpleConfig
+from electrum_ltc.network import filter_protocol, parse_servers
 from collections import defaultdict
 
 # 1. start interface and wait for connection
-interface = electrum.Interface('ecdsa.net:50002:s')
+interface = electrum.Interface('electrum-ltc.bysh.me:50002:s')
 interface.start(wait = True)
 if not interface.is_connected:
     print "not connected"

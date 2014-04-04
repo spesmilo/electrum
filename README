@@ -15,7 +15,7 @@ Homepage: http://electrum.org/
 
 To start Electrum in GUI mode, type:
 
-  electrum
+  electrum-ltc
 
 == HELP ==
 
@@ -37,7 +37,7 @@ On Mac OS X:
   # On brew installs
   ARCHFLAGS="-arch i386 -arch x86_64" sudo python setup-release.py py2app --includes sip
 
-  sudo hdiutil create -fs HFS+ -volname "Electrum" -srcfolder dist/Electrum.app dist/electrum-VERSION-macosx.dmg
+  sudo hdiutil create -fs HFS+ -volname "Electrum-LTC" -srcfolder dist/Electrum-LTC.app dist/electrum-ltc-VERSION-macosx.dmg
 
 
 == BROWSER CONFIGURATION ==

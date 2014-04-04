@@ -17,8 +17,8 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import sys, time, datetime, re, threading
-from electrum.i18n import _, set_language
-from electrum.util import print_error, print_msg
+from electrum_ltc.i18n import _, set_language
+from electrum_ltc.util import print_error, print_msg
 import os.path, json, ast, traceback
 import webbrowser
 import shutil
@@ -30,19 +30,19 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
-from electrum.bitcoin import MIN_RELAY_TX_FEE, is_valid
-from electrum.plugins import run_hook
+from electrum_ltc.bitcoin import MIN_RELAY_TX_FEE, is_valid
+from electrum_ltc.plugins import run_hook
 
 import icons_rc
 
-from electrum.wallet import format_satoshis
-from electrum import Transaction
-from electrum import mnemonic
-from electrum import util, bitcoin, commands, Interface, Wallet
-from electrum import SimpleConfig, Wallet, WalletStorage
+from electrum_ltc.wallet import format_satoshis
+from electrum_ltc import Transaction
+from electrum_ltc import mnemonic
+from electrum_ltc import util, bitcoin, commands, Interface, Wallet
+from electrum_ltc import SimpleConfig, Wallet, WalletStorage
 
 
-from electrum import bmp, pyqrnative
+from electrum_ltc import bmp, pyqrnative
 
 from amountedit import AmountEdit
 from network_dialog import NetworkDialog
@@ -63,7 +63,7 @@ elif platform.system() == 'Darwin':
 else:
     MONOSPACE_FONT = 'monospace'
 
-from electrum import ELECTRUM_VERSION
+from electrum_ltc import ELECTRUM_VERSION
 import re
 
 from util import *
@@ -163,7 +163,7 @@ class ElectrumWindow(QMainWindow):
         g = self.config.get("winpos-qt",[100, 100, 840, 400])
         self.setGeometry(g[0], g[1], g[2], g[3])
 
-        self.setWindowIcon(QIcon(":icons/electrum.png"))
+        self.setWindowIcon(QIcon(":icons/electrum-ltc.png"))
         self.init_menubar()
 
         QShortcut(QKeySequence("Ctrl+W"), self, self.close)
@@ -251,12 +251,12 @@ class ElectrumWindow(QMainWindow):
 
 
     def load_wallet(self, wallet):
-        import electrum
+        import electrum_ltc as electrum
         self.wallet = wallet
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
 
-        title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.wallet.storage.path
+        title = 'Electrum-LTC ' + self.wallet.electrum_version + '  -  ' + self.wallet.storage.path
         if self.wallet.is_watching_only(): title += ' [%s]' % (_('watching only'))
         self.setWindowTitle( title )
         self.update_wallet()
@@ -1909,7 +1909,7 @@ class ElectrumWindow(QMainWindow):
             self.show_transaction(tx)
 
     def do_process_from_txid(self):
-        from electrum import transaction
+        from electrum_ltc import transaction
         txid, ok = QInputDialog.getText(self, _('Lookup transaction'), _('Transaction ID') + ':')
         if ok and txid:
             r = self.network.synchronous_get([ ('blockchain.transaction.get',[str(txid)]) ])[0]
@@ -2090,7 +2090,7 @@ class ElectrumWindow(QMainWindow):
         lang_label=QLabel(_('Language') + ':')
         grid.addWidget(lang_label, 1, 0)
         lang_combo = QComboBox()
-        from electrum.i18n import languages
+        from electrum_ltc.i18n import languages
         lang_combo.addItems(languages.values())
         try:
             index = languages.keys().index(self.config.get("language",''))
@@ -2204,7 +2204,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def plugins_dialog(self):
-        from electrum.plugins import plugins
+        from electrum_ltc.plugins import plugins
 
         d = QDialog(self)
         d.setWindowTitle(_('Electrum Plugins'))

@@ -7,16 +7,16 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
-from electrum import bmp, pyqrnative
-from electrum.i18n import _
+from electrum_ltc import bmp, pyqrnative
+from electrum_ltc.i18n import _
 
-from electrum import util
+from electrum_ltc import util
 
 ALIAS_REGEXP = '^(|([\w\-\.]+)@)((\w[\w\-]+\.)+[\w\-]+)$'    
 
 
 
-from electrum.plugins import BasePlugin
+from electrum_ltc.plugins import BasePlugin
 
 class Plugin(BasePlugin):
 

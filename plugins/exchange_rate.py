@@ -9,10 +9,10 @@ import threading
 import time
 import re
 from decimal import Decimal
-from electrum.plugins import BasePlugin
-from electrum.i18n import _
-from electrum_gui.qt.util import *
-from electrum_gui.qt.amountedit import AmountEdit
+from electrum_ltc.plugins import BasePlugin
+from electrum_ltc.i18n import _
+from electrum_ltc_gui.qt.util import *
+from electrum_ltc_gui.qt.amountedit import AmountEdit
 
 
 EXCHANGES = ["BTC-e",

@@ -13,14 +13,14 @@ if __name__ == '__main__':
     os.system("pyrcc4 icons.qrc -o gui/qt/icons_rc.py")
     os.system("python setup.py sdist --format=zip,gztar")
     
-    _tgz="Electrum-%s.tar.gz"%version
-    _zip="Electrum-%s.zip"%version
+    _tgz="Electrum-LTC-%s.tar.gz"%version
+    _zip="Electrum-LTC-%s.zip"%version
 
 
     # android
     os.system('rm -rf dist/e4a-%s'%version)
     os.mkdir('dist/e4a-%s'%version)
-    shutil.copyfile("electrum",'dist/e4a-%s/e4a.py'%version)
+    shutil.copyfile("electrum-ltc",'dist/e4a-%s/e4a.py'%version)
     shutil.copytree("ecdsa",'dist/e4a-%s/ecdsa'%version)
     shutil.copytree("aes",'dist/e4a-%s/aes'%version)
     shutil.copytree("lib",'dist/e4a-%s/lib'%version)

@@ -2,8 +2,8 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
-from electrum.i18n import _
-from electrum import Wallet
+from electrum_ltc.i18n import _
+from electrum_ltc import Wallet
 
 from seed_dialog import SeedDialog
 from network_dialog import NetworkDialog

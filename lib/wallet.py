@@ -103,7 +103,7 @@ class WalletStorage:
         new_path = os.path.join(config.path, "wallets", "default_wallet")
 
         # default path in pre 1.9 versions
-        old_path = os.path.join(config.path, "electrum.dat")
+        old_path = os.path.join(config.path, "electrum-ltc.dat")
         if os.path.exists(old_path) and not os.path.exists(new_path):
             os.rename(old_path, new_path)
 

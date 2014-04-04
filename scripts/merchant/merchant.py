@@ -21,7 +21,7 @@ import time, thread, sys, socket, os
 import urllib2,json
 import Queue
 import sqlite3
-from electrum import Wallet, WalletStorage, SimpleConfig, Network, set_verbosity
+from electrum_ltc import Wallet, WalletStorage, SimpleConfig, Network, set_verbosity
 set_verbosity(False)
 
 import ConfigParser
