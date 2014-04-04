@@ -717,6 +717,7 @@ class Transaction:
         if size < 5000 and fee == 0 and priority > threshold:
             return 0
         fee += (1 + size / 1000) * MIN_RELAY_TX_FEE
+        print_error(fee)
         return fee
 
 
