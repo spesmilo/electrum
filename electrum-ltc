@@ -36,6 +36,11 @@ try:
 except ImportError:
     sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
 
+try:
+    import ltc_scrypt  # todo: 'ltc_scrypt' imported but unused
+except ImportError:
+    sys.exit("Error: ltc_scrypt does not seem to be installed. Try 'sudo pip install ltc_scrypt'")
+
 
 is_local = os.path.dirname(os.path.realpath(__file__)) == os.getcwd()
 is_android = 'ANDROID_DATA' in os.environ

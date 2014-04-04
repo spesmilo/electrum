@@ -56,7 +56,7 @@ data_files += [
 setup(
     name="Electrum-LTC",
     version=version.ELECTRUM_VERSION,
-    install_requires=['slowaes', 'ecdsa>=0.9'],
+    install_requires=['slowaes', 'ecdsa>=0.9', 'ltc_scrypt'],
     package_dir={
         'electrum_ltc': 'lib',
         'electrum_ltc_gui': 'gui',
