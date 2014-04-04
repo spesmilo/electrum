@@ -421,6 +421,7 @@ class Transaction:
     @classmethod
     def serialize( klass, inputs, outputs, for_sig = None ):
 
+        push_script = lambda x: op_push(len(x)/2) + x
         s  = int_to_hex(1,4)                                         # version
         s += var_int( len(inputs) )                                  # number of inputs
         for i in range(len(inputs)):
@@ -431,26 +432,23 @@ class Transaction:
             if for_sig is None:
                 signatures = txin['signatures']
                 pubkeys = txin['pubkeys']
+                sig_list = ''
+                for pubkey in pubkeys:
+                    sig = signatures.get(pubkey)
+                    if not sig: 
+                        continue
+                    sig = sig + '01'
+                    sig_list += push_script(sig)
+
                 if not txin.get('redeemScript'):
-                    pubkey = pubkeys[0]
-                    script = ''
-                    if signatures:
-                        sig = signatures[0]
-                        sig = sig + '01'                                 # hashtype
-                        script += op_push(len(sig)/2)
-                        script += sig
-                    script += op_push(len(pubkey)/2)
-                    script += pubkey
+                    script = sig_list
+                    script += push_script(pubkeys[0])
                 else:
                     script = '00'                                    # op_0
-                    for sig in signatures:
-                        sig = sig + '01'
-                        script += op_push(len(sig)/2)
-                        script += sig
-
+                    script += sig_list
                     redeem_script = klass.multisig_script(pubkeys,2)
-                    script += op_push(len(redeem_script)/2)
-                    script += redeem_script
+                    assert redeem_script == txin.get('redeemScript')
+                    script += push_script(redeem_script)
 
             elif for_sig==i:
                 if txin.get('redeemScript'):
@@ -511,12 +509,14 @@ class Transaction:
             # add pubkeys
             txin["pubkeys"] = redeem_pubkeys
             # get list of already existing signatures
-            signatures = txin.get("signatures",[])
+            signatures = txin.get("signatures",{})
             # continue if this txin is complete
             if len(signatures) == num:
                 continue
 
             tx_for_sig = self.serialize( self.inputs, self.outputs, for_sig = i )
+
+            print_error("redeem pubkeys input %d"%i, redeem_pubkeys)
             for pubkey in redeem_pubkeys:
                 # check if we have the corresponding private key
                 if pubkey in keypairs.keys():
@@ -529,12 +529,15 @@ class Transaction:
                     public_key = private_key.get_verifying_key()
                     sig = private_key.sign_digest_deterministic( Hash( tx_for_sig.decode('hex') ), hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der )
                     assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
-                    signatures.append( sig.encode('hex') )
+
+                    # insert signature in the list
+                    signatures[pubkey] = sig.encode('hex')
                     print_error("adding signature for", pubkey)
             
             txin["signatures"] = signatures
             is_complete = is_complete and len(signatures) == num
 
+        print_error("is_complete", is_complete)
         self.is_complete = is_complete
         self.raw = self.serialize( self.inputs, self.outputs )
 
@@ -569,7 +572,7 @@ class Transaction:
             pubkeys, signatures, address = get_address_from_input_script(scriptSig)
         else:
             pubkeys = []
-            signatures = []
+            signatures = {}
             address = None
 
         d['address'] = address
@@ -678,7 +681,7 @@ class Transaction:
                 'redeemScript':i.get('redeemScript'),
                 'redeemPubkey':i.get('redeemPubkey'),
                 'pubkeys':i.get('pubkeys'),
-                'signatures':i.get('signatures',[]),
+                'signatures':i.get('signatures',{}),
                 }
             info.append(item)
         return info
