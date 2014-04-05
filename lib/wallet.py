@@ -608,6 +608,11 @@ class NewWallet:
         return out
 
 
+    def get_public_keys(self, address):
+        account_id, sequence = self.get_address_index(address)
+        return self.accounts[account_id].get_pubkeys(sequence)
+
+
     def add_keypairs_from_wallet(self, tx, keypairs, password):
         for txin in tx.inputs:
             address = txin['address']
@@ -1794,12 +1799,12 @@ class Wallet(object):
         except Exception:
             is_hex = False
          
-        if is_hex or (uses_electrum_words and len(words) != 13):
+        if is_hex or (uses_electrum_words and len(words) == 12):
             #print "old style wallet", len(words), words
             w = OldWallet(storage)
             w.init_seed(seed) #hex
         else:
-            #assert is_seed(seed)
+            assert is_seed(seed)
             w = NewWallet(storage)
             w.init_seed(seed)
 
