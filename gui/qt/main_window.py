@@ -180,6 +180,7 @@ class ElectrumWindow(QMainWindow):
         self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.network.banner) )
         self.connect(self, QtCore.SIGNAL('transaction_signal'), lambda: self.notify_transactions() )
         self.connect(self, QtCore.SIGNAL('send_tx2'), self.send_tx2)
+        self.connect(self, QtCore.SIGNAL('send_tx3'), self.send_tx3)
 
         self.history_list.setFocus(True)
 
@@ -265,6 +266,8 @@ class ElectrumWindow(QMainWindow):
         if self.wallet.is_watching_only(): title += ' [%s]' % (_('watching only'))
         self.setWindowTitle( title )
         self.update_wallet()
+        self.config.set_key('default_wallet_path', self.wallet.storage.path, True)
+
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         self.notify_transactions()
         self.update_account_selector()
@@ -888,6 +891,7 @@ class ElectrumWindow(QMainWindow):
         # call hook to see if plugin needs gui interaction
         run_hook('send_tx', tx)
 
+        # sign the tx
         def sign_thread():
             time.sleep(0.1)
             keypairs = {}
@@ -895,8 +899,6 @@ class ElectrumWindow(QMainWindow):
             self.wallet.sign_transaction(tx, keypairs, password)
             self.signed_tx_data = (tx, fee, label)
             self.emit(SIGNAL('send_tx2'))
-
-        # sign the tx
         self.tx_wait_dialog = self.waiting_dialog('Signing..')
         threading.Thread(target=sign_thread).start()
 
@@ -920,23 +922,29 @@ class ElectrumWindow(QMainWindow):
         if label:
             self.wallet.set_label(tx.hash(), label)
 
-        if tx.is_complete:
-
-            d = self.waiting_dialog('Broadcasting...')
-            h = self.wallet.send_tx(tx)
-            self.wallet.tx_event.wait()
-            d.accept()
-            
-            status, msg = self.wallet.receive_tx( h, tx )
-            if status:
-                QMessageBox.information(self, '', _('Payment sent.')+'\n'+msg, _('OK'))
-                self.do_clear()
-                self.update_contacts_tab()
-            else:
-                QMessageBox.warning(self, _('Error'), msg, _('OK'))
-        else:
-
+        if not tx.is_complete:
             self.show_transaction(tx)
+            return
+
+        # broadcast the tx
+        def broadcast_thread():
+            self.tx_broadcast_result =  self.wallet.sendtx(tx)
+            self.emit(SIGNAL('send_tx3'))
+        self.tx_broadcast_dialog = self.waiting_dialog('Broadcasting..')
+        threading.Thread(target=broadcast_thread).start()
+
+
+    def send_tx3(self):
+        self.tx_broadcast_dialog.accept()
+        status, msg = self.tx_broadcast_result
+        if status:
+            QMessageBox.information(self, '', _('Payment sent.') + '\n' + msg, _('OK'))
+            self.do_clear()
+            self.update_contacts_tab()
+        else:
+            QMessageBox.warning(self, _('Error'), msg, _('OK'))
+
+
 
 
 
