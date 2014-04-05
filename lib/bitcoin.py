@@ -71,7 +71,25 @@ def mnemonic_to_seed(mnemonic, passphrase):
     return PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
 
 from version import SEED_PREFIX
-is_seed = lambda x: hmac_sha_512("Seed version", x).encode('hex')[0:2].startswith(SEED_PREFIX)
+is_new_seed = lambda x: hmac_sha_512("Seed version", x).encode('hex')[0:2].startswith(SEED_PREFIX)
+
+def is_old_seed(seed):
+    import mnemonic
+    words = seed.strip().split()
+    try:
+        mnemonic.mn_decode(words)
+        uses_electrum_words = True
+    except Exception:
+        uses_electrum_words = False
+
+    try:
+        seed.decode('hex')
+        is_hex = True
+    except Exception:
+        is_hex = False
+         
+    return is_hex or (uses_electrum_words and len(words) == 12)
+
 
 # pywallet openssl private key implementation
 

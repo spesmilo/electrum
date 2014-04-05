@@ -132,10 +132,10 @@ class NetworkProxy(threading.Thread):
                 if message not in self.subscriptions[callback]:
                     self.subscriptions[callback].append(message)
 
-        self.do_send( messages, callback )
+        self.send( messages, callback )
 
 
-    def do_send(self, messages, callback):
+    def send(self, messages, callback):
         """return the ids of the requests that we sent"""
         out = ''
         ids = []
@@ -155,7 +155,7 @@ class NetworkProxy(threading.Thread):
 
     def synchronous_get(self, requests, timeout=100000000):
         queue = Queue.Queue()
-        ids = self.do_send(requests, lambda i,x: queue.put(x))
+        ids = self.send(requests, lambda i,x: queue.put(x))
         id2 = ids[:]
         res = {}
         while ids:

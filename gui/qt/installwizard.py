@@ -134,6 +134,10 @@ class InstallWizard(QDialog):
             QMessageBox.warning(None, _('Error'), _('No seed'), _('OK'))
             return
 
+        if not Wallet.is_seed(seed):
+            QMessageBox.warning(None, _('Error'), _('Invalid seed'), _('OK'))
+            return
+
         return seed
 
 
@@ -272,7 +276,7 @@ class InstallWizard(QDialog):
 
         elif action == 'restore':
             seed = self.seed_dialog()
-            if not seed:
+            if not Wallet.is_seed(seed):
                 return
             wallet = Wallet.from_seed(seed, self.storage)
             ok, old_password, password = self.password_dialog(wallet)

@@ -288,7 +288,7 @@ class NewWallet:
             # we keep only 13 words, that's approximately 139 bits of entropy
             words = mnemonic.mn_encode(s)[0:13] 
             seed = ' '.join(words)
-            if is_seed(seed):
+            if is_new_seed(seed):
                 break  # this will remove 8 bits of entropy
             nonce += 1
 
@@ -606,6 +606,11 @@ class NewWallet:
                 out.append(pk)
                     
         return out
+
+
+    def get_public_keys(self, address):
+        account_id, sequence = self.get_address_index(address)
+        return self.accounts[account_id].get_pubkeys(sequence)
 
 
     def add_keypairs_from_wallet(self, tx, keypairs, password):
@@ -1776,35 +1781,22 @@ class Wallet(object):
 
 
     @classmethod
-    def from_seed(self, seed, storage):
-        import mnemonic
+    def is_seed(self, seed):
         if not seed:
-            return 
+            return False
+        elif is_old_seed(seed):
+            return OldWallet
+        elif is_new_seed(seed):
+            return NewWallet
+        else: 
+            return False
 
-        words = seed.strip().split()
-        try:
-            mnemonic.mn_decode(words)
-            uses_electrum_words = True
-        except Exception:
-            uses_electrum_words = False
-
-        try:
-            seed.decode('hex')
-            is_hex = True
-        except Exception:
-            is_hex = False
-         
-        if is_hex or (uses_electrum_words and len(words) != 13):
-            #print "old style wallet", len(words), words
-            w = OldWallet(storage)
-            w.init_seed(seed) #hex
-        else:
-            #assert is_seed(seed)
-            w = NewWallet(storage)
-            w.init_seed(seed)
-
+    @classmethod
+    def from_seed(self, seed, storage):
+        klass = self.is_seed(seed)
+        w = klass(storage)
+        w.init_seed(seed)
         return w
-
 
     @classmethod
     def from_mpk(self, mpk, storage):
