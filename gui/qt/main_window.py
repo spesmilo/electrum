@@ -1141,6 +1141,7 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
             menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")) )
             menu.addAction(_("Edit label"), lambda: self.edit_label(True))
+            menu.addAction(_("Public keys"), lambda: self.show_public_keys(addr))
             if self.wallet.seed:
                 menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
                 menu.addAction(_("Sign/verify message"), lambda: self.sign_verify_message(addr))
@@ -1666,6 +1667,30 @@ class ElectrumWindow(QMainWindow):
             args = (self,password)
         apply( func, args)
 
+
+    def show_public_keys(self, address):
+        if not address: return
+        try:
+            pubkey_list = self.wallet.get_public_keys(address)
+        except Exception as e:
+            traceback.print_exc(file=sys.stdout)
+            self.show_message(str(e))
+            return
+
+        d = QDialog(self)
+        d.setMinimumSize(600, 200)
+        d.setModal(1)
+        vbox = QVBoxLayout()
+        vbox.addWidget( QLabel(_("Address") + ': ' + address))
+        vbox.addWidget( QLabel(_("Public key") + ':'))
+        keys = QTextEdit()
+        keys.setReadOnly(True)
+        keys.setText('\n'.join(pubkey_list))
+        vbox.addWidget(keys)
+        #vbox.addWidget( QRCodeWidget('\n'.join(pk_list)) )
+        vbox.addLayout(close_button(d))
+        d.setLayout(vbox)
+        d.exec_()
 
     @protected
     def show_private_key(self, address, password):
