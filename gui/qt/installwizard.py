@@ -9,6 +9,7 @@ from seed_dialog import SeedDialog
 from network_dialog import NetworkDialog
 from util import *
 from amountedit import AmountEdit
+from electrum import WalletStorage, Wallet
 
 import sys
 import threading
@@ -57,9 +58,13 @@ class InstallWizard(QDialog):
         b3 = QRadioButton(gb)
         b3.setText(_("Create a watching-only version of an existing wallet"))
 
+        b4 = QRadioButton(gb)
+        b4.setText(_("Open an existing wallet"))
+
         grid.addWidget(b1,1,0)
         grid.addWidget(b2,2,0)
         grid.addWidget(b3,3,0)
+        grid.addWidget(b4,4,0)
 
         vbox = QVBoxLayout()
         self.set_layout(vbox)
@@ -75,8 +80,10 @@ class InstallWizard(QDialog):
             answer = 'create'
         elif b2.isChecked():
             answer = 'restore'
-        else:
+        elif b3.isChecked():
             answer = 'watching'
+        else:
+            answer = 'existing'
 
         return answer
 
@@ -189,7 +196,7 @@ class InstallWizard(QDialog):
         grid = QGridLayout()
         grid.setSpacing(5)
 
-        label = QLabel(_("Electrum communicates with remote servers to get information about your transactions and addresses. The servers all fulfil the same purpose only differing in hardware. In most cases you simply want to let Electrum pick one at random if you have a preference though feel free to select a server manually.") + "\n\n" \
+        label = QLabel(_("Electrum communicates with remote servers to get information about your transactions and addresses. The servers all fulfill the same purpose only differing in hardware. In most cases you simply want to let Electrum pick one at random if you have a preference though feel free to select a server manually.") + "\n\n" \
                       + _("How do you want to connect to a server:")+" ")
         label.setWordWrap(True)
         grid.addWidget(label, 0, 0)
@@ -287,6 +294,17 @@ class InstallWizard(QDialog):
             if not mpk:
                 return
             wallet = Wallet.from_mpk(mpk, self.storage)
+
+        elif action == 'existing':
+            wallet_folder = os.path.join(self.config.path)
+            filename = unicode( QFileDialog.getOpenFileName(self, _("Select your wallet file"), wallet_folder) )
+            if not filename:
+                return
+            storage = WalletStorage({'wallet_path': filename})
+            if not storage.file_exists:
+                self.show_message(_("file not found ") + filename)
+                return
+            wallet = Wallet(storage)
 
         else: raise
                 
