@@ -329,7 +329,7 @@ class InstallWizard(QDialog):
 
             wallet = Wallet(self.storage)
 
-            wallet.init_seed("note blind gun eye escape home surprise freedom bee carefully rant alter strength")
+            wallet.init_seed(None)
             seed = wallet.get_mnemonic(None)
             if not self.show_seed(seed, 'hot' if action == 'create2of3' else None):
                 return
