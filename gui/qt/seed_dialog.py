@@ -29,68 +29,57 @@ class SeedDialog(QDialog):
         QDialog.__init__(self, parent)
         self.setModal(1)
         self.setWindowTitle('Electrum' + ' - ' + _('Seed'))
-        self.parent = parent
-
-        vbox = make_seed_dialog(seed, imported_keys)
+        vbox = make_seed_dialog(seed)
+        if imported_keys:
+            vbox.addWidget(QLabel("<b>"+_("WARNING")+":</b> " + _("Your wallet contains imported keys. These keys cannot be recovered from seed.") + "</b><p>"))
         vbox.addLayout(close_button(self))
         self.setLayout(vbox)
 
 
 
-class PrivateKeysDialog(QDialog):
-    def __init__(self, parent, private_keys):
-        QDialog.__init__(self, parent)
-        self.setModal(1)
-        self.setWindowTitle('Electrum' + ' - ' + _('Master Private Keys'))
-        self.parent = parent
-        vbox = QVBoxLayout(self)
-        vbox.addWidget(QLabel(_("The seed has been removed from the wallet. It contains the following master private keys")+ ":"))
-        for k,v in sorted(private_keys.items()):
-            vbox.addWidget(QLabel(k))
-            vbox.addWidget(QLineEdit(v))
+def make_seed_dialog(seed, sid=None):
 
-        vbox.addLayout(close_button(self))
+    save_msg = _("Please save these %d words on paper (order is important).")%len(seed.split()) + " " 
+    qr_msg = _("Your seed is also displayed as QR code, in case you want to transfer it to a mobile phone.") + "<p>"
+    warning_msg = "<b>"+_("WARNING")+":</b> " + _("Never disclose your seed. Never type it on a website.") + "</b><p>"
 
-
-
-
-
-def make_seed_dialog(seed, imported_keys):
-
-        words = seed.split()
-
-        label1 = QLabel(_("Your wallet generation seed is")+ ":")
-
-        seed_text = QTextEdit(seed)
-        seed_text.setReadOnly(True)
-        seed_text.setMaximumHeight(130)
+    if sid is None:
+        msg =  _("Your wallet generation seed is")
+        msg2 = save_msg + " " \
+               + _("This seed will allow you to recover your wallet in case of computer failure.") + "<br/>" \
+               + warning_msg
         
-        msg2 =  _("Please write down or memorize these %d words (order is important).")%len(words) + " " \
-              + _("This seed will allow you to recover your wallet in case of computer failure.") + " " \
-              + _("Your seed is also displayed as QR code, in case you want to transfer it to a mobile phone.") + "<p>" \
-              + "<b>"+_("WARNING")+":</b> " + _("Never disclose your seed. Never type it on a website.") + "</b><p>"
-        if imported_keys:
-            msg2 += "<b>"+_("WARNING")+":</b> " + _("Your wallet contains imported keys. These keys cannot be recovered from seed.") + "</b><p>"
-        label2 = QLabel(msg2)
-        label2.setWordWrap(True)
+    elif sid == 'cold':
+        msg =  _("Your cold storage seed is")
+        msg2 = save_msg + " " \
+               + _("This seed will be permanently deleted from your wallet file. Make sure you have saved it before you press 'next'") + " " \
+            
+    elif sid == 'hot':
+        msg =  _("Your main seed is")
+        msg2 = save_msg + " " \
+               + _("If you ever need to recover your wallet from seed, you will need both this seed and your cold seed.") + " " \
 
-        logo = QLabel()
-        logo.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(56))
-        logo.setMaximumWidth(60)
+    label1 = QLabel(msg+ ":")
+    seed_text = QTextEdit(seed)
+    seed_text.setReadOnly(True)
+    seed_text.setMaximumHeight(130)
 
-        qrw = QRCodeWidget(seed)
+    label2 = QLabel(msg2)
+    label2.setWordWrap(True)
 
-        grid = QGridLayout()
+    logo = QLabel()
+    logo.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(56))
+    logo.setMaximumWidth(60)
 
-        grid.addWidget(logo, 0, 0)
-        grid.addWidget(label1, 0, 1)
-
-        grid.addWidget(seed_text, 1, 0, 1, 2)
-
-        grid.addWidget(qrw, 0, 2, 2, 1)
-
-        vbox = QVBoxLayout()
-        vbox.addLayout(grid)
-        vbox.addWidget(label2)
-
-        return vbox
+    grid = QGridLayout()
+    grid.addWidget(logo, 0, 0)
+    grid.addWidget(label1, 0, 1)
+    grid.addWidget(seed_text, 1, 0, 1, 2)
+    #qrw = QRCodeWidget(seed)
+    #grid.addWidget(qrw, 0, 2, 2, 1)
+    vbox = QVBoxLayout()
+    vbox.addLayout(grid)
+    vbox.addWidget(label2)
+    vbox.addStretch(1)
+    
+    return vbox

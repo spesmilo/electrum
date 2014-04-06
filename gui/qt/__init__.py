@@ -83,6 +83,14 @@ class ElectrumGui:
             wallet = wizard.run()
             if not wallet: 
                 exit()
+
+        elif storage.get('wallet_type') in ['2of3'] and storage.get('seed') is None:
+            import installwizard
+            wizard = installwizard.InstallWizard(self.config, self.network, storage)
+            wallet = wizard.run(action= 'create2of3')
+            if not wallet: 
+                exit()
+
         else:
             wallet = Wallet(storage)
             wallet.start_threads(self.network)
