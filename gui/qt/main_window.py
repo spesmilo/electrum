@@ -920,7 +920,7 @@ class ElectrumWindow(QMainWindow):
         if label:
             self.wallet.set_label(tx.hash(), label)
 
-        if not tx.is_complete:
+        if not tx.is_complete():
             self.show_transaction(tx)
             return
 

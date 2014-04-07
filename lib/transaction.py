@@ -377,7 +377,7 @@ class Transaction:
         self.outputs = self.d['outputs']
         self.outputs = map(lambda x: (x['address'],x['value']), self.outputs)
         self.locktime = self.d['lockTime']
-        self.is_complete = is_complete
+
         
     def __str__(self):
         return self.raw
@@ -386,7 +386,6 @@ class Transaction:
     def from_io(klass, inputs, outputs):
         raw = klass.serialize(inputs, outputs, for_sig = -1) # for_sig=-1 means do not sign
         self = klass(raw)
-        self.is_complete = False
         self.inputs = inputs
         self.outputs = outputs
         return self
@@ -487,17 +486,37 @@ class Transaction:
         return s
 
 
-    def for_sig(self,i):
+    def tx_for_sig(self,i):
         return self.serialize(self.inputs, self.outputs, for_sig = i)
 
 
     def hash(self):
         return Hash(self.raw.decode('hex') )[::-1].encode('hex')
 
+    def add_signature(self, i, pubkey, sig):
+        txin = self.inputs[i]
+        signatures = txin.get("signatures",{})
+        signatures[pubkey] = sig
+        txin["signatures"] = signatures
+        self.inputs[i] = txin
+        print_error("adding signature for", pubkey)
+        self.raw = self.serialize( self.inputs, self.outputs )
+
+
+    def is_complete(self):
+        for i, txin in enumerate(self.inputs):
+            redeem_script = txin.get('redeemScript')
+            num, redeem_pubkeys = parse_redeemScript(redeem_script) if redeem_script else (1, [txin.get('redeemPubkey')])
+            signatures = txin.get("signatures",{})
+            if len(signatures) == num:
+                continue
+            else:
+                return False
+        return True
+
 
 
     def sign(self, keypairs):
-        is_complete = True
         print_error("tx.sign(), keypairs:", keypairs)
 
         for i, txin in enumerate(self.inputs):
@@ -514,32 +533,23 @@ class Transaction:
             if len(signatures) == num:
                 continue
 
-            tx_for_sig = self.serialize( self.inputs, self.outputs, for_sig = i )
-
-            print_error("redeem pubkeys input %d"%i, redeem_pubkeys)
+            for_sig = Hash(self.tx_for_sig(i).decode('hex'))
             for pubkey in redeem_pubkeys:
-                # check if we have the corresponding private key
                 if pubkey in keypairs.keys():
                     # add signature
                     sec = keypairs[pubkey]
-                    compressed = is_compressed(sec)
                     pkey = regenerate_key(sec)
                     secexp = pkey.secret
                     private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
                     public_key = private_key.get_verifying_key()
-                    sig = private_key.sign_digest_deterministic( Hash( tx_for_sig.decode('hex') ), hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der )
-                    assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
+                    sig = private_key.sign_digest_deterministic( for_sig, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der )
+                    assert public_key.verify_digest( sig, for_sig, sigdecode = ecdsa.util.sigdecode_der)
+                    self.add_signature(i, pubkey, sig.encode('hex'))
 
-                    # insert signature in the list
-                    signatures[pubkey] = sig.encode('hex')
-                    print_error("adding signature for", pubkey)
-            
-            txin["signatures"] = signatures
-            is_complete = is_complete and len(signatures) == num
 
-        print_error("is_complete", is_complete)
-        self.is_complete = is_complete
+        print_error("is_complete", self.is_complete())
         self.raw = self.serialize( self.inputs, self.outputs )
+
 
 
     def deserialize(self):
@@ -691,10 +701,10 @@ class Transaction:
         import json
         out = {
             "hex":self.raw,
-            "complete":self.is_complete
+            "complete":self.is_complete()
             }
 
-        if not self.is_complete:
+        if not self.is_complete():
             input_info = self.get_input_info()
             out['input_info'] = json.dumps(input_info).replace(' ','')
 
