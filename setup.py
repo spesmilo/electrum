@@ -78,6 +78,7 @@ setup(
         'electrum_ltc.network',
         'electrum_ltc.plugins',
         'electrum_ltc.pyqrnative',
+        'electrum_ltc.scrypt',
         'electrum_ltc.simple_config',
         'electrum_ltc.socks',
         'electrum_ltc.transaction',
