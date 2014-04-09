@@ -18,24 +18,24 @@ if __name__ == '__main__':
 
 
     # android
-    os.system('rm -rf dist/e4a-%s'%version)
-    os.mkdir('dist/e4a-%s'%version)
-    shutil.copyfile("electrum-ltc",'dist/e4a-%s/e4a.py'%version)
-    shutil.copytree("ecdsa",'dist/e4a-%s/ecdsa'%version)
-    shutil.copytree("aes",'dist/e4a-%s/aes'%version)
-    shutil.copytree("lib",'dist/e4a-%s/lib'%version)
-    os.mkdir('dist/e4a-%s/gui'%version)
+    os.system('rm -rf dist/el4a-%s'%version)
+    os.mkdir('dist/el4a-%s'%version)
+    shutil.copyfile("electrum-ltc",'dist/el4a-%s/el4a.py'%version)
+    shutil.copytree("ecdsa",'dist/el4a-%s/ecdsa'%version)
+    shutil.copytree("aes",'dist/el4a-%s/aes'%version)
+    shutil.copytree("lib",'dist/el4a-%s/lib'%version)
+    os.mkdir('dist/el4a-%s/gui'%version)
     for n in ['android.py']:
-        shutil.copy("gui/%s"%n,'dist/e4a-%s/gui'%version)
-    open('dist/e4a-%s/gui/__init__.py'%version,'w').close()
+        shutil.copy("gui/%s"%n,'dist/el4a-%s/gui'%version)
+    open('dist/el4a-%s/gui/__init__.py'%version,'w').close()
 
     os.chdir("dist")
     # create the zip file
-    os.system( "zip -r e4a-%s.zip e4a-%s"%(version, version) )
-    os.system( "rm -rf e4a-%s"%(version) )
+    os.system( "zip -r el4a-%s.zip el4a-%s"%(version, version) )
+    os.system( "rm -rf el4a-%s"%(version) )
 
     # change filename because some 3G carriers do not allow users to download a zip file...
-    e4a_name = "e4a-%s.zip"%version
+    e4a_name = "el4a-%s.zip"%version
     e4a_name2 = e4a_name.replace(".","")
     os.system( "mv %s %s"%(e4a_name, e4a_name2) )
 
