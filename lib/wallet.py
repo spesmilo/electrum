@@ -1735,13 +1735,13 @@ class OldWallet(NewWallet):
     def create_master_keys(self, password):
         seed = pw_decode(self.seed, password)
         mpk = OldAccount.mpk_from_seed(seed)
-        self.storage.put('master_private_key', mpk, True)
+        self.storage.put('master_public_key', mpk, True)
 
     def get_master_public_key(self):
         return self.storage.get("master_public_key")
 
     def create_accounts(self, password):
-        mpk = self.storage.get('master_private_key')
+        mpk = self.get_master_public_key()
         self.create_account(mpk)
 
     def create_account(self, mpk):
