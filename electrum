@@ -280,6 +280,7 @@ if __name__ == '__main__':
             else:
                 wallet = Wallet_2of3(storage)
                 cold_seed = wallet.init_cold_seed()
+                wallet.save_cold_seed()
                 print_msg("Your cold seed is:\n\"%s\"" % cold_seed)
                 print_msg("Please store it on paper. ")
                 print_msg("Open this file on your online computer to complete your wallet creation.")
