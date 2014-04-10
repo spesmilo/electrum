@@ -7,11 +7,11 @@
 ;General
 
   ;Name and file
-  Name "Electrum-Litecoin"
-  OutFile "dist/electrum-setup.exe"
+  Name "Electrum-LTC"
+  OutFile "dist/electrum-ltc-setup.exe"
 
   ;Default installation folder
-  InstallDir "$PROGRAMFILES\Electrum-Litecoin"
+  InstallDir "$PROGRAMFILES\Electrum-LTC"
 
   ;Get installation folder from registry if available
   InstallDirRegKey HKCU "Software\Electrum-LTC" ""
@@ -59,21 +59,21 @@ Section
   SetOutPath "$INSTDIR"
 
   ;ADD YOUR OWN FILES HERE...
-  file /r dist\electrum\*.*
+  file /r dist\electrum-ltc\*.*
 
   ;Store installation folder
-  WriteRegStr HKCU "Software\Electrum-Litecoin" "" $INSTDIR
+  WriteRegStr HKCU "Software\Electrum-LTC" "" $INSTDIR
 
   ;Create uninstaller
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
 
-  CreateShortCut "$DESKTOP\Electrum-Litecoin.lnk" "$INSTDIR\electrum-ltc.exe" ""
+  CreateShortCut "$DESKTOP\Electrum-LTC.lnk" "$INSTDIR\electrum-ltc.exe" ""
 
   ;create start-menu items
-  CreateDirectory "$SMPROGRAMS\Electrum-Litecoin"
-  CreateShortCut "$SMPROGRAMS\Electrum-Litecoin\Uninstall.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Uninstall.exe" 0
-  CreateShortCut "$SMPROGRAMS\Electrum-Litecoin\Electrum-Litecoin.lnk" "$INSTDIR\electrum-ltc.exe" "" "$INSTDIR\electrum-ltc.exe" 0
+  CreateDirectory "$SMPROGRAMS\Electrum-LTC"
+  CreateShortCut "$SMPROGRAMS\Electrum-LTC\Uninstall.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Uninstall.exe" 0
+  CreateShortCut "$SMPROGRAMS\Electrum-LTC\Electrum-LTC.lnk" "$INSTDIR\electrum-ltc.exe" "" "$INSTDIR\electrum-ltc.exe" 0
 
 SectionEnd
 
@@ -95,9 +95,9 @@ Section "Uninstall"
 
   RMDir "$INSTDIR"
 
-  Delete "$DESKTOP\Electrum-Litecoin.lnk"
-  Delete "$SMPROGRAMS\Electrum-Litecoin\*.*"
-  RmDir  "$SMPROGRAMS\Electrum-Litecoin"
+  Delete "$DESKTOP\Electrum-LTC.lnk"
+  Delete "$SMPROGRAMS\Electrum-LTC\*.*"
+  RmDir  "$SMPROGRAMS\Electrum-LTC"
 
   DeleteRegKey /ifempty HKCU "Software\Electrum-LTC"
 
