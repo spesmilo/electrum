@@ -60,6 +60,7 @@ def appdata_dir():
     elif (platform.system() == "Darwin" or
           platform.system() == "DragonFly" or
           platform.system() == "OpenBSD" or
+          platform.system() == "FreeBSD" or
 	  platform.system() == "NetBSD"):
         return "/Library/Application Support/Electrum"
     else:
