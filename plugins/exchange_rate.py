@@ -15,10 +15,12 @@ from electrum_ltc_gui.qt.util import *
 from electrum_ltc_gui.qt.amountedit import AmountEdit
 
 
-EXCHANGES = ["BTC-e",
+EXCHANGES = ["Bitfinex",
+             "BTC-e",
              "BTCChina",
              "Crypto-Trade",
              "Kraken",
+             "OKCoin",
              "Vault of Satoshi"]
 
 
@@ -69,10 +71,12 @@ class Exchanger(threading.Thread):
     def update_rate(self):
         self.use_exchange = self.parent.config.get('use_exchange', "BTC-e")
         update_rates = {
+            "Bitfinex": self.update_bf,
             "BTC-e": self.update_be,
             "BTCChina": self.update_CNY,
             "Crypto-Trade": self.update_ct,
             "Kraken": self.update_kk,
+            "OKCoin": self.update_ok,
             "Vault of Satoshi": self.update_vs,
         }
         try:
@@ -87,6 +91,17 @@ class Exchanger(threading.Thread):
             self.update_rate()
             self.query_rates.wait(150)
 
+
+    def update_bf(self):
+        quote_currencies = {"USD": 0.0}
+        for cur in quote_currencies:
+            try:
+                quote_currencies[cur] = self.get_json('api.bitfinex.com', "/v1/pubticker/ltc" + cur.lower())["last_price"]
+            except Exception:
+                pass
+        with self.lock:
+            self.quote_currencies = quote_currencies
+        self.parent.set_currencies(quote_currencies)
 
     def update_be(self):
         quote_currencies = {"CNH": 0.0, "EUR": 0.0, "GBP": 0.0, "RUR": 0.0, "USD": 0.0}
@@ -137,6 +152,21 @@ class Exchanger(threading.Thread):
             quote_currencies[cur[5:]] = resp_rate[cur]["c"][0]
         with self.lock:
             self.quote_currencies = quote_currencies
+        self.parent.set_currencies(quote_currencies)
+
+    def update_ok(self):
+        try:
+            jsonresp = self.get_json('www.okcoin.com', "/api/ticker.do?symbol=ltc_cny")
+        except Exception:
+            return
+        quote_currencies = {"CNY": 0.0}
+        cnyprice = jsonresp["ticker"]["last"]
+        try:
+            quote_currencies["CNY"] = decimal.Decimal(str(cnyprice))
+            with self.lock:
+                self.quote_currencies = quote_currencies
+        except KeyError:
+            pass
         self.parent.set_currencies(quote_currencies)
 
     def update_vs(self):
