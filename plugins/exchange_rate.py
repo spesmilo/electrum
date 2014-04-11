@@ -33,7 +33,7 @@ class Exchanger(threading.Thread):
         self.query_rates = threading.Event()
         self.use_exchange = self.parent.config.get('use_exchange', "BTC-e")
         self.parent.exchanges = EXCHANGES
-        self.parent.currencies = ["EUR","GBP","USD","PLN"]
+        self.parent.currencies = ["EUR","GBP","USD"]
         self.parent.win.emit(SIGNAL("refresh_exchanges_combo()"))
         self.parent.win.emit(SIGNAL("refresh_currencies_combo()"))
         self.is_running = False
@@ -61,35 +61,6 @@ class Exchanger(threading.Thread):
             quote_currencies = self.quote_currencies.copy()
         if quote_currency not in quote_currencies:
             return None
-        if self.use_exchange == "BTC-e":
-            try:
-                resp_rate = self.get_json('btc-e.com', "/api/2/ltc_" + str(quote_currency).lower() + "/ticker")
-                last = resp_rate["ticker"]["last"]
-            except Exception:
-                return
-            return btc_amount * decimal.Decimal(str(last))
-        elif self.use_exchange == "Crypto-Trade":
-            try:
-                resp_rate = self.get_json('www.crypto-trade.com', "/api/1/ticker/ltc_" + str(quote_currency).lower())
-                last = resp_rate["data"]["last"]
-            except Exception:
-                return
-            return btc_amount * decimal.Decimal(str(last))
-        elif self.use_exchange == "Kraken":
-            try:
-                pair = "XLTCZ" + str(quote_currency)
-                resp_rate = self.get_json('api.kraken.com', "/0/public/Ticker?pair=" + pair)
-                last = resp_rate["result"][pair]["c"][0]
-            except Exception:
-                return
-            return btc_amount * decimal.Decimal(str(last))
-        elif self.use_exchange == "Vault of Satoshi":
-            try:
-                resp_rate = self.get_json('api.vaultofsatoshi.com', "/public/ticker?order_currency=LTC&payment_currency=" + str(quote_currency))
-                last = resp_rate["data"]["closing_price"]["value"]
-            except Exception:
-                return
-            return btc_amount * decimal.Decimal(str(last))
         return btc_amount * decimal.Decimal(str(quote_currencies[quote_currency]))
 
     def stop(self):
@@ -117,34 +88,13 @@ class Exchanger(threading.Thread):
             self.query_rates.wait(150)
 
 
-    def update_kk(self):
-        try:
-            resp_currencies = self.get_json('api.kraken.com', "/0/public/AssetPairs")["result"]
-        except Exception:
-            return
-
-        quote_currencies = {}
-        for cur in resp_currencies:
-            if cur[:5] == "XLTCZ":
-                quote_currencies[cur[5:]] = 0.0
-        with self.lock:
-            self.quote_currencies = quote_currencies
-        self.parent.set_currencies(quote_currencies)
-
-    def update_vs(self):
-        resp_currencies = ["CAD","USD"]
-        quote_currencies = {}
-        for cur in resp_currencies:
-            quote_currencies[cur] = 0.0
-        with self.lock:
-            self.quote_currencies = quote_currencies
-        self.parent.set_currencies(quote_currencies)
-
     def update_be(self):
-        resp_currencies = ["BTC","CNH","EUR","GBP","RUR","USD"]
-        quote_currencies = {}
-        for cur in resp_currencies:
-            quote_currencies[cur] = 0.0
+        quote_currencies = {"CNH": 0.0, "EUR": 0.0, "GBP": 0.0, "RUR": 0.0, "USD": 0.0}
+        for cur in quote_currencies:
+            try:
+                quote_currencies[cur] = self.get_json('btc-e.com', "/api/2/ltc_" + cur.lower() + "/ticker")["ticker"]["last"]
+            except Exception:
+                pass
         with self.lock:
             self.quote_currencies = quote_currencies
         self.parent.set_currencies(quote_currencies)
@@ -165,10 +115,37 @@ class Exchanger(threading.Thread):
         self.parent.set_currencies(quote_currencies)
 
     def update_ct(self):
-        resp_currencies = ["BTC","EUR","USD"]
+        quote_currencies = {"EUR": 0.0, "USD": 0.0}
+        for cur in quote_currencies:
+            try:
+                quote_currencies[cur] = self.get_json('www.crypto-trade.com', "/api/1/ticker/ltc_" + cur.lower())["data"]["last"]
+            except Exception:
+                pass
+        with self.lock:
+            self.quote_currencies = quote_currencies
+        self.parent.set_currencies(quote_currencies)
+
+    def update_kk(self):
+        try:
+            resp_currencies = self.get_json('api.kraken.com', "/0/public/AssetPairs")["result"]
+            pairs = ','.join([k for k in resp_currencies if k.startswith("XLTCZ")])
+            resp_rate = self.get_json('api.kraken.com', "/0/public/Ticker?pair=" + pairs)["result"]
+        except Exception:
+            return
         quote_currencies = {}
-        for cur in resp_currencies:
-            quote_currencies[cur] = 0.0
+        for cur in resp_rate:
+            quote_currencies[cur[5:]] = resp_rate[cur]["c"][0]
+        with self.lock:
+            self.quote_currencies = quote_currencies
+        self.parent.set_currencies(quote_currencies)
+
+    def update_vs(self):
+        quote_currencies = {"CAD": 0.0, "USD": 0.0}
+        for cur in quote_currencies:
+            try:
+                quote_currencies[cur] = self.get_json('api.vaultofsatoshi.com', "/public/ticker?order_currency=LTC&payment_currency=" + cur)["data"]["closing_price"]["value"]
+            except Exception:
+                pass
         with self.lock:
             self.quote_currencies = quote_currencies
         self.parent.set_currencies(quote_currencies)
