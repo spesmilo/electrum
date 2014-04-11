@@ -266,8 +266,6 @@ class ElectrumWindow(QMainWindow):
         if self.wallet.is_watching_only(): title += ' [%s]' % (_('watching only'))
         self.setWindowTitle( title )
         self.update_wallet()
-        self.config.set_key('default_wallet_path', self.wallet.storage.path, True)
-
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         self.notify_transactions()
         self.update_account_selector()
@@ -923,7 +921,7 @@ class ElectrumWindow(QMainWindow):
         if label:
             self.wallet.set_label(tx.hash(), label)
 
-        if not tx.is_complete:
+        if not tx.is_complete():
             self.show_transaction(tx)
             return
 

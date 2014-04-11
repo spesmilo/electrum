@@ -3,7 +3,7 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
 from electrum_ltc.i18n import _
-from electrum_ltc import Wallet
+from electrum_ltc import Wallet, Wallet_2of3
 
 from seed_dialog import SeedDialog
 from network_dialog import NetworkDialog
@@ -12,6 +12,7 @@ from amountedit import AmountEdit
 
 import sys
 import threading
+from electrum_ltc.plugins import run_hook
 
 class InstallWizard(QDialog):
 
@@ -81,12 +82,15 @@ class InstallWizard(QDialog):
         return answer
 
 
-    def verify_seed(self, wallet):
+
+
+
+    def verify_seed(self, seed):
         r = self.seed_dialog(False)
         if not r:
             return
 
-        if r != wallet.get_mnemonic(None):
+        if r != seed:
             QMessageBox.warning(None, _('Error'), _('Incorrect seed'), _('OK'))
             return False
         else:
@@ -233,10 +237,29 @@ class InstallWizard(QDialog):
             return
         
 
+    def show_message(self, msg):
+        vbox = QVBoxLayout()
+        vbox.addWidget(QLabel(msg))
+        vbox.addStretch(1)
+        vbox.addLayout(close_button(self, _('Next')))
+        self.set_layout(vbox)
+        if not self.exec_(): 
+            return None
 
-    def show_seed(self, wallet):
+    def question(self, msg):
+        vbox = QVBoxLayout()
+        vbox.addWidget(QLabel(msg))
+        vbox.addStretch(1)
+        vbox.addLayout(ok_cancel_buttons(self, _('OK')))
+        self.set_layout(vbox)
+        if not self.exec_(): 
+            return None
+        return True
+
+
+    def show_seed(self, seed, sid):
         from seed_dialog import make_seed_dialog
-        vbox = make_seed_dialog(wallet.get_mnemonic(None), wallet.imported_keys)
+        vbox = make_seed_dialog(seed, sid)
         vbox.addLayout(ok_cancel_buttons(self, _("Next")))
         self.set_layout(vbox)
         return self.exec_()
@@ -250,27 +273,76 @@ class InstallWizard(QDialog):
         return run_password_dialog(self, wallet, self)
 
 
-    def run(self):
+    def choose_wallet_type(self):
+        grid = QGridLayout()
+        grid.setSpacing(5)
 
-        action = self.restore_or_create()
-        if not action: 
+        msg = _("Choose your wallet.")
+        label = QLabel(msg)
+        label.setWordWrap(True)
+        grid.addWidget(label, 0, 0)
+
+        gb = QGroupBox()
+
+        b1 = QRadioButton(gb)
+        b1.setText(_("Standard wallet (protected by password)"))
+        b1.setChecked(True)
+
+        b2 = QRadioButton(gb)
+        b2.setText(_("Multi-signature wallet (two-factor authentication)"))
+
+        grid.addWidget(b1,1,0)
+        grid.addWidget(b2,2,0)
+
+        vbox = QVBoxLayout()
+
+        vbox.addLayout(grid)
+        vbox.addStretch(1)
+        vbox.addLayout(ok_cancel_buttons(self, _('Next')))
+
+        self.set_layout(vbox)
+        if not self.exec_():
+            return
+        
+        if b1.isChecked():
+            return 'standard'
+        elif b2.isChecked():
+            return '2of3'
+
+
+    def run(self, action = None):
+
+        if action is None:
+            action = self.restore_or_create()
+
+        if action is None: 
             return
 
-        #gap = self.config.get('gap_limit', 5)
-        #if gap != 5:
-        #    wallet.gap_limit = gap
-        #    wallet.storage.put('gap_limit', gap, True)
-
-        if action == 'create':
-            wallet = Wallet(self.storage)
-            wallet.init_seed(None)
-            if not self.show_seed(wallet):
+        if action == 'create':            
+            t = self.choose_wallet_type()
+            if t == '2of3':
+                run_hook('create_cold_seed', self.storage, self)
                 return
-            if not self.verify_seed(wallet):
+
+
+        if action in ['create', 'create2of3']:
+
+            wallet = Wallet(self.storage)
+
+            wallet.init_seed(None)
+            seed = wallet.get_mnemonic(None)
+            if not self.show_seed(seed, 'hot' if action == 'create2of3' else None):
+                return
+            if not self.verify_seed(seed):
                 return
             ok, old_password, password = self.password_dialog(wallet)
+            wallet.save_seed(password)
+
+            if action == 'create2of3':
+                run_hook('create_hot_seed', wallet, self)
+
+            wallet.create_accounts(password)
             def create():
-                wallet.save_seed(password)
                 wallet.synchronize()  # generate first addresses offline
             self.waiting_dialog(create)
 
