@@ -428,8 +428,11 @@ class Transaction:
             s += txin['prevout_hash'].decode('hex')[::-1].encode('hex')   # prev hash
             s += int_to_hex(txin['prevout_n'],4)                          # prev index
 
-            if for_sig is None:
-                signatures = txin['signatures']
+            signatures = txin.get('signatures', {})
+            if for_sig is None and not signatures:
+                script = ''
+
+            elif for_sig is None:
                 pubkeys = txin['pubkeys']
                 sig_list = ''
                 for pubkey in pubkeys:
@@ -455,7 +458,7 @@ class Transaction:
                 else:
                     script = txin['scriptPubKey']                    # scriptsig
             else:
-                script=''
+                script = ''
             s += var_int( len(script)/2 )                            # script length
             s += script
             s += "ffffffff"                                          # sequence
