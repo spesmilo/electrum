@@ -949,7 +949,11 @@ class ElectrumWindow(QMainWindow):
 
 
     def set_url(self, url):
-        address, amount, label, message, signature, identity, url = util.parse_url(url)
+        try:
+            address, amount, label, message, signature, identity, url = util.parse_url(url)
+        except Exception:
+            QMessageBox.warning(self, _('Error'), _('Invalid litecoin URL'), _('OK'))
+            return
 
         try:
             if amount and self.base_unit() == 'mLTC': amount = str( 1000* Decimal(amount))

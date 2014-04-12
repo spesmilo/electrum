@@ -8,7 +8,7 @@ is_verbose = False
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
         from transaction import Transaction
-        if isinstance(obj, Transaction): 
+        if isinstance(obj, Transaction):
             return obj.as_dict()
         return super(MyEncoder, self).default(obj)
 
@@ -36,7 +36,6 @@ def print_json(obj):
         s = repr(obj)
     sys.stdout.write(s + "\n")
     sys.stdout.flush()
-    
 
 def user_dir():
     if "HOME" in os.environ:
@@ -49,7 +48,7 @@ def user_dir():
         return "/sdcard/electrum-ltc/"
     else:
         #raise Exception("No home directory found in environment variables.")
-        return 
+        return
 
 def appdata_dir():
     """Find the path to the application data directory; add an electrum folder and return path."""
@@ -88,7 +87,7 @@ def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespa
         digits.insert(0,'0')
     digits.insert(-decimal_point,'.')
     s = ''.join(digits).rstrip('0')
-    if sign: 
+    if sign:
         s = '-' + s
     elif is_diff:
         s = "+" + s
@@ -97,7 +96,7 @@ def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespa
     s += "0"*( 1 + num_zeros - ( len(s) - p ))
     if whitespaces:
         s += " "*( 1 + decimal_point - ( len(s) - p ))
-        s = " "*( 13 - decimal_point - ( p )) + s 
+        s = " "*( 13 - decimal_point - ( p )) + s
     return s
 
 
@@ -166,27 +165,31 @@ def parse_url(url):
     else:
         params = []
 
+    kv = {}
+
     amount = label = message = signature = identity = ''
     for p in params:
         k,v = p.split('=')
         uv = urldecode(v)
-        if k == 'amount': 
-            amount = uv
-            m = re.match('([0-9\.]+)X([0-9])', uv)
-            if m:
-                k = int(m.group(2)) - 8 
-                amount = Decimal(m.group(1)) * pow(  Decimal(10) , k)
-            else:
-                amount = Decimal(uv)
-        elif k == 'message': 
-            message = uv
-        elif k == 'label': 
-            label = uv
-        elif k == 'signature':
-            identity, signature = uv.split(':')
-            url = url.replace('&%s=%s'%(k,v),'')
-        else: 
-            print k,v
+        if k in kv:
+            raise Exception('Duplicate Keys')
+        kv[k] = uv
+
+    if 'amount' in kv:
+        am = kv['amount']
+        m = re.match('([0-9\.]+)X([0-9])', am)
+        if m:
+            k = int(m.group(2)) - 8
+            amount = Decimal(m.group(1)) * pow(  Decimal(10) , k)
+        else:
+            amount = Decimal(am)
+    if 'message' in kv:
+        message = kv['message']
+    if 'label' in kv:
+        label = kv['label']
+    if 'signature' in kv:
+        identity, signature = kv['signature'].split(':')
+        url = url.replace('&%s=%s'%('signature',kv['signature']),'')
 
     return address, amount, label, message, signature, identity, url
 
