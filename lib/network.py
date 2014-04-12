@@ -9,6 +9,9 @@ DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 DEFAULT_SERVERS = {
     'electrum-ltc.bysh.me': DEFAULT_PORTS,
     'electrum.ltc.xurious.com': DEFAULT_PORTS,
+    'electrum.lurkmore.com': DEFAULT_PORTS,
+    'electrum.mmitech.info': DEFAULT_PORTS,
+    'explorer.litecoin.net': DEFAULT_PORTS,
 }
 
 
