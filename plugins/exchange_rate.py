@@ -15,7 +15,8 @@ from electrum_ltc_gui.qt.util import *
 from electrum_ltc_gui.qt.amountedit import AmountEdit
 
 
-EXCHANGES = ["Bitfinex",
+EXCHANGES = ["BitcoinVenezuela",
+             "Bitfinex",
              "BTC-e",
              "BTCChina",
              "Crypto-Trade",
@@ -71,6 +72,7 @@ class Exchanger(threading.Thread):
     def update_rate(self):
         self.use_exchange = self.parent.config.get('use_exchange', "BTC-e")
         update_rates = {
+            "BitcoinVenezuela": self.update_bv,
             "Bitfinex": self.update_bf,
             "BTC-e": self.update_be,
             "BTCChina": self.update_CNY,
@@ -91,6 +93,21 @@ class Exchanger(threading.Thread):
             self.update_rate()
             self.query_rates.wait(150)
 
+
+    def update_bv(self):
+        try:
+            jsonresp = self.get_json('api.bitcoinvenezuela.com', "/")
+        except Exception:
+            return
+        quote_currencies = {}
+        try:
+            for r in jsonresp["LTC"]:
+                quote_currencies[r] = Decimal(jsonresp["LTC"][r])
+            with self.lock:
+                self.quote_currencies = quote_currencies
+        except KeyError:
+            pass
+        self.parent.set_currencies(quote_currencies)
 
     def update_bf(self):
         quote_currencies = {"USD": 0.0}
@@ -307,12 +324,12 @@ class Plugin(BasePlugin):
                 cur_currency = self.config.get('currency', "EUR")
                 if cur_currency == "VEF":
                     try:
-                        resp_hist = self.exchanger.get_json('api.bitcoinvenezuela.com', "/historical/index.php")['VEF_BTC']
+                        resp_hist = self.exchanger.get_json('api.bitcoinvenezuela.com', "/historical/index.php")['VEF_LTC']
                     except Exception:
                         return
                 elif cur_currency == "ARS":
                     try:
-                        resp_hist = self.exchanger.get_json('api.bitcoinvenezuela.com', "/historical/index.php")['ARS_BTC']
+                        resp_hist = self.exchanger.get_json('api.bitcoinvenezuela.com', "/historical/index.php")['ARS_LTC']
                     except Exception:
                         return
                 else:
