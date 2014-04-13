@@ -301,19 +301,21 @@ def get_address_from_input_script(bytes):
     except Exception:
         # coinbase transactions raise an exception
         print_error("cannot find address in input script", bytes.encode('hex'))
-        return [], [], "(None)"
+        return [], {}, "(None)"
 
     # payto_pubkey
     match = [ opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
-        return None, None, "(pubkey)"
+        return None, {}, "(pubkey)"
 
     # non-generated TxIn transactions push a signature
     # (seventy-something bytes) and then their public key
     # (65 bytes) onto the stack:
     match = [ opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
-        return None, None, public_key_to_bc_address(decoded[1][1])
+        sig = decoded[0][1].encode('hex')
+        pubkey = decoded[1][1].encode('hex')
+        return [pubkey], {pubkey:sig}, public_key_to_bc_address(pubkey.decode('hex'))
 
     # p2sh transaction, 2 of n
     match = [ opcodes.OP_0 ]
@@ -341,7 +343,7 @@ def get_address_from_input_script(bytes):
             return pubkeys, signatures, hash_160_to_bc_address(hash_160(redeemScript), 5)
 
     print_error("cannot find address in input script", bytes.encode('hex'))
-    return [], [], "(None)"
+    return [], {}, "(None)"
 
 
 
