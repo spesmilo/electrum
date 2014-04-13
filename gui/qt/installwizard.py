@@ -353,6 +353,7 @@ class InstallWizard(QDialog):
             wallet = Wallet.from_seed(seed, self.storage)
             ok, old_password, password = self.password_dialog(wallet)
             wallet.save_seed(password)
+            wallet.create_accounts(password)
 
         elif action == 'watching':
             mpk = self.mpk_dialog()

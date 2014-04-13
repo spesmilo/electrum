@@ -254,6 +254,7 @@ if __name__ == '__main__':
                 if not wallet:
                     sys.exit("Error: Invalid seed")
                 wallet.save_seed(password)
+                wallet.create_accounts(password)
 
             if not options.offline:
                 network = Network(config)
