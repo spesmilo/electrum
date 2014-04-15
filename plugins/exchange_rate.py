@@ -15,7 +15,8 @@ from electrum_ltc_gui.qt.util import *
 from electrum_ltc_gui.qt.amountedit import AmountEdit
 
 
-EXCHANGES = ["BitcoinVenezuela",
+EXCHANGES = ["Bit2C",
+             "BitcoinVenezuela",
              "Bitfinex",
              "BTC-e",
              "BTCChina",
@@ -72,6 +73,7 @@ class Exchanger(threading.Thread):
     def update_rate(self):
         self.use_exchange = self.parent.config.get('use_exchange', "BTC-e")
         update_rates = {
+            "Bit2C": self.update_b2c,
             "BitcoinVenezuela": self.update_bv,
             "Bitfinex": self.update_bf,
             "BTC-e": self.update_be,
@@ -93,6 +95,17 @@ class Exchanger(threading.Thread):
             self.update_rate()
             self.query_rates.wait(150)
 
+
+    def update_b2c(self):
+        quote_currencies = {"NIS": 0.0}
+        for cur in quote_currencies:
+            try:
+                quote_currencies[cur] = self.get_json('www.bit2c.co.il', "/Exchanges/LTC" + cur + "/Ticker.json")["ll"]
+            except Exception:
+                pass
+        with self.lock:
+            self.quote_currencies = quote_currencies
+        self.parent.set_currencies(quote_currencies)
 
     def update_bv(self):
         try:
@@ -322,14 +335,9 @@ class Plugin(BasePlugin):
                     return
             elif cur_exchange == "BitcoinVenezuela":
                 cur_currency = self.config.get('currency', "EUR")
-                if cur_currency == "VEF":
+                if cur_currency in ("ARS", "EUR", "USD", "VEF"):
                     try:
-                        resp_hist = self.exchanger.get_json('api.bitcoinvenezuela.com', "/historical/index.php")['VEF_LTC']
-                    except Exception:
-                        return
-                elif cur_currency == "ARS":
-                    try:
-                        resp_hist = self.exchanger.get_json('api.bitcoinvenezuela.com', "/historical/index.php")['ARS_LTC']
+                        resp_hist = self.exchanger.get_json('api.bitcoinvenezuela.com', "/historical/index.php?coin=LTC")[cur_currency + '_LTC']
                     except Exception:
                         return
                 else:
@@ -416,9 +424,7 @@ class Plugin(BasePlugin):
                 cur_exchange = self.config.get('use_exchange', "BTC-e")
                 if cur_request == "USD" and (cur_exchange == "CoinDesk" or cur_exchange == "Winkdex"):
                     hist_checkbox.setEnabled(True)
-                elif cur_request == "VEF" and (cur_exchange == "BitcoinVenezuela"):
-                    hist_checkbox.setEnabled(True)
-                elif cur_request == "ARS" and (cur_exchange == "BitcoinVenezuela"):
+                elif cur_request in ("ARS", "EUR", "USD", "VEF") and (cur_exchange == "BitcoinVenezuela"):
                     hist_checkbox.setEnabled(True)
                 else:
                     hist_checkbox.setChecked(False)
@@ -449,7 +455,7 @@ class Plugin(BasePlugin):
                     else:
                         disable_check()
                 elif cur_request == "BitcoinVenezuela":
-                    if cur_currency == "VEF" or cur_currency == "ARS":
+                    if cur_currency in ("ARS", "EUR", "USD", "VEF"):
                         hist_checkbox.setEnabled(True)
                     else:
                         disable_check()
