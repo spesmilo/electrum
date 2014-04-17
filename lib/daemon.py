@@ -60,7 +60,7 @@ class NetworkProxy(threading.Thread):
                     return False
 
                 elif not daemon_started:
-                    print "Starting daemon [%s]"%self.config.get('server')
+                    #print "Starting daemon [%s]"%self.config.get('server')
                     daemon_started = True
                     pid = os.fork()
                     if (pid == 0): # The first child.
