@@ -314,6 +314,8 @@ def get_address_from_input_script(bytes):
     match = [ opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
         sig = decoded[0][1].encode('hex')
+        assert sig[-2:] == '01'
+        sig = sig[:-2]
         pubkey = decoded[1][1].encode('hex')
         return [pubkey], {pubkey:sig}, public_key_to_bc_address(pubkey.decode('hex'))
 
@@ -386,7 +388,7 @@ class Transaction:
 
     @classmethod
     def from_io(klass, inputs, outputs):
-        raw = klass.serialize(inputs, outputs, for_sig = -1) # for_sig=-1 means do not sign
+        raw = klass.serialize(inputs, outputs, for_sig = None) # for_sig=-1 means do not sign
         self = klass(raw)
         self.inputs = inputs
         self.outputs = outputs
@@ -591,6 +593,7 @@ class Transaction:
             address = None
 
         d['address'] = address
+        d['pubkeys'] = pubkeys
         d['signatures'] = signatures
         return d
 
