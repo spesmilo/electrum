@@ -21,6 +21,7 @@ EXCHANGES = ["Bit2C",
              "BTC-e",
              "BTCChina",
              "Crypto-Trade",
+             "GoCoin",
              "Kraken",
              "OKCoin",
              "Vault of Satoshi"]
@@ -79,6 +80,7 @@ class Exchanger(threading.Thread):
             "BTC-e": self.update_be,
             "BTCChina": self.update_CNY,
             "Crypto-Trade": self.update_ct,
+            "GoCoin": self.update_gc,
             "Kraken": self.update_kk,
             "OKCoin": self.update_ok,
             "Vault of Satoshi": self.update_vs,
@@ -168,6 +170,21 @@ class Exchanger(threading.Thread):
                 pass
         with self.lock:
             self.quote_currencies = quote_currencies
+        self.parent.set_currencies(quote_currencies)
+
+    def update_gc(self):
+        try:
+            jsonresp = self.get_json('x.g0cn.com', "/prices")
+        except Exception:
+            return
+        quote_currencies = {}
+        try:
+            for r in jsonresp["prices"]["LTC"]:
+                quote_currencies[r] = Decimal(jsonresp["prices"]["LTC"][r])
+            with self.lock:
+                self.quote_currencies = quote_currencies
+        except KeyError:
+            pass
         self.parent.set_currencies(quote_currencies)
 
     def update_kk(self):
