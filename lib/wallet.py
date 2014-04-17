@@ -1261,7 +1261,7 @@ class NewWallet:
     def send_tx(self, tx):
         # asynchronous
         self.tx_event.clear()
-        self.network.interface.send([('blockchain.transaction.broadcast', [str(tx)])], self.on_broadcast)
+        self.network.send([('blockchain.transaction.broadcast', [str(tx)])], self.on_broadcast)
         return tx.hash()
 
     def on_broadcast(self, i, r):
