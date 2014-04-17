@@ -45,6 +45,7 @@ class NetworkProxy(threading.Thread):
         self.subscriptions = {}
         self.debug = False
         self.lock = threading.Lock()
+        self.pending_transactions_for_notifications = []
 
 
     def start(self, start_daemon=False):

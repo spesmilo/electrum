@@ -105,7 +105,6 @@ class Interface(threading.Thread):
         #json
         self.message_id = 0
         self.unanswered_requests = {}
-        self.pending_transactions_for_notifications= []
 
         # parse server
         self.server = server

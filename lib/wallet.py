@@ -1103,7 +1103,7 @@ class NewWallet:
                 print_error("received transaction that is no longer referenced in history", tx_hash)
                 return
             self.transactions[tx_hash] = tx
-            self.network.interface.pending_transactions_for_notifications.append(tx)
+            self.network.pending_transactions_for_notifications.append(tx)
             self.save_transactions()
             if self.verifier and tx_height>0: 
                 self.verifier.add(tx_hash, tx_height)

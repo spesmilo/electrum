@@ -111,6 +111,7 @@ class Network(threading.Thread):
         self.subscriptions = {}
         self.subscriptions[self.on_banner] = [('server.banner',[])]
         self.subscriptions[self.on_peers] = [('server.peers.subscribe',[])]
+        self.pending_transactions_for_notifications = []
 
 
     def is_connected(self):
