@@ -7,11 +7,16 @@ from blockchain import Blockchain
 DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
 DEFAULT_SERVERS = {
+    'caramelite.electrum-ltc.org': DEFAULT_PORTS,
     'electrum-ltc.bysh.me': DEFAULT_PORTS,
+    'electrum-ltc.thwg.org': DEFAULT_PORTS,
+    'electrum.litecoinguard.com': DEFAULT_PORTS,
     'electrum.ltc.xurious.com': DEFAULT_PORTS,
     'electrum.lurkmore.com': DEFAULT_PORTS,
     'electrum.mmitech.info': DEFAULT_PORTS,
+    'electrum1.wemineltc.com': DEFAULT_PORTS,
     'explorer.litecoin.net': DEFAULT_PORTS,
+    'rho.hicapacity.org': DEFAULT_PORTS,
 }
 
 
