@@ -2072,8 +2072,54 @@ class ElectrumWindow(QMainWindow):
 
 
     def do_export_history(self):
-        from lite_window import csv_transaction
-        csv_transaction(self.wallet)
+        wallet = self.wallet
+        select_export = _('Select file to export your wallet transactions to')
+        fileName = QFileDialog.getSaveFileName(QWidget(), select_export, os.path.expanduser('~/electrum-history.csv'), "*.csv")
+        if not fileName:
+            return
+
+        try:
+            with open(fileName, "w+") as csvfile:
+                transaction = csv.writer(csvfile)
+                transaction.writerow(["transaction_hash","label", "confirmations", "value", "fee", "balance", "timestamp"])
+                for item in wallet.get_tx_history():
+                    tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
+                    if confirmations:
+                        if timestamp is not None:
+                            try:
+                                time_string = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+                            except [RuntimeError, TypeError, NameError] as reason:
+                                time_string = "unknown"
+                                pass
+                        else:
+                          time_string = "unknown"
+                    else:
+                        time_string = "pending"
+
+                    if value is not None:
+                        value_string = format_satoshis(value, True)
+                    else:
+                        value_string = '--'
+
+                    if fee is not None:
+                        fee_string = format_satoshis(fee, True)
+                    else:
+                        fee_string = '0'
+
+                    if tx_hash:
+                        label, is_default_label = wallet.get_label(tx_hash)
+                        label = label.encode('utf-8')
+                    else:
+                      label = ""
+
+                    balance_string = format_satoshis(balance, False)
+                    transaction.writerow([tx_hash, label, confirmations, value_string, fee_string, balance_string, time_string])
+                QMessageBox.information(None,_("CSV Export created"), _("Your CSV export has been successfully created."))
+
+        except (IOError, os.error), reason:
+            export_error_label = _("Electrum was unable to produce a transaction export.")
+            QMessageBox.critical(None,_("Unable to create csv"), export_error_label + "\n" + str(reason))
+
 
 
     @protected
