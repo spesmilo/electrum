@@ -191,7 +191,10 @@ class TxDialog(QDialog):
             vbox.addWidget(QLabel("LockTime: %d\n" % self.tx.locktime))
 
         vbox.addWidget(QLabel(_("Inputs")))
-        lines = map(lambda x: x.get('prevout_hash') + ":%d"%x.get('prevout_n') + u'\t' + "%s"%x.get('address') , self.tx.inputs )
+        def format_input(x):
+            _hash = x.get('prevout_hash')
+            return _hash[0:16] + '...' + _hash[-8:] + ":%d"%x.get('prevout_n') + u'\t' + "%s"%x.get('address')
+        lines = map(format_input, self.tx.inputs )
         i_text = QTextEdit()
         i_text.setText('\n'.join(lines))
         i_text.setReadOnly(True)

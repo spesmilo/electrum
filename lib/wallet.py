@@ -1103,7 +1103,7 @@ class NewWallet:
                 print_error("received transaction that is no longer referenced in history", tx_hash)
                 return
             self.transactions[tx_hash] = tx
-            self.network.interface.pending_transactions_for_notifications.append(tx)
+            self.network.pending_transactions_for_notifications.append(tx)
             self.save_transactions()
             if self.verifier and tx_height>0: 
                 self.verifier.add(tx_hash, tx_height)
@@ -1261,7 +1261,7 @@ class NewWallet:
     def send_tx(self, tx):
         # asynchronous
         self.tx_event.clear()
-        self.network.interface.send([('blockchain.transaction.broadcast', [str(tx)])], self.on_broadcast)
+        self.network.send([('blockchain.transaction.broadcast', [str(tx)])], self.on_broadcast)
         return tx.hash()
 
     def on_broadcast(self, i, r):

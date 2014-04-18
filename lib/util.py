@@ -17,8 +17,12 @@ def set_verbosity(b):
     global is_verbose
     is_verbose = b
 
+
 def print_error(*args):
     if not is_verbose: return
+    print_stderr(*args)
+
+def print_stderr(*args):
     args = [str(item) for item in args]
     sys.stderr.write(" ".join(args) + "\n")
     sys.stderr.flush()

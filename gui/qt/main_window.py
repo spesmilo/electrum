@@ -409,12 +409,12 @@ class ElectrumWindow(QMainWindow):
             return
 
         print_error("Notifying GUI")
-        if len(self.network.interface.pending_transactions_for_notifications) > 0:
+        if len(self.network.pending_transactions_for_notifications) > 0:
             # Combine the transactions if there are more then three
-            tx_amount = len(self.network.interface.pending_transactions_for_notifications)
+            tx_amount = len(self.network.pending_transactions_for_notifications)
             if(tx_amount >= 3):
                 total_amount = 0
-                for tx in self.network.interface.pending_transactions_for_notifications:
+                for tx in self.network.pending_transactions_for_notifications:
                     is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
                     if(v > 0):
                         total_amount += v
@@ -422,11 +422,11 @@ class ElectrumWindow(QMainWindow):
                 self.notify(_("%(txs)s new transactions received. Total amount received in the new transactions %(amount)s %(unit)s") \
                                 % { 'txs' : tx_amount, 'amount' : self.format_amount(total_amount), 'unit' : self.base_unit()})
 
-                self.network.interface.pending_transactions_for_notifications = []
+                self.network.pending_transactions_for_notifications = []
             else:
-              for tx in self.network.interface.pending_transactions_for_notifications:
+              for tx in self.network.pending_transactions_for_notifications:
                   if tx:
-                      self.network.interface.pending_transactions_for_notifications.remove(tx)
+                      self.network.pending_transactions_for_notifications.remove(tx)
                       is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
                       if(v > 0):
                           self.notify(_("New transaction received. %(amount)s %(unit)s") % { 'amount' : self.format_amount(v), 'unit' : self.base_unit()})

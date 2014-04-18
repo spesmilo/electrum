@@ -106,7 +106,6 @@ setup(
         'electrum_ltc_gui.qt.version_getter',
         'electrum_ltc_gui.stdio',
         'electrum_ltc_gui.text',
-        'electrum_ltc_plugins.aliases',
         'electrum_ltc_plugins.exchange_rate',
         'electrum_ltc_plugins.labels',
         'electrum_ltc_plugins.pointofsale',

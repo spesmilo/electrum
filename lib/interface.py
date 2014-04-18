@@ -105,7 +105,6 @@ class Interface(threading.Thread):
         #json
         self.message_id = 0
         self.unanswered_requests = {}
-        self.pending_transactions_for_notifications= []
 
         # parse server
         self.server = server
@@ -397,7 +396,7 @@ class Interface(threading.Thread):
                         print_error("certificate has expired:", cert_path)
                         os.unlink(cert_path)
                     else:
-                        print_msg("wrong certificate", self.host)
+                        print_error("wrong certificate", self.host)
                 return
             except Exception:
                 print_error("wrap_socket failed", self.host)
