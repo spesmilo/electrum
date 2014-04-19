@@ -192,8 +192,11 @@ class TxDialog(QDialog):
 
         vbox.addWidget(QLabel(_("Inputs")))
         def format_input(x):
-            _hash = x.get('prevout_hash')
-            return _hash[0:16] + '...' + _hash[-8:] + ":%d"%x.get('prevout_n') + u'\t' + "%s"%x.get('address')
+            if x.get('is_coinbase'):
+                return 'coinbase'
+            else:
+                _hash = x.get('prevout_hash')
+                return _hash[0:16] + '...' + _hash[-8:] + ":%d"%x.get('prevout_n') + u'\t' + "%s"%x.get('address')
         lines = map(format_input, self.tx.inputs )
         i_text = QTextEdit()
         i_text.setText('\n'.join(lines))

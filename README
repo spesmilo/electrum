@@ -1,29 +1,32 @@
 Electrum - lightweight Litecoin client
 
 Licence: GNU GPL v3
-Author: thomasv@bitcointalk.org
+Author: Thomas Voegtlin
 Language: Python
-Homepage: http://electrum.org/
+Homepage: https://electrum.org/
 
 
-== INSTALL ==
+1. GETTING STARTED
+------------------
+
+To run Electrum from this directory, just do:
+
+  ./electrum
+
+If you install Electrum on your system, you can run it from any
+directory:
 
   sudo python setup.py install
-
-
-== RUN ==
-
-To start Electrum in GUI mode, type:
-
   electrum-ltc
 
-== HELP ==
 
-Up-to-date information and documentation is on the wiki:
-https://en.bitcoin.it/wiki/Electrum
+To start Electrum from your web browser, see
+http://electrum.org/bitcoin_URIs.html
 
 
-== HOW OFFICIAL PACKAGES ARE CREATED ==
+
+2. HOW OFFICIAL PACKAGES ARE CREATED
+------------------------------------
 
 python mki18n.py
 pyrcc4 icons.qrc -o gui/qt/icons_rc.py
@@ -40,6 +43,3 @@ On Mac OS X:
   sudo hdiutil create -fs HFS+ -volname "Electrum-LTC" -srcfolder dist/Electrum-LTC.app dist/electrum-ltc-VERSION-macosx.dmg
 
 
-== BROWSER CONFIGURATION ==
-
-See http://electrum.org/bitcoin_URIs.html
