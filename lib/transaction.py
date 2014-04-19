@@ -507,6 +507,8 @@ class Transaction:
     def add_signature(self, i, pubkey, sig):
         txin = self.inputs[i]
         signatures = txin.get("signatures",{})
+        if len(signatures) == 0:
+            signatures = {}
         signatures[pubkey] = sig
         txin["signatures"] = signatures
         self.inputs[i] = txin
