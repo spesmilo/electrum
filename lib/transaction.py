@@ -314,10 +314,14 @@ def get_address_from_input_script(bytes):
     match = [ opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
         sig = decoded[0][1].encode('hex')
-        assert sig[-2:] == '01'
-        sig = sig[:-2]
         pubkey = decoded[1][1].encode('hex')
-        return [pubkey], {pubkey:sig}, public_key_to_bc_address(pubkey.decode('hex'))
+        if sig[-2:] == '01':
+            sig = sig[:-2]
+            return [pubkey], {pubkey:sig}, public_key_to_bc_address(pubkey.decode('hex'))
+        else:
+            print_error("cannot find address in input script", bytes.encode('hex'))
+            return [], {}, "(None)"
+
 
     # p2sh transaction, 2 of n
     match = [ opcodes.OP_0 ]
@@ -580,21 +584,27 @@ class Transaction:
 
     def parse_input(self, vds):
         d = {}
-        d['prevout_hash'] = hash_encode(vds.read_bytes(32))
-        d['prevout_n'] = vds.read_uint32()
+        prevout_hash = hash_encode(vds.read_bytes(32))
+        prevout_n = vds.read_uint32()
         scriptSig = vds.read_bytes(vds.read_compact_size())
-        d['sequence'] = vds.read_uint32()
+        sequence = vds.read_uint32()
 
-        if scriptSig:
-            pubkeys, signatures, address = get_address_from_input_script(scriptSig)
+        if prevout_hash == '00'*32:
+            d['is_coinbase'] = True
         else:
-            pubkeys = []
-            signatures = {}
-            address = None
-
-        d['address'] = address
-        d['pubkeys'] = pubkeys
-        d['signatures'] = signatures
+            d['is_coinbase'] = False
+            d['prevout_hash'] = prevout_hash
+            d['prevout_n'] = prevout_n
+            d['sequence'] = sequence
+            if scriptSig:
+                pubkeys, signatures, address = get_address_from_input_script(scriptSig)
+            else:
+                pubkeys = []
+                signatures = {}
+                address = None
+            d['address'] = address
+            d['pubkeys'] = pubkeys
+            d['signatures'] = signatures
         return d
 
 
@@ -688,19 +698,14 @@ class Transaction:
 
 
     def get_input_info(self):
+        keys = ['prevout_hash', 'prevout_n', 'address', 'KeyID', 'scriptPubKey', 'redeemScript', 'redeemPubkey', 'pubkeys', 'signatures', 'is_coinbase']
         info = []
         for i in self.inputs:
-            item = { 
-                'prevout_hash':i['prevout_hash'], 
-                'prevout_n':i['prevout_n'],
-                'address':i.get('address'),
-                'KeyID':i.get('KeyID'),
-                'scriptPubKey':i.get('scriptPubKey'),
-                'redeemScript':i.get('redeemScript'),
-                'redeemPubkey':i.get('redeemPubkey'),
-                'pubkeys':i.get('pubkeys'),
-                'signatures':i.get('signatures',{}),
-                }
+            item = {}
+            for k in keys:
+                v = i.get(k)
+                if v is not None:
+                    item[k] = v
             info.append(item)
         return info
 
