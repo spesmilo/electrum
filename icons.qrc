@@ -12,6 +12,8 @@
     <file>icons/unlock.png</file>
     <file>icons/preferences.png</file>
     <file>icons/seed.png</file>
+    <file>icons/hot_seed.png</file>
+    <file>icons/cold_seed.png</file>
     <file>icons/status_connected.png</file>
     <file>icons/status_disconnected.png</file>
     <file>icons/status_waiting.png</file>
