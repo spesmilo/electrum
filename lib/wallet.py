@@ -1751,6 +1751,7 @@ class OldWallet(NewWallet):
     def create_watching_only_wallet(self, mpk):
         self.seed_version = OLD_SEED_VERSION
         self.storage.put('seed_version', self.seed_version, True)
+        self.storage.put('master_public_key', mpk, True)
         self.create_account(mpk)
 
     def get_seed(self, password):

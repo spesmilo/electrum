@@ -322,7 +322,7 @@ class InstallWizard(QDialog):
                 elif Wallet.is_mpk(text):
                     wallet = Wallet.from_mpk(text, self.storage)
                 else:
-                    return
+                    raise
 
             elif t in ['2of2', '2of3']:
                 r = self.double_seed_dialog()
@@ -346,6 +346,9 @@ class InstallWizard(QDialog):
                 run_hook('restore_third_key', wallet, self)
 
                 wallet.create_accounts(None)
+
+            else:
+                raise
 
 
 
