@@ -84,7 +84,7 @@ def is_old_seed(seed):
 
     try:
         seed.decode('hex')
-        is_hex = True
+        is_hex = (len(seed) == 32)
     except Exception:
         is_hex = False
          

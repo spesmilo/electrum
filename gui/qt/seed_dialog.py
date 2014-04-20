@@ -29,15 +29,25 @@ class SeedDialog(QDialog):
         QDialog.__init__(self, parent)
         self.setModal(1)
         self.setWindowTitle('Electrum' + ' - ' + _('Seed'))
-        vbox = make_seed_dialog(seed)
+        vbox = show_seed_box(seed)
         if imported_keys:
             vbox.addWidget(QLabel("<b>"+_("WARNING")+":</b> " + _("Your wallet contains imported keys. These keys cannot be recovered from seed.") + "</b><p>"))
         vbox.addLayout(close_button(self))
         self.setLayout(vbox)
 
 
+def icon_filename(sid):
+    if sid == 'cold':
+        return ":icons/cold_seed.png" 
+    elif sid == 'hot':
+        return ":icons/hot_seed.png" 
+    else:
+        return ":icons/seed.png" 
+    
 
-def make_seed_dialog(seed, sid=None):
+
+
+def show_seed_box(seed, sid=None):
 
     save_msg = _("Please save these %d words on paper (order is important).")%len(seed.split()) + " " 
     qr_msg = _("Your seed is also displayed as QR code, in case you want to transfer it to a mobile phone.") + "<p>"
@@ -55,7 +65,7 @@ def make_seed_dialog(seed, sid=None):
                + _("This seed will be permanently deleted from your wallet file. Make sure you have saved it before you press 'next'") + " " \
             
     elif sid == 'hot':
-        msg =  _("Your main seed is")
+        msg =  _("Your hot seed is")
         msg2 = save_msg + " " \
                + _("If you ever need to recover your wallet from seed, you will need both this seed and your cold seed.") + " " \
 
@@ -68,7 +78,8 @@ def make_seed_dialog(seed, sid=None):
     label2.setWordWrap(True)
 
     logo = QLabel()
-    logo.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(56))
+
+    logo.setPixmap(QPixmap(icon_filename(sid)).scaledToWidth(56))
     logo.setMaximumWidth(60)
 
     grid = QGridLayout()
@@ -83,3 +94,32 @@ def make_seed_dialog(seed, sid=None):
     vbox.addStretch(1)
     
     return vbox
+
+
+def enter_seed_box(is_restore, sid=None):
+
+    vbox = QVBoxLayout()
+    if is_restore:
+        msg = _("Please enter your wallet seed, or master public key") + "\n"
+    else:
+        msg = _("Your seed is important!") \
+              + "\n" + _("To make sure that you have properly saved your seed, please retype it here.")
+        
+    logo = QLabel()
+    logo.setPixmap(QPixmap(icon_filename(sid)).scaledToWidth(56))
+    logo.setMaximumWidth(60)
+
+    label = QLabel(msg)
+    label.setWordWrap(True)
+
+    seed_e = QTextEdit()
+    seed_e.setMaximumHeight(100)
+
+    vbox.addWidget(label)
+
+    grid = QGridLayout()
+    grid.addWidget(logo, 0, 0)
+    grid.addWidget(seed_e, 0, 1)
+
+    vbox.addLayout(grid)
+    return vbox, seed_e

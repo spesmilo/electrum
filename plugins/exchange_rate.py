@@ -280,7 +280,7 @@ class Plugin(BasePlugin):
         if quote:
             price_text = "1 LTC~%s"%quote
             fiat_currency = quote[-3:]
-            btc_price = quote[:-4]
+            btc_price = self.btc_rate
             fiat_balance = Decimal(btc_price) * (Decimal(btc_balance)/100000000)
             balance_text = "(%.2f %s)" % (fiat_balance,fiat_currency)
             text = "  " + balance_text + "     " + price_text + " "

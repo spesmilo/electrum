@@ -45,7 +45,7 @@ def close_button(dialog, label=_("Close") ):
     b.setDefault(True)
     return hbox
 
-def ok_cancel_buttons(dialog, ok_label=_("OK") ):
+def ok_cancel_buttons2(dialog, ok_label=_("OK") ):
     hbox = QHBoxLayout()
     hbox.addStretch(1)
     b = QPushButton(_("Cancel"))
@@ -55,6 +55,10 @@ def ok_cancel_buttons(dialog, ok_label=_("OK") ):
     hbox.addWidget(b)
     b.clicked.connect(dialog.accept)
     b.setDefault(True)
+    return hbox, b
+
+def ok_cancel_buttons(dialog, ok_label=_("OK") ):
+    hbox, b = ok_cancel_buttons2(dialog, ok_label)
     return hbox
 
 def text_dialog(parent, title, label, ok_label, default=None):
