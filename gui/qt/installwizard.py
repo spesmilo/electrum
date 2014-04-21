@@ -219,12 +219,12 @@ class InstallWizard(QDialog):
         return self.exec_()
 
 
-    def password_dialog(self, wallet):
+    def password_dialog(self):
         msg = _("Please choose a password to encrypt your wallet keys.")+'\n'\
               +_("Leave these fields empty if you want to disable encryption.")
         from password_dialog import make_password_dialog, run_password_dialog
-        self.set_layout( make_password_dialog(self, wallet, msg) )
-        return run_password_dialog(self, wallet, self)
+        self.set_layout( make_password_dialog(self, None, msg) )
+        return run_password_dialog(self, None, self)[2]
 
 
     def choose_wallet_type(self):
@@ -285,16 +285,14 @@ class InstallWizard(QDialog):
         if action in ['create', 'create2of3']:
 
             wallet = Wallet(self.storage)
-
-            wallet.init_seed(None)
-            seed = wallet.get_mnemonic(None)
+            seed = wallet.make_seed()
             sid = 'hot' if action == 'create2of3' else None
             if not self.show_seed(seed, sid):
                 return
             if not self.verify_seed(seed, sid):
                 return
-            ok, old_password, password = self.password_dialog(wallet)
-            wallet.save_seed(password)
+            password = self.password_dialog()
+            wallet.save_seed(seed, password)
 
             if action == 'create2of3':
                 run_hook('create_third_key', wallet, self)
@@ -306,8 +304,6 @@ class InstallWizard(QDialog):
             self.waiting_dialog(wallet.synchronize)
 
         elif action == 'restore':
-            # dialog box will accept either seed or xpub. 
-            # use two boxes for 2of3
             t = self.choose_wallet_type()
             if not t: 
                 return
@@ -315,9 +311,9 @@ class InstallWizard(QDialog):
             if t == 'standard':
                 text = self.enter_seed_dialog(True, None)
                 if Wallet.is_seed(text):
+                    password = self.password_dialog()
                     wallet = Wallet.from_seed(text, self.storage)
-                    ok, old_password, password = self.password_dialog(wallet)
-                    wallet.save_seed(password)
+                    wallet.save_seed(text, password)
                     wallet.create_accounts(password)
                 elif Wallet.is_mpk(text):
                     wallet = Wallet.from_mpk(text, self.storage)
@@ -329,19 +325,18 @@ class InstallWizard(QDialog):
                 if not r: 
                     return
                 text1, text2 = r
+                password = self.password_dialog()
                 wallet = Wallet_2of3(self.storage)
 
                 if Wallet.is_seed(text1):
-                    xpriv, xpub = bip32_root(text1)
+                    wallet.add_root("m/", text1, password)
                 elif Wallet.is_mpk(text1):
-                    xpub = text1
-                wallet.add_master_public_key("m/", xpub)
-
+                    wallet.add_master_public_key("m/", text1)
+                
                 if Wallet.is_seed(text2):
-                    xpriv2, xpub2 = bip32_root(text2)
+                    wallet.add_root("cold/", text2, password)
                 elif Wallet.is_mpk(text2):
-                    xpub2 = text2
-                wallet.add_master_public_key("cold/", xpub2)
+                    wallet.add_master_public_key("cold/", text2)
 
                 run_hook('restore_third_key', wallet, self)
 

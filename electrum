@@ -273,15 +273,16 @@ if __name__ == '__main__':
         else:
             if not config.get('2of3'):
                 wallet = Wallet(storage)
-                wallet.init_seed(None)
-                wallet.save_seed(password)
+                seed = wallet.make_seed()
+                wallet.save_seed(seed, password)
+                wallet.create_accounts(password)
                 wallet.synchronize()
-                print_msg("Your wallet generation seed is:\n\"%s\"" % wallet.get_mnemonic(password))
+                print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
                 print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
             else:
                 wallet = Wallet_2of3(storage)
-                cold_seed = wallet.init_cold_seed()
-                wallet.save_cold_seed()
+                cold_seed = wallet.make_seed()
+                #wallet.save_seed()
                 print_msg("Your cold seed is:\n\"%s\"" % cold_seed)
                 print_msg("Please store it on paper. ")
                 print_msg("Open this file on your online computer to complete your wallet creation.")

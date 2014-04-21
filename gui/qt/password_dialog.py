@@ -42,7 +42,7 @@ def make_password_dialog(self, wallet, msg):
     grid.setColumnStretch(1,1)
 
     logo = QLabel()
-    lockfile = ":icons/lock.png" if wallet.use_encryption else ":icons/unlock.png"
+    lockfile = ":icons/lock.png" if wallet and wallet.use_encryption else ":icons/unlock.png"
     logo.setPixmap(QPixmap(lockfile).scaledToWidth(36))
     logo.setAlignment(Qt.AlignCenter)
 
@@ -55,7 +55,7 @@ def make_password_dialog(self, wallet, msg):
     grid.setColumnMinimumWidth(0, 250)
     grid.setColumnStretch(1,1)
     
-    if wallet.use_encryption:
+    if wallet and wallet.use_encryption:
         grid.addWidget(QLabel(_('Password')), 0, 0)
         grid.addWidget(self.pw, 0, 1)
         
@@ -73,14 +73,14 @@ def make_password_dialog(self, wallet, msg):
 
 def run_password_dialog(self, wallet, parent):
         
-    if not wallet.seed:
+    if wallet and not wallet.seed:
         QMessageBox.information(parent, _('Error'), _('No seed'), _('OK'))
         return False, None, None
 
     if not self.exec_():
         return False, None, None
 
-    password = unicode(self.pw.text()) if wallet.use_encryption else None
+    password = unicode(self.pw.text()) if wallet and wallet.use_encryption else None
     new_password = unicode(self.new_pw.text())
     new_password2 = unicode(self.conf_pw.text())
 
