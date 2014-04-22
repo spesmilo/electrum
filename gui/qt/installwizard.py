@@ -85,7 +85,7 @@ class InstallWizard(QDialog):
 
 
     def get_seed_text(self, seed_e):
-        text = unicode(seed_e.toPlainText()).lower().strip()
+        text = unicode(seed_e.toPlainText()).strip()
         text = ' '.join(text.split())
         return text
 
