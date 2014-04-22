@@ -393,11 +393,9 @@ class Plugin(BasePlugin):
     def toggle(self):
         out = BasePlugin.toggle(self)
         self.win.update_status()
-        if self.config.get('use_exchange_rate'):
-            try:
-                self.fiat_button
-            except:
-                self.gui.main_window.show_message(_("To see fiat amount when sending bitcoin, please restart Electrum to activate the new GUI settings."))
+        self.win.tabs.removeTab(1)
+        new_send_tab = self.gui.main_window.create_send_tab()
+        self.win.tabs.insertTab(1, new_send_tab, _('Send'))
         return out
 
 
