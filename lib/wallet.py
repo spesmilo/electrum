@@ -177,7 +177,7 @@ class NewWallet:
         self.imported_keys         = storage.get('imported_keys',{})
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
 
-        self.fee                   = int(storage.get('fee_per_kb',20000))
+        self.fee                   = int(storage.get('fee_per_kb', 10000))
 
         self.master_public_keys = storage.get('master_public_keys',{})
         self.master_private_keys = storage.get('master_private_keys', {})
