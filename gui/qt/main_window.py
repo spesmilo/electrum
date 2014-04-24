@@ -126,11 +126,12 @@ class ElectrumWindow(QMainWindow):
         self._close_electrum = False
         self.lite = None
 
-        if sys.platform == 'darwin':
-          self.icon = QIcon(":icons/electrum_dark_icon.png")
-          #self.icon = QIcon(":icons/lock.png")
+        if self.config.get("icon_color", "dark") == "dark":
+            self.icon = QIcon(":icons/electrum_dark_icon.png")
+            self.dark_icon = True
         else:
-          self.icon = QIcon(':icons/electrum_light_icon.png')
+            self.dark_icon = False
+            self.icon = QIcon(':icons/electrum_light_icon.png')
 
         self.tray = QSystemTrayIcon(self.icon, self)
         self.tray.setToolTip('Electrum')
@@ -2216,7 +2217,12 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions.')+' '), 4, 2)
         if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
 
-        grid.setRowStretch(5,1)
+        use_dark_icon = QCheckBox(_('Use dark tray icon'))
+        use_dark_icon.setChecked(self.dark_icon)
+        grid.addWidget(use_dark_icon, 5, 0)
+        grid.addWidget(HelpButton(_('Change the color of the tray icon between light and dark')+' '), 5, 2)
+        
+        grid.setRowStretch(6,1)
 
         vbox.addLayout(grid)
         vbox.addLayout(ok_cancel_buttons(d))
@@ -2252,6 +2258,18 @@ class ElectrumWindow(QMainWindow):
         if self.wallet.use_change != usechange_result:
             self.wallet.use_change = usechange_result
             self.wallet.storage.put('use_change', self.wallet.use_change)
+
+        dark_icon = use_dark_icon.isChecked()
+        if self.dark_icon != dark_icon:
+            self.dark_icon = dark_icon
+            if dark_icon:
+                self.icon = QIcon(":icons/electrum_dark_icon.png")
+                self.config.set_key("icon_color", "dark")
+            else:
+                self.config.set_key("icon_color", "light")
+                self.icon = QIcon(':icons/electrum_light_icon.png')
+
+            self.tray.setIcon(self.icon)
 
         unit_result = units[unit_combo.currentIndex()]
         if self.base_unit() != unit_result:
