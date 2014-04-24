@@ -238,6 +238,8 @@ class NewWallet:
                     tx2.add_extra_addresses({h:tx})
 
             
+    def can_create_accounts(self):
+        return True
 
 
     def set_up_to_date(self,b):
@@ -1485,16 +1487,16 @@ class Wallet_2of2(NewWallet):
         NewWallet.__init__(self, storage)
         self.storage.put('wallet_type', '2of2', True)
 
+    def can_create_accounts(self):
+        return False
 
     def make_account(self, account_id, password):
         """Creates and saves the master keys, but does not save the account"""
-        xpub1 = self.add_master_keys("m/", account_id, password)
-        xpub2 = self.add_master_keys("cold/", account_id, password)
+        xpub1 = self.master_public_keys.get("m/")
+        xpub2 = self.master_public_keys.get("cold/")
         account = BIP32_Account_2of2({'xpub':xpub1, 'xpub2':xpub2})
-        return account
+        self.add_account('m/', account)
 
-    def account_id(self, i):
-        return "m/%d"%i
 
 class Wallet_2of3(Wallet_2of2):
 
@@ -1502,15 +1504,12 @@ class Wallet_2of3(Wallet_2of2):
         NewWallet.__init__(self, storage)
         self.storage.put('wallet_type', '2of3', True)
 
-    def make_account(self, account_id, password):
-        xpub1 = self.add_master_keys("m/", account_id, password)
-        xpub2 = self.add_master_keys("cold/", account_id.replace("m/","cold/"), password)
-        xpub3 = self.add_master_keys("remote/", account_id.replace("m/","remote/"), password)
+    def create_accounts(self, password):
+        xpub1 = self.master_public_keys.get("m/")
+        xpub2 = self.master_public_keys.get("cold/")
+        xpub3 = self.master_public_keys.get("remote/")
         account = BIP32_Account_2of3({'xpub':xpub1, 'xpub2':xpub2, 'xpub3':xpub3})
-        return account
-
-    def account_id(self, i):
-        return "m/%d"%i
+        self.add_account('m/', account)
 
 
 
@@ -1689,11 +1688,13 @@ class WalletSynchronizer(threading.Thread):
 
 class OldWallet(NewWallet):
 
+    def can_create_accounts(self):
+        return False
+
     def make_seed(self):
         import mnemonic
         seed = random_seed(128)
         return ' '.join(mnemonic.mn_encode(seed))
-
 
     def prepare_seed(self, seed):
         import mnemonic
