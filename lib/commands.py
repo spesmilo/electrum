@@ -251,8 +251,7 @@ class Commands:
 
     def getseed(self):
         mnemonic = self.wallet.get_mnemonic(self.password)
-        seed = self.wallet.get_seed(self.password)
-        return { 'mnemonic':mnemonic, 'seed':seed, 'version':self.wallet.seed_version }
+        return { 'mnemonic':mnemonic, 'version':self.wallet.seed_version }
 
     def importprivkey(self, sec):
         try:

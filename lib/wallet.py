@@ -295,27 +295,22 @@ class NewWallet:
         return seed
 
 
-    def init_seed(self, seed):
-        import mnemonic, unicodedata
-        
+    def prepare_seed(self, seed):
+        import unicodedata
+        return NEW_SEED_VERSION, unicodedata.normalize('NFC', unicode(seed.strip()))
+
+
+    def save_seed(self, seed, password):
         if self.seed: 
             raise Exception("a seed exists")
-
-        self.seed_version = NEW_SEED_VERSION
-
-        if not seed:
-            self.seed = self.make_seed()
-            return
-
-        self.seed = unicodedata.normalize('NFC', unicode(seed.strip()))
-
-
-            
-
-    def save_seed(self, password):
+        
+        self.seed_version, self.seed = self.prepare_seed(seed)
         if password: 
             self.seed = pw_encode( self.seed, password)
             self.use_encryption = True
+        else:
+            self.use_encryption = False
+
         self.storage.put('seed', self.seed, True)
         self.storage.put('seed_version', self.seed_version, True)
         self.storage.put('use_encryption', self.use_encryption,True)
@@ -323,11 +318,11 @@ class NewWallet:
 
 
     def create_watching_only_wallet(self, xpub):
-        self.master_public_keys = { "m/": xpub }
-        self.storage.put('master_public_keys', self.master_public_keys, True)
         self.storage.put('seed_version', self.seed_version, True)
-        account = BIP32_Account({'xpub':xpub})
-        self.add_account("m/", account)
+        self.add_master_public_key("m/", xpub)
+        xpub0 = self.add_master_keys("m/", "m/0'", None)
+        account = BIP32_Account({'xpub':xpub0})
+        self.add_account("m/0'", account)
 
 
     def create_accounts(self, password):
@@ -340,11 +335,37 @@ class NewWallet:
         self.storage.put('master_public_keys', self.master_public_keys, True)
 
 
+    def add_master_private_key(self, name, xpriv, password):
+        self.master_private_keys[name] = pw_encode(xpriv, password)
+        self.storage.put('master_private_keys', self.master_private_keys, True)
+
+
+    def add_master_keys(self, root, account_id, password):
+        x = self.master_private_keys.get(root)
+        if x: 
+            master_xpriv = pw_decode(x, password )
+            xpriv, xpub = bip32_private_derivation(master_xpriv, root, account_id)
+            self.add_master_public_key(account_id, xpub)
+            self.add_master_private_key(account_id, xpriv, password)
+        else:
+            master_xpub = self.master_public_keys[root]
+            xpub = bip32_public_derivation(master_xpub, root, account_id)
+            self.add_master_public_key(account_id, xpub)
+        return xpub
+
+
+    def add_root(self, name, mnemonic, password, add_private = True):
+        seed = mnemonic_to_seed(mnemonic,'').encode('hex')
+        xpriv, xpub = bip32_root(seed)
+        self.add_master_public_key(name, xpub)
+        if add_private:
+            self.add_master_private_key(name, xpriv, password)
+
+
     def create_master_keys(self, password):
         xpriv, xpub = bip32_root(self.get_seed(password))
         self.add_master_public_key("m/", xpub)
-        self.master_private_keys["m/"] = pw_encode(xpriv, password)
-        self.storage.put('master_private_keys', self.master_private_keys, True)
+        self.add_master_private_key("m/", xpriv, password)
 
 
     def find_root_by_master_key(self, xpub):
@@ -357,19 +378,19 @@ class NewWallet:
         return (self.seed == '') and (self.master_private_keys == {})
 
 
-    def num_accounts(self, account_type = '1of1'):
+    def num_accounts(self):
         keys = self.accounts.keys()
         i = 0
         while True:
-            account_id = self.account_id(account_type, i)
+            account_id = self.account_id(i)
             if account_id not in keys: break
             i += 1
         return i
 
 
-    def next_account_address(self, account_type, password):
-        i = self.num_accounts(account_type)
-        account_id = self.account_id(account_type, i)
+    def next_account_address(self, password):
+        i = self.num_accounts()
+        account_id = self.account_id(i)
 
         addr = self.next_addresses.get(account_id)
         if not addr: 
@@ -380,20 +401,12 @@ class NewWallet:
 
         return account_id, addr
 
-    def account_id(self, account_type, i):
-        if account_type == '1of1':
-            return "m/%d'"%i
-        else:
-            raise
+    def account_id(self, i):
+        return "m/%d'"%i
 
     def make_account(self, account_id, password):
         """Creates and saves the master keys, but does not save the account"""
-        master_xpriv = pw_decode( self.master_private_keys["m/"] , password )
-        xpriv, xpub = bip32_private_derivation(master_xpriv, "m/", account_id)
-        self.master_private_keys[account_id] = pw_encode(xpriv, password)
-        self.master_public_keys[account_id] = xpub
-        self.storage.put('master_public_keys', self.master_public_keys, True)
-        self.storage.put('master_private_keys', self.master_private_keys, True)
+        xpub = self.add_master_keys("m/", account_id, password)
         account = BIP32_Account({'xpub':xpub})
         return account
 
@@ -418,15 +431,15 @@ class NewWallet:
 
 
     def create_account(self, name, password):
-        i = self.num_accounts('1of1')
-        account_id = self.account_id('1of1', i)
+        i = self.num_accounts()
+        account_id = self.account_id(i)
         account = self.make_account(account_id, password)
         self.add_account(account_id, account)
         if name:
             self.set_label(account_id, name)
 
         # add address of the next account
-        _, _ = self.next_account_address('1of1', password)
+        _, _ = self.next_account_address(password)
 
 
     def add_account(self, account_id, account):
@@ -471,8 +484,8 @@ class NewWallet:
     def account_is_pending(self, k):
         return k in self.pending_accounts
 
-    def create_pending_account(self, acct_type, name, password):
-        account_id, addr = self.next_account_address(acct_type, password)
+    def create_pending_account(self, name, password):
+        account_id, addr = self.next_account_address(password)
         self.set_label(account_id, name)
         self.pending_accounts[account_id] = addr
         self.storage.put('pending_accounts', self.pending_accounts)
@@ -1472,32 +1485,16 @@ class Wallet_2of2(NewWallet):
         NewWallet.__init__(self, storage)
         self.storage.put('wallet_type', '2of2', True)
 
-    def init_cold_seed(self):
-        cold_seed = self.make_seed()
-        seed = mnemonic_to_seed(cold_seed,'').encode('hex')
-        xpriv, xpub = bip32_root(seed)
-        self.master_public_keys["cold/"] = xpub
-        return cold_seed
-
-    def save_cold_seed(self):
-        self.storage.put('master_public_keys', self.master_public_keys, True)
-
 
     def make_account(self, account_id, password):
-        # if accounts are hardened, we cannot make it symmetric on the other wallet
-
         """Creates and saves the master keys, but does not save the account"""
-        master_xpriv = pw_decode( self.master_private_keys["m/"] , password )
-        xpriv, xpub = bip32_private_derivation(master_xpriv, "m/", account_id)
-        self.master_private_keys[account_id] = pw_encode(xpriv, password)
-        self.master_public_keys[account_id] = xpub
-        self.storage.put('master_public_keys', self.master_public_keys, True)
-        self.storage.put('master_private_keys', self.master_private_keys, True)
-
-        xpub_cold = self.master_public_keys["cold/"]
-        account = BIP32_Account_2of2({'xpub':xpub, 'xpub2':xpub_cold})
+        xpub1 = self.add_master_keys("m/", account_id, password)
+        xpub2 = self.add_master_keys("cold/", account_id, password)
+        account = BIP32_Account_2of2({'xpub':xpub1, 'xpub2':xpub2})
         return account
 
+    def account_id(self, i):
+        return "m/%d"%i
 
 class Wallet_2of3(Wallet_2of2):
 
@@ -1506,21 +1503,14 @@ class Wallet_2of3(Wallet_2of2):
         self.storage.put('wallet_type', '2of3', True)
 
     def make_account(self, account_id, password):
-        # if accounts are hardened, we cannot make it symmetric on the other wallet
-
-        """Creates and saves the master keys, but does not save the account"""
-        master_xpriv = pw_decode( self.master_private_keys["m/"] , password )
-        xpriv, xpub = bip32_private_derivation(master_xpriv, "m/", account_id)
-        self.master_private_keys[account_id] = pw_encode(xpriv, password)
-        self.master_public_keys[account_id] = xpub
-        self.storage.put('master_public_keys', self.master_public_keys, True)
-        self.storage.put('master_private_keys', self.master_private_keys, True)
-
-        xpub_cold = self.master_public_keys["cold/"]
-        xpub_remote = self.master_public_keys["remote/"]
-        account = BIP32_Account_2of3({'xpub':xpub, 'xpub2':xpub_cold, 'xpub3':xpub_remote})
+        xpub1 = self.add_master_keys("m/", account_id, password)
+        xpub2 = self.add_master_keys("cold/", account_id.replace("m/","cold/"), password)
+        xpub3 = self.add_master_keys("remote/", account_id.replace("m/","remote/"), password)
+        account = BIP32_Account_2of3({'xpub':xpub1, 'xpub2':xpub2, 'xpub3':xpub3})
         return account
 
+    def account_id(self, i):
+        return "m/%d"%i
 
 
 
@@ -1699,38 +1689,30 @@ class WalletSynchronizer(threading.Thread):
 
 class OldWallet(NewWallet):
 
-    def init_seed(self, seed):
+    def make_seed(self):
         import mnemonic
-        
-        if self.seed: 
-            raise Exception("a seed exists")
+        seed = random_seed(128)
+        return ' '.join(mnemonic.mn_encode(seed))
 
-        if not seed:
-            seed = random_seed(128)
 
-        self.seed_version = OLD_SEED_VERSION
-
+    def prepare_seed(self, seed):
+        import mnemonic
         # see if seed was entered as hex
         seed = seed.strip()
         try:
             assert seed
             seed.decode('hex')
-            self.seed = str(seed)
-            return
+            return OLD_SEED_VERSION, str(seed)
         except Exception:
             pass
 
         words = seed.split()
-        try:
-            mnemonic.mn_decode(words)
-        except Exception:
-            raise
-
-        self.seed = mnemonic.mn_decode(words)
-
-        if not self.seed:
+        seed = mnemonic.mn_decode(words)
+        if not seed:
             raise Exception("Invalid seed")
             
+        return OLD_SEED_VERSION, seed
+
 
     def create_master_keys(self, password):
         seed = pw_decode(self.seed, password)
@@ -1886,7 +1868,6 @@ class Wallet(object):
         elif is_new_seed(seed):
             klass = NewWallet
         w = klass(storage)
-        w.init_seed(seed)
         return w
 
     @classmethod
