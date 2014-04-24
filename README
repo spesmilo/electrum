@@ -1,9 +1,9 @@
-Electrum - lightweight Litecoin client
+Electrum-LTC - lightweight Litecoin client
 
 Licence: GNU GPL v3
 Author: Thomas Voegtlin
 Language: Python
-Homepage: https://electrum.org/
+Homepage: https://electrum-ltc.org/
 
 
 1. GETTING STARTED
@@ -11,7 +11,7 @@ Homepage: https://electrum.org/
 
 To run Electrum from this directory, just do:
 
-  ./electrum
+  ./electrum-ltc
 
 If you install Electrum on your system, you can run it from any
 directory:
@@ -21,7 +21,7 @@ directory:
 
 
 To start Electrum from your web browser, see
-http://electrum.org/bitcoin_URIs.html
+http://electrum-ltc.org/litecoin_URIs.html
 
 
 

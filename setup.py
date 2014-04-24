@@ -116,6 +116,6 @@ setup(
     author="ecdsa",
     author_email="ecdsa@github",
     license="GNU GPLv3",
-    url="http://electrum.org",
+    url="http://electrum-ltc.org",
     long_description="""Lightweight Litecoin Wallet"""
 )
