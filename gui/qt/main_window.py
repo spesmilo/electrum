@@ -100,47 +100,19 @@ default_column_widths = { "history":[40,140,350,140], "contacts":[350,330], "rec
 
 class ElectrumWindow(QMainWindow):
 
-    def build_tray_menu(self):
-        m = QMenu()
-        m.addAction(_("Show/Hide"), self.show_or_hide)
-        m.addAction(_("Dark/Light"), self.toggle_tray_icon)
-        m.addSeparator()
-        m.addAction(_("Exit Electrum"), self.close)
-        self.tray.setContextMenu(m)
 
-    def toggle_tray_icon(self):
-        self.dark_icon = not self.dark_icon
-        self.config.set_key("dark_icon", self.dark_icon, True)
-        icon = QIcon(":icons/electrum_dark_icon.png") if self.dark_icon else QIcon(':icons/electrum_light_icon.png')
-        self.tray.setIcon(icon)
 
-    def show_or_hide(self):
-        self.tray_activated(QSystemTrayIcon.DoubleClick)
-
-    def tray_activated(self, reason):
-        if reason == QSystemTrayIcon.DoubleClick:
-            if self.isMinimized() or self.isHidden():
-                self.show()
-                self.raise_()
-            else:
-                self.hide()
-
-    def __init__(self, config, network):
+    def __init__(self, config, network, gui_object):
         QMainWindow.__init__(self)
 
         self.config = config
         self.network = network
+        self.tray = gui_object.tray
+        self.go_lite = gui_object.go_lite
 
         self._close_electrum = False
         self.lite = None
 
-        self.dark_icon = self.config.get("dark_icon", False)
-        icon = QIcon(":icons/electrum_dark_icon.png") if self.dark_icon else QIcon(':icons/electrum_light_icon.png')
-        self.tray = QSystemTrayIcon(icon, self)
-        self.tray.setToolTip('Electrum')
-        self.tray.activated.connect(self.tray_activated)
-        self.build_tray_menu()
-        self.tray.show()
 
         self.create_status_bar()
         self.need_update = threading.Event()
@@ -199,52 +171,6 @@ class ElectrumWindow(QMainWindow):
             self.console.showMessage(self.network.banner)
 
         self.wallet = None
-        self.init_lite()
-
-
-    def go_full(self):
-        self.config.set_key('lite_mode', False, True)
-        self.mini.hide()
-        self.show()
-        self.raise_()
-
-    def go_lite(self):
-        self.config.set_key('lite_mode', True, True)
-        self.hide()
-        self.mini.show()
-        self.mini.raise_()
-
-
-    def init_lite(self):
-        import lite_window
-        if not self.check_qt_version():
-            if self.config.get('lite_mode') is True:
-                msg = "Electrum was unable to load the 'Lite GUI' because it needs Qt version >= 4.7.\nChanging your config to use the 'Classic' GUI"
-                QMessageBox.warning(None, "Could not start Lite GUI.", msg)
-                self.config.set_key('lite_mode', False, True)
-                sys.exit(0)
-            self.mini = None
-            self.show()
-            self.raise_()
-            return
-
-        actuator = lite_window.MiniActuator(self)
-
-        actuator.load_theme()
-
-        self.mini = lite_window.MiniWindow(actuator, self.go_full, self.config)
-
-        driver = lite_window.MiniDriver(self, self.mini)
-
-        if self.config.get('lite_mode') is True:
-            self.go_lite()
-        else:
-            self.go_full()
-
-
-    def check_qt_version(self):
-        qtVersion = qVersion()
-        return int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7
 
 
     def update_account_selector(self):
