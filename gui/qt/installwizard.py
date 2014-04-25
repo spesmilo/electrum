@@ -331,14 +331,19 @@ class InstallWizard(QDialog):
                 wallet = Wallet_2of3(self.storage)
 
                 if Wallet.is_seed(text1):
-                    wallet.add_root("m/", text1, password)
+                    wallet.add_seed(text1, password)
+                    if Wallet.is_seed(text2):
+                        wallet.add_cold_seed(text2, password)
+                    else:
+                        wallet.add_master_public_key("cold/", text2)
+
                 elif Wallet.is_mpk(text1):
-                    wallet.add_master_public_key("m/", text1)
-                
-                if Wallet.is_seed(text2):
-                    wallet.add_root("cold/", text2, password)
-                elif Wallet.is_mpk(text2):
-                    wallet.add_master_public_key("cold/", text2)
+                    if Wallet.is_seed(text2):
+                        wallet.add_seed(text2, password)
+                        wallet.add_master_public_key("cold/", text1)
+                    else:
+                        wallet.add_master_public_key("m/", text1)
+                        wallet.add_master_public_key("cold/", text2)
 
                 run_hook('restore_third_key', wallet, self)
 

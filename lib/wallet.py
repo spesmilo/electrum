@@ -302,7 +302,8 @@ class NewWallet:
         return NEW_SEED_VERSION, unicodedata.normalize('NFC', unicode(seed.strip()))
 
 
-    def save_seed(self, seed, password):
+
+    def add_seed(self, seed, password):
         if self.seed: 
             raise Exception("a seed exists")
         
@@ -353,14 +354,6 @@ class NewWallet:
             xpub = bip32_public_derivation(master_xpub, root, account_id)
             self.add_master_public_key(account_id, xpub)
         return xpub
-
-
-    def add_root(self, name, mnemonic, password, add_private = True):
-        seed = mnemonic_to_seed(mnemonic,'').encode('hex')
-        xpriv, xpub = bip32_root(seed)
-        self.add_master_public_key(name, xpub)
-        if add_private:
-            self.add_master_private_key(name, xpriv, password)
 
 
     def create_master_keys(self, password):
@@ -1505,6 +1498,20 @@ class Wallet_2of2(NewWallet):
         xpub1 = self.master_public_keys.get("m/")
         xpub2 = self.master_public_keys.get("cold/")
         return {'hot':xpub1, 'cold':xpub2}
+
+
+    def add_cold_seed(self, cold_seed, password):
+        seed_version, cold_seed = self.prepare_seed(cold_seed)
+        hex_seed = mnemonic_to_seed(cold_seed,'').encode('hex')
+        xpriv, xpub = bip32_root(hex_seed)
+
+        if password: 
+            cold_seed = pw_encode( cold_seed, password)
+        self.storage.put('cold_seed', cold_seed, True)
+
+        self.add_master_public_key('cold/', xpub)
+        self.add_master_private_key('cold/', xpriv, password)
+
 
 class Wallet_2of3(Wallet_2of2):
 
