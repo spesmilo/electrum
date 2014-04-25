@@ -102,6 +102,7 @@ register_command('verifymessage',        3,-1, False, False, False, 'Verifies a 
 register_command('daemon',               1, 1, True, False, False,  '<stop|status>')
 register_command('getproof',             1, 1, True, False, False, 'get merkle proof', 'getproof <address>')
 register_command('getutxoaddress',       2, 2, True, False, False, 'get the address of an unspent transaction output','getutxoaddress <txid> <pos>')
+register_command('sweep',                2, 3, True, False, False, 'Sweep a private key.', 'sweep privkey addr [fee]')
 
 
 
@@ -260,6 +261,21 @@ class Commands:
         except Exception as e:
             out = "Error: Keypair import failed: " + str(e)
         return out
+
+
+    def sweep(self, privkey, to_address, fee = 0.0001):
+        pubkey = public_key_from_private_key(privkey)
+        address = address_from_private_key(privkey)
+        pay_script = Transaction.pay_script(address)
+        unspent = self.network.synchronous_get([ ('blockchain.address.listunspent',[address])])[0]
+        if not unspent:
+            return
+        total = sum( map(lambda x:int(x.get('value')), unspent) ) - int(Decimal(fee)*100000000)
+        inputs = map(lambda i: {'prevout_hash': i['tx_hash'], 'prevout_n':i['tx_pos'], 'scriptPubKey':pay_script, 'redeemPubkey':pubkey}, unspent)
+        outputs = [(to_address, total)]
+        tx = Transaction.from_io(inputs, outputs)
+        tx.sign({ pubkey:privkey })
+        return tx
 
 
     def signmessage(self, address, message):
