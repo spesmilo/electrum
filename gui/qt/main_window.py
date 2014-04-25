@@ -109,10 +109,7 @@ class ElectrumWindow(QMainWindow):
         self.network = network
         self.tray = gui_object.tray
         self.go_lite = gui_object.go_lite
-
-        self._close_electrum = False
         self.lite = None
-
 
         self.create_status_bar()
         self.need_update = threading.Event()
