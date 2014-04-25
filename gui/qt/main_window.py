@@ -538,6 +538,13 @@ class ElectrumWindow(QMainWindow):
     def create_history_menu(self, position):
         self.history_list.selectedIndexes()
         item = self.history_list.currentItem()
+        be = self.config.get('block_explorer', 'Blockchain.info')
+        if be == 'Blockchain.info':
+            block_explorer = 'https://blockchain.info/tx/'
+        elif be == 'Blockr.io':
+            block_explorer = 'https://blockr.io/tx/info/'
+        elif be == 'Insight.is':
+            block_explorer = 'http://live.insight.is/tx/'
         if not item: return
         tx_hash = str(item.data(0, Qt.UserRole).toString())
         if not tx_hash: return
@@ -545,7 +552,7 @@ class ElectrumWindow(QMainWindow):
         menu.addAction(_("Copy ID to Clipboard"), lambda: self.app.clipboard().setText(tx_hash))
         menu.addAction(_("Details"), lambda: self.show_transaction(self.wallet.transactions.get(tx_hash)))
         menu.addAction(_("Edit description"), lambda: self.tx_label_clicked(item,2))
-        menu.addAction(_("View on Blockchain.info"), lambda: webbrowser.open("https://blockchain.info/tx/" + tx_hash))
+        menu.addAction(_("View on block explorer"), lambda: webbrowser.open(block_explorer + tx_hash))
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
 
@@ -2170,7 +2177,16 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions.')+' '), 4, 2)
         if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
 
-        grid.setRowStretch(5,1)
+        block_explorers = ['Blockchain.info', 'Blockr.io', 'Insight.is']
+        block_ex_label = QLabel(_('Online Block Explorer') + ':')
+        grid.addWidget(block_ex_label, 5, 0)
+        block_ex_combo = QComboBox()
+        block_ex_combo.addItems(block_explorers)
+        block_ex_combo.setCurrentIndex(block_explorers.index(self.config.get('block_explorer', 'Blockchain.info')))
+        grid.addWidget(block_ex_combo, 5, 1)
+        grid.addWidget(HelpButton(_('Choose which online block explorer to use for functions that open a web browser')+' '), 5, 2)
+
+        grid.setRowStretch(6,1)
 
         vbox.addLayout(grid)
         vbox.addLayout(ok_cancel_buttons(d))
@@ -2220,6 +2236,9 @@ class ElectrumWindow(QMainWindow):
         if lang_request != self.config.get('language'):
             self.config.set_key("language", lang_request, True)
             need_restart = True
+
+        be_result = block_explorers[block_ex_combo.currentIndex()]
+        self.config.set_key('block_explorer', be_result, True)
 
         run_hook('close_settings_dialog')
 
