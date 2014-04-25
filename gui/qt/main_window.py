@@ -1198,22 +1198,31 @@ class ElectrumWindow(QMainWindow):
         else:
             account_items = []
 
-        for k, account in account_items:
-            name = self.wallet.get_account_name(k)
-            c,u = self.wallet.get_account_balance(k)
-            account_item = QTreeWidgetItem( [ name, '', self.format_amount(c+u), ''] )
-            l.addTopLevelItem(account_item)
-            account_item.setExpanded(self.accounts_expanded.get(k, True))
-            account_item.setData(0, 32, k)
+        pending_accounts = self.wallet.get_pending_accounts()
 
-            if not self.wallet.is_seeded(k):
-                icon = QIcon(":icons/key.png")
-                account_item.setIcon(0, icon)
+        for k, account in account_items:
+
+            if len(account_items) + len(pending_accounts) > 1:
+                name = self.wallet.get_account_name(k)
+                c,u = self.wallet.get_account_balance(k)
+                account_item = QTreeWidgetItem( [ name, '', self.format_amount(c+u), ''] )
+                l.addTopLevelItem(account_item)
+                account_item.setExpanded(self.accounts_expanded.get(k, True))
+                account_item.setData(0, 32, k)
+                if not self.wallet.is_seeded(k):
+                    icon = QIcon(":icons/key.png")
+                    account_item.setIcon(0, icon)
+            else:
+                account_item = None
 
             for is_change in ([0,1]):
                 name = _("Receiving") if not is_change else _("Change")
                 seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
-                account_item.addChild(seq_item)
+                if account_item:
+                    account_item.addChild(seq_item)
+                else:
+                    l.addTopLevelItem(seq_item)
+                    
                 used_item = QTreeWidgetItem( [ _("Used"), '', '', '', ''] )
                 used_flag = False
                 if not is_change: seq_item.setExpanded(True)
@@ -1246,7 +1255,7 @@ class ElectrumWindow(QMainWindow):
                         seq_item.addChild(item)
 
 
-        for k, addr in self.wallet.get_pending_accounts():
+        for k, addr in pending_accounts:
             name = self.wallet.labels.get(k,'')
             account_item = QTreeWidgetItem( [ name + "  [ "+_('pending account')+" ]", '', '', ''] )
             self.update_receive_item(item)
@@ -1451,7 +1460,7 @@ class ElectrumWindow(QMainWindow):
         name = str(e.text())
         if not name: return
 
-        self.wallet.create_pending_account('1of1', name, password)
+        self.wallet.create_pending_account(name, password)
         self.update_receive_tab()
         self.tabs.setCurrentIndex(2)
 
