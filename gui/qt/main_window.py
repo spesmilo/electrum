@@ -353,7 +353,7 @@ class ElectrumWindow(QMainWindow):
 
         wallet_menu.addAction(_("&Password"), self.change_password_dialog)
         wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
-        wallet_menu.addAction(_("&Master Public Key"), self.show_master_public_key)
+        wallet_menu.addAction(_("&Master Public Keys"), self.show_master_public_keys)
 
         wallet_menu.addSeparator()
         labels_menu = wallet_menu.addMenu(_("&Labels"))
@@ -1524,70 +1524,24 @@ class ElectrumWindow(QMainWindow):
 
 
 
-    def show_master_public_key_old(self):
-        dialog = QDialog(self)
-        dialog.setModal(1)
-        dialog.setWindowTitle(_("Master Public Key"))
 
-        main_text = QTextEdit()
-        main_text.setText(self.wallet.get_master_public_key())
-        main_text.setReadOnly(True)
-        main_text.setMaximumHeight(170)
-        qrw = QRCodeWidget(self.wallet.get_master_public_key())
-
-        ok_button = QPushButton(_("OK"))
-        ok_button.setDefault(True)
-        ok_button.clicked.connect(dialog.accept)
-
-        main_layout = QGridLayout()
-        main_layout.addWidget(QLabel(_('Your Master Public Key is:')), 0, 0, 1, 2)
-
-        main_layout.addWidget(main_text, 1, 0)
-        main_layout.addWidget(qrw, 1, 1 )
-
-        vbox = QVBoxLayout()
-        vbox.addLayout(main_layout)
-        vbox.addLayout(close_button(dialog))
-        dialog.setLayout(vbox)
-        dialog.exec_()
-
-
-    def show_master_public_key(self):
-
-        if self.wallet.seed_version == 4:
-            self.show_master_public_key_old()
-            return
+    def show_master_public_keys(self):
 
         dialog = QDialog(self)
         dialog.setModal(1)
         dialog.setWindowTitle(_("Master Public Keys"))
 
-        mpk_text = QTextEdit()
-        mpk_text.setReadOnly(True)
-        mpk_text.setMaximumHeight(170)
-        mpk_qrw = QRCodeWidget()
-
         main_layout = QGridLayout()
-
-        main_layout.addWidget(QLabel(_('Key')), 1, 0)
-        main_layout.addWidget(mpk_text, 1, 1)
-        main_layout.addWidget(mpk_qrw, 1, 2)
-
-        def update(key):
-            xpub = self.wallet.master_public_keys[str(key)]
-            mpk_text.setText(xpub)
-            mpk_qrw.set_addr(xpub)
-            mpk_qrw.update_qr()
-
-        key_selector = QComboBox()
-        keys = sorted(self.wallet.master_public_keys.keys())
-        key_selector.addItems(keys)
-
-        main_layout.addWidget(QLabel(_('Derivation:')), 0, 0)
-        main_layout.addWidget(key_selector, 0, 1)
-        dialog.connect(key_selector,SIGNAL("activated(QString)"),update)
-
-        update(keys[0])
+        mpk_dict = self.wallet.get_master_public_keys()
+        i = 0
+        for key, value in mpk_dict.items():
+            main_layout.addWidget(QLabel(key), i, 0)
+            mpk_text = QTextEdit()
+            mpk_text.setReadOnly(True)
+            mpk_text.setMaximumHeight(170)
+            mpk_text.setText(value)
+            main_layout.addWidget(mpk_text, i + 1, 0)
+            i += 2
 
         vbox = QVBoxLayout()
         vbox.addLayout(main_layout)

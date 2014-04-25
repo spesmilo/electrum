@@ -247,7 +247,7 @@ class Commands:
         return electrum.ELECTRUM_VERSION
  
     def getmpk(self):
-        return self.wallet.get_master_public_key()
+        return self.wallet.get_master_public_keys()
 
     def getseed(self):
         mnemonic = self.wallet.get_mnemonic(self.password)

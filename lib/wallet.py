@@ -519,8 +519,13 @@ class NewWallet:
         if s is None: return False
         return s[0] == 1
 
-    def get_master_public_key(self):
-        return self.storage.get("master_public_keys")["m/"]
+    def get_master_public_keys(self):
+        out = {}
+        for k, account in self.accounts.items():
+            name = self.get_account_name(k)
+            mpk_text = '\n\n'.join( account.get_master_pubkeys() )
+            out[name] = mpk_text
+        return out
 
     def get_master_private_key(self, account, password):
         k = self.master_private_keys.get(account)
@@ -1497,6 +1502,10 @@ class Wallet_2of2(NewWallet):
         account = BIP32_Account_2of2({'xpub':xpub1, 'xpub2':xpub2})
         self.add_account('m/', account)
 
+    def get_master_public_keys(self):
+        xpub1 = self.master_public_keys.get("m/")
+        xpub2 = self.master_public_keys.get("cold/")
+        return {'hot':xpub1, 'cold':xpub2}
 
 class Wallet_2of3(Wallet_2of2):
 
@@ -1511,6 +1520,11 @@ class Wallet_2of3(Wallet_2of2):
         account = BIP32_Account_2of3({'xpub':xpub1, 'xpub2':xpub2, 'xpub3':xpub3})
         self.add_account('m/', account)
 
+    def get_master_public_keys(self):
+        xpub1 = self.master_public_keys.get("m/")
+        xpub2 = self.master_public_keys.get("cold/")
+        xpub3 = self.master_public_keys.get("remote/")
+        return {'hot':xpub1, 'cold':xpub2, 'remote':xpub3}
 
 
 class WalletSynchronizer(threading.Thread):
@@ -1720,8 +1734,9 @@ class OldWallet(NewWallet):
         mpk = OldAccount.mpk_from_seed(seed)
         self.storage.put('master_public_key', mpk, True)
 
-    def get_master_public_key(self):
-        return self.storage.get("master_public_key")
+    def get_master_public_keys(self):
+        mpk = self.storage.get("master_public_key")
+        return {'Main Account':mpk}
 
     def create_accounts(self, password):
         mpk = self.get_master_public_key()
