@@ -70,8 +70,82 @@ class ElectrumGui:
         if app is None:
             self.app = QApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
-
         init_plugins(self)
+
+
+    def build_tray_menu(self):
+        m = QMenu()
+        m.addAction(_("Show/Hide"), self.show_or_hide)
+        m.addAction(_("Dark/Light"), self.toggle_tray_icon)
+        m.addSeparator()
+        m.addAction(_("Exit Electrum-LTC"), self.close)
+        self.tray.setContextMenu(m)
+
+    def toggle_tray_icon(self):
+        self.dark_icon = not self.dark_icon
+        self.config.set_key("dark_icon", self.dark_icon, True)
+        icon = QIcon(":icons/electrum_dark_icon.png") if self.dark_icon else QIcon(':icons/electrum_light_icon.png')
+        self.tray.setIcon(icon)
+
+    def show_or_hide(self):
+        self.tray_activated(QSystemTrayIcon.DoubleClick)
+
+    def tray_activated(self, reason):
+        if reason == QSystemTrayIcon.DoubleClick:
+            if self.current_window.isMinimized() or self.current_window.isHidden():
+                self.current_window.show()
+                self.current_window.raise_()
+            else:
+                self.current_window.hide()
+
+    def close(self):
+        self.current_window.close()
+
+
+
+    def go_full(self):
+        self.config.set_key('lite_mode', False, True)
+        self.lite_window.hide()
+        self.main_window.show()
+        self.main_window.raise_()
+        self.current_window = self.main_window
+
+    def go_lite(self):
+        self.config.set_key('lite_mode', True, True)
+        self.main_window.hide()
+        self.lite_window.show()
+        self.lite_window.raise_()
+        self.current_window = self.lite_window
+
+
+    def init_lite(self):
+        import lite_window
+        if not self.check_qt_version():
+            if self.config.get('lite_mode') is True:
+                msg = "Electrum was unable to load the 'Lite GUI' because it needs Qt version >= 4.7.\nChanging your config to use the 'Classic' GUI"
+                QMessageBox.warning(None, "Could not start Lite GUI.", msg)
+                self.config.set_key('lite_mode', False, True)
+                sys.exit(0)
+            self.lite_window = None
+            self.main_window.show()
+            self.main_window.raise_()
+            return
+
+        actuator = lite_window.MiniActuator(self.main_window)
+        actuator.load_theme()
+        self.lite_window = lite_window.MiniWindow(actuator, self.go_full, self.config)
+        driver = lite_window.MiniDriver(self.main_window, self.lite_window)
+
+        if self.config.get('lite_mode') is True:
+            self.go_lite()
+        else:
+            self.go_full()
+
+
+    def check_qt_version(self):
+        qtVersion = qVersion()
+        return int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7
+
 
 
     def main(self, url):
@@ -95,7 +169,22 @@ class ElectrumGui:
             wallet = Wallet(storage)
             wallet.start_threads(self.network)
             
-        self.main_window = w = ElectrumWindow(self.config, self.network)
+
+        # init tray
+        self.dark_icon = self.config.get("dark_icon", False)
+        icon = QIcon(":icons/electrum_dark_icon.png") if self.dark_icon else QIcon(':icons/electrum_light_icon.png')
+        self.tray = QSystemTrayIcon(icon, None)
+        self.tray.setToolTip('Electrum-LTC')
+        self.tray.activated.connect(self.tray_activated)
+        self.build_tray_menu()
+        self.tray.show()
+
+        # main window
+        self.main_window = w = ElectrumWindow(self.config, self.network, self)
+        self.current_window = self.main_window
+
+        #lite window
+        self.init_lite()
 
         # plugins that need to change the GUI do it here
         run_hook('init')

@@ -238,6 +238,8 @@ class NewWallet:
                     tx2.add_extra_addresses({h:tx})
 
             
+    def can_create_accounts(self):
+        return not self.is_watching_only()
 
 
     def set_up_to_date(self,b):
@@ -320,9 +322,8 @@ class NewWallet:
     def create_watching_only_wallet(self, xpub):
         self.storage.put('seed_version', self.seed_version, True)
         self.add_master_public_key("m/", xpub)
-        xpub0 = self.add_master_keys("m/", "m/0'", None)
-        account = BIP32_Account({'xpub':xpub0})
-        self.add_account("m/0'", account)
+        account = BIP32_Account({'xpub':xpub})
+        self.add_account("m/", account)
 
 
     def create_accounts(self, password):
@@ -517,8 +518,13 @@ class NewWallet:
         if s is None: return False
         return s[0] == 1
 
-    def get_master_public_key(self):
-        return self.storage.get("master_public_keys")["m/"]
+    def get_master_public_keys(self):
+        out = {}
+        for k, account in self.accounts.items():
+            name = self.get_account_name(k)
+            mpk_text = '\n\n'.join( account.get_master_pubkeys() )
+            out[name] = mpk_text
+        return out
 
     def get_master_private_key(self, account, password):
         k = self.master_private_keys.get(account)
@@ -1485,16 +1491,20 @@ class Wallet_2of2(NewWallet):
         NewWallet.__init__(self, storage)
         self.storage.put('wallet_type', '2of2', True)
 
+    def can_create_accounts(self):
+        return False
 
     def make_account(self, account_id, password):
         """Creates and saves the master keys, but does not save the account"""
-        xpub1 = self.add_master_keys("m/", account_id, password)
-        xpub2 = self.add_master_keys("cold/", account_id, password)
+        xpub1 = self.master_public_keys.get("m/")
+        xpub2 = self.master_public_keys.get("cold/")
         account = BIP32_Account_2of2({'xpub':xpub1, 'xpub2':xpub2})
-        return account
+        self.add_account('m/', account)
 
-    def account_id(self, i):
-        return "m/%d"%i
+    def get_master_public_keys(self):
+        xpub1 = self.master_public_keys.get("m/")
+        xpub2 = self.master_public_keys.get("cold/")
+        return {'hot':xpub1, 'cold':xpub2}
 
 class Wallet_2of3(Wallet_2of2):
 
@@ -1502,16 +1512,18 @@ class Wallet_2of3(Wallet_2of2):
         NewWallet.__init__(self, storage)
         self.storage.put('wallet_type', '2of3', True)
 
-    def make_account(self, account_id, password):
-        xpub1 = self.add_master_keys("m/", account_id, password)
-        xpub2 = self.add_master_keys("cold/", account_id.replace("m/","cold/"), password)
-        xpub3 = self.add_master_keys("remote/", account_id.replace("m/","remote/"), password)
+    def create_accounts(self, password):
+        xpub1 = self.master_public_keys.get("m/")
+        xpub2 = self.master_public_keys.get("cold/")
+        xpub3 = self.master_public_keys.get("remote/")
         account = BIP32_Account_2of3({'xpub':xpub1, 'xpub2':xpub2, 'xpub3':xpub3})
-        return account
+        self.add_account('m/', account)
 
-    def account_id(self, i):
-        return "m/%d"%i
-
+    def get_master_public_keys(self):
+        xpub1 = self.master_public_keys.get("m/")
+        xpub2 = self.master_public_keys.get("cold/")
+        xpub3 = self.master_public_keys.get("remote/")
+        return {'hot':xpub1, 'cold':xpub2, 'remote':xpub3}
 
 
 class WalletSynchronizer(threading.Thread):
@@ -1689,11 +1701,13 @@ class WalletSynchronizer(threading.Thread):
 
 class OldWallet(NewWallet):
 
+    def can_create_accounts(self):
+        return False
+
     def make_seed(self):
         import mnemonic
         seed = random_seed(128)
         return ' '.join(mnemonic.mn_encode(seed))
-
 
     def prepare_seed(self, seed):
         import mnemonic
@@ -1719,11 +1733,12 @@ class OldWallet(NewWallet):
         mpk = OldAccount.mpk_from_seed(seed)
         self.storage.put('master_public_key', mpk, True)
 
-    def get_master_public_key(self):
-        return self.storage.get("master_public_key")
+    def get_master_public_keys(self):
+        mpk = self.storage.get("master_public_key")
+        return {'Main Account':mpk}
 
     def create_accounts(self, password):
-        mpk = self.get_master_public_key()
+        mpk = self.storage.get("master_public_key")
         self.create_account(mpk)
 
     def create_account(self, mpk):
