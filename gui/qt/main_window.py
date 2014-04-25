@@ -99,12 +99,20 @@ class StatusBarButton(QPushButton):
 default_column_widths = { "history":[40,140,350,140], "contacts":[350,330], "receive": [370,200,130] }
 
 class ElectrumWindow(QMainWindow):
-    def build_menu(self):
+
+    def build_tray_menu(self):
         m = QMenu()
         m.addAction(_("Show/Hide"), self.show_or_hide)
+        m.addAction(_("Dark/Light"), self.toggle_tray_icon)
         m.addSeparator()
         m.addAction(_("Exit Electrum"), self.close)
         self.tray.setContextMenu(m)
+
+    def toggle_tray_icon(self):
+        self.dark_icon = not self.dark_icon
+        self.config.set_key("dark_icon", self.dark_icon, True)
+        icon = QIcon(":icons/electrum_dark_icon.png") if self.dark_icon else QIcon(':icons/electrum_light_icon.png')
+        self.tray.setIcon(icon)
 
     def show_or_hide(self):
         self.tray_activated(QSystemTrayIcon.DoubleClick)
@@ -126,20 +134,15 @@ class ElectrumWindow(QMainWindow):
         self._close_electrum = False
         self.lite = None
 
-        if sys.platform == 'darwin':
-          self.icon = QIcon(":icons/electrum_dark_icon.png")
-          #self.icon = QIcon(":icons/lock.png")
-        else:
-          self.icon = QIcon(':icons/electrum_light_icon.png')
-
-        self.tray = QSystemTrayIcon(self.icon, self)
+        self.dark_icon = self.config.get("dark_icon", False)
+        icon = QIcon(":icons/electrum_dark_icon.png") if self.dark_icon else QIcon(':icons/electrum_light_icon.png')
+        self.tray = QSystemTrayIcon(icon, self)
         self.tray.setToolTip('Electrum')
         self.tray.activated.connect(self.tray_activated)
-
-        self.build_menu()
+        self.build_tray_menu()
         self.tray.show()
-        self.create_status_bar()
 
+        self.create_status_bar()
         self.need_update = threading.Event()
 
         self.decimal_point = config.get('decimal_point', 5)
