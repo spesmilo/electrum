@@ -1739,7 +1739,7 @@ class OldWallet(NewWallet):
         return {'Main Account':mpk}
 
     def create_accounts(self, password):
-        mpk = self.get_master_public_key()
+        mpk = self.storage.get("master_public_key")
         self.create_account(mpk)
 
     def create_account(self, mpk):
