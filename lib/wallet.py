@@ -239,7 +239,7 @@ class NewWallet:
 
             
     def can_create_accounts(self):
-        return True
+        return not self.is_watching_only()
 
 
     def set_up_to_date(self,b):
@@ -322,9 +322,8 @@ class NewWallet:
     def create_watching_only_wallet(self, xpub):
         self.storage.put('seed_version', self.seed_version, True)
         self.add_master_public_key("m/", xpub)
-        xpub0 = self.add_master_keys("m/", "m/0'", None)
-        account = BIP32_Account({'xpub':xpub0})
-        self.add_account("m/0'", account)
+        account = BIP32_Account({'xpub':xpub})
+        self.add_account("m/", account)
 
 
     def create_accounts(self, password):
