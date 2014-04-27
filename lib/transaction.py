@@ -754,7 +754,6 @@ class Transaction:
     def add_input_info(self, input_info):
         for i, txin in enumerate(self.inputs):
             item = input_info[i]
-            txin['address'] = item['address']
             txin['scriptPubKey'] = item['scriptPubKey']
             txin['redeemScript'] = item.get('redeemScript')
             txin['redeemPubkey'] = item.get('redeemPubkey')
