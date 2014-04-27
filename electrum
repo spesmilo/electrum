@@ -274,7 +274,7 @@ if __name__ == '__main__':
             if not config.get('2of3'):
                 wallet = Wallet(storage)
                 seed = wallet.make_seed()
-                wallet.save_seed(seed, password)
+                wallet.add_seed(seed, password)
                 wallet.create_accounts(password)
                 wallet.synchronize()
                 print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
