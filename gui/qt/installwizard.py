@@ -294,7 +294,7 @@ class InstallWizard(QDialog):
             if not self.verify_seed(seed, sid):
                 return
             password = self.password_dialog()
-            wallet.save_seed(seed, password)
+            wallet.add_seed(seed, password)
 
             if action == 'create2of3':
                 run_hook('create_third_key', wallet, self)
@@ -315,7 +315,7 @@ class InstallWizard(QDialog):
                 if Wallet.is_seed(text):
                     password = self.password_dialog()
                     wallet = Wallet.from_seed(text, self.storage)
-                    wallet.save_seed(text, password)
+                    wallet.add_seed(text, password)
                     wallet.create_accounts(password)
                 elif Wallet.is_mpk(text):
                     wallet = Wallet.from_mpk(text, self.storage)
