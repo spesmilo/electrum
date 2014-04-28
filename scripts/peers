@@ -27,15 +27,22 @@ results_queue = Queue.Queue()
 reached_servers = []
 for i in interfaces: i.start(q)
 
+t0 = time.time()
 while peers:
     try:
-        i = q.get(timeout=3)
+        i = q.get(timeout=1)
     except:
-        break
+        if time.time() - t0 > 10:
+            print "timeout"
+            break
+        else:
+            continue
     peers.remove(i.server)
     if i.is_connected:
         i.send([('blockchain.headers.subscribe',[])], lambda i,x: results_queue.put((i,x)))
         reached_servers.append(i.server)
+    else:
+        print "Connection failed:", i.server
 
 print "%d servers could be reached"%len(reached_servers)
 
