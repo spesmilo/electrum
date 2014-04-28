@@ -207,8 +207,8 @@ class InstallWizard(QDialog):
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(msg))
         vbox.addStretch(1)
-        vbox.addLayout(ok_cancel_buttons(self, _('OK')))
         self.set_layout(vbox)
+        vbox.addLayout(ok_cancel_buttons(self, _('OK')))
         if not self.exec_(): 
             return None
         return True
