@@ -882,11 +882,17 @@ class ElectrumWindow(QMainWindow):
 
     def set_url(self, url):
         try:
-            address, amount, label, message, signature, identity, url = util.parse_url(url)
+            address, amount, label, message, signature, identity, r, url = util.parse_url(url)
         except Exception:
             QMessageBox.warning(self, _('Error'), _('Invalid bitcoin URL'), _('OK'))
             return
 
+        payment_req_complete = {}
+        payment_req_complete[0] = False
+        if r:
+            run_hook('do_payment_request', r, payment_req_complete)
+            if payment_req_complete[0]:
+                return
         try:
             if amount and self.base_unit() == 'mBTC': amount = str( 1000* Decimal(amount))
             elif amount: amount = str(Decimal(amount))
