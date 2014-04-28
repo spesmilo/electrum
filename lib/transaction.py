@@ -425,6 +425,25 @@ class Transaction:
 
         return s
 
+
+    @classmethod
+    def pay_script(self, addr):
+        addrtype, hash_160 = bc_address_to_hash_160(addr)
+        if addrtype == 48:
+            script = '76a9'                                      # op_dup, op_hash_160
+            script += '14'                                       # push 0x14 bytes
+            script += hash_160.encode('hex')
+            script += '88ac'                                     # op_equalverify, op_checksig
+        elif addrtype == 5:
+            script = 'a9'                                        # op_hash_160
+            script += '14'                                       # push 0x14 bytes
+            script += hash_160.encode('hex')
+            script += '87'                                       # op_equal
+        else:
+            raise
+        return script
+
+
     @classmethod
     def serialize( klass, inputs, outputs, for_sig = None ):
 
@@ -475,20 +494,7 @@ class Transaction:
         for output in outputs:
             addr, amount = output
             s += int_to_hex( amount, 8)                              # amount
-            addrtype, hash_160 = bc_address_to_hash_160(addr)
-            if addrtype == 48:
-                script = '76a9'                                      # op_dup, op_hash_160
-                script += '14'                                       # push 0x14 bytes
-                script += hash_160.encode('hex')
-                script += '88ac'                                     # op_equalverify, op_checksig
-            elif addrtype == 5:
-                script = 'a9'                                        # op_hash_160
-                script += '14'                                       # push 0x14 bytes
-                script += hash_160.encode('hex')
-                script += '87'                                       # op_equal
-            else:
-                raise
-            
+            script = klass.pay_script(addr)
             s += var_int( len(script)/2 )                           #  script length
             s += script                                             #  script
         s += int_to_hex(0,4)                                        #  lock time
@@ -751,9 +757,8 @@ class Transaction:
     def add_input_info(self, input_info):
         for i, txin in enumerate(self.inputs):
             item = input_info[i]
-            txin['address'] = item['address']
-            txin['signatures'] = item['signatures']
             txin['scriptPubKey'] = item['scriptPubKey']
             txin['redeemScript'] = item.get('redeemScript')
             txin['redeemPubkey'] = item.get('redeemPubkey')
             txin['KeyID'] = item.get('KeyID')
+            txin['signatures'] = item.get('signatures',{})

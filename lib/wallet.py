@@ -302,7 +302,8 @@ class NewWallet:
         return NEW_SEED_VERSION, unicodedata.normalize('NFC', unicode(seed.strip()))
 
 
-    def save_seed(self, seed, password):
+
+    def add_seed(self, seed, password):
         if self.seed: 
             raise Exception("a seed exists")
         
@@ -353,14 +354,6 @@ class NewWallet:
             xpub = bip32_public_derivation(master_xpub, root, account_id)
             self.add_master_public_key(account_id, xpub)
         return xpub
-
-
-    def add_root(self, name, mnemonic, password, add_private = True):
-        seed = mnemonic_to_seed(mnemonic,'').encode('hex')
-        xpriv, xpub = bip32_root(seed)
-        self.add_master_public_key(name, xpub)
-        if add_private:
-            self.add_master_private_key(name, xpriv, password)
 
 
     def create_master_keys(self, password):
@@ -685,29 +678,24 @@ class NewWallet:
         # check that the password is correct
         seed = self.get_seed(password)
 
-        # add input info
-        tx.add_input_info(input_info)
-
-        # add redeem script for coins that are in the wallet
-        # FIXME: add redeemPubkey too!
-
-        try:
+        # if input_info is not known, build it using wallet UTXOs
+        if not input_info:
+            input_info = []
             unspent_coins = self.get_unspent_coins()
-        except:
-            # an exception may be raised is the wallet is not synchronized
-            unspent_coins = []
+            for txin in tx.inputs:
+                for item in unspent_coins:
+                    if txin['prevout_hash'] == item['prevout_hash'] and txin['prevout_n'] == item['prevout_n']:
+                        info = { 'address':item['address'], 'scriptPubKey':item['scriptPubKey'] }
+                        self.add_input_info(info)
+                        input_info.append(info)
+                        break
+                else:
+                    print_error( "input not in UTXOs" )
+                    input_info.append(None)
 
-        for txin in tx.inputs:
-            for item in unspent_coins:
-                if txin['prevout_hash'] == item['prevout_hash'] and txin['prevout_n'] == item['prevout_n']:
-                    print_error( "tx input is in unspent coins" )
-                    txin['scriptPubKey'] = item['scriptPubKey']
-                    account, sequence = self.get_address_index(item['address'])
-                    if account != -1:
-                        txin['redeemScript'] = self.accounts[account].redeem_script(sequence)
-                        print_error("added redeemScript", txin['redeemScript'])
-                    break
-
+        # add input_info to the transaction
+        print_error("input_info", input_info)
+        tx.add_input_info(input_info)
 
         # build a list of public/private keys
         keypairs = {}
@@ -719,9 +707,9 @@ class NewWallet:
 
         # add private_keys from KeyID
         self.add_keypairs_from_KeyID(tx, keypairs, password)
-
         # add private keys from wallet
         self.add_keypairs_from_wallet(tx, keypairs, password)
+        # sign the transaction
         self.sign_transaction(tx, keypairs, password)
 
 
@@ -1237,7 +1225,8 @@ class NewWallet:
         inputs, total, fee = self.choose_tx_inputs( amount, fee, len(outputs), domain )
         if not inputs:
             raise ValueError("Not enough funds")
-        self.add_input_info(inputs)
+        for txin in inputs:
+            self.add_input_info(txin)
         outputs = self.add_tx_change(inputs, outputs, amount, fee, total, change_addr)
         return Transaction.from_io(inputs, outputs)
 
@@ -1251,19 +1240,18 @@ class NewWallet:
         return tx
 
 
-    def add_input_info(self, inputs):
-        for txin in inputs:
-            address = txin['address']
-            if address in self.imported_keys.keys():
-                continue
-            account_id, sequence = self.get_address_index(address)
-            account = self.accounts[account_id]
-            txin['KeyID'] = account.get_keyID(sequence)
-            redeemScript = account.redeem_script(sequence)
-            if redeemScript: 
-                txin['redeemScript'] = redeemScript
-            else:
-                txin['redeemPubkey'] = account.get_pubkey(*sequence)
+    def add_input_info(self, txin):
+        address = txin['address']
+        if address in self.imported_keys.keys():
+            return
+        account_id, sequence = self.get_address_index(address)
+        account = self.accounts[account_id]
+        txin['KeyID'] = account.get_keyID(sequence)
+        redeemScript = account.redeem_script(sequence)
+        if redeemScript: 
+            txin['redeemScript'] = redeemScript
+        else:
+            txin['redeemPubkey'] = account.get_pubkey(*sequence)
 
 
     def sign_transaction(self, tx, keypairs, password):
@@ -1505,6 +1493,20 @@ class Wallet_2of2(NewWallet):
         xpub1 = self.master_public_keys.get("m/")
         xpub2 = self.master_public_keys.get("cold/")
         return {'hot':xpub1, 'cold':xpub2}
+
+
+    def add_cold_seed(self, cold_seed, password):
+        seed_version, cold_seed = self.prepare_seed(cold_seed)
+        hex_seed = mnemonic_to_seed(cold_seed,'').encode('hex')
+        xpriv, xpub = bip32_root(hex_seed)
+
+        if password: 
+            cold_seed = pw_encode( cold_seed, password)
+        self.storage.put('cold_seed', cold_seed, True)
+
+        self.add_master_public_key('cold/', xpub)
+        self.add_master_private_key('cold/', xpriv, password)
+
 
 class Wallet_2of3(Wallet_2of2):
 
