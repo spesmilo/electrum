@@ -275,9 +275,9 @@ class InstallWizard(QDialog):
             return '2of3'
 
 
-    def run(self, action = None):
+    def run(self, action):
 
-        if action is None:
+        if action == 'new':
             action = self.restore_or_create()
 
         if action is None: 
@@ -289,32 +289,53 @@ class InstallWizard(QDialog):
                 return 
 
             if t == '2of3':
-                run_hook('create_cold_seed', self.storage, self)
-                return
+                action = 'create_cold'
+        
 
-
-        if action in ['create', 'create2of3']:
-
+        if action in ['create', 'create_cold', 'create_hot', 'create_remote']:
             wallet = Wallet(self.storage)
+
+        if action == 'create':
             seed = wallet.make_seed()
-            sid = 'hot' if action == 'create2of3' else None
-            if not self.show_seed(seed, sid):
+            if not self.show_seed(seed, None):
                 return
-            if not self.verify_seed(seed, sid):
+            if not self.verify_seed(seed, None):
                 return
             password = self.password_dialog()
             wallet.add_seed(seed, password)
-
-            if action == 'create2of3':
-                run_hook('create_third_key', wallet, self)
-                if not wallet.master_public_keys.get("remote/"):
-                    return
-
             wallet.create_accounts(password)
             # generate first addresses offline
             self.waiting_dialog(wallet.synchronize)
 
-        elif action == 'restore':
+
+        if action == 'create_cold':
+            run_hook('create_cold_seed', self.storage, self)
+            return
+
+
+        if action == 'create_hot':
+            msg = _('You are about to create the hot seed of a multisig wallet')
+            if not self.question(msg):
+                return
+            seed = wallet.make_seed()
+            if not self.show_seed(seed, 'hot'):
+                return
+            if not self.verify_seed(seed, 'hot'):
+                return
+            password = self.password_dialog()
+            wallet.add_seed(seed, password)
+            action = 'create_remote'
+
+
+        if action == 'create_remote':
+            run_hook('create_remote_key', wallet, self)
+            if not wallet.master_public_keys.get("remote/"):
+                return
+            wallet.create_account()
+            self.waiting_dialog(wallet.synchronize)
+
+
+        if action == 'restore':
             t = self.choose_wallet_type()
             if not t: 
                 return
@@ -362,9 +383,6 @@ class InstallWizard(QDialog):
                 raise
 
 
-
-
-        else: raise
                 
         #if not self.config.get('server'):
         if self.network:

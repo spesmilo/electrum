@@ -237,6 +237,10 @@ class NewWallet:
                 for tx2 in self.transactions.values():
                     tx2.add_extra_addresses({h:tx})
 
+
+    def get_action(self):
+        pass
+
             
     def can_create_accounts(self):
         return not self.is_watching_only()
@@ -1482,7 +1486,7 @@ class Wallet_2of2(NewWallet):
     def can_create_accounts(self):
         return False
 
-    def make_account(self, account_id, password):
+    def create_account(self, account_id):
         """Creates and saves the master keys, but does not save the account"""
         xpub1 = self.master_public_keys.get("m/")
         xpub2 = self.master_public_keys.get("cold/")
@@ -1495,17 +1499,6 @@ class Wallet_2of2(NewWallet):
         return {'hot':xpub1, 'cold':xpub2}
 
 
-    def add_cold_seed(self, cold_seed, password):
-        seed_version, cold_seed = self.prepare_seed(cold_seed)
-        hex_seed = mnemonic_to_seed(cold_seed,'').encode('hex')
-        xpriv, xpub = bip32_root(hex_seed)
-
-        if password: 
-            cold_seed = pw_encode( cold_seed, password)
-        self.storage.put('cold_seed', cold_seed, True)
-
-        self.add_master_public_key('cold/', xpub)
-        self.add_master_private_key('cold/', xpriv, password)
 
 
 class Wallet_2of3(Wallet_2of2):
@@ -1514,7 +1507,7 @@ class Wallet_2of3(Wallet_2of2):
         NewWallet.__init__(self, storage)
         self.storage.put('wallet_type', '2of3', True)
 
-    def create_accounts(self, password):
+    def create_account(self):
         xpub1 = self.master_public_keys.get("m/")
         xpub2 = self.master_public_keys.get("cold/")
         xpub3 = self.master_public_keys.get("remote/")
@@ -1526,6 +1519,17 @@ class Wallet_2of3(Wallet_2of2):
         xpub2 = self.master_public_keys.get("cold/")
         xpub3 = self.master_public_keys.get("remote/")
         return {'hot':xpub1, 'cold':xpub2, 'remote':xpub3}
+
+    def get_action(self):
+        xpub1 = self.master_public_keys.get("m/")
+        xpub2 = self.master_public_keys.get("cold/")
+        xpub3 = self.master_public_keys.get("remote/")
+        if xpub2 is None:
+            return 'create_cold'
+        if xpub1 is None:
+            return 'create_hot'
+        if xpub3 is None:
+            return 'create_remote'
 
 
 class WalletSynchronizer(threading.Thread):
