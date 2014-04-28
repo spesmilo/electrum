@@ -430,12 +430,12 @@ class Plugin(BasePlugin):
                 cur_currency = self.config.get('currency', "EUR")
                 if cur_currency == "VEF":
                     try:
-                        resp_hist = self.exchanger.get_json('api.bitcoinvenezuela.com', "/historical/index.php")['VEF_BTC']
+                        resp_hist = self.exchanger.get_json('api.bitcoinvenezuela.com', "/historical/index.php?coin=BTC")['VEF_BTC']
                     except Exception:
                         return
                 elif cur_currency == "ARS":
                     try:
-                        resp_hist = self.exchanger.get_json('api.bitcoinvenezuela.com', "/historical/index.php")['ARS_BTC']
+                        resp_hist = self.exchanger.get_json('api.bitcoinvenezuela.com', "/historical/index.php?coin=BTC")['ARS_BTC']
                     except Exception:
                         return
                 else:
