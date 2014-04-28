@@ -1192,7 +1192,7 @@ class ElectrumWindow(QMainWindow):
             l.setColumnWidth(i, width)
 
         if self.current_account is None:
-            account_items = self.wallet.accounts.items()
+            account_items = sorted(self.wallet.accounts.items())
         elif self.current_account != -1:
             account_items = [(self.current_account, self.wallet.accounts.get(self.current_account))]
         else:
