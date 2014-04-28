@@ -194,20 +194,29 @@ class InstallWizard(QDialog):
             return
         
 
-    def show_message(self, msg):
+    def show_message(self, msg, icon=None):
         vbox = QVBoxLayout()
+        self.set_layout(vbox)
+        if icon:
+            logo = QLabel()
+            logo.setPixmap(icon)
+            vbox.addWidget(logo)
         vbox.addWidget(QLabel(msg))
         vbox.addStretch(1)
         vbox.addLayout(close_button(self, _('Next')))
-        self.set_layout(vbox)
         if not self.exec_(): 
             return None
 
-    def question(self, msg):
+
+    def question(self, msg, icon=None):
         vbox = QVBoxLayout()
+        self.set_layout(vbox)
+        if icon:
+            logo = QLabel()
+            logo.setPixmap(icon)
+            vbox.addWidget(logo)
         vbox.addWidget(QLabel(msg))
         vbox.addStretch(1)
-        self.set_layout(vbox)
         vbox.addLayout(ok_cancel_buttons(self, _('OK')))
         if not self.exec_(): 
             return None
