@@ -285,6 +285,10 @@ def address_from_private_key(sec):
 
 
 def is_valid(addr):
+    return is_address(addr)
+
+
+def is_address(addr):
     ADDRESS_RE = re.compile('[1-9A-HJ-NP-Za-km-z]{26,}\\Z')
     if not ADDRESS_RE.match(addr): return False
     try:
@@ -292,6 +296,10 @@ def is_valid(addr):
     except Exception:
         return False
     return addr == hash_160_to_bc_address(h, addrtype)
+
+
+def is_private_key(key):
+    return ASecretToSecret(key) is not False
 
 
 ########### end pywallet functions #######################

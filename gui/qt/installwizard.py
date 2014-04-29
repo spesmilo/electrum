@@ -4,6 +4,7 @@ import PyQt4.QtCore as QtCore
 
 from electrum.i18n import _
 from electrum import Wallet, Wallet_2of2, Wallet_2of3
+import electrum.bitcoin as bitcoin
 
 import seed_dialog
 from network_dialog import NetworkDialog
@@ -92,7 +93,7 @@ class InstallWizard(QDialog):
 
     def is_seed(self, seed_e):
         text = self.get_seed_text(seed_e)
-        return Wallet.is_seed(text) or Wallet.is_mpk(text)
+        return Wallet.is_seed(text) or Wallet.is_mpk(text) or Wallet.is_address(text) or Wallet.is_private_key(text)
 
 
     def enter_seed_dialog(self, is_restore, sid):
@@ -372,6 +373,10 @@ class InstallWizard(QDialog):
                     wallet.create_accounts(password)
                 elif Wallet.is_mpk(text):
                     wallet = Wallet.from_mpk(text, self.storage)
+                elif Wallet.is_address(text):
+                    wallet = Wallet.from_address(text, self.storage)
+                elif Wallet.is_private_key(text):
+                    wallet = Wallet.from_private_key(text, self.storage)
                 else:
                     raise
 

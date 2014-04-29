@@ -36,6 +36,7 @@ from bitcoin import *
 from account import *
 from transaction import Transaction
 from plugins import run_hook
+import bitcoin
 
 COINBASE_MATURITY = 100
 DUST_THRESHOLD = 5430
@@ -329,6 +330,8 @@ class NewWallet:
         self.add_master_public_key("m/", xpub)
         account = BIP32_Account({'xpub':xpub})
         self.add_account("m/", account)
+
+
 
 
     def create_accounts(self, password):
@@ -1480,6 +1483,17 @@ class NewWallet:
 
 
 
+class Imported_Wallet(NewWallet):
+
+    def __init__(self, storage):
+        NewWallet.__init__(self, storage)
+
+    def is_watching_only(self):
+        n = self.imported_keys.values()
+        return n == [''] * len(n)
+
+
+
 class Wallet_2of2(NewWallet):
 
     def __init__(self, storage):
@@ -1542,7 +1556,6 @@ class Wallet_2of3(Wallet_2of2):
 
 
 class WalletSynchronizer(threading.Thread):
-
 
     def __init__(self, wallet, network):
         threading.Thread.__init__(self)
@@ -1843,6 +1856,10 @@ class Wallet(object):
         if storage.get('wallet_type') == '2of3':
             return Wallet_2of3(storage)
 
+        if storage.file_exists and not storage.get('seed'):
+            # wallet made of imported keys
+            return Imported_Wallet(storage)
+
 
         if not storage.file_exists:
             seed_version = NEW_SEED_VERSION if config.get('bip32') is True else OLD_SEED_VERSION
@@ -1891,7 +1908,20 @@ class Wallet(object):
                 return True
             except:
                 return False
-                
+
+    @classmethod
+    def is_address(self, text):
+        for x in text.split():
+            if not bitcoin.is_address(x):
+                return False
+        return True
+
+    @classmethod
+    def is_private_key(self, text):
+        for x in text.split():
+            if not bitcoin.is_private_key(x):
+                return False
+        return True
 
     @classmethod
     def from_seed(self, seed, storage):
@@ -1900,6 +1930,21 @@ class Wallet(object):
         elif is_new_seed(seed):
             klass = NewWallet
         w = klass(storage)
+        return w
+
+    @classmethod
+    def from_address(self, text, storage):
+        w = Imported_Wallet(storage)
+        for x in text.split():
+            w.imported_keys[x] = ''
+        w.storage.put('imported_keys', w.imported_keys, True)
+        return w
+
+    @classmethod
+    def from_private_key(self, text, storage):
+        w = Imported_Wallet(storage)
+        for x in text.split():
+            w.import_key(x, None)
         return w
 
     @classmethod
