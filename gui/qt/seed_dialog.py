@@ -114,6 +114,7 @@ def enter_seed_box(is_restore, sid=None):
 
     seed_e = QTextEdit()
     seed_e.setMaximumHeight(100)
+    seed_e.setTabChangesFocus(True)
 
     vbox.addWidget(label)
 
