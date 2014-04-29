@@ -96,15 +96,9 @@ def show_seed_box(seed, sid=None):
     return vbox
 
 
-def enter_seed_box(is_restore, sid=None):
+def enter_seed_box(msg, sid=None):
 
     vbox = QVBoxLayout()
-    if is_restore:
-        msg = _("Please enter your wallet seed, or master public key") + "\n"
-    else:
-        msg = _("Your seed is important!") \
-              + "\n" + _("To make sure that you have properly saved your seed, please retype it here.")
-        
     logo = QLabel()
     logo.setPixmap(QPixmap(icon_filename(sid)).scaledToWidth(56))
     logo.setMaximumWidth(60)
@@ -114,6 +108,7 @@ def enter_seed_box(is_restore, sid=None):
 
     seed_e = QTextEdit()
     seed_e.setMaximumHeight(100)
+    seed_e.setTabChangesFocus(True)
 
     vbox.addWidget(label)
 

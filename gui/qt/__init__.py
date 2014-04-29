@@ -151,24 +151,20 @@ class ElectrumGui:
     def main(self, url):
 
         storage = WalletStorage(self.config)
-        if not storage.file_exists:
-            import installwizard
-            wizard = installwizard.InstallWizard(self.config, self.network, storage)
-            wallet = wizard.run()
-            if not wallet: 
-                exit()
-
-        elif storage.get('wallet_type') in ['2of3'] and storage.get('seed') is None:
-            import installwizard
-            wizard = installwizard.InstallWizard(self.config, self.network, storage)
-            wallet = wizard.run(action= 'create2of3')
-            if not wallet: 
-                exit()
-
-        else:
+        if storage.file_exists:
             wallet = Wallet(storage)
+            action = wallet.get_action()
+        else:
+            action = 'new'
+
+        if action is not None:
+            import installwizard
+            wizard = installwizard.InstallWizard(self.config, self.network, storage)
+            wallet = wizard.run(action)
+            if not wallet: 
+                exit()
+        else:
             wallet.start_threads(self.network)
-            
 
         # init tray
         self.dark_icon = self.config.get("dark_icon", False)

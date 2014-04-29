@@ -853,7 +853,7 @@ class ElectrumWindow(QMainWindow):
         if label:
             self.wallet.set_label(tx.hash(), label)
 
-        if not tx.is_complete():
+        if not tx.is_complete() or self.config.get('show_before_broadcast'):
             self.show_transaction(tx)
             return
 
@@ -1192,7 +1192,7 @@ class ElectrumWindow(QMainWindow):
             l.setColumnWidth(i, width)
 
         if self.current_account is None:
-            account_items = self.wallet.accounts.items()
+            account_items = sorted(self.wallet.accounts.items())
         elif self.current_account != -1:
             account_items = [(self.current_account, self.wallet.accounts.get(self.current_account))]
         else:
@@ -2121,9 +2121,14 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(block_ex_combo, 5, 1)
         grid.addWidget(HelpButton(_('Choose which online block explorer to use for functions that open a web browser')+' '), 5, 2)
 
-        grid.setRowStretch(6,1)
+        show_tx = self.config.get('show_before_broadcast', False)
+        showtx_cb = QCheckBox(_('Show before broadcast'))
+        showtx_cb.setChecked(show_tx)
+        grid.addWidget(showtx_cb, 6, 0)
+        grid.addWidget(HelpButton(_('Display the details of your transactions before broadcasting it.')), 6, 2)
 
         vbox.addLayout(grid)
+        vbox.addStretch(1)
         vbox.addLayout(ok_cancel_buttons(d))
         d.setLayout(vbox)
 
@@ -2157,6 +2162,9 @@ class ElectrumWindow(QMainWindow):
         if self.wallet.use_change != usechange_result:
             self.wallet.use_change = usechange_result
             self.wallet.storage.put('use_change', self.wallet.use_change)
+
+        if showtx_cb.isChecked() != show_tx:
+            self.config.set_key('show_before_broadcast', not show_tx)
 
         unit_result = units[unit_combo.currentIndex()]
         if self.base_unit() != unit_result:

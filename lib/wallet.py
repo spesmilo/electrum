@@ -36,6 +36,7 @@ from bitcoin import *
 from account import *
 from transaction import Transaction
 from plugins import run_hook
+import bitcoin
 
 COINBASE_MATURITY = 100
 DUST_THRESHOLD = 0
@@ -237,6 +238,10 @@ class NewWallet:
                 for tx2 in self.transactions.values():
                     tx2.add_extra_addresses({h:tx})
 
+
+    def get_action(self):
+        pass
+
             
     def can_create_accounts(self):
         return not self.is_watching_only()
@@ -325,6 +330,8 @@ class NewWallet:
         self.add_master_public_key("m/", xpub)
         account = BIP32_Account({'xpub':xpub})
         self.add_account("m/", account)
+
+
 
 
     def create_accounts(self, password):
@@ -510,6 +517,9 @@ class NewWallet:
         acct, s = self.get_address_index(address)
         if s is None: return False
         return s[0] == 1
+
+    def get_master_public_key(self):
+        return self.master_public_keys["m/"]
 
     def get_master_public_keys(self):
         out = {}
@@ -1473,6 +1483,17 @@ class NewWallet:
 
 
 
+class Imported_Wallet(NewWallet):
+
+    def __init__(self, storage):
+        NewWallet.__init__(self, storage)
+
+    def is_watching_only(self):
+        n = self.imported_keys.values()
+        return n == [''] * len(n)
+
+
+
 class Wallet_2of2(NewWallet):
 
     def __init__(self, storage):
@@ -1482,8 +1503,7 @@ class Wallet_2of2(NewWallet):
     def can_create_accounts(self):
         return False
 
-    def make_account(self, account_id, password):
-        """Creates and saves the master keys, but does not save the account"""
+    def create_account(self):
         xpub1 = self.master_public_keys.get("m/")
         xpub2 = self.master_public_keys.get("cold/")
         account = BIP32_Account_2of2({'xpub':xpub1, 'xpub2':xpub2})
@@ -1494,18 +1514,14 @@ class Wallet_2of2(NewWallet):
         xpub2 = self.master_public_keys.get("cold/")
         return {'hot':xpub1, 'cold':xpub2}
 
+    def get_action(self):
+        xpub1 = self.master_public_keys.get("m/")
+        xpub2 = self.master_public_keys.get("cold/")
+        if xpub1 is None:
+            return 'create_2of2_1'
+        if xpub2 is None:
+            return 'create_2of2_2'
 
-    def add_cold_seed(self, cold_seed, password):
-        seed_version, cold_seed = self.prepare_seed(cold_seed)
-        hex_seed = mnemonic_to_seed(cold_seed,'').encode('hex')
-        xpriv, xpub = bip32_root(hex_seed)
-
-        if password: 
-            cold_seed = pw_encode( cold_seed, password)
-        self.storage.put('cold_seed', cold_seed, True)
-
-        self.add_master_public_key('cold/', xpub)
-        self.add_master_private_key('cold/', xpriv, password)
 
 
 class Wallet_2of3(Wallet_2of2):
@@ -1514,7 +1530,7 @@ class Wallet_2of3(Wallet_2of2):
         NewWallet.__init__(self, storage)
         self.storage.put('wallet_type', '2of3', True)
 
-    def create_accounts(self, password):
+    def create_account(self):
         xpub1 = self.master_public_keys.get("m/")
         xpub2 = self.master_public_keys.get("cold/")
         xpub3 = self.master_public_keys.get("remote/")
@@ -1527,9 +1543,19 @@ class Wallet_2of3(Wallet_2of2):
         xpub3 = self.master_public_keys.get("remote/")
         return {'hot':xpub1, 'cold':xpub2, 'remote':xpub3}
 
+    def get_action(self):
+        xpub1 = self.master_public_keys.get("m/")
+        xpub2 = self.master_public_keys.get("cold/")
+        xpub3 = self.master_public_keys.get("remote/")
+        if xpub2 is None:
+            return 'create_2of3_1'
+        if xpub1 is None:
+            return 'create_2of3_2'
+        if xpub3 is None:
+            return 'create_2of3_3'
+
 
 class WalletSynchronizer(threading.Thread):
-
 
     def __init__(self, wallet, network):
         threading.Thread.__init__(self)
@@ -1735,9 +1761,11 @@ class OldWallet(NewWallet):
         mpk = OldAccount.mpk_from_seed(seed)
         self.storage.put('master_public_key', mpk, True)
 
+    def get_master_public_key(self):
+        return self.storage.get("master_public_key")
+
     def get_master_public_keys(self):
-        mpk = self.storage.get("master_public_key")
-        return {'Main Account':mpk}
+        return {'Main Account':self.get_master_public_key()}
 
     def create_accounts(self, password):
         mpk = self.storage.get("master_public_key")
@@ -1828,6 +1856,10 @@ class Wallet(object):
         if storage.get('wallet_type') == '2of3':
             return Wallet_2of3(storage)
 
+        if storage.file_exists and not storage.get('seed'):
+            # wallet made of imported keys
+            return Imported_Wallet(storage)
+
 
         if not storage.file_exists:
             seed_version = NEW_SEED_VERSION if config.get('bip32') is True else OLD_SEED_VERSION
@@ -1876,7 +1908,20 @@ class Wallet(object):
                 return True
             except:
                 return False
-                
+
+    @classmethod
+    def is_address(self, text):
+        for x in text.split():
+            if not bitcoin.is_address(x):
+                return False
+        return True
+
+    @classmethod
+    def is_private_key(self, text):
+        for x in text.split():
+            if not bitcoin.is_private_key(x):
+                return False
+        return True
 
     @classmethod
     def from_seed(self, seed, storage):
@@ -1885,6 +1930,21 @@ class Wallet(object):
         elif is_new_seed(seed):
             klass = NewWallet
         w = klass(storage)
+        return w
+
+    @classmethod
+    def from_address(self, text, storage):
+        w = Imported_Wallet(storage)
+        for x in text.split():
+            w.imported_keys[x] = ''
+        w.storage.put('imported_keys', w.imported_keys, True)
+        return w
+
+    @classmethod
+    def from_private_key(self, text, storage):
+        w = Imported_Wallet(storage)
+        for x in text.split():
+            w.import_key(x, None)
         return w
 
     @classmethod

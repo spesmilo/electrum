@@ -71,7 +71,7 @@ def mnemonic_to_seed(mnemonic, passphrase):
     return PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
 
 from version import SEED_PREFIX
-is_new_seed = lambda x: hmac_sha_512("Seed version", x).encode('hex')[0:2].startswith(SEED_PREFIX)
+is_new_seed = lambda x: hmac_sha_512("Seed version", x.encode('utf8')).encode('hex')[0:2].startswith(SEED_PREFIX)
 
 def is_old_seed(seed):
     import mnemonic
@@ -285,6 +285,10 @@ def address_from_private_key(sec):
 
 
 def is_valid(addr):
+    return is_address(addr)
+
+
+def is_address(addr):
     ADDRESS_RE = re.compile('[1-9A-HJ-NP-Za-km-z]{26,}\\Z')
     if not ADDRESS_RE.match(addr): return False
     try:
@@ -292,6 +296,10 @@ def is_valid(addr):
     except Exception:
         return False
     return addr == hash_160_to_bc_address(h, addrtype)
+
+
+def is_private_key(key):
+    return ASecretToSecret(key) is not False
 
 
 ########### end pywallet functions #######################
