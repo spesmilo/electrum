@@ -1486,8 +1486,7 @@ class Wallet_2of2(NewWallet):
     def can_create_accounts(self):
         return False
 
-    def create_account(self, account_id):
-        """Creates and saves the master keys, but does not save the account"""
+    def create_account(self):
         xpub1 = self.master_public_keys.get("m/")
         xpub2 = self.master_public_keys.get("cold/")
         account = BIP32_Account_2of2({'xpub':xpub1, 'xpub2':xpub2})
@@ -1498,6 +1497,13 @@ class Wallet_2of2(NewWallet):
         xpub2 = self.master_public_keys.get("cold/")
         return {'hot':xpub1, 'cold':xpub2}
 
+    def get_action(self):
+        xpub1 = self.master_public_keys.get("m/")
+        xpub2 = self.master_public_keys.get("cold/")
+        if xpub1 is None:
+            return 'create_2of2_1'
+        if xpub2 is None:
+            return 'create_2of2_2'
 
 
 
@@ -1525,11 +1531,11 @@ class Wallet_2of3(Wallet_2of2):
         xpub2 = self.master_public_keys.get("cold/")
         xpub3 = self.master_public_keys.get("remote/")
         if xpub2 is None:
-            return 'create_cold'
+            return 'create_2of3_1'
         if xpub1 is None:
-            return 'create_hot'
+            return 'create_2of3_2'
         if xpub3 is None:
-            return 'create_remote'
+            return 'create_2of3_3'
 
 
 class WalletSynchronizer(threading.Thread):
