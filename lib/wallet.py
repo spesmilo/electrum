@@ -515,6 +515,9 @@ class NewWallet:
         if s is None: return False
         return s[0] == 1
 
+    def get_master_public_key(self):
+        return self.master_public_keys["m/"]
+
     def get_master_public_keys(self):
         out = {}
         for k, account in self.accounts.items():
@@ -1745,9 +1748,11 @@ class OldWallet(NewWallet):
         mpk = OldAccount.mpk_from_seed(seed)
         self.storage.put('master_public_key', mpk, True)
 
+    def get_master_public_key(self):
+        return self.storage.get("master_public_key")
+
     def get_master_public_keys(self):
-        mpk = self.storage.get("master_public_key")
-        return {'Main Account':mpk}
+        return {'Main Account':self.get_master_public_key()}
 
     def create_accounts(self, password):
         mpk = self.storage.get("master_public_key")
