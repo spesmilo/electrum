@@ -363,6 +363,8 @@ class InstallWizard(QDialog):
 
             if t == 'standard':
                 text = self.enter_seed_dialog(True, None)
+                if not text:
+                    return
                 if Wallet.is_seed(text):
                     password = self.password_dialog()
                     wallet = Wallet.from_seed(text, self.storage)
