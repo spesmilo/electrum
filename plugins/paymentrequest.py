@@ -15,7 +15,6 @@ try:
     import urlparse
     from M2Crypto import X509
     import requests
-    import certifi
     loaded_libs = True
 except ImportError as e:
     loaded_libs = False
@@ -102,7 +101,7 @@ class Plugin(BasePlugin):
     def fullname(self):
         return _("Payment Request")
     def description(self):
-        return _("BIP0070 Payment Request Support - required python modules: M2Crypto, protobuf")
+        return _("BIP0070 Payment Request Support - required python modules: M2Crypto, protobuf, requests, urlparse")
 
     def __init__(self,a,b):
         BasePlugin.__init__(self,a,b)

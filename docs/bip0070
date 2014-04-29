@@ -1,0 +1,20 @@
+Requirements/Dependencies:
+
+- M2Crypto
+- requests
+- urlparse
+- protobuf
+
+Install Payment Request Protobuf:
+
+protoc --proto_path=plugins/lib/ --python_out=plugins/lib/ plugins/lib/paymentrequest.proto
+
+(Docs: https://developers.google.com/protocol-buffers/docs/reference/python-generated)
+
+Install CA-Bundle for Signature Verification:
+
+http://curl.haxx.se/docs/caextract.html
+
+Either download the provided pem file, or use a tool to create your own.  The file should be placed at ~/.electrum/ca/ca-bundle.crt
+
+
