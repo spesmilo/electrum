@@ -15,6 +15,13 @@ import sys
 import threading
 from electrum.plugins import run_hook
 
+
+MSG_ENTER_ANYTHING    = _("Please enter a wallet seed, a master public key, a list of Bitcoin addresses, or a list of private keys")
+MSG_ENTER_MPK         = _("Please enter your master public key")
+MSG_ENTER_SEED_OR_MPK = _("Please enter a wallet seed, or master public key")
+MSG_VERIFY_SEED       = _("Your seed is important!") + "\n" + _("To make sure that you have properly saved your seed, please retype it here.")
+
+
 class InstallWizard(QDialog):
 
     def __init__(self, config, network, storage):
@@ -74,7 +81,7 @@ class InstallWizard(QDialog):
 
 
     def verify_seed(self, seed, sid):
-        r = self.enter_seed_dialog(False, sid)
+        r = self.enter_seed_dialog(MSG_VERIFY_SEED, sid)
         if not r:
             return
 
@@ -96,8 +103,8 @@ class InstallWizard(QDialog):
         return Wallet.is_seed(text) or Wallet.is_mpk(text) or Wallet.is_address(text) or Wallet.is_private_key(text)
 
 
-    def enter_seed_dialog(self, is_restore, sid):
-        vbox, seed_e = seed_dialog.enter_seed_box(is_restore, sid)
+    def enter_seed_dialog(self, msg, sid):
+        vbox, seed_e = seed_dialog.enter_seed_box(msg, sid)
         vbox.addStretch(1)
         hbox, button = ok_cancel_buttons2(self, _('Next'))
         vbox.addLayout(hbox)
@@ -111,8 +118,8 @@ class InstallWizard(QDialog):
 
     def double_seed_dialog(self):
         vbox = QVBoxLayout()
-        vbox1, seed_e1 = seed_dialog.enter_seed_box(True, 'hot')
-        vbox2, seed_e2 = seed_dialog.enter_seed_box(True, 'cold')
+        vbox1, seed_e1 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, 'hot')
+        vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, 'cold')
         vbox.addLayout(vbox1)
         vbox.addLayout(vbox2)
         vbox.addStretch(1)
@@ -341,7 +348,7 @@ class InstallWizard(QDialog):
                 action = 'create_2of3_3'
 
         if action == 'create_2of2_2':
-            xpub = self.enter_seed_dialog(True, 'cold')
+            xpub = self.enter_seed_dialog(MSG_ENTER_MPK, 'cold')
             if not Wallet.is_mpk(xpub):
                 return
             wallet.add_master_public_key("cold/", xpub)
@@ -363,7 +370,7 @@ class InstallWizard(QDialog):
                 return
 
             if t == 'standard':
-                text = self.enter_seed_dialog(True, None)
+                text = self.enter_seed_dialog(MSG_ENTER_ANYTHING, None)
                 if not text:
                     return
                 if Wallet.is_seed(text):
