@@ -80,6 +80,7 @@ setup(
         'electrum.pyqrnative',
         'electrum.simple_config',
         'electrum.socks',
+        'electrum.synchronizer',
         'electrum.transaction',
         'electrum.util',
         'electrum.verifier',
