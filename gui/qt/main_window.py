@@ -880,30 +880,14 @@ class ElectrumWindow(QMainWindow):
 
 
 
-    def set_url(self, url):
-        try:
-            address, amount, label, message, signature, identity, url = util.parse_url(url)
-        except Exception:
-            QMessageBox.warning(self, _('Error'), _('Invalid bitcoin URL'), _('OK'))
-            return
 
-        try:
-            if amount and self.base_unit() == 'mBTC': amount = str( 1000* Decimal(amount))
-            elif amount: amount = str(Decimal(amount))
-        except Exception:
-            amount = "0.0"
-            QMessageBox.warning(self, _('Error'), _('Invalid Amount'), _('OK'))
-
-        if self.mini:
-            self.mini.set_payment_fields(address, amount)
+    def set_send(self, address, amount, label, message):
 
         if label and self.wallet.labels.get(address) != label:
             if self.question('Give label "%s" to address %s ?'%(label,address)):
                 if address not in self.wallet.addressbook and not self.wallet.is_mine(address):
                     self.wallet.addressbook.append(address)
                 self.wallet.set_label(address, label)
-
-        run_hook('set_url', url, self.show_message, self.question)
 
         self.tabs.setCurrentIndex(1)
         label = self.wallet.labels.get(address)
@@ -914,13 +898,6 @@ class ElectrumWindow(QMainWindow):
         if amount:
             self.amount_e.setText(amount)
 
-        if identity:
-            self.set_frozen(self.payto_e,True)
-            self.set_frozen(self.amount_e,True)
-            self.set_frozen(self.message_e,True)
-            self.payto_sig.setText( '      '+_('The bitcoin URI was signed by')+' ' + identity )
-        else:
-            self.payto_sig.setVisible(False)
 
     def do_clear(self):
         self.payto_sig.setVisible(False)
