@@ -50,7 +50,7 @@ if __builtin__.use_local_modules:
     imp.load_module('electrum_gui', *imp.find_module('gui'))
 
 from electrum import *  # todo: import * is generally frowned upon. should import just what is used
-
+from electrum.util import print_msg, print_stderr
 
 # get password routine
 def prompt_password(prompt, confirm=True):
@@ -308,9 +308,9 @@ if __name__ == '__main__':
 
     # important warning
     if cmd.name in ['dumpprivkey', 'dumpprivkeys']:
-        print_msg("WARNING: ALL your private keys are secret.")
-        print_msg("Exposing a single private key can compromise your entire wallet!")
-        print_msg("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
+        print_stderr("WARNING: ALL your private keys are secret.")
+        print_stderr("Exposing a single private key can compromise your entire wallet!")
+        print_stderr("In particular, DO NOT use 'redeem private key' services proposed by third parties.")
 
     # commands needing password
     if cmd.requires_password:
