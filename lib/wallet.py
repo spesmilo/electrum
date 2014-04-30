@@ -245,7 +245,7 @@ class Abstract_Wallet:
 
             
     def can_create_accounts(self):
-        return not self.is_watching_only()
+        return False
 
 
     def set_up_to_date(self,b):
@@ -1473,12 +1473,14 @@ class Imported_Wallet(Abstract_Wallet):
 
 
 
-
 class NewWallet(Abstract_Wallet):
     """class for BIP32 wallet"""
 
     def __init__(self, storage):
         Abstract_Wallet.__init__(self, storage)
+
+    def can_create_accounts(self):
+        return not self.is_watching_only()
 
     def make_seed(self):
         import mnemonic, ecdsa
@@ -1506,9 +1508,6 @@ class Wallet_2of2(NewWallet):
     def __init__(self, storage):
         NewWallet.__init__(self, storage)
         self.storage.put('wallet_type', '2of2', True)
-
-    def can_create_accounts(self):
-        return False
 
     def create_account(self):
         xpub1 = self.master_public_keys.get("m/")
@@ -1566,9 +1565,6 @@ class Wallet_2of3(Wallet_2of2):
 
 
 class OldWallet(Abstract_Wallet):
-
-    def can_create_accounts(self):
-        return False
 
     def make_seed(self):
         import mnemonic
