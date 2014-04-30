@@ -1126,10 +1126,10 @@ class Deterministic_Wallet(Abstract_Wallet):
         Abstract_Wallet.__init__(self, storage)
 
     def has_seed(self):
-        return self.seed == ''
+        return self.seed != ''
 
     def is_watching_only(self):
-        return self.has_seed()
+        return not self.has_seed()
 
     def check_password(self, password):
         self.get_seed(password)
