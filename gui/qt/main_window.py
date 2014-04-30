@@ -1354,13 +1354,16 @@ class ElectrumWindow(QMainWindow):
 
 
     def update_buttons_on_seed(self):
-        if not self.wallet.is_watching_only():
+        if self.wallet.has_seed():
            self.seed_button.show()
+        else:
+           self.seed_button.hide()
+
+        if not self.wallet.is_watching_only():
            self.password_button.show()
            self.send_button.setText(_("Send"))
         else:
            self.password_button.hide()
-           self.seed_button.hide()
            self.send_button.setText(_("Create unsigned transaction"))
 
 
@@ -1469,29 +1472,18 @@ class ElectrumWindow(QMainWindow):
 
     @protected
     def show_seed_dialog(self, password):
-        if self.wallet.is_watching_only():
-            QMessageBox.information(self, _('Message'), _('This is a watching-only wallet'), _('OK'))
+        if not self.wallet.has_seed():
+            QMessageBox.information(self, _('Message'), _('This wallet has no seed'), _('OK'))
             return
 
-        if self.wallet.seed:
-            try:
-                mnemonic = self.wallet.get_mnemonic(password)
-            except Exception:
-                QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
-                return
-            from seed_dialog import SeedDialog
-            d = SeedDialog(self, mnemonic, self.wallet.imported_keys)
-            d.exec_()
-        else:
-            l = {}
-            for k in self.wallet.master_private_keys.keys():
-                pk = self.wallet.get_master_private_key(k, password)
-                l[k] = pk
-            from seed_dialog import PrivateKeysDialog
-            d = PrivateKeysDialog(self,l)
-            d.exec_()
-
-
+        try:
+            mnemonic = self.wallet.get_mnemonic(password)
+        except Exception:
+            QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
+            return
+        from seed_dialog import SeedDialog
+        d = SeedDialog(self, mnemonic, self.wallet.imported_keys)
+        d.exec_()
 
 
 

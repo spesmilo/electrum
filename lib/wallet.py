@@ -244,11 +244,19 @@ class Abstract_Wallet:
         pass
 
     def load_accounts(self):
+        self.accounts = {}
+
+    def synchronize(self):
         pass
 
+    def get_pending_accounts(self):
+        return {}
             
     def can_create_accounts(self):
         return False
+
+    def check_password(self, password):
+        pass
 
 
     def set_up_to_date(self,b):
@@ -266,8 +274,7 @@ class Abstract_Wallet:
 
 
     def import_key(self, sec, password):
-        # check password
-        seed = self.get_seed(password)
+        self.check_password(password)
         try:
             address = address_from_private_key(sec)
         except Exception:
@@ -1094,6 +1101,9 @@ class Abstract_Wallet:
             self.verifier.stop()
             self.synchronizer.stop()
 
+    def restore(self, cb):
+        pass
+
 
 
 class Imported_Wallet(Abstract_Wallet):
@@ -1105,6 +1115,9 @@ class Imported_Wallet(Abstract_Wallet):
         n = self.imported_keys.values()
         return n == [''] * len(n)
 
+    def has_seed(self):
+        return False
+
 
 
 class Deterministic_Wallet(Abstract_Wallet):
@@ -1112,8 +1125,14 @@ class Deterministic_Wallet(Abstract_Wallet):
     def __init__(self, storage):
         Abstract_Wallet.__init__(self, storage)
 
+    def has_seed(self):
+        return self.seed == ''
+
     def is_watching_only(self):
-        return (self.seed == '') and (self.master_private_keys == {})
+        return self.has_seed()
+
+    def check_password(self, password):
+        self.get_seed(password)
 
     def get_seed(self, password):
         s = pw_decode(self.seed, password)
