@@ -1186,9 +1186,6 @@ class ElectrumWindow(QMainWindow):
                 l.addTopLevelItem(account_item)
                 account_item.setExpanded(self.accounts_expanded.get(k, True))
                 account_item.setData(0, 32, k)
-                if not self.wallet.is_seeded(k):
-                    icon = QIcon(":icons/key.png")
-                    account_item.setIcon(0, icon)
             else:
                 account_item = None
 
