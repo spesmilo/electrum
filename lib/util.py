@@ -171,7 +171,7 @@ def parse_url(url):
 
     kv = {}
 
-    amount = label = message = signature = identity = ''
+    amount = label = message = signature = identity = r = ''
     for p in params:
         k,v = p.split('=')
         uv = urldecode(v)
@@ -194,8 +194,10 @@ def parse_url(url):
     if 'signature' in kv:
         identity, signature = kv['signature'].split(':')
         url = url.replace('&%s=%s'%('signature',kv['signature']),'')
+    if 'r' in kv:
+        r = kv['r']
 
-    return address, amount, label, message, signature, identity, url
+    return address, amount, label, message, signature, identity, r, url
 
 
 # Python bug (http://bugs.python.org/issue1927) causes raw_input
