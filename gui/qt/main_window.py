@@ -371,14 +371,14 @@ class ElectrumWindow(QMainWindow):
 
     # custom wrappers for getOpenFileName and getSaveFileName, that remember the path selected by the user
     def getOpenFileName(self, title, filter = ""):
-        directory = self.config.get('io_dir', os.path.expanduser('~'))
+        directory = self.config.get('io_dir', unicode(os.path.expanduser('~')))
         fileName = unicode( QFileDialog.getOpenFileName(self, title, directory, filter) )
         if fileName and directory != os.path.dirname(fileName):
             self.config.set_key('io_dir', os.path.dirname(fileName), True)
         return fileName
 
     def getSaveFileName(self, title, filename, filter = ""):
-        directory = self.config.get('io_dir', os.path.expanduser('~'))
+        directory = self.config.get('io_dir', unicode(os.path.expanduser('~')))
         path = os.path.join( directory, filename )
         fileName = unicode( QFileDialog.getSaveFileName(self, title, path, filter) )
         if fileName and directory != os.path.dirname(fileName):
@@ -1905,7 +1905,7 @@ class ElectrumWindow(QMainWindow):
         vbox.addLayout(hbox)
 
         defaultname = 'electrum-private-keys.csv'
-        directory = self.config.get('io_dir', os.path.expanduser('~'))
+        directory = self.config.get('io_dir', unicode(os.path.expanduser('~')))
         path = os.path.join( directory, defaultname )
         filename_e = QLineEdit()
         filename_e.setText(path)
