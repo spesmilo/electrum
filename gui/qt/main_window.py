@@ -294,7 +294,7 @@ class ElectrumWindow(QMainWindow):
 
         self.private_keys_menu = wallet_menu.addMenu(_("&Private keys"))
         self.private_keys_menu.addAction(_("&Import"), self.do_import_privkey)
-        self.private_keys_menu.addAction(_("&Export"), self.do_export_privkeys)
+        self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
 
         wallet_menu.addAction(_("&Export History"), self.do_export_history)
 
@@ -1881,36 +1881,91 @@ class ElectrumWindow(QMainWindow):
 
 
     @protected
-    def do_export_privkeys(self, password):
+    def export_privkeys_dialog(self, password):
         if self.wallet.is_watching_only():
             self.show_message(_("This is a watching-only wallet"))
             return
 
-        self.show_message("%s\n%s\n%s" % (_("WARNING: ALL your private keys are secret."),  _("Exposing a single private key can compromise your entire wallet!"), _("In particular, DO NOT use 'redeem private key' services proposed by third parties.")))
+        d = QDialog(self)
+        d.setWindowTitle(_('Private keys'))
+        d.setMinimumSize(850, 300)
+        vbox = QVBoxLayout(d)
 
-        try:
+        msg = "%s\n%s\n%s" % (_("WARNING: ALL your private keys are secret."), 
+                              _("Exposing a single private key can compromise your entire wallet!"), 
+                              _("In particular, DO NOT use 'redeem private key' services proposed by third parties."))
+        vbox.addWidget(QLabel(msg))
+
+        e = QTextEdit()
+        e.setReadOnly(True)
+        vbox.addWidget(e)
+
+        hbox = QHBoxLayout()
+        vbox.addLayout(hbox)
+
+        defaultname = 'electrum-private-keys.csv'
+        directory = self.config.get('io_dir', os.path.expanduser('~'))
+        path = os.path.join( directory, defaultname )
+        filename_e = QLineEdit()
+        filename_e.setText(path)
+        def func():
             select_export = _('Select file to export your private keys to')
-            fileName = self.getSaveFileName(select_export, 'electrum-private-keys.csv', "*.csv")
-            if fileName:
-                with open(fileName, "w+") as csvfile:
-                    transaction = csv.writer(csvfile)
-                    transaction.writerow(["address", "private_key"])
+            p = self.getSaveFileName(select_export, defaultname, "*.csv")
+            if p:
+                filename_e.setText(p)
 
-                    addresses = self.wallet.addresses(True)
+        button = QPushButton(_('File'))
+        button.clicked.connect(func)
+        hbox.addWidget(button)
+        hbox.addWidget(filename_e)
 
-                    for addr in addresses:
-                        pk = "".join(self.wallet.get_private_key(addr, password))
-                        transaction.writerow(["%34s"%addr,pk])
+        h, b = ok_cancel_buttons2(d, _('Export'))
+        b.setEnabled(False)
+        vbox.addLayout(h)
 
-                    self.show_message(_("Private keys exported."))
+        private_keys = {}
+        addresses = self.wallet.addresses(True)
+        def privkeys_thread():
+            time.sleep(0.1)
+            for addr in addresses:
+                private_keys[addr] = "\n".join(self.wallet.get_private_key(addr, password))
+                d.emit(SIGNAL('computing_privkeys'))
+            d.emit(SIGNAL('show_privkeys'))
 
+        def show_privkeys():
+            s = "\n".join( map( lambda x: x[0] + "\t"+ x[1], private_keys.items()))
+            e.setText(s)
+            b.setEnabled(True)
+
+        d.connect(d, QtCore.SIGNAL('computing_privkeys'), lambda: e.setText("Please wait... %d/%d"%(len(private_keys),len(addresses))))
+        d.connect(d, QtCore.SIGNAL('show_privkeys'), show_privkeys)
+        threading.Thread(target=privkeys_thread).start()
+
+        if not d.exec_():
+            return
+
+        filename = filename_e.text()
+        if not filename:
+            return
+        self.do_export_privkeys(filename, private_keys)
+
+
+    def do_export_privkeys(self, fileName, pklist):
+        try:
+            with open(fileName, "w+") as csvfile:
+                transaction = csv.writer(csvfile)
+                transaction.writerow(["address", "private_key"])
+                for addr, pk in pklist.items():
+                    transaction.writerow(["%34s"%addr,pk])
         except (IOError, os.error), reason:
             export_error_label = _("Electrum was unable to produce a private key-export.")
             QMessageBox.critical(None, _("Unable to create csv"), export_error_label + "\n" + str(reason))
 
         except Exception as e:
-          self.show_message(str(e))
-          return
+            self.show_message(str(e))
+            return
+
+        self.show_message(_("Private keys exported."))
 
 
     def do_import_labels(self):
