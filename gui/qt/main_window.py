@@ -1072,7 +1072,7 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")) )
             menu.addAction(_("Edit label"), lambda: self.edit_label(True))
             menu.addAction(_("Public keys"), lambda: self.show_public_keys(addr))
-            if self.wallet.seed:
+            if not self.wallet.is_watching_only():
                 menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
                 menu.addAction(_("Sign/verify message"), lambda: self.sign_verify_message(addr))
                 #menu.addAction(_("Encrypt/decrypt message"), lambda: self.encrypt_message(addr))

@@ -374,13 +374,12 @@ class Abstract_Wallet:
         if self.is_watching_only():
             return []
 
-        # first check the provided password
-        seed = self.get_seed(password)
-
         out = []
         if address in self.imported_keys.keys():
+            self.check_password(password)
             out.append( pw_decode( self.imported_keys[address], password ) )
         else:
+            seed = self.get_seed(password)
             account_id, sequence = self.get_address_index(address)
             account = self.accounts[account_id]
             xpubs = account.get_master_pubkeys()
@@ -948,12 +947,14 @@ class Abstract_Wallet:
 
 
     def update_password(self, old_password, new_password):
-        if new_password == '': new_password = None
-        decoded = self.get_seed(old_password)
-        self.seed = pw_encode( decoded, new_password)
-        self.storage.put('seed', self.seed, True)
-        self.use_encryption = (new_password != None)
-        self.storage.put('use_encryption', self.use_encryption,True)
+        if new_password == '': 
+            new_password = None
+
+        if self.has_seed():
+            decoded = self.get_seed(old_password)
+            self.seed = pw_encode( decoded, new_password)
+            self.storage.put('seed', self.seed, True)
+
         for k in self.imported_keys.keys():
             a = self.imported_keys[k]
             b = pw_decode(a, old_password)
@@ -966,6 +967,9 @@ class Abstract_Wallet:
             c = pw_encode(b, new_password)
             self.master_private_keys[k] = c
         self.storage.put('master_private_keys', self.master_private_keys, True)
+
+        self.use_encryption = (new_password != None)
+        self.storage.put('use_encryption', self.use_encryption,True)
 
 
     def freeze(self,addr):
@@ -1651,13 +1655,12 @@ class OldWallet(Deterministic_Wallet):
         if self.is_watching_only():
             return []
 
-        # first check the provided password
-        seed = self.get_seed(password)
-        
         out = []
         if address in self.imported_keys.keys():
+            self.check_password()
             out.append( pw_decode( self.imported_keys[address], password ) )
         else:
+            seed = self.get_seed(password)
             account_id, sequence = self.get_address_index(address)
             pk = self.accounts[0].get_private_key(seed, sequence)
             out.append(pk)
