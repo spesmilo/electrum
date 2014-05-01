@@ -1882,8 +1882,8 @@ class ElectrumWindow(QMainWindow):
 
     @protected
     def do_export_privkeys(self, password):
-        if not self.wallet.seed:
-            self.show_message(_("This wallet has no seed"))
+        if self.wallet.is_watching_only():
+            self.show_message(_("This is a watching-only wallet"))
             return
 
         self.show_message("%s\n%s\n%s" % (_("WARNING: ALL your private keys are secret."),  _("Exposing a single private key can compromise your entire wallet!"), _("In particular, DO NOT use 'redeem private key' services proposed by third parties.")))
