@@ -1150,6 +1150,22 @@ class Deterministic_Wallet(Abstract_Wallet):
     def check_password(self, password):
         self.get_seed(password)
 
+    def add_seed(self, seed, password):
+        if self.seed: 
+            raise Exception("a seed exists")
+        
+        self.seed_version, self.seed = self.prepare_seed(seed)
+        if password: 
+            self.seed = pw_encode( self.seed, password)
+            self.use_encryption = True
+        else:
+            self.use_encryption = False
+
+        self.storage.put('seed', self.seed, True)
+        self.storage.put('seed_version', self.seed_version, True)
+        self.storage.put('use_encryption', self.use_encryption,True)
+        self.create_master_keys(password)
+
     def get_seed(self, password):
         s = pw_decode(self.seed, password)
         seed = mnemonic_to_seed(s,'').encode('hex')
@@ -1388,22 +1404,6 @@ class NewWallet(Deterministic_Wallet):
         if not k: return
         xpriv = pw_decode( k, password)
         return xpriv
-
-    def add_seed(self, seed, password):
-        if self.seed: 
-            raise Exception("a seed exists")
-        
-        self.seed_version, self.seed = self.prepare_seed(seed)
-        if password: 
-            self.seed = pw_encode( self.seed, password)
-            self.use_encryption = True
-        else:
-            self.use_encryption = False
-
-        self.storage.put('seed', self.seed, True)
-        self.storage.put('seed_version', self.seed_version, True)
-        self.storage.put('use_encryption', self.use_encryption,True)
-        self.create_master_keys(password)
 
 
     def create_watching_only_wallet(self, xpub):

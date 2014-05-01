@@ -73,7 +73,7 @@ def make_password_dialog(self, wallet, msg):
 
 def run_password_dialog(self, wallet, parent):
         
-    if wallet.is_watching_only():
+    if wallet and wallet.is_watching_only():
         QMessageBox.information(parent, _('Error'), _('This is a watching-only wallet'), _('OK'))
         return False, None, None
 
