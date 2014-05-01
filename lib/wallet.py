@@ -1118,6 +1118,9 @@ class Imported_Wallet(Abstract_Wallet):
     def has_seed(self):
         return False
 
+    def is_deterministic(self):
+        return False
+
 
 
 class Deterministic_Wallet(Abstract_Wallet):
@@ -1127,6 +1130,9 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def has_seed(self):
         return self.seed != ''
+
+    def is_deterministic(self):
+        return True
 
     def is_watching_only(self):
         return not self.has_seed()

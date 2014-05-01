@@ -195,7 +195,13 @@ class ElectrumWindow(QMainWindow):
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         self.notify_transactions()
         self.update_account_selector()
-        self.new_account.setEnabled(self.wallet.can_create_accounts())
+        # update menus
+        self.new_account_menu.setEnabled(self.wallet.can_create_accounts())
+        self.private_keys_menu.setEnabled(not self.wallet.is_watching_only())
+        self.password_menu.setEnabled(not self.wallet.is_watching_only())
+        self.seed_menu.setEnabled(self.wallet.has_seed())
+        self.mpk_menu.setEnabled(self.wallet.is_deterministic())
+
         self.update_lock_icon()
         self.update_buttons_on_seed()
         self.update_console()
@@ -273,22 +279,22 @@ class ElectrumWindow(QMainWindow):
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
         wallet_menu.addAction(_("&New contact"), self.new_contact_dialog)
-        self.new_account = wallet_menu.addAction(_("&New account"), self.new_account_dialog)
+        self.new_account_menu = wallet_menu.addAction(_("&New account"), self.new_account_dialog)
 
         wallet_menu.addSeparator()
 
-        wallet_menu.addAction(_("&Password"), self.change_password_dialog)
-        wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
-        wallet_menu.addAction(_("&Master Public Keys"), self.show_master_public_keys)
+        self.password_menu = wallet_menu.addAction(_("&Password"), self.change_password_dialog)
+        self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
+        self.mpk_menu = wallet_menu.addAction(_("&Master Public Keys"), self.show_master_public_keys)
 
         wallet_menu.addSeparator()
         labels_menu = wallet_menu.addMenu(_("&Labels"))
         labels_menu.addAction(_("&Import"), self.do_import_labels)
         labels_menu.addAction(_("&Export"), self.do_export_labels)
 
-        keys_menu = wallet_menu.addMenu(_("&Private keys"))
-        keys_menu.addAction(_("&Import"), self.do_import_privkey)
-        keys_menu.addAction(_("&Export"), self.do_export_privkeys)
+        self.private_keys_menu = wallet_menu.addMenu(_("&Private keys"))
+        self.private_keys_menu.addAction(_("&Import"), self.do_import_privkey)
+        self.private_keys_menu.addAction(_("&Export"), self.do_export_privkeys)
 
         wallet_menu.addAction(_("&Export History"), self.do_export_history)
 
