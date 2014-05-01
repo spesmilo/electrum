@@ -256,7 +256,7 @@ class Abstract_Wallet:
         return False
 
     def check_password(self, password):
-        pass
+        raise
 
 
     def set_up_to_date(self,b):
@@ -1125,6 +1125,12 @@ class Imported_Wallet(Abstract_Wallet):
     def is_deterministic(self):
         return False
 
+    def check_password(self, password):
+        if self.imported_keys:
+            k, v = self.imported_keys.items()[0]
+            sec = pw_decode(v, password)
+            address = address_from_private_key(sec)
+            assert address == k
 
 
 class Deterministic_Wallet(Abstract_Wallet):
