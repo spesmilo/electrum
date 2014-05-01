@@ -299,7 +299,11 @@ def is_address(addr):
 
 
 def is_private_key(key):
-    return ASecretToSecret(key) is not False
+    try:
+        k = ASecretToSecret(key) 
+        return k is not False
+    except:
+        return False
 
 
 ########### end pywallet functions #######################

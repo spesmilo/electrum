@@ -81,6 +81,7 @@ setup(
         'electrum_ltc.scrypt',
         'electrum_ltc.simple_config',
         'electrum_ltc.socks',
+        'electrum_ltc.synchronizer',
         'electrum_ltc.transaction',
         'electrum_ltc.util',
         'electrum_ltc.verifier',
