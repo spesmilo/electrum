@@ -262,7 +262,7 @@ class ElectrumWindow(QMainWindow):
             return
 
         wizard = installwizard.InstallWizard(self.config, self.network, storage)
-        wallet = wizard.run()
+        wallet = wizard.run('new')
         if wallet:
             self.load_wallet(wallet)
 
