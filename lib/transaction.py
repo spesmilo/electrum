@@ -386,7 +386,6 @@ class Transaction:
         self.outputs = map(lambda x: (x['address'],x['value']), self.outputs)
         self.locktime = self.d['lockTime']
 
-        
     def __str__(self):
         return self.raw
 
@@ -396,6 +395,31 @@ class Transaction:
         self = klass(raw)
         self.inputs = inputs
         self.outputs = outputs
+        return self
+
+    @classmethod 
+    def sweep(klass, privkeys, network, to_address, fee):
+        inputs = []
+        for privkey in privkeys:
+            pubkey = public_key_from_private_key(privkey)
+            address = address_from_private_key(privkey)
+            u = network.synchronous_get([ ('blockchain.address.listunspent',[address])])[0]
+            pay_script = klass.pay_script(address)
+            for item in u:
+                item['scriptPubKey'] = pay_script
+                item['redeemPubkey'] = pubkey
+                item['address'] = address
+                item['prevout_hash'] = item['tx_hash']
+                item['prevout_n'] = item['tx_pos']
+            inputs += u
+
+        if not inputs:
+            return
+
+        total = sum( map(lambda x:int(x.get('value')), inputs) ) - fee
+        outputs = [(to_address, total)]
+        self = klass.from_io(inputs, outputs)
+        self.sign({ pubkey:privkey })
         return self
 
     @classmethod

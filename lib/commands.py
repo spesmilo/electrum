@@ -264,18 +264,8 @@ class Commands:
 
 
     def sweep(self, privkey, to_address, fee = 0.0001):
-        pubkey = public_key_from_private_key(privkey)
-        address = address_from_private_key(privkey)
-        pay_script = Transaction.pay_script(address)
-        unspent = self.network.synchronous_get([ ('blockchain.address.listunspent',[address])])[0]
-        if not unspent:
-            return
-        total = sum( map(lambda x:int(x.get('value')), unspent) ) - int(Decimal(fee)*100000000)
-        inputs = map(lambda i: {'prevout_hash': i['tx_hash'], 'prevout_n':i['tx_pos'], 'scriptPubKey':pay_script, 'redeemPubkey':pubkey}, unspent)
-        outputs = [(to_address, total)]
-        tx = Transaction.from_io(inputs, outputs)
-        tx.sign({ pubkey:privkey })
-        return tx
+        fee = int(Decimal(fee)*100000000)
+        return Transaction.sweep([privkey], self.network, to_address, fee)
 
 
     def signmessage(self, address, message):

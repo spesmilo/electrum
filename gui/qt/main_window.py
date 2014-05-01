@@ -293,6 +293,7 @@ class ElectrumWindow(QMainWindow):
         labels_menu.addAction(_("&Export"), self.do_export_labels)
 
         self.private_keys_menu = wallet_menu.addMenu(_("&Private keys"))
+        self.private_keys_menu.addAction(_("&Sweep"), self.sweep_key_dialog)
         self.private_keys_menu.addAction(_("&Import"), self.do_import_privkey)
         self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
 
@@ -2043,6 +2044,32 @@ class ElectrumWindow(QMainWindow):
             export_error_label = _("Electrum was unable to produce a transaction export.")
             QMessageBox.critical(None,_("Unable to create csv"), export_error_label + "\n" + str(reason))
 
+
+    def sweep_key_dialog(self):
+        d = QDialog(self)
+        d.setWindowTitle(_('Sweep private keys'))
+
+        vbox = QVBoxLayout(d)
+        vbox.addWidget(QLabel(_("Enter private keys")))
+
+        keys_e = QTextEdit()
+        keys_e.setTabChangesFocus(True)
+        vbox.addWidget(keys_e)
+        vbox.addStretch(1)
+        hbox, button = ok_cancel_buttons2(d, _('Sweep'))
+        vbox.addLayout(hbox)
+        button.setEnabled(False)
+
+        keys_e.textChanged.connect(lambda: button.setEnabled(Wallet.is_private_key(str(keys_e.toPlainText()).strip())))
+        if not d.exec_():
+            return
+
+        text = str(keys_e.toPlainText()).strip()
+        privkeys = text.split()
+        to_address = self.wallet.addresses()[0]
+        fee = self.wallet.fee
+        tx = Transaction.sweep(privkeys, self.network, to_address, fee)
+        self.show_transaction(tx)
 
 
     @protected
