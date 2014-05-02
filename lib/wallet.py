@@ -1361,15 +1361,16 @@ class Deterministic_Wallet(Abstract_Wallet):
             elif v.get('pending'):
                 self.accounts[k] = PendingAccount(v)
             else:
-                raise
+                print_error("cannot load account", v)
 
-    def delete_pending_account(self, k):
-        assert self.is_pending_account(k)
-        self.accounts.pop(k)
-        self.save_accounts()
 
     def account_is_pending(self, k):
         return type(self.accounts.get(k)) == PendingAccount
+
+    def delete_pending_account(self, k):
+        assert self.account_is_pending(k)
+        self.accounts.pop(k)
+        self.save_accounts()
 
     def create_pending_account(self, name, password):
         account_id, addr = self.next_account_address(password)

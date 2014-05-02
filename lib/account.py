@@ -57,6 +57,9 @@ class PendingAccount(Account):
     def has_change(self):
         return False
 
+    def dump(self):
+        return {'pending':self.addresses[0]}
+
 class ImportedAccount(Account):
     def __init__(self, d):
         self.addresses = d.keys()
