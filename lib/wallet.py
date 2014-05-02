@@ -177,7 +177,6 @@ class Abstract_Wallet:
         self.addressbook           = storage.get('contacts', [])
 
         self.imported_keys         = storage.get('imported_keys',{})
-        self.imported_account      = ImportedAccount(self.imported_keys)
 
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
 
@@ -1132,7 +1131,7 @@ class Imported_Wallet(Abstract_Wallet):
             assert address == k
 
     def get_accounts(self):
-        return { -1:self.imported_account }
+        return { -1: ImportedAccount(self.imported_keys) }
 
 
 
@@ -1381,7 +1380,7 @@ class Deterministic_Wallet(Abstract_Wallet):
     def get_accounts(self):
         out = sorted(self.accounts.items())
         if self.imported_keys:
-            out.append( (-1, self.imported_account ))
+            out.append( (-1, ImportedAccount(self.imported_keys) ))
         return dict(out)
 
 
