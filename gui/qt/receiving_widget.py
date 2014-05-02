@@ -35,6 +35,7 @@ class ReceivingWidget(QTreeWidget):
         
 
     def update_list(self):
+        return
         self.clear()
         addresses = self.owner.actuator.g.wallet.addresses(False)
         for address in addresses:

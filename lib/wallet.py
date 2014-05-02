@@ -177,6 +177,8 @@ class Abstract_Wallet:
         self.addressbook           = storage.get('contacts', [])
 
         self.imported_keys         = storage.get('imported_keys',{})
+        self.imported_account      = ImportedAccount(self.imported_keys)
+
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
 
         self.fee                   = int(storage.get('fee_per_kb', 10000))
@@ -249,9 +251,6 @@ class Abstract_Wallet:
     def synchronize(self):
         pass
 
-    def get_pending_accounts(self):
-        return {}
-            
     def can_create_accounts(self):
         return False
 
@@ -332,7 +331,7 @@ class Abstract_Wallet:
 
 
     def is_mine(self, address):
-        return address in self.addresses(True)
+        return address in self.addresses(True) 
 
 
     def is_change(self, address):
@@ -564,7 +563,7 @@ class Abstract_Wallet:
 
 
     def get_addr_balance(self, address):
-        assert self.is_mine(address)
+        #assert self.is_mine(address)
         h = self.history.get(address,[])
         if h == ['*']: return 0,0
         c = u = 0
@@ -636,7 +635,7 @@ class Abstract_Wallet:
             o = self.addresses(True)
         elif a == -1:
             o = self.imported_keys.keys()
-        else:
+        elif a in self.accounts:
             ac = self.accounts[a]
             o = ac.get_addresses(0)
             if include_change: o += ac.get_addresses(1)
@@ -1132,6 +1131,10 @@ class Imported_Wallet(Abstract_Wallet):
             address = address_from_private_key(sec)
             assert address == k
 
+    def get_accounts(self):
+        return { -1:self.imported_account }
+
+
 
 class Deterministic_Wallet(Abstract_Wallet):
 
@@ -1277,6 +1280,8 @@ class Deterministic_Wallet(Abstract_Wallet):
         self.check_pending_accounts()
         new = []
         for account in self.accounts.values():
+            if type(account) == PendingAccount:
+                continue
             new += self.synchronize_account(account)
         if new:
             self.save_accounts()
@@ -1329,9 +1334,6 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def add_account(self, account_id, account):
         self.accounts[account_id] = account
-        if account_id in self.pending_accounts:
-            self.pending_accounts.pop(account_id)
-            self.storage.put('pending_accounts', self.pending_accounts)
         self.save_accounts()
 
 
@@ -1356,27 +1358,30 @@ class Deterministic_Wallet(Abstract_Wallet):
                 self.accounts[k] = BIP32_Account_2of2(v)
             elif v.get('xpub'):
                 self.accounts[k] = BIP32_Account(v)
+            elif v.get('pending'):
+                self.accounts[k] = PendingAccount(v)
             else:
                 raise
 
-        self.pending_accounts = self.storage.get('pending_accounts',{})
-
-
     def delete_pending_account(self, k):
-        self.pending_accounts.pop(k)
-        self.storage.put('pending_accounts', self.pending_accounts)
+        assert self.is_pending_account(k)
+        self.accounts.pop(k)
+        self.save_accounts()
 
     def account_is_pending(self, k):
-        return k in self.pending_accounts
+        return type(self.accounts.get(k)) == PendingAccount
 
     def create_pending_account(self, name, password):
         account_id, addr = self.next_account_address(password)
         self.set_label(account_id, name)
-        self.pending_accounts[account_id] = addr
-        self.storage.put('pending_accounts', self.pending_accounts)
+        self.accounts[account_id] = PendingAccount({'pending':addr})
+        self.save_accounts()
 
-    def get_pending_accounts(self):
-        return self.pending_accounts.items()
+    def get_accounts(self):
+        out = sorted(self.accounts.items())
+        if self.imported_keys:
+            out.append( (-1, self.imported_account ))
+        return dict(out)
 
 
 
@@ -1653,8 +1658,10 @@ class OldWallet(Deterministic_Wallet):
 
 
     def get_account_name(self, k):
-        assert k == 0
-        return 'Main account'
+        if k == 0:
+            return 'Main account' 
+        elif k == -1:
+            return 'Imported'
 
 
     def get_private_key(self, address, password):

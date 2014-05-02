@@ -46,6 +46,23 @@ class Account(object):
     def get_pubkeys(self, sequence):
         return [ self.get_pubkey( *sequence )]
 
+    def has_change(self):
+        return True
+
+class PendingAccount(Account):
+    def __init__(self, v):
+        self.addresses = [ v['pending'] ]
+        self.change = []
+
+    def has_change(self):
+        return False
+
+class ImportedAccount(Account):
+    def __init__(self, d):
+        self.addresses = d.keys()
+
+    def has_change(self):
+        return False
 
 
 class OldAccount(Account):
