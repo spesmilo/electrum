@@ -22,6 +22,7 @@ except ImportError as e:
 from electrum.plugins import BasePlugin
 from electrum.i18n import _
 from electrum.bitcoin import is_valid
+from electrum_gui.qt import ok_cancel_buttons
 
 ### functions from pybitcointools:
 
@@ -266,18 +267,6 @@ class Plugin(BasePlugin):
             palette.setColor(QPalette.Foreground,Qt.red)
             warn.setPalette(palette)
             layout.addWidget(warn, 3, 1)
-
-        def ok_cancel_buttons(dialog, ok_label=_("OK") ):
-            hbox = QHBoxLayout()
-            hbox.addStretch(1)
-            b = QPushButton(_("Cancel"))
-            hbox.addWidget(b)
-            b.clicked.connect(dialog.reject)
-            b = QPushButton(ok_label)
-            hbox.addWidget(b)
-            b.clicked.connect(dialog.accept)
-            b.setDefault(True)
-            return hbox
 
         vbox.addLayout(layout)
         vbox.addLayout(ok_cancel_buttons(d))
