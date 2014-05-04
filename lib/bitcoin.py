@@ -30,7 +30,7 @@ DecodeAES = lambda secret, e: aes.decryptData(secret, base64.b64decode(e))
 def pw_encode(s, password):
     if password:
         secret = Hash(password)
-        return EncodeAES(secret, s)
+        return EncodeAES(secret, s.encode("utf8"))
     else:
         return s
 
@@ -38,7 +38,7 @@ def pw_decode(s, password):
     if password is not None:
         secret = Hash(password)
         try:
-            d = DecodeAES(secret, s)
+            d = DecodeAES(secret, s).decode("utf8")
         except Exception:
             raise Exception('Invalid password')
         return d
@@ -301,7 +301,6 @@ def public_key_from_private_key(sec):
     pkey = regenerate_key(sec)
     assert pkey
     compressed = is_compressed(sec)
-    print "is compressed", compressed
     public_key = GetPubKey(pkey.pubkey, compressed)
     return public_key.encode('hex')
 
