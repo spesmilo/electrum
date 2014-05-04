@@ -7,6 +7,7 @@ from blockchain import Blockchain
 DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
 DEFAULT_SERVERS = {
+    'alocoin.org': DEFAULT_PORTS,
     'cltc.mooo.com': {'t':'50003', 's':'50004', 'h':'8083', 'g':'8084'},
     'electrum-a.cloudapp.net': DEFAULT_PORTS,
     'electrum-ltc.bysh.me': DEFAULT_PORTS,
