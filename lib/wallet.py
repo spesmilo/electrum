@@ -1670,7 +1670,7 @@ class OldWallet(Deterministic_Wallet):
 
         out = []
         if address in self.imported_keys.keys():
-            self.check_password()
+            self.check_password(password)
             out.append( pw_decode( self.imported_keys[address], password ) )
         else:
             seed = self.get_seed(password)
