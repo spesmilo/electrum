@@ -124,6 +124,8 @@ class PasswordDialog(QDialog):
         try:
             self.wallet.update_password(password, new_password)
         except:
+            import traceback, sys
+            traceback.print_exc(file=sys.stdout)
             QMessageBox.warning(self.parent, _('Error'), _('Failed to update password'), _('OK'))
             return
 

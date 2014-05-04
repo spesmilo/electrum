@@ -20,7 +20,34 @@
 
 import hashlib, base64, ecdsa, re
 import hmac
+import aes
 from util import print_error
+
+# AES encryption
+EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
+DecodeAES = lambda secret, e: aes.decryptData(secret, base64.b64decode(e))
+
+def pw_encode(s, password):
+    if password:
+        secret = Hash(password)
+        return EncodeAES(secret, s)
+    else:
+        return s
+
+def pw_decode(s, password):
+    if password is not None:
+        secret = Hash(password)
+        try:
+            d = DecodeAES(secret, s)
+        except Exception:
+            raise Exception('Invalid password')
+        return d
+    else:
+        return s
+
+
+
+
 
 def rev_hex(s):
     return s.decode('hex')[::-1].encode('hex')
@@ -274,6 +301,7 @@ def public_key_from_private_key(sec):
     pkey = regenerate_key(sec)
     assert pkey
     compressed = is_compressed(sec)
+    print "is compressed", compressed
     public_key = GetPubKey(pkey.pubkey, compressed)
     return public_key.encode('hex')
 

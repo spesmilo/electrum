@@ -16,10 +16,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-
 from bitcoin import *
 from i18n import _
 from transaction import Transaction
+
+
 
 class Account(object):
     def __init__(self, v):
@@ -52,6 +53,12 @@ class Account(object):
     def get_name(self, k):
         return _('Main account')
 
+    def get_keyID(self, *sequence):
+        pass
+
+    def redeem_script(self, *sequence):
+        pass
+
 
 class PendingAccount(Account):
     def __init__(self, v):
@@ -70,16 +77,50 @@ class PendingAccount(Account):
 
 class ImportedAccount(Account):
     def __init__(self, d):
-        self.addresses = d.keys()
+        self.keypairs = d['imported']
 
     def get_addresses(self, for_change):
-        return [] if for_change else sorted(self.addresses[:])
+        return [] if for_change else sorted(self.keypairs.keys())
+
+    def get_pubkey(self, *sequence):
+        for_change, i = sequence
+        assert for_change == 0
+        addr = self.get_addresses(0)[i]
+        return self.keypairs[addr][i][0]
+
+    def get_private_key(self, sequence, wallet, password):
+        from wallet import pw_decode
+        for_change, i = sequence
+        assert for_change == 0
+        address = self.get_addresses(0)[i]
+        pk = pw_decode(self.keypairs[address][1], password)
+        # this checks the password
+        assert address == address_from_private_key(pk)
+        return [pk]
 
     def has_change(self):
         return False
 
+    def add(self, address, pubkey, privkey, password):
+        from wallet import pw_encode
+        self.keypairs[address] = (pubkey, pw_encode(privkey, password ))
+
+    def remove(self, address):
+        self.keypairs.pop(address)
+
+    def dump(self):
+        return {'imported':self.keypairs}
+
     def get_name(self, k):
         return _('Imported keys')
+
+
+    def update_password(self, old_password, new_password):
+        for k, v in self.keypairs.items():
+            pubkey, a = v
+            b = pw_decode(a, old_password)
+            c = pw_encode(b, new_password)
+            self.keypairs[k] = (pubkey, c)
 
 
 class OldAccount(Account):
@@ -132,10 +173,15 @@ class OldAccount(Account):
         compressed = False
         return SecretToASecret( pk, compressed )
         
-    def get_private_key(self, seed, sequence):
+
+    def get_private_key(self, sequence, wallet, password):
+        seed = wallet.get_seed(password)
+        self.check_seed(seed)
         for_change, n = sequence
         secexp = self.stretch_key(seed)
-        return self.get_private_key_from_stretched_exponent(for_change, n, secexp)
+        pk = self.get_private_key_from_stretched_exponent(for_change, n, secexp)
+        return [pk]
+
 
     def check_seed(self, seed):
         curve = SECP256k1
@@ -195,6 +241,22 @@ class BIP32_Account(Account):
 
     def get_pubkey(self, for_change, n):
         return self.get_pubkeys((for_change, n))[0]
+
+
+    def get_private_key(self, sequence, wallet, password):
+        out = []
+        xpubs = self.get_master_pubkeys()
+        roots = [k for k, v in wallet.master_public_keys.iteritems() if v in xpubs]
+        for root in roots:
+            xpriv = wallet.get_master_private_key(root, password)
+            if not xpriv:
+                continue
+            _, _, _, c, k = deserialize_xkey(xpriv)
+            pk = bip32_private_key( sequence, k, c )
+            out.append(pk)
+                    
+        return out
+
 
     def redeem_script(self, sequence):
         return None
