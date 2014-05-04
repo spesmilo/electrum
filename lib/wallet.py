@@ -176,8 +176,6 @@ class Abstract_Wallet:
         self.frozen_addresses      = storage.get('frozen_addresses',[])
         self.addressbook           = storage.get('contacts', [])
 
-        self.imported_keys         = storage.get('imported_keys',{})
-
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
 
         self.fee                   = int(storage.get('fee_per_kb', 10000))
@@ -246,6 +244,9 @@ class Abstract_Wallet:
 
     def load_accounts(self):
         self.accounts = {}
+        self.imported_keys = self.storage.get('imported_keys',{})
+        if self.imported_keys:
+            self.accounts[-1] = ImportedAccount(self.imported_keys)
 
     def synchronize(self):
         pass
@@ -284,6 +285,8 @@ class Abstract_Wallet:
         # store the originally requested keypair into the imported keys table
         self.imported_keys[address] = pw_encode(sec, password )
         self.storage.put('imported_keys', self.imported_keys, True)
+        self.accounts[-1] = ImportedAccount(self.imported_keys)
+        
         if self.synchronizer:
             self.synchronizer.subscribe_to_addresses([address])
         return address
@@ -293,7 +296,10 @@ class Abstract_Wallet:
         if addr in self.imported_keys:
             self.imported_keys.pop(addr)
             self.storage.put('imported_keys', self.imported_keys, True)
-
+            if self.imported_keys:
+                self.accounts[-1] = ImportedAccount(self.imported_keys)
+            else:
+                self.accounts.pop(-1)
 
 
     def set_label(self, name, text = None):
@@ -318,7 +324,7 @@ class Abstract_Wallet:
 
 
     def addresses(self, include_change = True, _next=True):
-        o = self.get_account_addresses(-1, include_change)
+        o = []
         for a in self.accounts.keys():
             o += self.get_account_addresses(a, include_change)
 
@@ -335,15 +341,12 @@ class Abstract_Wallet:
 
     def is_change(self, address):
         if not self.is_mine(address): return False
-        if address in self.imported_keys.keys(): return False
         acct, s = self.get_address_index(address)
         if s is None: return False
         return s[0] == 1
 
 
     def get_address_index(self, address):
-        if address in self.imported_keys.keys():
-            return -1, None
 
         for account in self.accounts.keys():
             for for_change in [0,1]:
@@ -605,37 +608,19 @@ class Abstract_Wallet:
 
 
     def get_account_name(self, k):
-        default = "Unnamed account"
-        m = re.match("m/0'/(\d+)", k)
-        if m:
-            num = m.group(1)
-            if num == '0':
-                default = "Main account"
-            else:
-                default = "Account %s"%num
-                    
-        m = re.match("m/1'/(\d+) & m/2'/(\d+)", k)
-        if m:
-            num = m.group(1)
-            default = "2of2 account %s"%num
-        name = self.labels.get(k, default)
-        return name
+        return self.labels.get(k, self.accounts[k].get_name(k))
 
 
     def get_account_names(self):
-        accounts = {}
-        for k, account in self.accounts.items():
-            accounts[k] = self.get_account_name(k)
-        if self.imported_keys:
-            accounts[-1] = 'Imported keys'
-        return accounts
+        account_names = {}
+        for k in self.accounts.keys():
+            account_names[k] = self.get_account_name(k)
+        return account_names
 
 
     def get_account_addresses(self, a, include_change=True):
         if a is None:
             o = self.addresses(True)
-        elif a == -1:
-            o = self.imported_keys.keys()
         elif a in self.accounts:
             ac = self.accounts[a]
             o = ac.get_addresses(0)
@@ -1106,6 +1091,8 @@ class Abstract_Wallet:
     def restore(self, cb):
         pass
 
+    def get_accounts(self):
+        return self.accounts
 
 
 class Imported_Wallet(Abstract_Wallet):
@@ -1130,8 +1117,6 @@ class Imported_Wallet(Abstract_Wallet):
             address = address_from_private_key(sec)
             assert address == k
 
-    def get_accounts(self):
-        return { -1: ImportedAccount(self.imported_keys) }
 
 
 
@@ -1279,7 +1264,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         self.check_pending_accounts()
         new = []
         for account in self.accounts.values():
-            if type(account) == PendingAccount:
+            if type(account) in [ImportedAccount, PendingAccount]:
                 continue
             new += self.synchronize_account(account)
         if new:
@@ -1345,8 +1330,8 @@ class Deterministic_Wallet(Abstract_Wallet):
     
 
     def load_accounts(self):
+        Abstract_Wallet.load_accounts(self)
         d = self.storage.get('accounts', {})
-        self.accounts = {}
         for k, v in d.items():
             if k == 0:
                 v['mpk'] = self.storage.get('master_public_key')
@@ -1377,11 +1362,6 @@ class Deterministic_Wallet(Abstract_Wallet):
         self.accounts[account_id] = PendingAccount({'pending':addr})
         self.save_accounts()
 
-    def get_accounts(self):
-        out = sorted(self.accounts.items())
-        if self.imported_keys:
-            out.append( (-1, ImportedAccount(self.imported_keys) ))
-        return dict(out)
 
 
 
@@ -1656,12 +1636,6 @@ class OldWallet(Deterministic_Wallet):
                 pubkey = public_key_from_private_key(pk)
                 keypairs[pubkey] = pk
 
-
-    def get_account_name(self, k):
-        if k == 0:
-            return 'Main account' 
-        elif k == -1:
-            return 'Imported'
 
 
     def get_private_key(self, address, password):

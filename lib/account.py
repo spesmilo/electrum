@@ -49,6 +49,10 @@ class Account(object):
     def has_change(self):
         return True
 
+    def get_name(self, k):
+        return _('Main account')
+
+
 class PendingAccount(Account):
     def __init__(self, v):
         self.addresses = [ v['pending'] ]
@@ -60,12 +64,20 @@ class PendingAccount(Account):
     def dump(self):
         return {'pending':self.addresses[0]}
 
+    def get_name(self):
+        return _('Pending account')
+
+
 class ImportedAccount(Account):
     def __init__(self, d):
         self.addresses = d.keys()
+        self.change = []
 
     def has_change(self):
         return False
+
+    def get_name(self, k):
+        return _('Imported keys')
 
 
 class OldAccount(Account):
@@ -191,6 +203,19 @@ class BIP32_Account(Account):
     def get_keyID(self, sequence):
         s = '/' + '/'.join( map(lambda x:str(x), sequence) )
         return '&'.join( map(lambda x: 'bip32(%s,%s)'%(x, s), self.get_master_pubkeys() ) )
+
+    def get_name(self, k):
+        name = "Unnamed account"
+        m = re.match("m/(\d+)'", k)
+        if m:
+            num = m.group(1)
+            if num == '0':
+                name = "Main account"
+            else:
+                name = "Account %s"%num
+                    
+        return name
+
 
 
 class BIP32_Account_2of2(BIP32_Account):
