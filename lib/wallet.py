@@ -42,6 +42,9 @@ from synchronizer import WalletSynchronizer
 COINBASE_MATURITY = 100
 DUST_THRESHOLD = 5430
 
+# internal ID for imported account
+IMPORTED_ACCOUNT = '/x'
+
 # AES encryption
 EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
 DecodeAES = lambda secret, e: aes.decryptData(secret, base64.b64decode(e))
@@ -246,7 +249,7 @@ class Abstract_Wallet:
         self.accounts = {}
         self.imported_keys = self.storage.get('imported_keys',{})
         if self.imported_keys:
-            self.accounts[-1] = ImportedAccount(self.imported_keys)
+            self.accounts['/x'] = ImportedAccount(self.imported_keys)
 
     def synchronize(self):
         pass
@@ -285,7 +288,7 @@ class Abstract_Wallet:
         # store the originally requested keypair into the imported keys table
         self.imported_keys[address] = pw_encode(sec, password )
         self.storage.put('imported_keys', self.imported_keys, True)
-        self.accounts[-1] = ImportedAccount(self.imported_keys)
+        self.accounts[IMPORTED_ACCOUNT] = ImportedAccount(self.imported_keys)
         
         if self.synchronizer:
             self.synchronizer.subscribe_to_addresses([address])
@@ -297,9 +300,9 @@ class Abstract_Wallet:
             self.imported_keys.pop(addr)
             self.storage.put('imported_keys', self.imported_keys, True)
             if self.imported_keys:
-                self.accounts[-1] = ImportedAccount(self.imported_keys)
+                self.accounts[IMPORTED_ACCOUNT] = ImportedAccount(self.imported_keys)
             else:
-                self.accounts.pop(-1)
+                self.accounts.pop(IMPORTED_ACCOUNT)
 
 
     def set_label(self, name, text = None):
@@ -365,7 +368,7 @@ class Abstract_Wallet:
     def getpubkeys(self, addr):
         assert is_valid(addr) and self.is_mine(addr)
         account, sequence = self.get_address_index(addr)
-        if account != -1:
+        if account != IMPORTED_ACCOUNT:
             a = self.accounts[account]
             return a.get_pubkeys( sequence )
 
@@ -722,7 +725,7 @@ class Abstract_Wallet:
                 address = inputs[0].get('address')
                 account, _ = self.get_address_index(address)
 
-                if not self.use_change or account == -1:
+                if not self.use_change or account == IMPORTED_ACCOUNT:
                     change_addr = inputs[-1]['address']
                 else:
                     change_addr = self.accounts[account].get_addresses(1)[-self.gap_limit_for_change]
