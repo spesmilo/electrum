@@ -1557,7 +1557,7 @@ class OldWallet(Deterministic_Wallet):
         self.create_account(mpk)
 
     def get_seed(self, password):
-        seed = pw_decode(self.seed, password)
+        seed = pw_decode(self.seed, password).encode('utf8')
         return seed
 
     def check_password(self, password):
@@ -1566,7 +1566,7 @@ class OldWallet(Deterministic_Wallet):
 
     def get_mnemonic(self, password):
         import mnemonic
-        s = pw_decode(self.seed, password)
+        s = self.get_seed(password)
         return ' '.join(mnemonic.mn_encode(s))
 
 
