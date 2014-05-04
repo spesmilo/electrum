@@ -407,6 +407,8 @@ class Abstract_Wallet:
             for sec in private_keys:
                 pubkey = public_key_from_private_key(sec)
                 keypairs[ pubkey ] = sec
+
+                # this is needed because we don't store imported pubkeys
                 if address in self.imported_keys.keys():
                     txin['redeemPubkey'] = pubkey
 
@@ -640,8 +642,6 @@ class Abstract_Wallet:
             if include_change: o += ac.get_addresses(1)
         return o
 
-    def get_imported_balance(self):
-        return self.get_balance(self.imported_keys.keys())
 
     def get_account_balance(self, account):
         return self.get_balance(self.get_account_addresses(account))
