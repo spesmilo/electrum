@@ -71,7 +71,9 @@ class PendingAccount(Account):
 class ImportedAccount(Account):
     def __init__(self, d):
         self.addresses = d.keys()
-        self.change = []
+
+    def get_addresses(self, for_change):
+        return [] if for_change else sorted(self.addresses[:])
 
     def has_change(self):
         return False
