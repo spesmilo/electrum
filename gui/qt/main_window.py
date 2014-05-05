@@ -1906,8 +1906,8 @@ class ElectrumWindow(QMainWindow):
         private_keys = {}
         addresses = self.wallet.addresses(True)
         def privkeys_thread():
-            time.sleep(0.1)
             for addr in addresses:
+                time.sleep(0.1)
                 private_keys[addr] = "\n".join(self.wallet.get_private_key(addr, password))
                 d.emit(SIGNAL('computing_privkeys'))
             d.emit(SIGNAL('show_privkeys'))
