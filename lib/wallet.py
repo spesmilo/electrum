@@ -1391,7 +1391,12 @@ class NewWallet(Deterministic_Wallet):
 
 
     def num_accounts(self):
-        keys = self.accounts.keys()
+        keys = []
+        for k, v in self.accounts.items():
+            if type(v) != BIP32_Account:
+                continue
+            keys.append(k)
+
         i = 0
         while True:
             account_id = self.account_id(i)

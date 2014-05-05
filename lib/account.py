@@ -71,7 +71,7 @@ class PendingAccount(Account):
     def dump(self):
         return {'pending':self.addresses[0]}
 
-    def get_name(self):
+    def get_name(self, k):
         return _('Pending account')
 
 
