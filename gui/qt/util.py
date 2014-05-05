@@ -78,6 +78,27 @@ def text_dialog(parent, title, label, ok_label, default=None):
         return unicode(txt.toPlainText())
 
 
+
+
+def address_field(addresses):
+    hbox = QHBoxLayout()
+    address_e = QLineEdit()
+    if addresses:
+        address_e.setText(addresses[0])
+    def func():
+        i = addresses.index(str(address_e.text())) + 1
+        i = i % len(addresses)
+        address_e.setText(addresses[i])
+    button = QPushButton(_('Address'))
+    button.clicked.connect(func)
+    hbox.addWidget(button)
+    hbox.addWidget(address_e)
+    return hbox, address_e
+
+    
+
+
+
 class MyTreeWidget(QTreeWidget):
     def __init__(self, parent):
         QTreeWidget.__init__(self, parent)

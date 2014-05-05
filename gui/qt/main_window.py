@@ -1905,9 +1905,12 @@ class ElectrumWindow(QMainWindow):
 
         private_keys = {}
         addresses = self.wallet.addresses(True)
+        done = False
         def privkeys_thread():
             for addr in addresses:
                 time.sleep(0.1)
+                if done: 
+                    break
                 private_keys[addr] = "\n".join(self.wallet.get_private_key(addr, password))
                 d.emit(SIGNAL('computing_privkeys'))
             d.emit(SIGNAL('show_privkeys'))
@@ -1922,6 +1925,7 @@ class ElectrumWindow(QMainWindow):
         threading.Thread(target=privkeys_thread).start()
 
         if not d.exec_():
+            done = True
             return
 
         filename = filename_e.text()
@@ -2028,6 +2032,7 @@ class ElectrumWindow(QMainWindow):
     def sweep_key_dialog(self):
         d = QDialog(self)
         d.setWindowTitle(_('Sweep private keys'))
+        d.setMinimumSize(600, 300)
 
         vbox = QVBoxLayout(d)
         vbox.addWidget(QLabel(_("Enter private keys")))
@@ -2035,20 +2040,33 @@ class ElectrumWindow(QMainWindow):
         keys_e = QTextEdit()
         keys_e.setTabChangesFocus(True)
         vbox.addWidget(keys_e)
+
+        h, address_e = address_field(self.wallet.addresses())
+        vbox.addLayout(h)
+
         vbox.addStretch(1)
         hbox, button = ok_cancel_buttons2(d, _('Sweep'))
         vbox.addLayout(hbox)
         button.setEnabled(False)
 
-        keys_e.textChanged.connect(lambda: button.setEnabled(Wallet.is_private_key(str(keys_e.toPlainText()).strip())))
+        def get_address():
+            addr = str(address_e.text())
+            if bitcoin.is_address(addr):
+                return addr
+
+        def get_pk():
+            pk = str(keys_e.toPlainText()).strip()
+            if Wallet.is_private_key(pk):
+                return pk.split()
+
+        f = lambda: button.setEnabled(get_address() is not None and get_pk() is not None)
+        keys_e.textChanged.connect(f)
+        address_e.textChanged.connect(f)
         if not d.exec_():
             return
 
-        text = str(keys_e.toPlainText()).strip()
-        privkeys = text.split()
-        to_address = self.wallet.addresses()[0]
         fee = self.wallet.fee
-        tx = Transaction.sweep(privkeys, self.network, to_address, fee)
+        tx = Transaction.sweep(get_pk(), self.network, get_address(), fee)
         self.show_transaction(tx)
 
 
