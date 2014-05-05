@@ -63,7 +63,7 @@ register_command('createmultisig',       2, 2, False, True,  False, 'similar to 
 register_command('createrawtransaction', 2, 2, False, True,  False, 'similar to bitcoind\'s command')
 register_command('deseed',               0, 0, False, True,  False, 'Remove seed from wallet, creating a seedless, watching-only wallet.')
 register_command('decoderawtransaction', 1, 1, False, False, False, 'similar to bitcoind\'s command')
-register_command('getprivatekeys',       1, 1, False, True,  True,  'Get the private keys of a given address', 'dumpprivkey <bitcoin address>')
+register_command('getprivatekeys',       1, 1, False, True,  True,  'Get the private keys of a given address', 'getprivatekeys <bitcoin address>')
 register_command('dumpprivkeys',         0, 0, False, True,  True,  'Dump all private keys in your wallet')
 register_command('freeze',               1, 1, False, True,  True,  'Freeze the funds at one of your wallet\'s addresses', 'freeze <address>')
 register_command('getbalance',           0, 1, True,  True,  False, 'Return the balance of your wallet, or of one account in your wallet', 'getbalance [<account>]')
