@@ -346,12 +346,9 @@ class Plugin(BasePlugin):
                 try:
                     ca_path = os.path.join(self.win.config.path,'ca/ca-bundle.crt')
                     r = requests.post(payurl.geturl(), data=pm, headers={'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}, verify=ca_path)
-                except Exception:
-                    pass
-                else:
+                except SSLError:
                     r = requests.post(payurl.geturl(), data=pm, headers={'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}, verify=False)
             except Exception as e:
-                print e
                 self.win.show_message("Payment Message/PaymentACK Failed")
                 return
             try:
