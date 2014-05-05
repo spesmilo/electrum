@@ -135,6 +135,8 @@ class ElectrumWindow(QMainWindow):
 
         g = self.config.get("winpos-qt",[100, 100, 840, 400])
         self.setGeometry(g[0], g[1], g[2], g[3])
+        if self.config.get("is_maximized"):
+            self.showMaximized()
 
         self.setWindowIcon(QIcon(":icons/electrum-ltc.png"))
         self.init_menubar()
@@ -1077,7 +1079,7 @@ class ElectrumWindow(QMainWindow):
                 menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
                 menu.addAction(_("Sign/verify message"), lambda: self.sign_verify_message(addr))
                 #menu.addAction(_("Encrypt/decrypt message"), lambda: self.encrypt_message(addr))
-            if addr in self.wallet.imported_keys:
+            if self.wallet.is_imported(addr):
                 menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
 
         if any(addr not in self.wallet.frozen_addresses for addr in addrs):
@@ -1168,25 +1170,23 @@ class ElectrumWindow(QMainWindow):
 
     def update_receive_tab(self):
         l = self.receive_list
+        # extend the syntax for consistency
+        l.addChild = l.addTopLevelItem
 
         l.clear()
-        l.setColumnHidden(2, False)
-        l.setColumnHidden(3, False)
         for i,width in enumerate(self.column_widths['receive']):
             l.setColumnWidth(i, width)
 
+        accounts = self.wallet.get_accounts()
         if self.current_account is None:
-            account_items = sorted(self.wallet.accounts.items())
-        elif self.current_account != -1:
-            account_items = [(self.current_account, self.wallet.accounts.get(self.current_account))]
+            account_items = sorted(accounts.items())
         else:
-            account_items = []
+            account_items = [(self.current_account, accounts.get(self.current_account))]
 
-        pending_accounts = self.wallet.get_pending_accounts()
 
         for k, account in account_items:
 
-            if len(account_items) + len(pending_accounts) > 1:
+            if len(accounts) > 1:
                 name = self.wallet.get_account_name(k)
                 c,u = self.wallet.get_account_balance(k)
                 account_item = QTreeWidgetItem( [ name, '', self.format_amount(c+u), ''] )
@@ -1194,19 +1194,21 @@ class ElectrumWindow(QMainWindow):
                 account_item.setExpanded(self.accounts_expanded.get(k, True))
                 account_item.setData(0, 32, k)
             else:
-                account_item = None
+                account_item = l
 
-            for is_change in ([0,1]):
-                name = _("Receiving") if not is_change else _("Change")
-                seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
-                if account_item:
+            sequences = [0,1] if account.has_change() else [0]
+            for is_change in sequences:
+                if len(sequences) > 1:
+                    name = _("Receiving") if not is_change else _("Change")
+                    seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
                     account_item.addChild(seq_item)
+                    if not is_change: 
+                        seq_item.setExpanded(True)
                 else:
-                    l.addTopLevelItem(seq_item)
+                    seq_item = account_item
                     
                 used_item = QTreeWidgetItem( [ _("Used"), '', '', '', ''] )
                 used_flag = False
-                if not is_change: seq_item.setExpanded(True)
 
                 is_red = False
                 gap = 0
@@ -1223,6 +1225,7 @@ class ElectrumWindow(QMainWindow):
 
                     c, u = self.wallet.get_addr_balance(address)
                     num_tx = '*' if h == ['*'] else "%d"%len(h)
+
                     item = QTreeWidgetItem( [ address, '', '', num_tx] )
                     self.update_receive_item(item)
                     if is_red:
@@ -1234,30 +1237,6 @@ class ElectrumWindow(QMainWindow):
                         used_item.addChild(item)
                     else:
                         seq_item.addChild(item)
-
-
-        for k, addr in pending_accounts:
-            name = self.wallet.labels.get(k,'')
-            account_item = QTreeWidgetItem( [ name + "  [ "+_('pending account')+" ]", '', '', ''] )
-            self.update_receive_item(item)
-            l.addTopLevelItem(account_item)
-            account_item.setExpanded(True)
-            account_item.setData(0, 32, k)
-            item = QTreeWidgetItem( [ addr, '', '', '', ''] )
-            account_item.addChild(item)
-            self.update_receive_item(item)
-
-
-        if self.wallet.imported_keys and (self.current_account is None or self.current_account == -1):
-            c,u = self.wallet.get_imported_balance()
-            account_item = QTreeWidgetItem( [ _('Imported'), '', self.format_amount(c+u), ''] )
-            l.addTopLevelItem(account_item)
-            account_item.setExpanded(True)
-            for address in self.wallet.imported_keys.keys():
-                item = QTreeWidgetItem( [ address, '', '', ''] )
-                self.update_receive_item(item)
-                account_item.addChild(item)
-
 
         # we use column 1 because column 0 may be hidden
         l.setCurrentItem(l.topLevelItem(0),1)
@@ -1927,8 +1906,8 @@ class ElectrumWindow(QMainWindow):
         private_keys = {}
         addresses = self.wallet.addresses(True)
         def privkeys_thread():
-            time.sleep(0.1)
             for addr in addresses:
+                time.sleep(0.1)
                 private_keys[addr] = "\n".join(self.wallet.get_private_key(addr, password))
                 d.emit(SIGNAL('computing_privkeys'))
             d.emit(SIGNAL('show_privkeys'))
@@ -2250,8 +2229,10 @@ class ElectrumWindow(QMainWindow):
 
     def closeEvent(self, event):
         self.tray.hide()
-        g = self.geometry()
-        self.config.set_key("winpos-qt", [g.left(),g.top(),g.width(),g.height()], True)
+        self.config.set_key("is_maximized", self.isMaximized())
+        if not self.isMaximized():
+            g = self.geometry()
+            self.config.set_key("winpos-qt", [g.left(),g.top(),g.width(),g.height()])
         self.save_column_widths()
         self.config.set_key("console-history", self.console.history[-50:], True)
         self.wallet.storage.put('accounts_expanded', self.accounts_expanded)
