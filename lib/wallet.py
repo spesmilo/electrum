@@ -1667,6 +1667,8 @@ class Wallet(object):
 
     @classmethod
     def is_address(self, text):
+        if not text:
+            return False
         for x in text.split():
             if not bitcoin.is_address(x):
                 return False
@@ -1674,6 +1676,8 @@ class Wallet(object):
 
     @classmethod
     def is_private_key(self, text):
+        if not text:
+            return False
         for x in text.split():
             if not bitcoin.is_private_key(x):
                 return False
