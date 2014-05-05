@@ -230,7 +230,7 @@ class Plugin(BasePlugin):
         pay_det = paymentrequest_pb2.PaymentDetails()
         pay_det.ParseFromString(paymntreq.serialized_payment_details)
 
-        if pay_det.expires < int(time.time()):
+        if pay_det.expires and pay_det.expires < int(time.time()):
             self.win.show_message(_("ERROR: Payment Request has Expired."))
             return
 
