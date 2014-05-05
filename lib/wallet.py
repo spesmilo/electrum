@@ -1450,6 +1450,9 @@ class Wallet_2of2(NewWallet):
         NewWallet.__init__(self, storage)
         self.storage.put('wallet_type', '2of2', True)
 
+    def can_create_accounts(self):
+        return False
+
     def create_account(self):
         xpub1 = self.master_public_keys.get("m/")
         xpub2 = self.master_public_keys.get("cold/")

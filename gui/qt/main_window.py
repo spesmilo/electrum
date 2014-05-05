@@ -203,6 +203,7 @@ class ElectrumWindow(QMainWindow):
         self.password_menu.setEnabled(not self.wallet.is_watching_only())
         self.seed_menu.setEnabled(self.wallet.has_seed())
         self.mpk_menu.setEnabled(self.wallet.is_deterministic())
+        self.import_menu.setEnabled(self.wallet.can_create_accounts() or not self.wallet.is_deterministic())
 
         self.update_lock_icon()
         self.update_buttons_on_seed()
@@ -296,7 +297,7 @@ class ElectrumWindow(QMainWindow):
 
         self.private_keys_menu = wallet_menu.addMenu(_("&Private keys"))
         self.private_keys_menu.addAction(_("&Sweep"), self.sweep_key_dialog)
-        self.private_keys_menu.addAction(_("&Import"), self.do_import_privkey)
+        self.import_menu = self.private_keys_menu.addAction(_("&Import"), self.do_import_privkey)
         self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
         wallet_menu.addAction(_("&Export History"), self.export_history_dialog)
 
