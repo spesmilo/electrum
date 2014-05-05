@@ -1927,16 +1927,9 @@ class ElectrumWindow(QMainWindow):
         filename = filename_e.text()
         if not filename:
             return
-        self.do_export_privkeys(filename, private_keys)
 
-
-    def do_export_privkeys(self, fileName, pklist):
         try:
-            with open(fileName, "w+") as csvfile:
-                transaction = csv.writer(csvfile)
-                transaction.writerow(["address", "private_key"])
-                for addr, pk in pklist.items():
-                    transaction.writerow(["%34s"%addr,pk])
+            self.do_export_privkeys(filename, private_keys)
         except (IOError, os.error), reason:
             export_error_label = _("Electrum was unable to produce a private key-export.")
             QMessageBox.critical(None, _("Unable to create csv"), export_error_label + "\n" + str(reason))
@@ -1946,6 +1939,14 @@ class ElectrumWindow(QMainWindow):
             return
 
         self.show_message(_("Private keys exported."))
+
+
+    def do_export_privkeys(self, fileName, pklist):
+        with open(fileName, "w+") as csvfile:
+            transaction = csv.writer(csvfile)
+            transaction.writerow(["address", "private_key"])
+            for addr, pk in pklist.items():
+                transaction.writerow(["%34s"%addr,pk])
 
 
     def do_import_labels(self):
