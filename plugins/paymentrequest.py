@@ -125,11 +125,11 @@ class Plugin(BasePlugin):
         try:
             if u.scheme == 'http':
                 connection = httplib.HTTPConnection(u.netloc)
-                connection.request("GET",u.path,headers={'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'})
+                connection.request("GET",u.geturl(),headers={'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'})
                 resp = connection.getresponse()
             elif u.scheme == 'https':
                 connection = httplib.HTTPSConnection(u.netloc)
-                connection.request("GET",u.path,headers={'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'})
+                connection.request("GET",u.geturl(),headers={'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'})
                 resp = connection.getresponse()
             else:
                 return
