@@ -298,8 +298,7 @@ class ElectrumWindow(QMainWindow):
         self.private_keys_menu.addAction(_("&Sweep"), self.sweep_key_dialog)
         self.private_keys_menu.addAction(_("&Import"), self.do_import_privkey)
         self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
-
-        wallet_menu.addAction(_("&Export History"), self.do_export_history)
+        wallet_menu.addAction(_("&Export History"), self.export_history_dialog)
 
         tools_menu = menubar.addMenu(_("&Tools"))
 
@@ -1880,24 +1879,10 @@ class ElectrumWindow(QMainWindow):
         e.setReadOnly(True)
         vbox.addWidget(e)
 
-        hbox = QHBoxLayout()
-        vbox.addLayout(hbox)
-
         defaultname = 'electrum-private-keys.csv'
-        directory = self.config.get('io_dir', unicode(os.path.expanduser('~')))
-        path = os.path.join( directory, defaultname )
-        filename_e = QLineEdit()
-        filename_e.setText(path)
-        def func():
-            select_export = _('Select file to export your private keys to')
-            p = self.getSaveFileName(select_export, defaultname, "*.csv")
-            if p:
-                filename_e.setText(p)
-
-        button = QPushButton(_('File'))
-        button.clicked.connect(func)
-        hbox.addWidget(button)
-        hbox.addWidget(filename_e)
+        select_msg = _('Select file to export your private keys to')
+        hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
+        vbox.addLayout(hbox)
 
         h, b = ok_cancel_buttons2(d, _('Export'))
         b.setEnabled(False)
@@ -1933,7 +1918,7 @@ class ElectrumWindow(QMainWindow):
             return
 
         try:
-            self.do_export_privkeys(filename, private_keys)
+            self.do_export_privkeys(filename, private_keys, csv_button.isChecked())
         except (IOError, os.error), reason:
             export_error_label = _("Electrum was unable to produce a private key-export.")
             QMessageBox.critical(None, _("Unable to create csv"), export_error_label + "\n" + str(reason))
@@ -1945,12 +1930,16 @@ class ElectrumWindow(QMainWindow):
         self.show_message(_("Private keys exported."))
 
 
-    def do_export_privkeys(self, fileName, pklist):
-        with open(fileName, "w+") as csvfile:
-            transaction = csv.writer(csvfile)
-            transaction.writerow(["address", "private_key"])
-            for addr, pk in pklist.items():
-                transaction.writerow(["%34s"%addr,pk])
+    def do_export_privkeys(self, fileName, pklist, is_csv):
+        with open(fileName, "w+") as f:
+            if is_csv:
+                transaction = csv.writer(f)
+                transaction.writerow(["address", "private_key"])
+                for addr, pk in pklist.items():
+                    transaction.writerow(["%34s"%addr,pk])
+            else:
+                import json
+                f.write(json.dumps(pklist, indent = 4))
 
 
     def do_import_labels(self):
@@ -1979,54 +1968,88 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.critical(None, _("Unable to export labels"), _("Electrum was unable to export your labels.")+"\n" + str(reason))
 
 
-    def do_export_history(self):
-        wallet = self.wallet
-        select_export = _('Select file to export your wallet transactions to')
-        fileName = QFileDialog.getSaveFileName(QWidget(), select_export, os.path.expanduser('~/electrum-history.csv'), "*.csv")
-        if not fileName:
+    def export_history_dialog(self):
+
+        d = QDialog(self)
+        d.setWindowTitle(_('Export History'))
+        d.setMinimumSize(400, 200)
+        vbox = QVBoxLayout(d)
+
+        defaultname = os.path.expanduser('~/electrum-history.csv')
+        select_msg = _('Select file to export your wallet transactions to')
+
+        hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
+        vbox.addLayout(hbox)
+
+        vbox.addStretch(1)
+
+        h, b = ok_cancel_buttons2(d, _('Export'))
+        vbox.addLayout(h)
+        if not d.exec_():
+            return
+
+        filename = filename_e.text()
+        if not filename:
             return
 
         try:
-            with open(fileName, "w+") as csvfile:
-                transaction = csv.writer(csvfile)
-                transaction.writerow(["transaction_hash","label", "confirmations", "value", "fee", "balance", "timestamp"])
-                for item in wallet.get_tx_history():
-                    tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
-                    if confirmations:
-                        if timestamp is not None:
-                            try:
-                                time_string = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
-                            except [RuntimeError, TypeError, NameError] as reason:
-                                time_string = "unknown"
-                                pass
-                        else:
-                          time_string = "unknown"
-                    else:
-                        time_string = "pending"
-
-                    if value is not None:
-                        value_string = format_satoshis(value, True)
-                    else:
-                        value_string = '--'
-
-                    if fee is not None:
-                        fee_string = format_satoshis(fee, True)
-                    else:
-                        fee_string = '0'
-
-                    if tx_hash:
-                        label, is_default_label = wallet.get_label(tx_hash)
-                        label = label.encode('utf-8')
-                    else:
-                      label = ""
-
-                    balance_string = format_satoshis(balance, False)
-                    transaction.writerow([tx_hash, label, confirmations, value_string, fee_string, balance_string, time_string])
-                QMessageBox.information(None,_("CSV Export created"), _("Your CSV export has been successfully created."))
-
+            self.do_export_history(self.wallet, filename, csv_button.isChecked())
         except (IOError, os.error), reason:
             export_error_label = _("Electrum was unable to produce a transaction export.")
-            QMessageBox.critical(None,_("Unable to create csv"), export_error_label + "\n" + str(reason))
+            QMessageBox.critical(self, _("Unable to export history"), export_error_label + "\n" + str(reason))
+            return
+
+        QMessageBox.information(self,_("History exported"), _("Your wallet history has been successfully exported."))
+
+
+    def do_export_history(self, wallet, fileName, is_csv):
+        history = wallet.get_tx_history()
+        lines = []
+        for item in history:
+            tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
+            if confirmations:
+                if timestamp is not None:
+                    try:
+                        time_string = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+                    except [RuntimeError, TypeError, NameError] as reason:
+                        time_string = "unknown"
+                        pass
+                else:
+                    time_string = "unknown"
+            else:
+                time_string = "pending"
+
+            if value is not None:
+                value_string = format_satoshis(value, True)
+            else:
+                value_string = '--'
+
+            if fee is not None:
+                fee_string = format_satoshis(fee, True)
+            else:
+                fee_string = '0'
+
+            if tx_hash:
+                label, is_default_label = wallet.get_label(tx_hash)
+                label = label.encode('utf-8')
+            else:
+                label = ""
+
+            balance_string = format_satoshis(balance, False)
+            if is_csv:
+                lines.append([tx_hash, label, confirmations, value_string, fee_string, balance_string, time_string])
+            else:
+                lines.append({'txid':tx_hash, 'date':"%16s"%time_string, 'label':label, 'value':value_string})
+
+        with open(fileName, "w+") as f:
+            if is_csv:
+                transaction = csv.writer(f)
+                transaction.writerow(["transaction_hash","label", "confirmations", "value", "fee", "balance", "timestamp"])
+                for line in lines:
+                    transaction.writerow(line)
+            else:
+                import json
+                f.write(json.dumps(lines, indent = 4))
 
 
     def sweep_key_dialog(self):
