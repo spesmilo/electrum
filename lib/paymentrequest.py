@@ -71,11 +71,27 @@ class PaymentRequest:
 
         x509_1 = X509.load_cert_der_string(cert.certificate[0])
         if self.domain != x509_1.get_subject().CN:
-            ###TODO: check for subject alt names
-            ###       check for wildcards
-            print "ERROR: Certificate Subject Domain Mismatch"
-            print self.domain, x509_1.get_subject().CN
-            #return
+            validcert = False
+            try:
+                SANs = x509_1.get_ext("subjectAltName").get_value().split(",")
+                for s in SANs:
+                    s = s.strip()
+                    if s.startswith("DNS:") and s[4:] == self.domain:
+                        validcert = True
+                        print "Match SAN DNS"
+                    elif s.startswith("IP:") and s[3:] == self.domain:
+                        validcert = True
+                        print "Match SAN IP"
+                    elif s.startswith("email:") and s[6:] == self.domain:
+                        validcert = True
+                        print "Match SAN email"
+            except Exception, e:
+                print "ERROR: No SAN data"
+            if not validcert:
+                ###TODO: check for wildcards
+                print "ERROR: Certificate Subject Domain Mismatch and SAN Mismatch"
+                print self.domain, x509_1.get_subject().CN
+                return
 
         x509 = []
         CA_OU = ''
