@@ -33,7 +33,7 @@ APP_NAME = "Electrum"
 import platform
 MONOSPACE_FONT = 'Lucida Console' if platform.system() == 'Windows' else 'monospace'
 
-from electrum.util import format_satoshis
+from electrum.util import format_satoshis, parse_url
 from electrum.network import DEFAULT_SERVERS
 from electrum.bitcoin import MIN_RELAY_TX_FEE
 
@@ -730,18 +730,12 @@ class ElectrumWindow:
             entry.modify_base(Gtk.StateType.NORMAL, Gdk.color_parse("#ffffff"))
 
     def set_url(self, url):
-        payto, amount, label, message, signature, identity, url = self.wallet.parse_url(url, self.show_message, self.question)
+        payto, amount, label, message, payment_request, url = parse_url(url)
         self.notebook.set_current_page(1)
         self.payto_entry.set_text(payto)
         self.message_entry.set_text(message)
         self.amount_entry.set_text(amount)
-        if identity:
-            self.set_frozen(self.payto_entry,True)
-            self.set_frozen(self.amount_entry,True)
-            self.set_frozen(self.message_entry,True)
-            self.payto_sig_id.set_text( '      The bitcoin URI was signed by ' + identity )
-        else:
-            self.payto_sig.set_visible(False)
+        self.payto_sig.set_visible(False)
 
     def create_about_tab(self):
         from gi.repository import Pango
