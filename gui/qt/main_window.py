@@ -897,10 +897,13 @@ class ElectrumWindow(QMainWindow):
 
 
     def payment_request_ok(self):
+        style = "QWidget { background-color:none;border:none;}"
         self.payto_e.setText(self.payment_request.domain)
         self.payto_e.setReadOnly(True)
+        self.payto_e.setStyleSheet(style)
         self.amount_e.setText(self.format_amount(self.payment_request.get_amount()))
         self.amount_e.setReadOnly(True)
+        self.amount_e.setStyleSheet(style)
 
 
     def set_send(self, address, amount, label, message):
@@ -926,6 +929,7 @@ class ElectrumWindow(QMainWindow):
         for e in [self.payto_e, self.message_e, self.amount_e, self.fee_e]:
             e.setText('')
             self.set_frozen(e,False)
+            e.setStyleSheet("")
 
         self.set_pay_from([])
         self.update_status()

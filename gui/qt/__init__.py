@@ -182,8 +182,10 @@ class ElectrumGui:
                     self.main_window.emit(SIGNAL('payment_request_failed'))
 
             threading.Thread(target=payment_request).start()
-            
-        self.main_window.set_send(address, amount, label, message)
+            self.main_window.tabs.setCurrentIndex(1)
+        else:
+            self.main_window.set_send(address, amount, label, message)
+
         if self.lite_window:
             self.lite_window.set_payment_fields(address, amount)
 
