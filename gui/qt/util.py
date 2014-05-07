@@ -78,6 +78,68 @@ def text_dialog(parent, title, label, ok_label, default=None):
         return unicode(txt.toPlainText())
 
 
+
+def address_field(addresses):
+    hbox = QHBoxLayout()
+    address_e = QLineEdit()
+    if addresses:
+        address_e.setText(addresses[0])
+    def func():
+        i = addresses.index(str(address_e.text())) + 1
+        i = i % len(addresses)
+        address_e.setText(addresses[i])
+    button = QPushButton(_('Address'))
+    button.clicked.connect(func)
+    hbox.addWidget(button)
+    hbox.addWidget(address_e)
+    return hbox, address_e
+
+
+def filename_field(parent, config, defaultname, select_msg):
+
+    vbox = QVBoxLayout()
+    vbox.addWidget(QLabel(_("Format")))
+    gb = QGroupBox("format", parent)
+    b1 = QRadioButton(gb)
+    b1.setText(_("CSV"))
+    b1.setChecked(True)
+    b2 = QRadioButton(gb)
+    b2.setText(_("json"))
+    vbox.addWidget(b1)
+    vbox.addWidget(b2)
+        
+    hbox = QHBoxLayout()
+
+    directory = config.get('io_dir', unicode(os.path.expanduser('~')))
+    path = os.path.join( directory, defaultname )
+    filename_e = QLineEdit()
+    filename_e.setText(path)
+
+    def func():
+        text = unicode(filename_e.text())
+        _filter = "*.csv" if text.endswith(".csv") else "*.json" if text.endswith(".json") else None
+        p = unicode( QFileDialog.getSaveFileName(None, select_msg, text, _filter))
+        if p:
+            filename_e.setText(p)
+
+    button = QPushButton(_('File'))
+    button.clicked.connect(func)
+    hbox.addWidget(button)
+    hbox.addWidget(filename_e)
+    vbox.addLayout(hbox)
+
+    def set_csv(v):
+        text = unicode(filename_e.text())
+        text = text.replace(".json",".csv") if v else text.replace(".csv",".json")
+        filename_e.setText(text)
+
+    b1.clicked.connect(lambda: set_csv(True))
+    b2.clicked.connect(lambda: set_csv(False))
+
+    return vbox, filename_e, b1
+
+
+
 class MyTreeWidget(QTreeWidget):
     def __init__(self, parent):
         QTreeWidget.__init__(self, parent)

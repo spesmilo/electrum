@@ -1391,7 +1391,12 @@ class NewWallet(Deterministic_Wallet):
 
 
     def num_accounts(self):
-        keys = self.accounts.keys()
+        keys = []
+        for k, v in self.accounts.items():
+            if type(v) != BIP32_Account:
+                continue
+            keys.append(k)
+
         i = 0
         while True:
             account_id = self.account_id(i)
@@ -1449,6 +1454,9 @@ class Wallet_2of2(NewWallet):
     def __init__(self, storage):
         NewWallet.__init__(self, storage)
         self.storage.put('wallet_type', '2of2', True)
+
+    def can_create_accounts(self):
+        return False
 
     def create_account(self):
         xpub1 = self.master_public_keys.get("m/")
@@ -1667,6 +1675,8 @@ class Wallet(object):
 
     @classmethod
     def is_address(self, text):
+        if not text:
+            return False
         for x in text.split():
             if not bitcoin.is_address(x):
                 return False
@@ -1674,6 +1684,8 @@ class Wallet(object):
 
     @classmethod
     def is_private_key(self, text):
+        if not text:
+            return False
         for x in text.split():
             if not bitcoin.is_private_key(x):
                 return False
