@@ -773,9 +773,9 @@ class ElectrumWindow(QMainWindow):
     def do_send(self):
         label = unicode( self.message_e.text() )
 
-        if self.payment_request:
-            outputs = self.payment_request.outputs
-            amount = self.payment_request.get_amount()
+        if self.gui_object.payment_request:
+            outputs = self.gui_object.payment_request.outputs
+            amount = self.gui_object.payment_request.get_amount()
 
         else:
             r = unicode( self.payto_e.text() )
