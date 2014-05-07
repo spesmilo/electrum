@@ -1070,6 +1070,9 @@ class Abstract_Wallet:
             d[k] = v.dump()
         self.storage.put('accounts', d, True)
 
+    def can_import(self):
+        return not self.is_watching_only()
+
     
 
 class Imported_Wallet(Abstract_Wallet):
@@ -1456,6 +1459,9 @@ class Wallet_2of2(NewWallet):
         self.storage.put('wallet_type', '2of2', True)
 
     def can_create_accounts(self):
+        return False
+
+    def can_import(self):
         return False
 
     def create_account(self):
