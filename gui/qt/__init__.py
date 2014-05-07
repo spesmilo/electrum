@@ -172,22 +172,22 @@ class ElectrumGui:
                 from electrum import paymentrequest
             except:
                 print "cannot import paymentrequest"
-                return
-            def payment_request():
-                pr = paymentrequest.PaymentRequest(request_url)
-                if pr.verify() or 1:
-                    self.main_window.payment_request = pr
-                    self.main_window.emit(SIGNAL('payment_request_ok'))
-                else:
-                    self.main_window.emit(SIGNAL('payment_request_failed'))
+                request_url = None
 
-            threading.Thread(target=payment_request).start()
-            self.main_window.tabs.setCurrentIndex(1)
-        else:
+        if not request_url:
             self.main_window.set_send(address, amount, label, message)
-
-        if self.lite_window:
             self.lite_window.set_payment_fields(address, amount)
+            return
+
+        def payment_request():
+            self.payment_request = paymentrequest.PaymentRequest(request_url)
+            if self.payment_request.verify():
+                self.main_window.emit(SIGNAL('payment_request_ok'))
+            else:
+                self.main_window.emit(SIGNAL('payment_request_error'))
+
+        threading.Thread(target=payment_request).start()
+        self.main_window.prepare_for_payment_request()
 
 
     def main(self, url):

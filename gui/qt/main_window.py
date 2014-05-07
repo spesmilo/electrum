@@ -107,6 +107,7 @@ class ElectrumWindow(QMainWindow):
 
         self.config = config
         self.network = network
+        self.gui_object = gui_object
         self.tray = gui_object.tray
         self.go_lite = gui_object.go_lite
         self.lite = None
@@ -157,6 +158,7 @@ class ElectrumWindow(QMainWindow):
         self.connect(self, QtCore.SIGNAL('send_tx2'), self.send_tx2)
         self.connect(self, QtCore.SIGNAL('send_tx3'), self.send_tx3)
         self.connect(self, QtCore.SIGNAL('payment_request_ok'), self.payment_request_ok)
+        self.connect(self, QtCore.SIGNAL('payment_request_error'), self.payment_request_error)
 
         self.history_list.setFocus(True)
 
@@ -896,14 +898,22 @@ class ElectrumWindow(QMainWindow):
 
 
 
-    def payment_request_ok(self):
+    def prepare_for_payment_request(self):
         style = "QWidget { background-color:none;border:none;}"
-        self.payto_e.setText(self.payment_request.domain)
+        self.tabs.setCurrentIndex(1)
         self.payto_e.setReadOnly(True)
         self.payto_e.setStyleSheet(style)
-        self.amount_e.setText(self.format_amount(self.payment_request.get_amount()))
         self.amount_e.setReadOnly(True)
+        self.payto_e.setText(_("please wait..."))
         self.amount_e.setStyleSheet(style)
+        return True
+
+    def payment_request_ok(self):
+        self.payto_e.setText(self.gui_object.payment_request.domain)
+        self.amount_e.setText(self.format_amount(self.gui_object.payment_request.get_amount()))
+
+    def payment_request_error(self):
+        self.payto_e.setText(self.gui_object.payment_request.error)
 
 
     def set_send(self, address, amount, label, message):

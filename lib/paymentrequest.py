@@ -55,6 +55,7 @@ class PaymentRequest:
     def __init__(self, url):
         self.url = url
         self.outputs = []
+        self.error = ""
 
     def get_amount(self):
         return sum(map(lambda x:x[1], self.outputs))
@@ -74,7 +75,7 @@ class PaymentRequest:
 
         sig = paymntreq.signature
         if not sig:
-            print "No signature"
+            self.error = "No signature"
             return 
 
         cert = paymentrequest_pb2.X509Certificates()
@@ -101,8 +102,7 @@ class PaymentRequest:
                 print "ERROR: No SAN data"
             if not validcert:
                 ###TODO: check for wildcards
-                print "ERROR: Certificate Subject Domain Mismatch and SAN Mismatch"
-                print self.domain, x509_1.get_subject().CN
+                self.error = "ERROR: Certificate Subject Domain Mismatch and SAN Mismatch"
                 return
 
         x509 = []
@@ -112,16 +112,16 @@ class PaymentRequest:
             for i in range(cert_num - 1):
                 x509.append(X509.load_cert_der_string(cert.certificate[i+1]))
                 if x509[i].check_ca() == 0:
-                    print "ERROR: Supplied CA Certificate Error"
+                    self.error = "ERROR: Supplied CA Certificate Error"
                     return
             for i in range(cert_num - 1):
                 if i == 0:
                     if x509_1.verify(x509[i].get_pubkey()) != 1:
-                        print "ERROR: Certificate not Signed by Provided CA Certificate Chain"
+                        self.error = "ERROR: Certificate not Signed by Provided CA Certificate Chain"
                         return
                 else:
                     if x509[i-1].verify(x509[i].get_pubkey()) != 1:
-                        print "ERROR: CA Certificate not Signed by Provided CA Certificate Chain"
+                        self.error = "ERROR: CA Certificate not Signed by Provided CA Certificate Chain"
                         return
 
             supplied_CA_fingerprint = x509[cert_num-2].get_fingerprint()
@@ -139,7 +139,7 @@ class PaymentRequest:
                 print "ERROR: Supplied CA Not Found in Trusted CA Store."
                 print "Payment will continue with manual verification."
         else:
-            print "ERROR: CA Certificate Chain Not Provided by Payment Processor"
+            self.error = "ERROR: CA Certificate Chain Not Provided by Payment Processor"
             return False
 
         paymntreq.signature = ''
@@ -151,13 +151,13 @@ class PaymentRequest:
         elif paymntreq.pki_type == "x509+sha1":
             pubkey_1.reset_context(md="sha1")
         else:
-            print "ERROR: Unsupported PKI Type for Message Signature"
+            self.error = "ERROR: Unsupported PKI Type for Message Signature"
             return False
 
         pubkey_1.verify_init()
         pubkey_1.verify_update(s)
         if pubkey_1.verify_final(sig) != 1:
-            print "ERROR: Invalid Signature for Payment Request Data"
+            self.error = "ERROR: Invalid Signature for Payment Request Data"
             return False
 
         ### SIG Verified
@@ -166,8 +166,8 @@ class PaymentRequest:
         pay_det.ParseFromString(paymntreq.serialized_payment_details)
 
         if pay_det.expires and pay_det.expires < int(time.time()):
-            print "ERROR: Payment Request has Expired."
-            #return False
+            self.error = "ERROR: Payment Request has Expired."
+            return False
 
         for o in pay_det.outputs:
             addr = transaction.get_address_from_output_script(o.script)[1]
@@ -176,7 +176,7 @@ class PaymentRequest:
         if CA_match:
             print 'Signed By Trusted CA: ', CA_OU
 
-        return pay_det
+        return True
 
 
 
