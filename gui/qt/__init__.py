@@ -71,6 +71,7 @@ class ElectrumGui:
             self.app = QApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
         init_plugins(self)
+        self.payment_request = None
 
 
     def build_tray_menu(self):

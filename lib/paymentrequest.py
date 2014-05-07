@@ -184,6 +184,7 @@ class PaymentRequest:
         if CA_match:
             print 'Signed By Trusted CA: ', CA_OU
 
+        print "payment url", pay_det.payment_url
         return True
 
 
@@ -191,34 +192,38 @@ class PaymentRequest:
     def send_ack(self, raw_tx, refund_addr):
 
         pay_det = self.payment_details
-        if pay_det.payment_url:
-            paymnt = paymentrequest_pb2.Payment()
+        if not pay_det.payment_url:
+            return
 
-            paymnt.merchant_data = pay_det.merchant_data
-            paymnt.transactions.append(raw_tx)
+        paymnt = paymentrequest_pb2.Payment()
+        paymnt.merchant_data = pay_det.merchant_data
+        paymnt.transactions.append(raw_tx)
 
-            ref_out = paymnt.refund_to.add()
-            ref_out.script = transaction.Transaction.pay_script(refund_addr)
-            paymnt.memo = "Paid using Electrum"
-            pm = paymnt.SerializeToString()
+        ref_out = paymnt.refund_to.add()
+        ref_out.script = transaction.Transaction.pay_script(refund_addr)
+        paymnt.memo = "Paid using Electrum"
+        pm = paymnt.SerializeToString()
 
-            payurl = urlparse.urlparse(pay_det.payment_url)
+        payurl = urlparse.urlparse(pay_det.payment_url)
+        try:
+            r = requests.post(payurl.geturl(), data=pm, headers=ACK_HEADERS, verify=ca_path)
+        except requests.exceptions.SSLError:
+            print "Payment Message/PaymentACK verify Failed"
             try:
-                r = requests.post(payurl.geturl(), data=pm, headers=ACK_HEADERS, verify=ca_path)
-            except requests.exceptions.SSLError:
-                print "Payment Message/PaymentACK verify Failed"
-                try:
-                    r = requests.post(payurl.geturl(), data=pm, headers=ACK_HEADERS, verify=False)
-                except Exception as e:
-                    print "Payment Message/PaymentACK Failed"
-                    print e
-                    return
-            try:
-                paymntack = paymentrequest_pb2.PaymentACK()
-                paymntack.ParseFromString(r.content)
-                print "PaymentACK message received: %s" % paymntack.memo
-            except Exception:
-                print "PaymentACK could not be processed. Payment was sent; please manually verify that payment was received."
+                r = requests.post(payurl.geturl(), data=pm, headers=ACK_HEADERS, verify=False)
+            except Exception as e:
+                print "Payment Message/PaymentACK Failed"
+                print e
+                return
+        try:
+            paymntack = paymentrequest_pb2.PaymentACK()
+            paymntack.ParseFromString(r.content)
+        except Exception:
+            print "PaymentACK could not be processed. Payment was sent; please manually verify that payment was received."
+            return
+
+        print "PaymentACK message received: %s" % paymntack.memo
+        return paymntack.memo
 
 
 

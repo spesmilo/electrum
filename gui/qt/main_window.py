@@ -121,7 +121,6 @@ class ElectrumWindow(QMainWindow):
         set_language(config.get('language'))
 
         self.funds_error = False
-        self.payment_request = None
         self.completions = QStringListModel()
 
         self.tabs = tabs = QTabWidget(self)
@@ -874,10 +873,11 @@ class ElectrumWindow(QMainWindow):
             return
 
         def broadcast_thread():
-            if self.payment_request:
+            if self.gui_object.payment_request:
+                print "sending ack"
                 refund_address = self.wallet.addresses()[0]
-                self.payment_request.send_ack(str(tx), refund_address)
-                self.payment_request = None
+                self.gui_object.payment_request.send_ack(str(tx), refund_address)
+                self.gui_object.payment_request = None
             # note: BIP 70 recommends not broadcasting the tx to the network and letting the merchant do that
             self.tx_broadcast_result =  self.wallet.sendtx(tx)
             self.emit(SIGNAL('send_tx3'))
