@@ -173,7 +173,7 @@ def parse_url(url):
         if len(v)!=1:
             raise Exception('Duplicate Key', k)
 
-    amount = label = message = ''
+    amount = label = message = request_url = ''
     if 'amount' in pq:
         am = pq['amount'][0]
         m = re.match('([0-9\.]+)X([0-9])', am)
