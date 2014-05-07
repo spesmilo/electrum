@@ -65,13 +65,21 @@ class PaymentRequest:
         u = urlparse.urlparse(self.url)
         self.domain = u.netloc
 
-        connection = httplib.HTTPConnection(u.netloc) if u.scheme == 'http' else httplib.HTTPSConnection(u.netloc)
-        connection.request("GET",u.geturl(), headers=REQUEST_HEADERS)
-        resp = connection.getresponse()
+        try:
+            connection = httplib.HTTPConnection(u.netloc) if u.scheme == 'http' else httplib.HTTPSConnection(u.netloc)
+            connection.request("GET",u.geturl(), headers=REQUEST_HEADERS)
+            resp = connection.getresponse()
+        except:
+            self.error = "cannot read url"
+            return
 
-        r = resp.read()
         paymntreq = paymentrequest_pb2.PaymentRequest()
-        paymntreq.ParseFromString(r)
+        try:
+            r = resp.read()
+            paymntreq.ParseFromString(r)
+        except:
+            self.error = "cannot parse payment request"
+            return
 
         sig = paymntreq.signature
         if not sig:
