@@ -150,21 +150,38 @@ class ElectrumGui:
     def set_url(self, url):
         from electrum import util
         from decimal import Decimal
+
         try:
-            address, amount, label, message, url = util.parse_url(url)
+            address, amount, label, message, request_url, url = util.parse_url(url)
         except Exception:
             QMessageBox.warning(self.main_window, _('Error'), _('Invalid bitcoin URL'), _('OK'))
             return
 
-        try:
-            if amount and self.main_window.base_unit() == 'mBTC': 
-                amount = str( 1000* Decimal(amount))
-            elif amount: 
-                amount = str(Decimal(amount))
-        except Exception:
-            amount = "0.0"
-            QMessageBox.warning(self.main_window, _('Error'), _('Invalid Amount'), _('OK'))
+        if amount:
+            try:
+                if self.main_window.base_unit() == 'mBTC': 
+                    amount = str( 1000* Decimal(amount))
+                else: 
+                    amount = str(Decimal(amount))
+            except Exception:
+                amount = "0.0"
+                QMessageBox.warning(self.main_window, _('Error'), _('Invalid Amount'), _('OK'))
 
+        if request_url:
+            try:
+                from electrum import paymentrequest
+            except:
+                print "cannot import paymentrequest"
+                return
+            def payment_request():
+                pr = paymentrequest.PaymentRequest(request_url)
+                if pr.verify() or 1:
+                    self.main_window.payment_request = pr
+                    self.main_window.emit(SIGNAL('payment_request_ok'))
+                else:
+                    self.main_window.emit(SIGNAL('payment_request_failed'))
+
+            threading.Thread(target=payment_request).start()
             
         self.main_window.set_send(address, amount, label, message)
         if self.lite_window:

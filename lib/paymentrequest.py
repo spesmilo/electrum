@@ -12,7 +12,7 @@ try:
     import paymentrequest_pb2
 except:
     print "protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto"
-    sys.exit(1)
+    raise Exception()
 
 import urlparse
 import requests
@@ -21,38 +21,47 @@ from M2Crypto import X509
 from bitcoin import is_valid
 import urlparse
 
+
+import util
 import transaction
+
 
 REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'}
 ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
 
+ca_path = os.path.expanduser("~/.electrum/ca/ca-bundle.crt")
+ca_list = {}
+try:
+    with open(ca_path, 'r') as ca_f:
+        c = ""
+        for line in ca_f:
+            if line == "-----BEGIN CERTIFICATE-----\n":
+                c = line
+            else:
+                c += line
+            if line == "-----END CERTIFICATE-----\n":
+                x = X509.load_cert_string(c)
+                ca_list[x.get_fingerprint()] = x
+except Exception:
+    print "ERROR: Could not open %s"%ca_path
+    print "ca-bundle.crt file should be placed in ~/.electrum/ca/ca-bundle.crt"
+    print "Documentation on how to download or create the file here: http://curl.haxx.se/docs/caextract.html"
+    print "Payment will continue with manual verification."
+    raise Exception()
+
+
 class PaymentRequest:
 
-    def __init__(self):
-        self.ca_path = os.path.expanduser("~/.electrum/ca/ca-bundle.crt")
-        self.ca_list = {}
-        try:
-            with open(self.ca_path, 'r') as ca_f:
-                c = ""
-                for line in ca_f:
-                    if line == "-----BEGIN CERTIFICATE-----\n":
-                        c = line
-                    else:
-                        c += line
-                    if line == "-----END CERTIFICATE-----\n":
-                        x = X509.load_cert_string(c)
-                        self.ca_list[x.get_fingerprint()] = x
-        except Exception:
-            print "ERROR: Could not open %s"%self.ca_path
-            print "ca-bundle.crt file should be placed in ~/.electrum/ca/ca-bundle.crt"
-            print "Documentation on how to download or create the file here: http://curl.haxx.se/docs/caextract.html"
-            print "Payment will continue with manual verification."
+    def __init__(self, url):
+        self.url = url
+        self.outputs = []
+
+    def get_amount(self):
+        return sum(map(lambda x:x[1], self.outputs))
 
 
-
-    def verify(self, url):
-
-        u = urlparse.urlparse(urllib2.unquote(url))
+    def verify(self):
+        u = urlparse.urlparse(self.url)
         self.domain = u.netloc
 
         connection = httplib.HTTPConnection(u.netloc) if u.scheme == 'http' else httplib.HTTPSConnection(u.netloc)
@@ -64,6 +73,9 @@ class PaymentRequest:
         paymntreq.ParseFromString(r)
 
         sig = paymntreq.signature
+        if not sig:
+            print "No signature"
+            return 
 
         cert = paymentrequest_pb2.X509Certificates()
         cert.ParseFromString(paymntreq.pki_data)
@@ -116,7 +128,7 @@ class PaymentRequest:
             supplied_CA_CN = x509[cert_num-2].get_subject().CN
             CA_match = False
 
-            x = self.ca_list.get(supplied_CA_fingerprint)
+            x = ca_list.get(supplied_CA_fingerprint)
             if x:
                 CA_OU = x.get_subject().OU
                 CA_match = True
@@ -155,9 +167,8 @@ class PaymentRequest:
 
         if pay_det.expires and pay_det.expires < int(time.time()):
             print "ERROR: Payment Request has Expired."
-            return False
+            #return False
 
-        self.outputs = []
         for o in pay_det.outputs:
             addr = transaction.get_address_from_output_script(o.script)[1]
             self.outputs.append( (addr, o.amount) )
@@ -165,7 +176,7 @@ class PaymentRequest:
         if CA_match:
             print 'Signed By Trusted CA: ', CA_OU
 
-        return True
+        return pay_det
 
 
 
@@ -185,7 +196,7 @@ class PaymentRequest:
 
             payurl = urlparse.urlparse(pay_det.payment_url)
             try:
-                r = requests.post(payurl.geturl(), data=pm, headers=ACK_HEADERS, verify=self.ca_path)
+                r = requests.post(payurl.geturl(), data=pm, headers=ACK_HEADERS, verify=ca_path)
             except requests.exceptions.SSLError:
                 print "Payment Message/PaymentACK verify Failed"
                 try:
@@ -202,17 +213,20 @@ class PaymentRequest:
                 print "PaymentACK could not be processed. Payment was sent; please manually verify that payment was received."
 
 
-uri = "bitcoin:mpu3yTLdqA1BgGtFUwkVJmhnU3q5afaFkf?r=https%3A%2F%2Fbitcoincore.org%2F%7Egavin%2Ff.php%3Fh%3D26c19879d44c3891214e7897797b9160&amount=1"
-url = "https%3A%2F%2Fbitcoincore.org%2F%7Egavin%2Ff.php%3Fh%3D26c19879d44c3891214e7897797b9160"
-
-#uri = "bitcoin:1m9Lw2pFCe6Hs7xUuo9fMJCzEwQNdCo5e?amount=0.0012&r=https%3A%2F%2Fbitpay.com%2Fi%2F8XNDiQU92H2whNG4j8hZ5M"
-#url = "https%3A%2F%2Fbitpay.com%2Fi%2F8XNDiQU92H2whNG4j8hZ5M"
 
 
 if __name__ == "__main__":
 
-    pr = PaymentRequest()
-    if not pr.verify(url):
+    try:
+        uri = sys.argv[1]
+    except:
+        print "usage: %s url"%sys.argv[0]
+        print "example url: \"bitcoin:mpu3yTLdqA1BgGtFUwkVJmhnU3q5afaFkf?r=https%3A%2F%2Fbitcoincore.org%2F%7Egavin%2Ff.php%3Fh%3D2a828c05b8b80dc440c80a5d58890298&amount=1\""
+        sys.exit(1)
+
+    address, amount, label, message, request_url, url = util.parse_url(uri)
+    pr = PaymentRequest(request_url)
+    if not pr.verify():
         sys.exit(1)
 
     print 'Payment Request Verified Domain: ', pr.domain
@@ -220,5 +234,5 @@ if __name__ == "__main__":
     print 'Payment Memo: ', pr.payment_details.memo
 
     tx = "blah"
-    pr.send_ack(tx, "1vXAXUnGitimzinpXrqDWVU4tyAAQ34RA")
+    pr.send_ack(tx, refund_addr = "1vXAXUnGitimzinpXrqDWVU4tyAAQ34RA")
 
