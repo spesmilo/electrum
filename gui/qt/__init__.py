@@ -243,6 +243,11 @@ class ElectrumGui:
 
         self.app.exec_()
 
+        # clipboard persistence
+        # see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html
+        event = QtCore.QEvent(QtCore.QEvent.Clipboard)
+        self.app.sendEvent(self.app.clipboard(), event)
+
         wallet.stop_threads()
 
 
