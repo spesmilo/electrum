@@ -1546,7 +1546,7 @@ class OldWallet(Deterministic_Wallet):
 
 
     def create_master_keys(self, password):
-        seed = pw_decode(self.seed, password)
+        seed = self.get_seed(password)
         mpk = OldAccount.mpk_from_seed(seed)
         self.storage.put('master_public_key', mpk, True)
 
