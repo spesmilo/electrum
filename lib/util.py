@@ -153,46 +153,43 @@ def age(from_date, since_date = None, target_tz=None, include_seconds=False):
         return "over %d years ago" % (round(distance_in_minutes / 525600))
 
 
-
-
 # URL decode
-_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
-urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
+#_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
+#urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
 def parse_url(url):
+    import urlparse
     from decimal import Decimal
-    url = str(url)
-    o = url[8:].split('?')
-    address = o[0]
-    if len(o)>1:
-        params = o[1].split('&')
-    else:
-        params = []
 
-    kv = {}
+    u = urlparse.urlparse(url)
+    assert u.scheme == 'litecoin'
 
-    amount = label = message = ''
-    for p in params:
-        k,v = p.split('=')
-        uv = urldecode(v)
-        if k in kv:
-            raise Exception('Duplicate Keys')
-        kv[k] = uv
+    address = u.path
+    #assert bitcoin.is_address(address)
 
-    if 'amount' in kv:
-        am = kv['amount']
+    pq = urlparse.parse_qs(u.query)
+    
+    for k, v in pq.items():
+        if len(v)!=1:
+            raise Exception('Duplicate Key', k)
+
+    amount = label = message = request_url = ''
+    if 'amount' in pq:
+        am = pq['amount'][0]
         m = re.match('([0-9\.]+)X([0-9])', am)
         if m:
             k = int(m.group(2)) - 8
             amount = Decimal(m.group(1)) * pow(  Decimal(10) , k)
         else:
             amount = Decimal(am)
-    if 'message' in kv:
-        message = kv['message']
-    if 'label' in kv:
-        label = kv['label']
-
-    return address, amount, label, message, url
+    if 'message' in pq:
+        message = pq['message'][0]
+    if 'label' in pq:
+        label = pq['label'][0]
+    if 'r' in pq:
+        request_url = pq['r'][0]
+        
+    return address, amount, label, message, request_url, url
 
 
 # Python bug (http://bugs.python.org/issue1927) causes raw_input

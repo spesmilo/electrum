@@ -290,7 +290,7 @@ class Blockchain(threading.Thread):
             i -= 1
 
         c = int('0x'+c[0:6],16)
-        if c > 0x800000: 
+        if c >= 0x800000: 
             c /= 256
             i += 1
 

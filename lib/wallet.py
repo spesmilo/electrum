@@ -1070,6 +1070,9 @@ class Abstract_Wallet:
             d[k] = v.dump()
         self.storage.put('accounts', d, True)
 
+    def can_import(self):
+        return not self.is_watching_only()
+
     
 
 class Imported_Wallet(Abstract_Wallet):
@@ -1458,6 +1461,9 @@ class Wallet_2of2(NewWallet):
     def can_create_accounts(self):
         return False
 
+    def can_import(self):
+        return False
+
     def create_account(self):
         xpub1 = self.master_public_keys.get("m/")
         xpub2 = self.master_public_keys.get("cold/")
@@ -1540,7 +1546,7 @@ class OldWallet(Deterministic_Wallet):
 
 
     def create_master_keys(self, password):
-        seed = pw_decode(self.seed, password)
+        seed = self.get_seed(password)
         mpk = OldAccount.mpk_from_seed(seed)
         self.storage.put('master_public_key', mpk, True)
 

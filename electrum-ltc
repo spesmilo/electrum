@@ -250,10 +250,10 @@ if __name__ == '__main__':
             else:
                 import getpass
                 seed = getpass.getpass(prompt="seed:", stream=None) if options.concealed else raw_input("seed:")
-                wallet = Wallet.from_seed(str(seed),storage)
-                if not wallet:
+                if not Wallet.is_seed(seed):
                     sys.exit("Error: Invalid seed")
-                wallet.save_seed(password)
+                wallet = Wallet.from_seed(seed, storage)
+                wallet.add_seed(seed, password)
                 wallet.create_accounts(password)
 
             if not options.offline:

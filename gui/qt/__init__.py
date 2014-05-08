@@ -71,6 +71,7 @@ class ElectrumGui:
             self.app = QApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
         init_plugins(self)
+        self.payment_request = None
 
 
     def build_tray_menu(self):
@@ -150,25 +151,44 @@ class ElectrumGui:
     def set_url(self, url):
         from electrum import util
         from decimal import Decimal
+
         try:
-            address, amount, label, message, url = util.parse_url(url)
+            address, amount, label, message, request_url, url = util.parse_url(url)
         except Exception:
             QMessageBox.warning(self.main_window, _('Error'), _('Invalid litecoin URL'), _('OK'))
             return
 
-        try:
-            if amount and self.main_window.base_unit() == 'mLTC': 
-                amount = str( 1000* Decimal(amount))
-            elif amount: 
-                amount = str(Decimal(amount))
-        except Exception:
-            amount = "0.0"
-            QMessageBox.warning(self.main_window, _('Error'), _('Invalid Amount'), _('OK'))
+        if amount:
+            try:
+                if self.main_window.base_unit() == 'mLTC': 
+                    amount = str( 1000* Decimal(amount))
+                else: 
+                    amount = str(Decimal(amount))
+            except Exception:
+                amount = "0.0"
+                QMessageBox.warning(self.main_window, _('Error'), _('Invalid Amount'), _('OK'))
 
-            
-        self.main_window.set_send(address, amount, label, message)
-        if self.lite_window:
+        if request_url:
+            try:
+                from electrum import paymentrequest
+            except:
+                print "cannot import paymentrequest"
+                request_url = None
+
+        if not request_url:
+            self.main_window.set_send(address, amount, label, message)
             self.lite_window.set_payment_fields(address, amount)
+            return
+
+        def payment_request():
+            self.payment_request = paymentrequest.PaymentRequest(request_url)
+            if self.payment_request.verify():
+                self.main_window.emit(SIGNAL('payment_request_ok'))
+            else:
+                self.main_window.emit(SIGNAL('payment_request_error'))
+
+        threading.Thread(target=payment_request).start()
+        self.main_window.prepare_for_payment_request()
 
 
     def main(self, url):
@@ -222,6 +242,11 @@ class ElectrumGui:
         w.update_wallet()
 
         self.app.exec_()
+
+        # clipboard persistence
+        # see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html
+        event = QtCore.QEvent(QtCore.QEvent.Clipboard)
+        self.app.sendEvent(self.app.clipboard(), event)
 
         wallet.stop_threads()
 

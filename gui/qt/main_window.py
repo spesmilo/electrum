@@ -107,6 +107,7 @@ class ElectrumWindow(QMainWindow):
 
         self.config = config
         self.network = network
+        self.gui_object = gui_object
         self.tray = gui_object.tray
         self.go_lite = gui_object.go_lite
         self.lite = None
@@ -155,6 +156,8 @@ class ElectrumWindow(QMainWindow):
         self.connect(self, QtCore.SIGNAL('transaction_signal'), lambda: self.notify_transactions() )
         self.connect(self, QtCore.SIGNAL('send_tx2'), self.send_tx2)
         self.connect(self, QtCore.SIGNAL('send_tx3'), self.send_tx3)
+        self.connect(self, QtCore.SIGNAL('payment_request_ok'), self.payment_request_ok)
+        self.connect(self, QtCore.SIGNAL('payment_request_error'), self.payment_request_error)
 
         self.history_list.setFocus(True)
 
@@ -203,7 +206,7 @@ class ElectrumWindow(QMainWindow):
         self.password_menu.setEnabled(not self.wallet.is_watching_only())
         self.seed_menu.setEnabled(self.wallet.has_seed())
         self.mpk_menu.setEnabled(self.wallet.is_deterministic())
-        self.import_menu.setEnabled(self.wallet.can_create_accounts() or not self.wallet.is_deterministic())
+        self.import_menu.setEnabled(self.wallet.can_import())
 
         self.update_lock_icon()
         self.update_buttons_on_seed()
@@ -767,24 +770,31 @@ class ElectrumWindow(QMainWindow):
 
 
     def do_send(self):
-
         label = unicode( self.message_e.text() )
-        r = unicode( self.payto_e.text() )
-        r = r.strip()
 
-        # label or alias, with address in brackets
-        m = re.match('(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
-        to_address = m.group(2) if m else r
+        if self.gui_object.payment_request:
+            outputs = self.gui_object.payment_request.outputs
+            amount = self.gui_object.payment_request.get_amount()
 
-        if not is_valid(to_address):
-            QMessageBox.warning(self, _('Error'), _('Invalid Litecoin Address') + ':\n' + to_address, _('OK'))
-            return
+        else:
+            r = unicode( self.payto_e.text() )
+            r = r.strip()
 
-        try:
-            amount = self.read_amount(unicode( self.amount_e.text()))
-        except Exception:
-            QMessageBox.warning(self, _('Error'), _('Invalid Amount'), _('OK'))
-            return
+            # label or alias, with address in brackets
+            m = re.match('(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
+            to_address = m.group(2) if m else r
+            if not is_valid(to_address):
+                QMessageBox.warning(self, _('Error'), _('Invalid Litecoin Address') + ':\n' + to_address, _('OK'))
+                return
+
+            try:
+                amount = self.read_amount(unicode( self.amount_e.text()))
+            except Exception:
+                QMessageBox.warning(self, _('Error'), _('Invalid Amount'), _('OK'))
+                return
+
+            outputs = [(to_address, amount)]
+
         try:
             fee = self.read_amount(unicode( self.fee_e.text()))
         except Exception:
@@ -801,7 +811,7 @@ class ElectrumWindow(QMainWindow):
             if not self.question(_("The fee for this transaction seems unusually high.\nAre you really sure you want to pay %(fee)s in fees?")%{ 'fee' : self.format_amount(fee) + ' '+ self.base_unit()}):
                 return
 
-        self.send_tx(to_address, amount, fee, label)
+        self.send_tx(outputs, fee, label)
 
 
     def waiting_dialog(self, message):
@@ -815,11 +825,10 @@ class ElectrumWindow(QMainWindow):
 
 
     @protected
-    def send_tx(self, to_address, amount, fee, label, password):
+    def send_tx(self, outputs, fee, label, password):
 
         # first, create an unsigned tx 
         domain = self.get_payment_sources()
-        outputs = [(to_address, amount)]
         try:
             tx = self.wallet.make_unsigned_transaction(outputs, fee, None, domain)
             tx.error = None
@@ -842,9 +851,6 @@ class ElectrumWindow(QMainWindow):
         self.tx_wait_dialog = self.waiting_dialog('Signing..')
         threading.Thread(target=sign_thread).start()
 
-        # add recipient to addressbook
-        if to_address not in self.wallet.addressbook and not self.wallet.is_mine(to_address):
-            self.wallet.addressbook.append(to_address)
 
 
     def send_tx2(self):
@@ -866,12 +872,19 @@ class ElectrumWindow(QMainWindow):
             self.show_transaction(tx)
             return
 
-        # broadcast the tx
         def broadcast_thread():
+            if self.gui_object.payment_request:
+                print "sending ack"
+                refund_address = self.wallet.addresses()[0]
+                self.gui_object.payment_request.send_ack(str(tx), refund_address)
+                self.gui_object.payment_request = None
+            # note: BIP 70 recommends not broadcasting the tx to the network and letting the merchant do that
             self.tx_broadcast_result =  self.wallet.sendtx(tx)
             self.emit(SIGNAL('send_tx3'))
+
         self.tx_broadcast_dialog = self.waiting_dialog('Broadcasting..')
         threading.Thread(target=broadcast_thread).start()
+
 
 
     def send_tx3(self):
@@ -880,14 +893,27 @@ class ElectrumWindow(QMainWindow):
         if status:
             QMessageBox.information(self, '', _('Payment sent.') + '\n' + msg, _('OK'))
             self.do_clear()
-            self.update_contacts_tab()
         else:
             QMessageBox.warning(self, _('Error'), msg, _('OK'))
 
 
 
+    def prepare_for_payment_request(self):
+        style = "QWidget { background-color:none;border:none;}"
+        self.tabs.setCurrentIndex(1)
+        self.payto_e.setReadOnly(True)
+        self.payto_e.setStyleSheet(style)
+        self.amount_e.setReadOnly(True)
+        self.payto_e.setText(_("please wait..."))
+        self.amount_e.setStyleSheet(style)
+        return True
 
+    def payment_request_ok(self):
+        self.payto_e.setText(self.gui_object.payment_request.domain)
+        self.amount_e.setText(self.format_amount(self.gui_object.payment_request.get_amount()))
 
+    def payment_request_error(self):
+        self.payto_e.setText(self.gui_object.payment_request.error)
 
 
     def set_send(self, address, amount, label, message):
@@ -913,6 +939,7 @@ class ElectrumWindow(QMainWindow):
         for e in [self.payto_e, self.message_e, self.amount_e, self.fee_e]:
             e.setText('')
             self.set_frozen(e,False)
+            e.setStyleSheet("")
 
         self.set_pay_from([])
         self.update_status()
