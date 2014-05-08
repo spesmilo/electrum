@@ -250,6 +250,8 @@ if __name__ == '__main__':
             else:
                 import getpass
                 seed = getpass.getpass(prompt="seed:", stream=None) if options.concealed else raw_input("seed:")
+                if not seed:
+                    sys.exit("Error: Seed cannot be empty")
                 wallet = Wallet.from_seed(str(seed),storage)
                 if not wallet:
                     sys.exit("Error: Invalid seed")
