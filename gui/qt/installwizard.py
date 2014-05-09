@@ -45,39 +45,84 @@ class InstallWizard(QDialog):
 
     def restore_or_create(self):
 
+        vbox = QVBoxLayout()
+
+        main_label = QLabel(_("Electrum could not find an existing wallet."))
+        vbox.addWidget(main_label)
+
         grid = QGridLayout()
         grid.setSpacing(5)
 
-        msg = _("Electrum could not find an existing wallet.") + "\n\n" \
-            + _("What do you want to do?") + "\n"
-        label = QLabel(msg)
+        label = QLabel(_("What do you want to do?"))
         label.setWordWrap(True)
         grid.addWidget(label, 0, 0)
 
-        gb = QGroupBox()
+        gb1 = QGroupBox()
+        grid.addWidget(gb1, 0, 0)
 
-        b1 = QRadioButton(gb)
+        group1 = QButtonGroup()
+
+        b1 = QRadioButton(gb1)
         b1.setText(_("Create new wallet"))
         b1.setChecked(True)
 
-        b2 = QRadioButton(gb)
+        b2 = QRadioButton(gb1)
         b2.setText(_("Restore an existing wallet"))
 
-        grid.addWidget(b1,1,0)
-        grid.addWidget(b2,2,0)
+        group1.addButton(b1)
+        group1.addButton(b2)
 
-        vbox = QVBoxLayout()
-        self.set_layout(vbox)
-
+        grid.addWidget(b1, 1, 0)
+        grid.addWidget(b2, 2, 0)
         vbox.addLayout(grid)
+
+        grid2 = QGridLayout()
+        grid2.setSpacing(5)
+
+        label2 = QLabel(_("Wallet type:"))
+        grid2.addWidget(label2, 3, 0)
+        
+        gb2 = QGroupBox()
+        grid.addWidget(gb2, 3, 0)
+
+        group2 = QButtonGroup()
+
+        bb1 = QRadioButton(gb2)
+        bb1.setText(_("Standard wallet"))
+        bb1.setChecked(True)
+
+        bb2 = QRadioButton(gb2)
+        bb2.setText(_("Wallet with two-factor authentication (plugin)"))
+
+        bb3 = QRadioButton(gb2)
+        bb3.setText(_("Multisig wallet (paired manually)"))
+
+        grid2.addWidget(bb1, 4, 0)
+        grid2.addWidget(bb2, 5, 0)
+        grid2.addWidget(bb3, 6, 0)
+
+        group2.addButton(bb1)
+        group2.addButton(bb2)
+        group2.addButton(bb3)
+ 
+        vbox.addLayout(grid2)
         vbox.addStretch(1)
         vbox.addLayout(ok_cancel_buttons(self, _('Next')))
 
+        self.set_layout(vbox)
         if not self.exec_():
-            return
+            return None, None
         
-        return 'create' if b1.isChecked() else 'restore'
+        action = 'create' if b1.isChecked() else 'restore'
 
+        if bb1.isChecked():
+            t = 'standard'
+        elif bb2.isChecked():
+            t = 'multisig_plugin'
+        elif bb3.isChecked():
+            t = 'multisig_manual'
+
+        return action, t
 
 
     def verify_seed(self, seed, sid):
@@ -246,62 +291,17 @@ class InstallWizard(QDialog):
         return run_password_dialog(self, None, self)[2]
 
 
-    def choose_wallet_type(self):
-        grid = QGridLayout()
-        grid.setSpacing(5)
-
-        msg = _("Choose your wallet.")
-        label = QLabel(msg)
-        label.setWordWrap(True)
-        grid.addWidget(label, 0, 0)
-
-        gb = QGroupBox()
-
-        b1 = QRadioButton(gb)
-        b1.setText(_("Standard wallet"))
-        b1.setChecked(True)
-
-        b2 = QRadioButton(gb)
-        b2.setText(_("Wallet with two-factor authentication (plugin)"))
-
-        b3 = QRadioButton(gb)
-        b3.setText(_("Multisig wallet (paired manually)"))
-
-        grid.addWidget(b1,1,0)
-        grid.addWidget(b2,2,0)
-        grid.addWidget(b3,3,0)
-
-        vbox = QVBoxLayout()
-
-        vbox.addLayout(grid)
-        vbox.addStretch(1)
-        vbox.addLayout(ok_cancel_buttons(self, _('Next')))
-
-        self.set_layout(vbox)
-        if not self.exec_():
-            return
-        
-        if b1.isChecked():
-            return 'standard'
-        elif b2.isChecked():
-            return 'multisig_plugin'
-        elif b3.isChecked():
-            return 'multisig_manual'
 
 
     def run(self, action):
 
         if action == 'new':
-            action = self.restore_or_create()
+            action, t = self.restore_or_create()
 
         if action is None: 
             return
 
         if action == 'create':
-            t = self.choose_wallet_type()
-            if not t:
-                return 
-
             if t == 'multisig_plugin':
                 action = 'create_2of3_1'
             if t == 'multisig_manual':
@@ -365,9 +365,6 @@ class InstallWizard(QDialog):
 
 
         if action == 'restore':
-            t = self.choose_wallet_type()
-            if not t: 
-                return
 
             if t == 'standard':
                 text = self.enter_seed_dialog(MSG_ENTER_ANYTHING, None)
