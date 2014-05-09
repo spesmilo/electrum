@@ -81,8 +81,14 @@ class InstallWizard(QDialog):
         grid2 = QGridLayout()
         grid2.setSpacing(5)
 
-        label2 = QLabel(_("Wallet type:"))
-        grid2.addWidget(label2, 3, 0)
+        class ClickableLabel(QLabel):
+            def mouseReleaseEvent(self, ev):
+                self.emit(SIGNAL('clicked()'))
+
+        label2 = ClickableLabel(_("Wallet type:") + " [+]")
+        hbox = QHBoxLayout()
+        hbox.addWidget(label2)
+        grid2.addLayout(hbox, 3, 0)
         
         gb2 = QGroupBox()
         grid.addWidget(gb2, 3, 0)
@@ -98,14 +104,26 @@ class InstallWizard(QDialog):
 
         bb3 = QRadioButton(gb2)
         bb3.setText(_("Multisig wallet (2 of 2)"))
+        bb3.setHidden(True)
 
         bb4 = QRadioButton(gb2)
         bb4.setText(_("Multisig wallet (2 of 3)"))
+        bb4.setHidden(True)
 
         grid2.addWidget(bb1, 4, 0)
         grid2.addWidget(bb2, 5, 0)
         grid2.addWidget(bb3, 6, 0)
         grid2.addWidget(bb4, 7, 0)
+
+        def toggle():
+            x = not bb3.isHidden()
+            label2.setText(_("Wallet type:") + (' [+]' if x else ' [-]'))
+            bb3.setHidden(x)
+            bb4.setHidden(x)
+ 
+        self.connect(label2, SIGNAL('clicked()'), toggle)
+
+        grid2.addWidget(label2)
 
         group2.addButton(bb1)
         group2.addButton(bb2)
