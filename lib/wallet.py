@@ -1508,6 +1508,9 @@ class Wallet_2of3(Wallet_2of2):
         xpub1 = self.master_public_keys.get("m/")
         xpub2 = self.master_public_keys.get("cold/")
         xpub3 = self.master_public_keys.get("remote/")
+        # fixme: we use order of creation
+        if xpub2 and xpub1 is None:
+            return 'create_2fa_2'
         if xpub2 is None:
             return 'create_2of3_1'
         if xpub1 is None:
