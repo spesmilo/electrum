@@ -97,15 +97,20 @@ class InstallWizard(QDialog):
         bb2.setText(_("Wallet with two-factor authentication (plugin)"))
 
         bb3 = QRadioButton(gb2)
-        bb3.setText(_("Multisig wallet (paired manually)"))
+        bb3.setText(_("Multisig wallet (2 of 2)"))
+
+        bb4 = QRadioButton(gb2)
+        bb4.setText(_("Multisig wallet (2 of 3)"))
 
         grid2.addWidget(bb1, 4, 0)
         grid2.addWidget(bb2, 5, 0)
         grid2.addWidget(bb3, 6, 0)
+        grid2.addWidget(bb4, 7, 0)
 
         group2.addButton(bb1)
         group2.addButton(bb2)
         group2.addButton(bb3)
+        group2.addButton(bb4)
  
         vbox.addLayout(grid2)
         vbox.addStretch(1)
@@ -120,9 +125,11 @@ class InstallWizard(QDialog):
         if bb1.isChecked():
             t = 'standard'
         elif bb2.isChecked():
-            t = 'multisig_plugin'
+            t = '2fa'
         elif bb3.isChecked():
-            t = 'multisig_manual'
+            t = '2of2'
+        elif bb4.isChecked():
+            t = '2of3'
 
         return action, t
 
@@ -185,6 +192,29 @@ class InstallWizard(QDialog):
         if not self.exec_():
             return 
         return self.get_seed_text(seed_e2)
+
+
+    def cold_mpk2_dialog(self, xpub_hot):
+        vbox = QVBoxLayout()
+        vbox0, seed_e0 = seed_dialog.enter_seed_box(MSG_SHOW_MPK, 'hot')
+        seed_e0.setText(xpub_hot)
+        seed_e0.setReadOnly(True)
+        vbox1, seed_e1 = seed_dialog.enter_seed_box(MSG_ENTER_COLD_MPK, 'cold')
+        vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_COLD_MPK, 'cold')
+        vbox.addLayout(vbox0)
+        vbox.addLayout(vbox1)
+        vbox.addLayout(vbox2)
+        vbox.addStretch(1)
+        hbox, button = ok_cancel_buttons2(self, _('Next'))
+        vbox.addLayout(hbox)
+        button.setEnabled(False)
+        f = lambda: button.setEnabled(self.is_mpk(seed_e1) and self.is_mpk(seed_e2))
+        seed_e1.textChanged.connect(f)
+        seed_e2.textChanged.connect(f)
+        self.set_layout(vbox)
+        if not self.exec_():
+            return 
+        return self.get_seed_text(seed_e1), self.get_seed_text(seed_e2)
 
 
     def double_seed_dialog(self):
@@ -317,6 +347,30 @@ class InstallWizard(QDialog):
         return run_password_dialog(self, None, self)[2]
 
 
+    def create_cold_seed(self, wallet):
+        from electrum.bitcoin import mnemonic_to_seed, bip32_root
+        msg = _('You are about to generate the cold storage seed of your wallet.') + '\n' \
+              + _('For safety, you should do this on an offline computer.')
+        icon = QPixmap( ':icons/cold_seed.png').scaledToWidth(56)
+        if not self.question(msg, icon):
+            return
+
+        cold_seed = wallet.make_seed()
+        if not self.show_seed(cold_seed, 'cold'):
+            return
+        if not self.verify_seed(cold_seed, 'cold'):
+            return
+
+        hex_seed = mnemonic_to_seed(cold_seed,'').encode('hex')
+        xpriv, xpub = bip32_root(hex_seed)
+        wallet.add_master_public_key('cold/', xpub)
+
+        msg = _('Your master public key was saved in your wallet file.') + '\n'\
+              + _('Your cold seed must be stored on paper; it is not in the wallet file.')+ '\n\n' \
+              + _('This program is about to close itself.') + '\n'\
+              + _('You will need to reopen your wallet on an online computer, in order to complete the creation of your wallet')
+        self.show_message(msg)
+
 
 
     def run(self, action):
@@ -326,61 +380,66 @@ class InstallWizard(QDialog):
 
         if action is None: 
             return
-
+            
         if action == 'create':
-            if t == 'multisig_plugin':
-                action = 'create_2of3_1'
-            if t == 'multisig_manual':
+            if t == 'standard':
+                wallet = Wallet(self.storage)
+
+            elif t == '2fa':
+                wallet = Wallet_2of3(self.storage)
+                run_hook('create_cold_seed', wallet, self)
+                self.create_cold_seed(wallet)
+                return
+
+            elif t == '2of2':
+                wallet = Wallet_2of2(self.storage)
                 action = 'create_2of2_1'
 
-        if action in ['create']:
-            wallet = Wallet(self.storage)
-        elif action in ['create_2of2_1','create_2of2_2']:
-            wallet = Wallet_2of2(self.storage)
+            elif t == '2of3':
+                wallet = Wallet_2of3(self.storage)
+                action = 'create_2of3_1'
 
 
-        if action == 'create':
+        if action == 'create_2fa_2':
+            wallet = Wallet_2of3(self.storage)
+
+        if action in ['create', 'create_2of2_1', 'create_2fa_2', 'create_2of3_1']:
             seed = wallet.make_seed()
-            if not self.show_seed(seed, None):
+            sid = None if action == 'create' else 'hot'
+            if not self.show_seed(seed, sid):
                 return
-            if not self.verify_seed(seed, None):
+            if not self.verify_seed(seed, sid):
                 return
             password = self.password_dialog()
             wallet.add_seed(seed, password)
-            wallet.create_accounts(password)
-            self.waiting_dialog(wallet.synchronize)
-
-
-        if action == 'create_2of3_1':
-            run_hook('create_cold_seed', self.storage, self)
-            return
-
-
-        if action in ['create_2of2_1', 'create_2of3_2']:
-            seed = wallet.make_seed()
-            if not self.show_seed(seed, 'hot'):
-                return
-            if not self.verify_seed(seed, 'hot'):
-                return
-            password = self.password_dialog()
-            wallet.add_seed(seed, password)
-            if action == 'create_2of2_1':
-                # display mpk
+            if action == 'create':
+                wallet.create_accounts(password)
+                self.waiting_dialog(wallet.synchronize)
+            elif action == 'create_2of2_1':
                 action = 'create_2of2_2'
-            else:
-                action = 'create_2of3_3'
+            elif action == 'create_2of3_1':
+                action = 'create_2of3_2'
+            elif action == 'create_2fa_2':
+                action = 'create_2fa_3'
 
         if action == 'create_2of2_2':
             xpub_hot = wallet.master_public_keys.get("m/")
             xpub = self.cold_mpk_dialog(xpub_hot)
-            if not Wallet.is_mpk(xpub):
-                return
             wallet.add_master_public_key("cold/", xpub)
             wallet.create_account()
             self.waiting_dialog(wallet.synchronize)
 
 
-        if action == 'create_2of3_3':
+        if action == 'create_2of3_2':
+            xpub_hot = wallet.master_public_keys.get("m/")
+            xpub1, xpub2 = self.cold_mpk2_dialog(xpub_hot)
+            wallet.add_master_public_key("cold/", xpub1)
+            wallet.add_master_public_key("remote/", xpub2)
+            wallet.create_account()
+            self.waiting_dialog(wallet.synchronize)
+
+
+        if action == 'create_2fa_3':
             run_hook('create_remote_key', wallet, self)
             if not wallet.master_public_keys.get("remote/"):
                 return
@@ -408,15 +467,17 @@ class InstallWizard(QDialog):
                 else:
                     raise
 
-            elif t in ['multisig_plugin', 'multisig_manual']:
+            elif t in ['2fa', '2of2','2of3']:
                 r = self.double_seed_dialog()
                 if not r: 
                     return
                 text1, text2 = r
                 password = self.password_dialog()
-                if t == 'multisig_manual':
+                if t == '2of2':
                     wallet = Wallet_2of2(self.storage)
-                else:
+                elif t == '2of3':
+                    wallet = Wallet_2of3(self.storage)
+                elif t == '2fa':
                     wallet = Wallet_2of3(self.storage)
 
                 if Wallet.is_seed(text1):
