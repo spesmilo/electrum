@@ -187,7 +187,7 @@ class InstallWizard(QDialog):
         return self.get_seed_text(seed_e2)
 
 
-    def double_mpk_dialog(self):
+    def double_seed_dialog(self):
         vbox = QVBoxLayout()
         vbox1, seed_e1 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, 'hot')
         vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, 'cold')
