@@ -17,7 +17,9 @@ from electrum.plugins import run_hook
 
 
 MSG_ENTER_ANYTHING    = _("Please enter a wallet seed, a master public key, a list of Bitcoin addresses, or a list of private keys")
+MSG_SHOW_MPK          = _("This is your master public key")
 MSG_ENTER_MPK         = _("Please enter your master public key")
+MSG_ENTER_COLD_MPK    = _("Please enter the master public key of your cosigning wallet")
 MSG_ENTER_SEED_OR_MPK = _("Please enter a wallet seed, or master public key")
 MSG_VERIFY_SEED       = _("Your seed is important!") + "\n" + _("To make sure that you have properly saved your seed, please retype it here.")
 
@@ -143,9 +145,13 @@ class InstallWizard(QDialog):
         return text
 
 
-    def is_seed(self, seed_e):
+    def is_any(self, seed_e):
         text = self.get_seed_text(seed_e)
         return Wallet.is_seed(text) or Wallet.is_mpk(text) or Wallet.is_address(text) or Wallet.is_private_key(text)
+
+    def is_mpk(self, seed_e):
+        text = self.get_seed_text(seed_e)
+        return Wallet.is_mpk(text)
 
 
     def enter_seed_dialog(self, msg, sid):
@@ -154,14 +160,34 @@ class InstallWizard(QDialog):
         hbox, button = ok_cancel_buttons2(self, _('Next'))
         vbox.addLayout(hbox)
         button.setEnabled(False)
-        seed_e.textChanged.connect(lambda: button.setEnabled(self.is_seed(seed_e)))
+        seed_e.textChanged.connect(lambda: button.setEnabled(self.is_any(seed_e)))
         self.set_layout(vbox)
         if not self.exec_():
             return
         return self.get_seed_text(seed_e)
 
 
-    def double_seed_dialog(self):
+    def cold_mpk_dialog(self, xpub_hot):
+        vbox = QVBoxLayout()
+        vbox1, seed_e1 = seed_dialog.enter_seed_box(MSG_SHOW_MPK, 'hot')
+        seed_e1.setText(xpub_hot)
+        seed_e1.setReadOnly(True)
+        vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_COLD_MPK, 'cold')
+        vbox.addLayout(vbox1)
+        vbox.addLayout(vbox2)
+        vbox.addStretch(1)
+        hbox, button = ok_cancel_buttons2(self, _('Next'))
+        vbox.addLayout(hbox)
+        button.setEnabled(False)
+        f = lambda: button.setEnabled(self.is_mpk(seed_e2))
+        seed_e2.textChanged.connect(f)
+        self.set_layout(vbox)
+        if not self.exec_():
+            return 
+        return self.get_seed_text(seed_e2)
+
+
+    def double_mpk_dialog(self):
         vbox = QVBoxLayout()
         vbox1, seed_e1 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, 'hot')
         vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, 'cold')
@@ -171,7 +197,7 @@ class InstallWizard(QDialog):
         hbox, button = ok_cancel_buttons2(self, _('Next'))
         vbox.addLayout(hbox)
         button.setEnabled(False)
-        f = lambda: button.setEnabled(self.is_seed(seed_e1) and self.is_seed(seed_e2))
+        f = lambda: button.setEnabled(self.is_any(seed_e1) and self.is_any(seed_e2))
         seed_e1.textChanged.connect(f)
         seed_e2.textChanged.connect(f)
         self.set_layout(vbox)
@@ -331,9 +357,6 @@ class InstallWizard(QDialog):
 
 
         if action in ['create_2of2_1', 'create_2of3_2']:
-            msg = _('You are about to create the hot seed of a multisig wallet')
-            if not self.question(msg):
-                return
             seed = wallet.make_seed()
             if not self.show_seed(seed, 'hot'):
                 return
@@ -348,7 +371,8 @@ class InstallWizard(QDialog):
                 action = 'create_2of3_3'
 
         if action == 'create_2of2_2':
-            xpub = self.enter_seed_dialog(MSG_ENTER_MPK, 'cold')
+            xpub_hot = wallet.master_public_keys.get("m/")
+            xpub = self.cold_mpk_dialog(xpub_hot)
             if not Wallet.is_mpk(xpub):
                 return
             wallet.add_master_public_key("cold/", xpub)
