@@ -154,8 +154,6 @@ class ElectrumWindow(QMainWindow):
         self.connect(self, QtCore.SIGNAL('update_status'), self.update_status)
         self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.network.banner) )
         self.connect(self, QtCore.SIGNAL('transaction_signal'), lambda: self.notify_transactions() )
-        self.connect(self, QtCore.SIGNAL('send_tx2'), self.send_tx2)
-        self.connect(self, QtCore.SIGNAL('send_tx3'), self.send_tx3)
         self.connect(self, QtCore.SIGNAL('payment_request_ok'), self.payment_request_ok)
         self.connect(self, QtCore.SIGNAL('payment_request_error'), self.payment_request_error)
 
@@ -814,15 +812,6 @@ class ElectrumWindow(QMainWindow):
         self.send_tx(outputs, fee, label)
 
 
-    def waiting_dialog(self, message):
-        d = QDialog(self)
-        d.setWindowTitle('Please wait')
-        l = QLabel(message)
-        vbox = QVBoxLayout(d)
-        vbox.addWidget(l)
-        d.show()
-        return d
-
 
     @protected
     def send_tx(self, outputs, fee, label, password):
@@ -846,55 +835,48 @@ class ElectrumWindow(QMainWindow):
             keypairs = {}
             self.wallet.add_keypairs_from_wallet(tx, keypairs, password)
             self.wallet.sign_transaction(tx, keypairs, password)
-            self.signed_tx_data = (tx, fee, label)
-            self.emit(SIGNAL('send_tx2'))
-        self.tx_wait_dialog = self.waiting_dialog('Signing..')
-        threading.Thread(target=sign_thread).start()
+            return tx, fee, label
+
+        def sign_done(tx, fee, label):
+            if tx.error:
+                self.show_message(tx.error)
+                return
+            if tx.requires_fee(self.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
+                QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
+                return
+            if label:
+                self.wallet.set_label(tx.hash(), label)
+
+            if not self.gui_object.payment_request:
+                if not tx.is_complete() or self.config.get('show_before_broadcast'):
+                    self.show_transaction(tx)
+                    return
+
+            self.broadcast_transaction(tx)
+
+        WaitingDialog(self, 'Signing..').start(sign_thread, sign_done)
 
 
 
-    def send_tx2(self):
-        tx, fee, label = self.signed_tx_data
-        self.tx_wait_dialog.accept()
-        
-        if tx.error:
-            self.show_message(tx.error)
-            return
-
-        if tx.requires_fee(self.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
-            QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
-            return
-
-        if label:
-            self.wallet.set_label(tx.hash(), label)
-
-        if not tx.is_complete() or self.config.get('show_before_broadcast'):
-            self.show_transaction(tx)
-            return
+    def broadcast_transaction(self, tx):
 
         def broadcast_thread():
             if self.gui_object.payment_request:
-                print "sending ack"
                 refund_address = self.wallet.addresses()[0]
-                self.gui_object.payment_request.send_ack(str(tx), refund_address)
+                status, msg = self.gui_object.payment_request.send_ack(str(tx), refund_address)
                 self.gui_object.payment_request = None
-            # note: BIP 70 recommends not broadcasting the tx to the network and letting the merchant do that
-            self.tx_broadcast_result =  self.wallet.sendtx(tx)
-            self.emit(SIGNAL('send_tx3'))
+            else:
+                status, msg =  self.wallet.sendtx(tx)
+            return status, msg
 
-        self.tx_broadcast_dialog = self.waiting_dialog('Broadcasting..')
-        threading.Thread(target=broadcast_thread).start()
+        def broadcast_done(status, msg):
+            if status:
+                QMessageBox.information(self, '', _('Payment sent.') + '\n' + msg, _('OK'))
+                self.do_clear()
+            else:
+                QMessageBox.warning(self, _('Error'), msg, _('OK'))
 
-
-
-    def send_tx3(self):
-        self.tx_broadcast_dialog.accept()
-        status, msg = self.tx_broadcast_result
-        if status:
-            QMessageBox.information(self, '', _('Payment sent.') + '\n' + msg, _('OK'))
-            self.do_clear()
-        else:
-            QMessageBox.warning(self, _('Error'), msg, _('OK'))
+        WaitingDialog(self, 'Broadcasting..').start(broadcast_thread, broadcast_done)
 
 
 

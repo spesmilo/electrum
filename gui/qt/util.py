@@ -4,6 +4,29 @@ from PyQt4.QtCore import *
 import os.path
 import time
 
+import threading
+
+class WaitingDialog(QDialog):
+    def __init__(self, parent, message):
+        QDialog.__init__(self, parent)
+        self.setWindowTitle('Please wait')
+        l = QLabel(message)
+        vbox = QVBoxLayout(self)
+        vbox.addWidget(l)
+        self.show()
+
+    def start(self, run_thread, on_complete=None):
+        def my_thread():
+            self.result = run_thread()
+            self.emit(SIGNAL('done'))
+            self.accept()
+
+        if on_complete:
+            self.connect(self, SIGNAL('done'), lambda: on_complete(*self.result))
+        
+        threading.Thread(target=my_thread).start()
+
+
 
 class Timer(QThread):
     def run(self):
