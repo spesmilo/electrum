@@ -632,10 +632,10 @@ class ElectrumWindow(QMainWindow):
 
 
         self.payto_e = QLineEdit()
+        self.payto_help = HelpButton(_('Recipient of the funds.') + '\n\n' + _('You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)'))
         grid.addWidget(QLabel(_('Pay to')), 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, 3)
-
-        grid.addWidget(HelpButton(_('Recipient of the funds.') + '\n\n' + _('You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)')), 1, 4)
+        grid.addWidget(self.payto_help, 1, 4)
 
         completer = QCompleter()
         completer.setCaseSensitivity(False)
@@ -643,9 +643,10 @@ class ElectrumWindow(QMainWindow):
         completer.setModel(self.completions)
 
         self.message_e = QLineEdit()
+        self.message_help = HelpButton(_('Description of the transaction (not mandatory).') + '\n\n' + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.'))
         grid.addWidget(QLabel(_('Description')), 2, 0)
         grid.addWidget(self.message_e, 2, 1, 1, 3)
-        grid.addWidget(HelpButton(_('Description of the transaction (not mandatory).') + '\n\n' + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.')), 2, 4)
+        grid.addWidget(self.message_help, 2, 4)
 
         self.from_label = QLabel(_('From'))
         grid.addWidget(self.from_label, 3, 0)
@@ -659,12 +660,12 @@ class ElectrumWindow(QMainWindow):
         self.set_pay_from([])
 
         self.amount_e = AmountEdit(self.base_unit)
+        self.amount_help = HelpButton(_('Amount to be sent.') + '\n\n' \
+                                      + _('The amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') \
+                                      + '\n\n' + _('Keyboard shortcut: type "!" to send all your coins.'))
         grid.addWidget(QLabel(_('Amount')), 4, 0)
         grid.addWidget(self.amount_e, 4, 1, 1, 2)
-        grid.addWidget(HelpButton(
-                _('Amount to be sent.') + '\n\n' \
-                    + _('The amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') \
-                    + '\n\n' + _('Keyboard shortcut: type "!" to send all your coins.')), 4, 3)
+        grid.addWidget(self.amount_help, 4, 3)
 
         self.fee_e = AmountEdit(self.base_unit)
         grid.addWidget(QLabel(_('Fee')), 5, 0)
@@ -886,6 +887,8 @@ class ElectrumWindow(QMainWindow):
         for e in [self.payto_e, self.amount_e, self.message_e]:
             e.setReadOnly(True)
             e.setStyleSheet(style)
+        for h in [self.payto_help, self.amount_help, self.message_help]:
+            h.hide()
         self.payto_e.setText(_("please wait..."))
         return True
 
@@ -895,7 +898,8 @@ class ElectrumWindow(QMainWindow):
         self.message_e.setText(self.gui_object.payment_request.memo)
 
     def payment_request_error(self):
-        self.payto_e.setText(self.gui_object.payment_request.error)
+        self.do_clear()
+        self.show_message(self.gui_object.payment_request.error)
 
 
     def set_send(self, address, amount, label, message):
@@ -922,6 +926,8 @@ class ElectrumWindow(QMainWindow):
             e.setText('')
             self.set_frozen(e,False)
             e.setStyleSheet("")
+        for h in [self.payto_help, self.amount_help, self.message_help]:
+            h.show()
 
         self.set_pay_from([])
         self.update_status()
