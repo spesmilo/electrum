@@ -181,6 +181,8 @@ class PaymentRequest:
             addr = transaction.get_address_from_output_script(o.script)[1]
             self.outputs.append( (addr, o.amount) )
 
+        self.memo = pay_det.memo
+
         if CA_match:
             print 'Signed By Trusted CA: ', CA_OU
 

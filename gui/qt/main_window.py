@@ -883,16 +883,16 @@ class ElectrumWindow(QMainWindow):
     def prepare_for_payment_request(self):
         style = "QWidget { background-color:none;border:none;}"
         self.tabs.setCurrentIndex(1)
-        self.payto_e.setReadOnly(True)
-        self.payto_e.setStyleSheet(style)
-        self.amount_e.setReadOnly(True)
+        for e in [self.payto_e, self.amount_e, self.message_e]:
+            e.setReadOnly(True)
+            e.setStyleSheet(style)
         self.payto_e.setText(_("please wait..."))
-        self.amount_e.setStyleSheet(style)
         return True
 
     def payment_request_ok(self):
         self.payto_e.setText(self.gui_object.payment_request.domain)
         self.amount_e.setText(self.format_amount(self.gui_object.payment_request.get_amount()))
+        self.message_e.setText(self.gui_object.payment_request.memo)
 
     def payment_request_error(self):
         self.payto_e.setText(self.gui_object.payment_request.error)
