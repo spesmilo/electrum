@@ -76,6 +76,8 @@ setup(
         'electrum.mnemonic',
         'electrum.msqr',
         'electrum.network',
+        'electrum.paymentrequest',
+        'electrum.paymentrequest_pb2',
         'electrum.plugins',
         'electrum.pyqrnative',
         'electrum.simple_config',
