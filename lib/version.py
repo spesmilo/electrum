@@ -1,4 +1,4 @@
-ELECTRUM_VERSION = "1.9.8.1" # version of the client package
+ELECTRUM_VERSION = "1.9.8.3" # version of the client package
 PROTOCOL_VERSION = '0.9'    # protocol version requested
 NEW_SEED_VERSION = 7        # bip32 wallets
 OLD_SEED_VERSION = 4        # old electrum deterministic generation
