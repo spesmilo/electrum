@@ -60,7 +60,7 @@ class InstallWizard(QDialog):
         grid.addWidget(label, 0, 0)
 
         gb1 = QGroupBox()
-        grid.addWidget(gb1, 0, 0)
+        #grid.addWidget(gb1, 0, 0)
 
         group1 = QButtonGroup()
 
@@ -85,13 +85,13 @@ class InstallWizard(QDialog):
             def mouseReleaseEvent(self, ev):
                 self.emit(SIGNAL('clicked()'))
 
-        label2 = ClickableLabel(_("Wallet type:") + " [+]")
+        label2 = ClickableLabel(_("Wallet type:"))
         hbox = QHBoxLayout()
         hbox.addWidget(label2)
         grid2.addLayout(hbox, 3, 0)
         
         gb2 = QGroupBox()
-        grid.addWidget(gb2, 3, 0)
+        #grid.addWidget(gb2, 3, 0)
 
         group2 = QButtonGroup()
 
@@ -99,36 +99,36 @@ class InstallWizard(QDialog):
         bb1.setText(_("Standard wallet"))
         bb1.setChecked(True)
 
-        bb2 = QRadioButton(gb2)
-        bb2.setText(_("Wallet with two-factor authentication (plugin)"))
+        #bb2 = QRadioButton(gb2)
+        #bb2.setText(_("Wallet with two-factor authentication (plugin)"))
 
-        bb3 = QRadioButton(gb2)
-        bb3.setText(_("Multisig wallet (2 of 2)"))
-        bb3.setHidden(True)
+        #bb3 = QRadioButton(gb2)
+        #bb3.setText(_("Multisig wallet (2 of 2)"))
+        #bb3.setHidden(True)
 
-        bb4 = QRadioButton(gb2)
-        bb4.setText(_("Multisig wallet (2 of 3)"))
-        bb4.setHidden(True)
+        #bb4 = QRadioButton(gb2)
+        #bb4.setText(_("Multisig wallet (2 of 3)"))
+        #bb4.setHidden(True)
 
         grid2.addWidget(bb1, 4, 0)
-        grid2.addWidget(bb2, 5, 0)
-        grid2.addWidget(bb3, 6, 0)
-        grid2.addWidget(bb4, 7, 0)
+        #grid2.addWidget(bb2, 5, 0)
+        #grid2.addWidget(bb3, 6, 0)
+        #grid2.addWidget(bb4, 7, 0)
 
-        def toggle():
-            x = not bb3.isHidden()
-            label2.setText(_("Wallet type:") + (' [+]' if x else ' [-]'))
-            bb3.setHidden(x)
-            bb4.setHidden(x)
+        #def toggle():
+        #    x = not bb3.isHidden()
+        #    label2.setText(_("Wallet type:") + (' [+]' if x else ' [-]'))
+        #    bb3.setHidden(x)
+        #    bb4.setHidden(x)
  
-        self.connect(label2, SIGNAL('clicked()'), toggle)
+        #self.connect(label2, SIGNAL('clicked()'), toggle)
 
         grid2.addWidget(label2)
 
         group2.addButton(bb1)
-        group2.addButton(bb2)
-        group2.addButton(bb3)
-        group2.addButton(bb4)
+        #group2.addButton(bb2)
+        #group2.addButton(bb3)
+        #group2.addButton(bb4)
  
         vbox.addLayout(grid2)
         vbox.addStretch(1)
@@ -142,12 +142,12 @@ class InstallWizard(QDialog):
 
         if bb1.isChecked():
             t = 'standard'
-        elif bb2.isChecked():
-            t = '2fa'
-        elif bb3.isChecked():
-            t = '2of2'
-        elif bb4.isChecked():
-            t = '2of3'
+        #elif bb2.isChecked():
+        #    t = '2fa'
+        #elif bb3.isChecked():
+        #    t = '2of2'
+        #elif bb4.isChecked():
+        #    t = '2of3'
 
         return action, t
 
