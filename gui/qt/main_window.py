@@ -1187,6 +1187,7 @@ class ElectrumWindow(QMainWindow):
         l = self.receive_list
         # extend the syntax for consistency
         l.addChild = l.addTopLevelItem
+        l.insertChild = l.insertTopLevelItem
 
         l.clear()
         for i,width in enumerate(self.column_widths['receive']):
@@ -1229,23 +1230,21 @@ class ElectrumWindow(QMainWindow):
                 gap = 0
 
                 for address in account.get_addresses(is_change):
-                    h = self.wallet.history.get(address,[])
 
-                    if h == []:
+                    num, is_used = self.wallet.is_used(address)
+                    if num == 0:
                         gap += 1
                         if gap > self.wallet.gap_limit:
                             is_red = True
                     else:
                         gap = 0
 
-                    c, u = self.wallet.get_addr_balance(address)
-                    num_tx = '*' if h == ['*'] else "%d"%len(h)
-
-                    item = QTreeWidgetItem( [ address, '', '', num_tx] )
+                    item = QTreeWidgetItem( [ address, '', '', "%d"%num] )
                     self.update_receive_item(item)
                     if is_red:
                         item.setBackgroundColor(1, QColor('red'))
-                    if len(h) > 0 and c == -u:
+
+                    if is_used:
                         if not used_flag:
                             seq_item.insertChild(0,used_item)
                             used_flag = True

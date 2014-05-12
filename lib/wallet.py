@@ -1073,6 +1073,10 @@ class Abstract_Wallet:
     def can_import(self):
         return not self.is_watching_only()
 
+    def is_used(self, address):
+        h = self.history.get(address,[])
+        c, u = self.get_addr_balance(address)
+        return len(h), len(h) > 0 and c == -u
     
 
 class Imported_Wallet(Abstract_Wallet):
@@ -1098,6 +1102,9 @@ class Imported_Wallet(Abstract_Wallet):
     def check_password(self, password):
         self.accounts[IMPORTED_ACCOUNT].get_private_key((0,0), self, password)
 
+    def is_used(self, address):
+        h = self.history.get(address,[])
+        return len(h), False
 
 
 class Deterministic_Wallet(Abstract_Wallet):
