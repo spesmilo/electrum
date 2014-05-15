@@ -154,8 +154,6 @@ class ElectrumWindow(QMainWindow):
         self.connect(self, QtCore.SIGNAL('update_status'), self.update_status)
         self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.network.banner) )
         self.connect(self, QtCore.SIGNAL('transaction_signal'), lambda: self.notify_transactions() )
-        self.connect(self, QtCore.SIGNAL('send_tx2'), self.send_tx2)
-        self.connect(self, QtCore.SIGNAL('send_tx3'), self.send_tx3)
         self.connect(self, QtCore.SIGNAL('payment_request_ok'), self.payment_request_ok)
         self.connect(self, QtCore.SIGNAL('payment_request_error'), self.payment_request_error)
 
@@ -634,10 +632,10 @@ class ElectrumWindow(QMainWindow):
 
 
         self.payto_e = QLineEdit()
+        self.payto_help = HelpButton(_('Recipient of the funds.') + '\n\n' + _('You may enter a Litecoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Litecoin address)'))
         grid.addWidget(QLabel(_('Pay to')), 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, 3)
-
-        grid.addWidget(HelpButton(_('Recipient of the funds.') + '\n\n' + _('You may enter a Litecoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Litecoin address)')), 1, 4)
+        grid.addWidget(self.payto_help, 1, 4)
 
         completer = QCompleter()
         completer.setCaseSensitivity(False)
@@ -645,9 +643,10 @@ class ElectrumWindow(QMainWindow):
         completer.setModel(self.completions)
 
         self.message_e = QLineEdit()
+        self.message_help = HelpButton(_('Description of the transaction (not mandatory).') + '\n\n' + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.'))
         grid.addWidget(QLabel(_('Description')), 2, 0)
         grid.addWidget(self.message_e, 2, 1, 1, 3)
-        grid.addWidget(HelpButton(_('Description of the transaction (not mandatory).') + '\n\n' + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.')), 2, 4)
+        grid.addWidget(self.message_help, 2, 4)
 
         self.from_label = QLabel(_('From'))
         grid.addWidget(self.from_label, 3, 0)
@@ -661,12 +660,12 @@ class ElectrumWindow(QMainWindow):
         self.set_pay_from([])
 
         self.amount_e = AmountEdit(self.base_unit)
+        self.amount_help = HelpButton(_('Amount to be sent.') + '\n\n' \
+                                      + _('The amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') \
+                                      + '\n\n' + _('Keyboard shortcut: type "!" to send all your coins.'))
         grid.addWidget(QLabel(_('Amount')), 4, 0)
         grid.addWidget(self.amount_e, 4, 1, 1, 2)
-        grid.addWidget(HelpButton(
-                _('Amount to be sent.') + '\n\n' \
-                    + _('The amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') \
-                    + '\n\n' + _('Keyboard shortcut: type "!" to send all your coins.')), 4, 3)
+        grid.addWidget(self.amount_help, 4, 3)
 
         self.fee_e = AmountEdit(self.base_unit)
         grid.addWidget(QLabel(_('Fee')), 5, 0)
@@ -814,15 +813,6 @@ class ElectrumWindow(QMainWindow):
         self.send_tx(outputs, fee, label)
 
 
-    def waiting_dialog(self, message):
-        d = QDialog(self)
-        d.setWindowTitle('Please wait')
-        l = QLabel(message)
-        vbox = QVBoxLayout(d)
-        vbox.addWidget(l)
-        d.show()
-        return d
-
 
     @protected
     def send_tx(self, outputs, fee, label, password):
@@ -846,74 +836,70 @@ class ElectrumWindow(QMainWindow):
             keypairs = {}
             self.wallet.add_keypairs_from_wallet(tx, keypairs, password)
             self.wallet.sign_transaction(tx, keypairs, password)
-            self.signed_tx_data = (tx, fee, label)
-            self.emit(SIGNAL('send_tx2'))
-        self.tx_wait_dialog = self.waiting_dialog('Signing..')
-        threading.Thread(target=sign_thread).start()
+            return tx, fee, label
+
+        def sign_done(tx, fee, label):
+            if tx.error:
+                self.show_message(tx.error)
+                return
+            if fee < tx.required_fee(self.wallet.verifier):
+                QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
+                return
+            if label:
+                self.wallet.set_label(tx.hash(), label)
+
+            if not self.gui_object.payment_request:
+                if not tx.is_complete() or self.config.get('show_before_broadcast'):
+                    self.show_transaction(tx)
+                    return
+
+            self.broadcast_transaction(tx)
+
+        WaitingDialog(self, 'Signing..').start(sign_thread, sign_done)
 
 
 
-    def send_tx2(self):
-        tx, fee, label = self.signed_tx_data
-        self.tx_wait_dialog.accept()
-        
-        if tx.error:
-            self.show_message(tx.error)
-            return
-
-        if fee < tx.required_fee(self.wallet.verifier):
-            QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
-            return
-
-        if label:
-            self.wallet.set_label(tx.hash(), label)
-
-        if not tx.is_complete() or self.config.get('show_before_broadcast'):
-            self.show_transaction(tx)
-            return
+    def broadcast_transaction(self, tx):
 
         def broadcast_thread():
             if self.gui_object.payment_request:
-                print "sending ack"
                 refund_address = self.wallet.addresses()[0]
-                self.gui_object.payment_request.send_ack(str(tx), refund_address)
+                status, msg = self.gui_object.payment_request.send_ack(str(tx), refund_address)
                 self.gui_object.payment_request = None
-            # note: BIP 70 recommends not broadcasting the tx to the network and letting the merchant do that
-            self.tx_broadcast_result =  self.wallet.sendtx(tx)
-            self.emit(SIGNAL('send_tx3'))
+            else:
+                status, msg =  self.wallet.sendtx(tx)
+            return status, msg
 
-        self.tx_broadcast_dialog = self.waiting_dialog('Broadcasting..')
-        threading.Thread(target=broadcast_thread).start()
+        def broadcast_done(status, msg):
+            if status:
+                QMessageBox.information(self, '', _('Payment sent.') + '\n' + msg, _('OK'))
+                self.do_clear()
+            else:
+                QMessageBox.warning(self, _('Error'), msg, _('OK'))
 
-
-
-    def send_tx3(self):
-        self.tx_broadcast_dialog.accept()
-        status, msg = self.tx_broadcast_result
-        if status:
-            QMessageBox.information(self, '', _('Payment sent.') + '\n' + msg, _('OK'))
-            self.do_clear()
-        else:
-            QMessageBox.warning(self, _('Error'), msg, _('OK'))
+        WaitingDialog(self, 'Broadcasting..').start(broadcast_thread, broadcast_done)
 
 
 
     def prepare_for_payment_request(self):
         style = "QWidget { background-color:none;border:none;}"
         self.tabs.setCurrentIndex(1)
-        self.payto_e.setReadOnly(True)
-        self.payto_e.setStyleSheet(style)
-        self.amount_e.setReadOnly(True)
+        for e in [self.payto_e, self.amount_e, self.message_e]:
+            e.setReadOnly(True)
+            e.setStyleSheet(style)
+        for h in [self.payto_help, self.amount_help, self.message_help]:
+            h.hide()
         self.payto_e.setText(_("please wait..."))
-        self.amount_e.setStyleSheet(style)
         return True
 
     def payment_request_ok(self):
         self.payto_e.setText(self.gui_object.payment_request.domain)
         self.amount_e.setText(self.format_amount(self.gui_object.payment_request.get_amount()))
+        self.message_e.setText(self.gui_object.payment_request.memo)
 
     def payment_request_error(self):
-        self.payto_e.setText(self.gui_object.payment_request.error)
+        self.do_clear()
+        self.show_message(self.gui_object.payment_request.error)
 
 
     def set_send(self, address, amount, label, message):
@@ -940,6 +926,8 @@ class ElectrumWindow(QMainWindow):
             e.setText('')
             self.set_frozen(e,False)
             e.setStyleSheet("")
+        for h in [self.payto_help, self.amount_help, self.message_help]:
+            h.show()
 
         self.set_pay_from([])
         self.update_status()
@@ -1199,6 +1187,7 @@ class ElectrumWindow(QMainWindow):
         l = self.receive_list
         # extend the syntax for consistency
         l.addChild = l.addTopLevelItem
+        l.insertChild = l.insertTopLevelItem
 
         l.clear()
         for i,width in enumerate(self.column_widths['receive']):
@@ -1241,23 +1230,21 @@ class ElectrumWindow(QMainWindow):
                 gap = 0
 
                 for address in account.get_addresses(is_change):
-                    h = self.wallet.history.get(address,[])
 
-                    if h == []:
+                    num, is_used = self.wallet.is_used(address)
+                    if num == 0:
                         gap += 1
                         if gap > self.wallet.gap_limit:
                             is_red = True
                     else:
                         gap = 0
 
-                    c, u = self.wallet.get_addr_balance(address)
-                    num_tx = '*' if h == ['*'] else "%d"%len(h)
-
-                    item = QTreeWidgetItem( [ address, '', '', num_tx] )
+                    item = QTreeWidgetItem( [ address, '', '', "%d"%num] )
                     self.update_receive_item(item)
                     if is_red:
                         item.setBackgroundColor(1, QColor('red'))
-                    if len(h) > 0 and c == -u:
+
+                    if is_used:
                         if not used_flag:
                             seq_item.insertChild(0,used_item)
                             used_flag = True

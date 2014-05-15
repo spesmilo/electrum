@@ -192,66 +192,53 @@ class InstallWizard(QDialog):
         return self.get_seed_text(seed_e)
 
 
-    def cold_mpk_dialog(self, xpub_hot):
-        vbox = QVBoxLayout()
-        vbox1, seed_e1 = seed_dialog.enter_seed_box(MSG_SHOW_MPK, 'hot')
-        seed_e1.setText(xpub_hot)
-        seed_e1.setReadOnly(True)
-        vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_COLD_MPK, 'cold')
-        vbox.addLayout(vbox1)
-        vbox.addLayout(vbox2)
-        vbox.addStretch(1)
-        hbox, button = ok_cancel_buttons2(self, _('Next'))
-        vbox.addLayout(hbox)
-        button.setEnabled(False)
-        f = lambda: button.setEnabled(self.is_mpk(seed_e2))
-        seed_e2.textChanged.connect(f)
-        self.set_layout(vbox)
-        if not self.exec_():
-            return 
-        return self.get_seed_text(seed_e2)
-
-
-    def cold_mpk2_dialog(self, xpub_hot):
+    def multi_mpk_dialog(self, xpub_hot, n):
         vbox = QVBoxLayout()
         vbox0, seed_e0 = seed_dialog.enter_seed_box(MSG_SHOW_MPK, 'hot')
+        vbox.addLayout(vbox0)
         seed_e0.setText(xpub_hot)
         seed_e0.setReadOnly(True)
-        vbox1, seed_e1 = seed_dialog.enter_seed_box(MSG_ENTER_COLD_MPK, 'cold')
-        vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_COLD_MPK, 'cold')
-        vbox.addLayout(vbox0)
-        vbox.addLayout(vbox1)
-        vbox.addLayout(vbox2)
+        entries = []
+        for i in range(n):
+            vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_COLD_MPK, 'cold')
+            vbox.addLayout(vbox2)
+            entries.append(seed_e2)
         vbox.addStretch(1)
         hbox, button = ok_cancel_buttons2(self, _('Next'))
         vbox.addLayout(hbox)
         button.setEnabled(False)
-        f = lambda: button.setEnabled(self.is_mpk(seed_e1) and self.is_mpk(seed_e2))
-        seed_e1.textChanged.connect(f)
-        seed_e2.textChanged.connect(f)
+        f = lambda: button.setEnabled( map(lambda e: self.is_mpk(e), entries) == [True]*len(entries))
+        for e in entries:
+            e.textChanged.connect(f)
         self.set_layout(vbox)
         if not self.exec_():
-            return 
-        return self.get_seed_text(seed_e1), self.get_seed_text(seed_e2)
+            return
+        return map(lambda e: self.get_seed_text(e), entries)
 
 
-    def double_seed_dialog(self):
+    def multi_seed_dialog(self, n):
         vbox = QVBoxLayout()
         vbox1, seed_e1 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, 'hot')
-        vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, 'cold')
         vbox.addLayout(vbox1)
-        vbox.addLayout(vbox2)
+        entries = [seed_e1]
+        for i in range(n):
+            vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, 'cold')
+            vbox.addLayout(vbox2)
+            entries.append(seed_e2)
         vbox.addStretch(1)
         hbox, button = ok_cancel_buttons2(self, _('Next'))
         vbox.addLayout(hbox)
         button.setEnabled(False)
-        f = lambda: button.setEnabled(self.is_any(seed_e1) and self.is_any(seed_e2))
-        seed_e1.textChanged.connect(f)
-        seed_e2.textChanged.connect(f)
+
+        f = lambda: button.setEnabled( map(lambda e: self.is_any(e), entries) == [True]*len(entries))
+        for e in entries:
+            e.textChanged.connect(f)
+
         self.set_layout(vbox)
         if not self.exec_():
             return 
-        return self.get_seed_text(seed_e1), self.get_seed_text(seed_e2)
+        return map(lambda e: self.get_seed_text(e), entries)
+
 
 
 
@@ -418,7 +405,7 @@ class InstallWizard(QDialog):
                 action = 'create_2of3_1'
 
 
-        if action == 'create_2fa_2':
+        if action in ['create_2fa_2', 'create_2of3_2']:
             wallet = Wallet_2of3(self.storage)
 
         if action in ['create', 'create_2of2_1', 'create_2fa_2', 'create_2of3_1']:
@@ -442,7 +429,9 @@ class InstallWizard(QDialog):
 
         if action == 'create_2of2_2':
             xpub_hot = wallet.master_public_keys.get("m/")
-            xpub = self.cold_mpk_dialog(xpub_hot)
+            xpub = self.multi_mpk_dialog(xpub_hot, 1)
+            if not xpub:
+                return
             wallet.add_master_public_key("cold/", xpub)
             wallet.create_account()
             self.waiting_dialog(wallet.synchronize)
@@ -450,7 +439,10 @@ class InstallWizard(QDialog):
 
         if action == 'create_2of3_2':
             xpub_hot = wallet.master_public_keys.get("m/")
-            xpub1, xpub2 = self.cold_mpk2_dialog(xpub_hot)
+            r = self.multi_mpk_dialog(xpub_hot, 2)
+            if not r:
+                return
+            xpub1, xpub2 = r
             wallet.add_master_public_key("cold/", xpub1)
             wallet.add_master_public_key("remote/", xpub2)
             wallet.create_account()
@@ -485,8 +477,8 @@ class InstallWizard(QDialog):
                 else:
                     raise
 
-            elif t in ['2fa', '2of2','2of3']:
-                r = self.double_seed_dialog()
+            elif t in ['2fa', '2of2']:
+                r = self.multi_seed_dialog(1)
                 if not r: 
                     return
                 text1, text2 = r
@@ -513,8 +505,33 @@ class InstallWizard(QDialog):
                         wallet.add_master_public_key("m/", text1)
                         wallet.add_master_public_key("cold/", text2)
 
-                if t == '2of3':
+                if t == '2fa':
                     run_hook('restore_third_key', wallet, self)
+
+                wallet.create_account()
+
+            elif t in ['2of3']:
+                r = self.multi_seed_dialog(2)
+                if not r: 
+                    return
+                text1, text2, text3 = r
+                password = self.password_dialog()
+                wallet = Wallet_2of3(self.storage)
+
+                if Wallet.is_seed(text1):
+                    wallet.add_seed(text1, password)
+                    if Wallet.is_seed(text2):
+                        wallet.add_cold_seed(text2, password)
+                    else:
+                        wallet.add_master_public_key("cold/", text2)
+
+                elif Wallet.is_mpk(text1):
+                    if Wallet.is_seed(text2):
+                        wallet.add_seed(text2, password)
+                        wallet.add_master_public_key("cold/", text1)
+                    else:
+                        wallet.add_master_public_key("m/", text1)
+                        wallet.add_master_public_key("cold/", text2)
 
                 wallet.create_account()
 

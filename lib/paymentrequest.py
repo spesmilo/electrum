@@ -181,6 +181,8 @@ class PaymentRequest:
             addr = transaction.get_address_from_output_script(o.script)[1]
             self.outputs.append( (addr, o.amount) )
 
+        self.memo = pay_det.memo
+
         if CA_match:
             print 'Signed By Trusted CA: ', CA_OU
 
@@ -193,7 +195,7 @@ class PaymentRequest:
 
         pay_det = self.payment_details
         if not pay_det.payment_url:
-            return
+            return False, "no url"
 
         paymnt = paymentrequest_pb2.Payment()
         paymnt.merchant_data = pay_det.merchant_data
@@ -212,18 +214,20 @@ class PaymentRequest:
             try:
                 r = requests.post(payurl.geturl(), data=pm, headers=ACK_HEADERS, verify=False)
             except Exception as e:
-                print "Payment Message/PaymentACK Failed"
                 print e
-                return
+                return False, "Payment Message/PaymentACK Failed"
+
+        if r.status_code >= 500:
+            return False, r.reason
+
         try:
             paymntack = paymentrequest_pb2.PaymentACK()
             paymntack.ParseFromString(r.content)
         except Exception:
-            print "PaymentACK could not be processed. Payment was sent; please manually verify that payment was received."
-            return
+            return False, "PaymentACK could not be processed. Payment was sent; please manually verify that payment was received."
 
         print "PaymentACK message received: %s" % paymntack.memo
-        return paymntack.memo
+        return True, paymntack.memo
 
 
 
