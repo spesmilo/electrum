@@ -197,14 +197,14 @@ class OldAccount(Account):
         return None
 
     def get_master_pubkeys(self):
-        return [self.mpk]
+        return [self.mpk.encode('hex')]
 
     def get_type(self):
         return _('Old Electrum format')
 
     def get_keyID(self, sequence):
         a, b = sequence
-        return 'old(%s,%d,%d)'%(self.mpk,a,b)
+        return 'old(%s,%d,%d)'%(self.mpk.encode('hex'),a,b)
 
 
 
