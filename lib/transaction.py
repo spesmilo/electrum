@@ -378,7 +378,7 @@ def get_address_from_output_script(bytes):
 
 class Transaction:
     
-    def __init__(self, raw, is_complete = True):
+    def __init__(self, raw):
         self.raw = raw
         self.deserialize()
         self.inputs = self.d['inputs']

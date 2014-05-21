@@ -106,7 +106,7 @@ class TxDialog(QDialog):
 
 
     def save(self):
-        name = 'signed_%s.txn' % (self.tx.hash()[0:8]) if self.tx.is_complete else 'unsigned.txn'
+        name = 'signed_%s.txn' % (self.tx.hash()[0:8]) if self.tx.is_complete() else 'unsigned.txn'
         fileName = self.parent.getSaveFileName(_("Select where to save your signed transaction"), name, "*.txn")
         if fileName:
             with open(fileName, "w+") as f:
@@ -119,7 +119,7 @@ class TxDialog(QDialog):
 
         is_relevant, is_mine, v, fee = self.wallet.get_tx_value(self.tx)
 
-        if self.tx.is_complete:
+        if self.tx.is_complete():
             status = _("Status: Signed")
             self.sign_button.hide()
             tx_hash = self.tx.hash()
