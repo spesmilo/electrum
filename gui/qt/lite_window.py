@@ -720,7 +720,7 @@ class MiniActuator:
             QMessageBox.warning(parent_window, _('Error'), str(error), _('OK'))
             return False
 
-        if tx.is_complete:
+        if tx.is_complete():
             h = self.g.wallet.send_tx(tx)
 
             self.waiting_dialog(lambda: False if self.g.wallet.tx_event.isSet() else _("Sending transaction, please wait..."))
