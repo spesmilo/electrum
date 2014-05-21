@@ -1082,6 +1082,7 @@ class Imported_Wallet(Abstract_Wallet):
         a = self.accounts.get(IMPORTED_ACCOUNT)
         if not a:
             self.accounts[IMPORTED_ACCOUNT] = ImportedAccount({'imported':{}})
+        self.storage.put('wallet_type', 'imported', True)
 
 
     def is_watching_only(self):
@@ -1629,8 +1630,7 @@ class Wallet(object):
         if storage.get('wallet_type') == '2of3':
             return Wallet_2of3(storage)
 
-        if storage.file_exists and not storage.get('seed'):
-            # wallet made of imported keys
+        if storage.get('wallet_type') == 'imported':
             return Imported_Wallet(storage)
 
 
