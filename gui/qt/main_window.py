@@ -1778,14 +1778,13 @@ class ElectrumWindow(QMainWindow):
         try:
             tx_dict = json.loads(str(txt))
             assert "hex" in tx_dict.keys()
-            assert "complete" in tx_dict.keys()
-            tx = Transaction(tx_dict["hex"], tx_dict["complete"])
-            if not tx_dict["complete"]:
-                assert "input_info" in tx_dict.keys()
+            tx = Transaction(tx_dict["hex"])
+            if tx_dict.has_key("input_info"):
                 input_info = json.loads(tx_dict['input_info'])
                 tx.add_input_info(input_info)
             return tx
         except Exception:
+            traceback.print_exc(file=sys.stdout)
             pass
 
         QMessageBox.critical(None, _("Unable to parse transaction"), _("Electrum was unable to parse your transaction"))
