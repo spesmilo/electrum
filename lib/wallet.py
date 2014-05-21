@@ -1590,7 +1590,6 @@ class OldWallet(Deterministic_Wallet):
 
     def add_keypairs_from_KeyID(self, tx, keypairs, password):
         # first check the provided password
-        seed = self.get_seed(password)
         for txin in tx.inputs:
             keyid = txin.get('KeyID')
             if keyid:
@@ -1603,9 +1602,10 @@ class OldWallet(Deterministic_Wallet):
                 account = self.accounts[0]
                 addr = account.get_address(for_change, num)
                 txin['address'] = addr # fixme: side effect
-                pk = account.get_private_key(seed, (for_change, num))
-                pubkey = public_key_from_private_key(pk)
-                keypairs[pubkey] = pk
+                pk = account.get_private_key((for_change, num), self, password)
+                for sec in pk:
+                    pubkey = public_key_from_private_key(sec)
+                    keypairs[pubkey] = sec
 
 
 
