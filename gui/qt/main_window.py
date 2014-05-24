@@ -29,7 +29,6 @@ import PyQt4
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
-print PyQt4.QtCore.PYQT_VERSION_STR
 
 from electrum.bitcoin import MIN_RELAY_TX_FEE, is_valid
 from electrum.plugins import run_hook
@@ -856,7 +855,7 @@ class ElectrumWindow(QMainWindow):
 
             self.broadcast_transaction(tx)
 
-        WaitingDialog(self, 'Signing..').start(sign_thread, sign_done)
+        WaitingDialog(self, 'Signing..', sign_thread, sign_done).start()
 
 
 
@@ -878,7 +877,7 @@ class ElectrumWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, _('Error'), msg, _('OK'))
 
-        WaitingDialog(self, 'Broadcasting..').start(broadcast_thread, broadcast_done)
+        WaitingDialog(self, 'Broadcasting..',broadcast_thread, broadcast_done).start()
 
 
 

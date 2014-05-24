@@ -6,26 +6,24 @@ import time
 
 import threading
 
-class WaitingDialog(QDialog):
-    def __init__(self, parent, message):
-        QDialog.__init__(self, parent)
-        self.setWindowTitle('Please wait')
+class WaitingDialog(QThread):
+    def __init__(self, parent, message, run_task, on_complete=None):
+        QThread.__init__(self)
+        self.d = QDialog(parent)
+        self.d.setWindowTitle('Please wait')
         l = QLabel(message)
-        vbox = QVBoxLayout(self)
+        vbox = QVBoxLayout(self.d)
         vbox.addWidget(l)
-        self.show()
-
-    def start(self, run_thread, on_complete=None):
-        def my_thread():
-            self.result = run_thread()
-            self.emit(SIGNAL('done'))
-            self.accept()
-
+        self.run_task = run_task
         if on_complete:
-            self.connect(self, SIGNAL('done'), lambda: on_complete(*self.result))
-        
-        threading.Thread(target=my_thread).start()
+            self.d.connect(self.d, SIGNAL('done'), lambda: on_complete(*self.result))
+        self.d.show()
 
+    def run(self):
+        self.result = self.run_task()
+        self.d.emit(SIGNAL('done'))
+        self.d.accept()
+        
 
 
 class Timer(QThread):
@@ -186,5 +184,5 @@ class MyTreeWidget(QTreeWidget):
 
 if __name__ == "__main__":
     app = QApplication([])
-    WaitingDialog(None, 'testing ...').start(lambda: [time.sleep(1)], lambda x: QMessageBox.information(None, 'done', "done", _('OK')))
+    WaitingDialog(None, 'testing ...', lambda: [time.sleep(1)], lambda x: QMessageBox.information(None, 'done', "done", _('OK'))).start()
     app.exec_()
