@@ -29,6 +29,7 @@ import PyQt4
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
+print PyQt4.QtCore.PYQT_VERSION_STR
 
 from electrum.bitcoin import MIN_RELAY_TX_FEE, is_valid
 from electrum.plugins import run_hook

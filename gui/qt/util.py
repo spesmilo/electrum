@@ -181,3 +181,10 @@ class MyTreeWidget(QTreeWidget):
                 break
         self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), QPoint(50, i*5 + j - 1))
 
+
+
+
+if __name__ == "__main__":
+    app = QApplication([])
+    WaitingDialog(None, 'testing ...').start(lambda: [time.sleep(1)], lambda x: QMessageBox.information(None, 'done', "done", _('OK')))
+    app.exec_()
