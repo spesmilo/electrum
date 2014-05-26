@@ -855,7 +855,8 @@ class ElectrumWindow(QMainWindow):
 
             self.broadcast_transaction(tx)
 
-        WaitingDialog(self, 'Signing..').start(sign_thread, sign_done)
+        self.waiting_dialog = WaitingDialog(self, 'Signing..', sign_thread, sign_done)
+        self.waiting_dialog.start()
 
 
 
@@ -877,7 +878,8 @@ class ElectrumWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, _('Error'), msg, _('OK'))
 
-        WaitingDialog(self, 'Broadcasting..').start(broadcast_thread, broadcast_done)
+        self.waiting_dialog = WaitingDialog(self, 'Broadcasting..', broadcast_thread, broadcast_done)
+        self.waiting_dialog.start()
 
 
 
@@ -1765,14 +1767,13 @@ class ElectrumWindow(QMainWindow):
         try:
             tx_dict = json.loads(str(txt))
             assert "hex" in tx_dict.keys()
-            assert "complete" in tx_dict.keys()
-            tx = Transaction(tx_dict["hex"], tx_dict["complete"])
-            if not tx_dict["complete"]:
-                assert "input_info" in tx_dict.keys()
+            tx = Transaction(tx_dict["hex"])
+            if tx_dict.has_key("input_info"):
                 input_info = json.loads(tx_dict['input_info'])
                 tx.add_input_info(input_info)
             return tx
         except Exception:
+            traceback.print_exc(file=sys.stdout)
             pass
 
         QMessageBox.critical(None, _("Unable to parse transaction"), _("Electrum was unable to parse your transaction"))

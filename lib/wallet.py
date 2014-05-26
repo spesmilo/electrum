@@ -1086,6 +1086,7 @@ class Imported_Wallet(Abstract_Wallet):
         a = self.accounts.get(IMPORTED_ACCOUNT)
         if not a:
             self.accounts[IMPORTED_ACCOUNT] = ImportedAccount({'imported':{}})
+        self.storage.put('wallet_type', 'imported', True)
 
 
     def is_watching_only(self):
@@ -1594,7 +1595,6 @@ class OldWallet(Deterministic_Wallet):
 
     def add_keypairs_from_KeyID(self, tx, keypairs, password):
         # first check the provided password
-        seed = self.get_seed(password)
         for txin in tx.inputs:
             keyid = txin.get('KeyID')
             if keyid:
@@ -1607,9 +1607,10 @@ class OldWallet(Deterministic_Wallet):
                 account = self.accounts[0]
                 addr = account.get_address(for_change, num)
                 txin['address'] = addr # fixme: side effect
-                pk = account.get_private_key(seed, (for_change, num))
-                pubkey = public_key_from_private_key(pk)
-                keypairs[pubkey] = pk
+                pk = account.get_private_key((for_change, num), self, password)
+                for sec in pk:
+                    pubkey = public_key_from_private_key(sec)
+                    keypairs[pubkey] = sec
 
 
 
@@ -1634,8 +1635,7 @@ class Wallet(object):
         if storage.get('wallet_type') == '2of3':
             return Wallet_2of3(storage)
 
-        if storage.file_exists and not storage.get('seed'):
-            # wallet made of imported keys
+        if storage.get('wallet_type') == 'imported':
             return Imported_Wallet(storage)
 
 
