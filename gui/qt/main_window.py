@@ -878,7 +878,8 @@ class ElectrumWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, _('Error'), msg, _('OK'))
 
-        WaitingDialog(self, 'Broadcasting..',broadcast_thread, broadcast_done).start()
+        self.waiting_dialog = WaitingDialog(self, 'Broadcasting..', broadcast_thread, broadcast_done)
+        self.waiting_dialog.start()
 
 
 
