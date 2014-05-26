@@ -855,7 +855,8 @@ class ElectrumWindow(QMainWindow):
 
             self.broadcast_transaction(tx)
 
-        WaitingDialog(self, 'Signing..', sign_thread, sign_done).start()
+        self.waiting_dialog = WaitingDialog(self, 'Signing..', sign_thread, sign_done)
+        self.waiting_dialog.start()
 
 
 
