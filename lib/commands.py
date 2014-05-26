@@ -162,7 +162,9 @@ class Commands:
 
 
     def createrawtransaction(self, inputs, outputs):
-        inputs = map(lambda i: {'prevout_hash': i['txid'], 'prevout_n':i['vout']}, inputs )
+        for i in inputs:
+            i['prevout_hash'] = i['txid']
+            i['prevout_n'] = i['vout']
         outputs = map(lambda x: (x[0],int(1e8*x[1])), outputs.items())
         tx = Transaction.from_io(inputs, outputs)
         return tx

@@ -1,0 +1,75 @@
+#!/usr/bin/env python
+
+import time, sys, electrum, Queue
+from electrum import Interface, SimpleConfig
+from electrum.network import filter_protocol, parse_servers
+from collections import defaultdict
+
+try:
+    tx = sys.argv[1]
+except:
+    print "usage: txradar txid"
+    sys.exit(1)
+
+# 1. start interface and wait for connection
+interface = electrum.Interface('ecdsa.net:50002:s')
+interface.start(wait = True)
+if not interface.is_connected:
+    print "not connected"
+    exit()
+
+# 2. get list of peers
+q = Queue.Queue()
+interface.send([('server.peers.subscribe',[])], lambda i,x: q.put(x))
+r = q.get(timeout=10000)
+peers = parse_servers(r.get('result'))
+peers = filter_protocol(peers,'s')
+
+print "Contacting %d servers"%len(peers)
+# start interfaces
+config = SimpleConfig()
+interfaces = map ( lambda server: Interface(server, config), peers )
+results_queue = Queue.Queue()
+reached_servers = []
+for i in interfaces: i.start(q)
+
+t0 = time.time()
+while peers:
+    try:
+        i = q.get(timeout=1)
+    except:
+        if time.time() - t0 > 10:
+            print "timeout"
+            break
+        else:
+            continue
+    peers.remove(i.server)
+    if i.is_connected:
+        i.send([('blockchain.transaction.get',[tx])], lambda i,x: results_queue.put((i,x)))
+        reached_servers.append(i.server)
+    else:
+        print "Connection failed:", i.server
+
+print "%d servers could be reached"%len(reached_servers)
+
+
+r1 = []
+r2 = []
+
+while reached_servers:
+    i, r = results_queue.get(timeout=10000)
+    reached_servers.remove(i.server)
+
+    if r.get('result'):
+        r1.append(i.server)
+    else:
+        r2.append(i.server)
+
+
+if r2:
+    print "----------------"
+    print "servers that have not seen this transaction:\n", '\n'.join(r2)
+    print "----------------"
+    print "propagation rate: %.1f percent" % (len(r1) *100./(len(r1)+ len(r2)))
+else:
+    print "transaction propagated everywhere"
