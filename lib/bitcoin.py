@@ -496,13 +496,12 @@ class EC_KEY(object):
         key_e, key_m = key[:32], key[32:]
         
         iv_ciphertext = aes.encryptData(key_e, message)
-        iv, ciphertext = iv_ciphertext[:16], iv_ciphertext[16:]
 
-        mac = hmac.new(key_m, ciphertext, hashlib.sha256).digest()
         ephemeral_pubkey = ephemeral.get_public_key(compressed=True).decode('hex')
-        
-        encrypted = 'BIE1' + hash_160(pubkey) + ephemeral_pubkey + iv + ciphertext + mac
-        return base64.b64encode(encrypted)
+        encrypted = 'BIE1' + hash_160(pubkey) + ephemeral_pubkey + iv_ciphertext
+        mac = hmac.new(key_m, encrypted, hashlib.sha256).digest()
+
+        return base64.b64encode(encrypted + mac)
 
 
     def decrypt_message(self, encrypted):
@@ -515,8 +514,7 @@ class EC_KEY(object):
         magic = encrypted[:4]
         recipient_pubkeyhash = encrypted[4:24]
         ephemeral_pubkey = encrypted[24:57]
-        iv = encrypted[57:73]
-        ciphertext = encrypted[73:-32]
+        iv_ciphertext = encrypted[57:-32]
         mac = encrypted[-32:]
         
         if magic != 'BIE1':
@@ -537,10 +535,10 @@ class EC_KEY(object):
         ecdh_key = ('%064x' % ecdh_key).decode('hex')
         key = hashlib.sha512(ecdh_key).digest()
         key_e, key_m = key[:32], key[32:]
-        if mac != hmac.new(key_m, ciphertext, hashlib.sha256).digest():
+        if mac != hmac.new(key_m, encrypted[:-32], hashlib.sha256).digest():
             raise Exception('invalid ciphertext: invalid mac')
 
-        return aes.decryptData(key_e, iv + ciphertext)
+        return aes.decryptData(key_e, iv_ciphertext)
 
 
 
