@@ -400,7 +400,7 @@ def ser_to_point(Aser):
     _r  = generator.order()
     assert Aser[0] in ['\x02','\x03','\x04']
     if Aser[0] == '\x04':
-        return Point( curve, str_to_long(Aser[1:33]), str_to_long(Aser[33:]), _r )
+        return Point( curve, string_to_number(Aser[1:33]), string_to_number(Aser[33:]), _r )
     Mx = string_to_number(Aser[1:])
     return Point( curve, Mx, ECC_YfromX(Mx, curve, Aser[0]=='\x03')[0], _r )
 
@@ -498,7 +498,7 @@ class EC_KEY(object):
         iv_ciphertext = aes.encryptData(key_e, message)
 
         ephemeral_pubkey = ephemeral.get_public_key(compressed=True).decode('hex')
-        encrypted = 'BIE1' + hash_160(pubkey) + ephemeral_pubkey + iv_ciphertext
+        encrypted = 'BIE1' + ephemeral_pubkey + iv_ciphertext
         mac = hmac.new(key_m, encrypted, hashlib.sha256).digest()
 
         return base64.b64encode(encrypted + mac)
@@ -508,20 +508,16 @@ class EC_KEY(object):
         
         encrypted = base64.b64decode(encrypted)
         
-        if len(encrypted) < 105:
+        if len(encrypted) < 85:
             raise Exception('invalid ciphertext: length')
         
         magic = encrypted[:4]
-        recipient_pubkeyhash = encrypted[4:24]
-        ephemeral_pubkey = encrypted[24:57]
-        iv_ciphertext = encrypted[57:-32]
+        ephemeral_pubkey = encrypted[4:37]
+        iv_ciphertext = encrypted[37:-32]
         mac = encrypted[-32:]
         
         if magic != 'BIE1':
             raise Exception('invalid ciphertext: invalid magic bytes')
-        
-        if hash_160(self.get_public_key().decode('hex')) != recipient_pubkeyhash:
-            raise Exception('invalid ciphertext: invalid key')
         
         try:
             ephemeral_pubkey = ser_to_point(ephemeral_pubkey)
@@ -539,7 +535,6 @@ class EC_KEY(object):
             raise Exception('invalid ciphertext: invalid mac')
 
         return aes.decryptData(key_e, iv_ciphertext)
-
 
 
 ###################################### BIP32 ##############################
@@ -720,8 +715,7 @@ def test_bip32(seed, sequence):
 
         
 
-def test_crypto():
-
+def test_crypto(message):
     G = generator_secp256k1
     _r  = G.order()
     pvk = ecdsa.util.randrange( pow(2,256) ) %_r
@@ -733,14 +727,17 @@ def test_crypto():
     addr_u = public_key_to_bc_address(pubkey_u)
 
     print "Private key            ", '%064x'%pvk
-    print "Compressed public key  ", pubkey_c.encode('hex')
-    print "Uncompressed public key", pubkey_u.encode('hex')
-
-    message = "Chancellor on brink of second bailout for banks"
-    enc = EC_KEY.encrypt_message(message,pubkey_c)
     eck = EC_KEY(number_to_string(pvk,_r))
+
+    print "Compressed public key  ", pubkey_c.encode('hex')
+    enc = EC_KEY.encrypt_message(message, pubkey_c)
     dec = eck.decrypt_message(enc)
-    print "decrypted", dec
+    assert dec == message
+
+    print "Uncompressed public key", pubkey_u.encode('hex')
+    enc2 = EC_KEY.encrypt_message(message, pubkey_u)
+    dec2 = eck.decrypt_message(enc)
+    assert dec2 == message
 
     signature = eck.sign_message(message, True, addr_c)
     print signature
@@ -748,7 +745,10 @@ def test_crypto():
 
 
 if __name__ == '__main__':
-    test_crypto()
+
+    for message in ["Chancellor on brink of second bailout for banks", chr(255)*512]:
+        test_crypto(message)
+
     test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000")
     test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","m/0/2147483647'/1/2147483646'/2")
 
