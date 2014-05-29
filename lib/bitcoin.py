@@ -418,19 +418,9 @@ class EC_KEY(object):
 
     def sign_message(self, message, compressed, address):
         private_key = ecdsa.SigningKey.from_secret_exponent( self.secret, curve = SECP256k1 )
-        public_key = private_key.get_verifying_key()
-        signature = private_key.sign_digest_deterministic( Hash( msg_magic(message) ), hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_string )
-        assert public_key.verify_digest( signature, Hash( msg_magic(message) ), sigdecode = ecdsa.util.sigdecode_string)
-        for i in range(4):
-            sig = base64.b64encode( chr(27 + i + (4 if compressed else 0)) + signature )
-            try:
-                self.verify_message( address, sig, message)
-                return sig
-            except Exception:
-                continue
-        else:
-            raise Exception("error: cannot sign message")
-
+        pby, signature = private_key.sign_digest_deterministic( Hash( msg_magic(message) ), hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_string )
+        sig = base64.b64encode( chr(27 + pby + (4 if compressed else 0)) + signature )
+        return sig
 
     @classmethod
     def verify_message(self, address, signature, message):
@@ -454,14 +444,12 @@ class EC_KEY(object):
             compressed = False
 
         recid = nV - 27
-        # 1.1
-        x = r + (recid/2) * order
         # 1.3
-        alpha = ( x * x * x  + curve.a() * x + curve.b() ) % curve.p()
+        alpha = ( r * r * r  + 7 ) % curve.p()
         beta = msqr.modular_sqrt(alpha, curve.p())
         y = beta if (beta - recid) % 2 == 0 else curve.p() - beta
         # 1.4 the constructor checks that nR is at infinity
-        R = Point(curve, x, y, order)
+        R = Point(curve, r, y, order)
         # 1.5 compute e from message:
         h = Hash( msg_magic(message) )
         e = string_to_number(h)
