@@ -816,6 +816,7 @@ class ElectrumWindow(QMainWindow):
 
     @protected
     def send_tx(self, outputs, fee, label, password):
+        self.send_button.setDisabled(True)
 
         # first, create an unsigned tx 
         domain = self.get_payment_sources()
@@ -825,6 +826,7 @@ class ElectrumWindow(QMainWindow):
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
+            self.send_button.setDisabled(False)
             return
 
         # call hook to see if plugin needs gui interaction
@@ -841,9 +843,11 @@ class ElectrumWindow(QMainWindow):
         def sign_done(tx, fee, label):
             if tx.error:
                 self.show_message(tx.error)
+                self.send_button.setDisabled(False)
                 return
             if tx.requires_fee(self.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
                 QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
+                self.send_button.setDisabled(False)
                 return
             if label:
                 self.wallet.set_label(tx.hash(), label)
@@ -851,6 +855,8 @@ class ElectrumWindow(QMainWindow):
             if not self.gui_object.payment_request:
                 if not tx.is_complete() or self.config.get('show_before_broadcast'):
                     self.show_transaction(tx)
+                    self.do_clear()
+                    self.send_button.setDisabled(False)
                     return
 
             self.broadcast_transaction(tx)
@@ -877,6 +883,7 @@ class ElectrumWindow(QMainWindow):
                 self.do_clear()
             else:
                 QMessageBox.warning(self, _('Error'), msg, _('OK'))
+            self.send_button.setDisabled(False)
 
         self.waiting_dialog = WaitingDialog(self, 'Broadcasting..', broadcast_thread, broadcast_done)
         self.waiting_dialog.start()
