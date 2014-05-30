@@ -478,7 +478,7 @@ class Abstract_Wallet:
         secret = keys[0]
         ec = regenerate_key(secret)
         decrypted = ec.decrypt_message(message)
-        return decrypted[0]
+        return decrypted
 
 
 
