@@ -221,11 +221,21 @@ class Abstract_Wallet:
     def get_action(self):
         pass
 
+
+    def convert_imported_keys(self, password):
+        for k, v in self.imported_keys.items():
+            sec = pw_decode(v, password)
+            pubkey = public_key_from_private_key(sec)
+            address = public_key_to_bc_address(pubkey.decode('hex'))
+            assert address == k
+            self.import_key(sec, password)
+            self.imported_keys.pop(k)
+        self.storage.put('imported_keys', self.imported_keys)
+
+
     def load_accounts(self):
         self.accounts = {}
         self.imported_keys = self.storage.get('imported_keys',{})
-        if self.imported_keys:
-            print_error("cannot load imported keys")
 
         d = self.storage.get('accounts', {})
         for k, v in d.items():
@@ -270,6 +280,10 @@ class Abstract_Wallet:
             return addr in account.get_addresses(0)
         else:
             return False
+
+    def has_imported_keys(self):
+        account = self.accounts.get(IMPORTED_ACCOUNT)
+        return account is not None
 
     def import_key(self, sec, password):
         try:
