@@ -436,10 +436,11 @@ class InstallWizard(QDialog):
 
         if action == 'create_2of2_2':
             xpub_hot = wallet.master_public_keys.get("m/")
-            xpub = self.multi_mpk_dialog(xpub_hot, 1)
-            if not xpub:
+            r = self.multi_mpk_dialog(xpub_hot, 1)
+            if not r:
                 return
-            wallet.add_master_public_key("cold/", xpub)
+            xpub_cold = r[0]
+            wallet.add_master_public_key("cold/", xpub_cold)
             wallet.create_account()
             self.waiting_dialog(wallet.synchronize)
 
