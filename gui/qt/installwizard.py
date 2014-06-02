@@ -412,6 +412,9 @@ class InstallWizard(QDialog):
         if action in ['create_2fa_2', 'create_2of3_2']:
             wallet = Wallet_2of3(self.storage)
 
+        if action in ['create_2of2_2']:
+            wallet = Wallet_2of2(self.storage)
+
         if action in ['create', 'create_2of2_1', 'create_2fa_2', 'create_2of3_1']:
             seed = wallet.make_seed()
             sid = None if action == 'create' else 'hot'
