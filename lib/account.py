@@ -86,7 +86,7 @@ class ImportedAccount(Account):
         for_change, i = sequence
         assert for_change == 0
         addr = self.get_addresses(0)[i]
-        return self.keypairs[addr][i][0]
+        return self.keypairs[addr][0]
 
     def get_private_key(self, sequence, wallet, password):
         from wallet import pw_decode
