@@ -711,21 +711,21 @@ class Test_bitcoin(unittest.TestCase):
         addr_c = public_key_to_bc_address(pubkey_c)
         addr_u = public_key_to_bc_address(pubkey_u)
 
-        print "Private key            ", '%064x'%pvk
+        #print "Private key            ", '%064x'%pvk
         eck = EC_KEY(number_to_string(pvk,_r))
 
-        print "Compressed public key  ", pubkey_c.encode('hex')
+        #print "Compressed public key  ", pubkey_c.encode('hex')
         enc = EC_KEY.encrypt_message(message, pubkey_c)
         dec = eck.decrypt_message(enc)
         assert dec == message
 
-        print "Uncompressed public key", pubkey_u.encode('hex')
+        #print "Uncompressed public key", pubkey_u.encode('hex')
         enc2 = EC_KEY.encrypt_message(message, pubkey_u)
         dec2 = eck.decrypt_message(enc)
         assert dec2 == message
 
         signature = eck.sign_message(message, True, addr_c)
-        print signature
+        #print signature
         EC_KEY.verify_message(addr_c, signature, message)
 
 
@@ -758,6 +758,14 @@ class Test_bitcoin(unittest.TestCase):
         return xpub, xprv
 
 
+    def test_aes(self):
+        s = u'\u66f4\u7a33\u5b9a\u7684\u4ea4\u6613\u5e73\u53f0'
+        self.do_test_aes(s, s)
+
+    def do_test_aes(self, s, p):
+        enc = pw_encode(s, p)
+        dec = pw_decode(enc, p)
+        assert dec == s
 
 
 if __name__ == "__main__":
