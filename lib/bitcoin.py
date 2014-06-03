@@ -693,72 +693,72 @@ MIN_RELAY_TX_FEE = 1000
 
 
 
-def test_bip32(seed, sequence):
-    """
-    run a test vector,
-    see https://en.bitcoin.it/wiki/BIP_0032_TestVectors
-    """
+import unittest
+class Test_bitcoin(unittest.TestCase):
 
-    xprv, xpub = bip32_root(seed)
-    print xpub
-    print xprv
+    def test_crypto(self):
+        for message in ["Chancellor on brink of second bailout for banks", chr(255)*512]:
+            self.do_test_crypto(message)
 
-    assert sequence[0:2] == "m/"
-    path = 'm'
-    sequence = sequence[2:]
-    for n in sequence.split('/'):
-        child_path = path + '/' + n
-        if n[-1] != "'":
-            xpub2 = bip32_public_derivation(xpub, path, child_path)
-        xprv, xpub = bip32_private_derivation(xprv, path, child_path)
-        if n[-1] != "'":
-            assert xpub == xpub2
-        
+    def do_test_crypto(self, message):
+        G = generator_secp256k1
+        _r  = G.order()
+        pvk = ecdsa.util.randrange( pow(2,256) ) %_r
 
-        path = child_path
-        print path
-        print xpub
-        print xprv
+        Pub = pvk*G
+        pubkey_c = point_to_ser(Pub,True)
+        pubkey_u = point_to_ser(Pub,False)
+        addr_c = public_key_to_bc_address(pubkey_c)
+        addr_u = public_key_to_bc_address(pubkey_u)
 
-    print "----"
+        print "Private key            ", '%064x'%pvk
+        eck = EC_KEY(number_to_string(pvk,_r))
 
-        
+        print "Compressed public key  ", pubkey_c.encode('hex')
+        enc = EC_KEY.encrypt_message(message, pubkey_c)
+        dec = eck.decrypt_message(enc)
+        assert dec == message
 
-def test_crypto(message):
-    G = generator_secp256k1
-    _r  = G.order()
-    pvk = ecdsa.util.randrange( pow(2,256) ) %_r
+        print "Uncompressed public key", pubkey_u.encode('hex')
+        enc2 = EC_KEY.encrypt_message(message, pubkey_u)
+        dec2 = eck.decrypt_message(enc)
+        assert dec2 == message
 
-    Pub = pvk*G
-    pubkey_c = point_to_ser(Pub,True)
-    pubkey_u = point_to_ser(Pub,False)
-    addr_c = public_key_to_bc_address(pubkey_c)
-    addr_u = public_key_to_bc_address(pubkey_u)
-
-    print "Private key            ", '%064x'%pvk
-    eck = EC_KEY(number_to_string(pvk,_r))
-
-    print "Compressed public key  ", pubkey_c.encode('hex')
-    enc = EC_KEY.encrypt_message(message, pubkey_c)
-    dec = eck.decrypt_message(enc)
-    assert dec == message
-
-    print "Uncompressed public key", pubkey_u.encode('hex')
-    enc2 = EC_KEY.encrypt_message(message, pubkey_u)
-    dec2 = eck.decrypt_message(enc)
-    assert dec2 == message
-
-    signature = eck.sign_message(message, True, addr_c)
-    print signature
-    EC_KEY.verify_message(addr_c, signature, message)
+        signature = eck.sign_message(message, True, addr_c)
+        print signature
+        EC_KEY.verify_message(addr_c, signature, message)
 
 
-if __name__ == '__main__':
 
-    for message in ["Chancellor on brink of second bailout for banks", chr(255)*512]:
-        test_crypto(message)
+    def test_bip32(self):
+        # see https://en.bitcoin.it/wiki/BIP_0032_TestVectors
+        xpub, xprv = self.do_test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000")
+        assert xpub == "xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy"
+        assert xprv == "xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76"
 
-    test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000")
-    test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","m/0/2147483647'/1/2147483646'/2")
+        xpub, xprv = self.do_test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","m/0/2147483647'/1/2147483646'/2")
+        assert xpub == "xpub6FnCn6nSzZAw5Tw7cgR9bi15UV96gLZhjDstkXXxvCLsUXBGXPdSnLFbdpq8p9HmGsApME5hQTZ3emM2rnY5agb9rXpVGyy3bdW6EEgAtqt"
+        assert xprv == "xprvA2nrNbFZABcdryreWet9Ea4LvTJcGsqrMzxHx98MMrotbir7yrKCEXw7nadnHM8Dq38EGfSh6dqA9QWTyefMLEcBYJUuekgW4BYPJcr9E7j"
 
 
+    def do_test_bip32(self, seed, sequence):
+        xprv, xpub = bip32_root(seed)
+        assert sequence[0:2] == "m/"
+        path = 'm'
+        sequence = sequence[2:]
+        for n in sequence.split('/'):
+            child_path = path + '/' + n
+            if n[-1] != "'":
+                xpub2 = bip32_public_derivation(xpub, path, child_path)
+            xprv, xpub = bip32_private_derivation(xprv, path, child_path)
+            if n[-1] != "'":
+                assert xpub == xpub2
+            path = child_path
+
+        return xpub, xprv
+
+
+
+
+if __name__ == "__main__":
+    unittest.main()
