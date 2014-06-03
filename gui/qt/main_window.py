@@ -637,11 +637,11 @@ class ElectrumWindow(QMainWindow):
     def create_send_tab(self):
         w = QWidget()
 
-        grid = QGridLayout()
+        grid = QGridLayout(w)
         grid.setSpacing(8)
         grid.setColumnMinimumWidth(3,300)
         grid.setColumnStretch(5,1)
-
+        grid.setRowStretch(8, 1)
 
         self.payto_e = QLineEdit()
         self.payto_help = HelpButton(_('Recipient of the funds.') + '\n\n' + _('You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)'))
@@ -692,7 +692,7 @@ class ElectrumWindow(QMainWindow):
         self.send_button = EnterButton(_("Send"), self.do_send)
         grid.addWidget(self.send_button, 6, 1)
 
-        b = EnterButton(_("Clear"),self.do_clear)
+        b = EnterButton(_("Clear"), self.do_clear)
         grid.addWidget(b, 6, 2)
 
         self.payto_sig = QLabel('')
@@ -701,12 +701,6 @@ class ElectrumWindow(QMainWindow):
         QShortcut(QKeySequence("Up"), w, w.focusPreviousChild)
         QShortcut(QKeySequence("Down"), w, w.focusNextChild)
         w.setLayout(grid)
-
-        w2 = QWidget()
-        vbox = QVBoxLayout()
-        vbox.addWidget(w)
-        vbox.addStretch(1)
-        w2.setLayout(vbox)
 
         def entry_changed( is_fee ):
             self.funds_error = False
@@ -752,7 +746,7 @@ class ElectrumWindow(QMainWindow):
         self.fee_e.textChanged.connect(lambda: entry_changed(True) )
 
         run_hook('create_send_tab', grid)
-        return w2
+        return w
 
 
     def set_pay_from(self, l):
