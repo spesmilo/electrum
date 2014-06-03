@@ -643,7 +643,8 @@ class ElectrumWindow(QMainWindow):
         grid.setColumnStretch(5,1)
         grid.setRowStretch(8, 1)
 
-        self.payto_e = QLineEdit()
+        from paytoedit import PayToEdit
+        self.payto_e = PayToEdit()
         self.payto_help = HelpButton(_('Recipient of the funds.') + '\n\n' + _('You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)'))
         grid.addWidget(QLabel(_('Pay to')), 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, 3)
