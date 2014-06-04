@@ -187,10 +187,12 @@ class ElectrumWindow(QMainWindow):
 
     def load_wallet(self, wallet):
         import electrum_ltc as electrum
+
         self.wallet = wallet
+        self.update_wallet_format()
+
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
-
         title = 'Electrum-LTC ' + self.wallet.electrum_version + '  -  ' + self.wallet.storage.path
         if self.wallet.is_watching_only(): title += ' [%s]' % (_('watching only'))
         self.setWindowTitle( title )
@@ -211,6 +213,16 @@ class ElectrumWindow(QMainWindow):
         self.update_console()
 
         run_hook('load_wallet', wallet)
+
+
+    def update_wallet_format(self):
+        # convert old-format imported keys
+        if self.wallet.imported_keys:
+            password = self.password_dialog(_("Please enter your password in order to update imported keys"))
+            try:
+                self.wallet.convert_imported_keys(password)
+            except:
+                self.show_message("error")
 
 
     def open_wallet(self):
@@ -625,11 +637,11 @@ class ElectrumWindow(QMainWindow):
     def create_send_tab(self):
         w = QWidget()
 
-        grid = QGridLayout()
+        grid = QGridLayout(w)
         grid.setSpacing(8)
         grid.setColumnMinimumWidth(3,300)
         grid.setColumnStretch(5,1)
-
+        grid.setRowStretch(8, 1)
 
         self.payto_e = QLineEdit()
         self.payto_help = HelpButton(_('Recipient of the funds.') + '\n\n' + _('You may enter a Litecoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Litecoin address)'))
@@ -680,7 +692,7 @@ class ElectrumWindow(QMainWindow):
         self.send_button = EnterButton(_("Send"), self.do_send)
         grid.addWidget(self.send_button, 6, 1)
 
-        b = EnterButton(_("Clear"),self.do_clear)
+        b = EnterButton(_("Clear"), self.do_clear)
         grid.addWidget(b, 6, 2)
 
         self.payto_sig = QLabel('')
@@ -689,12 +701,6 @@ class ElectrumWindow(QMainWindow):
         QShortcut(QKeySequence("Up"), w, w.focusPreviousChild)
         QShortcut(QKeySequence("Down"), w, w.focusNextChild)
         w.setLayout(grid)
-
-        w2 = QWidget()
-        vbox = QVBoxLayout()
-        vbox.addWidget(w)
-        vbox.addStretch(1)
-        w2.setLayout(vbox)
 
         def entry_changed( is_fee ):
             self.funds_error = False
@@ -740,7 +746,7 @@ class ElectrumWindow(QMainWindow):
         self.fee_e.textChanged.connect(lambda: entry_changed(True) )
 
         run_hook('create_send_tab', grid)
-        return w2
+        return w
 
 
     def set_pay_from(self, l):
@@ -1491,7 +1497,7 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
             return
         from seed_dialog import SeedDialog
-        d = SeedDialog(self, mnemonic, self.wallet.imported_keys)
+        d = SeedDialog(self, mnemonic, self.wallet.has_imported_keys())
         d.exec_()
 
 
@@ -1730,7 +1736,7 @@ class ElectrumWindow(QMainWindow):
     def show_message(self, msg):
         QMessageBox.information(self, _('Message'), msg, _('OK'))
 
-    def password_dialog(self ):
+    def password_dialog(self, msg=None):
         d = QDialog(self)
         d.setModal(1)
         d.setWindowTitle(_("Enter Password"))
@@ -1739,7 +1745,8 @@ class ElectrumWindow(QMainWindow):
         pw.setEchoMode(2)
 
         vbox = QVBoxLayout()
-        msg = _('Please enter your password')
+        if not msg:
+            msg = _('Please enter your password')
         vbox.addWidget(QLabel(msg))
 
         grid = QGridLayout()
@@ -2118,7 +2125,7 @@ class ElectrumWindow(QMainWindow):
 
     @protected
     def do_import_privkey(self, password):
-        if not self.wallet.imported_keys:
+        if not self.wallet.has_imported_keys():
             r = QMessageBox.question(None, _('Warning'), '<b>'+_('Warning') +':\n</b><br/>'+ _('Imported keys are not recoverable from seed.') + ' ' \
                                          + _('If you ever need to restore your wallet from its seed, these keys will be lost.') + '<p>' \
                                          + _('Are you sure you understand what you are doing?'), 3, 4)
