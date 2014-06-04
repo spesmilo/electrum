@@ -19,11 +19,18 @@
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
+import re
+from decimal import Decimal
+from electrum import bitcoin
+
+RE_ADDRESS = '[1-9A-HJ-NP-Za-km-z]{26,}'
+RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'
 
 class PayToEdit(QTextEdit):
 
-    def __init__(self, *args, **kwargs):
-        QTextEdit.__init__(self, *args, **kwargs)
+    def __init__(self, amount_edit):
+        QTextEdit.__init__(self)
+        self.amount_edit = amount_edit
         self.document().contentsChanged.connect(self.update_size)
         self.heightMin = 0
         self.heightMax = 150
@@ -31,6 +38,57 @@ class PayToEdit(QTextEdit):
         self.setMaximumHeight(27)
         #self.setStyleSheet("QTextEdit { border-style:solid; border-width: 1px;}")
         self.c = None
+
+
+    def lock_amount(self):
+        e = self.amount_edit
+        e.setReadOnly(True)
+        e.setFrame(False)
+
+    def unlock_amount(self):
+        e = self.amount_edit
+        e.setReadOnly(False)
+        e.setFrame(True)
+
+
+    def parse_line(self, line):
+        recipient, amount = line.split(',')
+        amount = Decimal(amount.strip())
+        recipient = recipient.strip()
+        m = re.match(RE_ALIAS, recipient)
+        to_address = m.group(2) if m else recipient
+        assert bitcoin.is_address(to_address)
+        return to_address, amount
+
+
+    def check_text(self):
+        # filter out empty lines
+        lines = filter( lambda x: x, self.lines())
+        outputs = []
+        total = 0
+
+        for line in lines:
+            try:
+                to_address, amount = self.parse_line(line)
+            except:
+                continue
+            outputs.append((to_address, amount))
+            total += amount
+
+        self.outputs = outputs
+
+        self.amount_edit.setText(str(total) if total else "")
+        if total or len(lines)>1:
+            self.lock_amount()
+        else:
+            self.unlock_amount()
+
+    def lines(self):
+        return str(self.toPlainText()).split('\n')
+
+
+    def is_multiline(self):
+        return len(self.lines()) > 1
 
 
     def update_size(self):
@@ -56,6 +114,7 @@ class PayToEdit(QTextEdit):
         tc.movePosition(QTextCursor.EndOfWord)
         tc.insertText(completion.right(extra))
         self.setTextCursor(tc)
+        self.check_text()
  
 
     def textUnderCursor(self):
@@ -70,10 +129,20 @@ class PayToEdit(QTextEdit):
                 e.ignore()
                 return
 
+        if e.key() in [Qt.Key_Tab]:
+            e.ignore()
+            return
+
+        if e.key() in [Qt.Key_Down, Qt.Key_Up] and not self.is_multiline():
+            e.ignore()
+            return
+
         isShortcut = (e.modifiers() and Qt.ControlModifier) and e.key() == Qt.Key_E
 
         if not self.c or not isShortcut:
             QTextEdit.keyPressEvent(self, e)
+            self.check_text()
+
 
         ctrlOrShift = e.modifiers() and (Qt.ControlModifier or Qt.ShiftModifier)
         if self.c is None or (ctrlOrShift and e.text().isEmpty()):

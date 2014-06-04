@@ -644,7 +644,8 @@ class ElectrumWindow(QMainWindow):
         grid.setRowStretch(8, 1)
 
         from paytoedit import PayToEdit
-        self.payto_e = PayToEdit()
+        self.amount_e = AmountEdit(self.get_decimal_point)
+        self.payto_e = PayToEdit(self.amount_e)
         self.payto_help = HelpButton(_('Recipient of the funds.') + '\n\n' + _('You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)'))
         grid.addWidget(QLabel(_('Pay to')), 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, 3)
@@ -672,7 +673,6 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.from_list, 3, 1, 1, 3)
         self.set_pay_from([])
 
-        self.amount_e = AmountEdit(self.get_decimal_point)
         self.amount_help = HelpButton(_('Amount to be sent.') + '\n\n' \
                                       + _('The amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') \
                                       + '\n\n' + _('Keyboard shortcut: type "!" to send all your coins.'))

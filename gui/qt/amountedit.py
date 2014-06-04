@@ -58,5 +58,3 @@ class AmountEdit(QLineEdit):
                 s = s[:p] + '.' + s[p:p+8]
         self.setText(s)
         self.setCursorPosition(pos)
-
-
