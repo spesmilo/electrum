@@ -92,8 +92,14 @@ hash_decode = lambda x: x.decode('hex')[::-1]
 hmac_sha_512 = lambda x,y: hmac.new(x, y, hashlib.sha512).digest()
 
 def mnemonic_to_seed(mnemonic, passphrase):
-    from pbkdf2 import PBKDF2
     import hmac
+
+    try:
+        from pbkdf2 import PBKDF2
+    except ImportError as error:
+        print "You need to have pbkdf2 installed to create encrypted wallets."
+        print "If you have pip installed try 'sudo pip install pbkdf2'."
+
     PBKDF2_ROUNDS = 2048
     return PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
 
