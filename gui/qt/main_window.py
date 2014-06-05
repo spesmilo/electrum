@@ -781,25 +781,9 @@ class ElectrumWindow(QMainWindow):
         if self.gui_object.payment_request:
             outputs = self.gui_object.payment_request.outputs
             amount = self.gui_object.payment_request.get_amount()
-
         else:
-            r = unicode( self.payto_e.text() )
-            r = r.strip()
-
-            # label or alias, with address in brackets
-            m = re.match('(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
-            to_address = m.group(2) if m else r
-            if not is_valid(to_address):
-                QMessageBox.warning(self, _('Error'), _('Invalid Bitcoin Address') + ':\n' + to_address, _('OK'))
-                return
-            
-            try:
-                amount = self.amount_e.get_amount()
-            except Exception:
-                QMessageBox.warning(self, _('Error'), _('Invalid Amount'), _('OK'))
-                return
-
-            outputs = [(to_address, amount)]
+            outputs = self.payto_e.get_outputs()
+            amount = sum(map(lambda x:x[1], outputs))
 
         try:
             fee = self.fee_e.get_amount()

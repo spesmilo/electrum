@@ -60,5 +60,3 @@ class AmountEdit(QLineEdit):
         self.setCursorPosition(pos)
 
 
-    def setAmount(self, amount):
-        self.setText(self.format_amount(self.wallet.fee).strip())
