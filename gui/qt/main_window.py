@@ -664,12 +664,14 @@ class ElectrumWindow(QMainWindow):
 
         self.from_label = QLabel(_('From'))
         grid.addWidget(self.from_label, 3, 0)
-        self.from_list = QTreeWidget(self)
+        self.from_list = MyTreeWidget(self)
         self.from_list.setColumnCount(2)
         self.from_list.setColumnWidth(0, 350)
         self.from_list.setColumnWidth(1, 50)
-        self.from_list.setHeaderHidden (True)
+        self.from_list.setHeaderHidden(True)
         self.from_list.setMaximumHeight(80)
+        self.from_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.from_list.customContextMenuRequested.connect(self.from_list_menu)
         grid.addWidget(self.from_list, 3, 1, 1, 3)
         self.set_pay_from([])
 
@@ -699,8 +701,8 @@ class ElectrumWindow(QMainWindow):
         self.payto_sig = QLabel('')
         grid.addWidget(self.payto_sig, 7, 0, 1, 4)
 
-        QShortcut(QKeySequence("Up"), w, w.focusPreviousChild)
-        QShortcut(QKeySequence("Down"), w, w.focusNextChild)
+        #QShortcut(QKeySequence("Up"), w, w.focusPreviousChild)
+        #QShortcut(QKeySequence("Down"), w, w.focusNextChild)
         w.setLayout(grid)
 
         def entry_changed( is_fee ):
@@ -710,7 +712,7 @@ class ElectrumWindow(QMainWindow):
                 self.amount_e.is_shortcut = False
                 sendable = self.get_sendable_balance()
                 # there is only one output because we are completely spending inputs
-                inputs, total, fee = self.wallet.choose_tx_inputs( sendable, 0, 1, self.get_payment_sources())
+                inputs, total, fee = self.wallet.choose_tx_inputs( sendable, 0, 1, coins = self.get_coins())
                 fee = self.wallet.estimated_fee(inputs, 1)
                 amount = total - fee
                 self.amount_e.setText( self.format_amount(amount) )
@@ -724,7 +726,7 @@ class ElectrumWindow(QMainWindow):
             if amount is None:
                 return
             # assume that there will be 2 outputs (one for change)
-            inputs, total, fee = self.wallet.choose_tx_inputs(amount, fee, 2, self.get_payment_sources())
+            inputs, total, fee = self.wallet.choose_tx_inputs(amount, fee, 2, coins = self.get_coins())
             if not is_fee:
                 self.fee_e.setText( self.format_amount( fee ) )
             if inputs:
@@ -749,17 +751,32 @@ class ElectrumWindow(QMainWindow):
         run_hook('create_send_tab', grid)
         return w
 
+    def from_list_delete(self, item):
+        i = self.from_list.indexOfTopLevelItem(item)
+        self.pay_from.pop(i)
+        self.redraw_from_list()
 
-    def set_pay_from(self, l):
-        self.pay_from = l
+    def from_list_menu(self, position):
+        item = self.from_list.itemAt(position)
+        menu = QMenu()
+        menu.addAction(_("Remove"), lambda: self.from_list_delete(item))
+        menu.exec_(self.from_list.viewport().mapToGlobal(position))
+
+    def set_pay_from(self, domain = None):
+        self.pay_from = [] if domain == [] else self.wallet.get_unspent_coins(domain)
+        self.redraw_from_list()
+
+    def redraw_from_list(self):
         self.from_list.clear()
         self.from_label.setHidden(len(self.pay_from) == 0)
         self.from_list.setHidden(len(self.pay_from) == 0)
-        for addr in self.pay_from:
-            c, u = self.wallet.get_addr_balance(addr)
-            balance = self.format_amount(c + u)
-            self.from_list.addTopLevelItem(QTreeWidgetItem( [addr, balance] ))
 
+        def format(x):
+            h = x.get('prevout_hash')
+            return h[0:8] + '...' + h[-8:] + ":%d"%x.get('prevout_n') + u'\t' + "%s"%x.get('address')
+
+        for item in self.pay_from:
+            self.from_list.addTopLevelItem(QTreeWidgetItem( [format(item), self.format_amount(item['value']) ]))
 
     def update_completions(self):
         l = []
@@ -810,9 +827,9 @@ class ElectrumWindow(QMainWindow):
         self.send_button.setDisabled(True)
 
         # first, create an unsigned tx 
-        domain = self.get_payment_sources()
+        coins = self.get_coins()
         try:
-            tx = self.wallet.make_unsigned_transaction(outputs, fee, None, domain)
+            tx = self.wallet.make_unsigned_transaction(outputs, fee, None, coins = coins)
             tx.error = None
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
@@ -1100,14 +1117,17 @@ class ElectrumWindow(QMainWindow):
 
 
     def get_sendable_balance(self):
-        return sum(sum(self.wallet.get_addr_balance(a)) for a in self.get_payment_sources())
+        return sum(map(lambda x:x['value'], self.get_coins()))
 
 
-    def get_payment_sources(self):
+    def get_coins(self):
         if self.pay_from:
             return self.pay_from
         else:
-            return self.wallet.get_account_addresses(self.current_account)
+            domain = self.wallet.get_account_addresses(self.current_account)
+            for i in self.wallet.frozen_addresses:
+                if i in domain: domain.remove(i)
+            return self.wallet.get_unspent_coins(domain)
 
 
     def send_from_addresses(self, addrs):

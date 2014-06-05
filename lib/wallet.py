@@ -661,17 +661,18 @@ class Abstract_Wallet:
         return [x[1] for x in coins]
 
 
-    def choose_tx_inputs( self, amount, fixed_fee, num_outputs, domain = None ):
+    def choose_tx_inputs( self, amount, fixed_fee, num_outputs, domain = None, coins = None ):
         """ todo: minimize tx size """
         total = 0
         fee = self.fee if fixed_fee is None else fixed_fee
-        if domain is None:
-            domain = self.addresses(True)
 
-        for i in self.frozen_addresses:
-            if i in domain: domain.remove(i)
+        if not coins:
+            if domain is None:
+                domain = self.addresses(True)
+            for i in self.frozen_addresses:
+                if i in domain: domain.remove(i)
+            coins = self.get_unspent_coins(domain)
 
-        coins = self.get_unspent_coins(domain)
         inputs = []
 
         for item in coins:
@@ -852,11 +853,11 @@ class Abstract_Wallet:
         return default_label
 
 
-    def make_unsigned_transaction(self, outputs, fee=None, change_addr=None, domain=None ):
+    def make_unsigned_transaction(self, outputs, fee=None, change_addr=None, domain=None, coins=None ):
         for address, x in outputs:
             assert is_valid(address), "Address " + address + " is invalid!"
         amount = sum( map(lambda x:x[1], outputs) )
-        inputs, total, fee = self.choose_tx_inputs( amount, fee, len(outputs), domain )
+        inputs, total, fee = self.choose_tx_inputs( amount, fee, len(outputs), domain, coins )
         if not inputs:
             raise ValueError("Not enough funds")
         for txin in inputs:
@@ -865,8 +866,8 @@ class Abstract_Wallet:
         return Transaction.from_io(inputs, outputs)
 
 
-    def mktx(self, outputs, password, fee=None, change_addr=None, domain= None ):
-        tx = self.make_unsigned_transaction(outputs, fee, change_addr, domain)
+    def mktx(self, outputs, password, fee=None, change_addr=None, domain= None, coins = None ):
+        tx = self.make_unsigned_transaction(outputs, fee, change_addr, domain, coins)
         keypairs = {}
         self.add_keypairs_from_wallet(tx, keypairs, password)
         if keypairs:
