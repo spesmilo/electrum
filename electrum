@@ -39,8 +39,9 @@ if __builtin__.use_local_modules:
     imp.load_module('electrum', *imp.find_module('lib'))
     imp.load_module('electrum_gui', *imp.find_module('gui'))
 
-from electrum import *  # todo: import * is generally frowned upon. should import just what is used
-from electrum.util import print_msg, print_stderr
+
+from electrum import SimpleConfig, Network, Wallet, WalletStorage, NetworkProxy, Commands, known_commands
+from electrum.util import print_msg, print_stderr, print_json, set_verbosity
 
 # get password routine
 def prompt_password(prompt, confirm=True):
@@ -130,9 +131,9 @@ def run_command(cmd, password=None, args=[]):
 
 
     if type(result) == str:
-        util.print_msg(result)
+        print_msg(result)
     elif result is not None:
-        util.print_json(result)
+        print_json(result)
 
 
 
