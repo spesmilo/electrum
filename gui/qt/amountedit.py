@@ -58,3 +58,7 @@ class AmountEdit(QLineEdit):
                 s = s[:p] + '.' + s[p:p+8]
         self.setText(s)
         self.setCursorPosition(pos)
+
+
+    def setAmount(self, amount):
+        self.setText(self.format_amount(self.wallet.fee).strip())
