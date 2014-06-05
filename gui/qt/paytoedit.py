@@ -51,6 +51,10 @@ class PayToEdit(QTextEdit):
         e.setFrame(True)
 
 
+    def setFrame(self, b):
+        pass
+
+
     def parse_address_and_amount(self, line):
         x, y = line.split(',')
         address = self.parse_address(x)
