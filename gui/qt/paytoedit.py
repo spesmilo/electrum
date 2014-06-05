@@ -41,7 +41,6 @@ class PayToEdit(QTextEdit):
         self.setMaximumHeight(27)
         self.c = None
 
-
     def lock_amount(self):
         self.amount_edit.setFrozen(True)
 
@@ -52,6 +51,8 @@ class PayToEdit(QTextEdit):
         self.setReadOnly(b)
         self.setStyleSheet(frozen_style if b else normal_style)
 
+    def setGreen(self):
+        self.setStyleSheet("QWidget { background-color:#00ff00;}")
 
     def parse_address_and_amount(self, line):
         x, y = line.split(',')

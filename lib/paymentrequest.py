@@ -184,7 +184,7 @@ class PaymentRequest:
         self.memo = pay_det.memo
 
         if CA_match:
-            print 'Signed By Trusted CA: ', CA_OU
+            self.status = 'Signed by Trusted CA:\n' + CA_OU
 
         print "payment url", pay_det.payment_url
         return True

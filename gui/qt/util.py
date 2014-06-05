@@ -55,9 +55,17 @@ class EnterButton(QPushButton):
 class HelpButton(QPushButton):
     def __init__(self, text):
         QPushButton.__init__(self, '?')
+        self.help_text = text
+        self.alt_text = None
         self.setFocusPolicy(Qt.NoFocus)
         self.setFixedWidth(20)
-        self.clicked.connect(lambda: QMessageBox.information(self, 'Help', text, 'OK') )
+        self.clicked.connect(lambda: QMessageBox.information(self, 'Help', self.get_text(), 'OK') )
+
+    def get_text(self):
+        return self.alt_text if self.alt_text else self.help_text
+
+    def set_alt(self, t):
+        self.alt_text = t
 
 
 

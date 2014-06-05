@@ -891,9 +891,13 @@ class ElectrumWindow(QMainWindow):
         return True
 
     def payment_request_ok(self):
-        self.payto_e.setText(self.gui_object.payment_request.domain)
-        self.amount_e.setText(self.format_amount(self.gui_object.payment_request.get_amount()))
-        self.message_e.setText(self.gui_object.payment_request.memo)
+        pr = self.gui_object.payment_request
+        self.payto_help.show()
+        self.payto_help.set_alt(pr.status)
+        self.payto_e.setGreen()
+        self.payto_e.setText(pr.domain)
+        self.amount_e.setText(self.format_amount(pr.get_amount()))
+        self.message_e.setText(pr.memo)
 
     def payment_request_error(self):
         self.do_clear()
@@ -926,6 +930,8 @@ class ElectrumWindow(QMainWindow):
 
         for h in [self.payto_help, self.amount_help, self.message_help]:
             h.show()
+
+        self.payto_help.set_alt(None)
 
         self.set_pay_from([])
         self.update_status()
