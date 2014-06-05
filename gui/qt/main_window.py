@@ -44,7 +44,7 @@ from electrum import SimpleConfig, Wallet, WalletStorage
 
 from electrum import bmp, pyqrnative
 
-from amountedit import AmountEdit
+from amountedit import AmountEdit, MyLineEdit
 from network_dialog import NetworkDialog
 from qrcodewidget import QRCodeWidget
 
@@ -656,7 +656,7 @@ class ElectrumWindow(QMainWindow):
         self.payto_e.setCompleter(completer)
         completer.setModel(self.completions)
 
-        self.message_e = QLineEdit()
+        self.message_e = MyLineEdit()
         self.message_help = HelpButton(_('Description of the transaction (not mandatory).') + '\n\n' + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.'))
         grid.addWidget(QLabel(_('Description')), 2, 0)
         grid.addWidget(self.message_e, 2, 1, 1, 3)
@@ -882,11 +882,9 @@ class ElectrumWindow(QMainWindow):
 
 
     def prepare_for_payment_request(self):
-        style = "QWidget { background-color:none;border:none;}"
         self.tabs.setCurrentIndex(1)
         for e in [self.payto_e, self.amount_e, self.message_e]:
-            e.setReadOnly(True)
-            e.setStyleSheet(style)
+            e.setFrozen(True)
         for h in [self.payto_help, self.amount_help, self.message_help]:
             h.hide()
         self.payto_e.setText(_("please wait..."))
@@ -924,27 +922,14 @@ class ElectrumWindow(QMainWindow):
         self.payto_sig.setVisible(False)
         for e in [self.payto_e, self.message_e, self.amount_e, self.fee_e]:
             e.setText('')
-            self.set_frozen(e,False)
-            e.setStyleSheet("")
+            e.setFrozen(False)
+
         for h in [self.payto_help, self.amount_help, self.message_help]:
             h.show()
 
         self.set_pay_from([])
         self.update_status()
 
-    def set_frozen(self,entry,frozen):
-        if frozen:
-            entry.setReadOnly(True)
-            entry.setFrame(False)
-            palette = QPalette()
-            palette.setColor(entry.backgroundRole(), QColor('lightgray'))
-            entry.setPalette(palette)
-        else:
-            entry.setReadOnly(False)
-            entry.setFrame(True)
-            palette = QPalette()
-            palette.setColor(entry.backgroundRole(), QColor('white'))
-            entry.setPalette(palette)
 
 
     def set_addrs_frozen(self,addrs,freeze):

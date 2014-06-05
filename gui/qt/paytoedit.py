@@ -26,6 +26,9 @@ from electrum import bitcoin
 RE_ADDRESS = '[1-9A-HJ-NP-Za-km-z]{26,}'
 RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'
 
+frozen_style = "QWidget { background-color:none; border:none;}"
+normal_style = "QTextEdit { }"
+
 class PayToEdit(QTextEdit):
 
     def __init__(self, amount_edit):
@@ -36,23 +39,18 @@ class PayToEdit(QTextEdit):
         self.heightMax = 150
         self.setMinimumHeight(27)
         self.setMaximumHeight(27)
-        #self.setStyleSheet("QTextEdit { border-style:solid; border-width: 1px;}")
         self.c = None
 
 
     def lock_amount(self):
-        e = self.amount_edit
-        e.setReadOnly(True)
-        e.setFrame(False)
+        self.amount_edit.setFrozen(True)
 
     def unlock_amount(self):
-        e = self.amount_edit
-        e.setReadOnly(False)
-        e.setFrame(True)
+        self.amount_edit.setFrozen(False)
 
-
-    def setFrame(self, b):
-        pass
+    def setFrozen(self, b):
+        self.setReadOnly(b)
+        self.setStyleSheet(frozen_style if b else normal_style)
 
 
     def parse_address_and_amount(self, line):
@@ -88,7 +86,6 @@ class PayToEdit(QTextEdit):
                 self.payto_address = None
 
             if self.payto_address:
-                print "unlock", self.payto_address
                 self.unlock_amount()
                 return
 

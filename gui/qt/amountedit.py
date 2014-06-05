@@ -5,7 +5,13 @@ from PyQt4.QtGui import *
 
 from decimal import Decimal
 
-class AmountEdit(QLineEdit):
+class MyLineEdit(QLineEdit):
+
+    def setFrozen(self, b):
+        self.setReadOnly(b)
+        self.setFrame(not b)
+
+class AmountEdit(MyLineEdit):
 
     def __init__(self, decimal_point, is_int = False, parent=None):
         QLineEdit.__init__(self, parent)
