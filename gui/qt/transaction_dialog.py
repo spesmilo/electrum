@@ -80,7 +80,8 @@ class TxDialog(QDialog):
         buttons.addWidget(b)
 
         self.broadcast_button = b = QPushButton(_("Broadcast"))
-        b.clicked.connect(self.broadcast)
+        b.clicked.connect(lambda: self.parent.broadcast_transaction(self.tx))
+
         b.hide()
         buttons.addWidget(b)
 
@@ -213,14 +214,6 @@ class TxDialog(QDialog):
         vbox.addWidget(o_text)
 
         
-
-
-    def broadcast(self):
-        result, result_message = self.wallet.sendtx( self.tx )
-        if result:
-            self.show_message(_("Transaction successfully sent")+': %s' % (result_message))
-        else:
-            self.show_message(_("There was a problem sending your transaction:") + '\n %s' % (result_message))
 
     def show_message(self, msg):
         QMessageBox.information(self, _('Message'), msg, _('OK'))

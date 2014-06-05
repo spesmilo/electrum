@@ -843,12 +843,11 @@ class ElectrumWindow(QMainWindow):
             if label:
                 self.wallet.set_label(tx.hash(), label)
 
-            if not self.gui_object.payment_request:
-                if not tx.is_complete() or self.config.get('show_before_broadcast'):
-                    self.show_transaction(tx)
-                    self.do_clear()
-                    self.send_button.setDisabled(False)
-                    return
+            if not tx.is_complete() or self.config.get('show_before_broadcast'):
+                self.show_transaction(tx)
+                self.do_clear()
+                self.send_button.setDisabled(False)
+                return
 
             self.broadcast_transaction(tx)
 
