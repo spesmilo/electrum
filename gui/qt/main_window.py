@@ -417,10 +417,10 @@ class ElectrumWindow(QMainWindow):
     def format_amount(self, x, is_diff=False, whitespaces=False):
         return format_satoshis(x, is_diff, self.num_zeros, self.decimal_point, whitespaces)
 
-    def read_amount(self, x):
-        if x in['.', '']: return None
-        p = pow(10, self.decimal_point)
-        return int( p * Decimal(x) )
+
+    def get_decimal_point(self):
+        return self.decimal_point
+
 
     def base_unit(self):
         assert self.decimal_point in [5,8]
@@ -671,7 +671,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.from_list, 3, 1, 1, 3)
         self.set_pay_from([])
 
-        self.amount_e = AmountEdit(self.base_unit)
+        self.amount_e = AmountEdit(self.get_decimal_point)
         self.amount_help = HelpButton(_('Amount to be sent.') + '\n\n' \
                                       + _('The amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') \
                                       + '\n\n' + _('Keyboard shortcut: type "!" to send all your coins.'))
@@ -679,7 +679,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.amount_e, 4, 1, 1, 2)
         grid.addWidget(self.amount_help, 4, 3)
 
-        self.fee_e = AmountEdit(self.base_unit)
+        self.fee_e = AmountEdit(self.get_decimal_point)
         grid.addWidget(QLabel(_('Fee')), 5, 0)
         grid.addWidget(self.fee_e, 5, 1, 1, 2)
         grid.addWidget(HelpButton(
@@ -716,8 +716,8 @@ class ElectrumWindow(QMainWindow):
                 self.fee_e.setText( self.format_amount( fee ) )
                 return
 
-            amount = self.read_amount(str(self.amount_e.text()))
-            fee = self.read_amount(str(self.fee_e.text()))
+            amount = self.amount_e.get_amount()
+            fee = self.fee_e.get_amount()
 
             if not is_fee: fee = None
             if amount is None:
@@ -791,9 +791,9 @@ class ElectrumWindow(QMainWindow):
             if not is_valid(to_address):
                 QMessageBox.warning(self, _('Error'), _('Invalid Bitcoin Address') + ':\n' + to_address, _('OK'))
                 return
-
+            
             try:
-                amount = self.read_amount(unicode( self.amount_e.text()))
+                amount = self.amount_e.get_amount()
             except Exception:
                 QMessageBox.warning(self, _('Error'), _('Invalid Amount'), _('OK'))
                 return
@@ -801,7 +801,7 @@ class ElectrumWindow(QMainWindow):
             outputs = [(to_address, amount)]
 
         try:
-            fee = self.read_amount(unicode( self.fee_e.text()))
+            fee = self.fee_e.get_amount()
         except Exception:
             QMessageBox.warning(self, _('Error'), _('Invalid Fee'), _('OK'))
             return
@@ -2191,7 +2191,7 @@ class ElectrumWindow(QMainWindow):
 
         fee_label = QLabel(_('Transaction fee') + ':')
         grid.addWidget(fee_label, 2, 0)
-        fee_e = AmountEdit(self.base_unit)
+        fee_e = AmountEdit(self.get_decimal_point)
         fee_e.setText(self.format_amount(self.wallet.fee).strip())
         grid.addWidget(fee_e, 2, 1)
         msg = _('Fee per kilobyte of transaction.') + ' ' \
@@ -2240,9 +2240,8 @@ class ElectrumWindow(QMainWindow):
         # run the dialog
         if not d.exec_(): return
 
-        fee = unicode(fee_e.text())
         try:
-            fee = self.read_amount(fee)
+            fee = self.fee_e.get_amount()
         except Exception:
             QMessageBox.warning(self, _('Error'), _('Invalid value') +': %s'%fee, _('OK'))
             return
