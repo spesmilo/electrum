@@ -414,7 +414,7 @@ class Commands:
         return self.wallet.decrypt_message(pubkey, message, self.password)
 
     def disperse(self, disperse_limit):
-        out = []
+        
         u = self.listunspent()
         for x in u: 
                 a = x.get('address')		# address
