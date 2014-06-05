@@ -26,16 +26,6 @@ import sys
 import time
 import traceback
 
-try:
-    import ecdsa  # todo: 'ecdsa' imported but unused
-except ImportError:
-    sys.exit("Error: python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'")
-
-try:
-    import aes  # todo: 'aes' imported but unused
-except ImportError:
-    sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
-
 
 is_local = os.path.dirname(os.path.realpath(__file__)) == os.getcwd()
 is_android = 'ANDROID_DATA' in os.environ

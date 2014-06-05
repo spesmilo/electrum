@@ -56,7 +56,7 @@ data_files += [
 setup(
     name="Electrum",
     version=version.ELECTRUM_VERSION,
-    install_requires=['slowaes', 'ecdsa>=0.9'],
+    install_requires=['slowaes', 'ecdsa>=0.9', 'pbkdf2'],
     package_dir={
         'electrum': 'lib',
         'electrum_gui': 'gui',
