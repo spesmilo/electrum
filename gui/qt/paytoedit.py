@@ -51,14 +51,24 @@ class PayToEdit(QTextEdit):
         e.setFrame(True)
 
 
-    def parse_line(self, line):
-        recipient, amount = line.split(',')
-        amount = Decimal(amount.strip())
-        recipient = recipient.strip()
-        m = re.match(RE_ALIAS, recipient)
-        to_address = m.group(2) if m else recipient
-        assert bitcoin.is_address(to_address)
-        return to_address, amount
+    def parse_address_and_amount(self, line):
+        x, y = line.split(',')
+        address = self.parse_address(x)
+        amount = self.parse_amount(y)
+        return address, amount
+
+
+    def parse_amount(self, x):
+        p = pow(10, self.amount_edit.decimal_point())
+        return int( p * Decimal(x.strip()))
+
+
+    def parse_address(self, line):
+        r = line.strip()
+        m = re.match('^'+RE_ALIAS+'$', r)
+        address = m.group(2) if m else r
+        assert bitcoin.is_address(address)
+        return address
 
 
     def check_text(self):
@@ -67,21 +77,60 @@ class PayToEdit(QTextEdit):
         outputs = []
         total = 0
 
+        if len(lines) == 1:
+            try:
+                self.payto_address = self.parse_address(lines[0])
+            except:
+                self.payto_address = None
+
+            if self.payto_address:
+                print "unlock", self.payto_address
+                self.unlock_amount()
+                return
+
         for line in lines:
             try:
-                to_address, amount = self.parse_line(line)
+                to_address, amount = self.parse_address_and_amount(line)
             except:
                 continue
+                
             outputs.append((to_address, amount))
             total += amount
 
         self.outputs = outputs
+        self.payto_address = None
 
-        self.amount_edit.setText(str(total) if total else "")
+        if total:
+            self.amount_edit.setAmount(total)
+        else:
+            self.amount_edit.setText("")
+
         if total or len(lines)>1:
             self.lock_amount()
         else:
             self.unlock_amount()
+
+
+
+    def get_outputs(self):
+
+        if self.payto_address:
+            
+            if not bitcoin.is_address(self.payto_address):
+                QMessageBox.warning(self, _('Error'), _('Invalid Bitcoin Address') + ':\n' + to_address, _('OK'))
+                return
+
+            try:
+                amount = self.amount_edit.get_amount()
+            except Exception:
+                QMessageBox.warning(self, _('Error'), _('Invalid Amount'), _('OK'))
+                return
+
+            outputs = [(self.payto_address, amount)]
+            return outputs
+
+        return self.outputs
+
 
     def lines(self):
         return str(self.toPlainText()).split('\n')
