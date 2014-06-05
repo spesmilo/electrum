@@ -175,6 +175,9 @@ class PayToEdit(QTextEdit):
 
 
     def keyPressEvent(self, e):
+        if self.isReadOnly():
+            return
+
         if self.c.popup().isVisible():
             if e.key() in [Qt.Key_Enter, Qt.Key_Return]:
                 e.ignore()
