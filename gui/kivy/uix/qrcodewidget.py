@@ -16,6 +16,7 @@ from kivy.clock import Clock
 try:
     import qrcode
 except ImportError:
+    import sys
     sys.exit("Error: qrcode does not seem to be installed. Try 'sudo pip install qrcode'")
 
 
@@ -36,11 +37,11 @@ Builder.load_string('''
         Line:
             width: dp(1.333)
             points:
-                dp(2), dp(2),\
-                self.width - dp(2), dp(2),\
-                self.width - dp(2), self.height - dp(2),\
-                dp(2), self.height - dp(2),\
-                dp(2), dp(2)
+                self.x + dp(2), self.y + dp(2),\
+                self.right - dp(2), self.y + dp(2),\
+                self.right - dp(2), self.top - dp(2),\
+                self.x + dp(2), self.top - dp(2),\
+                self.x + dp(2), self.y + dp(2)
     Image
         id: qrimage
         pos_hint: {'center_x': .5, 'center_y': .5}
@@ -89,7 +90,7 @@ class QRCodeWidget(FloatLayout):
             # if texture hasn't yet been created delay the texture updation
             Clock.schedule_once(lambda dt: self.on_data(instance, value))
             return
-        img.anim_delay = .25
+        img.anim_delay = .05
         img.source = self.loading_image
         Thread(target=partial(self.generate_qr, value)).start()
 
@@ -156,13 +157,13 @@ class QRCodeWidget(FloatLayout):
         # then blit the buffer
         buff = ''.join(map(chr, buff))
         # update texture in UI thread.
-        Clock.schedule_once(lambda dt: self._upd_texture(buff))
+        Clock.schedule_once(lambda dt: self._upd_texture(buff), .1)
 
     def _upd_texture(self, buff):
         texture = self._qrtexture
         if not texture:
             # if texture hasn't yet been created delay the texture updation
-            Clock.schedule_once(lambda dt: self._upd_texture(buff))
+            Clock.schedule_once(lambda dt: self._upd_texture(buff), .1)
             return
         texture.blit_buffer(buff, colorfmt='rgb', bufferfmt='ubyte')
         img =self.ids.qrimage

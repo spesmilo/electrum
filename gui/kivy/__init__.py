@@ -21,7 +21,7 @@
 import sys
 #, time, datetime, re, threading
 #from electrum.i18n import _, set_language
-#from electrum.util import print_error, print_msg, parse_url
+from electrum.util import print_error, print_msg, parse_url
 
 #:TODO: replace this with kivy's own plugin managment
 #from electrum.plugins import run_hook
@@ -42,9 +42,8 @@ from kivy.logger import Logger
 
 from electrum.bitcoin import MIN_RELAY_TX_FEE
 
-#:TODO main window
 from main_window import ElectrumWindow
-from electrum.plugins import init_plugins
+#from electrum.plugins import init_plugins
 
 #:TODO find a equivalent method to register to `bitcoin:` uri
 #: ref: http://stackoverflow.com/questions/30931/register-file-extensions-mime-types-in-linux
@@ -60,7 +59,6 @@ from electrum.plugins import init_plugins
 #                return True
 #        return False
 
-
 class ElectrumGui:
 
     def __init__(self, config, network, app=None):
@@ -74,6 +72,47 @@ class ElectrumGui:
         # base
         #init_plugins(self)
 
+    def set_url(self, url):
+        from electrum import util
+        from decimal import Decimal
+
+        try:
+            address, amount, label, message,\
+                request_url, url = util.parse_url(url)
+        except Exception:
+            self.main_window.show_error(_('Invalid bitcoin URL'))
+            return
+
+        if amount:
+            try:
+                if main_window.base_unit == 'mBTC':
+                    amount = str( 1000* Decimal(amount))
+                else:
+                    amount = str(Decimal(amount))
+            except Exception:
+                amount = "0.0"
+                self.main_window.show_error(_('Invalid Amount'))
+
+        if request_url:
+            try:
+                from electrum import paymentrequest
+            except:
+                self.main_window.show_error("cannot import payment request")
+                request_url = None
+
+        if not request_url:
+            self.main_window.set_send(address, amount, label, message)
+            return
+
+        def payment_request():
+            self.payment_request = paymentrequest.PaymentRequest(request_url)
+            if self.payment_request.verify():
+                Clock.schedule_once(self.main_window.payment_request_ok)
+            else:
+                Clock.schedule_once(self.main_window.payment_request_error)
+
+        threading.Thread(target=payment_request).start()
+        self.main_window.prepare_for_payment_request()
 
     def main(self, url):
         ''' The main entry point of the kivy ux
@@ -83,5 +122,7 @@ class ElectrumGui:
         '''
 
         self.main_window = w = ElectrumWindow(config=self.config,
-                                              network=self.network)
+                                              network=self.network,
+                                              url=url,
+                                              gui_object=self)
         w.run()

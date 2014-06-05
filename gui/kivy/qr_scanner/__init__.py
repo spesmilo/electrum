@@ -7,68 +7,22 @@ from collections import namedtuple
 
 from kivy.uix.anchorlayout import AnchorLayout
 from kivy.core import core_select_lib
+from kivy.metrics import dp
 from kivy.properties import ListProperty, BooleanProperty
 from kivy.factory import Factory
-
-
-def encode_uri(addr, amount=0, label='', message='', size='',
-            currency='btc'):
-    ''' Convert to BIP0021 compatible URI
-    '''
-    uri = 'bitcoin:{}'.format(addr)
-    first = True
-    if amount:
-        uri += '{}amount={}'.format('?' if first else '&', amount)
-        first = False
-    if label:
-        uri += '{}label={}'.format('?' if first else '&', label)
-        first = False
-    if message:
-        uri += '{}?message={}'.format('?' if first else '&', message)
-        first = False
-    if size:
-        uri += '{}size={}'.format('?' if not first else '&', size)
-    return uri
-
-def decode_uri(uri):
-    if ':' not in uri:
-        # It's just an address (not BIP21)
-        return {'address': uri}
-
-    if '//' not in uri:
-        # Workaround for urlparse, it don't handle bitcoin: URI properly
-        uri = uri.replace(':', '://')
-
-    try:
-        uri = urlparse(uri)
-    except NameError:
-        # delayed import
-        from urlparse import urlparse, parse_qs
-        uri = urlparse(uri)
-
-    result = {'address': uri.netloc} 
-
-    if uri.path.startswith('?'):
-        params = parse_qs(uri.path[1:])
-    else:
-        params = parse_qs(uri.path)
-
-    for k,v in params.items():
-        if k in ('amount', 'label', 'message', 'size'):
-            result[k] = v[0]
-
-    return result
 
 
 class ScannerBase(AnchorLayout):
     ''' Base implementation for camera based scanner
     '''
-    camera_size = ListProperty([320, 240])
+    camera_size = ListProperty([320, 240] if dp(1) < 2 else [640, 480])
 
     symbols = ListProperty([])
 
     # XXX can't work now, due to overlay.
     show_bounds = BooleanProperty(False)
+
+    running = BooleanProperty(False)
 
     Qrcode = namedtuple('Qrcode',
             ['type', 'data', 'bounds', 'quality', 'count'])

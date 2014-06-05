@@ -90,11 +90,13 @@ class GridView(BoxLayout):
     on_context_menu = ObjectProperty(None)
 
     def __init__(self, **kwargs):
-        super(GridView, self).__init__(**kwargs)
         self._from_widths = False
+        super(GridView, self).__init__(**kwargs)
         #self.on_headers(self, self.headers)
 
     def on_widths(self, instance, value):
+        if not self.get_root_window():
+            return
         self._from_widths = True
         self.on_headers(instance, self.headers)
         self._from_widths = False

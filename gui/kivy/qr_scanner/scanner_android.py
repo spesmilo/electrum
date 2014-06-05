@@ -88,7 +88,7 @@ class SurfaceHolderCallback(PythonJavaClass):
     def __init__(self, callback):
         super(SurfaceHolderCallback, self).__init__()
         self.callback = callback
- 
+
     @java_method('(Landroid/view/SurfaceHolder;III)V')
     def surfaceChanged(self, surface, fmt, width, height):
         self.callback(fmt, width, height)
@@ -96,7 +96,7 @@ class SurfaceHolderCallback(PythonJavaClass):
     @java_method('(Landroid/view/SurfaceHolder;)V')
     def surfaceCreated(self, surface):
         pass
- 
+
     @java_method('(Landroid/view/SurfaceHolder;)V')
     def surfaceDestroyed(self, surface):
         pass
@@ -170,6 +170,7 @@ class AndroidCamera(Widget):
 
     @run_on_ui_thread
     def stop(self):
+        self.running = False
         if self._android_camera is None:
             return
         self._android_camera.setPreviewCallback(None)
@@ -179,6 +180,7 @@ class AndroidCamera(Widget):
 
     @run_on_ui_thread
     def start(self):
+        self.running = True
         if self._android_camera is not None:
             return
 
@@ -195,6 +197,9 @@ class AndroidCamera(Widget):
 
         # attach the android surfaceview to our android widget holder
         self._holder.view = self._android_surface
+
+        # set orientation
+        self._android_camera.setDisplayOrientation(90)
 
     def _on_surface_changed(self, fmt, width, height):
         # internal, called when the android SurfaceView is ready
