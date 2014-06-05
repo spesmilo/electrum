@@ -900,7 +900,7 @@ class ElectrumWindow(QMainWindow):
     def payment_request_error(self):
         self.do_clear()
         self.show_message(self.gui_object.payment_request.error)
-
+        self.gui_object.payment_request = None
 
     def set_send(self, address, amount, label, message):
 
