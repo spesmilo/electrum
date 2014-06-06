@@ -57,9 +57,6 @@ class PaymentRequest:
         self.outputs = []
         self.error = ""
 
-    def get_amount(self):
-        return sum(map(lambda x:x[1], self.outputs))
-
 
     def verify(self):
         u = urlparse.urlparse(self.url)

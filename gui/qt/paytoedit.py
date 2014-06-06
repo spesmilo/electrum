@@ -41,6 +41,7 @@ class PayToEdit(QTextEdit):
         self.setMaximumHeight(27)
         self.c = None
         self.textChanged.connect(self.check_text)
+        self.outputs = []
 
     def lock_amount(self):
         self.amount_edit.setFrozen(True)
@@ -88,8 +89,15 @@ class PayToEdit(QTextEdit):
                 self.payto_address = self.parse_address(lines[0])
             except:
                 pass
+
             if self.payto_address:
                 self.unlock_amount()
+                try:
+                    amount = self.amount_edit.get_amount()
+                except:
+                    amount = None
+
+                self.outputs = [(self.payto_address, amount)]
                 return
 
         for line in lines:
@@ -115,24 +123,7 @@ class PayToEdit(QTextEdit):
             self.unlock_amount()
 
 
-
     def get_outputs(self):
-
-        if self.payto_address:
-            
-            if not bitcoin.is_address(self.payto_address):
-                QMessageBox.warning(self, _('Error'), _('Invalid Bitcoin Address') + ':\n' + self.payto_address, _('OK'))
-                return
-
-            try:
-                amount = self.amount_edit.get_amount()
-            except Exception:
-                QMessageBox.warning(self, _('Error'), _('Invalid Amount'), _('OK'))
-                return
-
-            outputs = [(self.payto_address, amount)]
-            return outputs
-
         return self.outputs
 
 

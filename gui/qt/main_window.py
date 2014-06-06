@@ -797,10 +797,22 @@ class ElectrumWindow(QMainWindow):
 
         if self.gui_object.payment_request:
             outputs = self.gui_object.payment_request.outputs
-            amount = self.gui_object.payment_request.get_amount()
         else:
             outputs = self.payto_e.get_outputs()
-            amount = sum(map(lambda x:x[1], outputs))
+
+        if not outputs:
+            QMessageBox.warning(self, _('Error'), _('No outputs'), _('OK'))
+            return
+
+        for addr, x in outputs:
+            if addr is None or not bitcoin.is_address(addr):
+                QMessageBox.warning(self, _('Error'), _('Invalid Bitcoin Address'), _('OK'))
+                return
+            if type(x) is not int:
+                QMessageBox.warning(self, _('Error'), _('Invalid Amount'), _('OK'))
+                return
+
+        amount = sum(map(lambda x:x[1], outputs))
 
         try:
             fee = self.fee_e.get_amount()
