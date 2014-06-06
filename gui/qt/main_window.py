@@ -44,7 +44,7 @@ from electrum_ltc import SimpleConfig, Wallet, WalletStorage
 
 from electrum_ltc import bmp, pyqrnative
 
-from amountedit import AmountEdit
+from amountedit import AmountEdit, MyLineEdit
 from network_dialog import NetworkDialog
 from qrcodewidget import QRCodeWidget
 
@@ -417,10 +417,10 @@ class ElectrumWindow(QMainWindow):
     def format_amount(self, x, is_diff=False, whitespaces=False):
         return format_satoshis(x, is_diff, self.num_zeros, self.decimal_point, whitespaces)
 
-    def read_amount(self, x):
-        if x in['.', '']: return None
-        p = pow(10, self.decimal_point)
-        return int( p * Decimal(x) )
+
+    def get_decimal_point(self):
+        return self.decimal_point
+
 
     def base_unit(self):
         assert self.decimal_point in [5,8]
@@ -643,7 +643,9 @@ class ElectrumWindow(QMainWindow):
         grid.setColumnStretch(5,1)
         grid.setRowStretch(8, 1)
 
-        self.payto_e = QLineEdit()
+        from paytoedit import PayToEdit
+        self.amount_e = AmountEdit(self.get_decimal_point)
+        self.payto_e = PayToEdit(self.amount_e)
         self.payto_help = HelpButton(_('Recipient of the funds.') + '\n\n' + _('You may enter a Litecoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Litecoin address)'))
         grid.addWidget(QLabel(_('Pay to')), 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, 3)
@@ -654,7 +656,7 @@ class ElectrumWindow(QMainWindow):
         self.payto_e.setCompleter(completer)
         completer.setModel(self.completions)
 
-        self.message_e = QLineEdit()
+        self.message_e = MyLineEdit()
         self.message_help = HelpButton(_('Description of the transaction (not mandatory).') + '\n\n' + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.'))
         grid.addWidget(QLabel(_('Description')), 2, 0)
         grid.addWidget(self.message_e, 2, 1, 1, 3)
@@ -662,16 +664,17 @@ class ElectrumWindow(QMainWindow):
 
         self.from_label = QLabel(_('From'))
         grid.addWidget(self.from_label, 3, 0)
-        self.from_list = QTreeWidget(self)
+        self.from_list = MyTreeWidget(self)
         self.from_list.setColumnCount(2)
         self.from_list.setColumnWidth(0, 350)
         self.from_list.setColumnWidth(1, 50)
-        self.from_list.setHeaderHidden (True)
+        self.from_list.setHeaderHidden(True)
         self.from_list.setMaximumHeight(80)
+        self.from_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.from_list.customContextMenuRequested.connect(self.from_list_menu)
         grid.addWidget(self.from_list, 3, 1, 1, 3)
         self.set_pay_from([])
 
-        self.amount_e = AmountEdit(self.base_unit)
         self.amount_help = HelpButton(_('Amount to be sent.') + '\n\n' \
                                       + _('The amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') \
                                       + '\n\n' + _('Keyboard shortcut: type "!" to send all your coins.'))
@@ -679,7 +682,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.amount_e, 4, 1, 1, 2)
         grid.addWidget(self.amount_help, 4, 3)
 
-        self.fee_e = AmountEdit(self.base_unit)
+        self.fee_e = AmountEdit(self.get_decimal_point)
         grid.addWidget(QLabel(_('Fee')), 5, 0)
         grid.addWidget(self.fee_e, 5, 1, 1, 2)
         grid.addWidget(HelpButton(
@@ -698,8 +701,8 @@ class ElectrumWindow(QMainWindow):
         self.payto_sig = QLabel('')
         grid.addWidget(self.payto_sig, 7, 0, 1, 4)
 
-        QShortcut(QKeySequence("Up"), w, w.focusPreviousChild)
-        QShortcut(QKeySequence("Down"), w, w.focusNextChild)
+        #QShortcut(QKeySequence("Up"), w, w.focusPreviousChild)
+        #QShortcut(QKeySequence("Down"), w, w.focusNextChild)
         w.setLayout(grid)
 
         def entry_changed( is_fee ):
@@ -709,21 +712,21 @@ class ElectrumWindow(QMainWindow):
                 self.amount_e.is_shortcut = False
                 sendable = self.get_sendable_balance()
                 # there is only one output because we are completely spending inputs
-                inputs, total, fee = self.wallet.choose_tx_inputs( sendable, 0, 1, self.get_payment_sources())
+                inputs, total, fee = self.wallet.choose_tx_inputs( sendable, 0, 1, coins = self.get_coins())
                 fee = self.wallet.estimated_fee(inputs, 1)
                 amount = total - fee
                 self.amount_e.setText( self.format_amount(amount) )
                 self.fee_e.setText( self.format_amount( fee ) )
                 return
 
-            amount = self.read_amount(str(self.amount_e.text()))
-            fee = self.read_amount(str(self.fee_e.text()))
+            amount = self.amount_e.get_amount()
+            fee = self.fee_e.get_amount()
 
             if not is_fee: fee = None
             if amount is None:
                 return
             # assume that there will be 2 outputs (one for change)
-            inputs, total, fee = self.wallet.choose_tx_inputs(amount, fee, 2, self.get_payment_sources())
+            inputs, total, fee = self.wallet.choose_tx_inputs(amount, fee, 2, coins = self.get_coins())
             if not is_fee:
                 self.fee_e.setText( self.format_amount( fee ) )
             if inputs:
@@ -748,17 +751,32 @@ class ElectrumWindow(QMainWindow):
         run_hook('create_send_tab', grid)
         return w
 
+    def from_list_delete(self, item):
+        i = self.from_list.indexOfTopLevelItem(item)
+        self.pay_from.pop(i)
+        self.redraw_from_list()
 
-    def set_pay_from(self, l):
-        self.pay_from = l
+    def from_list_menu(self, position):
+        item = self.from_list.itemAt(position)
+        menu = QMenu()
+        menu.addAction(_("Remove"), lambda: self.from_list_delete(item))
+        menu.exec_(self.from_list.viewport().mapToGlobal(position))
+
+    def set_pay_from(self, domain = None):
+        self.pay_from = [] if domain == [] else self.wallet.get_unspent_coins(domain)
+        self.redraw_from_list()
+
+    def redraw_from_list(self):
         self.from_list.clear()
         self.from_label.setHidden(len(self.pay_from) == 0)
         self.from_list.setHidden(len(self.pay_from) == 0)
-        for addr in self.pay_from:
-            c, u = self.wallet.get_addr_balance(addr)
-            balance = self.format_amount(c + u)
-            self.from_list.addTopLevelItem(QTreeWidgetItem( [addr, balance] ))
 
+        def format(x):
+            h = x.get('prevout_hash')
+            return h[0:8] + '...' + h[-8:] + ":%d"%x.get('prevout_n') + u'\t' + "%s"%x.get('address')
+
+        for item in self.pay_from:
+            self.from_list.addTopLevelItem(QTreeWidgetItem( [format(item), self.format_amount(item['value']) ]))
 
     def update_completions(self):
         l = []
@@ -779,36 +797,33 @@ class ElectrumWindow(QMainWindow):
 
         if self.gui_object.payment_request:
             outputs = self.gui_object.payment_request.outputs
-            amount = self.gui_object.payment_request.get_amount()
-
         else:
-            r = unicode( self.payto_e.text() )
-            r = r.strip()
+            outputs = self.payto_e.get_outputs()
 
-            # label or alias, with address in brackets
-            m = re.match('(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
-            to_address = m.group(2) if m else r
-            if not is_valid(to_address):
-                QMessageBox.warning(self, _('Error'), _('Invalid Litecoin Address') + ':\n' + to_address, _('OK'))
+        if not outputs:
+            QMessageBox.warning(self, _('Error'), _('No outputs'), _('OK'))
+            return
+
+        for addr, x in outputs:
+            if addr is None or not bitcoin.is_address(addr):
+                QMessageBox.warning(self, _('Error'), _('Invalid Litecoin Address'), _('OK'))
                 return
-
-            try:
-                amount = self.read_amount(unicode( self.amount_e.text()))
-            except Exception:
+            if type(x) is not int:
                 QMessageBox.warning(self, _('Error'), _('Invalid Amount'), _('OK'))
                 return
 
-            outputs = [(to_address, amount)]
+        amount = sum(map(lambda x:x[1], outputs))
 
         try:
-            fee = self.read_amount(unicode( self.fee_e.text()))
+            fee = self.fee_e.get_amount()
         except Exception:
             QMessageBox.warning(self, _('Error'), _('Invalid Fee'), _('OK'))
             return
 
         confirm_amount = self.config.get('confirm_amount', 100000000)
         if amount >= confirm_amount:
-            if not self.question(_("send %(amount)s to %(address)s?")%{ 'amount' : self.format_amount(amount) + ' '+ self.base_unit(), 'address' : to_address}):
+            o = '\n'.join(map(lambda x:x[0], outputs))
+            if not self.question(_("send %(amount)s to %(address)s?")%{ 'amount' : self.format_amount(amount) + ' '+ self.base_unit(), 'address' : o}):
                 return
             
         confirm_fee = self.config.get('confirm_fee', 1000000)
@@ -825,9 +840,9 @@ class ElectrumWindow(QMainWindow):
         self.send_button.setDisabled(True)
 
         # first, create an unsigned tx 
-        domain = self.get_payment_sources()
+        coins = self.get_coins()
         try:
-            tx = self.wallet.make_unsigned_transaction(outputs, fee, None, domain)
+            tx = self.wallet.make_unsigned_transaction(outputs, fee, None, coins = coins)
             tx.error = None
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
@@ -858,12 +873,11 @@ class ElectrumWindow(QMainWindow):
             if label:
                 self.wallet.set_label(tx.hash(), label)
 
-            if not self.gui_object.payment_request:
-                if not tx.is_complete() or self.config.get('show_before_broadcast'):
-                    self.show_transaction(tx)
-                    self.do_clear()
-                    self.send_button.setDisabled(False)
-                    return
+            if not tx.is_complete() or self.config.get('show_before_broadcast'):
+                self.show_transaction(tx)
+                self.do_clear()
+                self.send_button.setDisabled(False)
+                return
 
             self.broadcast_transaction(tx)
 
@@ -897,25 +911,27 @@ class ElectrumWindow(QMainWindow):
 
 
     def prepare_for_payment_request(self):
-        style = "QWidget { background-color:none;border:none;}"
         self.tabs.setCurrentIndex(1)
         for e in [self.payto_e, self.amount_e, self.message_e]:
-            e.setReadOnly(True)
-            e.setStyleSheet(style)
+            e.setFrozen(True)
         for h in [self.payto_help, self.amount_help, self.message_help]:
             h.hide()
         self.payto_e.setText(_("please wait..."))
         return True
 
     def payment_request_ok(self):
-        self.payto_e.setText(self.gui_object.payment_request.domain)
-        self.amount_e.setText(self.format_amount(self.gui_object.payment_request.get_amount()))
-        self.message_e.setText(self.gui_object.payment_request.memo)
+        pr = self.gui_object.payment_request
+        self.payto_help.show()
+        self.payto_help.set_alt(pr.status)
+        self.payto_e.setGreen()
+        self.payto_e.setText(pr.domain)
+        self.amount_e.setText(self.format_amount(pr.get_amount()))
+        self.message_e.setText(pr.memo)
 
     def payment_request_error(self):
         self.do_clear()
         self.show_message(self.gui_object.payment_request.error)
-
+        self.gui_object.payment_request = None
 
     def set_send(self, address, amount, label, message):
 
@@ -939,27 +955,16 @@ class ElectrumWindow(QMainWindow):
         self.payto_sig.setVisible(False)
         for e in [self.payto_e, self.message_e, self.amount_e, self.fee_e]:
             e.setText('')
-            self.set_frozen(e,False)
-            e.setStyleSheet("")
+            e.setFrozen(False)
+
         for h in [self.payto_help, self.amount_help, self.message_help]:
             h.show()
+
+        self.payto_help.set_alt(None)
 
         self.set_pay_from([])
         self.update_status()
 
-    def set_frozen(self,entry,frozen):
-        if frozen:
-            entry.setReadOnly(True)
-            entry.setFrame(False)
-            palette = QPalette()
-            palette.setColor(entry.backgroundRole(), QColor('lightgray'))
-            entry.setPalette(palette)
-        else:
-            entry.setReadOnly(False)
-            entry.setFrame(True)
-            palette = QPalette()
-            palette.setColor(entry.backgroundRole(), QColor('white'))
-            entry.setPalette(palette)
 
 
     def set_addrs_frozen(self,addrs,freeze):
@@ -1125,14 +1130,17 @@ class ElectrumWindow(QMainWindow):
 
 
     def get_sendable_balance(self):
-        return sum(sum(self.wallet.get_addr_balance(a)) for a in self.get_payment_sources())
+        return sum(map(lambda x:x['value'], self.get_coins()))
 
 
-    def get_payment_sources(self):
+    def get_coins(self):
         if self.pay_from:
             return self.pay_from
         else:
-            return self.wallet.get_account_addresses(self.current_account)
+            domain = self.wallet.get_account_addresses(self.current_account)
+            for i in self.wallet.frozen_addresses:
+                if i in domain: domain.remove(i)
+            return self.wallet.get_unspent_coins(domain)
 
 
     def send_from_addresses(self, addrs):
@@ -2191,7 +2199,7 @@ class ElectrumWindow(QMainWindow):
 
         fee_label = QLabel(_('Transaction fee') + ':')
         grid.addWidget(fee_label, 2, 0)
-        fee_e = AmountEdit(self.base_unit)
+        fee_e = AmountEdit(self.get_decimal_point)
         fee_e.setText(self.format_amount(self.wallet.fee).strip())
         grid.addWidget(fee_e, 2, 1)
         msg = _('Fee per kilobyte of transaction.') + ' ' \
@@ -2240,9 +2248,8 @@ class ElectrumWindow(QMainWindow):
         # run the dialog
         if not d.exec_(): return
 
-        fee = unicode(fee_e.text())
         try:
-            fee = self.read_amount(fee)
+            fee = self.fee_e.get_amount()
         except Exception:
             QMessageBox.warning(self, _('Error'), _('Invalid value') +': %s'%fee, _('OK'))
             return

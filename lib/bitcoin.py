@@ -17,11 +17,33 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-
-import hashlib, base64, ecdsa, re
+import hashlib
+import base64
+import re
+import sys
 import hmac
-import aes
+
+
+try:
+    import ecdsa
+except ImportError:
+    sys.exit("Error: python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'")
+
+try:
+    import aes
+except ImportError:
+    sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
+
+try:
+    import pbkdf2
+except ImportError:
+    sys.exit("Error: pbkdf2 does not seem to be installed. Try 'sudo pip install pbkdf2'")
+
+
+
 from util import print_error
+
+
 
 # AES encryption
 EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
