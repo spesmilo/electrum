@@ -18,6 +18,7 @@ import urlparse
 import requests
 from M2Crypto import X509
 
+import bitcoin
 from bitcoin import is_valid
 import urlparse
 
@@ -28,6 +29,15 @@ import transaction
 
 REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'}
 ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
+
+# status can be:
+PR_UNPAID  = 0
+PR_EXPIRED = 1
+PR_SENT    = 2     # sent but not propagated
+PR_PAID    = 3     # send and propagated
+
+
+
 
 ca_path = os.path.expanduser("~/.electrum/ca/ca-bundle.crt")
 ca_list = {}
@@ -52,32 +62,52 @@ except Exception:
 
 class PaymentRequest:
 
-    def __init__(self, url):
-        self.url = url
+    def __init__(self, config):
+        self.config = config
         self.outputs = []
         self.error = ""
 
+    def read(self, url):
+        self.url = url
 
-    def verify(self):
-        u = urlparse.urlparse(self.url)
+        u = urlparse.urlparse(url)
         self.domain = u.netloc
 
         try:
             connection = httplib.HTTPConnection(u.netloc) if u.scheme == 'http' else httplib.HTTPSConnection(u.netloc)
             connection.request("GET",u.geturl(), headers=REQUEST_HEADERS)
-            resp = connection.getresponse()
+            response = connection.getresponse()
         except:
             self.error = "cannot read url"
             return
 
-        paymntreq = paymentrequest_pb2.PaymentRequest()
         try:
-            r = resp.read()
-            paymntreq.ParseFromString(r)
+            r = response.read()
+        except:
+            self.error = "cannot read"
+            return
+
+        try:
+            self.data = paymentrequest_pb2.PaymentRequest()
+            self.data.ParseFromString(r)
         except:
             self.error = "cannot parse payment request"
             return
 
+        self.id = bitcoin.sha256(r)[0:16].encode('hex')
+        print self.id
+
+        dir_path = os.path.join( self.config.path, 'requests')
+        if not os.path.exists(dir_path):
+            os.mkdir(dir_path)
+        filename = os.path.join(dir_path, self.id)
+        with open(filename,'w') as f:
+            f.write(r)
+
+
+
+    def verify(self):
+        paymntreq = self.data
         sig = paymntreq.signature
         if not sig:
             self.error = "No signature"
@@ -187,6 +217,14 @@ class PaymentRequest:
         return True
 
 
+    def get_amount(self):
+        return sum(map(lambda x:x[1], self.outputs))
+
+    def get_domain(self):
+        return self.domain
+
+    def get_id(self):
+        return self.id
 
     def send_ack(self, raw_tx, refund_addr):
 
@@ -225,7 +263,6 @@ class PaymentRequest:
 
         print "PaymentACK message received: %s" % paymntack.memo
         return True, paymntack.memo
-
 
 
 

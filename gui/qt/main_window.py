@@ -129,6 +129,7 @@ class ElectrumWindow(QMainWindow):
         tabs.addTab(self.create_send_tab(), _('Send') )
         tabs.addTab(self.create_receive_tab(), _('Receive') )
         tabs.addTab(self.create_contacts_tab(), _('Contacts') )
+        tabs.addTab(self.create_invoices_tab(), _('Invoices') )
         tabs.addTab(self.create_console_tab(), _('Console') )
         tabs.setMinimumSize(600, 400)
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -468,6 +469,7 @@ class ElectrumWindow(QMainWindow):
             self.update_receive_tab()
             self.update_contacts_tab()
             self.update_completions()
+            self.update_invoices_tab()
 
 
     def create_history_tab(self):
@@ -808,7 +810,7 @@ class ElectrumWindow(QMainWindow):
             if addr is None or not bitcoin.is_address(addr):
                 QMessageBox.warning(self, _('Error'), _('Invalid Bitcoin Address'), _('OK'))
                 return
-            if type(x) is not int:
+            if x is None:
                 QMessageBox.warning(self, _('Error'), _('Invalid Amount'), _('OK'))
                 return
 
@@ -912,6 +914,7 @@ class ElectrumWindow(QMainWindow):
 
     def prepare_for_payment_request(self):
         self.tabs.setCurrentIndex(1)
+        self.payto_e.is_pr = True
         for e in [self.payto_e, self.amount_e, self.message_e]:
             e.setFrozen(True)
         for h in [self.payto_help, self.amount_help, self.message_help]:
@@ -921,6 +924,13 @@ class ElectrumWindow(QMainWindow):
 
     def payment_request_ok(self):
         pr = self.gui_object.payment_request
+        pr_id = pr.get_id()
+        # save it
+        invoices = self.wallet.storage.get('invoices', {})
+        invoices[pr_id] = (pr.get_domain(), pr.get_amount())
+        invoices = self.wallet.storage.put('invoices', invoices)
+        self.update_invoices_tab()
+
         self.payto_help.show()
         self.payto_help.set_alt(pr.status)
         self.payto_e.setGreen()
@@ -952,6 +962,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def do_clear(self):
+        self.payto_e.is_pr = False
         self.payto_sig.setVisible(False)
         for e in [self.payto_e, self.message_e, self.amount_e, self.fee_e]:
             e.setText('')
@@ -1047,6 +1058,30 @@ class ElectrumWindow(QMainWindow):
         self.contacts_buttons_hbox = hbox
         hbox.addStretch(1)
         return w
+
+
+    def create_invoices_tab(self):
+        l,w,hbox = self.create_list_tab([_('Recipient'), _('Amount'), _('Status')])
+        l.setContextMenuPolicy(Qt.CustomContextMenu)
+        #l.customContextMenuRequested.connect(self.create_contact_menu)
+        #self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,0,1))
+        #self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
+        self.invoices_list = l
+        hbox.addStretch(1)
+        return w
+
+    def update_invoices_tab(self):
+        invoices = self.wallet.storage.get('invoices', {})
+        l = self.invoices_list
+        l.clear()
+
+        for item, value in invoices.items():
+            domain, amount = value
+            item = QTreeWidgetItem( [ domain, self.format_amount(amount), ""] )
+            l.addTopLevelItem(item)
+
+        l.setCurrentItem(l.topLevelItem(0))
+
 
 
     def delete_imported_key(self, addr):

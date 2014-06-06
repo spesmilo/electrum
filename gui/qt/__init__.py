@@ -181,7 +181,8 @@ class ElectrumGui:
             return
 
         def payment_request():
-            self.payment_request = paymentrequest.PaymentRequest(request_url)
+            self.payment_request = paymentrequest.PaymentRequest(self.config)
+            self.payment_request.read(request_url)
             if self.payment_request.verify():
                 self.main_window.emit(SIGNAL('payment_request_ok'))
             else:
