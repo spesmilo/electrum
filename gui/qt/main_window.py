@@ -810,7 +810,8 @@ class ElectrumWindow(QMainWindow):
 
         confirm_amount = self.config.get('confirm_amount', 100000000)
         if amount >= confirm_amount:
-            if not self.question(_("send %(amount)s to %(address)s?")%{ 'amount' : self.format_amount(amount) + ' '+ self.base_unit(), 'address' : to_address}):
+            o = '\n'.join(map(lambda x:x[0], outputs))
+            if not self.question(_("send %(amount)s to %(address)s?")%{ 'amount' : self.format_amount(amount) + ' '+ self.base_unit(), 'address' : o}):
                 return
             
         confirm_fee = self.config.get('confirm_fee', 100000)

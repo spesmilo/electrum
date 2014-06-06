@@ -40,6 +40,7 @@ class PayToEdit(QTextEdit):
         self.setMinimumHeight(27)
         self.setMaximumHeight(27)
         self.c = None
+        self.textChanged.connect(self.check_text)
 
     def lock_amount(self):
         self.amount_edit.setFrozen(True)
@@ -80,12 +81,13 @@ class PayToEdit(QTextEdit):
         outputs = []
         total = 0
 
+        self.payto_address = None
+
         if len(lines) == 1:
             try:
                 self.payto_address = self.parse_address(lines[0])
             except:
-                self.payto_address = None
-
+                pass
             if self.payto_address:
                 self.unlock_amount()
                 return
@@ -119,7 +121,7 @@ class PayToEdit(QTextEdit):
         if self.payto_address:
             
             if not bitcoin.is_address(self.payto_address):
-                QMessageBox.warning(self, _('Error'), _('Invalid Bitcoin Address') + ':\n' + to_address, _('OK'))
+                QMessageBox.warning(self, _('Error'), _('Invalid Bitcoin Address') + ':\n' + self.payto_address, _('OK'))
                 return
 
             try:
@@ -165,7 +167,6 @@ class PayToEdit(QTextEdit):
         tc.movePosition(QTextCursor.EndOfWord)
         tc.insertText(completion.right(extra))
         self.setTextCursor(tc)
-        self.check_text()
  
 
     def textUnderCursor(self):
@@ -195,7 +196,6 @@ class PayToEdit(QTextEdit):
 
         if not self.c or not isShortcut:
             QTextEdit.keyPressEvent(self, e)
-            self.check_text()
 
 
         ctrlOrShift = e.modifiers() and (Qt.ControlModifier or Qt.ShiftModifier)
