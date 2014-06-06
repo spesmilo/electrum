@@ -92,12 +92,6 @@ class PayToEdit(QTextEdit):
 
             if self.payto_address:
                 self.unlock_amount()
-                try:
-                    amount = self.amount_edit.get_amount()
-                except:
-                    amount = None
-
-                self.outputs = [(self.payto_address, amount)]
                 return
 
         for line in lines:
@@ -124,6 +118,14 @@ class PayToEdit(QTextEdit):
 
 
     def get_outputs(self):
+        if self.payto_address:
+            try:
+                amount = self.amount_edit.get_amount()
+            except:
+                amount = None
+
+            self.outputs = [(self.payto_address, amount)]
+
         return self.outputs
 
 
