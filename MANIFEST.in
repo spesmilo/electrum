@@ -8,6 +8,8 @@ recursive-include gui *.py
 recursive-include plugins *.py
 recursive-include ecdsa *.py
 recursive-include aes *.py
+recursive-include requests *.py
+recursive-include pbkdf2 *.py
 include app.fil
 include icons.qrc
 recursive-include icons *

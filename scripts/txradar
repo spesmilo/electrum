@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 import time, sys, electrum, Queue
-from electrum import Interface, SimpleConfig
-from electrum.network import filter_protocol, parse_servers
+from electrum_ltc import Interface, SimpleConfig
+from electrum_ltc.network import filter_protocol, parse_servers
 from collections import defaultdict
 
 try:

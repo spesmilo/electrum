@@ -56,17 +56,19 @@ class HelpButton(QPushButton):
     def __init__(self, text):
         QPushButton.__init__(self, '?')
         self.help_text = text
-        self.alt_text = None
         self.setFocusPolicy(Qt.NoFocus)
         self.setFixedWidth(20)
-        self.clicked.connect(lambda: QMessageBox.information(self, 'Help', self.get_text(), 'OK') )
+        self.alt = None
+        self.clicked.connect(self.onclick)
 
-    def get_text(self):
-        return self.alt_text if self.alt_text else self.help_text
+    def set_alt(self, func):
+        self.alt = func
 
-    def set_alt(self, t):
-        self.alt_text = t
-
+    def onclick(self):
+        if self.alt:
+            apply(self.alt)
+        else:
+            QMessageBox.information(self, 'Help', self.help_text, 'OK')
 
 
 

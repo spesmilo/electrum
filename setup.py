@@ -56,7 +56,7 @@ data_files += [
 setup(
     name="Electrum-LTC",
     version=version.ELECTRUM_VERSION,
-    install_requires=['slowaes', 'ecdsa>=0.9', 'pbkdf2', 'ltc_scrypt'],
+    install_requires=['slowaes', 'ecdsa>=0.9', 'pbkdf2', 'requests', 'ltc_scrypt'],
     package_dir={
         'electrum_ltc': 'lib',
         'electrum_ltc_gui': 'gui',
@@ -116,8 +116,8 @@ setup(
         'electrum_ltc_plugins.virtualkeyboard',
     ],
     description="Lightweight Litecoin Wallet",
-    author="ecdsa",
-    author_email="ecdsa@github",
+    author="Thomas Voegtlin",
+    author_email="thomasv1@gmx.de",
     license="GNU GPLv3",
     url="http://electrum-ltc.org",
     long_description="""Lightweight Litecoin Wallet"""

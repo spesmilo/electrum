@@ -21,7 +21,7 @@ from PyQt4.QtGui import *
 
 import re
 from decimal import Decimal
-from electrum import bitcoin
+from electrum_ltc import bitcoin
 
 RE_ADDRESS = '[1-9A-HJ-NP-Za-km-z]{26,}'
 RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'
@@ -42,6 +42,7 @@ class PayToEdit(QTextEdit):
         self.c = None
         self.textChanged.connect(self.check_text)
         self.outputs = []
+        self.is_pr = False
 
     def lock_amount(self):
         self.amount_edit.setFrozen(True)
@@ -54,7 +55,9 @@ class PayToEdit(QTextEdit):
         self.setStyleSheet(frozen_style if b else normal_style)
 
     def setGreen(self):
+        self.is_pr = True
         self.setStyleSheet("QWidget { background-color:#00ff00;}")
+
 
     def parse_address_and_amount(self, line):
         x, y = line.split(',')
@@ -77,6 +80,9 @@ class PayToEdit(QTextEdit):
 
 
     def check_text(self):
+        if self.is_pr:
+            return
+
         # filter out empty lines
         lines = filter( lambda x: x, self.lines())
         outputs = []

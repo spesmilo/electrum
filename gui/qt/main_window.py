@@ -117,6 +117,7 @@ class ElectrumWindow(QMainWindow):
 
         self.decimal_point = config.get('decimal_point', 8)
         self.num_zeros     = int(config.get('num_zeros',0))
+        self.invoices      = {}
 
         set_language(config.get('language'))
 
@@ -129,6 +130,7 @@ class ElectrumWindow(QMainWindow):
         tabs.addTab(self.create_send_tab(), _('Send') )
         tabs.addTab(self.create_receive_tab(), _('Receive') )
         tabs.addTab(self.create_contacts_tab(), _('Contacts') )
+        tabs.addTab(self.create_invoices_tab(), _('Invoices') )
         tabs.addTab(self.create_console_tab(), _('Console') )
         tabs.setMinimumSize(600, 400)
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -191,6 +193,7 @@ class ElectrumWindow(QMainWindow):
         self.wallet = wallet
         self.update_wallet_format()
 
+        self.invoices = self.wallet.storage.get('invoices', {})
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
         title = 'Electrum-LTC ' + self.wallet.electrum_version + '  -  ' + self.wallet.storage.path
@@ -468,6 +471,7 @@ class ElectrumWindow(QMainWindow):
             self.update_receive_tab()
             self.update_contacts_tab()
             self.update_completions()
+            self.update_invoices_tab()
 
 
     def create_history_tab(self):
@@ -808,7 +812,7 @@ class ElectrumWindow(QMainWindow):
             if addr is None or not bitcoin.is_address(addr):
                 QMessageBox.warning(self, _('Error'), _('Invalid Litecoin Address'), _('OK'))
                 return
-            if type(x) is not int:
+            if x is None:
                 QMessageBox.warning(self, _('Error'), _('Invalid Amount'), _('OK'))
                 return
 
@@ -912,6 +916,7 @@ class ElectrumWindow(QMainWindow):
 
     def prepare_for_payment_request(self):
         self.tabs.setCurrentIndex(1)
+        self.payto_e.is_pr = True
         for e in [self.payto_e, self.amount_e, self.message_e]:
             e.setFrozen(True)
         for h in [self.payto_help, self.amount_help, self.message_help]:
@@ -921,8 +926,15 @@ class ElectrumWindow(QMainWindow):
 
     def payment_request_ok(self):
         pr = self.gui_object.payment_request
+        pr_id = pr.get_id()
+        # save it
+        self.invoices[pr_id] = (pr.get_domain(), pr.get_amount())
+        self.wallet.storage.put('invoices', self.invoices)
+        self.update_invoices_tab()
+
         self.payto_help.show()
-        self.payto_help.set_alt(pr.status)
+        self.payto_help.set_alt(lambda: self.show_pr_details(pr))
+
         self.payto_e.setGreen()
         self.payto_e.setText(pr.domain)
         self.amount_e.setText(self.format_amount(pr.get_amount()))
@@ -952,6 +964,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def do_clear(self):
+        self.payto_e.is_pr = False
         self.payto_sig.setVisible(False)
         for e in [self.payto_e, self.message_e, self.amount_e, self.fee_e]:
             e.setText('')
@@ -961,7 +974,6 @@ class ElectrumWindow(QMainWindow):
             h.show()
 
         self.payto_help.set_alt(None)
-
         self.set_pay_from([])
         self.update_status()
 
@@ -994,16 +1006,11 @@ class ElectrumWindow(QMainWindow):
         buttons = QWidget()
         vbox.addWidget(buttons)
 
-        hbox = QHBoxLayout()
-        hbox.setMargin(0)
-        hbox.setSpacing(0)
-        buttons.setLayout(hbox)
-
-        return l,w,hbox
+        return l, w
 
 
     def create_receive_tab(self):
-        l,w,hbox = self.create_list_tab([ _('Address'), _('Label'), _('Balance'), _('Tx')])
+        l, w = self.create_list_tab([ _('Address'), _('Label'), _('Balance'), _('Tx')])
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_receive_menu)
         l.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -1011,8 +1018,6 @@ class ElectrumWindow(QMainWindow):
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.connect(l, SIGNAL('currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)'), lambda a,b: self.current_item_changed(a))
         self.receive_list = l
-        self.receive_buttons_hbox = hbox
-        hbox.addStretch(1)
         return w
 
 
@@ -1035,7 +1040,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def create_contacts_tab(self):
-        l,w,hbox = self.create_list_tab([_('Address'), _('Label'), _('Tx')])
+        l, w = self.create_list_tab([_('Address'), _('Label'), _('Tx')])
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_contact_menu)
         for i,width in enumerate(self.column_widths['contacts']):
@@ -1044,9 +1049,28 @@ class ElectrumWindow(QMainWindow):
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,0,1))
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.contacts_list = l
-        self.contacts_buttons_hbox = hbox
-        hbox.addStretch(1)
         return w
+
+
+    def create_invoices_tab(self):
+        l, w = self.create_list_tab([_('Requestor'), _('Amount'), _('Status')])
+        l.setContextMenuPolicy(Qt.CustomContextMenu)
+        l.customContextMenuRequested.connect(self.create_invoice_menu)
+        self.invoices_list = l
+        return w
+
+    def update_invoices_tab(self):
+        invoices = self.wallet.storage.get('invoices', {})
+        l = self.invoices_list
+        l.clear()
+
+        for item, value in invoices.items():
+            domain, amount = value
+            item = QTreeWidgetItem( [ domain, self.format_amount(amount), ""] )
+            l.addTopLevelItem(item)
+
+        l.setCurrentItem(l.topLevelItem(0))
+
 
 
     def delete_imported_key(self, addr):
@@ -1185,6 +1209,39 @@ class ElectrumWindow(QMainWindow):
 
         run_hook('create_contact_menu', menu, item)
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
+
+    def delete_invoice(self, item):
+        self.invoices.pop(key)
+        self.wallet.storage.put('invoices', self.invoices)
+        self.update_invoices_tab()
+
+    def show_invoice(self, key):
+        from electrum_ltc.paymentrequest import PaymentRequest
+        domain, value = self.invoices[key]
+        pr = PaymentRequest(self.config)
+        pr.read_file(key)
+        pr.domain = domain
+        pr.verify()
+        self.show_pr_details(pr)
+
+    def show_pr_details(self, pr):
+        msg = 'Domain: ' + pr.domain
+        msg += '\nStatus: ' + pr.get_status()
+        msg += '\nMemo: ' + pr.memo
+        msg += '\nPayment URL: ' + pr.payment_url
+        msg += '\n\nOutputs:\n' + '\n'.join(map(lambda x: x[0] + ' ' + self.format_amount(x[1])+ self.base_unit(), pr.get_outputs()))
+        QMessageBox.information(self, 'Invoice', msg , 'OK')
+
+    def create_invoice_menu(self, position):
+        item = self.invoices_list.itemAt(position)
+        if not item:
+            return
+        k = self.invoices_list.indexOfTopLevelItem(item)
+        key = self.invoices.keys()[k]
+        menu = QMenu()
+        menu.addAction(_("Details"), lambda: self.show_invoice(key))
+        menu.addAction(_("Delete"), lambda: self.delete_invoice(key))
+        menu.exec_(self.invoices_list.viewport().mapToGlobal(position))
 
 
     def update_receive_item(self, item):

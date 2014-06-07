@@ -23,7 +23,7 @@ class AmountEdit(MyLineEdit):
     def base_unit(self):
         p = self.decimal_point()
         assert p in [5,8]
-        return "BTC" if p == 8 else "mBTC"
+        return "LTC" if p == 8 else "mLTC"
 
     def get_amount(self):
         x = unicode( self.text() )
