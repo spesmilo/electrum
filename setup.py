@@ -56,7 +56,7 @@ data_files += [
 setup(
     name="Electrum",
     version=version.ELECTRUM_VERSION,
-    install_requires=['slowaes', 'ecdsa>=0.9', 'pbkdf2'],
+    install_requires=['slowaes', 'ecdsa>=0.9', 'pbkdf2', 'requests'],
     package_dir={
         'electrum': 'lib',
         'electrum_gui': 'gui',
@@ -117,9 +117,9 @@ setup(
         'electrum_plugins.virtualkeyboard',
     ],
     description="Lightweight Bitcoin Wallet",
-    author="ecdsa",
-    author_email="ecdsa@github",
+    author="Thomas Voegtlin",
+    author_email="thomasv1@gmx.de",
     license="GNU GPLv3",
-    url="http://electrum.org",
+    url="https://electrum.org",
     long_description="""Lightweight Bitcoin Wallet"""
 )
