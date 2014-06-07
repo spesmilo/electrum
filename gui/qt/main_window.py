@@ -933,7 +933,8 @@ class ElectrumWindow(QMainWindow):
         self.update_invoices_tab()
 
         self.payto_help.show()
-        self.payto_help.set_alt(pr.status)
+        self.payto_help.set_alt(lambda: self.show_pr_details(pr))
+
         self.payto_e.setGreen()
         self.payto_e.setText(pr.domain)
         self.amount_e.setText(self.format_amount(pr.get_amount()))
@@ -973,7 +974,6 @@ class ElectrumWindow(QMainWindow):
             h.show()
 
         self.payto_help.set_alt(None)
-
         self.set_pay_from([])
         self.update_status()
 
@@ -1211,18 +1211,36 @@ class ElectrumWindow(QMainWindow):
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
     def delete_invoice(self, item):
-        k = self.invoices_list.indexOfTopLevelItem(item)
-        key = self.invoices.keys()[k]
         self.invoices.pop(key)
         self.wallet.storage.put('invoices', self.invoices)
         self.update_invoices_tab()
+
+    def show_invoice(self, key):
+        from electrum.paymentrequest import PaymentRequest
+        domain, value = self.invoices[key]
+        pr = PaymentRequest(self.config)
+        pr.read_file(key)
+        pr.domain = domain
+        pr.verify()
+        self.show_pr_details(pr)
+
+    def show_pr_details(self, pr):
+        msg = 'Domain: ' + pr.domain
+        msg += '\nStatus: ' + pr.get_status()
+        msg += '\nMemo: ' + pr.memo
+        msg += '\nPayment URL: ' + pr.payment_url
+        msg += '\n\nOutputs:\n' + '\n'.join(map(lambda x: x[0] + ' ' + self.format_amount(x[1])+ self.base_unit(), pr.get_outputs()))
+        QMessageBox.information(self, 'Invoice', msg , 'OK')
 
     def create_invoice_menu(self, position):
         item = self.invoices_list.itemAt(position)
         if not item:
             return
+        k = self.invoices_list.indexOfTopLevelItem(item)
+        key = self.invoices.keys()[k]
         menu = QMenu()
-        menu.addAction(_("Delete"), lambda: self.delete_invoice(item))
+        menu.addAction(_("Details"), lambda: self.show_invoice(key))
+        menu.addAction(_("Delete"), lambda: self.delete_invoice(key))
         menu.exec_(self.invoices_list.viewport().mapToGlobal(position))
 
 

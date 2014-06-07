@@ -169,11 +169,7 @@ class ElectrumGui:
                 QMessageBox.warning(self.main_window, _('Error'), _('Invalid Amount'), _('OK'))
 
         if request_url:
-            try:
-                from electrum import paymentrequest
-            except:
-                print "cannot import paymentrequest"
-                request_url = None
+            from electrum import paymentrequest
 
         if not request_url:
             self.main_window.set_send(address, amount, label, message)

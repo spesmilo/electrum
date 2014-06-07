@@ -7,19 +7,18 @@ import threading
 import time
 import traceback
 import urllib2
+import urlparse
+
 
 try:
     import paymentrequest_pb2
 except:
-    print "protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto"
-    raise Exception()
+    sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto'")
 
 try:
     import requests
 except ImportError:
     sys.exit("Error: requests does not seem to be installed. Try 'sudo pip install requests'")
-
-import urlparse
 
 
 import bitcoin
@@ -35,8 +34,7 @@ PR_UNPAID  = 0
 PR_EXPIRED = 1
 PR_SENT    = 2     # sent but not propagated
 PR_PAID    = 3     # send and propagated
-
-
+PR_ERROR   = 4     # could not parse
 
 
 ca_list = {}
@@ -77,10 +75,12 @@ class PaymentRequest:
         self.config = config
         self.outputs = []
         self.error = ""
+        self.dir_path = os.path.join( self.config.path, 'requests')
+        if not os.path.exists(self.dir_path):
+            os.mkdir(self.dir_path)
 
     def read(self, url):
         self.url = url
-
         u = urlparse.urlparse(url)
         self.domain = u.netloc
         try:
@@ -97,23 +97,36 @@ class PaymentRequest:
             self.error = "cannot read"
             return
 
+        self.id = bitcoin.sha256(r)[0:16].encode('hex')
+        filename = os.path.join(self.dir_path, self.id)
+        with open(filename,'w') as f:
+            f.write(r)
+
+        return self.parse(r)
+
+
+    def get_status(self):
+        if self.error:
+            return self.error
+        else:
+            return self.status
+
+
+    def read_file(self, key):
+        filename = os.path.join(self.dir_path, key)
+        with open(filename,'r') as f:
+            r = f.read()
+
+        self.parse(r)
+
+
+    def parse(self, r):
         try:
             self.data = paymentrequest_pb2.PaymentRequest()
             self.data.ParseFromString(r)
         except:
             self.error = "cannot parse payment request"
             return
-
-        self.id = bitcoin.sha256(r)[0:16].encode('hex')
-        print self.id
-
-        dir_path = os.path.join( self.config.path, 'requests')
-        if not os.path.exists(dir_path):
-            os.mkdir(dir_path)
-        filename = os.path.join(dir_path, self.id)
-        with open(filename,'w') as f:
-            f.write(r)
-
 
 
     def verify(self):
@@ -217,25 +230,28 @@ class PaymentRequest:
 
         ### SIG Verified
 
-        self.payment_details = pay_det = paymentrequest_pb2.PaymentDetails()
-        pay_det.ParseFromString(paymntreq.serialized_payment_details)
-
-        if pay_det.expires and pay_det.expires < int(time.time()):
-            self.error = "ERROR: Payment Request has Expired."
-            return False
+        self.details = pay_det = paymentrequest_pb2.PaymentDetails()
+        self.details.ParseFromString(paymntreq.serialized_payment_details)
 
         for o in pay_det.outputs:
             addr = transaction.get_address_from_output_script(o.script)[1]
             self.outputs.append( (addr, o.amount) )
 
-        self.memo = pay_det.memo
+        self.memo = self.details.memo
 
         if CA_match:
             self.status = 'Signed by Trusted CA:\n' + CA_OU
 
-        print "payment url", pay_det.payment_url
+        self.payment_url = self.details.payment_url
+
+        if self.has_expired():
+            self.error = "ERROR: Payment Request has Expired."
+            return False
+
         return True
 
+    def has_expired(self):
+        return self.details.expires and self.details.expires < int(time.time())
 
     def get_amount(self):
         return sum(map(lambda x:x[1], self.outputs))
@@ -246,10 +262,16 @@ class PaymentRequest:
     def get_id(self):
         return self.id
 
+    def get_outputs(self):
+        return self.outputs
+
     def send_ack(self, raw_tx, refund_addr):
 
-        pay_det = self.payment_details
-        if not pay_det.payment_url:
+        if self.has_expired():
+            return False, "has expired"
+
+        pay_det = self.details
+        if not self.details.payment_url:
             return False, "no url"
 
         paymnt = paymentrequest_pb2.Payment()
@@ -302,7 +324,7 @@ if __name__ == "__main__":
 
     print 'Payment Request Verified Domain: ', pr.domain
     print 'outputs', pr.outputs
-    print 'Payment Memo: ', pr.payment_details.memo
+    print 'Payment Memo: ', pr.details.memo
 
     tx = "blah"
     pr.send_ack(tx, refund_addr = "1vXAXUnGitimzinpXrqDWVU4tyAAQ34RA")
