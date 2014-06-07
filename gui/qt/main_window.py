@@ -1006,16 +1006,11 @@ class ElectrumWindow(QMainWindow):
         buttons = QWidget()
         vbox.addWidget(buttons)
 
-        hbox = QHBoxLayout()
-        hbox.setMargin(0)
-        hbox.setSpacing(0)
-        buttons.setLayout(hbox)
-
-        return l,w,hbox
+        return l, w
 
 
     def create_receive_tab(self):
-        l,w,hbox = self.create_list_tab([ _('Address'), _('Label'), _('Balance'), _('Tx')])
+        l, w = self.create_list_tab([ _('Address'), _('Label'), _('Balance'), _('Tx')])
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_receive_menu)
         l.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -1023,8 +1018,6 @@ class ElectrumWindow(QMainWindow):
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.connect(l, SIGNAL('currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)'), lambda a,b: self.current_item_changed(a))
         self.receive_list = l
-        self.receive_buttons_hbox = hbox
-        hbox.addStretch(1)
         return w
 
 
@@ -1047,7 +1040,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def create_contacts_tab(self):
-        l,w,hbox = self.create_list_tab([_('Address'), _('Label'), _('Tx')])
+        l, w = self.create_list_tab([_('Address'), _('Label'), _('Tx')])
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_contact_menu)
         for i,width in enumerate(self.column_widths['contacts']):
@@ -1056,17 +1049,14 @@ class ElectrumWindow(QMainWindow):
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,0,1))
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.contacts_list = l
-        self.contacts_buttons_hbox = hbox
-        hbox.addStretch(1)
         return w
 
 
     def create_invoices_tab(self):
-        l,w,hbox = self.create_list_tab([_('Requestor'), _('Amount'), _('Status')])
+        l, w = self.create_list_tab([_('Requestor'), _('Amount'), _('Status')])
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_invoice_menu)
         self.invoices_list = l
-        hbox.addStretch(1)
         return w
 
     def update_invoices_tab(self):
