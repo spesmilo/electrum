@@ -149,7 +149,7 @@ class ElectrumGui:
 
 
     def set_url(self, url):
-        from electrum import util
+        from electrum_ltc import util
         from decimal import Decimal
 
         try:
@@ -170,7 +170,7 @@ class ElectrumGui:
 
         if request_url:
             try:
-                from electrum import paymentrequest
+                from electrum_ltc import paymentrequest
             except:
                 print "cannot import paymentrequest"
                 request_url = None

@@ -29,7 +29,7 @@ import transaction
 REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'}
 ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
 
-ca_path = os.path.expanduser("~/.electrum/ca/ca-bundle.crt")
+ca_path = os.path.expanduser("~/.electrum-ltc/ca/ca-bundle.crt")
 ca_list = {}
 try:
     with open(ca_path, 'r') as ca_f:
@@ -44,7 +44,7 @@ try:
                 ca_list[x.get_fingerprint()] = x
 except Exception:
     print "ERROR: Could not open %s"%ca_path
-    print "ca-bundle.crt file should be placed in ~/.electrum/ca/ca-bundle.crt"
+    print "ca-bundle.crt file should be placed in ~/.electrum-ltc/ca/ca-bundle.crt"
     print "Documentation on how to download or create the file here: http://curl.haxx.se/docs/caextract.html"
     print "Payment will continue with manual verification."
     raise Exception()
