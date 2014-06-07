@@ -4,10 +4,10 @@
 title = Electrum
 
 # (str) Package name
-package.name = electrum
+package.name = kivy
 
 # (str) Package domain (needed for android/ios packaging)
-package.domain = org.sierra3d
+package.domain = org.electrum
 
 # (str) Source code where the main.py live
 source.dir = .
@@ -19,7 +19,7 @@ source.include_exts = py,png,jpg,kv,atlas,ttf,*,txt, gif
 source.exclude_exts = spec
 
 # (list) List of directory to exclude (let empty to not exclude anything)
-#source.exclude_dirs = 
+#source.exclude_dirs =
 
 # (list) List of exclusions using pattern matching
 #source.exclude_patterns = license,images/*/*.jpg
@@ -29,7 +29,7 @@ source.exclude_exts = spec
 #version.filename = %(source.dir)s/main.py
 
 # (str) Application versioning (method 2)
-version = 1.9.7
+version = 1.9.8
 
 # (list) Application requirements
 requirements = pil, qrcode, ecdsa, pbkdf2, pyopenssl, plyer==master, kivy==master
@@ -72,7 +72,7 @@ android.private_storage = False
 #android.ndk_path =
 
 # (str) Android SDK directory (if empty, it will be automatically downloaded.)
-#android.sdk_path = 
+#android.sdk_path =
 
 # (str) Android entry point, default is ok for Kivy-based app
 #android.entrypoint = org.renpy.android.PythonActivity
@@ -100,7 +100,7 @@ android.branch = master
 #android.ouya.icon.filename = %(source.dir)s/data/ouya_icon.png
 
 # (str) XML file to include as an intent filters in <activity> tag
-#android.manifest.intent_filters = 
+#android.manifest.intent_filters =
 
 # (list) Android additionnal libraries to copy into libs/armeabi
 android.add_libs_armeabi = lib/android/*.so
@@ -136,7 +136,7 @@ log_level = 2
 
 # -----------------------------------------------------------------------------
 # List as sections
-# 
+#
 # You can define all the "list" as [section:key].
 # Each line will be considered as a option to the list.
 # Let's take [app] / source.exclude_patterns.
