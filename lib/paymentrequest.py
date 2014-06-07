@@ -14,15 +14,15 @@ except:
     print "protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto"
     raise Exception()
 
+try:
+    import requests
+except ImportError:
+    sys.exit("Error: requests does not seem to be installed. Try 'sudo pip install requests'")
+
 import urlparse
-import requests
-from M2Crypto import X509
+
 
 import bitcoin
-from bitcoin import is_valid
-import urlparse
-
-
 import util
 import transaction
 
@@ -39,29 +39,40 @@ PR_PAID    = 3     # send and propagated
 
 
 
-ca_path = os.path.expanduser("~/.electrum/ca/ca-bundle.crt")
 ca_list = {}
-try:
-    with open(ca_path, 'r') as ca_f:
-        c = ""
-        for line in ca_f:
-            if line == "-----BEGIN CERTIFICATE-----\n":
-                c = line
-            else:
-                c += line
-            if line == "-----END CERTIFICATE-----\n":
-                x = X509.load_cert_string(c)
-                ca_list[x.get_fingerprint()] = x
-except Exception:
-    print "ERROR: Could not open %s"%ca_path
-    print "ca-bundle.crt file should be placed in ~/.electrum/ca/ca-bundle.crt"
-    print "Documentation on how to download or create the file here: http://curl.haxx.se/docs/caextract.html"
-    print "Payment will continue with manual verification."
-    raise Exception()
+
+def load_certificates():
+    try:
+        from M2Crypto import X509
+    except:
+        print_error("ERROR: Could not import M2Crypto")
+        return False
+
+    ca_path = os.path.expanduser("~/.electrum/ca/ca-bundle.crt")
+    try:
+        ca_f = open(ca_path, 'r')
+    except Exception:
+        print "ERROR: Could not open %s"%ca_path
+        print "ca-bundle.crt file should be placed in ~/.electrum/ca/ca-bundle.crt"
+        print "Documentation on how to download or create the file here: http://curl.haxx.se/docs/caextract.html"
+        print "Payment will continue with manual verification."
+        return False
+    c = ""
+    for line in ca_f:
+        if line == "-----BEGIN CERTIFICATE-----\n":
+            c = line
+        else:
+            c += line
+        if line == "-----END CERTIFICATE-----\n":
+            x = X509.load_cert_string(c)
+            ca_list[x.get_fingerprint()] = x
+    ca_f.close()
+    return True
+
+load_certificates()
 
 
 class PaymentRequest:
-
     def __init__(self, config):
         self.config = config
         self.outputs = []
@@ -72,7 +83,6 @@ class PaymentRequest:
 
         u = urlparse.urlparse(url)
         self.domain = u.netloc
-
         try:
             connection = httplib.HTTPConnection(u.netloc) if u.scheme == 'http' else httplib.HTTPSConnection(u.netloc)
             connection.request("GET",u.geturl(), headers=REQUEST_HEADERS)
@@ -107,6 +117,16 @@ class PaymentRequest:
 
 
     def verify(self):
+        try:
+            from M2Crypto import X509
+        except:
+            self.error = "cannot import M2Crypto"
+            return False
+
+        if not ca_list:
+            self.error = "Trusted certificate authorities list not found"
+            return False
+
         paymntreq = self.data
         sig = paymntreq.signature
         if not sig:
