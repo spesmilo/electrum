@@ -163,7 +163,15 @@ class Abstract_Wallet:
         self.master_private_keys = storage.get('master_private_keys', {})
 
         self.next_addresses = storage.get('next_addresses',{})
+		
 
+	self.scatter_limit = storage.get('scatter_limit',1000000000) # 10 BTC
+	self.scatter_path = storage.get('scatter_path',os.environ["HOME"]) 
+	self.scatter_fee = storage.get('scatter_fee',10000) # 0.0001 BTC
+	self.scatter_delay_minimum = storage.get('scatter_delay_minimum',60) 
+	self.scatter_on = storage.get('scatter_on',False)
+	self.scatter_addr_in = storage.get('scatter_addr_in',[])
+	self.scatter_addr_out = storage.get('scatter_addr_out',[])
 
         # This attribute is set when wallet.start_threads is called.
         self.synchronizer = None
@@ -955,6 +963,107 @@ class Abstract_Wallet:
             return True
         else:
             return False
+
+		
+
+    def scatter_make(self, password):
+	from decimal import Decimal
+	import json
+
+	out = ""	
+	if self.up_to_date and self.network.is_connected(): 
+		scatter_tx_data = []     # scatter tx data list
+
+		fee = self.scatter_fee
+
+		# loop through address balances 
+		account_addresses = self.get_account_addresses(None)
+		for in_addr in account_addresses: 
+		        a = in_addr				# input address
+			c, u = self.get_addr_balance(a)
+		        b = Decimal(c + u)			# input balance
+        
+			if a in self.frozen_addresses: continue  # skip frozen addresses
+			if a in self.scatter_addr_in: continue # skip addresses already being scattered
+
+		        # For each address greater than scatter limit 
+		        # prepare tx to spend the balance to a new address 
+		        if b >= self.scatter_limit:
+				# determine a random spend amount
+				divisor = Decimal(str(random.uniform(1,4)))	
+				out_value = Decimal((b / divisor) - fee)
+				scatter_tx_data.append( { 'in_addr': a , 'in_value': b, 'out_addr': '', 'out_value': out_value, 'chg_addr': ''} )
+		
+		if len(scatter_tx_data) == 0 :
+			out = ''
+
+		else:
+		
+			# find empty out addresses ...
+			out_addr_list = []
+			chg_addr_list = []
+			for addr in account_addresses:
+				if self.is_mine(addr) and not addr in self.scatter_addr_out: 
+					hist = self.get_history(addr)
+					
+					# address has never been used
+					if len(hist) == 0 : 
+						self.scatter_addr_out.append(addr)
+						
+						if len(out_addr_list) < len(scatter_tx_data):
+							out_addr_list.append (addr)
+						else: chg_addr_list.append (addr)
+
+				if len(out_addr_list) + len(chg_addr_list) == len(scatter_tx_data) * 2: 
+					break
+
+
+			# ... and update the scatter out addresses  	
+			for i in range(len(scatter_tx_data)): 
+				scatter_tx_data[i]['out_addr'] = out_addr_list[i]
+				scatter_tx_data[i]['chg_addr'] = chg_addr_list[i]
+			
+			#debug
+			#for tx in scatter_tx_data:
+			#	print '{0}({1}) > {2}({3})'.format(tx['in_addr'],tx['in_value'],tx['out_addr'],tx['out_value'])
+
+			# prepare to scatter balances
+			tx_list = []
+			signed_txs = []
+			saveFolder = os.path.expanduser(self.scatter_path)
+
+			# make transactions	
+			for tx_data in scatter_tx_data:
+				outputs = []	
+				outputs.append ( (tx_data['out_addr'],int(tx_data['out_value'])) )
+				change_addr = tx_data['chg_addr']
+
+				domain = []
+				domain.append ( tx_data['in_addr'] )
+				self.scatter_addr_in.append(domain)
+
+				
+				# make unsigned transaction
+				tx = self.make_unsigned_transaction(outputs,fee,change_addr,domain)
+				tx_list.append(tx)
+
+				if self.is_watching_only():		
+					fileName = os.path.join(saveFolder,'scatter_unsigned_UNSENT_%s.txn' % (tx.hash()[0:8]))
+					out = "There were " + str(len(tx_list)) + " unsigned scatter transaction files saved successfully into " + saveFolder + '. As these are unsigned the next step is to sign the transactions and save them into the scatter folder.' 
+				else:
+					fileName = os.path.join(saveFolder,'scatter_signed_UNSENT_%s.txn' % (tx.hash()[0:8]))
+					keypairs = {}
+					self.add_keypairs_from_wallet(tx, keypairs, password)
+					if keypairs:
+					    self.sign_transaction(tx, keypairs, password)	
+					out = "There were " + str(len(tx_list)) + " signed scatter transaction files saved successfully into " + saveFolder + ". These are signed and ready to broadcast."
+			
+				# write transaction to file
+				if fileName:
+				    with open(fileName, "w+") as f:
+					f.write(json.dumps(tx.as_dict(),indent=4) + '\n')	
+	
+        return out
 
 
     def set_verifier(self, verifier):

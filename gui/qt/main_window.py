@@ -112,6 +112,12 @@ class ElectrumWindow(QMainWindow):
         self.go_lite = gui_object.go_lite
         self.lite = None
 
+	self.scatter_processing = False
+	self.scatter_last_broadcast = 0
+	self.scatter_delay = 0
+	#added for scatter_process ? not sure if this is a security risk
+	self.password = ""
+
         self.create_status_bar()
         self.need_update = threading.Event()
 
@@ -323,6 +329,7 @@ class ElectrumWindow(QMainWindow):
         tools_menu.addSeparator()
         tools_menu.addAction(_("&Sign/verify message"), self.sign_verify_message)
         #tools_menu.addAction(_("&Encrypt/decrypt message"), self.encrypt_message)
+	tools_menu.addAction(_("&Bulk sign transactions"), self.bulk_sign)
         tools_menu.addSeparator()
 
         csv_transaction_menu = tools_menu.addMenu(_("&Create transaction"))
@@ -333,6 +340,10 @@ class ElectrumWindow(QMainWindow):
         raw_transaction_menu.addAction(_("&From file"), self.do_process_from_file)
         raw_transaction_menu.addAction(_("&From text"), self.do_process_from_text)
         raw_transaction_menu.addAction(_("&From the blockchain"), self.do_process_from_txid)
+
+	scatter_menu = tools_menu.addMenu(_("S&catter"))
+	scatter_menu.addAction(_("&Start Scatter"), self.scatter_start)
+	scatter_menu.addAction(_("S&top Scatter"), self.scatter_stop)
 
         help_menu = menubar.addMenu(_("&Help"))
         help_menu.addAction(_("&About"), self.show_about)
@@ -2395,3 +2406,256 @@ class ElectrumWindow(QMainWindow):
 
         vbox.addLayout(close_button(d))
         d.exec_()
+
+    def scatter_process(self):
+	self.scatter_processing = True
+	
+	remaining_scatter_broadcasts = 0
+	remaining_scatter_broadcasts = self.scatter_broadcast()
+	
+
+	if remaining_scatter_broadcasts == 0 : 
+		result_msg = self.wallet.scatter_make(self.password)	
+		if result_msg <> "": 
+			self.console.showMessage(result_msg)
+			self.scatter_delay = 0
+
+	elif not self.network.is_connected() :
+		msg = "There are %s scatter transactions ready to send but there is no network." % remaining_scatter_broadcasts
+		print msg
+		self.console.showMessage(msg) 
+
+	self.scatter_processing = False
+
+
+
+    def scatter_broadcast(self):
+	import glob
+	import random
+	# this function searches the scatter_path for any UNSENT scatter files and 
+	# sends them if the scatter_delay_minimum since the last broadcast has passed
+
+	remaining_scatter_broadcasts = 0
+
+	fileList = glob.glob(os.path.join(self.wallet.scatter_path,"scatter_signed_UNSENT_*.txn"))
+	'''
+	why the fuck doesn't this work!? _SENT_ files don't get removed!?
+	fileList = os.listdir(self.wallet.scatter_path)
+	for f in fileList: 
+		print f
+		print f.startswith("scatter_signed_UNSENT_")
+		if not f.startswith("scatter_signed_UNSENT_"):
+			print 'remove' 
+			fileList.remove(f)
+	'''
+
+	remaining_scatter_broadcasts = len(fileList)
+
+	if self.scatter_delay == 0:
+		# determine a random scatter_delay between the minimum and 5x the minimum 
+		self.scatter_delay = int(random.uniform(self.wallet.scatter_delay_minimum,self.wallet.scatter_delay_minimum*5))
+		
+
+		if remaining_scatter_broadcasts > 0:
+			self.console.showMessage('There were {0} scatter transactions found signed and ready to broadcast.\nNext scatter broadcast will be in {1} minutes.'.format(remaining_scatter_broadcasts,self.scatter_delay))
+		
+	if self.wallet.up_to_date and self.network.is_connected(): 
+		# calculate minutes since last broadcast
+		if self.scatter_last_broadcast == 0:
+			mins_since_last_broadcast = 0
+		else:
+			mins_since_last_broadcast = int((time.time() - self.scatter_last_broadcast) % 3600)
+
+
+		# check whether the time since the last broadcast is greater than the scatter_delay_minimum
+		if mins_since_last_broadcast > self.scatter_delay :
+
+			for fi in fileList:
+				fileName = os.path.join(self.wallet.scatter_path,fi)
+				self.console.showMessage('scatter sending: ' + fileName)
+				print 'scatter sending: ' + fileName
+				
+				# load transaction from file
+				if not fileName:
+				    return 0
+				try:
+				    with open(fileName, "r") as f:
+					# load transaction from file
+					file_content = f.read()
+					tx = self.tx_from_text(file_content)
+					f.close()
+
+				except Exception as e:
+					msg = "Scatter error occured while trying to load file: " + fileName + "\nError: " + str(e)
+					print msg		    
+					self.console.showMessage(msg)
+
+					self.wallet.scatter_on = False
+					break
+
+				self.wallet.set_label(tx.hash(), 'scatter')
+
+				if tx.is_complete:
+					self.balance_label.setText('Scatter send in process please wait...')
+					# sychronous send
+					status, msg = self.wallet.sendtx(tx)
+					
+					# fix this now regardless of status in case of error user has time to fix problem
+					self.scatter_last_broadcast = time.time()				
+
+					msg += "\n" + fileName
+					if status:	
+						os.rename(fileName,fileName.replace('UNSENT','SENT'))
+						self.console.showMessage('Scatter transaction sent: '+msg)
+						self.balance_label.setText('Scatter transaction sent: '+msg)
+					else:
+						self.console.showMessage('Scatter transaction send '+msg)
+						self.balance_label.setText('Scatter transaction send '+msg)
+				
+				self.scatter_delay = 0
+				# only one transaction should be broadcast
+				break
+
+	return int(remaining_scatter_broadcasts)
+
+
+    @protected
+    def scatter_get_password(self, password):
+	self.password = password	
+
+    def scatter_stop(self):	
+	self.wallet.scatter_on = False
+	self.password = ""
+	self.console.showMessage("Scatter stopped.")
+
+    def scatter_start(self):
+	
+	# create dialog
+        d = QDialog(self)
+        d.setWindowTitle(_('Start Scatter'))
+        d.setModal(1)
+        vbox = QVBoxLayout()
+        grid = QGridLayout()
+        grid.setColumnStretch(0,1)
+
+	grid.addWidget(QLabel("Scatter will make automated transactions from addresses \nwith amounts above the limit into new addresses in the same wallet \nand broadcast them at random time intervals. \nClick OK to turn on the scatter processing. \nTo turn off Scatter select Scatter Off from the menu."),1,0)
+	
+	# scatter_limit widget
+        scatter_label = QLabel(_('Scatter limit') + ':')
+        grid.addWidget(scatter_label, 2, 0)
+        scatter_e = AmountEdit(self.base_unit)
+        scatter_e.setText(self.format_amount(str(self.wallet.scatter_limit)))
+        grid.addWidget(scatter_e, 2, 1)
+        msg = _('Addresses with a balance greater than the limit will be included in the scatter.') 
+        grid.addWidget(HelpButton(msg), 2, 2)
+
+
+	# scatter_fee widget
+        scatter_label = QLabel(_('Scatter fee') + ':')
+        grid.addWidget(scatter_label, 3, 0)
+        scatter_f = AmountEdit(self.base_unit)
+        scatter_f.setText(self.format_amount(str(self.wallet.scatter_fee)))
+        grid.addWidget(scatter_f, 3, 1)
+        msg = _('All scatter transactions will use this fee.') 
+        grid.addWidget(HelpButton(msg), 3, 2)
+
+	# scatter_limit widget
+        scatter_label = QLabel(_('Minimum delay') + ':')
+        grid.addWidget(scatter_label, 4, 0)
+        scatter_d = QLineEdit()
+        scatter_d.setText(str(self.wallet.scatter_delay_minimum))
+        grid.addWidget(scatter_d, 4, 1)
+        msg = _('Minimum delay in minutes between each randomly broadcasted transaction.') 
+        grid.addWidget(HelpButton(msg), 4, 2)
+
+	grid.setRowStretch(5,1)
+
+        vbox.addLayout(grid)
+        vbox.addLayout(ok_cancel_buttons(d))
+        d.setLayout(vbox)
+
+        # run the dialog
+        if not d.exec_(): return
+
+	# validate widget values 
+	try:
+            scatter_limit = self.read_amount(unicode(scatter_e.text()))
+        except Exception:
+            QMessageBox.warning(self, _('Error'), _('Invalid value') +': %s'%scatter_e.text(), _('OK'))
+            return
+
+	try:
+            scatter_fee = self.read_amount(unicode(scatter_f.text()))
+        except Exception:
+            QMessageBox.warning(self, _('Error'), _('Invalid value') +': %s'%scatter_fee.text(), _('OK'))
+            return
+
+	scatter_path = str(QFileDialog.getExistingDirectory(self,'Select the path for storing and loading scatter transactions :',self.wallet.scatter_path))
+	
+	# store widget values
+	self.wallet.scatter_limit = scatter_limit
+	self.wallet.scatter_fee = scatter_fee
+	self.wallet.scatter_path = scatter_path
+	self.wallet.scatter_delay_minimum = int(unicode(scatter_d.text()))
+
+
+	# run scatter
+	
+	self.wallet.scatter_on = True
+	if not self.wallet.is_watching_only(): self.scatter_get_password()
+	self.console.showMessage("Scatter started. Waiting for scatter transactions in " + self.wallet.scatter_path)
+	
+	self.update_status()
+
+
+    @protected
+    def do_bulk_sign(self, fileList, password):
+	success_count = 0
+	
+	for fileName in fileList:
+		print 'bulk signing: ' + fileName
+				
+		# load transaction from file
+		if not fileName:
+		    return 0
+		try:
+		    with open(fileName, "r") as f:
+			# load transaction from file
+			file_content = f.read()
+			tx = self.tx_from_text(file_content)
+
+			# sign transaction
+			self.wallet.signrawtransaction(tx, tx.inputs, [], password)
+		
+
+			# save transaction if it was signed
+			if tx.is_complete:
+				newfileName = str(fileName).replace('unsigned','signed')
+				if newfileName:
+				    with open(newfileName, "w+") as f:
+					f.write(json.dumps(tx.as_dict(),indent=4) + '\n')
+
+				success_count += 1
+
+		except Exception as e:
+			msg = "Error occured while trying to sign file: " + fileName + "\nError: " + str(e)
+			print msg		    
+			self.console.showMessage(msg)
+			continue
+
+	msg = "There were " + str(success_count) + " transactions bulk signed successfully out of %s attempted." % str(len(fileList))
+	self.console.showMessage(msg)
+	return 	
+    
+    def bulk_sign(self):
+	
+	fileList = QFileDialog.getOpenFileNames(self,'Select the files to bulk sign :',os.environ["HOME"])
+
+	if len(fileList) > 0 : 
+		self.balance_label.setText('Bulk signing in progress please wait...')
+		self.do_bulk_sign(fileList)
+		self.balance_label.setText("")
+		QMessageBox.information(self,"Bulk sign", "Bulk sign completed. Check console for summary message.")
+		
+	return
+
