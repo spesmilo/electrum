@@ -118,7 +118,7 @@ class WalletStorage:
         with self.lock:
             if value is not None:
                 self.data[key] = value
-            else:
+            elif key in self.data:
                 self.data.pop(key)
             if save: 
                 self.write()
@@ -221,11 +221,21 @@ class Abstract_Wallet:
     def get_action(self):
         pass
 
+
+    def convert_imported_keys(self, password):
+        for k, v in self.imported_keys.items():
+            sec = pw_decode(v, password)
+            pubkey = public_key_from_private_key(sec)
+            address = public_key_to_bc_address(pubkey.decode('hex'))
+            assert address == k
+            self.import_key(sec, password)
+            self.imported_keys.pop(k)
+        self.storage.put('imported_keys', self.imported_keys)
+
+
     def load_accounts(self):
         self.accounts = {}
         self.imported_keys = self.storage.get('imported_keys',{})
-        if self.imported_keys:
-            print_error("cannot load imported keys")
 
         d = self.storage.get('accounts', {})
         for k, v in d.items():
@@ -270,6 +280,10 @@ class Abstract_Wallet:
             return addr in account.get_addresses(0)
         else:
             return False
+
+    def has_imported_keys(self):
+        account = self.accounts.get(IMPORTED_ACCOUNT)
+        return account is not None
 
     def import_key(self, sec, password):
         try:
@@ -478,7 +492,7 @@ class Abstract_Wallet:
         secret = keys[0]
         ec = regenerate_key(secret)
         decrypted = ec.decrypt_message(message)
-        return decrypted[0]
+        return decrypted
 
 
 
@@ -647,17 +661,18 @@ class Abstract_Wallet:
         return [x[1] for x in coins]
 
 
-    def choose_tx_inputs( self, amount, fixed_fee, num_outputs, domain = None ):
+    def choose_tx_inputs( self, amount, fixed_fee, num_outputs, domain = None, coins = None ):
         """ todo: minimize tx size """
         total = 0
         fee = self.fee if fixed_fee is None else fixed_fee
-        if domain is None:
-            domain = self.addresses(True)
 
-        for i in self.frozen_addresses:
-            if i in domain: domain.remove(i)
+        if not coins:
+            if domain is None:
+                domain = self.addresses(True)
+            for i in self.frozen_addresses:
+                if i in domain: domain.remove(i)
+            coins = self.get_unspent_coins(domain)
 
-        coins = self.get_unspent_coins(domain)
         inputs = []
 
         for item in coins:
@@ -838,11 +853,11 @@ class Abstract_Wallet:
         return default_label
 
 
-    def make_unsigned_transaction(self, outputs, fee=None, change_addr=None, domain=None ):
+    def make_unsigned_transaction(self, outputs, fee=None, change_addr=None, domain=None, coins=None ):
         for address, x in outputs:
             assert is_valid(address), "Address " + address + " is invalid!"
         amount = sum( map(lambda x:x[1], outputs) )
-        inputs, total, fee = self.choose_tx_inputs( amount, fee, len(outputs), domain )
+        inputs, total, fee = self.choose_tx_inputs( amount, fee, len(outputs), domain, coins )
         if not inputs:
             raise ValueError("Not enough funds")
         for txin in inputs:
@@ -851,8 +866,8 @@ class Abstract_Wallet:
         return Transaction.from_io(inputs, outputs)
 
 
-    def mktx(self, outputs, password, fee=None, change_addr=None, domain= None ):
-        tx = self.make_unsigned_transaction(outputs, fee, change_addr, domain)
+    def mktx(self, outputs, password, fee=None, change_addr=None, domain= None, coins = None ):
+        tx = self.make_unsigned_transaction(outputs, fee, change_addr, domain, coins)
         keypairs = {}
         self.add_keypairs_from_wallet(tx, keypairs, password)
         if keypairs:

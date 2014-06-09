@@ -6,25 +6,28 @@ import time
 
 import threading
 
-class WaitingDialog(QDialog):
-    def __init__(self, parent, message):
-        QDialog.__init__(self, parent)
-        self.setWindowTitle('Please wait')
+class WaitingDialog(QThread):
+    def __init__(self, parent, message, run_task, on_complete=None):
+        QThread.__init__(self)
+        self.parent = parent
+        self.d = QDialog(parent)
+        self.d.setWindowTitle('Please wait')
         l = QLabel(message)
-        vbox = QVBoxLayout(self)
+        vbox = QVBoxLayout(self.d)
         vbox.addWidget(l)
-        self.show()
+        self.run_task = run_task
+        self.on_complete = on_complete
+        self.d.connect(self.d, SIGNAL('done'), self.close)
+        self.d.show()
 
-    def start(self, run_thread, on_complete=None):
-        def my_thread():
-            self.result = run_thread()
-            self.emit(SIGNAL('done'))
-            self.accept()
+    def run(self):
+        self.result = self.run_task()
+        self.d.emit(SIGNAL('done'))
 
-        if on_complete:
-            self.connect(self, SIGNAL('done'), lambda: on_complete(*self.result))
-        
-        threading.Thread(target=my_thread).start()
+    def close(self):
+        self.d.accept()
+        if self.on_complete:
+            self.on_complete(*self.result)
 
 
 
@@ -52,10 +55,20 @@ class EnterButton(QPushButton):
 class HelpButton(QPushButton):
     def __init__(self, text):
         QPushButton.__init__(self, '?')
+        self.help_text = text
         self.setFocusPolicy(Qt.NoFocus)
         self.setFixedWidth(20)
-        self.clicked.connect(lambda: QMessageBox.information(self, 'Help', text, 'OK') )
+        self.alt = None
+        self.clicked.connect(self.onclick)
 
+    def set_alt(self, func):
+        self.alt = func
+
+    def onclick(self):
+        if self.alt:
+            apply(self.alt)
+        else:
+            QMessageBox.information(self, 'Help', self.help_text, 'OK')
 
 
 
@@ -181,3 +194,11 @@ class MyTreeWidget(QTreeWidget):
                 break
         self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), QPoint(50, i*5 + j - 1))
 
+
+
+
+if __name__ == "__main__":
+    app = QApplication([])
+    t = WaitingDialog(None, 'testing ...', lambda: [time.sleep(1)], lambda x: QMessageBox.information(None, 'done', "done", _('OK')))
+    t.start()
+    app.exec_()

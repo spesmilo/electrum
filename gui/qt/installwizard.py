@@ -135,6 +135,10 @@ class InstallWizard(QDialog):
         vbox.addLayout(ok_cancel_buttons(self, _('Next')))
 
         self.set_layout(vbox)
+
+        self.show()
+        self.raise_()
+
         if not self.exec_():
             return None, None
         
@@ -408,6 +412,9 @@ class InstallWizard(QDialog):
         if action in ['create_2fa_2', 'create_2of3_2']:
             wallet = Wallet_2of3(self.storage)
 
+        if action in ['create_2of2_2']:
+            wallet = Wallet_2of2(self.storage)
+
         if action in ['create', 'create_2of2_1', 'create_2fa_2', 'create_2of3_1']:
             seed = wallet.make_seed()
             sid = None if action == 'create' else 'hot'
@@ -429,10 +436,11 @@ class InstallWizard(QDialog):
 
         if action == 'create_2of2_2':
             xpub_hot = wallet.master_public_keys.get("m/")
-            xpub = self.multi_mpk_dialog(xpub_hot, 1)
-            if not xpub:
+            r = self.multi_mpk_dialog(xpub_hot, 1)
+            if not r:
                 return
-            wallet.add_master_public_key("cold/", xpub)
+            xpub_cold = r[0]
+            wallet.add_master_public_key("cold/", xpub_cold)
             wallet.create_account()
             self.waiting_dialog(wallet.synchronize)
 

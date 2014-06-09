@@ -3,7 +3,7 @@ import ast
 import threading
 import os
 
-from util import user_dir, print_error
+from util import user_dir, print_error, print_msg
 
 
 
@@ -154,7 +154,8 @@ a SimpleConfig instance then reads the wallet file.
             try:
                 d = ast.literal_eval( data )  #parse raw data from reading wallet file
             except Exception:
-                raise IOError("Cannot read config file.")
+                print_msg("Error: Cannot read config file.")
+                return
 
             self.user_config = d
 
