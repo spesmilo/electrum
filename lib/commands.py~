@@ -51,7 +51,7 @@ payto_syntax = "payto <recipient> <amount> [label]\n<recipient> can be a bitcoin
 paytomany_syntax = "paytomany <recipient> <amount> [<recipient> <amount> ...]\n<recipient> can be a bitcoin address or a label"
 signmessage_syntax = 'signmessage <address> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "'
 verifymessage_syntax = 'verifymessage <address> <signature> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "'
-scatter_syntax = 'scatter_make <scatter_limit> <save_path> <fee>\n Start scattering balances above the <scatter_limit> into smaller amounts, if watching only unsigned transactions dump into <save_path> then scatter_sign, scatter_broadcast must follow'
+disperse_syntax = 'disperse <disperse_limit> must be an amount above which address balances will be dispersed'
 
 #                command
 #                                              requires_network
@@ -63,7 +63,7 @@ register_command('createmultisig',       2, 2, False, True,  False, 'similar to 
 register_command('createrawtransaction', 2, 2, False, True,  False, 'similar to bitcoind\'s command')
 register_command('deseed',               0, 0, False, True,  False, 'Remove seed from wallet, creating a seedless, watching-only wallet.')
 register_command('decoderawtransaction', 1, 1, False, False, False, 'similar to bitcoind\'s command')
-register_command('scatter_make',             1, 1, False, True,  False, 'Create transactions to scatter balances into smaller amounts',scatter_syntax)
+register_command('disperse',             1, 1, False, True,  False, 'Create transactions to disperse balances into smaller amounts',disperse_syntax)
 register_command('getprivatekeys',       1, 1, False, True,  True,  'Get the private keys of a given address', 'getprivatekeys <bitcoin address>')
 register_command('dumpprivkeys',         0, 0, False, True,  True,  'Dump all private keys in your wallet')
 register_command('freeze',               1, 1, False, True,  True,  'Freeze the funds at one of your wallet\'s addresses', 'freeze <address>')
@@ -80,7 +80,6 @@ register_command('getmpk',               0, 0, False, True,  False, 'Return your
 register_command('help',                 0, 1, False, False, False, 'Prints this help')
 register_command('history',              0, 0, True,  True,  False, 'Returns the transaction history of your wallet')
 register_command('importprivkey',        1, 1, False, True,  True,  'Import a private key', 'importprivkey <privatekey>')
-register_command('isscatteron',          0, 0, False, False, False,  'Returns the status of the scatter process.')
 register_command('listaddresses',        2, 2, False, True,  False, 'Returns your list of addresses.', '', listaddr_options)
 register_command('listunspent',          0, 0, True,  True,  False, 'Returns the list of unspent inputs in your wallet.')
 register_command('getaddressunspent',    1, 1, True,  False, False, 'Returns the list of unspent inputs for an address.')
@@ -414,13 +413,22 @@ class Commands:
     def decrypt(self, pubkey, message):
         return self.wallet.decrypt_message(pubkey, message, self.password)
 
-    def isscatteron(self):
-	return "Scatter is " + str(self.wallet.scatter_on)
+    def disperse(self, disperse_limit):
+        
+        u = self.listunspent()
+        for x in u: 
+                a = x.get('address')		# address
+                b = float(x.get('value'))	# address balance
+                c = b >= disperse_limit		# compare address balance vs disperse limit
+                
+                # For each DISPERSE address greater than DISPERSE limit 
+                # create a transaction to spend the balance to an new address 
+                if c: 
+                    new_addr  = getaddresshistory(a)
+                    
+                    new_spend = b / 2	# spend half of the unspent output
 
-    def scatter_make(self, scatter_limit, saveFolder = '~', fee = 0.0001, minimum_delay = 60) :
-	self.wallet.scatter_fee = int(Decimal(str(fee))*100000000)
-	self.wallet.scatter_limit = int(Decimal(str(scatter_limit))*100000000)
-	self.wallet.scatter_path = os.path.expanduser(saveFolder)
-	self.wallet.scatter_delay_minimum = minimum_delay
-	return self.wallet.scatter_balances(scatter_limit, saveFolder, fee)
+                    print a + '\t' + str(b) + '\n\n'
+                    print new_addr
+        return 'disperse ' + str(disperse_limit)
 
