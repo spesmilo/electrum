@@ -198,7 +198,13 @@ class Network(threading.Thread):
     def start_interface(self, server):
         if server in self.interfaces.keys():
             return
-        i = interface.Interface(server, self.config)
+
+        if self.config.get('auto_cycle'):
+            connect_timeout = 2
+        else:
+            connect_timeout = 60
+
+        i = interface.Interface(server, connect_timeout, 60, self.config)
         self.pending_servers.add(server)
         i.start(self.queue)
         return i 
