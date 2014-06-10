@@ -307,7 +307,7 @@ class NetworkServer:
         self.network = network
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.daemon_port = config.get('daemon_port', 8000)
+        self.daemon_port = config.get('daemon_port', 8001)
         self.server.bind(('', self.daemon_port))
         self.server.listen(5)
         self.server.settimeout(1)
