@@ -64,11 +64,12 @@ class BTCAmountEdit(AmountEdit):
         return "BTC" if p == 8 else "mBTC"
 
     def get_amount(self):
-        x = unicode( self.text() )
-        if x in['.', '']: 
+        try:
+            x = Decimal(str(self.text()))
+        except:
             return None
         p = pow(10, self.decimal_point())
-        return int( p * Decimal(x) )
+        return int( p * x )
 
     def setAmount(self, amount):
         p = pow(10, self.decimal_point())
