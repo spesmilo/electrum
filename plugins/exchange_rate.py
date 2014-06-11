@@ -634,56 +634,15 @@ class Plugin(BasePlugin):
     def fiat_unit(self):
         return self.config.get("currency", "EUR")
 
-    def fiat_dialog(self):
-        if not self.config.get('use_exchange_rate'):
-          self.gui.main_window.show_message(_("To use this feature, first enable the exchange rate plugin."))
-          return
-
-        if not self.gui.main_window.network.is_connected():
-          self.gui.main_window.show_message(_("To use this feature, you must have a network connection."))
-          return
-
-        quote_currency = self.fiat_unit()
-
-        d = QDialog(self.gui.main_window)
-        d.setWindowTitle("Fiat")
-        vbox = QVBoxLayout(d)
-        text = "Amount to Send in " + quote_currency
-        vbox.addWidget(QLabel(_(text)+':'))
-
-        grid = QGridLayout()
-        fiat_e = AmountEdit(self.fiat_unit)
-        grid.addWidget(fiat_e, 1, 0)
-
-        r = {}
-        self.get_fiat_price_text(r)
-        quote = r.get(0)
-        if quote:
-          text = "1 BTC~%s"%quote
-          grid.addWidget(QLabel(_(text)), 4, 0, 3, 0)
-        else:
-            self.gui.main_window.show_message(_("Exchange rate not available.  Please check your network connection."))
-            return
-
-        vbox.addLayout(grid)
-        vbox.addLayout(ok_cancel_buttons(d))
-
-        if not d.exec_():
-            return
-
-        fiat = str(fiat_e.text())
-
-        if str(fiat) == "" or str(fiat) == ".":
-            fiat = "0"
-
-        quote = quote[:-4]
-        btcamount = Decimal(fiat) / Decimal(quote)
-        if str(self.gui.main_window.base_unit()) == "mBTC":
-            btcamount = btcamount * 1000
-        quote = "%.8f"%btcamount
-        self.gui.main_window.amount_e.setText( quote )
-
     def exchange_rate_button(self, grid):
-        quote_currency = self.fiat_unit()
-        self.fiat_button = EnterButton(_(quote_currency), self.fiat_dialog)
-        grid.addWidget(self.fiat_button, 4, 3, Qt.AlignHCenter)
+        self.fiat_e = AmountEdit(self.fiat_unit)
+        def fiat_changed():
+            fiat_amount = str(self.fiat_e.text())
+            if fiat_amount in ["", "."]:
+                fiat_amount = "0"
+            exchange_rate = self.exchanger.exchange(Decimal("1.0"), self.fiat_unit())
+            if exchange_rate is not None:
+                btc_amount = Decimal(fiat_amount) / exchange_rate
+                self.gui.main_window.amount_e.setAmount(btc_amount*Decimal(100000000))
+        self.fiat_e.textChanged.connect(fiat_changed)
+        grid.addWidget(self.fiat_e, 4, 3, Qt.AlignHCenter)
