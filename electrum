@@ -84,6 +84,7 @@ def arg_parser():
     parser.add_option("--bip32", action="store_true", dest="bip32", default=False, help="bip32 (not final)")
     parser.add_option("--2of3", action="store_true", dest="2of3", default=False, help="create 2of3 wallet")
     parser.add_option("--mpk", dest="mpk", default=False, help="restore from master public key")
+    parser.add_option("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
     return parser
 
 
