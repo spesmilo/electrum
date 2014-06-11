@@ -658,6 +658,6 @@ class Plugin(BasePlugin):
                 return
             fiat_amount = self.exchanger.exchange(Decimal(btc_amount)/Decimal(100000000), self.fiat_unit())
             if fiat_amount is not None:
-                self.fiat_e.setText(str(fiat_amount))
+                self.fiat_e.setText("%.2f"%fiat_amount)
         self.btc_e.textEdited.connect(btc_changed)
         self.win.send_grid.addWidget(self.fiat_e, 4, 3, Qt.AlignHCenter)
