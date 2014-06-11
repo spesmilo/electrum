@@ -28,6 +28,7 @@ from network import Network
 from util import print_msg, print_stderr
 from simple_config import SimpleConfig
 
+DAEMON_PORT=8001
 
 class NetworkProxy(threading.Thread):
     # connects to daemon
@@ -39,7 +40,7 @@ class NetworkProxy(threading.Thread):
         self.config = SimpleConfig(config) if type(config) == type({}) else config
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.daemon_port = config.get('daemon_port', 8000)
+        self.daemon_port = config.get('daemon_port', DAEMON_PORT)
         self.message_id = 0
         self.unanswered_requests = {}
         self.subscriptions = {}
@@ -307,7 +308,7 @@ class NetworkServer:
         self.network = network
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.daemon_port = config.get('daemon_port', 8000)
+        self.daemon_port = config.get('daemon_port', DAEMON_PORT)
         self.server.bind(('', self.daemon_port))
         self.server.listen(5)
         self.server.settimeout(1)
