@@ -44,7 +44,7 @@ from electrum import SimpleConfig, Wallet, WalletStorage
 
 from electrum import bmp, pyqrnative
 
-from amountedit import AmountEdit, MyLineEdit
+from amountedit import BTCAmountEdit, MyLineEdit
 from network_dialog import NetworkDialog
 from qrcodewidget import QRCodeWidget
 
@@ -648,7 +648,7 @@ class ElectrumWindow(QMainWindow):
         grid.setRowStretch(8, 1)
 
         from paytoedit import PayToEdit
-        self.amount_e = AmountEdit(self.get_decimal_point)
+        self.amount_e = BTCAmountEdit(self.get_decimal_point)
         self.payto_e = PayToEdit(self.amount_e)
         self.payto_help = HelpButton(_('Recipient of the funds.') + '\n\n' + _('You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)'))
         grid.addWidget(QLabel(_('Pay to')), 1, 0)
@@ -686,7 +686,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.amount_e, 4, 1, 1, 2)
         grid.addWidget(self.amount_help, 4, 3)
 
-        self.fee_e = AmountEdit(self.get_decimal_point)
+        self.fee_e = BTCAmountEdit(self.get_decimal_point)
         grid.addWidget(QLabel(_('Fee')), 5, 0)
         grid.addWidget(self.fee_e, 5, 1, 1, 2)
         grid.addWidget(HelpButton(
@@ -2256,7 +2256,7 @@ class ElectrumWindow(QMainWindow):
 
         fee_label = QLabel(_('Transaction fee') + ':')
         grid.addWidget(fee_label, 2, 0)
-        fee_e = AmountEdit(self.get_decimal_point)
+        fee_e = BTCAmountEdit(self.get_decimal_point)
         fee_e.setText(self.format_amount(self.wallet.fee).strip())
         grid.addWidget(fee_e, 2, 1)
         msg = _('Fee per kilobyte of transaction.') + ' ' \

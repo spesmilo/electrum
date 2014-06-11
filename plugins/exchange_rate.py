@@ -321,7 +321,7 @@ class Plugin(BasePlugin):
 
     def __init__(self,a,b):
         BasePlugin.__init__(self,a,b)
-        self.currencies = [self.config.get('currency', "EUR")]
+        self.currencies = [self.fiat_unit()]
         self.exchanges = [self.config.get('use_exchange', "Blockchain")]
 
     def init(self):
@@ -365,7 +365,7 @@ class Plugin(BasePlugin):
         r2[0] = text
 
     def create_fiat_balance_text(self, btc_balance):
-        quote_currency = self.config.get("currency", "EUR")
+        quote_currency = self.fiat_unit()
         self.exchanger.use_exchange = self.config.get("use_exchange", "Blockchain")
         cur_rate = self.exchanger.exchange(Decimal("1.0"), quote_currency)
         if cur_rate is None:
@@ -427,7 +427,7 @@ class Plugin(BasePlugin):
                 except Exception:
                     return
             elif cur_exchange == "BitcoinVenezuela":
-                cur_currency = self.config.get('currency', "EUR")
+                cur_currency = self.fiat_unit()
                 if cur_currency == "VEF":
                     try:
                         resp_hist = self.exchanger.get_json('api.bitcoinvenezuela.com', "/historical/index.php?coin=BTC")['VEF_BTC']
@@ -517,7 +517,7 @@ class Plugin(BasePlugin):
                 cur_request = str(self.currencies[x])
             except Exception:
                 return
-            if cur_request != self.config.get('currency', "EUR"):
+            if cur_request != self.fiat_unit():
                 self.config.set_key('currency', cur_request, True)
                 cur_exchange = self.config.get('use_exchange', "Blockchain")
                 if cur_request == "USD" and (cur_exchange == "CoinDesk" or cur_exchange == "Winkdex"):
@@ -548,7 +548,7 @@ class Plugin(BasePlugin):
                 self.currencies = []
                 combo.clear()
                 self.exchanger.query_rates.set()
-                cur_currency = self.config.get('currency', "EUR")
+                cur_currency = self.fiat_unit()
                 if cur_request == "CoinDesk" or cur_request == "Winkdex":
                     if cur_currency == "USD":
                         hist_checkbox.setEnabled(True)
@@ -585,7 +585,7 @@ class Plugin(BasePlugin):
                 hist_checkbox.setEnabled(False)
 
         def set_currencies(combo):
-            current_currency = self.config.get('currency', "EUR")
+            current_currency = self.fiat_unit()
             try:
                 combo.clear()
             except Exception:
@@ -632,8 +632,7 @@ class Plugin(BasePlugin):
             return False
 
     def fiat_unit(self):
-        quote_currency = self.config.get("currency", "???")
-        return quote_currency
+        return self.config.get("currency", "EUR")
 
     def fiat_dialog(self):
         if not self.config.get('use_exchange_rate'):
@@ -685,6 +684,6 @@ class Plugin(BasePlugin):
         self.gui.main_window.amount_e.setText( quote )
 
     def exchange_rate_button(self, grid):
-        quote_currency = self.config.get("currency", "EUR")
+        quote_currency = self.fiat_unit()
         self.fiat_button = EnterButton(_(quote_currency), self.fiat_dialog)
         grid.addWidget(self.fiat_button, 4, 3, Qt.AlignHCenter)
