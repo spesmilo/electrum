@@ -1579,7 +1579,7 @@ class OldWallet(Deterministic_Wallet):
         return seed
 
     def check_password(self, password):
-        seed = pw_decode(self.seed, password)
+        seed = self.get_seed(password)
         self.accounts[0].check_seed(seed)
 
     def get_mnemonic(self, password):
