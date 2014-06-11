@@ -643,6 +643,6 @@ class Plugin(BasePlugin):
             exchange_rate = self.exchanger.exchange(Decimal("1.0"), self.fiat_unit())
             if exchange_rate is not None:
                 btc_amount = Decimal(fiat_amount) / exchange_rate
-                self.gui.main_window.amount_e.setAmount(btc_amount*Decimal(100000000))
+                self.gui.main_window.amount_e.setAmount(int(btc_amount*Decimal(100000000)))
         self.fiat_e.textChanged.connect(fiat_changed)
         grid.addWidget(self.fiat_e, 4, 3, Qt.AlignHCenter)
