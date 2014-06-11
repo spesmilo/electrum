@@ -56,7 +56,7 @@ data_files += [
 setup(
     name="Electrum",
     version=version.ELECTRUM_VERSION,
-    install_requires=['slowaes', 'ecdsa>=0.9', 'pbkdf2', 'requests'],
+    install_requires=['slowaes', 'ecdsa>=0.9', 'pbkdf2', 'requests', 'pyasn1', 'tlslite>=0.4.5'],
     package_dir={
         'electrum': 'lib',
         'electrum_gui': 'gui',
@@ -89,6 +89,7 @@ setup(
         'electrum.version',
         'electrum.wallet',
         'electrum.wallet_bitkey',
+        'electrum.x509',
         'electrum_gui.gtk',
         'electrum_gui.qt.__init__',
         'electrum_gui.qt.amountedit',
@@ -100,6 +101,7 @@ setup(
         'electrum_gui.qt.main_window',
         'electrum_gui.qt.network_dialog',
         'electrum_gui.qt.password_dialog',
+        'electrum_gui.qt.paytoedit',
         'electrum_gui.qt.qrcodewidget',
         'electrum_gui.qt.receiving_widget',
         'electrum_gui.qt.seed_dialog',
