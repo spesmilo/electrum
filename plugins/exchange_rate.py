@@ -332,6 +332,7 @@ class Plugin(BasePlugin):
         self.exchanger = Exchanger(self)
         self.exchanger.start()
         self.gui.exchanger = self.exchanger #
+        self.add_fiat_edit()
 
     def set_currencies(self, currency_options):
         self.currencies = sorted(currency_options)
@@ -391,12 +392,14 @@ class Plugin(BasePlugin):
 
 
     def toggle(self):
-        out = BasePlugin.toggle(self)
+        enabled = BasePlugin.toggle(self)
         self.win.update_status()
         self.win.tabs.removeTab(1)
         new_send_tab = self.gui.main_window.create_send_tab()
         self.win.tabs.insertTab(1, new_send_tab, _('Send'))
-        return out
+        if enabled:
+            self.add_fiat_edit()
+        return enabled
 
 
     def close(self):
@@ -634,15 +637,27 @@ class Plugin(BasePlugin):
     def fiat_unit(self):
         return self.config.get("currency", "EUR")
 
-    def exchange_rate_button(self, grid):
+    def add_fiat_edit(self):
         self.fiat_e = AmountEdit(self.fiat_unit)
+        self.btc_e = self.win.amount_e
+        grid = self.btc_e.parent()
         def fiat_changed():
             fiat_amount = str(self.fiat_e.text())
             if fiat_amount in ["", "."]:
-                fiat_amount = "0"
+                self.btc_e.setText("")
+                return
             exchange_rate = self.exchanger.exchange(Decimal("1.0"), self.fiat_unit())
             if exchange_rate is not None:
                 btc_amount = Decimal(fiat_amount) / exchange_rate
-                self.gui.main_window.amount_e.setAmount(int(btc_amount*Decimal(100000000)))
-        self.fiat_e.textChanged.connect(fiat_changed)
-        grid.addWidget(self.fiat_e, 4, 3, Qt.AlignHCenter)
+                self.btc_e.setAmount(int(btc_amount*Decimal(100000000)))
+        self.fiat_e.textEdited.connect(fiat_changed)
+        def btc_changed():
+            btc_amount = self.btc_e.get_amount() 
+            if btc_amount is None:
+                self.fiat_e.setText("")
+                return
+            fiat_amount = self.exchanger.exchange(Decimal(btc_amount)/Decimal(100000000), self.fiat_unit())
+            if fiat_amount is not None:
+                self.fiat_e.setText(str(fiat_amount))
+        self.btc_e.textEdited.connect(btc_changed)
+        self.win.send_grid.addWidget(self.fiat_e, 4, 3, Qt.AlignHCenter)
