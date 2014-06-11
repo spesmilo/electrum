@@ -128,7 +128,8 @@ class ElectrumWindow(QMainWindow):
         self.column_widths = self.config.get("column_widths_2", default_column_widths )
         tabs.addTab(self.create_history_tab(), _('History') )
         tabs.addTab(self.create_send_tab(), _('Send') )
-        tabs.addTab(self.create_receive_tab(), _('Receive') )
+        tabs.addTab(self.create_receivedetail_tab(), _('Receive') )
+        tabs.addTab(self.create_receive_tab(), _('Addresses') )
         tabs.addTab(self.create_contacts_tab(), _('Contacts') )
         tabs.addTab(self.create_invoices_tab(), _('Invoices') )
         tabs.addTab(self.create_console_tab(), _('Console') )
@@ -469,6 +470,7 @@ class ElectrumWindow(QMainWindow):
         if self.wallet.up_to_date or not self.network or not self.network.is_connected():
             self.update_history_tab()
             self.update_receive_tab()
+            self.update_receivedetail_tab()
             self.update_contacts_tab()
             self.update_completions()
             self.update_invoices_tab()
@@ -987,6 +989,7 @@ class ElectrumWindow(QMainWindow):
             elif addr not in self.wallet.frozen_addresses and freeze:
                 self.wallet.freeze(addr)
         self.update_receive_tab()
+        self.update_receivedetail_tab()
 
 
 
@@ -1021,12 +1024,25 @@ class ElectrumWindow(QMainWindow):
         return w
 
 
-
+    def create_receivedetail_tab(self):
+        l, w = self.create_list_tab([ _('Address'), _('Label'), _('Balance'), _('Tx')])
+        l.setContextMenuPolicy(Qt.CustomContextMenu)
+        l.customContextMenuRequested.connect(self.create_receivedetail_menu)
+        l.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,0,1))
+        self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
+        self.connect(l, SIGNAL('currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)'), lambda a,b: self.current_item_changed(a))
+        self.receivedetail_list = l
+        return w
 
     def save_column_widths(self):
         self.column_widths["receive"] = []
         for i in range(self.receive_list.columnCount() -1):
             self.column_widths["receive"].append(self.receive_list.columnWidth(i))
+            
+        self.column_widths["receivedetail"] = []
+        for i in range(self.receivedetail_list.columnCount() -1):
+            self.column_widths["receivedetail"].append(self.receivedetail_list.columnWidth(i))
 
         self.column_widths["history"] = []
         for i in range(self.history_list.columnCount() - 1):
@@ -1077,6 +1093,7 @@ class ElectrumWindow(QMainWindow):
         if self.question(_("Do you want to remove")+" %s "%addr +_("from your wallet?")):
             self.wallet.delete_imported_key(addr)
             self.update_receive_tab()
+            self.update_receivedetail_tab()
             self.update_history_tab()
 
     def edit_account_label(self, k):
@@ -1085,6 +1102,7 @@ class ElectrumWindow(QMainWindow):
             label = unicode(text)
             self.wallet.set_label(k,label)
             self.update_receive_tab()
+            self.update_receivedetail_tab()
 
     def account_set_expanded(self, item, k, b):
         item.setExpanded(b)
@@ -1106,6 +1124,7 @@ class ElectrumWindow(QMainWindow):
     def delete_pending_account(self, k):
         self.wallet.delete_pending_account(k)
         self.update_receive_tab()
+        self.update_receivedetail_tab()
 
     def create_receive_menu(self, position):
         # fixme: this function apparently has a side effect.
@@ -1152,6 +1171,47 @@ class ElectrumWindow(QMainWindow):
         run_hook('receive_menu', menu, addrs)
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
+    def create_receivedetail_menu(self, position):
+        # fixme: this function apparently has a side effect.
+        # if it is not called the menu pops up several times
+        #self.receivedetail_list.selectedIndexes()
+
+        selected = self.receivedetail_list.selectedItems()
+        multi_select = len(selected) > 1
+        addrs = [unicode(item.text(0)) for item in selected]
+        if not multi_select:
+            item = self.receivedetail_list.itemAt(position)
+            if not item: return
+
+            addr = addrs[0]
+            if not is_valid(addr):
+                k = str(item.data(0,32).toString())
+                if k:
+                    self.create_account_menu(position, k, item)
+                else:
+                    item.setExpanded(not item.isExpanded())
+                return
+
+        menu = QMenu()
+        if not multi_select:
+            menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
+            menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")) )
+            #menu.addAction(_("Edit label"), lambda: self.edit_label(True))
+            menu.addAction(_("Public keys"), lambda: self.show_public_keys(addr))
+            if not self.wallet.is_watching_only():
+                menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
+                menu.addAction(_("Sign/verify message"), lambda: self.sign_verify_message(addr))
+                #menu.addAction(_("Encrypt/decrypt message"), lambda: self.encrypt_message(addr))
+            if self.wallet.is_imported(addr):
+                menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
+
+        if any(addr not in self.wallet.frozen_addresses for addr in addrs):
+            menu.addAction(_("Freeze"), lambda: self.set_addrs_frozen(addrs, True))
+        if any(addr in self.wallet.frozen_addresses for addr in addrs):
+            menu.addAction(_("Unfreeze"), lambda: self.set_addrs_frozen(addrs, False))
+
+        run_hook('receivedetail_menu', menu, addrs)
+        menu.exec_(self.receivedetail_list.viewport().mapToGlobal(position))
 
     def get_sendable_balance(self):
         return sum(map(lambda x:x['value'], self.get_coins()))
@@ -1335,6 +1395,83 @@ class ElectrumWindow(QMainWindow):
         # we use column 1 because column 0 may be hidden
         l.setCurrentItem(l.topLevelItem(0),1)
 
+    def update_receivedetail_item(self, item):
+        item.setFont(0, QFont(MONOSPACE_FONT))
+        address = str(item.data(0,0).toString())
+        label = self.wallet.labels.get(address,'')
+        item.setData(1,0,label)
+        item.setData(0,32, True) # is editable
+
+        run_hook('update_receivedetail_item', address, item)
+
+        if not self.wallet.is_mine(address): return
+
+        c, u = self.wallet.get_addr_balance(address)
+        balance = self.format_amount(c + u)
+        item.setData(2,0,balance)
+
+        if address in self.wallet.frozen_addresses:
+            item.setBackgroundColor(0, QColor('lightblue'))
+
+
+    def update_receivedetail_tab(self):
+        l = self.receivedetail_list
+        # extend the syntax for consistency
+        l.addChild = l.addTopLevelItem
+        l.insertChild = l.insertTopLevelItem
+
+        l.clear()
+        for i,width in enumerate(self.column_widths['receive']):
+            l.setColumnWidth(i, width)
+
+        accounts = self.wallet.get_accounts()
+        if self.current_account is None:
+            account_items = sorted(accounts.items())
+        else:
+            account_items = [(self.current_account, accounts.get(self.current_account))]
+
+
+        for k, account in account_items:
+
+            if len(accounts) > 1:
+                name = self.wallet.get_account_name(k)
+                c,u = self.wallet.get_account_balance(k)
+                account_item = QTreeWidgetItem( [ name, '', self.format_amount(c+u), ''] )
+                l.addTopLevelItem(account_item)
+                account_item.setExpanded(self.accounts_expanded.get(k, True))
+                account_item.setData(0, 32, k)
+            else:
+                account_item = l
+
+            sequences = [0]
+            
+                
+            name = _("Receiving")
+            seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
+            account_item.addChild(seq_item)
+            seq_item.setExpanded(True)
+            
+            is_red = False
+            gap = 0
+
+            for address in account.get_addresses(False):
+                # check if address is fresh
+                num, is_used = self.wallet.is_used(address)
+                if num == 0:
+                    gap += 1
+                    if gap > self.wallet.gap_limit:
+                        is_red = True
+                        
+                    item = QTreeWidgetItem( [ address, '', '', "%d"%num] )
+                    self.update_receivedetail_item(item)
+                    if is_red:
+                        item.setBackgroundColor(1, QColor('red'))
+
+                   
+                    seq_item.addChild(item)
+
+        # we use column 1 because column 0 may be hidden
+        l.setCurrentItem(l.topLevelItem(0),1)
 
     def update_contacts_tab(self):
         l = self.contacts_list
@@ -1392,6 +1529,7 @@ class ElectrumWindow(QMainWindow):
         self.update_history_tab()
         self.update_status()
         self.update_receive_tab()
+        self.update_receivedetail_tab()
 
     def create_status_bar(self):
 
@@ -1519,6 +1657,7 @@ class ElectrumWindow(QMainWindow):
 
         self.wallet.create_pending_account(name, password)
         self.update_receive_tab()
+        self.update_receivedetail_tab()
         self.tabs.setCurrentIndex(2)
 
 
@@ -2217,6 +2356,7 @@ class ElectrumWindow(QMainWindow):
         if badkeys:
             QMessageBox.critical(self, _('Error'), _("The following inputs could not be imported") + ':\n'+ '\n'.join(badkeys))
         self.update_receive_tab()
+        self.update_receivedetail_tab()
         self.update_history_tab()
 
 
@@ -2326,6 +2466,7 @@ class ElectrumWindow(QMainWindow):
             self.config.set_key('num_zeros', nz, True)
             self.update_history_tab()
             self.update_receive_tab()
+            self.update_receivedetail_tab()
 
         usechange_result = usechange_cb.isChecked()
         if self.wallet.use_change != usechange_result:
