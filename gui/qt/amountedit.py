@@ -19,6 +19,7 @@ class AmountEdit(MyLineEdit):
         self.textChanged.connect(self.numbify)
         self.is_int = is_int
         self.is_shortcut = False
+        self.help_palette = QPalette()
 
     def numbify(self):
         text = unicode(self.text()).strip()
@@ -39,26 +40,23 @@ class AmountEdit(MyLineEdit):
     def paintEvent(self, event):
         QLineEdit.paintEvent(self, event)
         if self.base_unit:
-             panel = QStyleOptionFrameV2()
-             self.initStyleOption(panel)
-             textRect = self.style().subElementRect(QStyle.SE_LineEditContents, panel, self)
-             textRect.adjust(2, 0, -10, 0)
-             painter = QPainter(self)
-             painter.setPen(self.palette().brush(QPalette.Disabled, QPalette.Text).color())
-             painter.drawText(textRect, Qt.AlignRight | Qt.AlignVCenter, self.base_unit())
+            panel = QStyleOptionFrameV2()
+            self.initStyleOption(panel)
+            textRect = self.style().subElementRect(QStyle.SE_LineEditContents, panel, self)
+            textRect.adjust(2, 0, -10, 0)
+            painter = QPainter(self)
+            painter.setPen(self.help_palette.brush(QPalette.Disabled, QPalette.Text).color())
+            painter.drawText(textRect, Qt.AlignRight | Qt.AlignVCenter, self.base_unit())
 
 
 
 class BTCAmountEdit(AmountEdit):
 
     def __init__(self, decimal_point, is_int = False, parent=None):
-        QLineEdit.__init__(self, parent)
+        AmountEdit.__init__(self, self._base_unit, is_int, parent)
         self.decimal_point = decimal_point
-        self.textChanged.connect(self.numbify)
-        self.is_int = is_int
-        self.is_shortcut = False
 
-    def base_unit(self):
+    def _base_unit(self):
         p = self.decimal_point()
         assert p in [5,8]
         return "BTC" if p == 8 else "mBTC"
