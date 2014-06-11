@@ -115,6 +115,7 @@ class PasswordDialog(QDialog):
         if not ok:
             return
 
+        self.wallet.check_password(password)
         try:
             self.wallet.check_password(password)
         except Exception:

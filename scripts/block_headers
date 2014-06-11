@@ -2,13 +2,18 @@
 
 # A simple script that connects to a server and displays block headers
 
-import time, electrum
+import time, sys, electrum
+
+try:
+    s = sys.argv[1]
+except:
+    s = 'ecdsa.net:50002:s'
 
 # 1. start the interface and wait for connection
-interface = electrum.Interface('ecdsa.net:50002:s')
+interface = electrum.Interface(s)
 interface.start(wait = True)
 if not interface.is_connected:
-    print "not connected"
+    print "cound not not connect", s
     exit()
 
 # 2. send the subscription

@@ -58,10 +58,43 @@ def decode_str(data):
 class X509(tlslite.X509):
     """ Child class of tlslite.X509 that uses pyasn1 """
 
+
+    def fast_parse(self):
+        from tlslite.utils.asn1parser import ASN1Parser
+        from tlslite.utils.codec import Parser
+
+        p = ASN1Parser(self.subject)
+
+        print COMMON_NAME
+        i = 0
+        while True:
+            try:
+                pp = p.getChild(i)
+            except:
+                break
+            print "child %d:"%i, str(pp.value).encode('hex')
+            i += 1
+            p3 = ASN1Parser(pp.value)
+            print "type", p3.type
+
+            c = p3.getChild(0)
+            print "type", c.type
+            print str(c.value).encode('hex')
+            c = p3.getChild(1)
+            print "type", c.type
+            print str(c.value).encode('hex')
+
+
+
     def slow_parse(self):
+
+        self.fast_parse()
+
         self.cert = decoder.decode(str(self.bytes), asn1Spec=Certificate())[0]
         self.tbs = self.cert.getComponentByName('tbsCertificate')
-        self.subject = self.tbs.getComponentByName('subject')
+        self.subject2 = self.tbs.getComponentByName('subject')
+        print self.subject2
+        print len(self.subject2[0])
         self.extensions = self.tbs.getComponentByName('extensions') or []
 
     def extract_names(self):
@@ -71,14 +104,14 @@ class X509(tlslite.X509):
                    'URI': set(),
                    'XMPPAddr': set(), 
                    'OU': None,}
-  
+
         # Extract the CommonName(s) from the cert.
-        for rdnss in self.subject:
+        for rdnss in self.subject2:
             for rdns in rdnss:
                 for name in rdns:
                     oid = name.getComponentByName('type')
                     value = name.getComponentByName('value')
-  
+
                     if oid == COMMON_NAME:
                         value = decoder.decode(value, asn1Spec=DirectoryString())[0]
                         value = decode_str(value.getComponent())
