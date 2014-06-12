@@ -56,7 +56,7 @@ data_files += [
 setup(
     name="Electrum-LTC",
     version=version.ELECTRUM_VERSION,
-    install_requires=['slowaes', 'ecdsa>=0.9', 'pbkdf2', 'requests', 'ltc_scrypt'],
+    install_requires=['slowaes', 'ecdsa>=0.9', 'pbkdf2', 'requests', 'pyasn1', 'pyasn1-modules', 'tlslite>=0.4.5', 'ltc_scrypt'],
     package_dir={
         'electrum_ltc': 'lib',
         'electrum_ltc_gui': 'gui',
@@ -90,6 +90,7 @@ setup(
         'electrum_ltc.version',
         'electrum_ltc.wallet',
         'electrum_ltc.wallet_bitkey',
+        'electrum_ltc.x509',
         'electrum_ltc_gui.gtk',
         'electrum_ltc_gui.qt.__init__',
         'electrum_ltc_gui.qt.amountedit',
@@ -101,6 +102,7 @@ setup(
         'electrum_ltc_gui.qt.main_window',
         'electrum_ltc_gui.qt.network_dialog',
         'electrum_ltc_gui.qt.password_dialog',
+        'electrum_ltc_gui.qt.paytoedit',
         'electrum_ltc_gui.qt.qrcodewidget',
         'electrum_ltc_gui.qt.receiving_widget',
         'electrum_ltc_gui.qt.seed_dialog',

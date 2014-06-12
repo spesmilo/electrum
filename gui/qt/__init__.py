@@ -128,8 +128,6 @@ class ElectrumGui:
                 self.config.set_key('lite_mode', False, True)
                 sys.exit(0)
             self.lite_window = None
-            self.main_window.show()
-            self.main_window.raise_()
             return
 
         actuator = lite_window.MiniActuator(self.main_window)
@@ -137,10 +135,6 @@ class ElectrumGui:
         self.lite_window = lite_window.MiniWindow(actuator, self.go_full, self.config)
         driver = lite_window.MiniDriver(self.main_window, self.lite_window)
 
-        if self.config.get('lite_mode') is True:
-            self.go_lite()
-        else:
-            self.go_full()
 
 
     def check_qt_version(self):
@@ -221,6 +215,16 @@ class ElectrumGui:
 
         #lite window
         self.init_lite()
+
+        # initial configuration
+        if self.config.get('hide_gui') is True and self.tray.isVisible():
+            self.main_window.hide()
+            self.lite_window.hide()
+        else:
+            if self.config.get('lite_mode') is True:
+                self.go_lite()
+            else:
+                self.go_full()
 
         # plugins that need to change the GUI do it here
         run_hook('init')

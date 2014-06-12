@@ -13,41 +13,13 @@ class MyLineEdit(QLineEdit):
 
 class AmountEdit(MyLineEdit):
 
-    def __init__(self, decimal_point, is_int = False, parent=None):
+    def __init__(self, base_unit, is_int = False, parent=None):
         QLineEdit.__init__(self, parent)
-        self.decimal_point = decimal_point
+        self.base_unit = base_unit
         self.textChanged.connect(self.numbify)
         self.is_int = is_int
         self.is_shortcut = False
-
-    def base_unit(self):
-        p = self.decimal_point()
-        assert p in [5,8]
-        return "LTC" if p == 8 else "mLTC"
-
-    def get_amount(self):
-        x = unicode( self.text() )
-        if x in['.', '']: 
-            return None
-        p = pow(10, self.decimal_point())
-        return int( p * Decimal(x) )
-
-    def setAmount(self, amount):
-        p = pow(10, self.decimal_point())
-        x = amount / Decimal(p)
-        self.setText(str(x))
-
-    def paintEvent(self, event):
-        QLineEdit.paintEvent(self, event)
-        if self.decimal_point:
-             panel = QStyleOptionFrameV2()
-             self.initStyleOption(panel)
-             textRect = self.style().subElementRect(QStyle.SE_LineEditContents, panel, self)
-             textRect.adjust(2, 0, -10, 0)
-             painter = QPainter(self)
-             painter.setPen(self.palette().brush(QPalette.Disabled, QPalette.Text).color())
-             painter.drawText(textRect, Qt.AlignRight | Qt.AlignVCenter, self.base_unit())
-
+        self.help_palette = QPalette()
 
     def numbify(self):
         text = unicode(self.text()).strip()
@@ -65,4 +37,40 @@ class AmountEdit(MyLineEdit):
         self.setText(s)
         self.setCursorPosition(pos)
 
+    def paintEvent(self, event):
+        QLineEdit.paintEvent(self, event)
+        if self.base_unit:
+            panel = QStyleOptionFrameV2()
+            self.initStyleOption(panel)
+            textRect = self.style().subElementRect(QStyle.SE_LineEditContents, panel, self)
+            textRect.adjust(2, 0, -10, 0)
+            painter = QPainter(self)
+            painter.setPen(self.help_palette.brush(QPalette.Disabled, QPalette.Text).color())
+            painter.drawText(textRect, Qt.AlignRight | Qt.AlignVCenter, self.base_unit())
+
+
+
+class BTCAmountEdit(AmountEdit):
+
+    def __init__(self, decimal_point, is_int = False, parent=None):
+        AmountEdit.__init__(self, self._base_unit, is_int, parent)
+        self.decimal_point = decimal_point
+
+    def _base_unit(self):
+        p = self.decimal_point()
+        assert p in [5,8]
+        return "LTC" if p == 8 else "mLTC"
+
+    def get_amount(self):
+        try:
+            x = Decimal(str(self.text()))
+        except:
+            return None
+        p = pow(10, self.decimal_point())
+        return int( p * x )
+
+    def setAmount(self, amount):
+        p = pow(10, self.decimal_point())
+        x = amount / Decimal(p)
+        self.setText(str(x))
 
