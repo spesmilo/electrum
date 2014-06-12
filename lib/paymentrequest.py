@@ -58,13 +58,13 @@ PR_ERROR   = 4     # could not parse
 
 
 ca_list = {}
+ca_path = os.path.expanduser("~/.electrum/ca/ca-bundle.crt")
 
 
 
 
 def load_certificates():
 
-    ca_path = os.path.expanduser("~/.electrum/ca/ca-bundle.crt")
     try:
         ca_f = open(ca_path, 'r')
     except Exception:
@@ -257,9 +257,9 @@ class PaymentRequest:
 
         self.payment_url = self.details.payment_url
 
-        if self.has_expired():
-            self.error = "ERROR: Payment Request has Expired."
-            return False
+        #if self.has_expired():
+        #    self.error = "ERROR: Payment Request has Expired."
+        #    return False
 
         return True
 
@@ -279,7 +279,7 @@ class PaymentRequest:
         return self.id
 
     def get_outputs(self):
-        return self.outputs
+        return self.outputs[:]
 
     def send_ack(self, raw_tx, refund_addr):
 

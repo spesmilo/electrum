@@ -41,6 +41,8 @@ from electrum import mnemonic
 from electrum import util, bitcoin, commands, Interface, Wallet
 from electrum import SimpleConfig, Wallet, WalletStorage
 
+from electrum.paymentrequest import PR_UNPAID, PR_PAID
+
 
 from electrum import bmp, pyqrnative
 
@@ -69,8 +71,11 @@ import re
 from util import *
 
 
-
-
+def format_status(x):
+    if x == PR_UNPAID:
+        return _('Unpaid')
+    elif x == PR_PAID:
+        return _('Paid')
 
 
 class StatusBarButton(QPushButton):
@@ -798,7 +803,7 @@ class ElectrumWindow(QMainWindow):
         label = unicode( self.message_e.text() )
 
         if self.gui_object.payment_request:
-            outputs = self.gui_object.payment_request.outputs
+            outputs = self.gui_object.payment_request.get_outputs()
         else:
             outputs = self.payto_e.get_outputs()
 
@@ -893,6 +898,12 @@ class ElectrumWindow(QMainWindow):
             if self.gui_object.payment_request:
                 refund_address = self.wallet.addresses()[0]
                 status, msg = self.gui_object.payment_request.send_ack(str(tx), refund_address)
+                if status:
+                    pr = self.gui_object.payment_request
+                    pr_id = pr.get_id()
+                    self.invoices[pr_id] = (pr.get_domain(), pr.get_memo(), pr.get_amount(), PR_PAID)
+                    self.wallet.storage.put('invoices', self.invoices)
+                    self.update_invoices_tab()
                 self.gui_object.payment_request = None
             else:
                 status, msg =  self.wallet.sendtx(tx)
@@ -924,10 +935,19 @@ class ElectrumWindow(QMainWindow):
     def payment_request_ok(self):
         pr = self.gui_object.payment_request
         pr_id = pr.get_id()
-        # save it
-        self.invoices[pr_id] = (pr.get_domain(), pr.get_memo(), pr.get_amount())
-        self.wallet.storage.put('invoices', self.invoices)
-        self.update_invoices_tab()
+        if pr_id not in self.invoices:
+            self.invoices[pr_id] = (pr.get_domain(), pr.get_memo(), pr.get_amount(), PR_UNPAID)
+            self.wallet.storage.put('invoices', self.invoices)
+            self.update_invoices_tab()
+        else:
+            print_error('invoice already in list')
+
+        status = self.invoices[pr_id][3]
+        if status == PR_PAID:
+            self.do_clear()
+            self.show_message("invoice already paid")
+            self.gui_object.payment_request = None
+            return
 
         self.payto_help.show()
         self.payto_help.set_alt(lambda: self.show_pr_details(pr))
@@ -935,7 +955,7 @@ class ElectrumWindow(QMainWindow):
         self.payto_e.setGreen()
         self.payto_e.setText(pr.domain)
         self.amount_e.setText(self.format_amount(pr.get_amount()))
-        self.message_e.setText(pr.memo)
+        self.message_e.setText(pr.get_memo())
 
     def payment_request_error(self):
         self.do_clear()
@@ -1065,11 +1085,11 @@ class ElectrumWindow(QMainWindow):
         l.clear()
         for key, value in invoices.items():
             try:
-                domain, memo, amount = value
+                domain, memo, amount, status = value
             except:
                 invoices.pop(key)
                 continue
-            item = QTreeWidgetItem( [ domain, memo, self.format_amount(amount), ""] )
+            item = QTreeWidgetItem( [ domain, memo, self.format_amount(amount), format_status(status)] )
             l.addTopLevelItem(item)
 
         l.setCurrentItem(l.topLevelItem(0))
@@ -1220,7 +1240,7 @@ class ElectrumWindow(QMainWindow):
 
     def show_invoice(self, key):
         from electrum.paymentrequest import PaymentRequest
-        domain, memo, value = self.invoices[key]
+        domain, memo, value, status = self.invoices[key]
         pr = PaymentRequest(self.config)
         pr.read_file(key)
         pr.domain = domain
@@ -1230,7 +1250,7 @@ class ElectrumWindow(QMainWindow):
     def show_pr_details(self, pr):
         msg = 'Domain: ' + pr.domain
         msg += '\nStatus: ' + pr.get_status()
-        msg += '\nMemo: ' + pr.memo
+        msg += '\nMemo: ' + pr.get_memo()
         msg += '\nPayment URL: ' + pr.payment_url
         msg += '\n\nOutputs:\n' + '\n'.join(map(lambda x: x[0] + ' ' + self.format_amount(x[1])+ self.base_unit(), pr.get_outputs()))
         QMessageBox.information(self, 'Invoice', msg , 'OK')

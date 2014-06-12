@@ -132,7 +132,7 @@ class PayToEdit(QTextEdit):
 
             self.outputs = [(self.payto_address, amount)]
 
-        return self.outputs
+        return self.outputs[:]
 
 
     def lines(self):
