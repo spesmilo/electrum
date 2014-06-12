@@ -1270,10 +1270,13 @@ class ElectrumWindow(QMainWindow):
         pr = PaymentRequest(self.config)
         pr.read_file(key)
         pr.domain = domain
-        pr.verify()
         self.gui_object.payment_request = pr
         self.prepare_for_payment_request()
-        self.payment_request_ok()
+        if pr.verify():
+            self.payment_request_ok()
+        else:
+            self.payment_request_error()
+            
 
     def create_invoice_menu(self, position):
         item = self.invoices_list.itemAt(position)
