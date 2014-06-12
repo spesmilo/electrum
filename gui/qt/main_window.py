@@ -717,8 +717,8 @@ class ElectrumWindow(QMainWindow):
                 inputs, total, fee = self.wallet.choose_tx_inputs( sendable, 0, 1, coins = self.get_coins())
                 fee = self.wallet.estimated_fee(inputs, 1)
                 amount = total - fee
-                self.amount_e.setText( self.format_amount(amount) )
-                self.fee_e.setText( self.format_amount( fee ) )
+                self.amount_e.setAmount(amount)
+                self.fee_e.setAmount(fee)
                 return
 
             amount = self.amount_e.get_amount()
@@ -730,7 +730,7 @@ class ElectrumWindow(QMainWindow):
             # assume that there will be 2 outputs (one for change)
             inputs, total, fee = self.wallet.choose_tx_inputs(amount, fee, 2, coins = self.get_coins())
             if not is_fee:
-                self.fee_e.setText( self.format_amount( fee ) )
+                self.fee_e.setAmount(fee)
             if inputs:
                 palette = QPalette()
                 palette.setColor(self.amount_e.foregroundRole(), QColor('black'))
@@ -2254,7 +2254,7 @@ class ElectrumWindow(QMainWindow):
         fee_label = QLabel(_('Transaction fee') + ':')
         grid.addWidget(fee_label, 2, 0)
         fee_e = BTCAmountEdit(self.get_decimal_point)
-        fee_e.setText(self.format_amount(self.wallet.fee).strip())
+        fee_e.setAmount(self.wallet.fee)
         grid.addWidget(fee_e, 2, 1)
         msg = _('Fee per kilobyte of transaction.') + ' ' \
             + _('Recommended value') + ': ' + self.format_amount(20000)
