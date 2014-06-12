@@ -816,9 +816,8 @@ class ElectrumWindow(QMainWindow):
 
         amount = sum(map(lambda x:x[1], outputs))
 
-        try:
-            fee = self.fee_e.get_amount()
-        except Exception:
+        fee = self.fee_e.get_amount()
+        if fee is None:
             QMessageBox.warning(self, _('Error'), _('Invalid Fee'), _('OK'))
             return
 
@@ -2303,9 +2302,8 @@ class ElectrumWindow(QMainWindow):
         # run the dialog
         if not d.exec_(): return
 
-        try:
-            fee = self.fee_e.get_amount()
-        except Exception:
+        fee = self.fee_e.get_amount()
+        if fee is None:
             QMessageBox.warning(self, _('Error'), _('Invalid value') +': %s'%fee, _('OK'))
             return
 
