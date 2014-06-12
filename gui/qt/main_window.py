@@ -1045,6 +1045,8 @@ class ElectrumWindow(QMainWindow):
 
     def create_receive_tab(self):
         l, w = self.create_list_tab([ _('Address'), _('Label'), _('Balance'), _('Tx')])
+        for i,width in enumerate(self.column_widths['receive']):
+            l.setColumnWidth(i, width)
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_receive_menu)
         l.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -1079,7 +1081,6 @@ class ElectrumWindow(QMainWindow):
         l.customContextMenuRequested.connect(self.create_contact_menu)
         for i,width in enumerate(self.column_widths['contacts']):
             l.setColumnWidth(i, width)
-
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,0,1))
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.contacts_list = l
@@ -1327,8 +1328,6 @@ class ElectrumWindow(QMainWindow):
         l.insertChild = l.insertTopLevelItem
 
         l.clear()
-        for i,width in enumerate(self.column_widths['receive']):
-            l.setColumnWidth(i, width)
 
         accounts = self.wallet.get_accounts()
         if self.current_account is None:
