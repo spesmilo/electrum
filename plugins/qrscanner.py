@@ -23,7 +23,7 @@ class Plugin(BasePlugin):
 
     def fullname(self): return 'QR scans'
 
-    def description(self): return "QR Scans.\nInstall the zbar package (http://zbar.sourceforge.net/download.html) to enable this plugin"
+    def description(self): return "QR Scans.\nInstall the zbar package to enable this plugin.\nOn linux, type: 'apt-get install python-zbar'"
 
     def __init__(self, gui, name):
         BasePlugin.__init__(self, gui, name)
