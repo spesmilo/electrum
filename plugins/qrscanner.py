@@ -42,6 +42,9 @@ class Plugin(BasePlugin):
 
         return True
 
+    def init(self):
+        self.win = self.gui.main_window
+
     def load_wallet(self, wallet):
         b = QPushButton(_("Scan QR code"))
         b.clicked.connect(self.fill_from_qr)
@@ -68,7 +71,7 @@ class Plugin(BasePlugin):
         try:
             proc.init(video_device=self.video_device())
         except zbar.SystemError, e:
-            QMessageBox.warning(self.gui.main_window, _('Error'), _(e), _('OK'))
+            QMessageBox.warning(self.win, _('Error'), _(e), _('OK'))
             return
 
         proc.visible = True
@@ -86,19 +89,19 @@ class Plugin(BasePlugin):
                 return r.data
         
     def show_raw_qr(self):
-        r = self.gui.main_window.read_send_tab()
+        r = self.win.read_send_tab()
         if not r:
             return
 
         outputs, fee, label, coins = r
         try:
-            tx = self.gui.main_window.wallet.make_unsigned_transaction(outputs, fee, None, None, coins)
+            tx = self.win.wallet.make_unsigned_transaction(outputs, fee, None, None, coins)
         except Exception as e:
-            self.gui.main_window.show_message(str(e))
+            self.win.show_message(str(e))
             return
 
-        if tx.requires_fee(self.gui.main_window.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
-            QMessageBox.warning(self.gui.main_window, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
+        if tx.requires_fee(self.win.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
+            QMessageBox.warning(self.win, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
             return
 
         try:
@@ -110,17 +113,17 @@ class Plugin(BasePlugin):
             input_info = []
 
         except Exception as e:
-            self.gui.main_window.show_message(str(e))
+            self.win.show_message(str(e))
 
         try:
             json_text = json.dumps(tx.as_dict()).replace(' ', '')
             self.show_tx_qrcode(json_text, 'Unsigned Transaction')
         except Exception as e:
-            self.gui.main_window.show_message(str(e))
+            self.win.show_message(str(e))
 
     def show_tx_qrcode(self, data, title):
         if not data: return
-        d = QDialog(self.gui.main_window)
+        d = QDialog(self.win)
         d.setModal(1)
         d.setWindowTitle(title)
         d.setMinimumSize(250, 525)
@@ -151,12 +154,12 @@ class Plugin(BasePlugin):
     def read_raw_qr(self):
         qrcode = self.scan_qr()
         if qrcode:
-            tx = self.gui.main_window.tx_from_text(qrcode)
+            tx = self.win.tx_from_text(qrcode)
             if tx:
                 self.create_transaction_details_window(tx)
 
     def create_transaction_details_window(self, tx):            
-        dialog = QDialog(self.gui.main_window)
+        dialog = QDialog(self.win)
         dialog.setMinimumWidth(500)
         dialog.setWindowTitle(_('Process Offline transaction'))
         dialog.setModal(1)
@@ -169,7 +172,7 @@ class Plugin(BasePlugin):
 
         if tx.is_complete == False:
             l.addWidget(QLabel(_("Unsigned")), 3,1)
-            if self.gui.main_window.wallet.seed :
+            if self.win.wallet.seed :
                 b = QPushButton("Sign transaction")
                 b.clicked.connect(lambda: self.sign_raw_transaction(tx, tx.inputs, dialog))
                 l.addWidget(b, 4, 1)
@@ -179,13 +182,13 @@ class Plugin(BasePlugin):
             l.addWidget(QLabel(_("Signed")), 3,1)
             b = QPushButton("Broadcast transaction")
             def broadcast(tx):
-                result, result_message = self.gui.main_window.wallet.sendtx( tx )
+                result, result_message = self.win.wallet.sendtx( tx )
                 if result:
-                    self.gui.main_window.show_message(_("Transaction successfully sent:")+' %s' % (result_message))
+                    self.win.show_message(_("Transaction successfully sent:")+' %s' % (result_message))
                     if dialog:
                         dialog.done(0)
                 else:
-                    self.gui.main_window.show_message(_("There was a problem sending your transaction:") + '\n %s' % (result_message))
+                    self.win.show_message(_("There was a problem sending your transaction:") + '\n %s' % (result_message))
             b.clicked.connect(lambda: broadcast( tx ))
             l.addWidget(b,4,1)
     
@@ -196,8 +199,8 @@ class Plugin(BasePlugin):
         dialog.exec_()
 
     def do_protect(self, func, args):
-        if self.gui.main_window.wallet.use_encryption:
-            password = self.gui.main_window.password_dialog()
+        if self.win.wallet.use_encryption:
+            password = self.win.password_dialog()
             if not password:
                 return
         else:
@@ -215,11 +218,11 @@ class Plugin(BasePlugin):
     @protected
     def sign_raw_transaction(self, tx, input_info, dialog ="", password = ""):
         try:
-            self.gui.main_window.wallet.signrawtransaction(tx, input_info, [], password)
+            self.win.wallet.signrawtransaction(tx, input_info, [], password)
             txtext = json.dumps(tx.as_dict()).replace(' ', '')
             self.show_tx_qrcode(txtext, 'Signed Transaction')
         except Exception as e:
-            self.gui.main_window.show_message(str(e))
+            self.win.show_message(str(e))
 
 
     def fill_from_qr(self):
@@ -228,13 +231,13 @@ class Plugin(BasePlugin):
             return
 
         if 'address' in qrcode:
-            self.gui.main_window.payto_e.setText(qrcode['address'])
+            self.win.payto_e.setText(qrcode['address'])
         if 'amount' in qrcode:
-            self.gui.main_window.amount_e.setText(str(qrcode['amount']))
+            self.win.amount_e.setText(str(qrcode['amount']))
         if 'label' in qrcode:
-            self.gui.main_window.message_e.setText(qrcode['label'])
+            self.win.message_e.setText(qrcode['label'])
         if 'message' in qrcode:
-            self.gui.main_window.message_e.setText("%s (%s)" % (self.gui.main_window.message_e.text(), qrcode['message']))
+            self.win.message_e.setText("%s (%s)" % (self.win.message_e.text(), qrcode['message']))
                 
     def video_device(self):
         device = self.config.get("video_device", "default")
