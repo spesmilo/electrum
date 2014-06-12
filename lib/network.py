@@ -371,8 +371,11 @@ class Network(threading.Thread):
 
     def on_header(self, i, r):
         result = r.get('result')
-        if not result: return
+        if not result:
+            return
         height = result.get('block_height')
+        if not height:
+            return
         self.heights[i.server] = height
         self.merkle_roots[i.server] = result.get('merkle_root')
         self.utxo_roots[i.server] = result.get('utxo_root')
