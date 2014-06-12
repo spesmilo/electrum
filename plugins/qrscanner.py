@@ -153,76 +153,12 @@ class Plugin(BasePlugin):
 
     def read_raw_qr(self):
         qrcode = self.scan_qr()
-        if qrcode:
-            tx = self.win.tx_from_text(qrcode)
-            if tx:
-                self.create_transaction_details_window(tx)
-
-    def create_transaction_details_window(self, tx):            
-        dialog = QDialog(self.win)
-        dialog.setMinimumWidth(500)
-        dialog.setWindowTitle(_('Process Offline transaction'))
-        dialog.setModal(1)
-
-        l = QGridLayout()
-        dialog.setLayout(l)
-
-        l.addWidget(QLabel(_("Transaction status:")), 3,0)
-        l.addWidget(QLabel(_("Actions")), 4,0)
-
-        if tx.is_complete == False:
-            l.addWidget(QLabel(_("Unsigned")), 3,1)
-            if self.win.wallet.seed :
-                b = QPushButton("Sign transaction")
-                b.clicked.connect(lambda: self.sign_raw_transaction(tx, tx.inputs, dialog))
-                l.addWidget(b, 4, 1)
-            else:
-                l.addWidget(QLabel(_("Wallet is de-seeded, can't sign.")), 4,1)
-        else:
-            l.addWidget(QLabel(_("Signed")), 3,1)
-            b = QPushButton("Broadcast transaction")
-            def broadcast(tx):
-                result, result_message = self.win.wallet.sendtx( tx )
-                if result:
-                    self.win.show_message(_("Transaction successfully sent:")+' %s' % (result_message))
-                    if dialog:
-                        dialog.done(0)
-                else:
-                    self.win.show_message(_("There was a problem sending your transaction:") + '\n %s' % (result_message))
-            b.clicked.connect(lambda: broadcast( tx ))
-            l.addWidget(b,4,1)
-    
-        closeButton = QPushButton(_("Close"))
-        closeButton.clicked.connect(lambda: dialog.done(0))
-        l.addWidget(closeButton, 4,2)
-
-        dialog.exec_()
-
-    def do_protect(self, func, args):
-        if self.win.wallet.use_encryption:
-            password = self.win.password_dialog()
-            if not password:
-                return
-        else:
-            password = None
-            
-        if args != (False,):
-            args = (self,) + args + (password,)
-        else:
-            args = (self,password)
-        apply( func, args)
-
-    def protected(func):
-        return lambda s, *args: s.do_protect(func, args)
-
-    @protected
-    def sign_raw_transaction(self, tx, input_info, dialog ="", password = ""):
-        try:
-            self.win.wallet.signrawtransaction(tx, input_info, [], password)
-            txtext = json.dumps(tx.as_dict()).replace(' ', '')
-            self.show_tx_qrcode(txtext, 'Signed Transaction')
-        except Exception as e:
-            self.win.show_message(str(e))
+        if not qrcode:
+            return
+        tx = self.win.tx_from_text(qrcode)
+        if not tx:
+            return
+        self.win.show_transaction(tx)
 
 
     def fill_from_qr(self):
@@ -325,6 +261,9 @@ class Plugin(BasePlugin):
 
 
 def parse_uri(uri):
+    if not uri:
+        return {}
+
     if ':' not in uri:
         # It's just an address (not BIP21)
         return {'address': uri}
