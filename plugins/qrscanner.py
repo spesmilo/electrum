@@ -45,26 +45,19 @@ class Plugin(BasePlugin):
     def init(self):
         self.win = self.gui.main_window
         self.win.raw_transaction_menu.addAction(_("&From QR code"), self.read_raw_qr)
+        b = QPushButton(_("Scan QR code"))
+        b.clicked.connect(self.fill_from_qr)
+        self.win.send_grid.addWidget(b, 1, 5)
+        self.win.send_grid.setColumnStretch(5, 0)
+        self.win.send_grid.setColumnStretch(6, 1)
 
     def init_transaction_dialog(self, dialog, buttons):
-        print dialog, buttons
-        #if not wallet.seed:
         b = QPushButton(_("Show QR code"))
         b.clicked.connect(self.show_raw_qr)
         buttons.insertWidget(1,b)
 
-    def load_wallet(self, wallet):
-        b = QPushButton(_("Scan QR code"))
-        b.clicked.connect(self.fill_from_qr)
-        self.send_tab_grid.addWidget(b, 1, 5)
-        self.send_tab_grid.setColumnStretch(5, 0)
-        self.send_tab_grid.setColumnStretch(6, 1)
-
     def is_available(self):
         return self._is_available
-
-    def create_send_tab(self, grid):
-        self.send_tab_grid = grid
 
     def scan_qr(self):
         proc = zbar.Processor()
