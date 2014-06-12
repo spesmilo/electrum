@@ -283,9 +283,6 @@ class PaymentRequest:
 
     def send_ack(self, raw_tx, refund_addr):
 
-        if self.has_expired():
-            return False, "has expired"
-
         pay_det = self.details
         if not self.details.payment_url:
             return False, "no url"

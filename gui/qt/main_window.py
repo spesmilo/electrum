@@ -895,18 +895,27 @@ class ElectrumWindow(QMainWindow):
     def broadcast_transaction(self, tx):
 
         def broadcast_thread():
-            if self.gui_object.payment_request:
-                refund_address = self.wallet.addresses()[0]
-                status, msg = self.gui_object.payment_request.send_ack(str(tx), refund_address)
-                if status:
-                    pr = self.gui_object.payment_request
-                    pr_id = pr.get_id()
-                    self.invoices[pr_id] = (pr.get_domain(), pr.get_memo(), pr.get_amount(), PR_PAID)
-                    self.wallet.storage.put('invoices', self.invoices)
-                    self.update_invoices_tab()
+            pr = self.gui_object.payment_request
+            if pr is None:
+                return self.wallet.sendtx(tx)
+
+            if pr.has_expired():
                 self.gui_object.payment_request = None
-            else:
-                status, msg =  self.wallet.sendtx(tx)
+                return False, _("Payment request has expired")
+
+            status, msg =  self.wallet.sendtx(tx)
+            if not status:
+                return False, msg
+
+            self.invoices[pr.get_id()] = (pr.get_domain(), pr.get_memo(), pr.get_amount(), PR_PAID, tx.hash())
+            self.wallet.storage.put('invoices', self.invoices)
+            self.update_invoices_tab()
+            self.gui_object.payment_request = None
+            refund_address = self.wallet.addresses()[0]
+            ack_status, ack_msg = pr.send_ack(str(tx), refund_address)
+            if ack_status:
+                msg = ack_msg
+
             return status, msg
 
         def broadcast_done(status, msg):
@@ -936,7 +945,7 @@ class ElectrumWindow(QMainWindow):
         pr = self.gui_object.payment_request
         pr_id = pr.get_id()
         if pr_id not in self.invoices:
-            self.invoices[pr_id] = (pr.get_domain(), pr.get_memo(), pr.get_amount(), PR_UNPAID)
+            self.invoices[pr_id] = (pr.get_domain(), pr.get_memo(), pr.get_amount(), PR_UNPAID, None)
             self.wallet.storage.put('invoices', self.invoices)
             self.update_invoices_tab()
         else:
@@ -1085,7 +1094,7 @@ class ElectrumWindow(QMainWindow):
         l.clear()
         for key, value in invoices.items():
             try:
-                domain, memo, amount, status = value
+                domain, memo, amount, status, tx_hash = value
             except:
                 invoices.pop(key)
                 continue
@@ -1240,7 +1249,7 @@ class ElectrumWindow(QMainWindow):
 
     def show_invoice(self, key):
         from electrum.paymentrequest import PaymentRequest
-        domain, memo, value, status = self.invoices[key]
+        domain, memo, value, status, tx_hash = self.invoices[key]
         pr = PaymentRequest(self.config)
         pr.read_file(key)
         pr.domain = domain
