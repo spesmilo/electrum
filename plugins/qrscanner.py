@@ -44,21 +44,21 @@ class Plugin(BasePlugin):
 
     def init(self):
         self.win = self.gui.main_window
+        self.win.raw_transaction_menu.addAction(_("&From QR code"), self.read_raw_qr)
+
+    def init_transaction_dialog(self, dialog, buttons):
+        print dialog, buttons
+        #if not wallet.seed:
+        b = QPushButton(_("Show QR code"))
+        b.clicked.connect(self.show_raw_qr)
+        buttons.insertWidget(1,b)
 
     def load_wallet(self, wallet):
         b = QPushButton(_("Scan QR code"))
         b.clicked.connect(self.fill_from_qr)
         self.send_tab_grid.addWidget(b, 1, 5)
-        b2 = QPushButton(_("Scan TxQR"))
-        b2.clicked.connect(self.read_raw_qr)
-        
-        if not wallet.seed:
-            b3 = QPushButton(_("Show unsigned TxQR"))
-            b3.clicked.connect(self.show_raw_qr)
-            self.send_tab_grid.addWidget(b3, 7, 1)
-            self.send_tab_grid.addWidget(b2, 7, 2)
-        else:
-            self.send_tab_grid.addWidget(b2, 7, 1)
+        self.send_tab_grid.setColumnStretch(5, 0)
+        self.send_tab_grid.setColumnStretch(6, 1)
 
     def is_available(self):
         return self._is_available

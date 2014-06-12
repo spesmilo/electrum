@@ -34,6 +34,8 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
 from electrum import transaction
+from electrum.plugins import run_hook
+
 from util import MyTreeWidget
 
 class TxDialog(QDialog):
@@ -93,6 +95,8 @@ class TxDialog(QDialog):
         cancelButton.clicked.connect(lambda: self.done(0))
         buttons.addWidget(cancelButton)
         cancelButton.setDefault(True)
+
+        run_hook('init_transaction_dialog', self, buttons)
         
         self.update()
 
