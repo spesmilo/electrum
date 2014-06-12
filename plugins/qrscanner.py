@@ -86,30 +86,13 @@ class Plugin(BasePlugin):
                 return r.data
         
     def show_raw_qr(self):
-        r = unicode( self.gui.main_window.payto_e.text() )
-        r = r.strip()
-
-        # label or alias, with address in brackets
-        m = re.match('(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
-        to_address = m.group(2) if m else r
-
-        if not is_valid(to_address):
-            QMessageBox.warning(self.gui.main_window, _('Error'), _('Invalid Bitcoin Address') + ':\n' + to_address, _('OK'))
+        r = self.gui.main_window.read_send_tab()
+        if not r:
             return
 
+        outputs, fee, label, coins = r
         try:
-            amount = self.gui.main_window.read_amount(unicode( self.gui.main_window.amount_e.text()))
-        except Exception:
-            QMessageBox.warning(self.gui.main_window, _('Error'), _('Invalid Amount'), _('OK'))
-            return
-        try:
-            fee = self.gui.main_window.read_amount(unicode( self.gui.main_window.fee_e.text()))
-        except Exception:
-            QMessageBox.warning(self.gui.main_window, _('Error'), _('Invalid Fee'), _('OK'))
-            return
-
-        try:
-            tx = self.gui.main_window.wallet.mktx( [(to_address, amount)], None, fee)
+            tx = self.gui.main_window.wallet.make_unsigned_transaction(outputs, fee, None, None, coins)
         except Exception as e:
             self.gui.main_window.show_message(str(e))
             return

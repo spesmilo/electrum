@@ -799,7 +799,7 @@ class ElectrumWindow(QMainWindow):
         return lambda s, *args: s.do_protect(func, args)
 
 
-    def do_send(self):
+    def read_send_tab(self):
         label = unicode( self.message_e.text() )
 
         if self.gui_object.payment_request:
@@ -837,16 +837,23 @@ class ElectrumWindow(QMainWindow):
             if not self.question(_("The fee for this transaction seems unusually high.\nAre you really sure you want to pay %(fee)s in fees?")%{ 'fee' : self.format_amount(fee) + ' '+ self.base_unit()}):
                 return
 
-        self.send_tx(outputs, fee, label)
+        coins = self.get_coins()
+        return outputs, fee, label, coins
 
+
+    def do_send(self):
+        r = self.read_send_tab()
+        if not r:
+            return
+        outputs, fee, label, coins = r
+        self.send_tx(outputs, fee, label, coins)
 
 
     @protected
-    def send_tx(self, outputs, fee, label, password):
+    def send_tx(self, outputs, fee, label, coins, password):
         self.send_button.setDisabled(True)
 
         # first, create an unsigned tx 
-        coins = self.get_coins()
         try:
             tx = self.wallet.make_unsigned_transaction(outputs, fee, None, coins = coins)
             tx.error = None
