@@ -1264,14 +1264,28 @@ class ElectrumWindow(QMainWindow):
         msg += '\n\nOutputs:\n' + '\n'.join(map(lambda x: x[0] + ' ' + self.format_amount(x[1])+ self.base_unit(), pr.get_outputs()))
         QMessageBox.information(self, 'Invoice', msg , 'OK')
 
+    def do_pay_invoice(self, key):
+        from electrum.paymentrequest import PaymentRequest
+        domain, memo, value, status, tx_hash = self.invoices[key]
+        pr = PaymentRequest(self.config)
+        pr.read_file(key)
+        pr.domain = domain
+        pr.verify()
+        self.gui_object.payment_request = pr
+        self.prepare_for_payment_request()
+        self.payment_request_ok()
+
     def create_invoice_menu(self, position):
         item = self.invoices_list.itemAt(position)
         if not item:
             return
         k = self.invoices_list.indexOfTopLevelItem(item)
         key = self.invoices.keys()[k]
+        domain, memo, value, status, tx_hash = self.invoices[key]
         menu = QMenu()
         menu.addAction(_("Details"), lambda: self.show_invoice(key))
+        if status == PR_UNPAID:
+            menu.addAction(_("Pay Now"), lambda: self.do_pay_invoice(key))
         menu.addAction(_("Delete"), lambda: self.delete_invoice(key))
         menu.exec_(self.invoices_list.viewport().mapToGlobal(position))
 

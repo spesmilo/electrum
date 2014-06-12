@@ -141,6 +141,8 @@ class PaymentRequest:
         with open(filename,'r') as f:
             r = f.read()
 
+        assert key == bitcoin.sha256(r)[0:16].encode('hex')
+        self.id = key
         self.parse(r)
 
 
