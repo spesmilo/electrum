@@ -2256,8 +2256,8 @@ class ElectrumWindow(QMainWindow):
         fee_e = BTCAmountEdit(self.get_decimal_point)
         fee_e.setAmount(self.wallet.fee)
         grid.addWidget(fee_e, 2, 1)
-        msg = _('Fee per kilobyte of transaction.') + ' ' \
-            + _('Recommended value') + ': ' + self.format_amount(20000)
+        msg = _('Fee per kilobyte of transaction.') + '\n' \
+            + _('Recommended value') + ': ' + self.format_amount(10000) + ' ' + self.base_unit()
         grid.addWidget(HelpButton(msg), 2, 2)
         if not self.config.is_modifiable('fee_per_kb'):
             for w in [fee_e, fee_label]: w.setEnabled(False)
