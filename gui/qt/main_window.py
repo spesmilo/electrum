@@ -1213,7 +1213,7 @@ class ElectrumWindow(QMainWindow):
         run_hook('create_contact_menu', menu, item)
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
-    def delete_invoice(self, item):
+    def delete_invoice(self, key):
         self.invoices.pop(key)
         self.wallet.storage.put('invoices', self.invoices)
         self.update_invoices_tab()
