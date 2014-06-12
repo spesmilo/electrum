@@ -2302,7 +2302,7 @@ class ElectrumWindow(QMainWindow):
         # run the dialog
         if not d.exec_(): return
 
-        fee = self.fee_e.get_amount()
+        fee = fee_e.get_amount()
         if fee is None:
             QMessageBox.warning(self, _('Error'), _('Invalid value') +': %s'%fee, _('OK'))
             return
