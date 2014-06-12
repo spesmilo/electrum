@@ -925,7 +925,7 @@ class ElectrumWindow(QMainWindow):
         pr = self.gui_object.payment_request
         pr_id = pr.get_id()
         # save it
-        self.invoices[pr_id] = (pr.get_domain(), pr.get_amount())
+        self.invoices[pr_id] = (pr.get_domain(), pr.get_memo(), pr.get_amount())
         self.wallet.storage.put('invoices', self.invoices)
         self.update_invoices_tab()
 
@@ -1050,7 +1050,10 @@ class ElectrumWindow(QMainWindow):
 
 
     def create_invoices_tab(self):
-        l, w = self.create_list_tab([_('Requestor'), _('Amount'), _('Status')])
+        l, w = self.create_list_tab([_('Requestor'), _('Memo'),_('Amount'), _('Status')])
+        h = l.header()
+        h.setStretchLastSection(False)
+        h.setResizeMode(1, QHeaderView.Stretch)
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_invoice_menu)
         self.invoices_list = l
@@ -1060,10 +1063,13 @@ class ElectrumWindow(QMainWindow):
         invoices = self.wallet.storage.get('invoices', {})
         l = self.invoices_list
         l.clear()
-
-        for item, value in invoices.items():
-            domain, amount = value
-            item = QTreeWidgetItem( [ domain, self.format_amount(amount), ""] )
+        for key, value in invoices.items():
+            try:
+                domain, memo, amount = value
+            except:
+                invoices.pop(key)
+                continue
+            item = QTreeWidgetItem( [ domain, memo, self.format_amount(amount), ""] )
             l.addTopLevelItem(item)
 
         l.setCurrentItem(l.topLevelItem(0))
@@ -1214,7 +1220,7 @@ class ElectrumWindow(QMainWindow):
 
     def show_invoice(self, key):
         from electrum.paymentrequest import PaymentRequest
-        domain, value = self.invoices[key]
+        domain, memo, value = self.invoices[key]
         pr = PaymentRequest(self.config)
         pr.read_file(key)
         pr.domain = domain

@@ -272,6 +272,9 @@ class PaymentRequest:
     def get_domain(self):
         return self.domain
 
+    def get_memo(self):
+        return self.memo
+
     def get_id(self):
         return self.id
 
