@@ -187,7 +187,7 @@ class ElectrumWindow(QMainWindow):
             self.console.showMessage(self.network.banner)
 
         self.wallet = None
-
+        self.payment_request = None
 
     def update_account_selector(self):
         # account selector
