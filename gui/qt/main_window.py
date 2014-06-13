@@ -41,9 +41,6 @@ from electrum import mnemonic
 from electrum import util, bitcoin, commands, Interface, Wallet
 from electrum import SimpleConfig, Wallet, WalletStorage
 
-from electrum.paymentrequest import PR_UNPAID, PR_PAID
-
-
 from electrum import bmp, pyqrnative
 
 from amountedit import AmountEdit, BTCAmountEdit, MyLineEdit
@@ -64,6 +61,16 @@ elif platform.system() == 'Darwin':
     MONOSPACE_FONT = 'Monaco'
 else:
     MONOSPACE_FONT = 'monospace'
+
+
+
+# status of payment requests
+PR_UNPAID  = 0
+PR_EXPIRED = 1
+PR_SENT    = 2     # sent but not propagated
+PR_PAID    = 3     # send and propagated
+PR_ERROR   = 4     # could not parse
+
 
 from electrum import ELECTRUM_VERSION
 import re

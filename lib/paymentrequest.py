@@ -49,13 +49,6 @@ import x509
 REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'}
 ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
 
-# status can be:
-PR_UNPAID  = 0
-PR_EXPIRED = 1
-PR_SENT    = 2     # sent but not propagated
-PR_PAID    = 3     # send and propagated
-PR_ERROR   = 4     # could not parse
-
 
 ca_list = {}
 ca_path = os.path.expanduser("~/.electrum/ca/ca-bundle.crt")
@@ -64,7 +57,6 @@ ca_path = os.path.expanduser("~/.electrum/ca/ca-bundle.crt")
 
 
 def load_certificates():
-
     try:
         ca_f = open(ca_path, 'r')
     except Exception:
@@ -84,7 +76,7 @@ def load_certificates():
             try:
                 x.parse(c)
             except Exception as e:
-                print "cannot parse cert:", e
+                util.print_error("cannot parse cert:", e)
             ca_list[x.getFingerprint()] = x
     ca_f.close()
     util.print_error("%d certificates"%len(ca_list))
