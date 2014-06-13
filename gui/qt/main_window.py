@@ -980,6 +980,8 @@ class ElectrumWindow(QMainWindow):
         self.payment_request = None
 
     def pay_from_URI(self,URI):
+        if not URI:
+            return
         address, amount, label, message, request_url = util.parse_URI(URI)
         try:
             address, amount, label, message, request_url = util.parse_URI(URI)

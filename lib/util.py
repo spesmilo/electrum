@@ -163,7 +163,7 @@ def parse_URI(uri):
     from decimal import Decimal
 
     if ':' not in uri:
-        assert bitcoin.is_address(url)
+        assert bitcoin.is_address(uri)
         return uri, None, None, None, None
 
     u = urlparse.urlparse(uri)
