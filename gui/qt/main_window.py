@@ -1303,7 +1303,7 @@ class ElectrumWindow(QMainWindow):
 
     def show_invoice(self, key):
         from electrum.paymentrequest import PaymentRequest
-        domain, memo, value, status, tx_hash = self.invoices[key]
+        domain, memo, value, expiration, status, tx_hash = self.invoices[key]
         pr = PaymentRequest(self.config)
         pr.read_file(key)
         pr.domain = domain
