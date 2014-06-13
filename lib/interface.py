@@ -547,7 +547,7 @@ class Interface(threading.Thread):
         proxy = { "mode":"socks5", "host":"localhost" }
         args = s.split(':')
         n = 0
-        if proxy_modes.count(args[n]) == 1:
+        if len(args) > n:
             proxy["mode"] = args[n]
             n += 1
         if len(args) > n:
