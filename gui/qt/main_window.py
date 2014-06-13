@@ -973,7 +973,7 @@ class ElectrumWindow(QMainWindow):
         else:
             print_error('invoice already in list')
 
-        status = self.invoices[pr_id][3]
+        status = self.invoices[pr_id][4]
         if status == PR_PAID:
             self.do_clear()
             self.show_message("invoice already paid")
