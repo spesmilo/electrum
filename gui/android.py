@@ -488,7 +488,7 @@ def make_new_contact():
         data = r['extras']['SCAN_RESULT']
         if data:
             if re.match('^bitcoin:', data):
-                address, _, _, _, _, _, _ = util.parse_url(data)
+                address, _, _, _, _ = util.parse_URI(data)
             elif is_valid(data):
                 address = data
             else:
@@ -619,7 +619,7 @@ def payto_loop():
                     data = r['extras']['SCAN_RESULT']
                     if data:
                         if re.match('^bitcoin:', data):
-                            payto, amount, label, _, _, _, _ = util.parse_url(data)
+                            payto, amount, label, _, _ = util.parse_URI(data)
                             droid.fullSetProperty("recipient", "text",payto)
                             droid.fullSetProperty("amount", "text", amount)
                             droid.fullSetProperty("label", "text", label)

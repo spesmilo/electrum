@@ -46,7 +46,7 @@ class Plugin(BasePlugin):
         self.win = self.gui.main_window
         self.win.raw_transaction_menu.addAction(_("&From QR code"), self.read_raw_qr)
         b = QPushButton(_("Scan QR code"))
-        b.clicked.connect(self.fill_from_qr)
+        b.clicked.connect(lambda: self.win.pay_from_URI(self.scan_qr()))
         self.win.send_grid.addWidget(b, 1, 5)
         self.win.send_grid.setColumnStretch(5, 0)
         self.win.send_grid.setColumnStretch(6, 1)
@@ -98,21 +98,6 @@ class Plugin(BasePlugin):
             return
         self.win.show_transaction(tx)
 
-
-    def fill_from_qr(self):
-        qrcode = parse_uri(self.scan_qr())
-        if not qrcode:
-            return
-
-        if 'address' in qrcode:
-            self.win.payto_e.setText(qrcode['address'])
-        if 'amount' in qrcode:
-            self.win.amount_e.setText(str(qrcode['amount']))
-        if 'label' in qrcode:
-            self.win.message_e.setText(qrcode['label'])
-        if 'message' in qrcode:
-            self.win.message_e.setText("%s (%s)" % (self.win.message_e.text(), qrcode['message']))
-                
     def video_device(self):
         device = self.config.get("video_device", "default")
         if device == 'default':
@@ -195,55 +180,3 @@ class Plugin(BasePlugin):
           return True
         else:
           return False
-
-
-
-def parse_uri(uri):
-    if not uri:
-        return {}
-
-    if ':' not in uri:
-        # It's just an address (not BIP21)
-        return {'address': uri}
-
-    if '//' not in uri:
-        # Workaround for urlparse, it don't handle bitcoin: URI properly
-        uri = uri.replace(':', '://')
-        
-    uri = urlparse(uri)
-    result = {'address': uri.netloc} 
-    
-    if uri.query.startswith('?'):
-        params = parse_qs(uri.query[1:])
-    else:
-        params = parse_qs(uri.query)    
-
-    for k,v in params.items():
-        if k in ('amount', 'label', 'message'):
-            result[k] = v[0]
-        
-    return result    
-
-
-
-
-
-if __name__ == '__main__':
-    # Run some tests
-    
-    assert(parse_uri('1Marek48fwU7mugmSe186do2QpUkBnpzSN') ==
-           {'address': '1Marek48fwU7mugmSe186do2QpUkBnpzSN'})
-
-    assert(parse_uri('bitcoin://1Marek48fwU7mugmSe186do2QpUkBnpzSN') ==
-           {'address': '1Marek48fwU7mugmSe186do2QpUkBnpzSN'})
-    
-    assert(parse_uri('bitcoin:1Marek48fwU7mugmSe186do2QpUkBnpzSN') ==
-           {'address': '1Marek48fwU7mugmSe186do2QpUkBnpzSN'})
-    
-    assert(parse_uri('bitcoin:1Marek48fwU7mugmSe186do2QpUkBnpzSN?amount=10') ==
-           {'amount': '10', 'address': '1Marek48fwU7mugmSe186do2QpUkBnpzSN'})
-    
-    assert(parse_uri('bitcoin:1Marek48fwU7mugmSe186do2QpUkBnpzSN?amount=10&label=slush&message=Small%20tip%20to%20slush') ==
-           {'amount': '10', 'label': 'slush', 'message': 'Small tip to slush', 'address': '1Marek48fwU7mugmSe186do2QpUkBnpzSN'})
-    
-    

@@ -33,7 +33,7 @@ APP_NAME = "Electrum"
 import platform
 MONOSPACE_FONT = 'Lucida Console' if platform.system() == 'Windows' else 'monospace'
 
-from electrum.util import format_satoshis, parse_url
+from electrum.util import format_satoshis, parse_URI
 from electrum.network import DEFAULT_SERVERS
 from electrum.bitcoin import MIN_RELAY_TX_FEE
 
@@ -730,7 +730,7 @@ class ElectrumWindow:
             entry.modify_base(Gtk.StateType.NORMAL, Gdk.color_parse("#ffffff"))
 
     def set_url(self, url):
-        payto, amount, label, message, payment_request, url = parse_url(url)
+        payto, amount, label, message, payment_request = parse_URI(url)
         self.notebook.set_current_page(1)
         self.payto_entry.set_text(payto)
         self.message_entry.set_text(message)

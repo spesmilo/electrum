@@ -803,8 +803,8 @@ class ElectrumWindow(QMainWindow):
     def read_send_tab(self):
         label = unicode( self.message_e.text() )
 
-        if self.gui_object.payment_request:
-            outputs = self.gui_object.payment_request.get_outputs()
+        if self.payment_request:
+            outputs = self.payment_request.get_outputs()
         else:
             outputs = self.payto_e.get_outputs()
 
@@ -903,12 +903,12 @@ class ElectrumWindow(QMainWindow):
     def broadcast_transaction(self, tx):
 
         def broadcast_thread():
-            pr = self.gui_object.payment_request
+            pr = self.payment_request
             if pr is None:
                 return self.wallet.sendtx(tx)
 
             if pr.has_expired():
-                self.gui_object.payment_request = None
+                self.payment_request = None
                 return False, _("Payment request has expired")
 
             status, msg =  self.wallet.sendtx(tx)
@@ -918,7 +918,7 @@ class ElectrumWindow(QMainWindow):
             self.invoices[pr.get_id()] = (pr.get_domain(), pr.get_memo(), pr.get_amount(), PR_PAID, tx.hash())
             self.wallet.storage.put('invoices', self.invoices)
             self.update_invoices_tab()
-            self.gui_object.payment_request = None
+            self.payment_request = None
             refund_address = self.wallet.addresses()[0]
             ack_status, ack_msg = pr.send_ack(str(tx), refund_address)
             if ack_status:
@@ -950,7 +950,7 @@ class ElectrumWindow(QMainWindow):
         return True
 
     def payment_request_ok(self):
-        pr = self.gui_object.payment_request
+        pr = self.payment_request
         pr_id = pr.get_id()
         if pr_id not in self.invoices:
             self.invoices[pr_id] = (pr.get_domain(), pr.get_memo(), pr.get_amount(), PR_UNPAID, None)
@@ -963,7 +963,7 @@ class ElectrumWindow(QMainWindow):
         if status == PR_PAID:
             self.do_clear()
             self.show_message("invoice already paid")
-            self.gui_object.payment_request = None
+            self.payment_request = None
             return
 
         self.payto_help.show()
@@ -976,25 +976,48 @@ class ElectrumWindow(QMainWindow):
 
     def payment_request_error(self):
         self.do_clear()
-        self.show_message(self.gui_object.payment_request.error)
-        self.gui_object.payment_request = None
+        self.show_message(self.payment_request.error)
+        self.payment_request = None
 
-    def set_send(self, address, amount, label, message):
-
-        if label and self.wallet.labels.get(address) != label:
-            if self.question('Give label "%s" to address %s ?'%(label,address)):
-                if address not in self.wallet.addressbook and not self.wallet.is_mine(address):
-                    self.wallet.addressbook.append(address)
-                self.wallet.set_label(address, label)
+    def pay_from_URI(self,URI):
+        address, amount, label, message, request_url = util.parse_URI(URI)
+        try:
+            address, amount, label, message, request_url = util.parse_URI(URI)
+        except Exception as e:
+            QMessageBox.warning(self, _('Error'), _('Invalid bitcoin URI:') + '\n' + str(e), _('OK'))
+            return
 
         self.tabs.setCurrentIndex(1)
-        label = self.wallet.labels.get(address)
-        m_addr = label + '  <'+ address +'>' if label else address
-        self.payto_e.setText(m_addr)
 
-        self.message_e.setText(message)
-        if amount:
-            self.amount_e.setText(amount)
+        if not request_url:
+            if label:
+                if self.wallet.labels.get(address) != label:
+                    if self.question(_('Save label "%s" for address %s ?'%(label,address))):
+                        if address not in self.wallet.addressbook and not self.wallet.is_mine(address):
+                            self.wallet.addressbook.append(address)
+                            self.wallet.set_label(address, label)
+            else:
+                label = self.wallet.labels.get(address)
+            if address:
+                self.payto_e.setText(label + '  <'+ address +'>' if label else address)
+            if message:
+                self.message_e.setText(message)
+            if amount:
+                self.amount_e.setAmount(amount)
+            return
+
+        from electrum import paymentrequest
+        def payment_request():
+            self.payment_request = paymentrequest.PaymentRequest(self.config)
+            self.payment_request.read(request_url)
+            if self.payment_request.verify():
+                self.emit(SIGNAL('payment_request_ok'))
+            else:
+                self.emit(SIGNAL('payment_request_error'))
+
+        self.pr_thread = threading.Thread(target=payment_request).start()
+        self.prepare_for_payment_request()
+
 
 
     def do_clear(self):
@@ -1279,7 +1302,7 @@ class ElectrumWindow(QMainWindow):
         pr = PaymentRequest(self.config)
         pr.read_file(key)
         pr.domain = domain
-        self.gui_object.payment_request = pr
+        self.payment_request = pr
         self.prepare_for_payment_request()
         if pr.verify():
             self.payment_request_ok()
