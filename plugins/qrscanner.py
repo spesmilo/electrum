@@ -53,7 +53,7 @@ class Plugin(BasePlugin):
 
     def init_transaction_dialog(self, dialog, buttons):
         b = QPushButton(_("Show QR code"))
-        b.clicked.connect(self.show_raw_qr)
+        b.clicked.connect(lambda: self.show_raw_qr(dialog.tx))
         buttons.insertWidget(1,b)
 
     def is_available(self):
@@ -81,33 +81,7 @@ class Plugin(BasePlugin):
                     continue
                 return r.data
         
-    def show_raw_qr(self):
-        r = self.win.read_send_tab()
-        if not r:
-            return
-
-        outputs, fee, label, coins = r
-        try:
-            tx = self.win.wallet.make_unsigned_transaction(outputs, fee, None, None, coins)
-        except Exception as e:
-            self.win.show_message(str(e))
-            return
-
-        if tx.requires_fee(self.win.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
-            QMessageBox.warning(self.win, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
-            return
-
-        try:
-            out = {
-            "hex" : tx.hash(),
-            "complete" : "false"
-            }
-    
-            input_info = []
-
-        except Exception as e:
-            self.win.show_message(str(e))
-
+    def show_raw_qr(self, tx):
         try:
             json_text = json.dumps(tx.as_dict()).replace(' ', '')
             self.show_tx_qrcode(json_text, 'Unsigned Transaction')
