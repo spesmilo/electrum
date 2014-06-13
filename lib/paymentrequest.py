@@ -141,6 +141,8 @@ class PaymentRequest:
         with open(filename,'r') as f:
             r = f.read()
 
+        assert key == bitcoin.sha256(r)[0:16].encode('hex')
+        self.id = key
         self.parse(r)
 
 
@@ -257,9 +259,9 @@ class PaymentRequest:
 
         self.payment_url = self.details.payment_url
 
-        #if self.has_expired():
-        #    self.error = "ERROR: Payment Request has Expired."
-        #    return False
+        if self.has_expired():
+            self.error = "ERROR: Payment Request has Expired."
+            return False
 
         return True
 

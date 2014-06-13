@@ -341,6 +341,7 @@ class ElectrumWindow(QMainWindow):
         raw_transaction_menu.addAction(_("&From file"), self.do_process_from_file)
         raw_transaction_menu.addAction(_("&From text"), self.do_process_from_text)
         raw_transaction_menu.addAction(_("&From the blockchain"), self.do_process_from_txid)
+        self.raw_transaction_menu = raw_transaction_menu
 
         help_menu = menubar.addMenu(_("&Help"))
         help_menu.addAction(_("&About"), self.show_about)
@@ -799,7 +800,7 @@ class ElectrumWindow(QMainWindow):
         return lambda s, *args: s.do_protect(func, args)
 
 
-    def do_send(self):
+    def read_send_tab(self):
         label = unicode( self.message_e.text() )
 
         if self.gui_object.payment_request:
@@ -837,16 +838,23 @@ class ElectrumWindow(QMainWindow):
             if not self.question(_("The fee for this transaction seems unusually high.\nAre you really sure you want to pay %(fee)s in fees?")%{ 'fee' : self.format_amount(fee) + ' '+ self.base_unit()}):
                 return
 
-        self.send_tx(outputs, fee, label)
+        coins = self.get_coins()
+        return outputs, fee, label, coins
 
+
+    def do_send(self):
+        r = self.read_send_tab()
+        if not r:
+            return
+        outputs, fee, label, coins = r
+        self.send_tx(outputs, fee, label, coins)
 
 
     @protected
-    def send_tx(self, outputs, fee, label, password):
+    def send_tx(self, outputs, fee, label, coins, password):
         self.send_button.setDisabled(True)
 
         # first, create an unsigned tx 
-        coins = self.get_coins()
         try:
             tx = self.wallet.make_unsigned_transaction(outputs, fee, None, coins = coins)
             tx.error = None
@@ -1037,6 +1045,8 @@ class ElectrumWindow(QMainWindow):
 
     def create_receive_tab(self):
         l, w = self.create_list_tab([ _('Address'), _('Label'), _('Balance'), _('Tx')])
+        for i,width in enumerate(self.column_widths['receive']):
+            l.setColumnWidth(i, width)
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_receive_menu)
         l.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -1071,7 +1081,6 @@ class ElectrumWindow(QMainWindow):
         l.customContextMenuRequested.connect(self.create_contact_menu)
         for i,width in enumerate(self.column_widths['contacts']):
             l.setColumnWidth(i, width)
-
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,0,1))
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.contacts_list = l
@@ -1264,14 +1273,31 @@ class ElectrumWindow(QMainWindow):
         msg += '\n\nOutputs:\n' + '\n'.join(map(lambda x: x[0] + ' ' + self.format_amount(x[1])+ self.base_unit(), pr.get_outputs()))
         QMessageBox.information(self, 'Invoice', msg , 'OK')
 
+    def do_pay_invoice(self, key):
+        from electrum_ltc.paymentrequest import PaymentRequest
+        domain, memo, value, status, tx_hash = self.invoices[key]
+        pr = PaymentRequest(self.config)
+        pr.read_file(key)
+        pr.domain = domain
+        self.gui_object.payment_request = pr
+        self.prepare_for_payment_request()
+        if pr.verify():
+            self.payment_request_ok()
+        else:
+            self.payment_request_error()
+            
+
     def create_invoice_menu(self, position):
         item = self.invoices_list.itemAt(position)
         if not item:
             return
         k = self.invoices_list.indexOfTopLevelItem(item)
         key = self.invoices.keys()[k]
+        domain, memo, value, status, tx_hash = self.invoices[key]
         menu = QMenu()
         menu.addAction(_("Details"), lambda: self.show_invoice(key))
+        if status == PR_UNPAID:
+            menu.addAction(_("Pay Now"), lambda: self.do_pay_invoice(key))
         menu.addAction(_("Delete"), lambda: self.delete_invoice(key))
         menu.exec_(self.invoices_list.viewport().mapToGlobal(position))
 
@@ -1302,8 +1328,6 @@ class ElectrumWindow(QMainWindow):
         l.insertChild = l.insertTopLevelItem
 
         l.clear()
-        for i,width in enumerate(self.column_widths['receive']):
-            l.setColumnWidth(i, width)
 
         accounts = self.wallet.get_accounts()
         if self.current_account is None:
