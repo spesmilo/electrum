@@ -84,39 +84,10 @@ class Plugin(BasePlugin):
     def show_raw_qr(self, tx):
         try:
             json_text = json.dumps(tx.as_dict()).replace(' ', '')
-            self.show_tx_qrcode(json_text, 'Unsigned Transaction')
+            self.win.show_qrcode(json_text, 'Unsigned Transaction')
         except Exception as e:
             self.win.show_message(str(e))
 
-    def show_tx_qrcode(self, data, title):
-        if not data: return
-        d = QDialog(self.win)
-        d.setModal(1)
-        d.setWindowTitle(title)
-        d.setMinimumSize(250, 525)
-        vbox = QVBoxLayout()
-        qrw = QRCodeWidget(data)
-        vbox.addWidget(qrw, 0)
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-
-        def print_qr(self):
-            filename = "qrcode.bmp"
-            electrum_gui.bmp.save_qrcode(qrw.qr, filename)
-            QMessageBox.information(None, _('Message'), _("QR code saved to file") + " " + filename, _('OK'))
-
-        b = QPushButton(_("Save"))
-        hbox.addWidget(b)
-        b.clicked.connect(print_qr)
-
-        b = QPushButton(_("Close"))
-        hbox.addWidget(b)
-        b.clicked.connect(d.accept)
-        b.setDefault(True)
-
-        vbox.addLayout(hbox, 1)
-        d.setLayout(vbox)
-        d.exec_()
 
     def read_raw_qr(self):
         qrcode = self.scan_qr()
