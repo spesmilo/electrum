@@ -83,6 +83,8 @@ def format_status(x):
         return _('Unpaid')
     elif x == PR_PAID:
         return _('Paid')
+    elif x == PR_EXPIRED:
+        return _('Expired')
 
 
 class StatusBarButton(QPushButton):
@@ -927,7 +929,7 @@ class ElectrumWindow(QMainWindow):
             if not status:
                 return False, msg
 
-            self.invoices[pr.get_id()] = (pr.get_domain(), pr.get_memo(), pr.get_amount(), PR_PAID, tx.hash())
+            self.invoices[pr.get_id()] = (pr.get_domain(), pr.get_memo(), pr.get_amount(), pr.get_expiration_date(), PR_PAID, tx.hash())
             self.wallet.storage.put('invoices', self.invoices)
             self.update_invoices_tab()
             self.payment_request = None
@@ -965,7 +967,7 @@ class ElectrumWindow(QMainWindow):
         pr = self.payment_request
         pr_id = pr.get_id()
         if pr_id not in self.invoices:
-            self.invoices[pr_id] = (pr.get_domain(), pr.get_memo(), pr.get_amount(), PR_UNPAID, None)
+            self.invoices[pr_id] = (pr.get_domain(), pr.get_memo(), pr.get_amount(), pr.get_expiration_date(), PR_UNPAID, None)
             self.wallet.storage.put('invoices', self.invoices)
             self.update_invoices_tab()
         else:
@@ -1144,10 +1146,12 @@ class ElectrumWindow(QMainWindow):
         l.clear()
         for key, value in invoices.items():
             try:
-                domain, memo, amount, status, tx_hash = value
+                domain, memo, amount, expiration_date, status, tx_hash = value
             except:
                 invoices.pop(key)
                 continue
+            if status == PR_UNPAID and expiration_date and expiration_date < time.time():
+                status = PR_EXPIRED
             item = QTreeWidgetItem( [ domain, memo, self.format_amount(amount), format_status(status)] )
             l.addTopLevelItem(item)
 
@@ -1334,7 +1338,7 @@ class ElectrumWindow(QMainWindow):
             return
         k = self.invoices_list.indexOfTopLevelItem(item)
         key = self.invoices.keys()[k]
-        domain, memo, value, status, tx_hash = self.invoices[key]
+        domain, memo, value, expiration, status, tx_hash = self.invoices[key]
         menu = QMenu()
         menu.addAction(_("Details"), lambda: self.show_invoice(key))
         if status == PR_UNPAID:
