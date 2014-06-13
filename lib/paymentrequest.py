@@ -251,10 +251,6 @@ class PaymentRequest:
 
         self.payment_url = self.details.payment_url
 
-        if self.has_expired():
-            self.error = "ERROR: Payment Request has Expired."
-            return False
-
         return True
 
     def has_expired(self):

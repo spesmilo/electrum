@@ -808,6 +808,11 @@ class ElectrumWindow(QMainWindow):
 
 
     def read_send_tab(self):
+
+        if self.payment_request and self.payment_request.has_expired():
+            QMessageBox.warning(self, _('Error'), _('Payment request has expired'), _('OK'))
+            return
+
         label = unicode( self.message_e.text() )
 
         if self.payment_request:
@@ -976,7 +981,11 @@ class ElectrumWindow(QMainWindow):
         self.payto_help.show()
         self.payto_help.set_alt(lambda: self.show_pr_details(pr))
 
-        self.payto_e.setGreen()
+        if not pr.has_expired():
+            self.payto_e.setGreen()
+        else:
+            self.payto_e.setExpired()
+
         self.payto_e.setText(pr.domain)
         self.amount_e.setText(self.format_amount(pr.get_amount()))
         self.message_e.setText(pr.get_memo())

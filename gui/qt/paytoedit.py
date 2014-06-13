@@ -56,8 +56,11 @@ class PayToEdit(QTextEdit):
 
     def setGreen(self):
         self.is_pr = True
-        self.setStyleSheet("QWidget { background-color:#00ff00;}")
+        self.setStyleSheet("QWidget { background-color:#80ff80;}")
 
+    def setExpired(self):
+        self.is_pr = True
+        self.setStyleSheet("QWidget { background-color:#ffcccc;}")
 
     def parse_address_and_amount(self, line):
         x, y = line.split(',')
