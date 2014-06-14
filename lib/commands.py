@@ -104,7 +104,8 @@ register_command('getproof',             1, 1, True, False, False, 'get merkle p
 register_command('getutxoaddress',       2, 2, True, False, False, 'get the address of an unspent transaction output','getutxoaddress <txid> <pos>')
 register_command('sweep',                2, 3, True, False, False, 'Sweep a private key.', 'sweep privkey addr [fee]')
 
-
+register_command('gettxidbyteoffset',       2, 1, True, False, False, 'Return the block byte offset of a raw transaction','gettxidbyteoffset <txid> <height>')
+register_command('gettxidfrombyteoffset',   2, 1, True, False, False, 'Return the transaction id of a raw transaction at block byte offset', 'gettxidfrombyteoffset <offset> <height>')
 
 
 class Commands:
@@ -160,6 +161,16 @@ class Commands:
         if r: 
             return {'address':r[0] }
 
+    def gettxidbyteoffset(self, txid, height):
+        """ Given txid and block height, return the byte offset of the raw transaction data in the block. """
+        r = self.network.synchronous_get([ ('blockchain.transaction.get_txid_byte_offset',[txid, height]) ])
+        if r:
+            return r
+
+    def gettxidfrombyteoffset(self, offset, height):
+        """ Given byte offset and block height, see if a valid transaction exists, and if so return the txid."""
+        r = self.network.synchronous_get([ ('blockchain.transaction.get_txid_from_byte_offset',[offset, height]) ])
+        return r
 
     def createrawtransaction(self, inputs, outputs):
         for i in inputs:
