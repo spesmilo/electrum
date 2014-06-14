@@ -432,6 +432,8 @@ class ElectrumWindow(QMainWindow):
         if self.need_update.is_set():
             self.update_wallet()
             self.need_update.clear()
+
+        self.receive_qr.update_qr()
         run_hook('timer_actions')
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
@@ -659,29 +661,73 @@ class ElectrumWindow(QMainWindow):
     def create_receive_tab(self):
         w = QWidget()
         grid = QGridLayout(w)
-        grid.setColumnMinimumWidth(2, 300)
-        grid.setColumnStretch(4,1)
-        grid.setRowStretch(4, 1)
+        grid.setColumnMinimumWidth(3, 300)
+        grid.setColumnStretch(5, 1)
 
         self.receive_address_e = QLineEdit()
         self.receive_address_e.setReadOnly(True)
         grid.addWidget(QLabel(_('Receiving address')), 0, 0)
-        grid.addWidget(self.receive_address_e, 0, 1, 1, 2)
+        grid.addWidget(self.receive_address_e, 0, 1, 1, 3)
         self.receive_address_e.textChanged.connect(self.update_receive_qr)
 
         self.receive_message_e = QLineEdit()
         grid.addWidget(QLabel(_('Message')), 1, 0)
-        grid.addWidget(self.receive_message_e, 1, 1, 1, 2)
+        grid.addWidget(self.receive_message_e, 1, 1, 1, 3)
         self.receive_message_e.textChanged.connect(self.update_receive_qr)
 
         self.receive_amount_e = BTCAmountEdit(self.get_decimal_point)
         grid.addWidget(QLabel(_('Requested amount')), 2, 0)
-        grid.addWidget(self.receive_amount_e, 2, 1)
+        grid.addWidget(self.receive_amount_e, 2, 1, 1, 2)
         self.receive_amount_e.textChanged.connect(self.update_receive_qr)
 
+        save_button = QPushButton(_('Save'))
+        save_button.clicked.connect(self.save_payment_request)
+        grid.addWidget(save_button, 3, 1)
+        clear_button = QPushButton(_('Clear'))
+        clear_button.clicked.connect(self.clear_receive_tab)
+        grid.addWidget(clear_button, 3, 2)
+        grid.setRowStretch(4, 1)
+
         self.receive_qr = QRCodeWidget()
-        grid.addWidget(self.receive_qr, 0, 3, 4, 2)
+        grid.addWidget(self.receive_qr, 0, 4, 5, 2)
+
+        self.receive_requests_label = QLabel(_('Pending requests'))
+        self.receive_list = MyTreeWidget(self)
+        self.receive_list.customContextMenuRequested.connect(self.receive_list_menu)
+        self.receive_list.setHeaderLabels( [_('Address'), _('Message'), _('Amount'), _('Status')] )
+        grid.addWidget(self.receive_requests_label, 5, 0)
+        grid.addWidget(self.receive_list, 6, 0, 1, 6)
+
+        grid.setRowStretch(7, 1)
         return w
+
+    def receive_list_delete(self, item):
+        addr = str(item.text(0))
+        self.receive_requests.pop(addr)
+        self.update_receive_tab()
+        self.redraw_from_list()
+
+    def receive_list_menu(self, position):
+        item = self.receive_list.itemAt(position)
+        menu = QMenu()
+        menu.addAction(_("Delete"), lambda: self.receive_list_delete(item))
+        menu.exec_(self.receive_list.viewport().mapToGlobal(position))
+
+    def save_payment_request(self):
+        addr = str(self.receive_address_e.text())
+        amount = self.receive_amount_e.get_amount()
+        message = str(self.receive_message_e.text())
+        if not message and not amount:
+            QMessageBox.warning(self, _('Error'), _('No message or amount'), _('OK'))
+            return
+        self.receive_requests = self.wallet.storage.get('receive_requests',{}) 
+        self.receive_requests[addr] = (amount, message)
+        self.wallet.storage.put('receive_requests', self.receive_requests)
+        self.update_receive_tab()
+
+    def clear_receive_tab(self):
+        self.receive_amount_e.setAmount(None)
+        self.receive_message_e.setText("")
 
     def receive_at(self, addr):
         if not bitcoin.is_address(addr):
@@ -690,9 +736,29 @@ class ElectrumWindow(QMainWindow):
         self.receive_address_e.setText(addr)
 
     def update_receive_tab(self):
-        domain = self.wallet.get_account_addresses(self.current_account)
-        addr = domain[0]
-        self.receive_at(addr)
+        self.receive_requests = self.wallet.storage.get('receive_requests',{}) 
+
+        domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
+        for addr in domain:
+            if not self.wallet.address_is_old(addr) and addr not in self.receive_requests.keys():
+                break
+        else:
+            addr = ""
+
+        self.receive_address_e.setText(addr)
+        self.receive_message_e.setText("")
+        self.receive_amount_e.setAmount(None)
+
+        b = len(self.receive_requests) > 0
+        self.receive_list.setVisible(b)
+        self.receive_requests_label.setVisible(b)
+
+        self.receive_list.clear()
+        for address, v in self.receive_requests.items():
+            amount, message = v
+            item = QTreeWidgetItem( [ address, message, self.format_amount(amount) if amount else "", ""] )
+            self.receive_list.addTopLevelItem(item)
+
 
     def update_receive_qr(self):
         import urlparse
@@ -710,7 +776,6 @@ class ElectrumWindow(QMainWindow):
         else:
             url = ""
         self.receive_qr.set_addr(url)
-        self.receive_qr.update_qr()
 
 
     def create_send_tab(self):
@@ -1156,7 +1221,7 @@ class ElectrumWindow(QMainWindow):
         self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,0,1))
         self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.connect(l, SIGNAL('currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)'), lambda a,b: self.current_item_changed(a))
-        self.receive_list = l
+        self.address_list = l
         return w
 
 
@@ -1164,8 +1229,8 @@ class ElectrumWindow(QMainWindow):
 
     def save_column_widths(self):
         self.column_widths["receive"] = []
-        for i in range(self.receive_list.columnCount() -1):
-            self.column_widths["receive"].append(self.receive_list.columnWidth(i))
+        for i in range(self.address_list.columnCount() -1):
+            self.column_widths["receive"].append(self.address_list.columnWidth(i))
 
         self.column_widths["history"] = []
         for i in range(self.history_list.columnCount() - 1):
@@ -1247,7 +1312,7 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("View details"), lambda: self.show_account_details(k))
         if self.wallet.account_is_pending(k):
             menu.addAction(_("Delete"), lambda: self.delete_pending_account(k))
-        menu.exec_(self.receive_list.viewport().mapToGlobal(position))
+        menu.exec_(self.address_list.viewport().mapToGlobal(position))
 
     def delete_pending_account(self, k):
         self.wallet.delete_pending_account(k)
@@ -1256,13 +1321,13 @@ class ElectrumWindow(QMainWindow):
     def create_receive_menu(self, position):
         # fixme: this function apparently has a side effect.
         # if it is not called the menu pops up several times
-        #self.receive_list.selectedIndexes()
+        #self.address_list.selectedIndexes()
 
-        selected = self.receive_list.selectedItems()
+        selected = self.address_list.selectedItems()
         multi_select = len(selected) > 1
         addrs = [unicode(item.text(0)) for item in selected]
         if not multi_select:
-            item = self.receive_list.itemAt(position)
+            item = self.address_list.itemAt(position)
             if not item: return
 
             addr = addrs[0]
@@ -1296,7 +1361,7 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Send From"), lambda: self.send_from_addresses(addrs))
 
         run_hook('receive_menu', menu, addrs)
-        menu.exec_(self.receive_list.viewport().mapToGlobal(position))
+        menu.exec_(self.address_list.viewport().mapToGlobal(position))
 
 
     def get_sendable_balance(self):
@@ -1427,7 +1492,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def update_address_tab(self):
-        l = self.receive_list
+        l = self.address_list
         # extend the syntax for consistency
         l.addChild = l.addTopLevelItem
         l.insertChild = l.insertTopLevelItem
