@@ -144,6 +144,7 @@ class ElectrumWindow(QMainWindow):
         tabs.addTab(self.create_history_tab(), _('History') )
         tabs.addTab(self.create_send_tab(), _('Send') )
         tabs.addTab(self.create_receive_tab(), _('Receive') )
+        tabs.addTab(self.create_addresses_tab(), _('Addresses') )
         tabs.addTab(self.create_contacts_tab(), _('Contacts') )
         tabs.addTab(self.create_invoices_tab(), _('Invoices') )
         tabs.addTab(self.create_console_tab(), _('Console') )
@@ -485,6 +486,7 @@ class ElectrumWindow(QMainWindow):
         if self.wallet.up_to_date or not self.network or not self.network.is_connected():
             self.update_history_tab()
             self.update_receive_tab()
+            self.update_address_tab()
             self.update_contacts_tab()
             self.update_completions()
             self.update_invoices_tab()
@@ -652,6 +654,63 @@ class ElectrumWindow(QMainWindow):
 
         self.history_list.setCurrentItem(self.history_list.topLevelItem(0))
         run_hook('history_tab_update')
+
+
+    def create_receive_tab(self):
+        w = QWidget()
+        grid = QGridLayout(w)
+        grid.setColumnMinimumWidth(2, 300)
+        grid.setColumnStretch(4,1)
+        grid.setRowStretch(4, 1)
+
+        self.receive_address_e = QLineEdit()
+        self.receive_address_e.setReadOnly(True)
+        grid.addWidget(QLabel(_('Receiving address')), 0, 0)
+        grid.addWidget(self.receive_address_e, 0, 1, 1, 2)
+        self.receive_address_e.textChanged.connect(self.update_receive_qr)
+
+        self.receive_message_e = QLineEdit()
+        grid.addWidget(QLabel(_('Message')), 1, 0)
+        grid.addWidget(self.receive_message_e, 1, 1, 1, 2)
+        self.receive_message_e.textChanged.connect(self.update_receive_qr)
+
+        self.receive_amount_e = BTCAmountEdit(self.get_decimal_point)
+        grid.addWidget(QLabel(_('Requested amount')), 2, 0)
+        grid.addWidget(self.receive_amount_e, 2, 1)
+        self.receive_amount_e.textChanged.connect(self.update_receive_qr)
+
+        self.receive_qr = QRCodeWidget()
+        grid.addWidget(self.receive_qr, 0, 3, 4, 2)
+        return w
+
+    def receive_at(self, addr):
+        if not bitcoin.is_address(addr):
+            return
+        self.tabs.setCurrentIndex(2)
+        self.receive_address_e.setText(addr)
+
+    def update_receive_tab(self):
+        domain = self.wallet.get_account_addresses(self.current_account)
+        addr = domain[0]
+        self.receive_at(addr)
+
+    def update_receive_qr(self):
+        import urlparse
+        addr = str(self.receive_address_e.text())
+        if addr:
+            query = []
+            amount = self.receive_amount_e.get_amount()
+            if amount:
+                query.append('amount=%s'%format_satoshis(amount))
+            message = str(self.receive_message_e.text())
+            if message:
+                query.append('message=%s'%message)
+            p = urlparse.ParseResult(scheme='bitcoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
+            url = urlparse.urlunparse(p)
+        else:
+            url = ""
+        self.receive_qr.set_addr(url)
+        self.receive_qr.update_qr()
 
 
     def create_send_tab(self):
@@ -1064,7 +1123,7 @@ class ElectrumWindow(QMainWindow):
                 self.wallet.unfreeze(addr)
             elif addr not in self.wallet.frozen_addresses and freeze:
                 self.wallet.freeze(addr)
-        self.update_receive_tab()
+        self.update_address_tab()
 
 
 
@@ -1087,7 +1146,7 @@ class ElectrumWindow(QMainWindow):
         return l, w
 
 
-    def create_receive_tab(self):
+    def create_addresses_tab(self):
         l, w = self.create_list_tab([ _('Address'), _('Label'), _('Balance'), _('Tx')])
         for i,width in enumerate(self.column_widths['receive']):
             l.setColumnWidth(i, width)
@@ -1163,7 +1222,7 @@ class ElectrumWindow(QMainWindow):
     def delete_imported_key(self, addr):
         if self.question(_("Do you want to remove")+" %s "%addr +_("from your wallet?")):
             self.wallet.delete_imported_key(addr)
-            self.update_receive_tab()
+            self.update_address_tab()
             self.update_history_tab()
 
     def edit_account_label(self, k):
@@ -1171,7 +1230,7 @@ class ElectrumWindow(QMainWindow):
         if ok:
             label = unicode(text)
             self.wallet.set_label(k,label)
-            self.update_receive_tab()
+            self.update_address_tab()
 
     def account_set_expanded(self, item, k, b):
         item.setExpanded(b)
@@ -1192,7 +1251,7 @@ class ElectrumWindow(QMainWindow):
 
     def delete_pending_account(self, k):
         self.wallet.delete_pending_account(k)
-        self.update_receive_tab()
+        self.update_address_tab()
 
     def create_receive_menu(self, position):
         # fixme: this function apparently has a side effect.
@@ -1218,7 +1277,7 @@ class ElectrumWindow(QMainWindow):
         menu = QMenu()
         if not multi_select:
             menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
-            menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")) )
+            menu.addAction(_("Request payment"), lambda: self.receive_at(addr))
             menu.addAction(_("Edit label"), lambda: self.edit_label(True))
             menu.addAction(_("Public keys"), lambda: self.show_public_keys(addr))
             if not self.wallet.is_watching_only():
@@ -1348,14 +1407,14 @@ class ElectrumWindow(QMainWindow):
         menu.exec_(self.invoices_list.viewport().mapToGlobal(position))
 
 
-    def update_receive_item(self, item):
+    def update_address_item(self, item):
         item.setFont(0, QFont(MONOSPACE_FONT))
         address = str(item.data(0,0).toString())
         label = self.wallet.labels.get(address,'')
         item.setData(1,0,label)
         item.setData(0,32, True) # is editable
 
-        run_hook('update_receive_item', address, item)
+        run_hook('update_address_item', address, item)
 
         if not self.wallet.is_mine(address): return
 
@@ -1367,7 +1426,7 @@ class ElectrumWindow(QMainWindow):
             item.setBackgroundColor(0, QColor('lightblue'))
 
 
-    def update_receive_tab(self):
+    def update_address_tab(self):
         l = self.receive_list
         # extend the syntax for consistency
         l.addChild = l.addTopLevelItem
@@ -1422,7 +1481,7 @@ class ElectrumWindow(QMainWindow):
                         gap = 0
 
                     item = QTreeWidgetItem( [ address, '', '', "%d"%num] )
-                    self.update_receive_item(item)
+                    self.update_address_item(item)
                     if is_red:
                         item.setBackgroundColor(1, QColor('red'))
 
@@ -1493,6 +1552,7 @@ class ElectrumWindow(QMainWindow):
                     self.current_account = k
         self.update_history_tab()
         self.update_status()
+        self.update_address_tab()
         self.update_receive_tab()
 
     def create_status_bar(self):
@@ -1620,7 +1680,7 @@ class ElectrumWindow(QMainWindow):
         if not name: return
 
         self.wallet.create_pending_account(name, password)
-        self.update_receive_tab()
+        self.update_address_tab()
         self.tabs.setCurrentIndex(2)
 
 
@@ -2281,7 +2341,7 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.information(self, _('Information'), _("The following addresses were added") + ':\n' + '\n'.join(addrlist))
         if badkeys:
             QMessageBox.critical(self, _('Error'), _("The following inputs could not be imported") + ':\n'+ '\n'.join(badkeys))
-        self.update_receive_tab()
+        self.update_address_tab()
         self.update_history_tab()
 
 
@@ -2389,7 +2449,7 @@ class ElectrumWindow(QMainWindow):
             self.num_zeros = nz
             self.config.set_key('num_zeros', nz, True)
             self.update_history_tab()
-            self.update_receive_tab()
+            self.update_address_tab()
 
         usechange_result = usechange_cb.isChecked()
         if self.wallet.use_change != usechange_result:
