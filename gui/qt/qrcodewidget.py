@@ -82,3 +82,56 @@ class QRCodeWidget(QWidget):
                 qp.drawRect(left+c*boxsize, top+r*boxsize, boxsize, boxsize)
         qp.end()
         
+
+import os
+from electrum.i18n import _
+
+class QRDialog(QDialog):
+
+    def __init__(self, data, parent=None, title = "", show_text=False):
+        QDialog.__init__(self, parent)
+
+        d = self
+        d.setModal(1)
+        d.setWindowTitle(title)
+        d.setMinimumSize(270, 300)
+        vbox = QVBoxLayout()
+        qrw = QRCodeWidget(data)
+        vbox.addWidget(qrw, 1)
+        if show_text:
+            text = QTextEdit()
+            text.setText(data)
+            text.setReadOnly(True)
+            vbox.addWidget(text)
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+
+        if parent:
+            self.config = parent.config
+            filename = os.path.join(self.config.path, "qrcode.bmp")
+
+            def print_qr():
+                bmp.save_qrcode(qrw.qr, filename)
+                QMessageBox.information(None, _('Message'), _("QR code saved to file") + " " + filename, _('OK'))
+
+            def copy_to_clipboard():
+                bmp.save_qrcode(qrw.qr, filename)
+                self.parent().app.clipboard().setImage(QImage(filename))
+                QMessageBox.information(None, _('Message'), _("QR code saved to clipboard"), _('OK'))
+
+                b = QPushButton(_("Copy"))
+                hbox.addWidget(b)
+                b.clicked.connect(copy_to_clipboard)
+
+                b = QPushButton(_("Save"))
+                hbox.addWidget(b)
+                b.clicked.connect(print_qr)
+
+        b = QPushButton(_("Close"))
+        hbox.addWidget(b)
+        b.clicked.connect(d.accept)
+        b.setDefault(True)
+
+        vbox.addLayout(hbox)
+        d.setLayout(vbox)
+

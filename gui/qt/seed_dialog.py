@@ -21,8 +21,9 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 from electrum.i18n import _
 from electrum import mnemonic
-from qrcodewidget import QRCodeWidget
+from qrcodewidget import QRCodeWidget, QRDialog
 from util import close_button
+from qrtextedit import QRTextEdit
 
 class SeedDialog(QDialog):
     def __init__(self, parent, seed, imported_keys):
@@ -70,7 +71,7 @@ def show_seed_box(seed, sid=None):
                + _("If you ever need to recover your wallet from seed, you will need both this seed and your cold seed.") + " " \
 
     label1 = QLabel(msg+ ":")
-    seed_text = QTextEdit(seed)
+    seed_text = QRTextEdit(seed)
     seed_text.setReadOnly(True)
     seed_text.setMaximumHeight(130)
 
@@ -106,7 +107,7 @@ def enter_seed_box(msg, sid=None):
     label = QLabel(msg)
     label.setWordWrap(True)
 
-    seed_e = QTextEdit()
+    seed_e = QRTextEdit()
     seed_e.setMaximumHeight(100)
     seed_e.setTabChangesFocus(True)
 

@@ -18,6 +18,7 @@
 
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
+from qrtextedit import QRTextEdit
 
 import re
 from decimal import Decimal
@@ -29,11 +30,12 @@ RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'
 frozen_style = "QWidget { background-color:none; border:none;}"
 normal_style = "QTextEdit { }"
 
-class PayToEdit(QTextEdit):
+class PayToEdit(QRTextEdit):
 
-    def __init__(self, amount_edit):
-        QTextEdit.__init__(self)
-        self.amount_edit = amount_edit
+    def __init__(self, win):
+        QRTextEdit.__init__(self)
+        self.win = win
+        self.amount_edit = win.amount_e
         self.document().contentsChanged.connect(self.update_size)
         self.heightMin = 0
         self.heightMax = 150
@@ -43,6 +45,10 @@ class PayToEdit(QTextEdit):
         self.textChanged.connect(self.check_text)
         self.outputs = []
         self.is_pr = False
+
+    def qr_input(self):
+        from electrum.plugins import run_hook
+        run_hook('scan_qr_hook', lambda x: self.win.pay_from_URI(x))
 
     def lock_amount(self):
         self.amount_edit.setFrozen(True)

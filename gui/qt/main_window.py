@@ -45,7 +45,7 @@ from electrum import bmp, pyqrnative
 
 from amountedit import AmountEdit, BTCAmountEdit, MyLineEdit
 from network_dialog import NetworkDialog
-from qrcodewidget import QRCodeWidget
+from qrcodewidget import QRCodeWidget, QRDialog
 
 from decimal import Decimal
 
@@ -664,7 +664,7 @@ class ElectrumWindow(QMainWindow):
 
         from paytoedit import PayToEdit
         self.amount_e = BTCAmountEdit(self.get_decimal_point)
-        self.payto_e = PayToEdit(self.amount_e)
+        self.payto_e = PayToEdit(self)
         self.payto_help = HelpButton(_('Recipient of the funds.') + '\n\n' + _('You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)'))
         grid.addWidget(QLabel(_('Pay to')), 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, 3)
@@ -1669,44 +1669,9 @@ class ElectrumWindow(QMainWindow):
 
 
     def show_qrcode(self, data, title = _("QR code")):
-        if not data: return
-        d = QDialog(self)
-        d.setModal(1)
-        d.setWindowTitle(title)
-        d.setMinimumSize(270, 300)
-        vbox = QVBoxLayout()
-        qrw = QRCodeWidget(data)
-        vbox.addWidget(qrw, 1)
-        vbox.addWidget(QLabel(data), 0, Qt.AlignHCenter)
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-
-        filename = os.path.join(self.config.path, "qrcode.bmp")
-
-        def print_qr():
-            bmp.save_qrcode(qrw.qr, filename)
-            QMessageBox.information(None, _('Message'), _("QR code saved to file") + " " + filename, _('OK'))
-
-        def copy_to_clipboard():
-            bmp.save_qrcode(qrw.qr, filename)
-            self.app.clipboard().setImage(QImage(filename))
-            QMessageBox.information(None, _('Message'), _("QR code saved to clipboard"), _('OK'))
-
-        b = QPushButton(_("Copy"))
-        hbox.addWidget(b)
-        b.clicked.connect(copy_to_clipboard)
-
-        b = QPushButton(_("Save"))
-        hbox.addWidget(b)
-        b.clicked.connect(print_qr)
-
-        b = QPushButton(_("Close"))
-        hbox.addWidget(b)
-        b.clicked.connect(d.accept)
-        b.setDefault(True)
-
-        vbox.addLayout(hbox)
-        d.setLayout(vbox)
+        if not data: 
+            return
+        d = QRDialog(data, self, title)
         d.exec_()
 
 

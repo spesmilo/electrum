@@ -45,11 +45,6 @@ class Plugin(BasePlugin):
     def init(self):
         self.win = self.gui.main_window
         self.win.raw_transaction_menu.addAction(_("&From QR code"), self.read_raw_qr)
-        b = QPushButton(_("Scan QR code"))
-        b.clicked.connect(lambda: self.win.pay_from_URI(self.scan_qr()))
-        self.win.send_grid.addWidget(b, 1, 5)
-        self.win.send_grid.setColumnStretch(5, 0)
-        self.win.send_grid.setColumnStretch(6, 1)
 
     def init_transaction_dialog(self, dialog, buttons):
         b = QPushButton(_("Show QR code"))
@@ -58,6 +53,12 @@ class Plugin(BasePlugin):
 
     def is_available(self):
         return self._is_available
+
+    def scan_qr_hook(self, func):
+        data = self.scan_qr()
+        if type(data) != str:
+            return
+        func(data)
 
     def scan_qr(self):
         proc = zbar.Processor()
@@ -84,7 +85,7 @@ class Plugin(BasePlugin):
     def show_raw_qr(self, tx):
         try:
             json_text = json.dumps(tx.as_dict()).replace(' ', '')
-            self.win.show_qrcode(json_text, 'Unsigned Transaction')
+            self.win.show_qrcode(json_text, 'Transaction')
         except Exception as e:
             self.win.show_message(str(e))
 
