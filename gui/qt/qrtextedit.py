@@ -4,8 +4,8 @@ from PyQt4.QtCore import *
 
 class QRTextEdit(QTextEdit):
 
-    def __init__(self):
-        QTextEdit.__init__(self)
+    def __init__(self, text=None):
+        QTextEdit.__init__(self, text)
         self.button = QToolButton(self)
         self.button.setIcon(QIcon(":icons/qrcode.png"))
         self.button.setStyleSheet("QToolButton { border: none; padding: 0px; }")
