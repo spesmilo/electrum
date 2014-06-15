@@ -45,11 +45,6 @@ class Plugin(BasePlugin):
     def init(self):
         self.win = self.gui.main_window
         self.win.raw_transaction_menu.addAction(_("&From QR code"), self.read_raw_qr)
-        b = QPushButton(_("Scan QR code"))
-        b.clicked.connect(self.fill_from_qr)
-        self.win.send_grid.addWidget(b, 1, 5)
-        self.win.send_grid.setColumnStretch(5, 0)
-        self.win.send_grid.setColumnStretch(6, 1)
 
     def init_transaction_dialog(self, dialog, buttons):
         b = QPushButton(_("Show QR code"))
@@ -58,6 +53,12 @@ class Plugin(BasePlugin):
 
     def is_available(self):
         return self._is_available
+
+    def scan_qr_hook(self, func):
+        data = self.scan_qr()
+        if type(data) != str:
+            return
+        func(data)
 
     def scan_qr(self):
         proc = zbar.Processor()
@@ -84,39 +85,10 @@ class Plugin(BasePlugin):
     def show_raw_qr(self, tx):
         try:
             json_text = json.dumps(tx.as_dict()).replace(' ', '')
-            self.show_tx_qrcode(json_text, 'Unsigned Transaction')
+            self.win.show_qrcode(json_text, 'Transaction')
         except Exception as e:
             self.win.show_message(str(e))
 
-    def show_tx_qrcode(self, data, title):
-        if not data: return
-        d = QDialog(self.win)
-        d.setModal(1)
-        d.setWindowTitle(title)
-        d.setMinimumSize(250, 525)
-        vbox = QVBoxLayout()
-        qrw = QRCodeWidget(data)
-        vbox.addWidget(qrw, 0)
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-
-        def print_qr(self):
-            filename = "qrcode.bmp"
-            electrum_gui.bmp.save_qrcode(qrw.qr, filename)
-            QMessageBox.information(None, _('Message'), _("QR code saved to file") + " " + filename, _('OK'))
-
-        b = QPushButton(_("Save"))
-        hbox.addWidget(b)
-        b.clicked.connect(print_qr)
-
-        b = QPushButton(_("Close"))
-        hbox.addWidget(b)
-        b.clicked.connect(d.accept)
-        b.setDefault(True)
-
-        vbox.addLayout(hbox, 1)
-        d.setLayout(vbox)
-        d.exec_()
 
     def read_raw_qr(self):
         qrcode = self.scan_qr()
@@ -127,21 +99,6 @@ class Plugin(BasePlugin):
             return
         self.win.show_transaction(tx)
 
-
-    def fill_from_qr(self):
-        qrcode = parse_uri(self.scan_qr())
-        if not qrcode:
-            return
-
-        if 'address' in qrcode:
-            self.win.payto_e.setText(qrcode['address'])
-        if 'amount' in qrcode:
-            self.win.amount_e.setText(str(qrcode['amount']))
-        if 'label' in qrcode:
-            self.win.message_e.setText(qrcode['label'])
-        if 'message' in qrcode:
-            self.win.message_e.setText("%s (%s)" % (self.win.message_e.text(), qrcode['message']))
-                
     def video_device(self):
         device = self.config.get("video_device", "default")
         if device == 'default':
@@ -224,55 +181,3 @@ class Plugin(BasePlugin):
           return True
         else:
           return False
-
-
-
-def parse_uri(uri):
-    if not uri:
-        return {}
-
-    if ':' not in uri:
-        # It's just an address (not BIP21)
-        return {'address': uri}
-
-    if '//' not in uri:
-        # Workaround for urlparse, it don't handle bitcoin: URI properly
-        uri = uri.replace(':', '://')
-        
-    uri = urlparse(uri)
-    result = {'address': uri.netloc} 
-    
-    if uri.query.startswith('?'):
-        params = parse_qs(uri.query[1:])
-    else:
-        params = parse_qs(uri.query)    
-
-    for k,v in params.items():
-        if k in ('amount', 'label', 'message'):
-            result[k] = v[0]
-        
-    return result    
-
-
-
-
-
-if __name__ == '__main__':
-    # Run some tests
-    
-    assert(parse_uri('LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx') ==
-           {'address': 'LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx'})
-
-    assert(parse_uri('litecoin://LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx') ==
-           {'address': 'LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx'})
-    
-    assert(parse_uri('litecoin:LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx') ==
-           {'address': 'LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx'})
-    
-    assert(parse_uri('litecoin:LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx?amount=10') ==
-           {'amount': '10', 'address': 'LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx'})
-    
-    assert(parse_uri('litecoin:LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx?amount=10&label=devfund&message=Donation%20to%20the%20dev%20fund') ==
-           {'amount': '10', 'label': 'devfund', 'message': 'Donation to the dev fund', 'address': 'LcUP7ZU3Xpk1BUR3qut3dTjC3aK5JoZMYx'})
-    
-    

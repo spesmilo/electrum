@@ -24,5 +24,6 @@
     <file>icons/unconfirmed.png</file>
     <file>icons/network.png</file>
     <file>icons/dark_background.png</file>
+    <file>icons/qrcode.png</file>
   </qresource>
 </RCC>

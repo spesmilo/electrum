@@ -98,6 +98,7 @@ def ok_cancel_buttons(dialog, ok_label=_("OK") ):
     return hbox
 
 def text_dialog(parent, title, label, ok_label, default=None):
+    from qrtextedit import QRTextEdit
     dialog = QDialog(parent)
     dialog.setMinimumWidth(500)
     dialog.setWindowTitle(title)
@@ -105,7 +106,7 @@ def text_dialog(parent, title, label, ok_label, default=None):
     l = QVBoxLayout()
     dialog.setLayout(l)
     l.addWidget(QLabel(label))
-    txt = QTextEdit()
+    txt = QRTextEdit()
     if default:
         txt.setText(default)
     l.addWidget(txt)

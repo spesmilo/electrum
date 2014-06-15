@@ -157,15 +157,20 @@ def age(from_date, since_date = None, target_tz=None, include_seconds=False):
 #_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
 #urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
-def parse_url(url):
+def parse_URI(uri):
     import urlparse
+    import bitcoin
     from decimal import Decimal
 
-    u = urlparse.urlparse(url)
+    if ':' not in uri:
+        assert bitcoin.is_address(uri)
+        return uri, None, None, None, None
+
+    u = urlparse.urlparse(uri)
     assert u.scheme == 'litecoin'
 
     address = u.path
-    #assert bitcoin.is_address(address)
+    assert bitcoin.is_address(address)
 
     pq = urlparse.parse_qs(u.query)
     
@@ -181,7 +186,7 @@ def parse_url(url):
             k = int(m.group(2)) - 8
             amount = Decimal(m.group(1)) * pow(  Decimal(10) , k)
         else:
-            amount = Decimal(am)
+            amount = Decimal(am) * 100000000
     if 'message' in pq:
         message = pq['message'][0]
     if 'label' in pq:
@@ -189,7 +194,7 @@ def parse_url(url):
     if 'r' in pq:
         request_url = pq['r'][0]
         
-    return address, amount, label, message, request_url, url
+    return address, amount, label, message, request_url
 
 
 # Python bug (http://bugs.python.org/issue1927) causes raw_input

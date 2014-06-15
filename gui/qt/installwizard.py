@@ -132,12 +132,12 @@ class InstallWizard(QDialog):
  
         vbox.addLayout(grid2)
         vbox.addStretch(1)
-        vbox.addLayout(ok_cancel_buttons(self, _('Next')))
-
+        hbox, button = ok_cancel_buttons2(self, _('Next'))
+        vbox.addLayout(hbox)
         self.set_layout(vbox)
-
         self.show()
         self.raise_()
+        button.setDefault(True)
 
         if not self.exec_():
             return None, None

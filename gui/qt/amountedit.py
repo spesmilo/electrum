@@ -70,6 +70,10 @@ class BTCAmountEdit(AmountEdit):
         return int( p * x )
 
     def setAmount(self, amount):
+        if amount is None:
+            self.setText("")
+            return
+
         p = pow(10, self.decimal_point())
         x = amount / Decimal(p)
         self.setText(str(x))
