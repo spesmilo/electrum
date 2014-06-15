@@ -186,7 +186,7 @@ def parse_URI(uri):
             k = int(m.group(2)) - 8
             amount = Decimal(m.group(1)) * pow(  Decimal(10) , k)
         else:
-            amount = Decimal(am)
+            amount = Decimal(am) * 100000000
     if 'message' in pq:
         message = pq['message'][0]
     if 'label' in pq:
