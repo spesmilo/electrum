@@ -21,11 +21,19 @@ class WaitingDialog(QThread):
         self.d.show()
 
     def run(self):
-        self.result = self.run_task()
+        self.error = None
+        try:
+            self.result = self.run_task()
+        except Exception as e:
+            self.error = str(e)
         self.d.emit(SIGNAL('done'))
 
     def close(self):
         self.d.accept()
+        if self.error:
+            QMessageBox.warning(self.parent, _('Error'), self.error, _('OK'))
+            return
+
         if self.on_complete:
             self.on_complete(*self.result)
 
