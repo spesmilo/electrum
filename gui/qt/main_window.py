@@ -231,6 +231,8 @@ class ElectrumWindow(QMainWindow):
         self.update_buttons_on_seed()
         self.update_console()
 
+        self.clear_receive_tab()
+        self.update_receive_tab()
         run_hook('load_wallet', wallet)
 
 
@@ -694,6 +696,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_requests_label = QLabel(_('Pending requests'))
         self.receive_list = MyTreeWidget(self)
         self.receive_list.customContextMenuRequested.connect(self.receive_list_menu)
+        self.receive_list.currentItemChanged.connect(self.receive_item_changed)
         self.receive_list.setHeaderLabels( [_('Address'), _('Message'), _('Amount'), _('Status')] )
         self.receive_list.setColumnWidth(0, 320)
         h = self.receive_list.header()
@@ -706,11 +709,22 @@ class ElectrumWindow(QMainWindow):
         grid.setRowStretch(7, 1)
         return w
 
+    def receive_item_changed(self, item):
+        if item is None:
+            return
+        addr = str(item.text(0))
+        amount, message = self.receive_requests[addr]
+        self.receive_address_e.setText(addr)
+        self.receive_message_e.setText(message)
+        self.receive_amount_e.setAmount(amount)
+
+
     def receive_list_delete(self, item):
         addr = str(item.text(0))
         self.receive_requests.pop(addr)
         self.update_receive_tab()
         self.redraw_from_list()
+
 
     def receive_list_menu(self, position):
         item = self.receive_list.itemAt(position)
@@ -731,8 +745,16 @@ class ElectrumWindow(QMainWindow):
         self.update_receive_tab()
 
     def clear_receive_tab(self):
+        self.receive_requests = self.wallet.storage.get('receive_requests',{}) 
+        domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
+        for addr in domain:
+            if not self.wallet.address_is_old(addr) and addr not in self.receive_requests.keys():
+                break
+        else:
+            addr = ""
+        self.receive_address_e.setText(addr)
+        self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)
-        self.receive_message_e.setText("")
 
     def receive_at(self, addr):
         if not bitcoin.is_address(addr):
@@ -742,18 +764,6 @@ class ElectrumWindow(QMainWindow):
 
     def update_receive_tab(self):
         self.receive_requests = self.wallet.storage.get('receive_requests',{}) 
-
-        domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
-        for addr in domain:
-            if not self.wallet.address_is_old(addr) and addr not in self.receive_requests.keys():
-                break
-        else:
-            addr = ""
-
-        self.receive_address_e.setText(addr)
-        self.receive_message_e.setText("")
-        self.receive_amount_e.setAmount(None)
-
         b = len(self.receive_requests) > 0
         self.receive_list.setVisible(b)
         self.receive_requests_label.setVisible(b)
