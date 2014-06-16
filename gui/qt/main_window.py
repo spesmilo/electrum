@@ -693,21 +693,21 @@ class ElectrumWindow(QMainWindow):
         self.receive_qr = QRCodeWidget()
         grid.addWidget(self.receive_qr, 0, 4, 5, 2)
 
+        grid.setRowStretch(5, 1)
+
         self.receive_requests_label = QLabel(_('Saved Requests'))
         self.receive_list = MyTreeWidget(self)
         self.receive_list.customContextMenuRequested.connect(self.receive_list_menu)
         self.receive_list.currentItemChanged.connect(self.receive_item_changed)
         self.receive_list.itemClicked.connect(self.receive_item_changed)
-        self.receive_list.setHeaderLabels( [_('Address'), _('Message'), _('Amount'), _('Status')] )
-        self.receive_list.setColumnWidth(0, 320)
+        self.receive_list.setHeaderLabels( [_('Address'), _('Message'), _('Amount')] )
+        self.receive_list.setColumnWidth(0, 340)
         h = self.receive_list.header()
         h.setStretchLastSection(False)
         h.setResizeMode(1, QHeaderView.Stretch)
 
-        grid.addWidget(self.receive_requests_label, 5, 0)
-        grid.addWidget(self.receive_list, 6, 0, 1, 6)
-
-        grid.setRowStretch(7, 1)
+        grid.addWidget(self.receive_requests_label, 6, 0)
+        grid.addWidget(self.receive_list, 7, 0, 1, 6)
         return w
 
     def receive_item_changed(self, item):
@@ -771,7 +771,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_list.clear()
         for address, v in self.receive_requests.items():
             amount, message = v
-            item = QTreeWidgetItem( [ address, message, self.format_amount(amount) if amount else "", ""] )
+            item = QTreeWidgetItem( [ address, message, self.format_amount(amount) if amount else ""] )
             self.receive_list.addTopLevelItem(item)
 
 
