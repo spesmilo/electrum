@@ -761,16 +761,16 @@ class ElectrumWindow(QMainWindow):
 
 
     def update_receive_qr(self):
-        import urlparse
+        import urlparse, urllib
         addr = str(self.receive_address_e.text())
         if addr:
             query = []
             amount = self.receive_amount_e.get_amount()
             if amount:
                 query.append('amount=%s'%format_satoshis(amount))
-            message = str(self.receive_message_e.text())
+            message = unicode(self.receive_message_e.text()).encode('utf8')
             if message:
-                query.append('message=%s'%message)
+                query.append('message=%s'%urllib.quote(message))
             p = urlparse.ParseResult(scheme='bitcoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
             url = urlparse.urlunparse(p)
         else:
