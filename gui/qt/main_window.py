@@ -231,6 +231,8 @@ class ElectrumWindow(QMainWindow):
         self.update_buttons_on_seed()
         self.update_console()
 
+        self.clear_receive_tab()
+        self.update_receive_tab()
         run_hook('load_wallet', wallet)
 
 
@@ -680,10 +682,10 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.receive_amount_e, 2, 1, 1, 2)
         self.receive_amount_e.textChanged.connect(self.update_receive_qr)
 
-        save_button = QPushButton(_('Save'))
-        save_button.clicked.connect(self.save_payment_request)
-        grid.addWidget(save_button, 3, 1)
-        clear_button = QPushButton(_('Clear'))
+        self.save_request_button = QPushButton(_('Save'))
+        self.save_request_button.clicked.connect(self.save_payment_request)
+        grid.addWidget(self.save_request_button, 3, 1)
+        clear_button = QPushButton(_('New'))
         clear_button.clicked.connect(self.clear_receive_tab)
         grid.addWidget(clear_button, 3, 2)
         grid.setRowStretch(4, 1)
@@ -691,21 +693,38 @@ class ElectrumWindow(QMainWindow):
         self.receive_qr = QRCodeWidget()
         grid.addWidget(self.receive_qr, 0, 4, 5, 2)
 
-        self.receive_requests_label = QLabel(_('Pending requests'))
+        self.receive_requests_label = QLabel(_('Saved Requests'))
         self.receive_list = MyTreeWidget(self)
         self.receive_list.customContextMenuRequested.connect(self.receive_list_menu)
+        self.receive_list.currentItemChanged.connect(self.receive_item_changed)
+        self.receive_list.itemClicked.connect(self.receive_item_changed)
         self.receive_list.setHeaderLabels( [_('Address'), _('Message'), _('Amount'), _('Status')] )
+        self.receive_list.setColumnWidth(0, 320)
+        h = self.receive_list.header()
+        h.setStretchLastSection(False)
+        h.setResizeMode(1, QHeaderView.Stretch)
+
         grid.addWidget(self.receive_requests_label, 5, 0)
         grid.addWidget(self.receive_list, 6, 0, 1, 6)
 
         grid.setRowStretch(7, 1)
         return w
 
+    def receive_item_changed(self, item):
+        if item is None:
+            return
+        addr = str(item.text(0))
+        amount, message = self.receive_requests[addr]
+        self.receive_address_e.setText(addr)
+        self.receive_message_e.setText(message)
+        self.receive_amount_e.setAmount(amount)
+
+
     def receive_list_delete(self, item):
         addr = str(item.text(0))
         self.receive_requests.pop(addr)
         self.update_receive_tab()
-        self.redraw_from_list()
+        self.clear_receive_tab()
 
     def receive_list_menu(self, position):
         item = self.receive_list.itemAt(position)
@@ -726,8 +745,16 @@ class ElectrumWindow(QMainWindow):
         self.update_receive_tab()
 
     def clear_receive_tab(self):
+        self.receive_requests = self.wallet.storage.get('receive_requests',{}) 
+        domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
+        for addr in domain:
+            if not self.wallet.address_is_old(addr) and addr not in self.receive_requests.keys():
+                break
+        else:
+            addr = ""
+        self.receive_address_e.setText(addr)
+        self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)
-        self.receive_message_e.setText("")
 
     def receive_at(self, addr):
         if not bitcoin.is_address(addr):
@@ -737,18 +764,6 @@ class ElectrumWindow(QMainWindow):
 
     def update_receive_tab(self):
         self.receive_requests = self.wallet.storage.get('receive_requests',{}) 
-
-        domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
-        for addr in domain:
-            if not self.wallet.address_is_old(addr) and addr not in self.receive_requests.keys():
-                break
-        else:
-            addr = ""
-
-        self.receive_address_e.setText(addr)
-        self.receive_message_e.setText("")
-        self.receive_amount_e.setAmount(None)
-
         b = len(self.receive_requests) > 0
         self.receive_list.setVisible(b)
         self.receive_requests_label.setVisible(b)
@@ -761,16 +776,17 @@ class ElectrumWindow(QMainWindow):
 
 
     def update_receive_qr(self):
-        import urlparse
+        import urlparse, urllib
         addr = str(self.receive_address_e.text())
+        amount = self.receive_amount_e.get_amount()
+        message = unicode(self.receive_message_e.text()).encode('utf8')
+        self.save_request_button.setEnabled((amount is not None) or (message != ""))
         if addr:
             query = []
-            amount = self.receive_amount_e.get_amount()
             if amount:
                 query.append('amount=%s'%format_satoshis(amount))
-            message = str(self.receive_message_e.text())
             if message:
-                query.append('message=%s'%message)
+                query.append('message=%s'%urllib.quote(message))
             p = urlparse.ParseResult(scheme='litecoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
             url = urlparse.urlunparse(p)
         else:
@@ -1357,7 +1373,9 @@ class ElectrumWindow(QMainWindow):
         if any(addr in self.wallet.frozen_addresses for addr in addrs):
             menu.addAction(_("Unfreeze"), lambda: self.set_addrs_frozen(addrs, False))
 
-        if any(addr not in self.wallet.frozen_addresses for addr in addrs):
+        def can_send(addr):
+            return addr not in self.wallet.frozen_addresses and self.wallet.get_addr_balance(addr) != (0, 0)
+        if any(can_send(addr) for addr in addrs):
             menu.addAction(_("Send From"), lambda: self.send_from_addresses(addrs))
 
         run_hook('receive_menu', menu, addrs)
@@ -1797,6 +1815,7 @@ class ElectrumWindow(QMainWindow):
     def show_qrcode(self, data, title = _("QR code")):
         if not data: 
             return
+        print_error("qrcode:", data)
         d = QRDialog(data, self, title)
         d.exec_()
 
@@ -2064,7 +2083,10 @@ class ElectrumWindow(QMainWindow):
 
     @protected
     def sign_raw_transaction(self, tx, input_info, password):
-        self.wallet.signrawtransaction(tx, input_info, [], password)
+        try:
+            self.wallet.signrawtransaction(tx, input_info, [], password)
+        except Exception as e:
+            QMessageBox.warning(self, _("Error"), str(e))
 
     def do_process_from_text(self):
         text = text_dialog(self, _('Input raw transaction'), _("Transaction:"), _("Load transaction"))

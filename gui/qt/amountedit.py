@@ -21,6 +21,9 @@ class AmountEdit(MyLineEdit):
         self.is_shortcut = False
         self.help_palette = QPalette()
 
+    def decimal_point(self):
+        return 8
+
     def numbify(self):
         text = unicode(self.text()).strip()
         if text == '!':
@@ -33,7 +36,7 @@ class AmountEdit(MyLineEdit):
             if '.' in s:
                 p = s.find('.')
                 s = s.replace('.','')
-                s = s[:p] + '.' + s[p:p+8]
+                s = s[:p] + '.' + s[p:p+self.decimal_point()]
         self.setText(s)
         self.setCursorPosition(pos)
 
