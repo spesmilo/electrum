@@ -682,12 +682,12 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.receive_amount_e, 2, 1, 1, 2)
         self.receive_amount_e.textChanged.connect(self.update_receive_qr)
 
+        clear_button = QPushButton(_('New'))
+        clear_button.clicked.connect(self.clear_receive_tab)
+        grid.addWidget(clear_button, 3, 1)
         save_button = QPushButton(_('Save'))
         save_button.clicked.connect(self.save_payment_request)
-        grid.addWidget(save_button, 3, 1)
-        clear_button = QPushButton(_('Clear'))
-        clear_button.clicked.connect(self.clear_receive_tab)
-        grid.addWidget(clear_button, 3, 2)
+        grid.addWidget(save_button, 3, 2)
         grid.setRowStretch(4, 1)
 
         self.receive_qr = QRCodeWidget()
@@ -723,8 +723,7 @@ class ElectrumWindow(QMainWindow):
         addr = str(item.text(0))
         self.receive_requests.pop(addr)
         self.update_receive_tab()
-        self.redraw_from_list()
-
+        self.clear_receive_tab()
 
     def receive_list_menu(self, position):
         item = self.receive_list.itemAt(position)
