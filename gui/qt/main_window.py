@@ -1815,6 +1815,7 @@ class ElectrumWindow(QMainWindow):
     def show_qrcode(self, data, title = _("QR code")):
         if not data: 
             return
+        print_error("qrcode:", data)
         d = QRDialog(data, self, title)
         d.exec_()
 
@@ -2082,7 +2083,10 @@ class ElectrumWindow(QMainWindow):
 
     @protected
     def sign_raw_transaction(self, tx, input_info, password):
-        self.wallet.signrawtransaction(tx, input_info, [], password)
+        try:
+            self.wallet.signrawtransaction(tx, input_info, [], password)
+        except Exception as e:
+            QMessageBox.warning(self, _("Error"), str(e))
 
     def do_process_from_text(self):
         text = text_dialog(self, _('Input raw transaction'), _("Transaction:"), _("Load transaction"))
