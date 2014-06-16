@@ -695,6 +695,11 @@ class ElectrumWindow(QMainWindow):
         self.receive_list = MyTreeWidget(self)
         self.receive_list.customContextMenuRequested.connect(self.receive_list_menu)
         self.receive_list.setHeaderLabels( [_('Address'), _('Message'), _('Amount'), _('Status')] )
+        self.receive_list.setColumnWidth(0, 320)
+        h = self.receive_list.header()
+        h.setStretchLastSection(False)
+        h.setResizeMode(1, QHeaderView.Stretch)
+
         grid.addWidget(self.receive_requests_label, 5, 0)
         grid.addWidget(self.receive_list, 6, 0, 1, 6)
 
