@@ -682,21 +682,22 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.receive_amount_e, 2, 1, 1, 2)
         self.receive_amount_e.textChanged.connect(self.update_receive_qr)
 
+        self.save_request_button = QPushButton(_('Save'))
+        self.save_request_button.clicked.connect(self.save_payment_request)
+        grid.addWidget(self.save_request_button, 3, 1)
         clear_button = QPushButton(_('New'))
         clear_button.clicked.connect(self.clear_receive_tab)
-        grid.addWidget(clear_button, 3, 1)
-        save_button = QPushButton(_('Save'))
-        save_button.clicked.connect(self.save_payment_request)
-        grid.addWidget(save_button, 3, 2)
+        grid.addWidget(clear_button, 3, 2)
         grid.setRowStretch(4, 1)
 
         self.receive_qr = QRCodeWidget()
         grid.addWidget(self.receive_qr, 0, 4, 5, 2)
 
-        self.receive_requests_label = QLabel(_('Pending requests'))
+        self.receive_requests_label = QLabel(_('Saved Requests'))
         self.receive_list = MyTreeWidget(self)
         self.receive_list.customContextMenuRequested.connect(self.receive_list_menu)
         self.receive_list.currentItemChanged.connect(self.receive_item_changed)
+        self.receive_list.itemClicked.connect(self.receive_item_changed)
         self.receive_list.setHeaderLabels( [_('Address'), _('Message'), _('Amount'), _('Status')] )
         self.receive_list.setColumnWidth(0, 320)
         h = self.receive_list.header()
@@ -777,12 +778,13 @@ class ElectrumWindow(QMainWindow):
     def update_receive_qr(self):
         import urlparse, urllib
         addr = str(self.receive_address_e.text())
+        amount = self.receive_amount_e.get_amount()
+        message = unicode(self.receive_message_e.text()).encode('utf8')
+        self.save_request_button.setEnabled((amount is not None) or (message != ""))
         if addr:
             query = []
-            amount = self.receive_amount_e.get_amount()
             if amount:
                 query.append('amount=%s'%format_satoshis(amount))
-            message = unicode(self.receive_message_e.text()).encode('utf8')
             if message:
                 query.append('message=%s'%urllib.quote(message))
             p = urlparse.ParseResult(scheme='bitcoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
