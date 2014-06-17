@@ -96,11 +96,18 @@ class TxDialog(QDialog):
         buttons.addWidget(cancelButton)
         cancelButton.setDefault(True)
 
-        run_hook('init_transaction_dialog', self, buttons)
-        
+        b = QPushButton(_("Show QR code"))
+        b.clicked.connect(self.show_qr)
+        buttons.insertWidget(1,b)
         self.update()
 
 
+    def show_qr(self):
+        try:
+            json_text = json.dumps(self.tx.as_dict()).replace(' ', '')
+            self.parent.show_qrcode(json_text, 'Transaction')
+        except Exception as e:
+            self.parent.show_message(str(e))
 
 
     def sign(self):

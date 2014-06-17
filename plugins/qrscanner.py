@@ -46,11 +46,6 @@ class Plugin(BasePlugin):
         self.win = self.gui.main_window
         self.win.raw_transaction_menu.addAction(_("&From QR code"), self.read_raw_qr)
 
-    def init_transaction_dialog(self, dialog, buttons):
-        b = QPushButton(_("Show QR code"))
-        b.clicked.connect(lambda: self.show_raw_qr(dialog.tx))
-        buttons.insertWidget(1,b)
-
     def is_available(self):
         return self._is_available
 
@@ -82,13 +77,6 @@ class Plugin(BasePlugin):
                     continue
                 return r.data
         
-    def show_raw_qr(self, tx):
-        try:
-            json_text = json.dumps(tx.as_dict()).replace(' ', '')
-            self.win.show_qrcode(json_text, 'Transaction')
-        except Exception as e:
-            self.win.show_message(str(e))
-
 
     def read_raw_qr(self):
         qrcode = self.scan_qr()
