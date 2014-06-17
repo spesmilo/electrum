@@ -791,6 +791,7 @@ class ElectrumWindow(QMainWindow):
         else:
             url = ""
         self.receive_qr.setData(url)
+        run_hook('update_receive_qr', addr, amount, message, url)
 
 
     def create_send_tab(self):
