@@ -435,7 +435,6 @@ class ElectrumWindow(QMainWindow):
             self.update_wallet()
             self.need_update.clear()
 
-        self.receive_qr.update_qr()
         run_hook('timer_actions')
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
@@ -791,7 +790,7 @@ class ElectrumWindow(QMainWindow):
             url = urlparse.urlunparse(p)
         else:
             url = ""
-        self.receive_qr.set_addr(url)
+        self.receive_qr.setData(url)
 
 
     def create_send_tab(self):

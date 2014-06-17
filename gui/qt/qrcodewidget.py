@@ -3,46 +3,38 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
-from electrum import bmp, pyqrnative
+import os
+import qrcode
+
+from electrum import bmp
+from electrum.i18n import _
 
 
 class QRCodeWidget(QWidget):
 
     def __init__(self, data = None):
         QWidget.__init__(self)
-        self.addr = None
+        self.data = None
         self.qr = None
-        if data:
-            self.set_addr(data)
-            self.update_qr()
+        self.setData(data)
 
-    def set_addr(self, addr):
-        if self.addr != addr:
-            if len(addr) < 128:
-                MinSize = 210
-            else:
-                MinSize = 500
-            self.setMinimumSize(MinSize, MinSize)
-            self.addr = addr
+
+    def setData(self, data):
+        if self.data != data:
+            self.data = data
+        if self.data:
+            self.qr = qrcode.QRCode()
+            self.qr.add_data(self.data)
+            k = len(self.qr.get_matrix())
+            self.setMinimumSize(k*5,k*5)
+        else:
             self.qr = None
-            self.update()
 
-    def update_qr(self):
-        if self.addr and not self.qr:
-            for size in range(len(pyqrnative.QRUtil.PATTERN_POSITION_TABLE)): # [4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32]:
-                try:
-                    self.qr = pyqrnative.QRCode(size, pyqrnative.QRErrorCorrectLevel.L)
-                    self.qr.addData(self.addr)
-                    self.qr.make()
-                    break
-                except Exception:
-                    self.qr=None
-                    continue
-            self.update()
+        self.update()
+ 
 
     def paintEvent(self, e):
-
-        if not self.addr:
+        if not self.data:
             return
 
         black = QColor(0, 0, 0, 255)
@@ -53,27 +45,32 @@ class QRCodeWidget(QWidget):
             qp.begin(self)
             qp.setBrush(white)
             qp.setPen(white)
-            qp.drawRect(0, 0, 198, 198)
+            r = qp.viewport()
+            qp.drawRect(0, 0, r.width(), r.height())
             qp.end()
             return
- 
-        k = self.qr.getModuleCount()
+
+        matrix = self.qr.get_matrix()
+        k = len(matrix)
         qp = QtGui.QPainter()
         qp.begin(self)
         r = qp.viewport()
-        boxsize = min(r.width(), r.height())*0.8/k
+
+        margin = 10
+        framesize = min(r.width(), r.height())
+        boxsize = int( (framesize - 2*margin)/k )
         size = k*boxsize
         left = (r.width() - size)/2
-        top = (r.height() - size)/2         
+        top = (r.height() - size)/2
 
-        # Make a white margin around the QR in case of dark theme use:
-        margin = 10
+        # Make a white margin around the QR in case of dark theme use
         qp.setBrush(white)
+        qp.setPen(white)
         qp.drawRect(left-margin, top-margin, size+(margin*2), size+(margin*2))
 
         for r in range(k):
             for c in range(k):
-                if self.qr.isDark(r, c):
+                if matrix[r][c]:
                     qp.setBrush(black)
                     qp.setPen(black)
                 else:
@@ -83,8 +80,6 @@ class QRCodeWidget(QWidget):
         qp.end()
         
 
-import os
-from electrum.i18n import _
 
 class QRDialog(QDialog):
 
@@ -92,9 +87,7 @@ class QRDialog(QDialog):
         QDialog.__init__(self, parent)
 
         d = self
-        d.setModal(1)
         d.setWindowTitle(title)
-        d.setMinimumSize(270, 300)
         vbox = QVBoxLayout()
         qrw = QRCodeWidget(data)
         vbox.addWidget(qrw, 1)

@@ -56,7 +56,7 @@ data_files += [
 setup(
     name="Electrum",
     version=version.ELECTRUM_VERSION,
-    install_requires=['slowaes', 'ecdsa>=0.9', 'pbkdf2', 'requests', 'pyasn1', 'pyasn1-modules', 'tlslite>=0.4.5'],
+    install_requires=['slowaes', 'ecdsa>=0.9', 'pbkdf2', 'requests', 'pyasn1', 'pyasn1-modules', 'tlslite>=0.4.5', 'qrcode'],
     package_dir={
         'electrum': 'lib',
         'electrum_gui': 'gui',
@@ -79,7 +79,6 @@ setup(
         'electrum.paymentrequest',
         'electrum.paymentrequest_pb2',
         'electrum.plugins',
-        'electrum.pyqrnative',
         'electrum.simple_config',
         'electrum.socks',
         'electrum.synchronizer',
