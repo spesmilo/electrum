@@ -499,9 +499,8 @@ class ElectrumWindow(QMainWindow):
         for i,width in enumerate(self.column_widths['history']):
             l.setColumnWidth(i, width)
         l.setHeaderLabels( [ '', _('Date'), _('Description') , _('Amount'), _('Balance')] )
-        self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), self.tx_label_clicked)
-        self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), self.tx_label_changed)
-
+        l.itemDoubleClicked.connect(self.tx_label_clicked)
+        l.itemChanged.connect(self.tx_label_changed)
         l.customContextMenuRequested.connect(self.create_history_menu)
         return l
 
@@ -1232,9 +1231,9 @@ class ElectrumWindow(QMainWindow):
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_receive_menu)
         l.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,0,1))
-        self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
-        self.connect(l, SIGNAL('currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)'), lambda a,b: self.current_item_changed(a))
+        l.itemDoubleClicked.connect(lambda a, b: self.address_label_clicked(a,b,l,0,1))
+        l.itemChanged.connect(lambda a,b: self.address_label_changed(a,b,l,0,1))
+        l.currentItemChanged.connect(lambda a,b: self.current_item_changed(a))
         self.address_list = l
         return w
 
@@ -1263,14 +1262,15 @@ class ElectrumWindow(QMainWindow):
         l.customContextMenuRequested.connect(self.create_contact_menu)
         for i,width in enumerate(self.column_widths['contacts']):
             l.setColumnWidth(i, width)
-        self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,0,1))
-        self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
+        l.itemDoubleClicked.connect(lambda a, b: self.address_label_clicked(a,b,l,0,1))
+        l.itemChanged.connect(lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.contacts_list = l
         return w
 
 
     def create_invoices_tab(self):
         l, w = self.create_list_tab([_('Requestor'), _('Memo'),_('Amount'), _('Status')])
+        l.setColumnWidth(0, 150)
         h = l.header()
         h.setStretchLastSection(False)
         h.setResizeMode(1, QHeaderView.Stretch)
