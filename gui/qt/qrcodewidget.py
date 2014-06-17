@@ -6,6 +6,7 @@ import PyQt4.QtGui as QtGui
 import os
 import qrcode
 
+import electrum
 from electrum import bmp
 from electrum.i18n import _
 
@@ -99,9 +100,9 @@ class QRDialog(QDialog):
         hbox = QHBoxLayout()
         hbox.addStretch(1)
 
-        if parent:
-            self.config = parent.config
-            filename = os.path.join(self.config.path, "qrcode.bmp")
+        config = electrum.get_config()
+        if config:
+            filename = os.path.join(config.path, "qrcode.bmp")
 
             def print_qr():
                 bmp.save_qrcode(qrw.qr, filename)
@@ -112,13 +113,13 @@ class QRDialog(QDialog):
                 self.parent().app.clipboard().setImage(QImage(filename))
                 QMessageBox.information(None, _('Message'), _("QR code saved to clipboard"), _('OK'))
 
-                b = QPushButton(_("Copy"))
-                hbox.addWidget(b)
-                b.clicked.connect(copy_to_clipboard)
+            b = QPushButton(_("Copy"))
+            hbox.addWidget(b)
+            b.clicked.connect(copy_to_clipboard)
 
-                b = QPushButton(_("Save"))
-                hbox.addWidget(b)
-                b.clicked.connect(print_qr)
+            b = QPushButton(_("Save"))
+            hbox.addWidget(b)
+            b.clicked.connect(print_qr)
 
         b = QPushButton(_("Close"))
         hbox.addWidget(b)
