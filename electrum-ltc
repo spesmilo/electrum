@@ -39,6 +39,9 @@ if __builtin__.use_local_modules:
     imp.load_module('electrum_ltc', *imp.find_module('lib'))
     imp.load_module('electrum_ltc_gui', *imp.find_module('gui'))
 
+if is_local:
+    sys.path.append('packages')
+
 
 from electrum_ltc import SimpleConfig, Network, Wallet, WalletStorage, NetworkProxy, Commands, known_commands, pick_random_server
 from electrum_ltc.util import print_msg, print_stderr, print_json, set_verbosity

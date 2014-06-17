@@ -41,8 +41,6 @@ from electrum_ltc import mnemonic
 from electrum_ltc import util, bitcoin, commands, Interface, Wallet
 from electrum_ltc import SimpleConfig, Wallet, WalletStorage
 
-from electrum_ltc import bmp, pyqrnative
-
 from amountedit import AmountEdit, BTCAmountEdit, MyLineEdit
 from network_dialog import NetworkDialog
 from qrcodewidget import QRCodeWidget, QRDialog
@@ -435,7 +433,6 @@ class ElectrumWindow(QMainWindow):
             self.update_wallet()
             self.need_update.clear()
 
-        self.receive_qr.update_qr()
         run_hook('timer_actions')
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
@@ -502,9 +499,8 @@ class ElectrumWindow(QMainWindow):
         for i,width in enumerate(self.column_widths['history']):
             l.setColumnWidth(i, width)
         l.setHeaderLabels( [ '', _('Date'), _('Description') , _('Amount'), _('Balance')] )
-        self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), self.tx_label_clicked)
-        self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), self.tx_label_changed)
-
+        l.itemDoubleClicked.connect(self.tx_label_clicked)
+        l.itemChanged.connect(self.tx_label_changed)
         l.customContextMenuRequested.connect(self.create_history_menu)
         return l
 
@@ -690,24 +686,24 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(clear_button, 3, 2)
         grid.setRowStretch(4, 1)
 
-        self.receive_qr = QRCodeWidget()
+        self.receive_qr = QRCodeWidget(fixedSize=200)
         grid.addWidget(self.receive_qr, 0, 4, 5, 2)
+
+        grid.setRowStretch(5, 1)
 
         self.receive_requests_label = QLabel(_('Saved Requests'))
         self.receive_list = MyTreeWidget(self)
         self.receive_list.customContextMenuRequested.connect(self.receive_list_menu)
         self.receive_list.currentItemChanged.connect(self.receive_item_changed)
         self.receive_list.itemClicked.connect(self.receive_item_changed)
-        self.receive_list.setHeaderLabels( [_('Address'), _('Message'), _('Amount'), _('Status')] )
-        self.receive_list.setColumnWidth(0, 320)
+        self.receive_list.setHeaderLabels( [_('Address'), _('Message'), _('Amount')] )
+        self.receive_list.setColumnWidth(0, 340)
         h = self.receive_list.header()
         h.setStretchLastSection(False)
         h.setResizeMode(1, QHeaderView.Stretch)
 
-        grid.addWidget(self.receive_requests_label, 5, 0)
-        grid.addWidget(self.receive_list, 6, 0, 1, 6)
-
-        grid.setRowStretch(7, 1)
+        grid.addWidget(self.receive_requests_label, 6, 0)
+        grid.addWidget(self.receive_list, 7, 0, 1, 6)
         return w
 
     def receive_item_changed(self, item):
@@ -771,7 +767,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_list.clear()
         for address, v in self.receive_requests.items():
             amount, message = v
-            item = QTreeWidgetItem( [ address, message, self.format_amount(amount) if amount else "", ""] )
+            item = QTreeWidgetItem( [ address, message, self.format_amount(amount) if amount else ""] )
             self.receive_list.addTopLevelItem(item)
 
 
@@ -791,7 +787,8 @@ class ElectrumWindow(QMainWindow):
             url = urlparse.urlunparse(p)
         else:
             url = ""
-        self.receive_qr.set_addr(url)
+        self.receive_qr.setData(url)
+        run_hook('update_receive_qr', addr, amount, message, url)
 
 
     def create_send_tab(self):
@@ -1234,9 +1231,9 @@ class ElectrumWindow(QMainWindow):
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_receive_menu)
         l.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,0,1))
-        self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
-        self.connect(l, SIGNAL('currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)'), lambda a,b: self.current_item_changed(a))
+        l.itemDoubleClicked.connect(lambda a, b: self.address_label_clicked(a,b,l,0,1))
+        l.itemChanged.connect(lambda a,b: self.address_label_changed(a,b,l,0,1))
+        l.currentItemChanged.connect(lambda a,b: self.current_item_changed(a))
         self.address_list = l
         return w
 
@@ -1265,14 +1262,15 @@ class ElectrumWindow(QMainWindow):
         l.customContextMenuRequested.connect(self.create_contact_menu)
         for i,width in enumerate(self.column_widths['contacts']):
             l.setColumnWidth(i, width)
-        self.connect(l, SIGNAL('itemDoubleClicked(QTreeWidgetItem*, int)'), lambda a, b: self.address_label_clicked(a,b,l,0,1))
-        self.connect(l, SIGNAL('itemChanged(QTreeWidgetItem*, int)'), lambda a,b: self.address_label_changed(a,b,l,0,1))
+        l.itemDoubleClicked.connect(lambda a, b: self.address_label_clicked(a,b,l,0,1))
+        l.itemChanged.connect(lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.contacts_list = l
         return w
 
 
     def create_invoices_tab(self):
         l, w = self.create_list_tab([_('Requestor'), _('Memo'),_('Amount'), _('Status')])
+        l.setColumnWidth(0, 150)
         h = l.header()
         h.setStretchLastSection(False)
         h.setResizeMode(1, QHeaderView.Stretch)

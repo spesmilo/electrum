@@ -16,7 +16,6 @@ import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 import aes
 import base64
-from electrum_ltc import bmp, pyqrnative
 from electrum_ltc.plugins import BasePlugin
 from electrum_ltc.i18n import _
 

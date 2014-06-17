@@ -295,18 +295,18 @@ def match_decoded(decoded, to_match):
             return False
     return True
 
-def get_address_from_input_script(bytes):
+def parse_scriptSig(d, bytes):
     try:
         decoded = [ x for x in script_GetOp(bytes) ]
     except Exception:
         # coinbase transactions raise an exception
         print_error("cannot find address in input script", bytes.encode('hex'))
-        return [], {}, "(None)"
+        return
 
     # payto_pubkey
     match = [ opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
-        return None, {}, "(pubkey)"
+        return
 
     # non-generated TxIn transactions push a signature
     # (seventy-something bytes) and then their public key
@@ -317,11 +317,13 @@ def get_address_from_input_script(bytes):
         pubkey = decoded[1][1].encode('hex')
         if sig[-2:] == '01':
             sig = sig[:-2]
-            return [pubkey], {pubkey:sig}, public_key_to_bc_address(pubkey.decode('hex'))
+            d['pubkeys'] = [pubkey]
+            d['signatures'] = {pubkey:sig}
+            d['address'] = public_key_to_bc_address(pubkey.decode('hex'))
+            return 
         else:
             print_error("cannot find address in input script", bytes.encode('hex'))
-            return [], {}, "(None)"
-
+            return
 
     # p2sh transaction, 2 of n
     match = [ opcodes.OP_0 ]
@@ -329,27 +331,25 @@ def get_address_from_input_script(bytes):
         match.append(opcodes.OP_PUSHDATA4)
 
     if match_decoded(decoded, match):
-
         redeemScript = decoded[-1][1]
         num = len(match) - 2
-        signatures = map(lambda x:x[1][:-1].encode('hex'), decoded[1:-1])
-
+        d['signatures'] = map(lambda x:x[1][:-1].encode('hex'), decoded[1:-1])
+        d['address'] = hash_160_to_bc_address(hash_160(redeemScript), 5)
+        d['redeemScript'] = redeemScript.encode('hex')
         dec2 = [ x for x in script_GetOp(redeemScript) ]
-
-        # 2 of 2
-        match2 = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_2, opcodes.OP_CHECKMULTISIG ]
-        if match_decoded(dec2, match2):
+        match_2of2 = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_2, opcodes.OP_CHECKMULTISIG ]
+        match_2of3 = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_3, opcodes.OP_CHECKMULTISIG ]
+        if match_decoded(dec2, match_2of2):
             pubkeys = [ dec2[1][1].encode('hex'), dec2[2][1].encode('hex') ]
-            return pubkeys, signatures, hash_160_to_bc_address(hash_160(redeemScript), 5)
- 
-        # 2 of 3
-        match2 = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_3, opcodes.OP_CHECKMULTISIG ]
-        if match_decoded(dec2, match2):
+        elif match_decoded(dec2, match_2of3):
             pubkeys = [ dec2[1][1].encode('hex'), dec2[2][1].encode('hex'), dec2[3][1].encode('hex') ]
-            return pubkeys, signatures, hash_160_to_bc_address(hash_160(redeemScript), 5)
+        else:
+            return
+        d['pubkeys'] = pubkeys
+        return
 
     print_error("cannot find address in input script", bytes.encode('hex'))
-    return [], {}, "(None)"
+
 
 
 
@@ -626,15 +626,12 @@ class Transaction:
             d['prevout_hash'] = prevout_hash
             d['prevout_n'] = prevout_n
             d['sequence'] = sequence
+
+            d['pubkeys'] = []
+            d['signatures'] = {}
+            d['address'] = None
             if scriptSig:
-                pubkeys, signatures, address = get_address_from_input_script(scriptSig)
-            else:
-                pubkeys = []
-                signatures = {}
-                address = None
-            d['address'] = address
-            d['pubkeys'] = pubkeys
-            d['signatures'] = signatures
+                parse_scriptSig(d, scriptSig)
         return d
 
 
