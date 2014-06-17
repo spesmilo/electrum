@@ -13,10 +13,13 @@ from electrum.i18n import _
 
 class QRCodeWidget(QWidget):
 
-    def __init__(self, data = None):
+    def __init__(self, data = None, fixedSize=False):
         QWidget.__init__(self)
         self.data = None
         self.qr = None
+        self.fixedSize=fixedSize
+        if fixedSize:
+            self.setFixedSize(fixedSize, fixedSize)
         self.setData(data)
 
 
@@ -26,8 +29,9 @@ class QRCodeWidget(QWidget):
         if self.data:
             self.qr = qrcode.QRCode()
             self.qr.add_data(self.data)
-            k = len(self.qr.get_matrix())
-            self.setMinimumSize(k*5,k*5)
+            if not self.fixedSize:
+                k = len(self.qr.get_matrix())
+                self.setMinimumSize(k*5,k*5)
         else:
             self.qr = None
 

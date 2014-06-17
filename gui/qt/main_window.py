@@ -687,7 +687,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(clear_button, 3, 2)
         grid.setRowStretch(4, 1)
 
-        self.receive_qr = QRCodeWidget()
+        self.receive_qr = QRCodeWidget(fixedSize=200)
         grid.addWidget(self.receive_qr, 0, 4, 5, 2)
 
         grid.setRowStretch(5, 1)
