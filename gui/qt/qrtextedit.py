@@ -11,11 +11,8 @@ class QRTextEdit(QTextEdit):
         self.button.setStyleSheet("QToolButton { border: none; padding: 0px; }")
         self.button.setVisible(True)
         self.button.clicked.connect(lambda: self.qr_show() if self.isReadOnly() else self.qr_input())
-        #frameWidth = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
-        #self.setStyleSheet(QString("QLineEdit { padding-right: %1px; } ").arg(self.button.sizeHint().width() + frameWidth + 1))
-        #msz = self.minimumSizeHint()
-        #self.setMinimumSize(max(msz.width(), self.button.sizeHint().height() + frameWidth * 2 + 2),
-        #                    max(msz.height(), self.button.sizeHint().height() + frameWidth * 2 + 2))
+        self.scan_f = self.setText
+
 
     def resizeEvent(self, e):
         o = QTextEdit.resizeEvent(self, e)
@@ -39,5 +36,5 @@ class QRTextEdit(QTextEdit):
 
     def qr_input(self):
         from electrum.plugins import run_hook
-        run_hook('scan_qr_hook', self.setText)
-
+        if not run_hook('scan_qr_hook', self.scan_f):
+            QMessageBox.warning(self, _('Error'), _('QR Scanner not enabled'), _('OK'))

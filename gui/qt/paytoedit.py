@@ -45,10 +45,7 @@ class PayToEdit(QRTextEdit):
         self.textChanged.connect(self.check_text)
         self.outputs = []
         self.is_pr = False
-
-    def qr_input(self):
-        from electrum.plugins import run_hook
-        run_hook('scan_qr_hook', lambda x: self.win.pay_from_URI(x))
+        self.scan_f = self.win.pay_from_URI
 
     def lock_amount(self):
         self.amount_edit.setFrozen(True)

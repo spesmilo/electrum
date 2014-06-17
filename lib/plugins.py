@@ -34,6 +34,8 @@ def run_hook(name, *args):
     
     global plugins
 
+    found = 0
+
     for p in plugins:
 
         if not p.is_enabled():
@@ -43,13 +45,15 @@ def run_hook(name, *args):
         if not callable(f):
             continue
 
+        found += 1
+
         try:
             f(*args)
         except Exception:
             print_error("Plugin error")
             traceback.print_exc(file=sys.stdout)
             
-    return
+    return found
 
 
 
