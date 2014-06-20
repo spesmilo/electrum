@@ -72,7 +72,7 @@ class TxDialog(QDialog):
 
         vbox.addStretch(1)
 
-        buttons = QHBoxLayout()
+        self.buttons = buttons = QHBoxLayout()
         vbox.addLayout( buttons )
 
         buttons.addStretch(1)
@@ -100,6 +100,8 @@ class TxDialog(QDialog):
         b.clicked.connect(self.show_qr)
         buttons.insertWidget(1,b)
         self.update()
+
+        run_hook('transaction_dialog', self)
 
 
     def show_qr(self):
