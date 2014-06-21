@@ -72,7 +72,7 @@ class TxDialog(QDialog):
 
         vbox.addStretch(1)
 
-        buttons = QHBoxLayout()
+        self.buttons = buttons = QHBoxLayout()
         vbox.addLayout( buttons )
 
         buttons.addStretch(1)
@@ -101,13 +101,15 @@ class TxDialog(QDialog):
         buttons.insertWidget(1,b)
         self.update()
 
+        run_hook('transaction_dialog', self)
+
 
     def show_qr(self):
         try:
             json_text = json.dumps(self.tx.as_dict()).replace(' ', '')
             self.parent.show_qrcode(json_text, 'Transaction')
         except Exception as e:
-            self.parent.show_message(str(e))
+            self.show_message(str(e))
 
 
     def sign(self):
@@ -167,7 +169,6 @@ class TxDialog(QDialog):
         else:
             self.date_label.hide()
 
-
         # if we are not synchronized, we cannot tell
         if self.parent.network is None or not self.parent.network.is_running() or not self.parent.network.is_connected():
             return
@@ -187,14 +188,6 @@ class TxDialog(QDialog):
         else:
             self.amount_label.setText(_("Transaction unrelated to your wallet"))
 
-
-    def exec_menu(self, position,l):
-        item = l.itemAt(position)
-        if not item: return
-        addr = unicode(item.text(0))
-        menu = QMenu()
-        menu.addAction(_("Copy to clipboard"), lambda: self.parent.app.clipboard().setText(addr))
-        menu.exec_(l.viewport().mapToGlobal(position))
 
 
     def add_io(self, vbox):

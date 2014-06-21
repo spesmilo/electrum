@@ -768,6 +768,7 @@ class ElectrumWindow(QMainWindow):
         for address, v in self.receive_requests.items():
             amount, message = v
             item = QTreeWidgetItem( [ address, message, self.format_amount(amount) if amount else ""] )
+            item.setFont(0, QFont(MONOSPACE_FONT))
             self.receive_list.addTopLevelItem(item)
 
 
