@@ -41,76 +41,8 @@ class CScreen(Factory.Screen):
     def on_deactivate(self):
         Clock.schedule_once(lambda dt: self._change_action_view())
 
-    def load_screen(self, screen_name):
-        content = self.content
-        if not content:
-            Builder.load_file('gui/kivy/uix/ui_screens/{}.kv'.format(screen_name))
-            if screen_name.endswith('send'):
-                content = Factory.ScreenSendContent()
-            elif screen_name.endswith('receive'):
-                content = Factory.ScreenReceiveContent()
-                content.ids.toggle_qr.state = 'down'
-            self.content = content
-            self.add_widget(content)
-            Factory.Animation(opacity=1, d=.25).start(content)
-            return
-        if screen_name.endswith('receive'):
-            content.mode = 'qr'
-        else:
-            content.mode = 'address'
 
-
-class EScreen(Factory.EffectWidget, CScreen):
-
-    background_color = ListProperty((0.929, .929, .929, .929))
-
-    speed = NumericProperty(0)
-
-    effect_flex_scroll = '''
-uniform float speed;
-
-vec4 effect(vec4 color, sampler2D texture, vec2 tex_coords, vec2 coords)
-{{
-    return texture2D(
-        texture,
-        vec2(tex_coords.x + sin(
-            tex_coords.y * 3.1416 / .2 + 3.1416 / .5
-        ) * speed, tex_coords.y));
-}}
-'''
-    def __init__(self, **kwargs):
-        super(EScreen, self).__init__(**kwargs)
-        self.old_x = [1, ] * 10
-        self._anim = Factory.Animation(speed=0, d=.22)
-        from kivy.uix.effectwidget import AdvancedEffectBase
-        self.speed = 0
-        self.scrollflex = AdvancedEffectBase(
-            glsl=self.effect_flex_scroll,
-            uniforms={'speed': self.speed}
-        )
-        self._trigger_straighten = Clock.create_trigger(
-            self.straighten_screen, .15)
-
-    def on_speed(self, *args):
-        value = max(-0.05, min(0.05, float("{0:.5f}".format(args[1]))))
-        self.scrollflex.uniforms['speed'] = value
-
-    def on_parent(self, instance, value):
-        if value:
-            value.bind(x=self.screen_moving)
-
-    def screen_moving(self, instance, value):
-        self.old_x.append(value/self.width)
-        self.old_x.pop(0)
-        self.speed = sum(((self.old_x[x + 1] - self.old_x[x]) for x in range(9))) / 9.
-        self._anim.cancel_all(self)
-        self._trigger_straighten()
-
-    def straighten_screen(self, dt):
-        self._anim.start(self)
-
-
-class ScreenDashboard(EScreen):
+class ScreenDashboard(CScreen):
     ''' Dashboard screen: Used to display the main dashboard.
     '''
 
@@ -139,7 +71,7 @@ class ScreenAddress(CScreen):
     '''
 
     labels  = DictProperty({})
-    '''
+    ''' A precached list of address labels.
     '''
 
     tab =  ObjectProperty(None)
@@ -167,15 +99,21 @@ class MainScreen(Factory.Screen):
     pass
 
 
-class ScreenSend(EScreen):
+class ScreenSend(CScreen):
+
+    def scan_qr(self):
+        pop = Factory.QrScannerDialog(on_complete=self.set_qr_data)
+        pop.open()
+
+    def set_qr_data(self, uri):
+        self.ids.payto_e
+
+
+class ScreenReceive(CScreen):
     pass
 
 
-class ScreenReceive(EScreen):
-    pass
-
-
-class ScreenContacts(EScreen):
+class ScreenContacts(CScreen):
 
     def add_new_contact(self):
         dlg = Cache.get('electrum_widgets', 'NewContactDialog')

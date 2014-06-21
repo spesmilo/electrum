@@ -12,7 +12,7 @@ class AnimatedPopup(Factory.Popup):
     ''' An Animated Popup that animates in and out.
     '''
 
-    anim_duration = NumericProperty(.25)
+    anim_duration = NumericProperty(.36)
     '''Duration of animation to be used
     '''
 

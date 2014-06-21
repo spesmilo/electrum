@@ -13,10 +13,10 @@ class NewContactDialog(Factory.AnimatedPopup):
         if not dlg:
             dlg = Factory.QrScannerDialog()
             Cache.append('electrum_widgets', 'QrScannerDialog', dlg)
-            dlg.bind(on_release=self.on_release)
+            dlg.bind(on_complete=self.on_complete)
         dlg.open()
 
-    def on_release(self, instance, uri):
+    def on_complete(self, instance, uri):
         self.new_contact(uri=uri)
 
     def new_contact(self, uri={}):

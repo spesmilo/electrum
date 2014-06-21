@@ -154,7 +154,7 @@ Builder.load_string('''
             height: '110dp'
             hint_text:
                 _('Enter your seedphrase')
-            on_text: next.disabled = not bool(root._wizard.is_any(self))
+            on_text: root._trigger_check_seed()
         Label:
             font_size: '12sp'
             text_size: self.width, None
@@ -446,6 +446,11 @@ class RestoreSeedDialog(CreateAccountDialog):
     def __init__(self, **kwargs):
         self._wizard = kwargs['wizard']
         super(RestoreSeedDialog, self).__init__(**kwargs)
+        self._trigger_check_seed = Clock.create_trigger(self.check_seed)
+
+    def check_seed(self, dt):
+        self.ids.next.disabled = not bool(self._wizard.is_any(
+                                                    self.ids.text_input_seed))
 
     def on_parent(self, instance, value):
         if value:

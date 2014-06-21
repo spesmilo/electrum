@@ -9,7 +9,7 @@ apk:
 	# running pre build setup
 	@cp tools/buildozer.spec ../../buildozer.spec
 	# get aes.py
-	@cd ../..; curl -O https://raw.github.com/devrandom/slowaes/master/python/aes.py
+	@cd ../..; curl -O -L https://raw.github.com/devrandom/slowaes/master/python/aes.py
 	# rename electrum to main.py
 	@mv ../../electrum ../../main.py
 	@-if [ ! -d "../../.buildozer" ];then \

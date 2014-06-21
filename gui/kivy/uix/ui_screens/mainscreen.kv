@@ -1,6 +1,7 @@
 #:import _ electrum.i18n._
 #:import Cache kivy.cache.Cache
 #:import Factory kivy.factory.Factory
+#:import Decimal decimal.Decimal
 #:set font_light 'data/fonts/Roboto-Condensed.ttf'
 #:set btc_symbol unichr(171)
 #:set mbtc_symbol unichr(187)
@@ -142,15 +143,248 @@
             icon='atlas://gui/kivy/theming/light/star_big_inactive',\
             duration=1, arrow_pos='', width='250dp')
 
+
+<TextInputSendBlue@TextInput>
+    padding: '5dp'
+    size_hint: 1, None
+    height: '27dp'
+    pos_hint: {'center_y':.5}
+    multiline: False
+    hint_text_color: self.foreground_color
+    foreground_color: .843, .914, .972, 1
+    background_color: 1, 1, 1, 1
+    background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
+    background_active: 'atlas://gui/kivy/theming/light/textinput_active'
+
+
+<TransactionFeeDialog@SelectionDialog>
+    return_obj: None
+    min_fee: app.format_amount(app.wallet.fee)
+    title:
+        '[size=9dp] \n[/size]Transaction Fee[size=9dp]\n'\
+        '[color=#ADAEAE]Minimum is BTC {}[/color][/size]'.format(self.min_fee)
+    title_size: '24sp'
+    on_activate:
+        ti_fee.focus = True
+        if self.return_obj:\
+        ti_fee.text =  "BTC " + self.return_obj.amt
+    on_deactivate: ti_fee.focus = False
+    on_release:
+        if self.return_obj and ti_fee.text:\
+        txt = ti_fee.text;\
+        spc = txt.rfind(' ') + 1;\
+        txt = '' if spc == 0 else txt[spc:];\
+        num = 0 if not txt else float(txt);\
+        self.return_obj.amt = max(self.min_fee, txt)
+        root.dismiss()
+    ELTextInput
+        id: ti_fee
+        size_hint: 1, None
+        height: '34dp'
+        multiline: False
+        on_text_validate: root.dispatch('on_release', self)
+        pos_hint: {'center_y': .7}
+        text: "BTC " + root.min_fee
+        input_type: 'number'
+
+
 <ScreenSend>
+    mode: 'address'
     name: 'send'
     action_view: Factory.SendActionView()
-    on_activate:
-        root.load_screen('screensend')
     on_deactivate:
-        self.content.ids.amount_e.focus = False
-        self.content.ids.payto_e.focus = False
-        self.content.ids.message_e.focus = False
+        self.ids.amount_e.focus = False
+        self.ids.payto_e.focus = False
+        self.ids.message_e.focus = False
+    BoxLayout
+        padding: '12dp', '12dp', '12dp', '12dp'
+        spacing: '12dp'
+        orientation: 'vertical'
+        mode: 'address'
+        SendReceiveToggle:
+            SendToggle:
+                id: toggle_address
+                text: 'ADDRESS'
+                group: 'send_type'
+                state: 'down' if root.mode == 'address' else 'normal'
+                source: 'atlas://gui/kivy/theming/light/globe'
+                background_down: 'atlas://gui/kivy/theming/light/btn_send_address'
+                on_release:
+                    if root.mode == 'address': root.mode = 'fc'
+                    root.mode = 'address'
+            SendToggle:
+                id: toggle_nfc
+                text: 'NFC'
+                group: 'send_type'
+                state: 'down' if root.mode == 'nfc' else 'normal'
+                source: 'atlas://gui/kivy/theming/light/nfc'
+                background_down: 'atlas://gui/kivy/theming/light/btn_send_nfc'
+                on_release:
+                    if root.mode == 'nfc': root.mode = 'str'
+                    root.mode = 'nfc'
+        GridLayout:
+            id: grid
+            cols: 1
+            size_hint: 1, None
+            height: self.minimum_height
+            SendReceiveCardTop
+                id: card_address
+                BoxLayout
+                    size_hint: 1, None
+                    height: '42dp'
+                    rows: 1
+                    Label
+                        id: lbl_symbl
+                        bold: True
+                        color: amount_e.foreground_color
+                        text_size: self.size
+                        valign: 'bottom'
+                        halign: 'left'
+                        font_size: '22sp'
+                        text:
+                            u'[font={fnt}]{smbl}[/font]'.\
+                            format(smbl=btc_symbol if app.base_unit == 'BTC' else mbtc_symbol, fnt=font_light)
+                        size_hint_x: .25
+                    ELTextInput:
+                        id: amount_e
+                        input_type: 'number'
+                        multiline: False
+                        bold: True
+                        font_size: '50sp'
+                        foreground_color: .308, .308, .308, 1
+                        background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
+                        pos_hint: {'top': 1.5}
+                        size_hint: .7, None
+                        height: '67dp'
+                        hint_text: 'Amount'
+                        text: '0.0'
+                        on_text_validate: payto_e.focus = True
+                CardSeparator
+                BoxLayout:
+                    size_hint: 1, None
+                    height: '42dp'
+                    spacing: '5dp'
+                    Label:
+                        id: fee_e
+                        color: .761, .761, .761, 1
+                        font_size: '12dp'
+                        amt: app.format_amount(app.wallet.fee) if app.wallet else 0
+                        text:
+                            u'[b]{sign}{symbl}{amt}[/b] of fee'.\
+                            format(symbl=lbl_symbl.text,\
+                            sign='+' if self.amt > 0 else '-', amt=self.amt)
+                        size_hint_x: None
+                        width: self.texture_size[0]
+                        halign: 'left'
+                        valign: 'middle'
+                    IconButton:
+                        color: 0.694, 0.694, 0.694, 1
+                        source: 'atlas://gui/kivy/theming/light/gear'
+                        pos_hint: {'center_y': .5}
+                        size_hint: None, None
+                        size: '22dp', '22dp'
+                        on_release:
+                            dlg = Cache.get('electrum_widgets', 'TransactionFeeDialog')
+
+                            if not dlg:\
+                            Factory.register('SelectionDialog', module='electrum_gui.kivy.uix.dialogs');\
+                            dlg = Factory.TransactionFeeDialog();\
+                            Cache.append('electrum_widgets', 'TransactionDialog', dlg)
+
+                            dlg.return_obj = fee_e
+                            dlg.open()
+                    Label:
+                        font_size: '12dp'
+                        color: fee_e.color
+                        text: u'= {}'.format(app.create_quote_text(Decimal(float(amount_e.text)), mode='symbol')) if amount_e.text else u'0'
+                        text_size: self.size
+                        halign: 'right'
+                        valign: 'middle'
+            SendReceiveBlueBottom:
+                id: blue_bottom
+                size_hint: 1, None
+                height: self.minimum_height
+                BoxLayout
+                    size_hint: 1, None
+                    height: blue_bottom.item_height
+                    spacing: '5dp'
+                    Image:
+                        source: 'atlas://gui/kivy/theming/light/contact'
+                        size_hint: None, None
+                        size: '22dp', '22dp'
+                        pos_hint: {'center_y': .5}
+                    TextInputSendBlue:
+                        id: payto_e
+                        hint_text: "Enter Contact or adress"
+                        on_text_validate:
+                            Factory.Animation(opacity=1,\
+                            height=blue_bottom.item_height)\
+                            .start(message_selection)
+                            message_e.focus = True
+                    Widget:
+                        size_hint: None, None
+                        width: dp(2)
+                        height: qr.height
+                        pos_hint: {'center_y':.5}
+                        canvas.after:
+                            Rectangle:
+                                size: self.size
+                                pos: self.pos
+                    IconButton:
+                        id: qr
+                        source: 'atlas://gui/kivy/theming/light/qrcode'
+                        pos_hint: {'center_y': .5}
+                        size_hint: None, None
+                        size: '22dp', '22dp'
+                        on_release: root.scan_qr()
+                CardSeparator
+                    opacity: message_selection.opacity
+                    color: blue_bottom.foreground_color
+                BoxLayout:
+                    id: message_selection
+                    opacity: 1 if app.expert_mode else 0
+                    size_hint: 1, None
+                    height: blue_bottom.item_height if app.expert_mode else 0
+                    spacing: '5dp'
+                    Image:
+                        source: 'atlas://gui/kivy/theming/light/pen'
+                        size_hint: None, None
+                        size: '22dp', '22dp'
+                        pos_hint: {'center_y': .5}
+                    TextInputSendBlue:
+                        id: message_e
+                        hint_text: 'Enter description here'
+                        on_text_validate:
+                            anim = Factory.Animation(opacity=1, height=blue_bottom.item_height)
+                            anim.start(wallet_selection)
+                #anim.start(address_selection)
+                CardSeparator
+                    opacity: wallet_selection.opacity
+                    color: blue_bottom.foreground_color
+                WalletSelector:
+                    id: wallet_selection
+                    foreground_color: blue_bottom.foreground_color
+                    opacity: 1 if app.expert_mode else 0
+                    size_hint: 1, None
+                    height: blue_bottom.item_height if app.expert_mode else 0
+                CardSeparator
+                    opacity: address_selection.opacity
+                    color: blue_bottom.foreground_color
+                AddressSelector:
+                    id: address_selection
+                    foreground_color: blue_bottom.foreground_color
+                    opacity: 1 if app.expert_mode else 0
+                    size_hint: 1, None
+                    height: blue_bottom.item_height if app.expert_mode else 0
+        CreateAccountButtonGreen:
+            background_color: (1, 1, 1, 1) if self.disabled else ((.258, .80, .388, 1) if self.state == 'normal' else (.203, .490, .741, 1))
+            text: _('Goto next step') if app.wallet and app.wallet.seed else _('Create unsigned transaction')
+            size_hint_y: None
+            height: '38dp'
+            disabled: True if wallet_selection.opacity == 0 else False
+            on_release: app.do_send()
+        Widget
+
 
 <SendToggle@ToggleButton>
     source: ''
@@ -200,7 +434,7 @@
 
 <AddressSelector@BlueSpinner>
     icon: 'atlas://gui/kivy/theming/light/globe'
-    values: app.wallet.addresses()
+    values: app.wallet.addresses() if app.wallet else []
     text: _("Select Your address")
 
 <WalletSelector@BlueSpinner>
@@ -253,12 +487,146 @@
 
 
 <ScreenReceive>
+    mode: 'qr'
     name: 'receive'
     action_view: Factory.ReceiveActionView()
     on_activate:
-        root.load_screen('screenreceive')
+        self.ids.toggle_qr.state = 'down'
+        first_address = app.wallet.addresses()[0]
+        qr.data = app.encode_uri(first_address,
+        amount=amount_e.text,
+        label=app.wallet.labels.get(first_address, first_address),
+        message='') if app.wallet and app.wallet.addresses() else ''
     on_deactivate:
-        self.content.ids.amount_e.focus = False
+        self.ids.amount_e.focus = False
+    BoxLayout
+        padding: '12dp', '12dp', '12dp', '12dp'
+        spacing: '12dp'
+        mode: 'qr'
+        orientation: 'vertical'
+        SendReceiveToggle
+            SendToggle:
+                id: toggle_qr
+                text: 'QR'
+                state: 'down' if root.mode == 'qr' else 'normal'
+                source: 'atlas://gui/kivy/theming/light/qrcode'
+                background_down: 'atlas://gui/kivy/theming/light/btn_send_address'
+                on_release:
+                    if root.mode == 'qr': root.mode = 'nr'
+                    root.mode = 'qr'
+            SendToggle:
+                id: toggle_nfc
+                text: 'NFC'
+                state: 'down' if root.mode == 'nfc' else 'normal'
+                source: 'atlas://gui/kivy/theming/light/nfc'
+                background_down: 'atlas://gui/kivy/theming/light/btn_send_nfc'
+                on_release:
+                    if root.mode == 'nfc': root.mode = 'nr'
+                    root.mode = 'nfc'
+        GridLayout:
+            id: grid
+            cols: 1
+            #size_hint: 1, None
+            #height: self.minimum_height
+            SendReceiveCardTop
+                height: '110dp'
+                BoxLayout:
+                    size_hint: 1, None
+                    height: '42dp'
+                    rows: 1
+                    Label:
+                        color: amount_e.foreground_color
+                        bold: True
+                        text_size: self.size
+                        valign: 'bottom'
+                        font_size: '22sp'
+                        text:
+                            u'[font={fnt}]{smbl}[/font]'.\
+                            format(smbl=btc_symbol if app.base_unit == 'BTC' else mbtc_symbol, fnt=font_light)
+                        size_hint_x: .25
+                    ELTextInput:
+                        id: amount_e
+                        input_type: 'number'
+                        multiline: False
+                        bold: True
+                        font_size: '50sp'
+                        foreground_color: .308, .308, .308, 1
+                        background_normal: 'atlas://gui/kivy/theming/light/tab_btn'
+                        pos_hint: {'top': 1.5}
+                        size_hint: .7, None
+                        height: '67dp'
+                        hint_text: 'Amount'
+                        text: '0.0'
+                CardSeparator
+                BoxLayout:
+                    size_hint: 1, None
+                    height: '32dp'
+                    spacing: '5dp'
+                    Label:
+                        color: lbl_quote.color
+                        font_size: '12dp'
+                        text: 'Ask to scan the QR below'
+                        text_size: self.size
+                        halign: 'left'
+                        valign: 'middle'
+                    Label:
+                        id: lbl_quote
+                        font_size: '12dp'
+                        size_hint: .5, 1
+                        color: .761, .761, .761, 1
+                        text: u'= {}'.format(app.create_quote_text(Decimal(float(amount_e.text)), mode='symbol')) if amount_e.text else u'0'
+                        text_size: self.size
+                        halign: 'right'
+                        valign: 'middle'
+            SendReceiveBlueBottom
+                id: blue_bottom
+                padding: '12dp', 0, '12dp', '12dp'
+                WalletSelector:
+                    id: wallet_selection
+                    foreground_color: blue_bottom.foreground_color
+                    size_hint: 1, None
+                    height: blue_bottom.item_height
+                CardSeparator
+                    opacity: wallet_selection.opacity
+                    color: blue_bottom.foreground_color
+                AddressSelector:
+                    id: address_selection
+                    foreground_color: blue_bottom.foreground_color
+                    opacity: 1 if app.expert_mode else 0
+                    size_hint: 1, None
+                    height: blue_bottom.item_height if app.expert_mode else 0
+                    on_text:
+                        if not args[1].startswith('Select'):\
+                        qr.data = app.encode_uri(args[1],\
+                        amount=amount_e.text,\
+                        label=app.wallet.labels.get(args[1], args[1]),\
+                        message='')
+                CardSeparator
+                    opacity: address_selection.opacity
+                    color: blue_bottom.foreground_color
+                Widget:
+                    size_hint_y: None
+                    height: dp(10)
+                FloatLayout
+                    id: bl
+                    QRCodeWidget:
+                        id: qr
+                        size_hint: None, 1
+                        width: min(self.height, bl.width)
+                        pos_hint: {'center': (.5, .5)}
+                        on_touch_down:
+                            if self.collide_point(*args[1].pos):\
+                            app.show_info_bubble(icon=self.ids.qrimage.texture, text='texture')
+        CreateAccountButtonGreen:
+            background_color: (1, 1, 1, 1) if self.disabled else ((.258, .80, .388, 1) if self.state == 'normal' else (.203, .490, .741, 1))
+            text: _('Goto next step') if app.wallet and app.wallet.seed else _('Create unsigned transaction')
+            size_hint_y: None
+            height: '38dp'
+            disabled: True if wallet_selection.opacity == 0 else False
+            on_release:
+                message = 'sending {} {} to {}'.format(\
+                app.base_unit, amount_e.text, payto_e.text)
+                app.gui.main_gui.do_send(self, message=message)
 
 <ReceiveActionView@ActionView>
     WalletActionPrevious:
@@ -350,12 +718,12 @@
         pos_hint: {'center_x': .5, 'y': .02}
         allow_stretch: True
         size: ('32dp', '32dp')
-    Label:
-        id: screen_label
-        size: root.size
-        font_size: '45sp'
-        color: root.color
-        text: '' if root.state == 'activated' or root.content else 'Loading...'
+        #Label:
+        #id: screen_label
+        #size: root.size
+        #font_size: '45sp'
+        #color: root.color
+        #text: '' if root.state == 'activated' or root.content else 'Loading...'
 
 <EScreen>
     background_color: .929, .929, .929 ,1
@@ -1361,7 +1729,7 @@
             #    name: 'password
 
 <Drawer>
-    overlay_widget: overlay_widget
+    #overlay_widget: overlay_widget
     RelativeLayout:
         id: hidden_widget
         size_hint: None, None

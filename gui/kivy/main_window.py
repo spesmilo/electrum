@@ -21,6 +21,8 @@ Factory.register('InstallWizard',
                  module='electrum_gui.kivy.uix.dialogs.installwizard')
 Factory.register('InfoBubble', module='electrum_gui.kivy.uix.dialogs')
 Factory.register('ELTextInput', module='electrum_gui.kivy.uix.screens')
+Factory.register('QrScannerDialog', module='electrum_gui.kivy.uix.dialogs.qr_scanner')
+
 
 # delayed imports: for startup speed on android
 notification = app = Decimal = ref = format_satoshis = is_valid = Builder = None
@@ -405,6 +407,8 @@ class ElectrumWindow(App):
     def create_quote_text(self, btc_balance, mode='normal'):
         '''
         '''
+        if not self.exchanger:
+            return
         quote_currency = self.exchanger.currency
         quote_balance = self.exchanger.exchange(btc_balance, quote_currency)
 
@@ -431,6 +435,7 @@ class ElectrumWindow(App):
                                                 maxtime)
 
         return self.set_history_rate(item, rate)
+
 
     def set_history_rate(self, item, rate):
         '''
@@ -831,7 +836,7 @@ class ElectrumWindow(App):
         message = 'sending {} {} to {}'.format(\
             app.base_unit, scrn.amount_e.text, r)
 
-        confirm_fee = self.config.get('confirm_fee', 100000)
+        confirm_fee = self.config.get('confirm_amount', 100000)
         if fee >= confirm_fee:
             if not self.question(_("The fee for this transaction seems unusually high.\nAre you really sure you want to pay %(fee)s in fees?")%{ 'fee' : self.format_amount(fee) + ' '+ self.base_unit()}):
                 return
@@ -913,8 +918,8 @@ class ElectrumWindow(App):
                       is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
                       if(v > 0):
                           self.notify(
-                              _("{} new transaction received. {amount}s {unit}s").
-                              format( amount=self.format_amount(v),
+                              _("{txs} new transaction received. {amount} {unit}").
+                              format(txs=tx_amount, amount=self.format_amount(v),
                                      unit=self.base_unit))
 
     def copy(self, text):
