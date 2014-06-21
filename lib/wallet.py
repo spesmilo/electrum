@@ -409,15 +409,15 @@ class Abstract_Wallet:
 
             else:
 
-                from account import BIP32_Account
-                print "scanning", x_pubkeys
-
+                from account import BIP32_Account, OldAccount
                 for x_pubkey in x_pubkeys:
                     if not is_extended_pubkey(x_pubkey):
                         continue
 
-                    xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
-                    print "xpub", xpub
+                    if x_pubkey[0:2] == 'ff':
+                        xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
+                    elif x_pubkey[0:2] == 'fe':
+                        xpub, sequence = OldAccount.parse_xpubkey(x_pubkey)
 
                     # look for account that can sign
                     for k, account in self.accounts.items():
@@ -425,10 +425,8 @@ class Abstract_Wallet:
                             break
                     else:
                         continue
-                    print "found xpub", xpub, sequence
 
                     addr = account.get_address(*sequence)
-                    print addr, txin['address']
                     assert txin['address'] == addr
                     pk = self.get_private_key(addr, password)
                     for sec in pk:
