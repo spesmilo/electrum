@@ -597,8 +597,6 @@ class Transaction:
 
     def is_complete(self):
         for i, txin in enumerate(self.inputs):
-            #redeem_script = txin.get('redeemScript')
-            #num, redeem_pubkeys = parse_redeemScript(redeem_script) if redeem_script else (1, [txin.get('redeemPubkey')])
             pubkeys = txin['pubkeys']
             signatures = txin.get("signatures",{})
             if len(signatures) == txin['num_sig']:
@@ -614,14 +612,8 @@ class Transaction:
 
         for i, txin in enumerate(self.inputs):
 
-            # if the input is multisig, parse redeem script
-            #redeem_script = txin.get('redeemScript')
-            #num, redeem_pubkeys = parse_redeemScript(redeem_script) if redeem_script else (1, [txin.get('redeemPubkey')])
             redeem_pubkeys = txin['pubkeys']
             num = len(redeem_pubkeys)
-
-            # add pubkeys
-            ### txin["pubkeys"] = redeem_pubkeys
 
             # get list of already existing signatures
             signatures = txin.get("signatures",{})

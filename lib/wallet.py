@@ -1592,28 +1592,6 @@ class OldWallet(Deterministic_Wallet):
         s = self.get_seed(password)
         return ' '.join(mnemonic.mn_encode(s))
 
-
-    def add_keypairs_from_KeyID(self, tx, keypairs, password):
-        # first check the provided password
-        for txin in tx.inputs:
-            keyid = txin.get('KeyID')
-            if keyid:
-                m = re.match("old\(([0-9a-f]+),(\d+),(\d+)", keyid)
-                if not m: continue
-                mpk = m.group(1)
-                if mpk != self.storage.get('master_public_key'): continue 
-                for_change = int(m.group(2))
-                num = int(m.group(3))
-                account = self.accounts[0]
-                addr = account.get_address(for_change, num)
-                txin['address'] = addr # fixme: side effect
-                pk = account.get_private_key((for_change, num), self, password)
-                for sec in pk:
-                    pubkey = public_key_from_private_key(sec)
-                    keypairs[pubkey] = sec
-
-
-
     def check_pending_accounts(self):
         pass
 
