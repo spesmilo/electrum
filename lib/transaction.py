@@ -540,8 +540,12 @@ class Transaction:
                     sig_list.append(NO_SIGNATURE)
                 sig_list = ''.join( map( lambda x: push_script(x), sig_list))
 
-                # extended pubkeys (with bip32 derivation)
-                x_pubkeys = txin['x_pubkeys']
+                if len(signatures) < n_sig:
+                    # extended pubkeys (with bip32 derivation)
+                    x_pubkeys = txin['x_pubkeys']
+                else:
+                    # if we have enough signatures, we use the actual pubkeys
+                    x_pubkeys = txin['pubkeys']
 
                 if not p2sh:
                     script = sig_list
