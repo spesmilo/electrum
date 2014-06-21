@@ -170,9 +170,9 @@ class Commands:
         return tx
 
 
-    def signrawtransaction(self, raw_tx, input_info, private_keys):
+    def signrawtransaction(self, raw_tx, private_keys):
         tx = Transaction(raw_tx)
-        self.wallet.signrawtransaction(tx, input_info, private_keys, self.password)
+        self.wallet.signrawtransaction(tx, private_keys, self.password)
         return tx
 
     def decoderawtransaction(self, raw):

@@ -34,7 +34,7 @@ import math
 from util import print_msg, print_error, format_satoshis
 from bitcoin import *
 from account import *
-from transaction import Transaction
+from transaction import Transaction, is_extended_pubkey
 from plugins import run_hook
 import bitcoin
 from synchronizer import WalletSynchronizer
@@ -392,73 +392,56 @@ class Abstract_Wallet:
         return self.accounts[account_id].get_pubkeys(sequence)
 
 
-    def add_keypairs_from_wallet(self, tx, keypairs, password):
-        for txin in tx.inputs:
-            address = txin['address']
-            if not self.is_mine(address):
-                continue
-            private_keys = self.get_private_key(address, password)
-            for sec in private_keys:
-                pubkey = public_key_from_private_key(sec)
-                keypairs[ pubkey ] = sec
-
-
-
-    def add_keypairs_from_KeyID(self, tx, keypairs, password):
+    def add_keypairs(self, tx, keypairs, password):
         # first check the provided password
         seed = self.get_seed(password)
 
         for txin in tx.inputs:
-            keyid = txin.get('KeyID')
-            if keyid:
-                roots = []
-                for s in keyid.split('&'):
-                    m = re.match("bip32\((.*),(/\d+/\d+)\)", s)
-                    if not m: continue
-                    xpub = m.group(1)
-                    sequence = m.group(2)
-                    root = self.find_root_by_master_key(xpub)
-                    if not root: continue
-                    sequence = map(lambda x:int(x), sequence.strip('/').split('/'))
-                    root = root + '%d'%sequence[0]
-                    sequence = sequence[1:]
-                    roots.append((root,sequence)) 
+            x_pubkeys = txin['x_pubkeys']
+            address = txin['address']
 
-                account_id = " & ".join( map(lambda x:x[0], roots) )
-                account = self.accounts.get(account_id)
-                if not account: continue
-                addr = account.get_address(*sequence)
-                txin['address'] = addr # fixme: side effect
-                pk = self.get_private_key(addr, password)
-                for sec in pk:
+            if self.is_mine(address):
+
+                private_keys = self.get_private_key(address, password)
+                for sec in private_keys:
                     pubkey = public_key_from_private_key(sec)
-                    keypairs[pubkey] = sec
+                    keypairs[ pubkey ] = sec
+
+            else:
+
+                from account import BIP32_Account
+                print "scanning", x_pubkeys
+
+                for x_pubkey in x_pubkeys:
+                    if not is_extended_pubkey(x_pubkey):
+                        continue
+
+                    xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
+                    print "xpub", xpub
+
+                    # look for account that can sign
+                    for k, account in self.accounts.items():
+                        if xpub in account.get_master_pubkeys():
+                            break
+                    else:
+                        continue
+                    print "found xpub", xpub, sequence
+
+                    addr = account.get_address(*sequence)
+                    print addr, txin['address']
+                    assert txin['address'] == addr
+                    pk = self.get_private_key(addr, password)
+                    for sec in pk:
+                        pubkey = public_key_from_private_key(sec)
+                        keypairs[pubkey] = sec
 
 
 
-    def signrawtransaction(self, tx, input_info, private_keys, password):
+
+    def signrawtransaction(self, tx, private_keys, password):
 
         # check that the password is correct
         seed = self.get_seed(password)
-
-        # if input_info is not known, build it using wallet UTXOs
-        if not input_info:
-            input_info = []
-            unspent_coins = self.get_unspent_coins()
-            for txin in tx.inputs:
-                for item in unspent_coins:
-                    if txin['prevout_hash'] == item['prevout_hash'] and txin['prevout_n'] == item['prevout_n']:
-                        info = { 'address':item['address'], 'scriptPubKey':item['scriptPubKey'] }
-                        self.add_input_info(info)
-                        input_info.append(info)
-                        break
-                else:
-                    print_error( "input not in UTXOs" )
-                    input_info.append(None)
-
-        # add input_info to the transaction
-        print_error("input_info", input_info)
-        tx.add_input_info(input_info)
 
         # build a list of public/private keys
         keypairs = {}
@@ -468,10 +451,9 @@ class Abstract_Wallet:
             pubkey = public_key_from_private_key(sec)
             keypairs[ pubkey ] = sec
 
-        # add private_keys from KeyID
-        self.add_keypairs_from_KeyID(tx, keypairs, password)
-        # add private keys from wallet
-        self.add_keypairs_from_wallet(tx, keypairs, password)
+        # add private_keys
+        self.add_keypairs(tx, keypairs, password)
+
         # sign the transaction
         self.sign_transaction(tx, keypairs, password)
 
@@ -869,7 +851,7 @@ class Abstract_Wallet:
     def mktx(self, outputs, password, fee=None, change_addr=None, domain= None, coins = None ):
         tx = self.make_unsigned_transaction(outputs, fee, change_addr, domain, coins)
         keypairs = {}
-        self.add_keypairs_from_wallet(tx, keypairs, password)
+        self.add_keypairs(tx, keypairs, password)
         if keypairs:
             self.sign_transaction(tx, keypairs, password)
         return tx
@@ -879,12 +861,15 @@ class Abstract_Wallet:
         address = txin['address']
         account_id, sequence = self.get_address_index(address)
         account = self.accounts[account_id]
-        txin['KeyID'] = account.get_keyID(sequence)
         redeemScript = account.redeem_script(sequence)
+        txin['x_pubkeys'] = account.get_xpubkeys(sequence)
+        txin['pubkeys'] = account.get_pubkeys(sequence) 
         if redeemScript: 
             txin['redeemScript'] = redeemScript
+            txin['num_sig'] = 2
         else:
             txin['redeemPubkey'] = account.get_pubkey(*sequence)
+            txin['num_sig'] = 1
 
 
     def sign_transaction(self, tx, keypairs, password):

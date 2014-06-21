@@ -16,10 +16,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import bitcoin
 from bitcoin import *
 from i18n import _
-from transaction import Transaction
-
+from transaction import Transaction, is_extended_pubkey
+from util import print_msg
 
 
 class Account(object):
@@ -38,7 +39,7 @@ class Account(object):
         n = len(addresses)
         address = self.get_address( for_change, n)
         addresses.append(address)
-        print address
+        print_msg(address)
         return address
 
     def get_address(self, for_change, n):
@@ -149,26 +150,30 @@ class OldAccount(Account):
             seed = hashlib.sha256(seed + oldseed).digest()
         return string_to_number( seed )
 
-    def get_sequence(self, for_change, n):
-        return string_to_number( Hash( "%d:%d:"%(n,for_change) + self.mpk ) )
+    @classmethod
+    def get_sequence(self, mpk, for_change, n):
+        return string_to_number( Hash( "%d:%d:"%(n,for_change) + mpk ) )
 
     def get_address(self, for_change, n):
         pubkey = self.get_pubkey(for_change, n)
         address = public_key_to_bc_address( pubkey.decode('hex') )
         return address
 
-    def get_pubkey(self, for_change, n):
+    @classmethod
+    def get_pubkey_from_mpk(self, mpk, for_change, n):
         curve = SECP256k1
-        mpk = self.mpk
-        z = self.get_sequence(for_change, n)
+        z = self.get_sequence(mpk, for_change, n)
         master_public_key = ecdsa.VerifyingKey.from_string( mpk, curve = SECP256k1 )
         pubkey_point = master_public_key.pubkey.point + z*curve.generator
         public_key2 = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
         return '04' + public_key2.to_string().encode('hex')
 
+    def get_pubkey(self, for_change, n):
+        return self.get_pubkey_from_mpk(self.mpk, for_change, n)
+
     def get_private_key_from_stretched_exponent(self, for_change, n, secexp):
         order = generator_secp256k1.order()
-        secexp = ( secexp + self.get_sequence(for_change, n) ) % order
+        secexp = ( secexp + self.get_sequence(self.mpk, for_change, n) ) % order
         pk = number_to_string( secexp, generator_secp256k1.order() )
         compressed = False
         return SecretToASecret( pk, compressed )
@@ -206,6 +211,25 @@ class OldAccount(Account):
         a, b = sequence
         return 'old(%s,%d,%d)'%(self.mpk.encode('hex'),a,b)
 
+    def get_xpubkeys(self, sequence):
+        s = ''.join(map(lambda x: bitcoin.int_to_hex(x,2), sequence))
+        mpk = self.mpk.encode('hex')
+        x_pubkey = 'fe' + mpk + s
+        return [ x_pubkey ]
+
+    @classmethod
+    def parse_xpubkey(self, x_pubkey):
+        assert is_extended_pubkey(x_pubkey)
+        pk = x_pubkey[2:]
+        mpk = pk[0:128]
+        dd = pk[128:]
+        s = []
+        while dd:
+            n = int(bitcoin.rev_hex(dd[0:4]), 16)
+            dd = dd[4:]
+            s.append(n)
+        assert len(s) == 2
+        return mpk, s
 
 
 class BIP32_Account(Account):
@@ -230,6 +254,7 @@ class BIP32_Account(Account):
     def get_master_pubkeys(self):
         return [self.xpub]
 
+    @classmethod
     def get_pubkey_from_x(self, xpub, for_change, n):
         _, _, _, c, cK = deserialize_xkey(xpub)
         for i in [for_change, n]:
@@ -264,9 +289,33 @@ class BIP32_Account(Account):
     def get_type(self):
         return _('Standard 1 of 1')
 
-    def get_keyID(self, sequence):
-        s = '/' + '/'.join( map(lambda x:str(x), sequence) )
-        return '&'.join( map(lambda x: 'bip32(%s,%s)'%(x, s), self.get_master_pubkeys() ) )
+    def get_xpubkeys(self, sequence):
+        s = ''.join(map(lambda x: bitcoin.int_to_hex(x,2), sequence))
+        mpks = self.get_master_pubkeys()
+        out = []
+        for xpub in mpks:
+            pubkey = self.get_pubkey_from_x(xpub, *sequence)
+            x_pubkey = 'ff' + bitcoin.DecodeBase58Check(xpub).encode('hex') + s
+            out.append( (pubkey, x_pubkey ) )
+        # sort it, so that x_pubkeys are in the same order as pubkeys
+        out.sort()
+        return map(lambda x:x[1], out )
+
+    @classmethod
+    def parse_xpubkey(self, pubkey):
+        assert is_extended_pubkey(pubkey)
+        pk = pubkey.decode('hex')
+        pk = pk[1:]
+        xkey = bitcoin.EncodeBase58Check(pk[0:78])
+        dd = pk[78:]
+        s = []
+        while dd:
+            n = int( bitcoin.rev_hex(dd[0:2].encode('hex')), 16)
+            dd = dd[2:]
+            s.append(n)
+        assert len(s) == 2
+        return xkey, s
+
 
     def get_name(self, k):
         name = "Unnamed account"

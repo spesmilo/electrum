@@ -1024,7 +1024,7 @@ class ElectrumWindow(QMainWindow):
         def sign_thread():
             time.sleep(0.1)
             keypairs = {}
-            self.wallet.add_keypairs_from_wallet(tx, keypairs, password)
+            self.wallet.add_keypairs(tx, keypairs, password)
             self.wallet.sign_transaction(tx, keypairs, password)
             return tx, fee, label
 
@@ -1814,7 +1814,6 @@ class ElectrumWindow(QMainWindow):
     def show_qrcode(self, data, title = _("QR code")):
         if not data: 
             return
-        print_error("qrcode:", data)
         d = QRDialog(data, self, title)
         d.exec_()
 
@@ -2046,24 +2045,29 @@ class ElectrumWindow(QMainWindow):
         "json or raw hexadecimal"
         try:
             txt.decode('hex')
-            tx = Transaction(txt)
-            return tx
-        except Exception:
-            pass
+            is_hex = True
+        except:
+            is_hex = False
+
+        if is_hex:
+            try:
+                return Transaction(txt)
+            except:
+                traceback.print_exc(file=sys.stdout)
+                QMessageBox.critical(None, _("Unable to parse transaction"), _("Electrum was unable to parse your transaction"))
+                return
 
         try:
             tx_dict = json.loads(str(txt))
             assert "hex" in tx_dict.keys()
             tx = Transaction(tx_dict["hex"])
-            if tx_dict.has_key("input_info"):
-                input_info = json.loads(tx_dict['input_info'])
-                tx.add_input_info(input_info)
+            #if tx_dict.has_key("input_info"):
+            #    input_info = json.loads(tx_dict['input_info'])
+            #    tx.add_input_info(input_info)
             return tx
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            pass
-
-        QMessageBox.critical(None, _("Unable to parse transaction"), _("Electrum was unable to parse your transaction"))
+            QMessageBox.critical(None, _("Unable to parse transaction"), _("Electrum was unable to parse your transaction"))
 
 
 
@@ -2081,10 +2085,11 @@ class ElectrumWindow(QMainWindow):
 
 
     @protected
-    def sign_raw_transaction(self, tx, input_info, password):
+    def sign_raw_transaction(self, tx, password):
         try:
-            self.wallet.signrawtransaction(tx, input_info, [], password)
+            self.wallet.signrawtransaction(tx, [], password)
         except Exception as e:
+            traceback.print_exc(file=sys.stdout)
             QMessageBox.warning(self, _("Error"), str(e))
 
     def do_process_from_text(self):

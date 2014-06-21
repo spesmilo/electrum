@@ -105,17 +105,15 @@ class TxDialog(QDialog):
 
 
     def show_qr(self):
+        text = self.tx.raw.decode('hex')
         try:
-            json_text = json.dumps(self.tx.as_dict()).replace(' ', '')
-            self.parent.show_qrcode(json_text, 'Transaction')
+            self.parent.show_qrcode(text, 'Transaction')
         except Exception as e:
             self.show_message(str(e))
 
 
     def sign(self):
-        tx_dict = self.tx.as_dict()
-        input_info = json.loads(tx_dict["input_info"])
-        self.parent.sign_raw_transaction(self.tx, input_info)
+        self.parent.sign_raw_transaction(self.tx)
         self.update()
 
 
