@@ -91,7 +91,7 @@ register_command('restore',              0, 0, True,  True,  False, 'Restore a w
 register_command('setconfig',            2, 2, False, False, False, 'Set a configuration variable', 'setconfig <name> <value>')
 register_command('setlabel',             2,-1, False, True,  False, 'Assign a label to an item', 'setlabel <tx_hash> <label>')
 register_command('sendrawtransaction',   1, 1, True,  False, False, 'Broadcasts a transaction to the network.', 'sendrawtransaction <tx in hexadecimal>')
-register_command('signrawtransaction',   1, 3, False, True,  True,  'similar to bitcoind\'s command')
+register_command('signrawtransaction',   1, 3, False, True,  True,  'Sign a serailized transaction','signrawtransaction <tx in hexadecimal>')
 register_command('signmessage',          2,-1, False, True,  True,  'Sign a message with a key', signmessage_syntax)
 register_command('unfreeze',             1, 1, False, True,  False, 'Unfreeze the funds at one of your wallet\'s address', 'unfreeze <address>')
 register_command('validateaddress',      1, 1, False, False, False, 'Check that the address is valid', 'validateaddress <address>')
