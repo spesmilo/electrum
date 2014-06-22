@@ -599,16 +599,19 @@ class Transaction:
         self.raw = self.serialize( self.inputs, self.outputs )
 
 
-    def is_complete(self):
-        for i, txin in enumerate(self.inputs):
-            pubkeys = txin['pubkeys']
-            signatures = txin.get("signatures",{})
-            if len(signatures) == txin['num_sig']:
-                continue
-            else:
-                return False
-        return True
+    def signature_count(self):
+        r = 0
+        s = 0
+        for txin in self.inputs:
+            signatures = txin.get("signatures",[])
+            s += len(signatures)
+            r += txin['num_sig']
+        return s, r
 
+
+    def is_complete(self):
+        s, r = self.signature_count()
+        return r == s
 
 
     def sign(self, keypairs):
