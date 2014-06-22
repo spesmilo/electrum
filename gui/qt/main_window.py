@@ -557,7 +557,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def edit_label(self, is_recv):
-        l = self.receive_list if is_recv else self.contacts_list
+        l = self.address_list if is_recv else self.contacts_list
         item = l.currentItem()
         item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
         l.editItem( item, 1 )
