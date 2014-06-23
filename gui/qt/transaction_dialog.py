@@ -96,7 +96,8 @@ class TxDialog(QDialog):
         buttons.addWidget(cancelButton)
         cancelButton.setDefault(True)
 
-        b = QPushButton(_("Show QR code"))
+        b = QPushButton()
+        b.setIcon(QIcon(":icons/qrcode.png"))
         b.clicked.connect(self.show_qr)
         buttons.insertWidget(1,b)
         self.update()

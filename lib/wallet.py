@@ -861,7 +861,9 @@ class Abstract_Wallet:
         account = self.accounts[account_id]
         redeemScript = account.redeem_script(sequence)
         txin['x_pubkeys'] = account.get_xpubkeys(sequence)
-        txin['pubkeys'] = account.get_pubkeys(sequence) 
+        txin['pubkeys'] = pubkeys = account.get_pubkeys(sequence)
+        txin['signatures'] = [None] * len(pubkeys)
+
         if redeemScript: 
             txin['redeemScript'] = redeemScript
             txin['num_sig'] = 2

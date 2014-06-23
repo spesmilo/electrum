@@ -33,6 +33,8 @@ import struct
 import StringIO
 import mmap
 
+NO_SIGNATURE = 'ff'
+
 class SerializationError(Exception):
     """ Thrown when there's a problem deserializing or serializing """
 
@@ -303,11 +305,20 @@ def parse_sig(x_sig):
         if sig[-2:] == '01':
             s.append(sig[:-2])
         else:
-            assert sig == 'ff'
+            assert sig == NO_SIGNATURE
+            s.append(None)
     return s
 
 def is_extended_pubkey(x_pubkey):
     return x_pubkey[0:2] in ['fe', 'ff']
+
+def x_to_xpub(x_pubkey):
+    if x_pubkey[0:2] == 'ff':
+        from account import BIP32_Account
+        xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
+        return xpub
+
+        
 
 def parse_xpub(x_pubkey):
     if x_pubkey[0:2] == 'ff':
@@ -385,6 +396,7 @@ def parse_scriptSig(d, bytes):
     d['x_pubkeys'] = x_pubkeys
     pubkeys = map(parse_xpub, x_pubkeys)
     d['pubkeys'] = pubkeys
+
     redeemScript = Transaction.multisig_script(pubkeys,2)
     d['redeemScript'] = redeemScript
     d['address'] = hash_160_to_bc_address(hash_160(redeemScript.decode('hex')), 5)
@@ -413,6 +425,8 @@ def get_address_from_output_script(bytes):
         return False, hash_160_to_bc_address(decoded[1][1],5)
 
     return False, "(None)"
+
+
 
 
 class Transaction:
@@ -510,8 +524,6 @@ class Transaction:
     @classmethod
     def serialize( klass, inputs, outputs, for_sig = None ):
 
-        NO_SIGNATURE = 'ff'
-
         push_script = lambda x: op_push(len(x)/2) + x
         s  = int_to_hex(1,4)                                         # version
         s += var_int( len(inputs) )                                  # number of inputs
@@ -522,38 +534,34 @@ class Transaction:
             s += int_to_hex(txin['prevout_n'],4)                          # prev index
 
             p2sh = txin.get('redeemScript') is not None
-            n_sig = 2 if p2sh else 1
-
-            pubkeys = txin['pubkeys'] # pubkeys should always be known
+            num_sig = txin['num_sig']
             address = txin['address']
 
+            x_signatures = txin['signatures']
+            signatures = filter(lambda x: x is not None, x_signatures)
+            is_complete = len(signatures) == num_sig
+
             if for_sig is None:
-
-                # list of signatures
-                signatures = txin.get('signatures',[])
+                # if we have enough signatures, we use the actual pubkeys
+                # use extended pubkeys (with bip32 derivation)
                 sig_list = []
-                for signature in signatures:
-                    sig_list.append(signature + '01')
-                if len(sig_list) > n_sig:
-                    sig_list = sig_list[:n_sig]
-                while len(sig_list) < n_sig:
-                    sig_list.append(NO_SIGNATURE)
-                sig_list = ''.join( map( lambda x: push_script(x), sig_list))
-
-                if len(signatures) < n_sig:
-                    # extended pubkeys (with bip32 derivation)
-                    x_pubkeys = txin['x_pubkeys']
+                if is_complete:
+                    pubkeys = txin['pubkeys']
+                    for signature in signatures:
+                        sig_list.append(signature + '01')
                 else:
-                    # if we have enough signatures, we use the actual pubkeys
-                    x_pubkeys = txin['pubkeys']
+                    pubkeys = txin['x_pubkeys']
+                    for signature in x_signatures:
+                        sig_list.append((signature + '01') if signature is not None else NO_SIGNATURE)
 
+                sig_list = ''.join( map( lambda x: push_script(x), sig_list))
                 if not p2sh:
                     script = sig_list
-                    script += push_script(x_pubkeys[0])
+                    script += push_script(pubkeys[0])
                 else:
                     script = '00'                                    # op_0
                     script += sig_list
-                    redeem_script = klass.multisig_script(x_pubkeys,2)
+                    redeem_script = klass.multisig_script(pubkeys,2)
                     script += push_script(redeem_script)
 
             elif for_sig==i:
@@ -585,25 +593,21 @@ class Transaction:
         return Hash(self.raw.decode('hex') )[::-1].encode('hex')
 
     def add_signature(self, i, pubkey, sig):
-        txin = self.inputs[i]
-        signatures = txin.get("signatures",[])
-        if sig not in signatures:
-            signatures.append(sig)
-        txin["signatures"] = signatures
-        self.inputs[i] = txin
         print_error("adding signature for", pubkey)
-        # replace x_pubkey
-        i = txin['pubkeys'].index(pubkey)
-        txin['x_pubkeys'][i] = pubkey
-
-        self.raw = self.serialize( self.inputs, self.outputs )
+        txin = self.inputs[i]
+        pubkeys = txin['pubkeys']
+        ii = pubkeys.index(pubkey)
+        txin['signatures'][ii] = sig
+        txin['x_pubkeys'][ii] = pubkey
+        self.inputs[i] = txin
+        self.raw = self.serialize(self.inputs, self.outputs)
 
 
     def signature_count(self):
         r = 0
         s = 0
         for txin in self.inputs:
-            signatures = txin.get("signatures",[])
+            signatures = filter(lambda x: x is not None, txin['signatures'])
             s += len(signatures)
             r += txin['num_sig']
         return s, r
@@ -619,15 +623,13 @@ class Transaction:
 
         for i, txin in enumerate(self.inputs):
 
-            redeem_pubkeys = txin['pubkeys']
-            num = len(redeem_pubkeys)
-
-            # get list of already existing signatures
-            signatures = txin.get("signatures",{})
             # continue if this txin is complete
+            signatures = filter(lambda x: x is not None, txin['signatures'])
+            num = txin['num_sig']
             if len(signatures) == num:
                 continue
 
+            redeem_pubkeys = txin['pubkeys']
             for_sig = Hash(self.tx_for_sig(i).decode('hex'))
             for pubkey in redeem_pubkeys:
                 if pubkey in keypairs.keys():
