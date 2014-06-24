@@ -100,9 +100,10 @@ class TxDialog(QDialog):
         b.setIcon(QIcon(":icons/qrcode.png"))
         b.clicked.connect(self.show_qr)
         buttons.insertWidget(1,b)
-        self.update()
 
         run_hook('transaction_dialog', self)
+        
+        self.update()
 
 
     def show_qr(self):
@@ -186,6 +187,8 @@ class TxDialog(QDialog):
                 self.amount_label.setText(_("Amount received:")+' %s'% self.parent.format_amount(v) + ' ' + self.parent.base_unit())
         else:
             self.amount_label.setText(_("Transaction unrelated to your wallet"))
+
+        run_hook('transaction_dialog_update', self)
 
 
 
