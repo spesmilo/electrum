@@ -35,7 +35,7 @@ from electrum.plugins import run_hook
 
 import icons_rc
 
-from electrum.wallet import format_satoshis
+from electrum.util import format_satoshis
 from electrum import Transaction
 from electrum import mnemonic
 from electrum import util, bitcoin, commands, Interface, Wallet
