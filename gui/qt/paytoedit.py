@@ -46,6 +46,7 @@ class PayToEdit(QRTextEdit):
         self.outputs = []
         self.is_pr = False
         self.scan_f = self.win.pay_from_URI
+        self.update_size()
 
     def lock_amount(self):
         self.amount_edit.setFrozen(True)
