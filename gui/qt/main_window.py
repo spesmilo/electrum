@@ -134,7 +134,6 @@ class ElectrumWindow(QMainWindow):
 
         set_language(config.get('language'))
 
-        self.funds_error = False
         self.completions = QStringListModel()
 
         self.tabs = tabs = QTabWidget(self)
@@ -862,7 +861,6 @@ class ElectrumWindow(QMainWindow):
         w.setLayout(grid)
 
         def entry_changed( is_fee ):
-            self.funds_error = False
 
             if self.amount_e.is_shortcut:
                 self.amount_e.is_shortcut = False
@@ -881,6 +879,7 @@ class ElectrumWindow(QMainWindow):
 
             if not is_fee: fee = None
             if amount is None:
+                self.fee_e.setAmount(None)
                 return
             # assume that there will be 2 outputs (one for change)
             inputs, total, fee = self.wallet.choose_tx_inputs(amount, fee, 2, coins = self.get_coins())
@@ -893,7 +892,6 @@ class ElectrumWindow(QMainWindow):
             else:
                 palette = QPalette()
                 palette.setColor(self.amount_e.foregroundRole(), QColor('red'))
-                self.funds_error = True
                 text = _( "Not enough funds" )
                 c, u = self.wallet.get_frozen_balance()
                 if c+u: text += ' (' + self.format_amount(c+u).strip() + ' ' + self.base_unit() + ' ' +_("are frozen") + ')'
