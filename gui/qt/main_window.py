@@ -1021,13 +1021,15 @@ class ElectrumWindow(QMainWindow):
 
         # sign the tx
         def sign_thread():
-            time.sleep(0.1)
             keypairs = {}
-            self.wallet.add_keypairs(tx, keypairs, password)
-            self.wallet.sign_transaction(tx, keypairs, password)
-            return tx, fee, label
+            try:
+                self.wallet.add_keypairs(tx, keypairs, password)
+                self.wallet.sign_transaction(tx, keypairs, password)
+            except Exception as e:
+                tx.error = str(e)
+            return tx
 
-        def sign_done(tx, fee, label):
+        def sign_done(tx):
             if tx.error:
                 self.show_message(tx.error)
                 self.send_button.setDisabled(False)
@@ -1047,6 +1049,7 @@ class ElectrumWindow(QMainWindow):
 
             self.broadcast_transaction(tx)
 
+        # keep a reference to WaitingDialog or the gui might crash
         self.waiting_dialog = WaitingDialog(self, 'Signing..', sign_thread, sign_done)
         self.waiting_dialog.start()
 

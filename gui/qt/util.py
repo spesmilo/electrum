@@ -37,7 +37,10 @@ class WaitingDialog(QThread):
             return
 
         if self.on_complete:
-            self.on_complete(*self.result)
+            if type(self.result) is tuple:
+                self.on_complete(*self.result)
+            else:
+                self.on_complete(self.result)
 
 
 
