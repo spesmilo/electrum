@@ -75,6 +75,8 @@ class PendingAccount(Account):
     def get_name(self, k):
         return _('Pending account')
 
+    def get_master_pubkeys(self):
+        return []
 
 class ImportedAccount(Account):
     def __init__(self, d):

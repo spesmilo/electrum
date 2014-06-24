@@ -131,10 +131,13 @@ class TxDialog(QDialog):
     def update(self):
 
         is_relevant, is_mine, v, fee = self.wallet.get_tx_value(self.tx)
+        if self.wallet.can_sign(self.tx):
+            self.sign_button.show()
+        else:
+            self.sign_button.hide()
 
         if self.tx.is_complete():
             status = _("Signed")
-            self.sign_button.hide()
             tx_hash = self.tx.hash()
 
             if tx_hash in self.wallet.transactions.keys():
@@ -153,10 +156,6 @@ class TxDialog(QDialog):
             s, r = self.tx.signature_count()
             status = _("Unsigned") if s == 0 else _('Partially signed (%d/%d)'%(s,r))
             time_str = None
-            if not self.wallet.is_watching_only():
-                self.sign_button.show()
-            else:
-                self.sign_button.hide()
             self.broadcast_button.hide()
             tx_hash = 'unknown'
 

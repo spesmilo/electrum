@@ -392,47 +392,54 @@ class Abstract_Wallet:
         return self.accounts[account_id].get_pubkeys(sequence)
 
 
+    def can_sign(self, tx):
+
+        if self.is_watching_only():
+            return False
+
+        if tx.is_complete():
+            return False
+
+        addr_list, xpub_list = tx.inputs_to_sign()
+        for addr in addr_list:
+            if self.is_mine(addr):
+                return True
+
+        mpk = [ self.master_public_keys[k] for k in self.master_private_keys.keys() ]
+        for xpub, sequence in xpub_list:
+            if xpub in mpk:
+                return True
+
+        return False
+            
+
+
     def add_keypairs(self, tx, keypairs, password):
         # first check the provided password
         seed = self.get_seed(password)
 
-        for txin in tx.inputs:
-            x_pubkeys = txin['x_pubkeys']
-            address = txin['address']
+        addr_list, xpub_list = tx.inputs_to_sign()
 
-            if self.is_mine(address):
-
+        for addr in addr_list:
+            if self.is_mine(addr):
                 private_keys = self.get_private_key(address, password)
                 for sec in private_keys:
                     pubkey = public_key_from_private_key(sec)
                     keypairs[ pubkey ] = sec
 
+        for xpub, sequence in xpub_list:
+            # look for account that can sign
+            for k, account in self.accounts.items():
+                if xpub in account.get_master_pubkeys():
+                    break
             else:
+                continue
 
-                from account import BIP32_Account, OldAccount
-                for x_pubkey in x_pubkeys:
-                    if not is_extended_pubkey(x_pubkey):
-                        continue
-
-                    if x_pubkey[0:2] == 'ff':
-                        xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
-                    elif x_pubkey[0:2] == 'fe':
-                        xpub, sequence = OldAccount.parse_xpubkey(x_pubkey)
-
-                    # look for account that can sign
-                    for k, account in self.accounts.items():
-                        if xpub in account.get_master_pubkeys():
-                            break
-                    else:
-                        continue
-
-                    addr = account.get_address(*sequence)
-                    assert txin['address'] == addr
-                    pk = self.get_private_key(addr, password)
-                    for sec in pk:
-                        pubkey = public_key_from_private_key(sec)
-                        keypairs[pubkey] = sec
-
+            addr = account.get_address(*sequence)
+            pk = self.get_private_key(addr, password)
+            for sec in pk:
+                pubkey = public_key_from_private_key(sec)
+                keypairs[pubkey] = sec
 
 
 

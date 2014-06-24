@@ -618,6 +618,36 @@ class Transaction:
         return r == s
 
 
+    def inputs_to_sign(self):
+        from account import BIP32_Account, OldAccount
+        xpub_list = []
+        addr_list = set()
+        for txin in self.inputs:
+            x_signatures = txin['signatures']
+            signatures = filter(lambda x: x is not None, x_signatures)
+
+            if len(signatures) == txin['num_sig']:
+                # input is complete
+                continue
+
+            for k, x_pubkey in enumerate(txin['x_pubkeys']):
+
+                if x_signatures[k] is not None:
+                    # this pubkey already signed
+                    continue
+
+                if x_pubkey[0:2] == 'ff':
+                    xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
+                    xpub_list.append((xpub,sequence))
+                elif x_pubkey[0:2] == 'fe':
+                    xpub, sequence = OldAccount.parse_xpubkey(x_pubkey)
+                    xpub_list.add((xpub,sequence))
+                else:
+                    addr_list.add(txin['address'])
+
+        return addr_list, xpub_list
+
+
     def sign(self, keypairs):
         print_error("tx.sign(), keypairs:", keypairs)
 
