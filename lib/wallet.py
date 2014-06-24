@@ -123,7 +123,7 @@ class WalletStorage:
         f.write( s )
         f.close()
         if 'ANDROID_DATA' not in os.environ:
-            import stat  #XXX: IS this really android only?
+            import stat
             os.chmod(self.path,stat.S_IREAD | stat.S_IWRITE)
 
 
