@@ -1491,24 +1491,6 @@ class ElectrumWindow(QMainWindow):
         menu.exec_(self.invoices_list.viewport().mapToGlobal(position))
 
 
-    def update_address_item(self, item):
-        item.setFont(0, QFont(MONOSPACE_FONT))
-        address = str(item.data(0,0).toString())
-        label = self.wallet.labels.get(address,'')
-        item.setData(1,0,label)
-        item.setData(0,32, True) # is editable
-
-        run_hook('update_address_item', address, item)
-
-        if not self.wallet.is_mine(address): return
-
-        c, u = self.wallet.get_addr_balance(address)
-        balance = self.format_amount(c + u)
-        item.setData(2,0,balance)
-
-        if address in self.wallet.frozen_addresses:
-            item.setBackgroundColor(0, QColor('lightblue'))
-
 
     def update_address_tab(self):
         l = self.address_list
@@ -1551,27 +1533,22 @@ class ElectrumWindow(QMainWindow):
                 used_item = QTreeWidgetItem( [ _("Used"), '', '', '', ''] )
                 used_flag = False
 
-                is_red = False
-                gap = 0
-
-                for address in account.get_addresses(is_change):
-
+                addr_list = account.get_addresses(is_change)
+                for address in addr_list:
                     num, is_used = self.wallet.is_used(address)
-                    if num == 0:
-                        gap += 1
-                        if gap > self.wallet.gap_limit:
-                            is_red = True
-                    else:
-                        gap = 0
-
-                    item = QTreeWidgetItem( [ address, '', '', "%d"%num] )
-                    self.update_address_item(item)
-                    if is_red:
-                        item.setBackgroundColor(1, QColor('red'))
-
+                    label = self.wallet.labels.get(address,'')
+                    c, u = self.wallet.get_addr_balance(address)
+                    balance = self.format_amount(c + u)
+                    item = QTreeWidgetItem( [ address, label, balance, "%d"%num] )
+                    item.setFont(0, QFont(MONOSPACE_FONT))
+                    item.setData(0, 32, True) # label can be edited
+                    if address in self.wallet.frozen_addresses:
+                        item.setBackgroundColor(0, QColor('lightblue'))
+                    if self.wallet.is_beyond_limit(address, account, is_change):
+                        item.setBackgroundColor(0, QColor('red'))
                     if is_used:
                         if not used_flag:
-                            seq_item.insertChild(0,used_item)
+                            seq_item.insertChild(0, used_item)
                             used_flag = True
                         used_item.addChild(item)
                     else:
@@ -1598,7 +1575,6 @@ class ElectrumWindow(QMainWindow):
 
         run_hook('update_contacts_tab', l)
         l.setCurrentItem(l.topLevelItem(0))
-
 
 
     def create_console_tab(self):

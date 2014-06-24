@@ -1051,6 +1051,8 @@ class Imported_Wallet(Abstract_Wallet):
     def get_master_public_keys(self):
         return {}
 
+    def is_beyond_limit(self, address, account, is_change):
+        return False
 
 class Deterministic_Wallet(Abstract_Wallet):
 
@@ -1238,6 +1240,22 @@ class Deterministic_Wallet(Abstract_Wallet):
         self.set_label(account_id, name)
         self.accounts[account_id] = PendingAccount({'pending':addr})
         self.save_accounts()
+
+    def is_beyond_limit(self, address, account, is_change):
+        if type(account) == ImportedAccount:
+            return False
+        addr_list = account.get_addresses(is_change)
+        i = addr_list.index(address)
+        prev_addresses = addr_list[:max(0, i)]
+        limit = self.gap_limit_for_change if is_change else self.gap_limit
+        if len(prev_addresses) < limit:
+            return False
+        prev_addresses = prev_addresses[max(0, i - limit):]
+        for addr in prev_addresses:
+            num, is_used = self.is_used(addr)
+            if num > 0:
+                return False
+        return True
 
 
 class NewWallet(Deterministic_Wallet):
