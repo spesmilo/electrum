@@ -1,22 +1,28 @@
 from kivy.uix.camera import Camera
 from kivy.clock import Clock
+from kivy.utils import platform
 
-import iconv
 from electrum_gui.kivy.qr_scanner import ScannerBase
+
+import iconv 
+
 try:
     from zbar import ImageScanner, Config, Image, Symbol
 except ImportError:
-    raise SystemError('unable to import zbar please make sure you have it installed')
+    raise SystemError('unable to import zbar please make sure you have'
+        ' it installed.\nFor mac osx: `brew install zbar then\n`'
+        '`pip install https://github.com/npinchot/zbar/archive/d3c1611ad2411fbdc3e79eb96ca704a63d30ae69.zip`')
 try:
-    import Image as PILImage
+    from PIL import Image as PILImage
 except ImportError:
-    raise SystemError('unable to import Pil/pillow please install one of the two.')
+    raise SystemError('unable to import Pil/pillow'
+                      ' please install one of the two.')
 
 __all__ = ('ScannerCamera', )
 
 class ScannerCamera(ScannerBase):
-    '''Widget that use the kivy.uix.camera.Camera and zbar to detect qrcode.
-    When found, the `symbols` will be updated
+    '''Widget that use the kivy.uix.camera.Camera and zbar to detect
+    qrcode. When found, the `symbols` will be updated
     '''
 
     def __init__(self, **kwargs):
@@ -48,7 +54,8 @@ class ScannerCamera(ScannerBase):
         self._camera.play = False
         Clock.unschedule(self._detect_qrcode_frame)
         # TODO: testing for various platforms(windows, mac)
-        self._camera._camera._pipeline.set_state(1)
+        if platform == 'linux':
+            self._camera._camera._pipeline.set_state(1)
         #self._camera = None
 
     def _detect_qrcode_frame(self, *args):

@@ -56,4 +56,5 @@ class ScannerBase(AnchorLayout):
 QRScanner = core_select_lib('qr_scanner', (
     ('android', 'scanner_android', 'ScannerAndroid'),
     ('camera', 'scanner_camera', 'ScannerCamera')), False, 'electrum_gui.kivy')
+
 Factory.register('QRScanner', cls=QRScanner)

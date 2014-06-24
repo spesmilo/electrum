@@ -336,7 +336,7 @@
                         pos_hint: {'center_y': .5}
                         size_hint: None, None
                         size: '22dp', '22dp'
-                        on_release: root.scan_qr()
+                        on_release: app.scan_qr(on_complete=root.set_qr_data)
                 CardSeparator
                     opacity: message_selection.opacity
                     color: blue_bottom.foreground_color

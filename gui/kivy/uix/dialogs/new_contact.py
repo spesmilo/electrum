@@ -9,12 +9,7 @@ class NewContactDialog(Factory.AnimatedPopup):
 
     def load_qr_scanner(self):
         self.dismiss()
-        dlg = Cache.get('electrum_widgets', 'QrScannerDialog')
-        if not dlg:
-            dlg = Factory.QrScannerDialog()
-            Cache.append('electrum_widgets', 'QrScannerDialog', dlg)
-            dlg.bind(on_complete=self.on_complete)
-        dlg.open()
+        App.get_running_app().scan_qr(on_complete=self.on_complete)
 
     def on_complete(self, instance, uri):
         self.new_contact(uri=uri)

@@ -101,12 +101,13 @@ class MainScreen(Factory.Screen):
 
 class ScreenSend(CScreen):
 
-    def scan_qr(self):
-        pop = Factory.QrScannerDialog(on_complete=self.set_qr_data)
-        pop.open()
-
     def set_qr_data(self, uri):
-        self.ids.payto_e
+        self.ids.payto_e.text = uri.get('address')
+        self.ids.message_e.text = uri.get('message')
+        self.ids.amount_e.text = uri.get('amount')
+        #label = uri.get('label')
+        #if label:
+        # TODO: update label, add to contacts    
 
 
 class ScreenReceive(CScreen):

@@ -4,9 +4,9 @@ from kivy.lang import Builder
 
 Factory.register('QRScanner', module='electrum_gui.kivy.qr_scanner')
 
-class QrScannerDialog(Factory.AnimaterPopup):
+class QrScannerDialog(Factory.AnimatedPopup):
 
-    __events__('on_complete', )
+    __events__ = ('on_complete', )
 
     def on_symbols(self, instance, value):
         instance.stop()
@@ -18,6 +18,11 @@ class QrScannerDialog(Factory.AnimaterPopup):
         #message = uir.get('message', '')
         self.dispatch('on_omplete', uri)
 
+    def on_complete(self):
+        ''' Default Handler for on_complete event.
+        '''
+        pass
+
 
 Builder.load_string('''
 <QrScannerDialog>
@@ -27,7 +32,7 @@ Builder.load_string('''
     title_size: '24sp'
     border: 7, 7, 7, 7
     size_hint: None, None
-    size: '320dp', '270dp'
+    size: '340dp', '290dp'
     pos_hint: {'center_y': .53}
     separator_color: .89, .89, .89, 1
     separator_height: '1.2dp'

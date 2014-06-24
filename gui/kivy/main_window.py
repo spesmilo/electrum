@@ -200,6 +200,14 @@ class ElectrumWindow(App):
     def set_url(self, instance, url):
         self.gui_object.set_url(url)
 
+    def scan_qr(self, on_complete):
+        dlg = Cache.get('electrum_widgets', 'QrScannerDialog')
+        if not dlg:
+            dlg = Factory.QrScannerDialog()
+            Cache.append('electrum_widgets', 'QrScannerDialog', dlg)
+            dlg.bind(on_complete=on_complete)
+        dlg.open()
+
     def build(self):
         global Builder
         if not Builder:
