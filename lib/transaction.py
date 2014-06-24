@@ -641,7 +641,7 @@ class Transaction:
                     xpub_list.append((xpub,sequence))
                 elif x_pubkey[0:2] == 'fe':
                     xpub, sequence = OldAccount.parse_xpubkey(x_pubkey)
-                    xpub_list.add((xpub,sequence))
+                    xpub_list.append((xpub,sequence))
                 else:
                     addr_list.add(txin['address'])
 
