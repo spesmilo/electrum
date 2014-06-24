@@ -872,6 +872,7 @@ class ElectrumWindow(QMainWindow):
                 fee = self.wallet.estimated_fee(inputs, 1)
                 amount = total - fee
                 self.amount_e.setAmount(amount)
+                self.amount_e.textEdited.emit("")
                 self.fee_e.setAmount(fee)
                 return
 

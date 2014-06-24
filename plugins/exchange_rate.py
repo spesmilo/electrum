@@ -661,4 +661,5 @@ class Plugin(BasePlugin):
             if fiat_amount is not None:
                 self.fiat_e.setText("%.2f"%fiat_amount)
         self.btc_e.textEdited.connect(btc_changed)
+        self.btc_e.frozen.connect(lambda: self.fiat_e.setFrozen(self.btc_e.isReadOnly()))
         self.win.send_grid.addWidget(self.fiat_e, 4, 3, Qt.AlignHCenter)
