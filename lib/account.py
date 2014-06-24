@@ -91,6 +91,9 @@ class ImportedAccount(Account):
         addr = self.get_addresses(0)[i]
         return self.keypairs[addr][0]
 
+    def get_xpubkeys(self, *sequence):
+        return self.get_pubkeys(*sequence)
+
     def get_private_key(self, sequence, wallet, password):
         from wallet import pw_decode
         for_change, i = sequence

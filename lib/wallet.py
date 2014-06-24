@@ -383,11 +383,12 @@ class Abstract_Wallet:
 
     def add_keypairs(self, tx, keypairs, password):
         # first check the provided password. This will raise if invalid.
-        self.get_seed(password)
+        self.check_password(password)
+
         addr_list, xpub_list = tx.inputs_to_sign()
         for addr in addr_list:
             if self.is_mine(addr):
-                private_keys = self.get_private_key(address, password)
+                private_keys = self.get_private_key(addr, password)
                 for sec in private_keys:
                     pubkey = public_key_from_private_key(sec)
                     keypairs[ pubkey ] = sec
@@ -1005,6 +1006,20 @@ class Abstract_Wallet:
         c, u = self.get_addr_balance(address)
         return len(h), len(h) > 0 and c == -u
 
+    def address_is_old(self, address, age_limit=2):
+        age = -1
+        h = self.history.get(address, [])
+        if h == ['*']:
+            return True
+        for tx_hash, tx_height in h:
+            if tx_height == 0:
+                tx_age = 0
+            else:
+                tx_age = self.network.get_local_height() - tx_height + 1
+            if tx_age > age:
+                age = tx_age
+        return age > age_limit
+
 
 class Imported_Wallet(Abstract_Wallet):
 
@@ -1032,6 +1047,9 @@ class Imported_Wallet(Abstract_Wallet):
     def is_used(self, address):
         h = self.history.get(address,[])
         return len(h), False
+
+    def get_master_public_keys(self):
+        return {}
 
 
 class Deterministic_Wallet(Abstract_Wallet):
@@ -1114,20 +1132,6 @@ class Deterministic_Wallet(Abstract_Wallet):
                     n += 1
                     if n > nmax: nmax = n
         return nmax + 1
-
-    def address_is_old(self, address):
-        age = -1
-        h = self.history.get(address, [])
-        if h == ['*']:
-            return True
-        for tx_hash, tx_height in h:
-            if tx_height == 0:
-                tx_age = 0
-            else:
-                tx_age = self.network.get_local_height() - tx_height + 1
-            if tx_age > age:
-                age = tx_age
-        return age > 2
 
     def synchronize_sequence(self, account, for_change):
         limit = self.gap_limit_for_change if for_change else self.gap_limit
@@ -1274,7 +1278,7 @@ class NewWallet(Deterministic_Wallet):
 
     def create_accounts(self, password):
         # First check the password is valid (this raises if it isn't).
-        pw_decode(self.seed, password)
+        self.check_password(password)
         self.create_account('Main account', password)
 
     def add_master_public_key(self, name, mpk):
