@@ -137,7 +137,7 @@ class Plugin(BasePlugin):
                 if self.config.get("video_device") == "default":
                     self.video_device_edit.setText("")
                 else:
-                    self.video_device_edit.setText(self.config.get("video_device"))
+                    self.video_device_edit.setText(self.config.get("video_device",''))
             else:
                 custom_device_label.setVisible(False)
                 self.video_device_edit.setVisible(False)
