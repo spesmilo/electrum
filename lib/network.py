@@ -72,7 +72,9 @@ from simple_config import SimpleConfig
 
 class Network(threading.Thread):
 
-    def __init__(self, config = {}):
+    def __init__(self, config=None):
+        if config is None:
+            config = {}  # Do not use mutables as default values!
         threading.Thread.__init__(self)
         self.daemon = True
         self.config = SimpleConfig(config) if type(config) == type({}) else config

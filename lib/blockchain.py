@@ -241,7 +241,9 @@ class Blockchain(threading.Thread):
                 return h 
 
 
-    def get_target(self, index, chain=[]):
+    def get_target(self, index, chain=None):
+        if chain is None:
+            chain = []  # Do not use mutables as default values!
 
         max_target = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
         if index == 0: return 0x1d00ffff, max_target
