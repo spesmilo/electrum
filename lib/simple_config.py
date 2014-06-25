@@ -83,7 +83,6 @@ class SimpleConfig(object):
         set_config(self)  # Make a singleton instance of 'self'
 
     def init_path(self):
-
         # Read electrum path in the command line configuration
         self.path = self.current_options.get('electrum_path')
 

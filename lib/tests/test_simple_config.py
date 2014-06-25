@@ -57,9 +57,22 @@ class Test_SimpleConfig(unittest.TestCase):
         self.assertEqual(self.options.get("electrum_path"),
                          config.get("electrum_path"))
 
+    def test_simple_config_system_config_ignored_if_portable(self):
+        """If electrum is started with the "portable" flag, system
+        configuration is completely ignored."""
+        another_path = tempfile.mkdtemp()
+        fake_read_system = lambda : {"electrum_path": self.electrum_dir}
+        fake_read_user = lambda _: {"electrum_path": another_path}
+        read_user_dir = lambda : self.user_dir
+        config = SimpleConfig(options={"portable": True},
+                              read_system_config_function=fake_read_system,
+                              read_user_config_function=fake_read_user,
+                              read_user_dir_function=read_user_dir)
+        self.assertEqual(another_path, config.get("electrum_path"))
+
     def test_simple_config_user_config_is_used_if_others_arent_specified(self):
-        """Options passed by command line override all other configuration
-        sources"""
+        """If no system-wide configuration and no command-line options are
+        specified, the user configuration is used instead."""
         fake_read_system = lambda : {}
         fake_read_user = lambda _: {"electrum_path": self.electrum_dir}
         read_user_dir = lambda : self.user_dir
@@ -100,6 +113,20 @@ class Test_SimpleConfig(unittest.TestCase):
         fake_read_user = lambda _: {"electrum_path": self.electrum_dir}
         read_user_dir = lambda : self.user_dir
         config = SimpleConfig(options={},
+                              read_system_config_function=fake_read_system,
+                              read_user_config_function=fake_read_user,
+                              read_user_dir_function=read_user_dir)
+        config.set_key("electrum_path", another_path)
+        self.assertEqual(another_path, config.get("electrum_path"))
+
+    def test_can_set_options_from_system_config_if_portable(self):
+        """If the "portable" flag is set, the user can overwrite system
+        configuration options."""
+        another_path = tempfile.mkdtemp()
+        fake_read_system = lambda : {"electrum_path": self.electrum_dir}
+        fake_read_user = lambda _: {}
+        read_user_dir = lambda : self.user_dir
+        config = SimpleConfig(options={"portable": True},
                               read_system_config_function=fake_read_system,
                               read_user_config_function=fake_read_user,
                               read_user_dir_function=read_user_dir)
