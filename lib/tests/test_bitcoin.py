@@ -17,9 +17,9 @@ class Test_bitcoin(unittest.TestCase):
 
     def test_crypto(self):
         for message in ["Chancellor on brink of second bailout for banks", chr(255)*512]:
-            self.do_test_crypto(message)
+            self._do_test_crypto(message)
 
-    def do_test_crypto(self, message):
+    def _do_test_crypto(self, message):
         G = generator_secp256k1
         _r  = G.order()
         pvk = ecdsa.util.randrange( pow(2,256) ) %_r
