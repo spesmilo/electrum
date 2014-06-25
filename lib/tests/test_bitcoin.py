@@ -5,7 +5,8 @@ from ecdsa.util import number_to_string
 from lib.bitcoin import (
     generator_secp256k1, point_to_ser, public_key_to_bc_address, EC_KEY,
     bip32_root, bip32_public_derivation, bip32_private_derivation, pw_encode,
-    pw_decode)
+    pw_decode, Hash, public_key_from_private_key, address_from_private_key,
+    is_valid, is_private_key)
 
 try:
     import ecdsa
@@ -46,20 +47,17 @@ class Test_bitcoin(unittest.TestCase):
         #print signature
         EC_KEY.verify_message(addr_c, signature, message)
 
-
-
     def test_bip32(self):
         # see https://en.bitcoin.it/wiki/BIP_0032_TestVectors
-        xpub, xprv = self.do_test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000")
+        xpub, xprv = self._do_test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000")
         assert xpub == "xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy"
         assert xprv == "xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76"
 
-        xpub, xprv = self.do_test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","m/0/2147483647'/1/2147483646'/2")
+        xpub, xprv = self._do_test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","m/0/2147483647'/1/2147483646'/2")
         assert xpub == "xpub6FnCn6nSzZAw5Tw7cgR9bi15UV96gLZhjDstkXXxvCLsUXBGXPdSnLFbdpq8p9HmGsApME5hQTZ3emM2rnY5agb9rXpVGyy3bdW6EEgAtqt"
         assert xprv == "xprvA2nrNbFZABcdryreWet9Ea4LvTJcGsqrMzxHx98MMrotbir7yrKCEXw7nadnHM8Dq38EGfSh6dqA9QWTyefMLEcBYJUuekgW4BYPJcr9E7j"
 
-
-    def do_test_bip32(self, seed, sequence):
+    def _do_test_bip32(self, seed, sequence):
         xprv, xpub = bip32_root(seed)
         assert sequence[0:2] == "m/"
         path = 'm'
@@ -75,12 +73,43 @@ class Test_bitcoin(unittest.TestCase):
 
         return xpub, xprv
 
+    def test_aes_homomorphic(self):
+        """Make sure AES is homomorphic."""
+        payload = u'\u66f4\u7a33\u5b9a\u7684\u4ea4\u6613\u5e73\u53f0'
+        password = u'secret'
+        enc = pw_encode(payload, password)
+        dec = pw_decode(enc, password)
+        self.assertEqual(dec, payload)
 
-    def test_aes(self):
-        s = u'\u66f4\u7a33\u5b9a\u7684\u4ea4\u6613\u5e73\u53f0'
-        self.do_test_aes(s, s)
+    def test_hash(self):
+        """Make sure the Hash function does sha256 twice"""
+        payload = u"test"
+        expected = '\x95MZI\xfdp\xd9\xb8\xbc\xdb5\xd2R&x)\x95\x7f~\xf7\xfalt\xf8\x84\x19\xbd\xc5\xe8"\t\xf4'
 
-    def do_test_aes(self, s, p):
-        enc = pw_encode(s, p)
-        dec = pw_decode(enc, p)
-        assert dec == s
+        result = Hash(payload)
+        self.assertEqual(expected, result)
+
+
+class Test_keyImport(unittest.TestCase):
+    """ The keys used in this class are TEST keys from
+        https://en.bitcoin.it/wiki/BIP_0032_TestVectors"""
+
+    private_key = "L52XzL2cMkHxqxBXRyEpnPQZGUs3uKiL3R11XbAdHigRzDozKZeW"
+    public_key_hex = "0339a36013301597daef41fbe593a02cc513d0b55527ec2df1050e2e8ff49c85c2"
+    main_address = "15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma"
+
+    def test_public_key_from_private_key(self):
+        result = public_key_from_private_key(self.private_key)
+        self.assertEqual(self.public_key_hex, result)
+
+    def test_address_from_private_key(self):
+        result = address_from_private_key(self.private_key)
+        self.assertEqual(self.main_address, result)
+
+    def test_is_valid_address(self):
+        self.assertTrue(is_valid(self.main_address))
+        self.assertFalse(is_valid("not an address"))
+
+    def test_is_private_key(self):
+        self.assertTrue(is_private_key(self.private_key))
+        self.assertFalse(is_private_key(self.public_key_hex))

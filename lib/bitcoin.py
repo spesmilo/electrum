@@ -24,6 +24,7 @@ import sys
 import hmac
 
 from util import print_error
+from version import SEED_PREFIX
 
 try:
     import ecdsa
@@ -44,12 +45,14 @@ MIN_RELAY_TX_FEE = 1000
 EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
 DecodeAES = lambda secret, e: aes.decryptData(secret, base64.b64decode(e))
 
+
 def pw_encode(s, password):
     if password:
         secret = Hash(password)
         return EncodeAES(secret, s.encode("utf8"))
     else:
         return s
+
 
 def pw_decode(s, password):
     if password is not None:
@@ -63,16 +66,15 @@ def pw_decode(s, password):
         return s
 
 
-
-
-
 def rev_hex(s):
     return s.decode('hex')[::-1].encode('hex')
+
 
 def int_to_hex(i, length=1):
     s = hex(i)[2:].rstrip('L')
     s = "0"*(2*length - len(s)) + s
     return rev_hex(s)
+
 
 def var_int(i):
     # https://en.bitcoin.it/wiki/Protocol_specification#Variable_length_integer
@@ -85,6 +87,7 @@ def var_int(i):
     else:
         return "ff"+int_to_hex(i,8)
 
+
 def op_push(i):
     if i<0x4c:
         return int_to_hex(i)
@@ -96,17 +99,19 @@ def op_push(i):
         return '4e' + int_to_hex(i,4)
 
 
-
 def sha256(x):
     return hashlib.sha256(x).digest()
+
 
 def Hash(x):
     if type(x) is unicode: x=x.encode('utf-8')
     return sha256(sha256(x))
 
+
 hash_encode = lambda x: x[::-1].encode('hex')
 hash_decode = lambda x: x.decode('hex')[::-1]
 hmac_sha_512 = lambda x,y: hmac.new(x, y, hashlib.sha512).digest()
+
 
 def mnemonic_to_seed(mnemonic, passphrase):
     from pbkdf2 import PBKDF2
@@ -114,7 +119,7 @@ def mnemonic_to_seed(mnemonic, passphrase):
     PBKDF2_ROUNDS = 2048
     return PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
 
-from version import SEED_PREFIX
+
 is_new_seed = lambda x: hmac_sha_512("Seed version", x.encode('utf8')).encode('hex')[0:2].startswith(SEED_PREFIX)
 
 def is_old_seed(seed):
@@ -214,6 +219,7 @@ def bc_address_to_hash_160(addr):
 __b58chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 __b58base = len(__b58chars)
 
+
 def b58encode(v):
     """ encode v, which is a string of bytes, to base58."""
 
@@ -236,6 +242,7 @@ def b58encode(v):
         else: break
 
     return (__b58chars[0]*nPad) + result
+
 
 def b58decode(v, length):
     """ decode v into a string of len bytes."""
@@ -266,6 +273,7 @@ def EncodeBase58Check(vchIn):
     hash = Hash(vchIn)
     return b58encode(vchIn + hash[0:4])
 
+
 def DecodeBase58Check(psz):
     vchRet = b58decode(psz, None)
     key = vchRet[0:-4]
@@ -277,8 +285,10 @@ def DecodeBase58Check(psz):
     else:
         return key
 
+
 def PrivKeyToSecret(privkey):
     return privkey[9:9+32]
+
 
 def SecretToASecret(secret, compressed=False, addrtype=0):
     vchIn = chr((addrtype+128)&255) + secret
@@ -299,14 +309,18 @@ def regenerate_key(sec):
     b = b[0:32]
     return EC_KEY(b)
 
+
 def GetPubKey(pubkey, compressed=False):
     return i2o_ECPublicKey(pubkey, compressed)
+
 
 def GetPrivKey(pkey, compressed=False):
     return i2d_ECPrivateKey(pkey, compressed)
 
+
 def GetSecret(pkey):
     return ('%064x' % pkey.secret).decode('hex')
+
 
 def is_compressed(sec):
     b = ASecretToSecret(sec)
@@ -694,14 +708,7 @@ def bip32_public_derivation(xpub, branch, sequence):
     return EncodeBase58Check(xpub)
 
 
-
-
 def bip32_private_key(sequence, k, chain):
     for i in sequence:
         k, chain = CKD_priv(k, chain, i)
     return SecretToASecret(k, True)
-
-
-
-
-
