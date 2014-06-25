@@ -34,7 +34,9 @@ class NetworkProxy(threading.Thread):
     # connects to daemon
     # sends requests, runs callbacks
 
-    def __init__(self, config = {}):
+    def __init__(self, config=None):
+        if config is None:
+            config = {}  # Do not use mutables as default arguments!
         threading.Thread.__init__(self)
         self.daemon = True
         self.config = SimpleConfig(config) if type(config) == type({}) else config
