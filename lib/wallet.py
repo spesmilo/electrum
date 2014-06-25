@@ -128,6 +128,10 @@ class WalletStorage:
 
 
 class Abstract_Wallet:
+    """
+    Wallet classes are created to handle various address generation methods.
+    Completion states (watching-only, single account, no seed, etc) are handled inside classes.
+    """
 
     def __init__(self, storage):
         self.storage = storage
@@ -1252,8 +1256,7 @@ class Deterministic_Wallet(Abstract_Wallet):
             return False
         prev_addresses = prev_addresses[max(0, i - limit):]
         for addr in prev_addresses:
-            num, is_used = self.is_used(addr)
-            if num > 0:
+            if self.address_is_old(addr):
                 return False
         return True
 
