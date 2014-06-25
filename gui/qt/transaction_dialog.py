@@ -96,12 +96,14 @@ class TxDialog(QDialog):
         buttons.addWidget(cancelButton)
         cancelButton.setDefault(True)
 
-        b = QPushButton(_("Show QR code"))
+        b = QPushButton()
+        b.setIcon(QIcon(":icons/qrcode.png"))
         b.clicked.connect(self.show_qr)
         buttons.insertWidget(1,b)
-        self.update()
 
         run_hook('transaction_dialog', self)
+        
+        self.update()
 
 
     def show_qr(self):
@@ -130,10 +132,13 @@ class TxDialog(QDialog):
     def update(self):
 
         is_relevant, is_mine, v, fee = self.wallet.get_tx_value(self.tx)
+        if self.wallet.can_sign(self.tx):
+            self.sign_button.show()
+        else:
+            self.sign_button.hide()
 
         if self.tx.is_complete():
             status = _("Signed")
-            self.sign_button.hide()
             tx_hash = self.tx.hash()
 
             if tx_hash in self.wallet.transactions.keys():
@@ -152,10 +157,6 @@ class TxDialog(QDialog):
             s, r = self.tx.signature_count()
             status = _("Unsigned") if s == 0 else _('Partially signed (%d/%d)'%(s,r))
             time_str = None
-            if not self.wallet.is_watching_only():
-                self.sign_button.show()
-            else:
-                self.sign_button.hide()
             self.broadcast_button.hide()
             tx_hash = 'unknown'
 
@@ -186,6 +187,8 @@ class TxDialog(QDialog):
                 self.amount_label.setText(_("Amount received:")+' %s'% self.parent.format_amount(v) + ' ' + self.parent.base_unit())
         else:
             self.amount_label.setText(_("Transaction unrelated to your wallet"))
+
+        run_hook('transaction_dialog_update', self)
 
 
 

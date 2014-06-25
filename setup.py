@@ -103,6 +103,7 @@ setup(
         'electrum_ltc_gui.qt.password_dialog',
         'electrum_ltc_gui.qt.paytoedit',
         'electrum_ltc_gui.qt.qrcodewidget',
+        'electrum_ltc_gui.qt.qrtextedit',
         'electrum_ltc_gui.qt.receiving_widget',
         'electrum_ltc_gui.qt.seed_dialog',
         'electrum_ltc_gui.qt.transaction_dialog',

@@ -75,6 +75,8 @@ class PendingAccount(Account):
     def get_name(self, k):
         return _('Pending account')
 
+    def get_master_pubkeys(self):
+        return []
 
 class ImportedAccount(Account):
     def __init__(self, d):
@@ -88,6 +90,9 @@ class ImportedAccount(Account):
         assert for_change == 0
         addr = self.get_addresses(0)[i]
         return self.keypairs[addr][0]
+
+    def get_xpubkeys(self, *sequence):
+        return self.get_pubkeys(*sequence)
 
     def get_private_key(self, sequence, wallet, password):
         from wallet import pw_decode

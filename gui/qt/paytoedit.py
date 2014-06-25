@@ -46,6 +46,7 @@ class PayToEdit(QRTextEdit):
         self.outputs = []
         self.is_pr = False
         self.scan_f = self.win.pay_from_URI
+        self.update_size()
 
     def lock_amount(self):
         self.amount_edit.setFrozen(True)
@@ -122,6 +123,8 @@ class PayToEdit(QRTextEdit):
             self.amount_edit.setAmount(total)
         else:
             self.amount_edit.setText("")
+
+        self.amount_edit.textEdited.emit("")
 
         if total or len(lines)>1:
             self.lock_amount()

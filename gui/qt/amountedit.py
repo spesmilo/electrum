@@ -6,10 +6,12 @@ from PyQt4.QtGui import *
 from decimal import Decimal
 
 class MyLineEdit(QLineEdit):
+    frozen = pyqtSignal()
 
     def setFrozen(self, b):
         self.setReadOnly(b)
         self.setFrame(not b)
+        self.frozen.emit()
 
 class AmountEdit(MyLineEdit):
 
