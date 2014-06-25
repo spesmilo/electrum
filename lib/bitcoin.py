@@ -656,6 +656,27 @@ def deserialize_xkey(xkey):
     return depth, fingerprint, child_number, c, K_or_k
 
 
+def get_xkey_name(xkey):
+    depth, fingerprint, child_number, c, K = deserialize_xkey(xkey)
+    n = int(child_number.encode('hex'), 16)
+    if n & BIP32_PRIME:
+        child_id = "%d'"%(n - BIP32_PRIME)
+    else:
+        child_id = "%d"%n
+    if depth == 0:
+        return ''
+    elif depth == 1:
+        return child_id
+    else:
+        raise BaseException("xpub depth error")
+
+
+def xpub_from_xprv(xprv):
+    depth, fingerprint, child_number, c, k = deserialize_xkey(xprv)
+    K, cK = get_pubkeys_from_secret(k)
+    xpub = "0488B21E".decode('hex') + chr(depth) + fingerprint + child_number + c + cK
+    return EncodeBase58Check(xpub)
+
 
 def bip32_root(seed):
     import hmac
