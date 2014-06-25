@@ -6,7 +6,7 @@ from lib.bitcoin import (
     generator_secp256k1, point_to_ser, public_key_to_bc_address, EC_KEY,
     bip32_root, bip32_public_derivation, bip32_private_derivation, pw_encode,
     pw_decode, Hash, public_key_from_private_key, address_from_private_key,
-    is_valid, is_private_key)
+    is_valid, is_private_key, mnemonic_to_seed)
 
 try:
     import ecdsa
@@ -133,3 +133,20 @@ class Test_keyImport(unittest.TestCase):
     def test_is_private_key(self):
         self.assertTrue(is_private_key(self.private_key))
         self.assertFalse(is_private_key(self.public_key_hex))
+
+
+class Test_mnemonic(unittest.TestCase):
+
+    def test_mnemonic_to_seed_no_passphrase(self):
+        mnemonic = "remember you must"
+        passphrase = ""
+        expected = '\xa5\x05c!\x97\x8dv2\x11P\x00\x88\x1a\xfbn;\xa6m\xe4a\n"\xf7\x1a\x8e\x10\xbc\xa7\xf2c\xcfX\xa8v;F\x0f&0\x93\xd9l\xd4\xe0\x1a\xc3Y\xa0b\xbb\xd3\xa6=\x00|0\xb6\xd6\x87*Y\x02\xb5i'
+        result = mnemonic_to_seed(mnemonic, passphrase)
+        self.assertEqual(expected, result)
+
+    def test_mnemonic_to_seed_with_passphrase(self):
+        mnemonic = "remember you must"
+        passphrase = "secret"
+        expected = '\x1c\x11u\xd0\xca$DsrK\xa8\xe63\x9e\xfa\x02|\xb4\xdb\xdc~\x86\xbf\xf2Z\xe6\xb6\x17D\x11S\xc0\xa1\x0f$m\xb8\xf3\xad\x12\x83@B]\xe8^\x82\x10z\xe8V\xba\x81.Ou\x1c\x93&\xe8\xac\xf6\x9a\xf9'
+        result = mnemonic_to_seed(mnemonic, passphrase)
+        self.assertEqual(expected, result)
