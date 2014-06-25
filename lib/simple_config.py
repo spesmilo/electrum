@@ -137,6 +137,7 @@ class SimpleConfig(object):
 
 def read_system_config():
     """Parse and return the system config settings in /etc/electrum.conf."""
+    result = {}
     if os.path.exists(SYSTEM_CONFIG_PATH):
         try:
             import ConfigParser
@@ -152,7 +153,7 @@ def read_system_config():
                 result[k] = v
         except ConfigParser.NoSectionError:
             pass
-        return result
+    return result
 
 def read_user_config(path):
     """Parse and store the user config settings in electrum.conf into user_config[]."""
