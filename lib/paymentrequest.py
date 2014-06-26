@@ -51,7 +51,7 @@ ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'applicatio
 
 
 ca_list = {}
-ca_path = os.path.expanduser("~/.electrum/ca/ca-bundle.crt")
+ca_path = requests.certs.where()
 
 
 
@@ -320,12 +320,17 @@ if __name__ == "__main__":
         uri = sys.argv[1]
     except:
         print "usage: %s url"%sys.argv[0]
-        print "example url: \"bitcoin:mpu3yTLdqA1BgGtFUwkVJmhnU3q5afaFkf?r=https%3A%2F%2Fbitcoincore.org%2F%7Egavin%2Ff.php%3Fh%3D2a828c05b8b80dc440c80a5d58890298&amount=1\""
+        print "example url: \"bitcoin:17KjQgnXC96jakzJe9yo8zxqerhqNptmhq?amount=0.0018&r=https%3A%2F%2Fbitpay.com%2Fi%2FMXc7qTM5f87EC62SWiS94z\""
         sys.exit(1)
 
-    address, amount, label, message, request_url, url = util.parse_url(uri)
-    pr = PaymentRequest(request_url)
+    address, amount, label, message, request_url = util.parse_URI(uri)
+    from simple_config import SimpleConfig
+    config = SimpleConfig()
+    pr = PaymentRequest(config)
+    pr.read(request_url)
     if not pr.verify():
+        print 'verify failed'
+        print pr.error
         sys.exit(1)
 
     print 'Payment Request Verified Domain: ', pr.domain
