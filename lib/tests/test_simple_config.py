@@ -136,8 +136,9 @@ class Test_SimpleConfig(unittest.TestCase):
         config.set_key("electrum_path", another_path)
         self.assertEqual(another_path, config.get("electrum_path"))
 
-    def test_user_config_is_not_written_with_system_config(self):
-        """The user config does not contain command-line options when saved."""
+    def test_user_config_is_not_written_with_read_only_config(self):
+        """The user config does not contain command-line options or system
+        options when saved."""
         fake_read_system = lambda : {"something": "b"}
         fake_read_user = lambda _: {"something": "a"}
         read_user_dir = lambda : self.user_dir
