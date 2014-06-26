@@ -135,10 +135,10 @@ class SimpleConfig(object):
             import stat
             os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
 
-def read_system_config():
+def read_system_config(path=SYSTEM_CONFIG_PATH):
     """Parse and return the system config settings in /etc/electrum.conf."""
     result = {}
-    if os.path.exists(SYSTEM_CONFIG_PATH):
+    if os.path.exists(path):
         try:
             import ConfigParser
         except ImportError:
@@ -146,13 +146,13 @@ def read_system_config():
             return
 
         p = ConfigParser.ConfigParser()
-        p.read(SYSTEM_CONFIG_PATH)
-        result = {}
         try:
+            p.read(path)
             for k, v in p.items('client'):
                 result[k] = v
-        except ConfigParser.NoSectionError:
+        except (ConfigParser.NoSectionError, ConfigParser.MissingSectionHeaderError):
             pass
+
     return result
 
 def read_user_config(path):

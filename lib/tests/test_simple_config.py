@@ -1,10 +1,11 @@
 import sys
+import os
 import unittest
 import tempfile
 import shutil
 
 from StringIO import StringIO
-from lib.simple_config import SimpleConfig
+from lib.simple_config import SimpleConfig, read_system_config
 
 
 class Test_SimpleConfig(unittest.TestCase):
@@ -132,3 +133,41 @@ class Test_SimpleConfig(unittest.TestCase):
                               read_user_dir_function=read_user_dir)
         config.set_key("electrum_path", another_path)
         self.assertEqual(another_path, config.get("electrum_path"))
+
+
+class TestSystemConfig(unittest.TestCase):
+
+    sample_conf = """
+[client]
+gap_limit = 5
+
+[something_else]
+everything = 42
+"""
+
+    def setUp(self):
+        super(TestSystemConfig, self).setUp()
+        self.thefile = tempfile.mkstemp(suffix=".electrum.test.conf")[1]
+
+    def tearDown(self):
+        os.remove(self.thefile)
+
+    def test_read_system_config_file_does_not_exist(self):
+        somefile = "/foo/I/do/not/exist/electrum.conf"
+        result = read_system_config(somefile)
+        self.assertEqual({}, result)
+
+    def test_read_system_config_file_returns_file_options(self):
+        with open(self.thefile, "w") as f:
+            f.write(self.sample_conf)
+
+        result = read_system_config(self.thefile)
+        self.assertEqual({"gap_limit": "5"}, result)
+
+    def test_read_system_config_file_no_sections(self):
+
+        with open(self.thefile, "w") as f:
+            f.write("gap_limit = 5")  # The file has no sections at all
+
+        result = read_system_config(self.thefile)
+        self.assertEqual({}, result)
