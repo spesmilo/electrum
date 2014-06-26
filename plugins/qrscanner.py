@@ -35,6 +35,8 @@ class Plugin(BasePlugin):
         try:
             proc = zbar.Processor()
             proc.init(video_device=self.video_device())
+        except zbar.UnsupportedError:
+            return False
         except zbar.SystemError:
             # Cannot open video device
             pass
