@@ -547,7 +547,7 @@ class Abstract_Wallet:
 
     def get_account_addresses(self, a, include_change=True):
         if a is None:
-            o = self.addresses(True)
+            o = self.addresses(include_change)
         elif a in self.accounts:
             ac = self.accounts[a]
             o = ac.get_addresses(0)
@@ -1140,10 +1140,13 @@ class Deterministic_Wallet(Abstract_Wallet):
         return nmax + 1
 
     def create_new_address(self, account, for_change):
+        if account is None:
+            account = self.default_account()
         address = account.create_new_address(for_change)
         self.history[address] = []
         self.synchronizer.add(address)
         self.save_accounts()
+        return address
 
     def synchronize_sequence(self, account, for_change):
         limit = self.gap_limit_for_change if for_change else self.gap_limit
@@ -1256,6 +1259,9 @@ class NewWallet(Deterministic_Wallet):
 
     def __init__(self, storage):
         Deterministic_Wallet.__init__(self, storage)
+
+    def default_account(self):
+        return self.accounts["m/0'"]
 
     def is_watching_only(self):
         return self.master_private_keys is {}
@@ -1401,6 +1407,9 @@ class Wallet_2of2(NewWallet):
         NewWallet.__init__(self, storage)
         self.storage.put('wallet_type', '2of2', True)
 
+    def default_account(self):
+        return self.accounts['m/']
+
     def can_create_accounts(self):
         return False
 
@@ -1461,6 +1470,9 @@ class Wallet_2of3(Wallet_2of2):
 
 
 class OldWallet(Deterministic_Wallet):
+
+    def default_account(self):
+        return self.accounts[0]
 
     def make_seed(self):
         import mnemonic
