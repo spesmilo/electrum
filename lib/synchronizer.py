@@ -35,6 +35,7 @@ class WalletSynchronizer(threading.Thread):
         self.running = False
         self.lock = threading.Lock()
         self.queue = Queue.Queue()
+        self.address_queue = Queue.Queue()
 
     def stop(self):
         with self.lock: self.running = False
@@ -42,28 +43,24 @@ class WalletSynchronizer(threading.Thread):
     def is_running(self):
         with self.lock: return self.running
 
-    
+    def add(self, address):
+        self.address_queue.put(address)
+
     def subscribe_to_addresses(self, addresses):
         messages = []
         for addr in addresses:
             messages.append(('blockchain.address.subscribe', [addr]))
         self.network.subscribe( messages, lambda i,r: self.queue.put(r))
 
-
     def run(self):
         with self.lock:
             self.running = True
-
         while self.is_running():
-
             if not self.network.is_connected():
                 self.network.wait_until_connected()
-                
             self.run_interface()
 
-
     def run_interface(self):
-
         print_error("synchronizer: connected to", self.network.main_server())
 
         requested_tx = []
@@ -84,10 +81,18 @@ class WalletSynchronizer(threading.Thread):
         self.subscribe_to_addresses(self.wallet.addresses(True))
 
         while self.is_running():
+
             # 1. create new addresses
-            new_addresses = self.wallet.synchronize()
+            self.wallet.synchronize()
 
             # request missing addresses
+            new_addresses = []
+            while True:
+                try:
+                    addr = self.address_queue.get(block=False)
+                except Queue.Empty:
+                    break
+                new_addresses.append(addr)
             if new_addresses:
                 self.subscribe_to_addresses(new_addresses)
 

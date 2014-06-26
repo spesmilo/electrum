@@ -1139,25 +1139,23 @@ class Deterministic_Wallet(Abstract_Wallet):
                     if n > nmax: nmax = n
         return nmax + 1
 
+    def create_new_address(self, account, for_change):
+        address = account.create_new_address(for_change)
+        self.history[address] = []
+        self.synchronizer.add(address)
+        self.save_accounts()
+
     def synchronize_sequence(self, account, for_change):
         limit = self.gap_limit_for_change if for_change else self.gap_limit
-        new_addresses = []
         while True:
             addresses = account.get_addresses(for_change)
             if len(addresses) < limit:
-                address = account.create_new_address(for_change)
-                self.history[address] = []
-                new_addresses.append( address )
+                self.create_new_address(account, for_change)
                 continue
-
             if map( lambda a: self.address_is_old(a), addresses[-limit:] ) == limit*[False]:
                 break
             else:
-                address = account.create_new_address(for_change)
-                self.history[address] = []
-                new_addresses.append( address )
-
-        return new_addresses
+                self.create_new_address(account, for_change)
 
     def check_pending_accounts(self):
         for account_id, addr in self.next_addresses.items():
@@ -1169,22 +1167,15 @@ class Deterministic_Wallet(Abstract_Wallet):
                 self.next_addresses.pop(account_id)
 
     def synchronize_account(self, account):
-        new = []
-        new += self.synchronize_sequence(account, 0)
-        new += self.synchronize_sequence(account, 1)
-        return new
+        self.synchronize_sequence(account, 0)
+        self.synchronize_sequence(account, 1)
 
     def synchronize(self):
         self.check_pending_accounts()
-        new = []
         for account in self.accounts.values():
             if type(account) in [ImportedAccount, PendingAccount]:
                 continue
-            new += self.synchronize_account(account)
-        if new:
-            self.save_accounts()
-            self.storage.put('addr_history', self.history, True)
-        return new
+            self.synchronize_account(account)
 
     def restore(self, callback):
         from i18n import _
