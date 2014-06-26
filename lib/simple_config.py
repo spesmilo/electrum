@@ -35,7 +35,7 @@ class SimpleConfig(object):
                  read_user_config_function=None, read_user_dir_function=None):
 
         # This is the holder of actual options for the current user.
-        self.current_options = {}
+        self.read_only_options = {}
         # This lock needs to be acquired for updating and reading the config in
         # a thread-safe way.
         self.lock = threading.RLock()
@@ -65,26 +65,23 @@ class SimpleConfig(object):
             # system conf
             system_config = read_system_config_function()
             self.system_config_keys = system_config.keys()
-            self.current_options.update(system_config)
+            self.read_only_options.update(system_config)
 
         # update the current options with the command line options last (to
         # override both others).
-        self.current_options.update(options)
+        self.read_only_options.update(options)
 
         # init path
         self.init_path()
 
         # user config.
         self.user_config = read_user_config_function(self.path)
-        # The user config is overwritten by the current config!
-        self.user_config.update(self.current_options)
-        self.current_options = self.user_config
 
         set_config(self)  # Make a singleton instance of 'self'
 
     def init_path(self):
         # Read electrum path in the command line configuration
-        self.path = self.current_options.get('electrum_path')
+        self.path = self.read_only_options.get('electrum_path')
 
         # If not set, use the user's default data directory.
         if self.path is None:
@@ -104,7 +101,6 @@ class SimpleConfig(object):
 
         with self.lock:
             self.user_config[key] = value
-            self.current_options[key] = value
             if save:
                 self.save_user_config()
 
@@ -113,7 +109,9 @@ class SimpleConfig(object):
     def get(self, key, default=None):
         out = None
         with self.lock:
-            out = self.current_options.get(key, default)
+            out = self.read_only_options.get(key)
+            if not out:
+                out = self.user_config.get(key, default)
         return out
 
     def is_modifiable(self, key):
