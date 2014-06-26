@@ -58,6 +58,7 @@ class PayToEdit(QRTextEdit):
     def setFrozen(self, b):
         self.setReadOnly(b)
         self.setStyleSheet(frozen_style if b else normal_style)
+        self.button.setHidden(b)
 
     def setGreen(self):
         self.is_pr = True
