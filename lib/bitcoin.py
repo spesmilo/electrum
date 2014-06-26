@@ -645,8 +645,8 @@ TESTNET_HEADERS = ["043587cf", "04358394"]
 BITCOIN_HEAD = "0488ade4"
 TESTNET_HEAD = "04358394"
 
+
 def deserialize_xkey(xkey, testnet=False):
-    xkey = DecodeBase58Check(xkey)
 
     if testnet:
         headers = TESTNET_HEADERS
@@ -655,7 +655,7 @@ def deserialize_xkey(xkey, testnet=False):
         headers = BITCOIN_HEADERS
         head = BITCOIN_HEAD
 
-    import ipdb; ipdb.set_trace()
+    xkey = DecodeBase58Check(xkey)
     assert len(xkey) == 78
     assert xkey[0:4].encode('hex') in headers
     depth = ord(xkey[4])
