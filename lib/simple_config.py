@@ -157,19 +157,22 @@ def read_system_config(path=SYSTEM_CONFIG_PATH):
 
 def read_user_config(path):
     """Parse and store the user config settings in electrum.conf into user_config[]."""
-    if not path: return
+    if not path: return {}  # Return a dict, since we will call update() on it.
 
     config_path = os.path.join(path, "config")
+    result = {}
     if os.path.exists(config_path):
         try:
+
             with open(config_path, "r") as f:
                 data = f.read()
-        except IOError:
-            return
-        try:
-            d = ast.literal_eval( data )  #parse raw data from reading wallet file
+            result = ast.literal_eval( data )  #parse raw data from reading wallet file
+
         except Exception:
             print_msg("Error: Cannot read config file.")
-            return
+            result = {}
 
-        return d
+        if not type(result) is dict:
+            return {}
+
+    return result

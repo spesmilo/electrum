@@ -5,7 +5,8 @@ import tempfile
 import shutil
 
 from StringIO import StringIO
-from lib.simple_config import SimpleConfig, read_system_config
+from lib.simple_config import (SimpleConfig, read_system_config,
+                               read_user_config)
 
 
 class Test_SimpleConfig(unittest.TestCase):
@@ -150,6 +151,7 @@ everything = 42
         self.thefile = tempfile.mkstemp(suffix=".electrum.test.conf")[1]
 
     def tearDown(self):
+        super(TestSystemConfig, self).tearDown()
         os.remove(self.thefile)
 
     def test_read_system_config_file_does_not_exist(self):
@@ -170,4 +172,51 @@ everything = 42
             f.write("gap_limit = 5")  # The file has no sections at all
 
         result = read_system_config(self.thefile)
+        self.assertEqual({}, result)
+
+
+class TestUserConfig(unittest.TestCase):
+
+    def setUp(self):
+        super(TestUserConfig, self).setUp()
+        self._saved_stdout = sys.stdout
+        self._stdout_buffer = StringIO()
+        sys.stdout = self._stdout_buffer
+
+        self.user_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        super(TestUserConfig, self).tearDown()
+        shutil.rmtree(self.user_dir)
+        sys.stdout = self._saved_stdout
+
+    def test_no_path_means_no_result(self):
+       result = read_user_config(None)
+       self.assertEqual({}, result)
+
+    def test_path_with_reprd_dict(self):
+        thefile = os.path.join(self.user_dir, "config")
+        payload = {"gap_limit": 5}
+        with open(thefile, "w") as f:
+            f.write(repr(payload))
+
+        result = read_user_config(self.user_dir)
+        self.assertEqual(payload, result)
+
+    def test_path_without_config_file(self):
+        """We pass a path but if does not contain a "config" file."""
+        result = read_user_config(self.user_dir)
+        self.assertEqual({}, result)
+
+    def test_path_with_reprd_object(self):
+
+        class something(object):
+            pass
+
+        thefile = os.path.join(self.user_dir, "config")
+        payload = something()
+        with open(thefile, "w") as f:
+            f.write(repr(payload))
+
+        result = read_user_config(self.user_dir)
         self.assertEqual({}, result)
