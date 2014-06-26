@@ -1,3 +1,4 @@
+import ast
 import sys
 import os
 import unittest
@@ -134,6 +135,24 @@ class Test_SimpleConfig(unittest.TestCase):
                               read_user_dir_function=read_user_dir)
         config.set_key("electrum_path", another_path)
         self.assertEqual(another_path, config.get("electrum_path"))
+
+    def test_user_config_is_not_written_with_read_only_config(self):
+        """The user config does not contain command-line options or system
+        options when saved."""
+        fake_read_system = lambda : {"something": "b"}
+        fake_read_user = lambda _: {"something": "a"}
+        read_user_dir = lambda : self.user_dir
+        self.options.update({"something": "c"})
+        config = SimpleConfig(options=self.options,
+                              read_system_config_function=fake_read_system,
+                              read_user_config_function=fake_read_user,
+                              read_user_dir_function=read_user_dir)
+        config.save_user_config()
+        contents = None
+        with open(os.path.join(self.electrum_dir, "config"), "r") as f:
+            contents = f.read()
+        result = ast.literal_eval(contents)
+        self.assertEqual({"something": "a"}, result)
 
 
 class TestSystemConfig(unittest.TestCase):
