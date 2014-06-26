@@ -876,16 +876,21 @@ class ElectrumWindow(QMainWindow):
 
             amount = self.amount_e.get_amount()
             fee = self.fee_e.get_amount()
+            outputs = self.payto_e.get_outputs()
 
-            if not is_fee: fee = None
+            if not is_fee: 
+                fee = None
+
             if amount is None:
                 self.fee_e.setAmount(None)
-                return
-            # assume that there will be 2 outputs (one for change)
-            inputs, total, fee = self.wallet.choose_tx_inputs(amount, fee, 2, coins = self.get_coins())
-            if not is_fee:
-                self.fee_e.setAmount(fee)
-            if inputs:
+                not_enough_funds = False
+            else:
+                inputs, total, fee = self.wallet.choose_tx_inputs(amount, fee, len(outputs), coins = self.get_coins())
+                not_enough_funds = len(inputs) == 0
+                if not is_fee:
+                    self.fee_e.setAmount(fee)
+                    
+            if not not_enough_funds:
                 palette = QPalette()
                 palette.setColor(self.amount_e.foregroundRole(), QColor('black'))
                 text = ""
