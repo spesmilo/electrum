@@ -1,62 +1,94 @@
-import json
 import ast
 import threading
 import os
 
 from util import user_dir, print_error, print_msg
 
+SYSTEM_CONFIG_PATH = "/etc/electrum.conf"
 
 config = None
+
+
 def get_config():
     global config
     return config
+
 
 def set_config(c):
     global config
     config = c
 
 
-class SimpleConfig:
+class SimpleConfig(object):
     """
-The SimpleConfig class is responsible for handling operations involving
-configuration files.  The constructor reads and stores the system and 
-user configurations from electrum.conf into separate dictionaries within
-a SimpleConfig instance then reads the wallet file.
-"""
-    def __init__(self, options={}):
-        self.lock = threading.Lock()
+    The SimpleConfig class is responsible for handling operations involving
+    configuration files.
 
-        # system conf, readonly
-        self.system_config = {}
+    There are 3 different sources of possible configuration values:
+        1. Command line options.
+        2. User configuration (in the user's config directory)
+        3. System configuration (in /etc/)
+    They are taken in order (1. overrides config options set in 2., that
+    override config set in 3.)
+    """
+    def __init__(self, options=None, read_system_config_function=None,
+                 read_user_config_function=None, read_user_dir_function=None):
+
+        # This is the holder of actual options for the current user.
+        self.current_options = {}
+        # This lock needs to be acquired for updating and reading the config in
+        # a thread-safe way.
+        self.lock = threading.RLock()
+        # The path for the config directory. This is set later by init_path()
+        self.path = None
+
+        if options is None:
+            options = {}  # Having a mutable as a default value is a bad idea.
+
+        # The following two functions are there for dependency injection when
+        # testing.
+        if read_system_config_function is None:
+            read_system_config_function = read_system_config
+        if read_user_config_function is None:
+            read_user_config_function = read_user_config
+        if read_user_dir_function is None:
+            self.user_dir = user_dir
+        else:
+            self.user_dir = read_user_dir_function
+
+        # Save the command-line keys to make sure we don't override them.
+        self.command_line_keys = options.keys()
+        # Save the system config keys to make sure we don't override them.
+        self.system_config_keys = []
+
         if options.get('portable') is not True:
-            self.read_system_config()
+            # system conf
+            system_config = read_system_config_function()
+            self.system_config_keys = system_config.keys()
+            self.current_options.update(system_config)
 
-        # command-line options
-        self.options_config = options
+        # update the current options with the command line options last (to
+        # override both others).
+        self.current_options.update(options)
 
         # init path
         self.init_path()
 
-        # user conf, writeable
-        self.user_config = {}
-        self.read_user_config()
+        # user config.
+        self.user_config = read_user_config_function(self.path)
+        # The user config is overwritten by the current config!
+        self.user_config.update(self.current_options)
+        self.current_options = self.user_config
 
-        set_config(self)
-
-
+        set_config(self)  # Make a singleton instance of 'self'
 
     def init_path(self):
-
         # Read electrum path in the command line configuration
-        self.path = self.options_config.get('electrum_path')
-
-        # Read electrum path in the system configuration
-        if self.path is None:
-            self.path = self.system_config.get('electrum_path')
+        self.path = self.current_options.get('electrum_path')
 
         # If not set, use the user's default data directory.
         if self.path is None:
-            self.path = user_dir()
+            self.path = self.user_dir()
 
         # Make directory if it does not yet exist.
         if not os.path.exists(self.path):
@@ -64,110 +96,32 @@ a SimpleConfig instance then reads the wallet file.
 
         print_error( "electrum directory", self.path)
 
-        # portable wallet: use the same directory for wallet and headers file
-        #if options.get('portable'):
-        #    self.wallet_config['blockchain_headers_path'] = os.path.dirname(self.path)
-            
     def set_key(self, key, value, save = True):
-        # find where a setting comes from and save it there
-        if self.options_config.get(key) is not None:
-            print "Warning: not changing '%s' because it was passed as a command-line option"%key
+        if not self.is_modifiable(key):
+            print "Warning: not changing key '%s' because it is not modifiable" \
+                  " (passed as command line option or defined in /etc/electrum.conf)"%key
             return
 
-        elif self.system_config.get(key) is not None:
-            if str(self.system_config[key]) != str(value):
-                print "Warning: not changing '%s' because it was set in the system configuration"%key
+        with self.lock:
+            self.user_config[key] = value
+            self.current_options[key] = value
+            if save:
+                self.save_user_config()
 
-        else:
-
-            with self.lock:
-                self.user_config[key] = value
-                if save: 
-                    self.save_user_config()
-
-
+        return
 
     def get(self, key, default=None):
-
         out = None
-
-        # 1. command-line options always override everything
-        if self.options_config.has_key(key) and self.options_config.get(key) is not None:
-            out = self.options_config.get(key)
-
-        # 2. user configuration 
-        elif self.user_config.has_key(key):
-            out = self.user_config.get(key)
-
-        # 2. system configuration
-        elif self.system_config.has_key(key):
-            out = self.system_config.get(key)
-
-        if out is None and default is not None:
-            out = default
-
-        # try to fix the type
-        if default is not None and type(out) != type(default):
-            import ast
-            try:
-                out = ast.literal_eval(out)
-            except Exception:
-                print "type error for '%s': using default value"%key
-                out = default
-
+        with self.lock:
+            out = self.current_options.get(key, default)
         return out
 
-
     def is_modifiable(self, key):
-        """Check if the config file is modifiable."""
-        if self.options_config.has_key(key):
+        if key in self.command_line_keys:
             return False
-        elif self.user_config.has_key(key):
-            return True
-        elif self.system_config.has_key(key):
+        if key in self.system_config_keys:
             return False
-        else:
-            return True
-
-
-    def read_system_config(self):
-        """Parse and store the system config settings in electrum.conf into system_config[]."""
-        name = '/etc/electrum.conf'
-        if os.path.exists(name):
-            try:
-                import ConfigParser
-            except ImportError:
-                print "cannot parse electrum.conf. please install ConfigParser"
-                return
-                
-            p = ConfigParser.ConfigParser()
-            p.read(name)
-            try:
-                for k, v in p.items('client'):
-                    self.system_config[k] = v
-            except ConfigParser.NoSectionError:
-                pass
-
-
-    def read_user_config(self):
-        """Parse and store the user config settings in electrum.conf into user_config[]."""
-        if not self.path: return
-
-        path = os.path.join(self.path, "config")
-        if os.path.exists(path):
-            try:
-                with open(path, "r") as f:
-                    data = f.read()
-            except IOError:
-                return
-            try:
-                d = ast.literal_eval( data )  #parse raw data from reading wallet file
-            except Exception:
-                print_msg("Error: Cannot read config file.")
-                return
-
-            self.user_config = d
-
+        return True
 
     def save_user_config(self):
         if not self.path: return
@@ -180,3 +134,45 @@ a SimpleConfig instance then reads the wallet file.
         if self.get('gui') != 'android':
             import stat
             os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
+
+def read_system_config(path=SYSTEM_CONFIG_PATH):
+    """Parse and return the system config settings in /etc/electrum.conf."""
+    result = {}
+    if os.path.exists(path):
+        try:
+            import ConfigParser
+        except ImportError:
+            print "cannot parse electrum.conf. please install ConfigParser"
+            return
+
+        p = ConfigParser.ConfigParser()
+        try:
+            p.read(path)
+            for k, v in p.items('client'):
+                result[k] = v
+        except (ConfigParser.NoSectionError, ConfigParser.MissingSectionHeaderError):
+            pass
+
+    return result
+
+def read_user_config(path):
+    """Parse and store the user config settings in electrum.conf into user_config[]."""
+    if not path: return {}  # Return a dict, since we will call update() on it.
+
+    config_path = os.path.join(path, "config")
+    result = {}
+    if os.path.exists(config_path):
+        try:
+
+            with open(config_path, "r") as f:
+                data = f.read()
+            result = ast.literal_eval( data )  #parse raw data from reading wallet file
+
+        except Exception:
+            print_msg("Error: Cannot read config file.")
+            result = {}
+
+        if not type(result) is dict:
+            return {}
+
+    return result
