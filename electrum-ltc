@@ -103,15 +103,14 @@ def print_help_cb(self, opt, value, parser):
     print_help(parser)
 
 
-def run_command(cmd, password=None, args=[]):
-    import socket
+def run_command(cmd, password=None, args=None):
+    if args is None:
+        args = []  # Do not use mutables as default values!
     if cmd.requires_network and not options.offline:
         network = NetworkProxy(config)
         if not network.start(start_daemon= (True if cmd.name!='daemon' else False)):
             print "Daemon not running"
             sys.exit(1)
-
-
 
         if wallet:
             wallet.start_threads(network)

@@ -128,6 +128,10 @@ class WalletStorage:
 
 
 class Abstract_Wallet:
+    """
+    Wallet classes are created to handle various address generation methods.
+    Completion states (watching-only, single account, no seed, etc) are handled inside classes.
+    """
 
     def __init__(self, storage):
         self.storage = storage
@@ -543,7 +547,7 @@ class Abstract_Wallet:
 
     def get_account_addresses(self, a, include_change=True):
         if a is None:
-            o = self.addresses(True)
+            o = self.addresses(include_change)
         elif a in self.accounts:
             ac = self.accounts[a]
             o = ac.get_addresses(0)
@@ -1135,25 +1139,26 @@ class Deterministic_Wallet(Abstract_Wallet):
                     if n > nmax: nmax = n
         return nmax + 1
 
+    def create_new_address(self, account, for_change):
+        if account is None:
+            account = self.default_account()
+        address = account.create_new_address(for_change)
+        self.history[address] = []
+        self.synchronizer.add(address)
+        self.save_accounts()
+        return address
+
     def synchronize_sequence(self, account, for_change):
         limit = self.gap_limit_for_change if for_change else self.gap_limit
-        new_addresses = []
         while True:
             addresses = account.get_addresses(for_change)
             if len(addresses) < limit:
-                address = account.create_new_address(for_change)
-                self.history[address] = []
-                new_addresses.append( address )
+                self.create_new_address(account, for_change)
                 continue
-
             if map( lambda a: self.address_is_old(a), addresses[-limit:] ) == limit*[False]:
                 break
             else:
-                address = account.create_new_address(for_change)
-                self.history[address] = []
-                new_addresses.append( address )
-
-        return new_addresses
+                self.create_new_address(account, for_change)
 
     def check_pending_accounts(self):
         for account_id, addr in self.next_addresses.items():
@@ -1165,22 +1170,15 @@ class Deterministic_Wallet(Abstract_Wallet):
                 self.next_addresses.pop(account_id)
 
     def synchronize_account(self, account):
-        new = []
-        new += self.synchronize_sequence(account, 0)
-        new += self.synchronize_sequence(account, 1)
-        return new
+        self.synchronize_sequence(account, 0)
+        self.synchronize_sequence(account, 1)
 
     def synchronize(self):
         self.check_pending_accounts()
-        new = []
         for account in self.accounts.values():
             if type(account) in [ImportedAccount, PendingAccount]:
                 continue
-            new += self.synchronize_account(account)
-        if new:
-            self.save_accounts()
-            self.storage.put('addr_history', self.history, True)
-        return new
+            self.synchronize_account(account)
 
     def restore(self, callback):
         from i18n import _
@@ -1252,8 +1250,7 @@ class Deterministic_Wallet(Abstract_Wallet):
             return False
         prev_addresses = prev_addresses[max(0, i - limit):]
         for addr in prev_addresses:
-            num, is_used = self.is_used(addr)
-            if num > 0:
+            if self.address_is_old(addr):
                 return False
         return True
 
@@ -1263,8 +1260,14 @@ class NewWallet(Deterministic_Wallet):
     def __init__(self, storage):
         Deterministic_Wallet.__init__(self, storage)
 
+    def default_account(self):
+        return self.accounts["m/0'"]
+
+    def is_watching_only(self):
+        return self.master_private_keys is {}
+
     def can_create_accounts(self):
-        return not self.is_watching_only()
+        return 'm/' in self.master_private_keys.keys()
 
     def get_master_public_key(self):
         return self.master_public_keys["m/"]
@@ -1288,19 +1291,29 @@ class NewWallet(Deterministic_Wallet):
         xpub = self.master_public_keys["m/"]
         assert deserialize_xkey(xpriv)[3] == deserialize_xkey(xpub)[3]
 
-    def create_watching_only_wallet(self, xpub):
-        self.storage.put('seed_version', self.seed_version, True)
-        self.add_master_public_key("m/", xpub)
+    def create_xprv_wallet(self, xprv, password):
+        xpub = bitcoin.xpub_from_xprv(xprv)
         account = BIP32_Account({'xpub':xpub})
-        self.add_account("m/", account)
+        account_id = 'm/' + bitcoin.get_xkey_name(xpub)
+        self.storage.put('seed_version', self.seed_version, True)
+        self.add_master_private_key(account_id, xprv, password)
+        self.add_master_public_key(account_id, xpub)
+        self.add_account(account_id, account)
+
+    def create_watching_only_wallet(self, xpub):
+        account = BIP32_Account({'xpub':xpub})
+        account_id = 'm/' + bitcoin.get_xkey_name(xpub)
+        self.storage.put('seed_version', self.seed_version, True)
+        self.add_master_public_key(account_id, xpub)
+        self.add_account(account_id, account)
 
     def create_accounts(self, password):
         # First check the password is valid (this raises if it isn't).
         self.check_password(password)
         self.create_account('Main account', password)
 
-    def add_master_public_key(self, name, mpk):
-        self.master_public_keys[name] = mpk
+    def add_master_public_key(self, name, xpub):
+        self.master_public_keys[name] = xpub
         self.storage.put('master_public_keys', self.master_public_keys, True)
 
     def add_master_private_key(self, name, xpriv, password):
@@ -1394,6 +1407,9 @@ class Wallet_2of2(NewWallet):
         NewWallet.__init__(self, storage)
         self.storage.put('wallet_type', '2of2', True)
 
+    def default_account(self):
+        return self.accounts['m/']
+
     def can_create_accounts(self):
         return False
 
@@ -1454,6 +1470,9 @@ class Wallet_2of3(Wallet_2of2):
 
 
 class OldWallet(Deterministic_Wallet):
+
+    def default_account(self):
+        return self.accounts[0]
 
     def make_seed(self):
         import mnemonic
@@ -1573,21 +1592,31 @@ class Wallet(object):
             return False
 
     @classmethod
-    def is_mpk(self, mpk):
+    def is_old_mpk(self, mpk):
         try:
             int(mpk, 16)
-            old = True
+            assert len(mpk) == 128
+            return True
         except:
-            old = False
+            return False
 
-        if old:
-            return len(mpk) == 128
-        else:
-            try:
-                deserialize_xkey(mpk)
-                return True
-            except:
-                return False
+    @classmethod
+    def is_xpub(self, text):
+        try:
+            assert text[0:4] == 'xpub'
+            deserialize_xkey(text)
+            return True
+        except:
+            return False
+
+    @classmethod
+    def is_xprv(self, text):
+        try:
+            assert text[0:4] == 'xprv'
+            deserialize_xkey(text)
+            return True
+        except:
+            return False
 
     @classmethod
     def is_address(self, text):
@@ -1632,19 +1661,20 @@ class Wallet(object):
         return w
 
     @classmethod
-    def from_mpk(self, mpk, storage):
-        try:
-            int(mpk, 16)
-            old = True
-        except:
-            old = False
+    def from_old_mpk(self, mpk, storage):
+        w = OldWallet(storage)
+        w.seed = ''
+        w.create_watching_only_wallet(mpk)
+        return w
 
-        if old:
-            w = OldWallet(storage)
-            w.seed = ''
-            w.create_watching_only_wallet(mpk)
-        else:
-            w = NewWallet(storage)
-            w.create_watching_only_wallet(mpk)
+    @classmethod
+    def from_xpub(self, xpub, storage):
+        w = NewWallet(storage)
+        w.create_watching_only_wallet(xpub)
+        return w
 
+    @classmethod
+    def from_xprv(self, xprv, password, storage):
+        w = NewWallet(storage)
+        w.create_xprv_wallet(xprv, password)
         return w

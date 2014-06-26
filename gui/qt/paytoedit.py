@@ -47,6 +47,7 @@ class PayToEdit(QRTextEdit):
         self.is_pr = False
         self.scan_f = self.win.pay_from_URI
         self.update_size()
+        self.payto_address = None
 
     def lock_amount(self):
         self.amount_edit.setFrozen(True)
@@ -57,6 +58,7 @@ class PayToEdit(QRTextEdit):
     def setFrozen(self, b):
         self.setReadOnly(b)
         self.setStyleSheet(frozen_style if b else normal_style)
+        self.button.setHidden(b)
 
     def setGreen(self):
         self.is_pr = True
