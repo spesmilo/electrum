@@ -21,7 +21,12 @@ from datetime import datetime
 import sys
 
 try:
-    import pyasn1
+    from pyasn1.codec.der import decoder, encoder
+    from pyasn1.type.univ import ObjectIdentifier, OctetString
+    from pyasn1.type.char import BMPString, IA5String, UTF8String
+    from pyasn1.type.useful import GeneralizedTime
+    from pyasn1_modules.rfc2459 import (Certificate, DirectoryString,
+                                        SubjectAltName)
 except ImportError:
     sys.exit("Error: pyasn1 does not seem to be installed. Try 'sudo pip install pyasn1'")
 
@@ -31,14 +36,6 @@ except ImportError:
     sys.exit("Error: tlslite does not seem to be installed. Try 'sudo pip install tlslite'")
 
 
-
-from pyasn1.codec.der import decoder, encoder
-from pyasn1.type.univ import Any, ObjectIdentifier, OctetString
-from pyasn1.type.char import BMPString, IA5String, UTF8String
-from pyasn1.type.useful import GeneralizedTime
-from pyasn1_modules.rfc2459 import (Certificate, DirectoryString,
-                                    SubjectAltName, GeneralNames,
-                                    GeneralName)
 from pyasn1_modules.rfc2459 import id_ce_subjectAltName as SUBJECT_ALT_NAME
 from pyasn1_modules.rfc2459 import id_at_commonName as COMMON_NAME
 from pyasn1_modules.rfc2459 import id_at_organizationalUnitName as OU_NAME
