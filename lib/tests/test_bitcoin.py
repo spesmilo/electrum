@@ -6,7 +6,7 @@ from lib.bitcoin import (
     generator_secp256k1, point_to_ser, public_key_to_bc_address, EC_KEY,
     bip32_root, bip32_public_derivation, bip32_private_derivation, pw_encode,
     pw_decode, Hash, public_key_from_private_key, address_from_private_key,
-    is_valid, is_private_key, mnemonic_to_seed)
+    is_valid, is_private_key, mnemonic_to_seed, xpub_from_xprv)
 
 try:
     import ecdsa
@@ -117,6 +117,22 @@ class Test_bitcoin(unittest.TestCase):
 
         result = Hash(payload)
         self.assertEqual(expected, result)
+
+    def test_xpub_from_xprv(self):
+        """We can derive the xpub key from a xprv."""
+        # Taken from test vectors in https://en.bitcoin.it/wiki/BIP_0032_TestVectors
+        xpub = "xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy"
+        xprv = "xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76"
+
+        result = xpub_from_xprv(xprv)
+        self.assertEqual(result, xpub)
+
+    def test_xpub_from_xprv_testnet(self):
+        """We can derive the xpub key from a xprv using testnet headers."""
+        xpub = "tpubDHNy3kAG39ThyiwwsgoKY4iRenXDRtce8qdCFJZXPMCJg5dsCUHayp84raLTpvyiNA9sXPob5rgqkKvkN8S7MMyXbnEhGJMW64Cf4vFAoaF"
+        xprv = "tprv8kgvuL81tmn36Fv9z38j8f4K5m1HGZRjZY2QxnXDy5PuqbP6a5TzoKWCgTcGHBu66W3TgSbAu2yX6sPza5FkHmy564Sh6gmCPUNeUt4yj2x"
+        result = xpub_from_xprv(xprv, testnet=True)
+        self.assertEqual(result, xpub)
 
 
 class Test_keyImport(unittest.TestCase):

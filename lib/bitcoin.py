@@ -700,7 +700,7 @@ def get_xkey_name(xkey, testnet=False):
         raise BaseException("xpub depth error")
 
 
-def xpub_from_xprv(xprv, testnet):
+def xpub_from_xprv(xprv, testnet=False):
     depth, fingerprint, child_number, c, k = deserialize_xkey(xprv, testnet)
     K, cK = get_pubkeys_from_secret(k)
     header_pub, _  = _get_headers(testnet)
