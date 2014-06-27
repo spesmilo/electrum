@@ -69,9 +69,14 @@ class PayToEdit(QRTextEdit):
         self.setStyleSheet("QWidget { background-color:#ffcccc;}")
 
     def parse_address_and_amount(self, line):
-        x, y = line.split(',')
-        address = self.parse_address(x)
-        amount = self.parse_amount(y)
+        m = re.match('^OP_RETURN\s+"(.+)"$', line.strip())
+        if m:
+            address = 'OP_RETURN:' + m.group(1)
+            amount = 0
+        else:
+            x, y = line.split(',')
+            address = self.parse_address(x)
+            amount = self.parse_amount(y)
         return address, amount
 
 
@@ -121,7 +126,7 @@ class PayToEdit(QRTextEdit):
         self.outputs = outputs
         self.payto_address = None
 
-        if total:
+        if outputs:
             self.amount_edit.setAmount(total)
         else:
             self.amount_edit.setText("")
@@ -202,11 +207,7 @@ class PayToEdit(QRTextEdit):
             e.ignore()
             return
 
-        isShortcut = (e.modifiers() and Qt.ControlModifier) and e.key() == Qt.Key_E
-
-        if not self.c or not isShortcut:
-            QTextEdit.keyPressEvent(self, e)
-
+        QTextEdit.keyPressEvent(self, e)
 
         ctrlOrShift = e.modifiers() and (Qt.ControlModifier or Qt.ShiftModifier)
         if self.c is None or (ctrlOrShift and e.text().isEmpty()):
@@ -216,7 +217,7 @@ class PayToEdit(QRTextEdit):
         hasModifier = (e.modifiers() != Qt.NoModifier) and not ctrlOrShift;
         completionPrefix = self.textUnderCursor()
 
-        if not isShortcut and (hasModifier or e.text().isEmpty() or completionPrefix.length() < 1 or eow.contains(e.text().right(1)) ):
+        if hasModifier or e.text().isEmpty() or completionPrefix.length() < 1 or eow.contains(e.text().right(1)):
             self.c.popup().hide()
             return
 
@@ -227,5 +228,4 @@ class PayToEdit(QRTextEdit):
         cr = self.cursorRect()
         cr.setWidth(self.c.popup().sizeHintForColumn(0) + self.c.popup().verticalScrollBar().sizeHint().width())
         self.c.complete(cr)
-
 

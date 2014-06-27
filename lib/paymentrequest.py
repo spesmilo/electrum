@@ -169,8 +169,11 @@ class PaymentRequest:
             x.slow_parse()
             x509_chain.append(x)
             if i == 0:
-                if not x.check_name(self.domain):
-                    self.error = "Certificate Domain Mismatch"
+                try:
+                    x.check_date()
+                    x.check_name(self.domain)
+                except Exception as e:
+                    self.error = str(e)
                     return
             else:
                 if not x.check_ca():

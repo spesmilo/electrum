@@ -17,7 +17,8 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-from datetime import datetime, timedelta
+from datetime import datetime
+import sys
 
 try:
     import pyasn1
@@ -56,7 +57,10 @@ def decode_str(data):
 
 
 class X509(tlslite.X509):
-    """ Child class of tlslite.X509 that uses pyasn1 """
+    """Child class of tlslite.X509 that uses pyasn1 to parse cert
+    information. Note: pyasn1 is a lot slower than tlslite, so we
+    should try to do everything in tlslite.
+    """
 
     def slow_parse(self):
         self.cert = decoder.decode(str(self.bytes), asn1Spec=Certificate())[0]
@@ -170,9 +174,8 @@ class X509(tlslite.X509):
             return None
         return not_after - datetime.utcnow()
 
-    def check_name(self, expected):
+    def check_date(self):
         not_before, not_after = self.extract_dates()
-        cert_names = self.extract_names()
         now = datetime.utcnow()
         if not_before > now:
             raise CertificateError(
@@ -180,6 +183,9 @@ class X509(tlslite.X509):
         if not_after <= now:
             raise CertificateError(
                 'Certificate has expired.')
+
+    def check_name(self, expected):
+        cert_names = self.extract_names()
         if '.' in expected:
             expected_wild = expected[expected.index('.'):]
         else:
