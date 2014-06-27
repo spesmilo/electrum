@@ -664,18 +664,20 @@ def _get_headers(testnet):
         return (BITCOIN_HEADER_PUB, BITCOIN_HEADER_PRIV)
 
 
-def deserialize_xkey(xkey, testnet=False):
-
-    if testnet:
-        headers = TESTNET_HEADERS
-        head = TESTNET_HEAD
-    else:
-        headers = BITCOIN_HEADERS
-        head = BITCOIN_HEAD
+def deserialize_xkey(xkey):
 
     xkey = DecodeBase58Check(xkey)
     assert len(xkey) == 78
-    assert xkey[0:4].encode('hex') in headers
+
+    xkey_header = xkey[0:4].encode('hex')
+    # Determine if the key is a bitcoin key or a testnet key.
+    if xkey_header in TESTNET_HEADERS:
+        head = TESTNET_HEAD
+    elif xkey_header in BITCOIN_HEADERS:
+        head = BITCOIN_HEAD
+    else:
+        raise Exception("Unknown xkey header: '%s'" % xkey_header)
+
     depth = ord(xkey[4])
     fingerprint = xkey[5:9]
     child_number = xkey[9:13]
@@ -688,7 +690,7 @@ def deserialize_xkey(xkey, testnet=False):
 
 
 def get_xkey_name(xkey, testnet=False):
-    depth, fingerprint, child_number, c, K = deserialize_xkey(xkey, testnet)
+    depth, fingerprint, child_number, c, K = deserialize_xkey(xkey)
     n = int(child_number.encode('hex'), 16)
     if n & BIP32_PRIME:
         child_id = "%d'"%(n - BIP32_PRIME)
@@ -703,7 +705,7 @@ def get_xkey_name(xkey, testnet=False):
 
 
 def xpub_from_xprv(xprv, testnet=False):
-    depth, fingerprint, child_number, c, k = deserialize_xkey(xprv, testnet)
+    depth, fingerprint, child_number, c, k = deserialize_xkey(xprv)
     K, cK = get_pubkeys_from_secret(k)
     header_pub, _  = _get_headers(testnet)
     xpub = header_pub.decode('hex') + chr(depth) + fingerprint + child_number + c + cK
@@ -725,7 +727,7 @@ def bip32_root(seed, testnet=False):
 
 def bip32_private_derivation(xprv, branch, sequence, testnet=False):
     header_pub, header_priv = _get_headers(testnet)
-    depth, fingerprint, child_number, c, k = deserialize_xkey(xprv, testnet)
+    depth, fingerprint, child_number, c, k = deserialize_xkey(xprv)
     assert sequence.startswith(branch)
     sequence = sequence[len(branch):]
     for n in sequence.split('/'):
@@ -746,7 +748,7 @@ def bip32_private_derivation(xprv, branch, sequence, testnet=False):
 
 def bip32_public_derivation(xpub, branch, sequence, testnet=False):
     header_pub, _ = _get_headers(testnet)
-    depth, fingerprint, child_number, c, cK = deserialize_xkey(xpub, testnet)
+    depth, fingerprint, child_number, c, cK = deserialize_xkey(xpub)
     assert sequence.startswith(branch)
     sequence = sequence[len(branch):]
     for n in sequence.split('/'):
