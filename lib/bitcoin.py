@@ -640,26 +640,22 @@ def _CKD_pub(cK, c, s):
     return cK_n, c_n
 
 
-BITCOIN_HEADERS = ["0488ade4", "0488b21e"]
-TESTNET_HEADERS = ["043587cf", "04358394"]
-
-BITCOIN_HEAD = "0488ade4"
-TESTNET_HEAD = "04358394"
-
-BITCOIN_HEADER_PRIV = "0488ADE4"
-BITCOIN_HEADER_PUB = "0488B21E"
+BITCOIN_HEADER_PRIV = "0488ade4"
+BITCOIN_HEADER_PUB = "0488b21e"
 
 TESTNET_HEADER_PRIV = "04358394"
-TESTNET_HEADER_PUB = "043587CF"
+TESTNET_HEADER_PUB = "043587cf"
 
+BITCOIN_HEADERS = (BITCOIN_HEADER_PUB, BITCOIN_HEADER_PRIV)
+TESTNET_HEADERS = (TESTNET_HEADER_PUB, TESTNET_HEADER_PRIV)
 
 def _get_headers(testnet):
     """Returns the correct headers for either testnet or bitcoin, in the form
     of a 2-tuple, like (public, private)."""
     if testnet:
-        return (TESTNET_HEADER_PUB, TESTNET_HEADER_PRIV)
+        return TESTNET_HEADERS
     else:
-        return (BITCOIN_HEADER_PUB, BITCOIN_HEADER_PRIV)
+        return BITCOIN_HEADERS
 
 
 def deserialize_xkey(xkey):
@@ -670,9 +666,9 @@ def deserialize_xkey(xkey):
     xkey_header = xkey[0:4].encode('hex')
     # Determine if the key is a bitcoin key or a testnet key.
     if xkey_header in TESTNET_HEADERS:
-        head = TESTNET_HEAD
+        head = TESTNET_HEADER_PRIV
     elif xkey_header in BITCOIN_HEADERS:
-        head = BITCOIN_HEAD
+        head = BITCOIN_HEADER_PRIV
     else:
         raise Exception("Unknown xkey header: '%s'" % xkey_header)
 
