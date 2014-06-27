@@ -1139,7 +1139,7 @@ class Deterministic_Wallet(Abstract_Wallet):
                     if n > nmax: nmax = n
         return nmax + 1
 
-    def create_new_address(self, account, for_change):
+    def create_new_address(self, account=None, for_change=0):
         if account is None:
             account = self.default_account()
         address = account.create_new_address(for_change)
