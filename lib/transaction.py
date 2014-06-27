@@ -428,9 +428,10 @@ def get_address_from_output_script(bytes):
 
 
 
+push_script = lambda x: op_push(len(x)/2) + x
 
 class Transaction:
-    
+
     def __init__(self, raw):
         self.raw = raw
         self.deserialize()
@@ -505,16 +506,17 @@ class Transaction:
 
     @classmethod
     def pay_script(self, addr):
+        if addr.startswith('OP_RETURN:'):
+            h = addr[10:].encode('hex')
+            return '6a' + push_script(h)
         addrtype, hash_160 = bc_address_to_hash_160(addr)
         if addrtype == 0:
             script = '76a9'                                      # op_dup, op_hash_160
-            script += '14'                                       # push 0x14 bytes
-            script += hash_160.encode('hex')
+            script += push_script(hash_160.encode('hex'))
             script += '88ac'                                     # op_equalverify, op_checksig
         elif addrtype == 5:
             script = 'a9'                                        # op_hash_160
-            script += '14'                                       # push 0x14 bytes
-            script += hash_160.encode('hex')
+            script += push_script(hash_160.encode('hex'))
             script += '87'                                       # op_equal
         else:
             raise
@@ -524,7 +526,6 @@ class Transaction:
     @classmethod
     def serialize( klass, inputs, outputs, for_sig = None ):
 
-        push_script = lambda x: op_push(len(x)/2) + x
         s  = int_to_hex(1,4)                                         # version
         s += var_int( len(inputs) )                                  # number of inputs
         for i in range(len(inputs)):

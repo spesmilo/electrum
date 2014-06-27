@@ -350,7 +350,7 @@ class Abstract_Wallet:
         raise Exception("Address not found", address)
 
     def getpubkeys(self, addr):
-        assert is_valid(addr) and self.is_mine(addr)
+        assert is_address(addr) and self.is_mine(addr)
         account, sequence = self.get_address_index(addr)
         a = self.accounts[account]
         return a.get_pubkeys( sequence )
@@ -779,7 +779,9 @@ class Abstract_Wallet:
 
     def make_unsigned_transaction(self, outputs, fee=None, change_addr=None, domain=None, coins=None ):
         for address, x in outputs:
-            assert is_valid(address), "Address " + address + " is invalid!"
+            if address.startswith('OP_RETURN:'):
+                continue
+            assert is_address(address), "Address " + address + " is invalid!"
         amount = sum( map(lambda x:x[1], outputs) )
         inputs, total, fee = self.choose_tx_inputs( amount, fee, len(outputs), domain, coins )
         if not inputs:

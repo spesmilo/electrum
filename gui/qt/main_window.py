@@ -987,7 +987,12 @@ class ElectrumWindow(QMainWindow):
             return
 
         for addr, x in outputs:
-            if addr is None or not bitcoin.is_address(addr):
+            if addr is None:
+                QMessageBox.warning(self, _('Error'), _('Bitcoin Address is None'), _('OK'))
+                return
+            if addr.startswith('OP_RETURN:'):
+                continue
+            if not bitcoin.is_address(addr):
                 QMessageBox.warning(self, _('Error'), _('Invalid Bitcoin Address'), _('OK'))
                 return
             if x is None:
