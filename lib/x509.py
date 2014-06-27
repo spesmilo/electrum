@@ -56,7 +56,10 @@ def decode_str(data):
 
 
 class X509(tlslite.X509):
-    """ Child class of tlslite.X509 that uses pyasn1 """
+    """Child class of tlslite.X509 that uses pyasn1 to parse cert
+    information. Note: pyasn1 is a lot slower than tlslite, so we
+    should try to do everything in tlslite.
+    """
 
     def slow_parse(self):
         self.cert = decoder.decode(str(self.bytes), asn1Spec=Certificate())[0]
