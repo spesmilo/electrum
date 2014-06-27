@@ -60,6 +60,8 @@ def pw_decode(s, password):
         try:
             d = DecodeAES(secret, s).decode("utf8")
         except Exception:
+            # FIXME: It seems that either DecodeAES or decode("utf-8") do not
+            # raise reliably.
             raise Exception('Invalid password')
         return d
     else:

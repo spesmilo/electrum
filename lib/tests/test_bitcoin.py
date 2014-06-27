@@ -90,13 +90,20 @@ class Test_bitcoin(unittest.TestCase):
         dec = pw_decode(enc, password)
         self.assertEqual(dec, payload)
 
+    def test_aes_encode_with_password(self):
+        """The payload is encoded when supplied a password."""
+        payload = "something"
+        password = "secret"
+        enc = pw_encode(payload, password)
+        self.assertNotEqual(payload, enc)
+
     def test_aes_encode_without_password(self):
         """When not passed a password, pw_encode is noop on the payload."""
         payload = u'\u66f4\u7a33\u5b9a\u7684\u4ea4\u6613\u5e73\u53f0'
         enc = pw_encode(payload, None)
         self.assertEqual(payload, enc)
 
-    def test_aes_deencode_without_password(self):
+    def test_aes_decode_without_password(self):
         """When not passed a password, pw_decode is noop on the payload."""
         payload = u'\u66f4\u7a33\u5b9a\u7684\u4ea4\u6613\u5e73\u53f0'
         enc = pw_decode(payload, None)
@@ -108,7 +115,18 @@ class Test_bitcoin(unittest.TestCase):
         password = u"uber secret"
         wrong_password = u"not the password"
         enc = pw_encode(payload, password)
-        self.assertRaises(Exception, pw_decode, enc, wrong_password)
+        raised = False
+        try:
+            decoded = pw_decode(enc, wrong_password)
+            # If an exception is not raised (see below), at least assert we
+            # don't just ddecode the payload!
+            self.assertNotEqual(decoded, payload)
+        except Exception:
+            # FIXME: pw_decode seems not to raise Exceptions reliably.
+            # To test, run "trial -u lib.tests.test_bitcoin.Test_bitcoin.test_aes_decode_with_invalid_password"
+            # and let it run for a while. It will eventually fail.
+            raised = True
+        self.assertTrue(raised)
 
     def test_hash(self):
         """Make sure the Hash function does sha256 twice"""
