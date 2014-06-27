@@ -170,9 +170,8 @@ class X509(tlslite.X509):
             return None
         return not_after - datetime.utcnow()
 
-    def check_name(self, expected):
+    def check_date(self):
         not_before, not_after = self.extract_dates()
-        cert_names = self.extract_names()
         now = datetime.utcnow()
         if not_before > now:
             raise CertificateError(
@@ -180,6 +179,9 @@ class X509(tlslite.X509):
         if not_after <= now:
             raise CertificateError(
                 'Certificate has expired.')
+
+    def check_name(self, expected):
+        cert_names = self.extract_names()
         if '.' in expected:
             expected_wild = expected[expected.index('.'):]
         else:
