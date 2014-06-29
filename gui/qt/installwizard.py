@@ -3,7 +3,7 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
 from electrum.i18n import _
-from electrum import Wallet, Wallet_2of2, Wallet_2of3
+from electrum import Wallet, TrezorWallet, Wallet_2of2, Wallet_2of3
 import electrum.bitcoin as bitcoin
 
 import seed_dialog
@@ -110,17 +110,23 @@ class InstallWizard(QDialog):
         bb4.setText(_("Multisig wallet (2 of 3)"))
         bb4.setHidden(True)
 
+        bb5 = QRadioButton(gb2)
+        bb5.setText(_("Trezor wallet"))
+        bb5.setHidden(True)
+
         grid2.addWidget(bb1, 4, 0)
         grid2.addWidget(bb2, 5, 0)
         grid2.addWidget(bb3, 6, 0)
         grid2.addWidget(bb4, 7, 0)
+        grid2.addWidget(bb5, 8, 0)
 
         def toggle():
             x = not bb3.isHidden()
             label2.setText(_("Wallet type:") + (' [+]' if x else ' [-]'))
             bb3.setHidden(x)
             bb4.setHidden(x)
- 
+            bb5.setHidden(x)
+
         self.connect(label2, SIGNAL('clicked()'), toggle)
 
         grid2.addWidget(label2)
@@ -129,7 +135,8 @@ class InstallWizard(QDialog):
         group2.addButton(bb2)
         group2.addButton(bb3)
         group2.addButton(bb4)
- 
+        group2.addButton(bb5)
+
         vbox.addLayout(grid2)
         vbox.addStretch(1)
         hbox, button = ok_cancel_buttons2(self, _('Next'))
@@ -152,6 +159,8 @@ class InstallWizard(QDialog):
             t = '2of2'
         elif bb4.isChecked():
             t = '2of3'
+        elif bb5.isChecked():
+            t = 'trezor'
 
         return action, t
 
@@ -387,12 +396,15 @@ class InstallWizard(QDialog):
         if action == 'new':
             action, t = self.restore_or_create()
 
-        if action is None: 
+        if action is None:
             return
-            
+
+        if t == 'trezor':
+            self.storage.put('seed', 'trezor', False)# used as wallet type marker
+
         if action == 'create':
-            if t == 'standard':
-                wallet = Wallet(self.storage)
+            if t == 'standard' or t == 'trezor':
+                wallet = Wallet(self.storage, True)
 
             elif t == '2fa':
                 wallet = Wallet_2of3(self.storage)
@@ -416,14 +428,16 @@ class InstallWizard(QDialog):
             wallet = Wallet_2of2(self.storage)
 
         if action in ['create', 'create_2of2_1', 'create_2fa_2', 'create_2of3_1']:
-            seed = wallet.make_seed()
-            sid = None if action == 'create' else 'hot'
-            if not self.show_seed(seed, sid):
-                return
-            if not self.verify_seed(seed, sid):
-                return
-            password = self.password_dialog()
-            wallet.add_seed(seed, password)
+            password = None
+            if t is not 'trezor':
+                seed = wallet.make_seed()
+                sid = None if action == 'create' else 'hot'
+                if not self.show_seed(seed, sid):
+                    return
+                if not self.verify_seed(seed, sid):
+                    return
+                password = self.password_dialog()
+                wallet.add_seed(seed, password)
             if action == 'create':
                 wallet.create_accounts(password)
                 self.waiting_dialog(wallet.synchronize)
@@ -490,9 +504,13 @@ class InstallWizard(QDialog):
                 else:
                     raise
 
+            elif t == 'trezor':
+                wallet = Wallet(self.storage, True)
+                wallet.create_accounts('')
+
             elif t in ['2fa', '2of2']:
                 r = self.multi_seed_dialog(1)
-                if not r: 
+                if not r:
                     return
                 text1, text2 = r
                 password = self.password_dialog()
@@ -525,7 +543,7 @@ class InstallWizard(QDialog):
 
             elif t in ['2of3']:
                 r = self.multi_seed_dialog(2)
-                if not r: 
+                if not r:
                     return
                 text1, text2, text3 = r
                 password = self.password_dialog()

@@ -411,18 +411,18 @@ def get_address_from_output_script(bytes):
     # 65 BYTES:... CHECKSIG
     match = [ opcodes.OP_PUSHDATA4, opcodes.OP_CHECKSIG ]
     if match_decoded(decoded, match):
-        return True, public_key_to_bc_address(decoded[0][1])
+        return False, True, public_key_to_bc_address(decoded[0][1])
 
     # Pay-by-Bitcoin-address TxOuts look like:
     # DUP HASH160 20 BYTES:... EQUALVERIFY CHECKSIG
     match = [ opcodes.OP_DUP, opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG ]
     if match_decoded(decoded, match):
-        return False, hash_160_to_bc_address(decoded[2][1])
+        return False, False, hash_160_to_bc_address(decoded[2][1])
 
     # p2sh
     match = [ opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUAL ]
     if match_decoded(decoded, match):
-        return False, hash_160_to_bc_address(decoded[1][1],5)
+        return True, False, hash_160_to_bc_address(decoded[1][1],5)
 
     return False, "(None)"
 
@@ -704,7 +704,7 @@ class Transaction:
         prevout_hash = hash_encode(vds.read_bytes(32))
         prevout_n = vds.read_uint32()
         scriptSig = vds.read_bytes(vds.read_compact_size())
-        sequence = vds.read_uint32()
+        d['sequence'] = vds.read_uint32()
 
         if prevout_hash == '00'*32:
             d['is_coinbase'] = True
@@ -712,12 +712,12 @@ class Transaction:
             d['is_coinbase'] = False
             d['prevout_hash'] = prevout_hash
             d['prevout_n'] = prevout_n
-            d['sequence'] = sequence
 
             d['pubkeys'] = []
             d['signatures'] = {}
             d['address'] = None
             if scriptSig:
+                d['scriptSig'] = scriptSig
                 parse_scriptSig(d, scriptSig)
         return d
 
@@ -726,7 +726,8 @@ class Transaction:
         d = {}
         d['value'] = vds.read_int64()
         scriptPubKey = vds.read_bytes(vds.read_compact_size())
-        is_pubkey, address = get_address_from_output_script(scriptPubKey)
+        is_p2sh, is_pubkey, address = get_address_from_output_script(scriptPubKey)
+        d['is_p2sh'] = is_p2sh
         d['is_pubkey'] = is_pubkey
         d['address'] = address
         d['scriptPubKey'] = scriptPubKey.encode('hex')

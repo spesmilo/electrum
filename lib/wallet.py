@@ -16,25 +16,28 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import sys
-import os
-import hashlib
 import ast
-import threading
-import random
-import time
+import binascii
+import cmdtr
+import hashlib
 import math
+import os
+import random
+from struct import pack
+import sys
+import threading
+import time
+from trezorlib.client import types
 
-from util import print_msg, print_error
-
-from bitcoin import *
 from account import *
+from bitcoin import *
+import bitcoin
+from plugins import run_hook
+from synchronizer import WalletSynchronizer
+from transaction import Transaction
+from util import print_msg, print_error
 from version import *
 
-from transaction import Transaction
-from plugins import run_hook
-import bitcoin
-from synchronizer import WalletSynchronizer
 
 COINBASE_MATURITY = 100
 DUST_THRESHOLD = 5430
@@ -1547,7 +1550,7 @@ class Wallet(object):
     This class is actually a factory that will return a wallet of the correct
     type when passed a WalletStorage instance."""
 
-    def __new__(self, storage):
+    def __new__(self, storage, from_gui=False):
         config = storage.config
         if config.get('bitkey', False):
             # if user requested support for Bitkey device,
@@ -1565,7 +1568,10 @@ class Wallet(object):
             return Imported_Wallet(storage)
 
         if not storage.file_exists:
-            seed_version = NEW_SEED_VERSION if config.get('bip32') is True else OLD_SEED_VERSION
+            if config.get('bip32') or storage.get('seed') == 'trezor':
+                seed_version = NEW_SEED_VERSION
+            else:
+                seed_version = OLD_SEED_VERSION
         else:
             seed_version = storage.get('seed_version')
             if not seed_version:
@@ -1574,6 +1580,8 @@ class Wallet(object):
         if seed_version == OLD_SEED_VERSION:
             return OldWallet(storage)
         elif seed_version == NEW_SEED_VERSION:
+            if storage.get('seed') == 'trezor':
+                return TrezorWallet(storage, from_gui)
             return NewWallet(storage)
         else:
             msg = "This wallet seed is not supported."
@@ -1680,3 +1688,184 @@ class Wallet(object):
         w = NewWallet(storage)
         w.create_xprv_wallet(xprv, password)
         return w
+
+
+class TrezorWallet(NewWallet):
+
+    def __init__(self, storage, from_gui):
+        self.transport = None
+        self.client = None
+        self.from_gui = from_gui
+
+        NewWallet.__init__(self, storage)
+
+        self.seed = 'trezor'
+        self.seed_version = NEW_SEED_VERSION
+        
+        self.storage.put('gap_limit', 20, False)    #obey BIP44 gap limit of 20
+
+        self.use_encryption = False
+
+        self.storage.put('seed', self.seed, False)
+        self.storage.put('seed_version', self.seed_version, False)
+        self.storage.put('use_encryption', self.use_encryption, False)
+
+    def can_create_accounts(self):
+        return True
+
+    def is_watching_only(self):
+        return False
+
+    def default_account(self):
+        return "44'/0'/0'"
+
+    def get_client(self):
+        if self.from_gui:
+            from gui.qt.trezor_gui_mixin import QtGuiTrezorClient
+            Client = QtGuiTrezorClient
+        else:
+            from trezorlib.client import TrezorClient
+            Client = TrezorClient
+
+        if not self.transport:
+            try:
+                self.transport = cmdtr.get_transport('usb', '')
+            except Exception as e:
+                if self.from_gui:
+                    Client.alert(str(e))
+                raise
+
+        if not self.client:
+            self.client = Client(self.transport)
+            self.client.set_tx_api(self)
+            #self.client.clear_session()# TODO Doesn't work with firmware 1.1, returns proto.Failure
+        return self.client
+
+    def account_id(self, i):
+        return "44'/0'/%d'"%i
+
+    def address_id(self, address):
+        account_id, (change, address_index) = self.get_address_index(address)
+        return "%s/%d/%d" % (account_id, change, address_index)
+
+    def create_accounts(self, password):
+        self.create_account('Main account', '') #name, empty password
+
+    def make_account(self, account_id, password):
+        xpub = self.get_public_key(account_id)
+        self.add_master_public_key(account_id, xpub)
+        account = BIP32_Account({'xpub':xpub})
+        return account
+
+    def get_public_key(self, bip32_path):
+        address_n = self.get_client().expand_path(bip32_path)
+        res = self.get_client().get_public_node(address_n)
+        xpub = "0488B21E".decode('hex') + chr(res.depth) + self.i4b(res.fingerprint) + self.i4b(res.child_num) + res.chain_code + res.public_key
+        return EncodeBase58Check(xpub)
+
+    def i4b(self, x):
+        return pack('I', x)
+
+    def add_keypairs(self, tx, keypairs, password):
+        #do nothing - no priv keys available
+        pass
+
+    def sign_transaction(self, tx, keypairs, password):
+        if not self.check_proper_device():
+            raise Exception('Wrong device')
+        inputs = self.tx_inputs(tx)
+        outputs = self.tx_outputs(tx)
+        signed_tx = self.get_client().sign_tx('Bitcoin', inputs, outputs)[1]
+        tx.raw = signed_tx.encode('hex')
+        tx.deserialize()
+        
+        for i, inp in enumerate(tx.d['inputs']):
+            tx.inputs[i]['signatures'] = inp['signatures']
+            tx.inputs[i]['pubkeys'] = inp['pubkeys']
+
+    def tx_inputs(self, tx):
+        inputs = []
+
+        for txinput in tx.inputs:
+            txinputtype = types.TxInputType()
+            address = txinput['address']
+            try:
+                address_path = self.address_id(address)
+                address_n = self.get_client().expand_path(address_path)
+                txinputtype.address_n.extend(address_n)
+            except: pass
+
+            if ('coinbase' in txinput and txinput['coinbase']) or ('is_coinbase' in txinput and txinput['is_coinbase']):
+                prev_hash = "\0"*32
+                prev_index = 0xffffffff # signed int -1               
+            else:        
+                prev_hash = binascii.unhexlify(txinput['prevout_hash'])
+                prev_index = txinput['prevout_n']
+
+            txinputtype.prev_hash = prev_hash
+            txinputtype.prev_index = prev_index
+
+            if 'scriptSig' in txinput:
+                script_sig = txinput['scriptSig']
+                txinputtype.script_sig = script_sig
+
+            if 'sequence' in txinput:
+                sequence = txinput['sequence']
+                txinputtype.sequence = sequence
+
+            inputs.append(txinputtype)
+            #TODO P2SH
+        return inputs
+
+    def tx_outputs(self, tx):
+        outputs = []
+
+        for output in tx.outputs:
+            txoutputtype = types.TxOutputType()
+
+            address = output[0]
+            if self.is_change(address):
+                address_path = self.address_id(address)
+                address_n = self.get_client().expand_path(address_path)
+                txoutputtype.address_n.extend(address_n)
+            else:
+                txoutputtype.address = address
+
+            amount = output[1]
+            txoutputtype.amount = amount
+
+            txoutputtype.script_type = types.PAYTOADDRESS
+            #TODO
+            #if output['is_p2sh']:
+            #    txoutputtype.script_type = types.PAYTOSCRIPTHASH
+
+            outputs.append(txoutputtype)
+        return outputs
+
+    def electrum_tx_to_txtype(self, tx):
+        t = types.TransactionType()
+        t.version = tx.d['version']
+        t.lock_time = tx.d['lockTime']
+
+        inputs = self.tx_inputs(tx)
+        t.inputs.extend(inputs)
+
+        for vout in tx.d['outputs']:
+            o = t.bin_outputs.add()
+            o.amount = vout['value']
+            o.script_pubkey = vout['scriptPubKey'].decode('hex')
+
+        return t
+
+    def get_tx(self, tx_hash):
+        tx = self.transactions[tx_hash]
+        return self.electrum_tx_to_txtype(tx)
+
+    def check_proper_device(self):
+        address = self.addresses(False, False)[0]
+        address_id = self.address_id(address)
+        n = self.get_client().expand_path(address_id)
+        device_address = self.get_client().get_address('Bitcoin', n)
+        if device_address != address:
+            return False
+        return True
