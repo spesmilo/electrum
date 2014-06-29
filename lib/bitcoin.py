@@ -711,7 +711,7 @@ def bip32_root(seed, testnet=False):
     import hmac
     header_pub, header_priv = _get_headers(testnet)
     seed = seed.decode('hex')
-    I = hmac.new("Litecoin seed", seed, hashlib.sha512).digest()
+    I = hmac.new("Bitcoin seed", seed, hashlib.sha512).digest()
     master_k = I[0:32]
     master_c = I[32:]
     K, cK = get_pubkeys_from_secret(master_k)
