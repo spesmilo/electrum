@@ -5,7 +5,8 @@ import unittest
 import os
 
 from StringIO import StringIO
-from lib.wallet import WalletStorage
+from lib.wallet import WalletStorage, NewWallet
+
 
 class FakeConfig(object):
     """A stub config file to be used in tests"""
@@ -16,14 +17,23 @@ class FakeConfig(object):
     def set(self, key, value):
         self.store[key] = value
 
-    def get(self, key):
-        return self.store.get(key, None)
+    def get(self, key, default=None):
+        return self.store.get(key, default)
 
 
-class TestWalletStorage(unittest.TestCase):
+class FakeSynchronizer(object):
+
+    def __init__(self):
+        self.store = []
+
+    def add(self, address):
+        self.store.append(address)
+
+
+class WalletTestCase(unittest.TestCase):
 
     def setUp(self):
-        super(TestWalletStorage, self).setUp()
+        super(WalletTestCase, self).setUp()
         self.user_dir = tempfile.mkdtemp()
 
         self.fake_config = FakeConfig(self.user_dir)
@@ -33,10 +43,13 @@ class TestWalletStorage(unittest.TestCase):
         sys.stdout = self._stdout_buffer
 
     def tearDown(self):
-        super(TestWalletStorage, self).tearDown()
+        super(WalletTestCase, self).tearDown()
         shutil.rmtree(self.user_dir)
         # Restore the "real" stdout
         sys.stdout = self._saved_stdout
+
+
+class TestWalletStorage(WalletTestCase):
 
     def test_init_wallet_default_path(self):
         storage = WalletStorage(self.fake_config)
@@ -57,3 +70,74 @@ class TestWalletStorage(unittest.TestCase):
         storage = WalletStorage(self.fake_config)
         self.assertEqual(path, storage.path)
 
+    def test_read_dictionnary_from_file(self):
+        path = os.path.join(self.user_dir, "somewallet")
+        self.fake_config.set("wallet_path", path)
+
+        some_dict = {"a":"b", "c":"d"}
+        contents = repr(some_dict)
+        with open(path, "w") as f:
+            contents = f.write(contents)
+
+        storage = WalletStorage(self.fake_config)
+        self.assertEqual("b", storage.get("a"))
+        self.assertEqual("d", storage.get("c"))
+
+    def test_write_dictionnary_to_file(self):
+        path = os.path.join(self.user_dir, "somewallet")
+        self.fake_config.set("wallet_path", path)
+
+        storage = WalletStorage(self.fake_config)
+
+        some_dict = {"a":"b", "c":"d"}
+        storage.data = some_dict
+
+        storage.write()
+
+        contents = ""
+        with open(path, "r") as f:
+            contents = f.read()
+        self.assertEqual(repr(some_dict), contents)
+
+
+class TestNewWallet(WalletTestCase):
+
+    seed_text = "The seed will sprout and grow up tall."
+    password = "secret"
+
+    master_xpub = "xpub661MyMwAqRbcGEop5Rnp68oX1ikeFNVMtx1utwXZGRKMmeXVxwBM5UzkwU9nGB1EofZekLDRfi1w5F9P7Vac3PEuWdWHr2gHLW8vp5YyKJ1"
+    master_xpriv = "xprv9s21ZrQH143K3kjLyQFoizrnTgv9qumWXj6K6Z7wi5nNtrCMRPs6XggH6Bbgz9CUgPJnZnV74yUdRSr8qWVELr9QQTgU5aNL33ViMyD9nhs"
+
+    first_account_name = "account1"
+    first_account_first_address = "1Jv9pLCJ4Sqr7aDYLGX5QhET4ps5qRcB9V"
+    first_account_second_address = "14n9EsZsgTTc4eC4TxeP1ccP8bXgwxPMmL"
+
+    def setUp(self):
+        super(TestNewWallet, self).setUp()
+        self.storage = WalletStorage(self.fake_config)
+        self.wallet = NewWallet(self.storage)
+        # This cannot be constructed by electrum at random, it should be safe
+        # from eventual collisions.
+        self.wallet.add_seed(self.seed_text, self.password)
+
+    def test_get_seed_returns_correct_seed(self):
+        self.assertEqual(self.wallet.get_seed(self.password), self.seed_text)
+        self.assertEqual(0, len(self.wallet.addresses()))
+
+    def test_get_master_keys(self):
+        self.assertEqual(self.master_xpub, self.wallet.get_master_public_key())
+        self.assertEqual(self.master_xpriv, self.wallet.get_master_private_key("m/", self.password))
+
+    def test_add_account(self):
+        self.wallet.create_account(self.first_account_name, self.password)
+        self.assertEqual(self.first_account_first_address,
+                         self.wallet.addresses()[0])
+
+    def test_add_account_add_address(self):
+        self.wallet.create_account(self.first_account_name, self.password)
+        self.wallet.synchronizer = FakeSynchronizer()
+
+        self.wallet.create_new_address()
+        self.assertEqual(2, len(self.wallet.addresses()))
+        self.assertEqual(self.first_account_second_address,
+                         self.wallet.addresses()[0])
