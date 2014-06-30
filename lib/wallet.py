@@ -46,7 +46,7 @@ IMPORTED_ACCOUNT = '/x'
 class WalletStorage(object):
 
     def __init__(self, config):
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.config = config
         self.data = {}
         self.file_exists = False
@@ -98,10 +98,12 @@ class WalletStorage(object):
         self.file_exists = True
 
     def get(self, key, default=None):
-        v = self.data.get(key)
-        if v is None:
-            v = default
-        return v
+
+        with self.lock:
+            v = self.data.get(key)
+            if v is None:
+                v = default
+            return v
 
     def put(self, key, value, save = True):
 
