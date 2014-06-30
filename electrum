@@ -95,7 +95,7 @@ def print_help(parser):
     parser.print_help()
     print_msg("Type 'electrum help <command>' to see the help for a specific command")
     print_msg("Type 'electrum --help' to see the list of options")
-    run_command(known_commands['help'])
+    #run_command(known_commands['help'])
     sys.exit(1)
 
 
