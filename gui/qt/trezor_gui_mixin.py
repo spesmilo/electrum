@@ -45,8 +45,7 @@ class TrezorQtGuiMixin(object):
     def callback_PassphraseRequest(self, msg):
         passphrase = self.password_dialog()
         if passphrase is None:
-            QMessageBox.critical(None, _('Error'), _("Password request canceled"), _('OK'))
-            return proto.Cancel()
+            passphrase='' # Even blank string is valid Trezor passphrase
         return proto.PassphraseAck(passphrase=passphrase)
 
     def callback_WordRequest(self, msg):
