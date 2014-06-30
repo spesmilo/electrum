@@ -189,13 +189,19 @@ class PaymentRequest:
             prev_x = x509_chain[i-1]
 
             algo, sig, data = prev_x.extract_sig()
-            if algo.getComponentByName('algorithm') != x509.ALGO_RSA_SHA1:
-                self.error = "Algorithm not suported"
-                return
-
             sig = bytearray(sig[5:])
             pubkey = x.publicKey
-            verify = pubkey.hashAndVerify(sig, data)
+            if algo.getComponentByName('algorithm') == x509.ALGO_RSA_SHA1:
+                verify = pubkey.hashAndVerify(sig, data)
+            elif algo.getComponentByName('algorithm') == x509.ALGO_RSA_SHA256:
+                hashBytes = bytearray(hashlib.sha256(data).digest())
+                prefixBytes = bytearray([0x30,0x31,0x30,0x0d,0x06,0x09,0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x01,0x05,0x00,0x04,0x20])
+                verify = pubkey.verify(sig, prefixBytes + hashBytes)
+            else:
+                self.error = "Algorithm not supported" 
+                util.print_error(self.error, algo.getComponentByName('algorithm'))
+                return
+
             if not verify:
                 self.error = "Certificate not Signed by Provided CA Certificate Chain"
                 return
