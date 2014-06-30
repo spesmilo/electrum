@@ -64,7 +64,7 @@ def prompt_password(prompt, confirm=True):
 
 def arg_parser():
     usage = "%prog [options] command"
-    parser = optparse.OptionParser(prog=usage, add_help_option=False)
+    parser = optparse.OptionParser(usage=usage, add_help_option=False)
     parser.add_option("-h", "--help", action="callback", callback=print_help_cb, help="show this help text")
     parser.add_option("-g", "--gui", dest="gui", help="User interface: qt, lite, gtk, text or stdio")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
