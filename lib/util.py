@@ -159,7 +159,6 @@ def age(from_date, since_date = None, target_tz=None, include_seconds=False):
 
 def parse_URI(uri):
     import urlparse
-    import urllib
     import bitcoin
     from decimal import Decimal
 
@@ -193,7 +192,7 @@ def parse_URI(uri):
     if 'label' in pq:
         label = pq['label'][0]
     if 'r' in pq:
-        request_url = urllib.quote(pq['r'][0], '/:?')
+        request_url = pq['r'][0]
         
     if request_url != '':
         return address, amount, label, message, request_url

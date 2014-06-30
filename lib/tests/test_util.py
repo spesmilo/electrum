@@ -43,7 +43,7 @@ class TestUtil(unittest.TestCase):
         self._do_test_parse_URI('bitcoin:15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma?amount=0.0003', '15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma', 30000, '', '', '')
 
     def test_parse_URI_address_request_url(self):
-        self._do_test_parse_URI('bitcoin:15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma?r=http://domain.tld/page?h%3D2a8628fc2fbe', '15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma', '', '', '', 'http://domain.tld/page?h%3D2a8628fc2fbe')
+        self._do_test_parse_URI('bitcoin:15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma?r=http://domain.tld/page?h%3D2a8628fc2fbe', '15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma', '', '', '', 'http://domain.tld/page?h=2a8628fc2fbe')
 
     def test_parse_URI_ignore_args(self):
         self._do_test_parse_URI('bitcoin:15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma?test=test', '15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma', '', '', '', '')
@@ -52,7 +52,7 @@ class TestUtil(unittest.TestCase):
         self._do_test_parse_URI('bitcoin:15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma?amount=0.00004&label=electrum-test&message=electrum%20test&test=none&r=http://domain.tld/page', '15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma', 4000, 'electrum-test', 'electrum test', 'http://domain.tld/page')
 
     def test_parse_URI_no_address_request_url(self):
-        self._do_test_parse_URI('bitcoin:?r=http://domain.tld/page?h%3D2a8628fc2fbe', '', '', '', '', 'http://domain.tld/page?h%3D2a8628fc2fbe')
+        self._do_test_parse_URI('bitcoin:?r=http://domain.tld/page?h%3D2a8628fc2fbe', '', '', '', '', 'http://domain.tld/page?h=2a8628fc2fbe')
 
     def test_parse_URI_invalid_address(self):
         self.assertRaises(AssertionError, parse_URI, 'bitcoin:invalidaddress')
