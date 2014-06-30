@@ -170,7 +170,7 @@ def parse_URI(uri):
     assert u.scheme == 'bitcoin'
 
     address = u.path
-    assert bitcoin.is_address(address)
+    valid_address = bitcoin.is_address(address)
 
     pq = urlparse.parse_qs(u.query)
     
@@ -194,6 +194,11 @@ def parse_URI(uri):
     if 'r' in pq:
         request_url = pq['r'][0]
         
+    if request_url != '':
+        return address, amount, label, message, request_url
+
+    assert valid_address
+
     return address, amount, label, message, request_url
 
 
