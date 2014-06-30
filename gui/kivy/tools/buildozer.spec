@@ -32,7 +32,7 @@ source.exclude_exts = spec
 version = 1.9.8
 
 # (list) Application requirements
-requirements = pil, qrcode, ecdsa, pbkdf2, openssl, pyopenssl, plyer==master, kivy==master
+requirements = pil, qrcode, ecdsa, pbkdf2, openssl, pyopenssl, pyasn, pyasn-modules,  plyer==master, kivy==master
 
 # (str) Presplash of the application
 presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png

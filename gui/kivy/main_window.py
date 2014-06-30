@@ -25,7 +25,7 @@ Factory.register('QrScannerDialog', module='electrum_gui.kivy.uix.dialogs.qr_sca
 
 
 # delayed imports: for startup speed on android
-notification = app = Decimal = ref = format_satoshis = is_valid = Builder = None
+notification = app = Decimal = ref = format_satoshis = bitcoin = Builder = None
 inch = None
 util = False
 re = None
@@ -557,15 +557,9 @@ class ElectrumWindow(App):
         '''
         global format_satoshis
         if not format_satoshis:
-            from electrum.wallet import format_satoshis
+            from electrum.util import format_satoshis
         return format_satoshis(x, is_diff, self.num_zeros,
                                self.decimal_point, whitespaces)
-
-    def read_amount(self, x):
-        if x in['.', '']:
-            return None
-        p = pow(10, self.decimal_point)
-        return int( p * Decimal(x) )
 
     def update_wallet(self, *dt):
         '''
@@ -802,13 +796,8 @@ class ElectrumWindow(App):
     def do_send(self):
         app = App.get_running_app()
         screen_send = app.root.main_screen.ids.tabs.ids.screen_send
-        scrn = screen_send.content.ids
+        scrn = screen_send.ids
         label = unicode(scrn.message_e.text)
-        # TODO
-        #if self.gui_object.payment_request:
-        #    outputs = self.gui_object.payment_request.outputs
-        #    amount = self.gui_object.payment_request.get_amount()
-        #else:
 
         r = unicode(scrn.payto_e.text).strip()
 
@@ -819,24 +808,18 @@ class ElectrumWindow(App):
         m = re.match('(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>', r)
         to_address = m.group(2) if m else r
 
-        global is_valid
-        if not is_valid:
-            from electrum.bitcoin import is_valid
+        global bitcoin
+        if not bitcoin:
+            from electrum import bitcoin
 
-        if not is_valid(to_address):
+        if not bitcoin.is_address(to_address):
             app.show_error(_('Invalid Bitcoin Address') +
                                             ':\n' + to_address)
             return
 
-        try:
-            amount = self.read_amount(unicode(scrn.amount_e.text))
-        except Exception:
-            app.show_error(_('Invalid Amount'))
-            return
-        try:
-            fee = self.read_amount(unicode(scrn.fee_e.amt))
-        except Exception as err:
-            print err
+        amount = scrn.amount_e.text
+        fee = scrn.fee_e.amt
+        if not fee:
             app.show_error(_('Invalid Fee'))
             return
 
