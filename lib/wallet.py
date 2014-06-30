@@ -1146,7 +1146,8 @@ class Deterministic_Wallet(Abstract_Wallet):
             account = self.default_account()
         address = account.create_new_address(for_change)
         self.history[address] = []
-        self.synchronizer.add(address)
+        if self.synchronizer:
+            self.synchronizer.add(address)
         self.save_accounts()
         return address
 
