@@ -258,7 +258,7 @@ class ElectrumWindow(QMainWindow):
         self.wallet.stop_threads()
 
         # create new wallet
-        wallet = Wallet(storage)
+        wallet = Wallet(storage, True)
         wallet.start_threads(self.network)
 
         self.load_wallet(wallet)
@@ -1084,8 +1084,18 @@ class ElectrumWindow(QMainWindow):
             self.broadcast_transaction(tx)
 
         # keep a reference to WaitingDialog or the gui might crash
-        self.waiting_dialog = WaitingDialog(self, 'Signing..', sign_thread, sign_done)
-        self.waiting_dialog.start()
+        if self.wallet.storage.get('seed') == 'trezor':
+            #signing in separate thread with Trezor is difficult
+            #because UI interaction should happen on main thread
+            try:
+                tx = sign_thread()
+                sign_done(tx)
+            except Exception as e:
+                QMessageBox.warning(self, _('Error'), str(e), _('OK'))
+            finally: self.send_button.setDisabled(False)
+        else:
+            self.waiting_dialog = WaitingDialog(self, 'Signing..', sign_thread, sign_done)
+            self.waiting_dialog.start()
 
 
 

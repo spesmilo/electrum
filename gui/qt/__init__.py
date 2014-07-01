@@ -149,7 +149,7 @@ class ElectrumGui:
 
         storage = WalletStorage(self.config)
         if storage.file_exists:
-            wallet = Wallet(storage)
+            wallet = Wallet(storage, True)
             action = wallet.get_action()
         else:
             action = 'new'
