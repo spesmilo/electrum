@@ -1053,6 +1053,8 @@ class ElectrumWindow(QMainWindow):
 
         # sign the tx
         def sign_thread():
+            if self.wallet.is_watching_only():
+                return tx
             keypairs = {}
             try:
                 self.wallet.add_keypairs(tx, keypairs, password)
