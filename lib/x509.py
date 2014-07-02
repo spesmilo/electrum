@@ -26,6 +26,11 @@ except ImportError:
     sys.exit("Error: pyasn1 does not seem to be installed. Try 'sudo pip install pyasn1'")
 
 try:
+    import pyasn1_modules
+except ImportError:
+    sys.exit("Error: pyasn1 does not seem to be installed. Try 'sudo pip install pyasn1-modules'")
+
+try:
     import tlslite
 except ImportError:
     sys.exit("Error: tlslite does not seem to be installed. Try 'sudo pip install tlslite'")
@@ -46,7 +51,7 @@ from pyasn1_modules.rfc2459 import id_ce_basicConstraints, BasicConstraints
 XMPP_ADDR = ObjectIdentifier('1.3.6.1.5.5.7.8.5')
 SRV_NAME = ObjectIdentifier('1.3.6.1.5.5.7.8.7')
 ALGO_RSA_SHA1 = ObjectIdentifier('1.2.840.113549.1.1.5')
-
+ALGO_RSA_SHA256 = ObjectIdentifier('1.2.840.113549.1.1.11')
 
 class CertificateError(Exception):
     pass
