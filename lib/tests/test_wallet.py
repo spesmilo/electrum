@@ -112,6 +112,9 @@ class TestNewWallet(WalletTestCase):
     first_account_first_address = "1Jv9pLCJ4Sqr7aDYLGX5QhET4ps5qRcB9V"
     first_account_second_address = "14n9EsZsgTTc4eC4TxeP1ccP8bXgwxPMmL"
 
+    import_private_key = "L52XzL2cMkHxqxBXRyEpnPQZGUs3uKiL3R11XbAdHigRzDozKZeW"
+    import_key_address = "15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma"
+
     def setUp(self):
         super(TestNewWallet, self).setUp()
         self.storage = WalletStorage(self.fake_config)
@@ -119,6 +122,21 @@ class TestNewWallet(WalletTestCase):
         # This cannot be constructed by electrum at random, it should be safe
         # from eventual collisions.
         self.wallet.add_seed(self.seed_text, self.password)
+
+    def test_wallet_with_seed_is_not_watching_only(self):
+        self.assertFalse(self.wallet.is_watching_only())
+
+    def test_wallet_without_seed_is_watching_only(self):
+        # We need a new storage , since the default storage was already seeded
+        # in setUp()
+        new_dir = tempfile.mkdtemp()
+        config = FakeConfig(new_dir)
+        wallet = NewWallet(config)
+        self.assertTrue(wallet.is_watching_only())
+        shutil.rmtree(new_dir)  # Don't leave useless stuff in /tmp
+
+    def test_new_wallet_is_deterministic(self):
+        self.assertTrue(self.wallet.is_deterministic())
 
     def test_get_seed_returns_correct_seed(self):
         self.assertEqual(self.wallet.get_seed(self.password), self.seed_text)
@@ -130,8 +148,9 @@ class TestNewWallet(WalletTestCase):
 
     def test_add_account(self):
         self.wallet.create_account(self.first_account_name, self.password)
-        self.assertEqual(self.first_account_first_address,
-                         self.wallet.addresses()[0])
+        self.assertEqual(1, len(self.wallet.addresses()))
+        self.assertIn(self.first_account_first_address,
+                         self.wallet.addresses())
 
     def test_add_account_add_address(self):
         self.wallet.create_account(self.first_account_name, self.password)
@@ -139,5 +158,31 @@ class TestNewWallet(WalletTestCase):
 
         self.wallet.create_new_address()
         self.assertEqual(2, len(self.wallet.addresses()))
-        self.assertEqual(self.first_account_second_address,
-                         self.wallet.addresses()[0])
+        self.assertIn(self.first_account_first_address,
+                         self.wallet.addresses())
+        self.assertIn(self.first_account_second_address,
+                      self.wallet.addresses())
+
+    def test_key_import(self):
+        # Wallets have no imported keys by default.
+        self.wallet.create_account(self.first_account_name, self.password)
+        self.assertFalse(self.wallet.has_imported_keys())
+
+        # Importing a key works.
+        self.wallet.import_key(self.import_private_key, "")
+        self.assertEqual(2, len(self.wallet.addresses()))
+        self.assertIn(self.import_key_address, self.wallet.addresses())
+
+        self.assertTrue(self.wallet.has_imported_keys())
+
+        # Deleting the key works.
+        self.wallet.delete_imported_key(self.import_key_address)
+        self.assertFalse(self.wallet.has_imported_keys())
+        self.assertEqual(1, len(self.wallet.addresses()))
+        self.assertNotIn(self.import_key_address, self.wallet.addresses())
+
+    def test_update_password(self):
+        new_password = "secret2"
+        self.wallet.update_password(self.password, new_password)
+        self.wallet.create_account(self.first_account_name, new_password)
+        self.assertEqual(1, len(self.wallet.addresses()))

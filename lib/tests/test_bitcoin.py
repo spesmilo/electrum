@@ -13,6 +13,7 @@ try:
 except ImportError:
     sys.exit("Error: python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'")
 
+
 class Test_bitcoin(unittest.TestCase):
 
     def test_crypto(self):
