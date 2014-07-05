@@ -97,6 +97,7 @@ class TxVerifier(threading.Thread):
         with self.lock:
             self.running = True
         requested_merkle = []
+        no_header_tx = []
 
         while self.is_running():
             # request missing tx
@@ -109,6 +110,14 @@ class TxVerifier(threading.Thread):
                         if self.network.send([ ('blockchain.transaction.get_merkle',[tx_hash, tx_height]) ], lambda i,r: self.queue.put(r)):
                             print_error('requesting merkle', tx_hash)
                             requested_merkle.append(tx_hash)
+
+            if len(no_header_tx) > 0:
+                time.sleep(2.0)
+                for tx_h, tx_r in no_header_tx:
+                    tx_header_found = self.verify_merkle(tx_h, tx_r)
+                    print_error('retry verify result: ', tx_header_found, tx_h)
+                    if tx_header_found:
+                        no_header_tx.remove((tx_h,tx_r))
 
             try:
                 r = self.queue.get(timeout=1)
@@ -128,8 +137,11 @@ class TxVerifier(threading.Thread):
 
             if method == 'blockchain.transaction.get_merkle':
                 tx_hash = params[0]
-                self.verify_merkle(tx_hash, result)
+                tx_header_found = self.verify_merkle(tx_hash, result)
+                print_error('verify merkle result: ', tx_header_found, tx_hash)
                 requested_merkle.remove(tx_hash)
+                if not tx_header_found:
+                    no_header_tx.append((tx_hash,result))
 
 
     def verify_merkle(self, tx_hash, result):
@@ -137,7 +149,9 @@ class TxVerifier(threading.Thread):
         pos = result.get('pos')
         self.merkle_roots[tx_hash] = self.hash_merkle_root(result['merkle'], tx_hash, pos)
         header = self.network.get_header(tx_height)
-        if not header: return
+        if not header:
+            print_error('verify merkle: no header available')
+            return False
         assert header.get('merkle_root') == self.merkle_roots[tx_hash]
         # we passed all the tests
         timestamp = header.get('timestamp')
@@ -146,6 +160,7 @@ class TxVerifier(threading.Thread):
         print_error("verified %s"%tx_hash)
         self.storage.put('verified_tx3', self.verified_tx, True)
         self.network.trigger_callback('updated')
+        return True
 
 
     def hash_merkle_root(self, merkle_s, target_hash, pos):
