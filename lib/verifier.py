@@ -102,6 +102,9 @@ class TxVerifier(threading.Thread):
             # request missing tx
             for tx_hash, tx_height in self.transactions.items():
                 if tx_hash not in self.verified_tx:
+                    # do not request merkle branch before headers are available
+                    if tx_height > self.network.blockchain.height():
+                        continue
                     if self.merkle_roots.get(tx_hash) is None and tx_hash not in requested_merkle:
                         if self.network.send([ ('blockchain.transaction.get_merkle',[tx_hash, tx_height]) ], lambda i,r: self.queue.put(r)):
                             print_error('requesting merkle', tx_hash)
