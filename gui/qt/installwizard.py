@@ -493,6 +493,10 @@ class InstallWizard(QDialog):
                     return
                 text1, text2 = r
                 wallet = Wallet_2of2(self.storage)
+                if Wallet.is_seed(text1) or Wallet.is_seed(text2):
+                    password = self.password_dialog()
+                else:
+                    password = None
 
                 if Wallet.is_seed(text1):
                     wallet.add_seed(text1, password)
@@ -500,8 +504,8 @@ class InstallWizard(QDialog):
                         wallet.add_cold_seed(text2, password)
                     else:
                         wallet.add_master_public_key("cold/", text2)
-
-                elif Wallet.is_xpub(text1):
+                else:
+                    assert Wallet.is_xpub(text1)
                     if Wallet.is_seed(text2):
                         wallet.add_seed(text2, password)
                         wallet.add_master_public_key("cold/", text1)
@@ -509,11 +513,7 @@ class InstallWizard(QDialog):
                         wallet.add_master_public_key("m/", text1)
                         wallet.add_master_public_key("cold/", text2)
 
-                if wallet.is_watching_only():
-                    wallet.create_accounts(None)
-                else:
-                    password = self.password_dialog()
-                    wallet.create_accounts(password)
+                wallet.create_accounts(password)
 
 
             elif t in ['2of3']:
@@ -521,8 +521,11 @@ class InstallWizard(QDialog):
                 if not r: 
                     return
                 text1, text2, text3 = r
-                password = self.password_dialog()
                 wallet = Wallet_2of3(self.storage)
+                if Wallet.is_seed(text1) or Wallet.is_seed(text2) or Wallet.is_seed(text3):
+                    password = self.password_dialog()
+                else:
+                    password = None
 
                 if Wallet.is_seed(text1):
                     wallet.add_seed(text1, password)
