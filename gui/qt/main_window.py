@@ -1987,7 +1987,7 @@ class ElectrumWindow(QMainWindow):
 
         pubkey_e = QLineEdit()
         if address:
-            pubkey = self.wallet.getpubkeys(address)[0]
+            pubkey = self.wallet.get_public_keys(address)[0]
             pubkey_e.setText(pubkey)
         layout.addWidget(QLabel(_('Public key')), 2, 0)
         layout.addWidget(pubkey_e, 2, 1)

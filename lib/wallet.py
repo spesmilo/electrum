@@ -354,12 +354,6 @@ class Abstract_Wallet:
 
         raise Exception("Address not found", address)
 
-    def getpubkeys(self, addr):
-        assert is_address(addr) and self.is_mine(addr)
-        account, sequence = self.get_address_index(addr)
-        a = self.accounts[account]
-        return a.get_pubkeys( sequence )
-
     def get_private_key(self, address, password):
         if self.is_watching_only():
             return []
@@ -386,7 +380,6 @@ class Abstract_Wallet:
         mpk = [ self.master_public_keys[k] for k in self.master_private_keys.keys() ]
         for xpub, sequence in xpub_list:
             if xpub in mpk:
-                print "can sign", xpub
                 return True
 
         return False
