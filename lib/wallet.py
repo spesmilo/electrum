@@ -164,20 +164,21 @@ class Abstract_Wallet:
 
         self.transactions = {}
         tx_list = self.storage.get('transactions',{})
-        for k,v in tx_list.items():
+        for k, raw in tx_list.items():
             try:
-                tx = Transaction(v)
+                tx = Transaction.deserialize(raw)
             except Exception:
                 print_msg("Warning: Cannot deserialize transactions. skipping")
                 continue
 
-            self.add_extra_addresses(tx)
+            self.add_pubkey_addresses(tx)
             self.transactions[k] = tx
 
         for h,tx in self.transactions.items():
             if not self.check_new_tx(h, tx):
                 print_error("removing unreferenced tx", h)
                 self.transactions.pop(h)
+
 
 
         # not saved
@@ -198,14 +199,18 @@ class Abstract_Wallet:
         for tx_hash, tx in self.transactions.items():
             self.update_tx_outputs(tx_hash)
 
-    def add_extra_addresses(self, tx):
-        h = tx.hash()
+    def add_pubkey_addresses(self, tx):
         # find the address corresponding to pay-to-pubkey inputs
-        tx.add_extra_addresses(self.transactions)
-        for o in tx.d.get('outputs'):
-            if o.get('is_pubkey'):
+        h = tx.hash()
+
+        # inputs
+        tx.add_pubkey_addresses(self.transactions)
+
+        # outputs of tx: inputs of tx2 
+        for x, v in tx.outputs:
+            if x.startswith('pubkey:'):
                 for tx2 in self.transactions.values():
-                    tx2.add_extra_addresses({h:tx})
+                    tx2.add_pubkey_addresses({h:tx})
 
     def get_action(self):
         pass
@@ -381,6 +386,7 @@ class Abstract_Wallet:
         mpk = [ self.master_public_keys[k] for k in self.master_private_keys.keys() ]
         for xpub, sequence in xpub_list:
             if xpub in mpk:
+                print "can sign", xpub
                 return True
 
         return False
@@ -463,7 +469,7 @@ class Abstract_Wallet:
         for tx_hash, tx in self.transactions.items():
             is_relevant, is_send, _, _ = self.get_tx_value(tx)
             if is_send:
-                for addr, v in tx.outputs:
+                for addr in tx.get_output_addresses():
                     if not self.is_mine(addr) and addr not in self.addressbook:
                         self.addressbook.append(addr)
         # redo labels
@@ -472,7 +478,7 @@ class Abstract_Wallet:
     def get_num_tx(self, address):
         n = 0
         for tx in self.transactions.values():
-            if address in map(lambda x:x[0], tx.outputs): n += 1
+            if address in tx.get_output_addresses(): n += 1
         return n
 
     def get_address_flags(self, addr):
@@ -487,7 +493,7 @@ class Abstract_Wallet:
     def update_tx_outputs(self, tx_hash):
         tx = self.transactions.get(tx_hash)
 
-        for i, (addr, value) in enumerate(tx.outputs):
+        for i, (addr, value) in enumerate(tx.get_outputs()):
             key = tx_hash+ ':%d'%i
             self.prevout_values[key] = value
 
@@ -507,7 +513,7 @@ class Abstract_Wallet:
             tx = self.transactions.get(tx_hash)
             if not tx: continue
 
-            for i, (addr, value) in enumerate(tx.outputs):
+            for i, (addr, value) in enumerate(tx.get_outputs()):
                 if addr == address:
                     key = tx_hash + ':%d'%i
                     received_coins.append(key)
@@ -525,7 +531,7 @@ class Abstract_Wallet:
                     if key in received_coins:
                         v -= value
 
-            for i, (addr, value) in enumerate(tx.outputs):
+            for i, (addr, value) in enumerate(tx.get_outputs()):
                 key = tx_hash + ':%d'%i
                 if addr == address:
                     v += value
@@ -579,10 +585,10 @@ class Abstract_Wallet:
                 tx = self.transactions.get(tx_hash)
                 if tx is None: raise Exception("Wallet not synchronized")
                 is_coinbase = tx.inputs[0].get('prevout_hash') == '0'*64
-                for o in tx.d.get('outputs'):
-                    output = o.copy()
-                    if output.get('address') != addr: continue
-                    key = tx_hash + ":%d" % output.get('prevout_n')
+                for i, (address, value) in enumerate(tx.get_outputs()):
+                    output = {'address':address, 'value':value, 'prevout_n':i}
+                    if address != addr: continue
+                    key = tx_hash + ":%d"%i
                     if key in self.spent_outputs: continue
                     output['prevout_hash'] = tx_hash
                     output['height'] = tx_height
@@ -669,7 +675,7 @@ class Abstract_Wallet:
     def receive_tx_callback(self, tx_hash, tx, tx_height):
 
         with self.transaction_lock:
-            self.add_extra_addresses(tx)
+            self.add_pubkey_addresses(tx)
             if not self.check_new_tx(tx_hash, tx):
                 # may happen due to pruning
                 print_error("received transaction that is no longer referenced in history", tx_hash)
@@ -746,8 +752,7 @@ class Abstract_Wallet:
         if tx:
             is_relevant, is_mine, _, _ = self.get_tx_value(tx)
             if is_mine:
-                for o in tx.outputs:
-                    o_addr, _ = o
+                for o_addr in tx.get_output_addresses():
                     if not self.is_mine(o_addr):
                         try:
                             default_label = self.labels[o_addr]
@@ -757,13 +762,11 @@ class Abstract_Wallet:
                 else:
                     default_label = '(internal)'
             else:
-                for o in tx.outputs:
-                    o_addr, _ = o
+                for o_addr in tx.get_output_addresses():
                     if self.is_mine(o_addr) and not self.is_change(o_addr):
                         break
                 else:
-                    for o in tx.outputs:
-                        o_addr, _ = o
+                    for o_addr in tx.get_output_addresses():
                         if self.is_mine(o_addr):
                             break
                     else:
@@ -789,7 +792,7 @@ class Abstract_Wallet:
         for txin in inputs:
             self.add_input_info(txin)
         outputs = self.add_tx_change(inputs, outputs, amount, fee, total, change_addr)
-        return Transaction.from_io(inputs, outputs)
+        return Transaction(inputs, outputs)
 
     def mktx(self, outputs, password, fee=None, change_addr=None, domain= None, coins = None ):
         tx = self.make_unsigned_transaction(outputs, fee, change_addr, domain, coins)
@@ -803,9 +806,13 @@ class Abstract_Wallet:
         address = txin['address']
         account_id, sequence = self.get_address_index(address)
         account = self.accounts[account_id]
-        redeemScript = account.redeem_script(sequence)
-        txin['x_pubkeys'] = account.get_xpubkeys(sequence)
-        txin['pubkeys'] = pubkeys = account.get_pubkeys(sequence)
+        redeemScript = account.redeem_script(*sequence)
+        pubkeys = account.get_pubkeys(*sequence)
+        x_pubkeys = account.get_xpubkeys(*sequence)
+        # sort pubkeys and x_pubkeys, using the order of pubkeys
+        pubkeys, x_pubkeys = zip( *sorted(zip(pubkeys, x_pubkeys)))
+        txin['pubkeys'] = list(pubkeys)
+        txin['x_pubkeys'] = list(x_pubkeys)
         txin['signatures'] = [None] * len(pubkeys)
 
         if redeemScript:
@@ -934,7 +941,7 @@ class Abstract_Wallet:
                 print_error("new history is orphaning transaction:", tx_hash)
                 # check that all outputs are not mine, request histories
                 ext_requests = []
-                for _addr, _v in tx.outputs:
+                for _addr in tx.get_output_addresses():
                     # assert not self.is_mine(_addr)
                     ext_requests.append( ('blockchain.address.get_history', [_addr]) )
 
@@ -1279,7 +1286,11 @@ class NewWallet(Deterministic_Wallet):
         return 'm/' in self.master_private_keys.keys()
 
     def get_master_public_key(self):
-        return self.master_public_keys["m/"]
+        if self.is_watching_only():
+            return self.master_public_keys["m/0'"]
+        else:
+            return self.master_public_keys["m/"]
+
 
     def get_master_public_keys(self):
         out = {}
