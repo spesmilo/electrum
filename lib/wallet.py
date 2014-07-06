@@ -1277,11 +1277,8 @@ class NewWallet(Deterministic_Wallet):
         return 'm/' in self.master_private_keys.keys()
 
     def get_master_public_key(self):
-        if self.is_watching_only():
-            return self.master_public_keys["m/0'"]
-        else:
-            return self.master_public_keys["m/"]
-
+        """xpub of the main account"""
+        return self.master_public_keys["m/0'"]
 
     def get_master_public_keys(self):
         out = {}
