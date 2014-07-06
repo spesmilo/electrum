@@ -410,9 +410,7 @@ class Abstract_Wallet:
                     break
             else:
                 continue
-
-            addr = account.get_address(*sequence)
-            pk = self.get_private_key(addr, password)
+            pk = account.get_private_key(sequence, self, password)
             for sec in pk:
                 pubkey = public_key_from_private_key(sec)
                 keypairs[pubkey] = sec
