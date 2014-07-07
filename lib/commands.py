@@ -207,7 +207,7 @@ class Commands:
 
     def getpubkeys(self, addr):
         out = { 'address':addr }
-        out['pubkeys'] = self.wallet.getpubkeys(addr)
+        out['pubkeys'] = self.wallet.get_public_keys(addr)
         return out
 
     def getbalance(self, account= None):

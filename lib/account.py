@@ -25,28 +25,46 @@ from util import print_msg
 
 class Account(object):
     def __init__(self, v):
-        self.addresses = v.get('0', [])
-        self.change = v.get('1', [])
+        self.receiving_pubkeys   = v.get('receiving', [])
+        self.change_pubkeys      = v.get('change', [])
+        # addresses will not be stored on disk
+        self.receiving_addresses = map(self.pubkeys_to_address, self.receiving_pubkeys)
+        self.change_addresses    = map(self.pubkeys_to_address, self.change_pubkeys)
 
     def dump(self):
-        return {'0':self.addresses, '1':self.change}
+        return {'receiving':self.receiving_pubkeys, 'change':self.change_pubkeys}
+
+    def get_pubkey(self, for_change, n):
+        pubkeys_list = self.change_pubkeys if for_change else self.receiving_pubkeys
+        return pubkeys_list[n]
+
+    def get_address(self, for_change, n):
+        addr_list = self.change_addresses if for_change else self.receiving_addresses
+        return addr_list[n]
+
+    def get_pubkeys(self, for_change, n):
+        return [ self.get_pubkey(for_change, n)]
 
     def get_addresses(self, for_change):
-        return self.change[:] if for_change else self.addresses[:]
+        addr_list = self.change_addresses if for_change else self.receiving_addresses
+        return addr_list[:]
+
+    def derive_pubkeys(self, for_change, n):
+        pass
 
     def create_new_address(self, for_change):
-        addresses = self.change if for_change else self.addresses
-        n = len(addresses)
-        address = self.get_address( for_change, n)
-        addresses.append(address)
+        pubkeys_list = self.change_pubkeys if for_change else self.receiving_pubkeys
+        addr_list = self.change_addresses if for_change else self.receiving_addresses
+        n = len(pubkeys_list)
+        pubkeys = self.derive_pubkeys(for_change, n)
+        address = self.pubkeys_to_address(pubkeys)
+        pubkeys_list.append(pubkeys)
+        addr_list.append(address)
         print_msg(address)
         return address
 
-    def get_address(self, for_change, n):
-        pass
-        
-    def get_pubkeys(self, sequence):
-        return [ self.get_pubkey( *sequence )]
+    def pubkeys_to_address(self, pubkey):
+        return public_key_to_bc_address(pubkey.decode('hex'))
 
     def has_change(self):
         return True
@@ -63,14 +81,19 @@ class Account(object):
 
 class PendingAccount(Account):
     def __init__(self, v):
-        self.addresses = [ v['pending'] ]
-        self.change = []
+        try:
+            self.pending_pubkey = v['pending_pubkey']
+        except:
+            pass
+
+    def get_addresses(self, is_change):
+        return []
 
     def has_change(self):
         return False
 
     def dump(self):
-        return {'pending':self.addresses[0]}
+        return {} #{'pending_pubkey':self.pending_pubkey }
 
     def get_name(self, k):
         return _('Pending account')
@@ -91,8 +114,8 @@ class ImportedAccount(Account):
         addr = self.get_addresses(0)[i]
         return self.keypairs[addr][0]
 
-    def get_xpubkeys(self, *sequence):
-        return self.get_pubkeys(*sequence)
+    def get_xpubkeys(self, for_change, n):
+        return self.get_pubkeys(for_change, n)
 
     def get_private_key(self, sequence, wallet, password):
         from wallet import pw_decode
@@ -133,12 +156,9 @@ class OldAccount(Account):
     """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
 
     def __init__(self, v):
-        self.addresses = v.get(0, [])
-        self.change = v.get(1, [])
+        Account.__init__(self, v)
         self.mpk = v['mpk'].decode('hex')
 
-    def dump(self):
-        return {0:self.addresses, 1:self.change}
 
     @classmethod
     def mpk_from_seed(klass, seed):
@@ -173,7 +193,7 @@ class OldAccount(Account):
         public_key2 = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
         return '04' + public_key2.to_string().encode('hex')
 
-    def get_pubkey(self, for_change, n):
+    def derive_pubkeys(self, for_change, n):
         return self.get_pubkey_from_mpk(self.mpk, for_change, n)
 
     def get_private_key_from_stretched_exponent(self, for_change, n, secexp):
@@ -212,10 +232,6 @@ class OldAccount(Account):
     def get_type(self):
         return _('Old Electrum format')
 
-    def get_keyID(self, sequence):
-        a, b = sequence
-        return 'old(%s,%d,%d)'%(self.mpk.encode('hex'),a,b)
-
     def get_xpubkeys(self, sequence):
         s = ''.join(map(lambda x: bitcoin.int_to_hex(x,2), sequence))
         mpk = self.mpk.encode('hex')
@@ -248,11 +264,6 @@ class BIP32_Account(Account):
         d['xpub'] = self.xpub
         return d
 
-    def get_address(self, for_change, n):
-        pubkey = self.get_pubkey(for_change, n)
-        address = public_key_to_bc_address( pubkey.decode('hex') )
-        return address
-
     def first_address(self):
         return self.get_address(0,0)
 
@@ -260,17 +271,20 @@ class BIP32_Account(Account):
         return [self.xpub]
 
     @classmethod
-    def get_pubkey_from_x(self, xpub, for_change, n):
+    def derive_pubkey_from_xpub(self, xpub, for_change, n):
         _, _, _, c, cK = deserialize_xkey(xpub)
         for i in [for_change, n]:
             cK, c = CKD_pub(cK, c, i)
         return cK.encode('hex')
 
-    def get_pubkeys(self, sequence):
-        return sorted(map(lambda x: self.get_pubkey_from_x(x, *sequence), self.get_master_pubkeys()))
+    def get_pubkey_from_xpub(self, xpub, for_change, n):
+        xpubs = self.get_master_pubkeys()
+        i = xpubs.index(xpub)
+        pubkeys = self.get_pubkeys(sequence, n)
+        return pubkeys[i]
 
-    def get_pubkey(self, for_change, n):
-        return self.get_pubkeys((for_change, n))[0]
+    def derive_pubkeys(self, for_change, n):
+        return self.derive_pubkey_from_xpub(self.xpub, for_change, n)
 
 
     def get_private_key(self, sequence, wallet, password):
@@ -284,9 +298,7 @@ class BIP32_Account(Account):
             _, _, _, c, k = deserialize_xkey(xpriv)
             pk = bip32_private_key( sequence, k, c )
             out.append(pk)
-                    
         return out
-
 
     def redeem_script(self, sequence):
         return None
@@ -294,17 +306,11 @@ class BIP32_Account(Account):
     def get_type(self):
         return _('Standard 1 of 1')
 
-    def get_xpubkeys(self, sequence):
-        s = ''.join(map(lambda x: bitcoin.int_to_hex(x,2), sequence))
-        mpks = self.get_master_pubkeys()
-        out = []
-        for xpub in mpks:
-            pubkey = self.get_pubkey_from_x(xpub, *sequence)
-            x_pubkey = 'ff' + bitcoin.DecodeBase58Check(xpub).encode('hex') + s
-            out.append( (pubkey, x_pubkey ) )
-        # sort it, so that x_pubkeys are in the same order as pubkeys
-        out.sort()
-        return map(lambda x:x[1], out )
+    def get_xpubkeys(self, for_change, n):
+        # unsorted
+        s = ''.join(map(lambda x: bitcoin.int_to_hex(x,2), (for_change,n)))
+        xpubs = self.get_master_pubkeys()
+        return map(lambda xpub: 'ff' + bitcoin.DecodeBase58Check(xpub).encode('hex') + s, xpubs)
 
     @classmethod
     def parse_xpubkey(self, pubkey):
@@ -347,13 +353,23 @@ class BIP32_Account_2of2(BIP32_Account):
         d['xpub2'] = self.xpub2
         return d
 
-    def redeem_script(self, sequence):
-        pubkeys = self.get_pubkeys(sequence)
-        return Transaction.multisig_script(pubkeys, 2)
+    def get_pubkeys(self, for_change, n):
+        return self.get_pubkey(for_change, n)
+
+    def derive_pubkeys(self, for_change, n):
+        return map(lambda x: self.derive_pubkey_from_xpub(x, for_change, n), self.get_master_pubkeys())
+
+    def redeem_script(self, for_change, n):
+        pubkeys = self.get_pubkeys(for_change, n)
+        return Transaction.multisig_script(sorted(pubkeys), 2)
+
+    def pubkeys_to_address(self, pubkeys):
+        redeem_script = Transaction.multisig_script(sorted(pubkeys), 2)
+        address = hash_160_to_bc_address(hash_160(redeem_script.decode('hex')), 5)
+        return address
 
     def get_address(self, for_change, n):
-        address = hash_160_to_bc_address(hash_160(self.redeem_script((for_change, n)).decode('hex')), 5)
-        return address
+        return self.pubkeys_to_address(self.get_pubkeys(for_change, n))
 
     def get_master_pubkeys(self):
         return [self.xpub, self.xpub2]

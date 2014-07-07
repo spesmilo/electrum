@@ -183,7 +183,7 @@ class WalletSynchronizer(threading.Thread):
                 tx_hash = params[0]
                 tx_height = params[1]
                 assert tx_hash == bitcoin.hash_encode(bitcoin.Hash(result.decode('hex')))
-                tx = Transaction(result)
+                tx = Transaction.deserialize(result)
                 self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
                 self.was_updated = True
                 requested_tx.remove( (tx_hash, tx_height) )

@@ -324,7 +324,7 @@ def parse_xpub(x_pubkey):
     if x_pubkey[0:2] == 'ff':
         from account import BIP32_Account
         xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
-        pubkey = BIP32_Account.get_pubkey_from_x(xpub, s[0], s[1])
+        pubkey = BIP32_Account.derive_pubkey_from_xpub(xpub, s[0], s[1])
     elif x_pubkey[0:2] == 'fe':
         from account import OldAccount
         mpk, s = OldAccount.parse_xpubkey(x_pubkey)
@@ -345,6 +345,12 @@ def parse_scriptSig(d, bytes):
     # payto_pubkey
     match = [ opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
+        sig = decoded[0][1].encode('hex')
+        d['address'] = "(pubkey)"
+        d['signatures'] = [sig]
+        d['num_sig'] = 1
+        d['x_pubkeys'] = ["(pubkey)"]
+        d['pubkeys'] = ["(pubkey)"]
         return
 
     # non-generated TxIn transactions push a signature
@@ -396,7 +402,6 @@ def parse_scriptSig(d, bytes):
     d['x_pubkeys'] = x_pubkeys
     pubkeys = map(parse_xpub, x_pubkeys)
     d['pubkeys'] = pubkeys
-
     redeemScript = Transaction.multisig_script(pubkeys,2)
     d['redeemScript'] = redeemScript
     d['address'] = hash_160_to_bc_address(hash_160(redeemScript.decode('hex')), 5)
@@ -411,20 +416,20 @@ def get_address_from_output_script(bytes):
     # 65 BYTES:... CHECKSIG
     match = [ opcodes.OP_PUSHDATA4, opcodes.OP_CHECKSIG ]
     if match_decoded(decoded, match):
-        return True, public_key_to_bc_address(decoded[0][1])
+        return "pubkey:" + decoded[0][1].encode('hex')
 
     # Pay-by-Bitcoin-address TxOuts look like:
     # DUP HASH160 20 BYTES:... EQUALVERIFY CHECKSIG
     match = [ opcodes.OP_DUP, opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG ]
     if match_decoded(decoded, match):
-        return False, hash_160_to_bc_address(decoded[2][1])
+        return hash_160_to_bc_address(decoded[2][1])
 
     # p2sh
     match = [ opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUAL ]
     if match_decoded(decoded, match):
-        return False, hash_160_to_bc_address(decoded[1][1],5)
+        return hash_160_to_bc_address(decoded[1][1],5)
 
-    return False, "(None)"
+    return "(None)"
 
 
 
@@ -432,24 +437,17 @@ push_script = lambda x: op_push(len(x)/2) + x
 
 class Transaction:
 
-    def __init__(self, raw):
-        self.raw = raw
-        self.deserialize()
-        self.inputs = self.d['inputs']
-        self.outputs = self.d['outputs']
-        self.outputs = map(lambda x: (x['address'],x['value']), self.outputs)
-        self.locktime = self.d['lockTime']
-
     def __str__(self):
+        if self.raw is None:
+            self.raw = self.serialize(self.inputs, self.outputs, for_sig = None) # for_sig=-1 means do not sign
         return self.raw
 
-    @classmethod
-    def from_io(klass, inputs, outputs):
-        raw = klass.serialize(inputs, outputs, for_sig = None) # for_sig=-1 means do not sign
-        self = klass(raw)
+    def __init__(self, inputs, outputs):
         self.inputs = inputs
         self.outputs = outputs
-        return self
+        self.locktime = 0
+        self.raw = None
+        
 
     @classmethod 
     def sweep(klass, privkeys, network, to_address, fee):
@@ -472,7 +470,7 @@ class Transaction:
 
         total = sum( map(lambda x:int(x.get('value')), inputs) ) - fee
         outputs = [(to_address, total)]
-        self = klass.from_io(inputs, outputs)
+        self = klass(inputs, outputs)
         self.sign({ pubkey:privkey })
         return self
 
@@ -524,7 +522,7 @@ class Transaction:
 
 
     @classmethod
-    def serialize( klass, inputs, outputs, for_sig = None ):
+    def serialize(klass, inputs, outputs, for_sig = None ):
 
         s  = int_to_hex(1,4)                                         # version
         s += var_int( len(inputs) )                                  # number of inputs
@@ -680,25 +678,32 @@ class Transaction:
 
 
 
-    def deserialize(self):
+    @classmethod
+    def deserialize(klass, raw):
         vds = BCDataStream()
-        vds.write(self.raw.decode('hex'))
+        vds.write(raw.decode('hex'))
         d = {}
         start = vds.read_cursor
         d['version'] = vds.read_int32()
         n_vin = vds.read_compact_size()
         d['inputs'] = []
         for i in xrange(n_vin):
-            d['inputs'].append(self.parse_input(vds))
+            d['inputs'].append(klass.parse_input(vds))
         n_vout = vds.read_compact_size()
         d['outputs'] = []
         for i in xrange(n_vout):
-            d['outputs'].append(self.parse_output(vds, i))
+            d['outputs'].append(klass.parse_output(vds, i))
         d['lockTime'] = vds.read_uint32()
-        self.d = d
-        return self.d
-    
 
+        inputs = d['inputs']
+        outputs = map(lambda x: (x['address'], x['value']), d['outputs'])
+
+        self = klass(inputs, outputs)
+        self.raw = raw
+        self.locktime = d['lockTime']
+        return self
+    
+    @classmethod
     def parse_input(self, vds):
         d = {}
         prevout_hash = hash_encode(vds.read_bytes(32))
@@ -713,7 +718,6 @@ class Transaction:
             d['prevout_hash'] = prevout_hash
             d['prevout_n'] = prevout_n
             d['sequence'] = sequence
-
             d['pubkeys'] = []
             d['signatures'] = {}
             d['address'] = None
@@ -721,27 +725,43 @@ class Transaction:
                 parse_scriptSig(d, scriptSig)
         return d
 
-
+    @classmethod
     def parse_output(self, vds, i):
         d = {}
         d['value'] = vds.read_int64()
         scriptPubKey = vds.read_bytes(vds.read_compact_size())
-        is_pubkey, address = get_address_from_output_script(scriptPubKey)
-        d['is_pubkey'] = is_pubkey
+        address = get_address_from_output_script(scriptPubKey)
         d['address'] = address
         d['scriptPubKey'] = scriptPubKey.encode('hex')
         d['prevout_n'] = i
         return d
 
 
-    def add_extra_addresses(self, txlist):
+    def add_pubkey_addresses(self, txlist):
         for i in self.inputs:
             if i.get("address") == "(pubkey)":
                 prev_tx = txlist.get(i.get('prevout_hash'))
                 if prev_tx:
-                    address, value = prev_tx.outputs[i.get('prevout_n')]
+                    address, value = prev_tx.get_outputs()[i.get('prevout_n')]
                     print_error("found pay-to-pubkey address:", address)
                     i["address"] = address
+
+
+    def get_outputs(self):
+        """convert pubkeys to addresses"""
+        o = []
+        for x, v in self.outputs:
+            if bitcoin.is_address(x):
+                addr = x
+            elif x.startswith('pubkey:'):
+                addr = public_key_to_bc_address(x[7:].decode('hex'))
+            else:
+                addr = "(None)"
+            o.append((addr,v))
+        return o
+
+    def get_output_addresses(self):
+        return map(lambda x:x[0], self.get_outputs())
 
 
     def has_address(self, addr):
@@ -750,10 +770,9 @@ class Transaction:
             if addr == txin.get('address'): 
                 found = True
                 break
-        for txout in self.outputs:
-            if addr == txout[0]:
-                found = True
-                break
+        if addr in self.get_output_addresses():
+            found = True
+
         return found
 
 
@@ -781,8 +800,7 @@ class Transaction:
 
         if not is_send: is_partial = False
                     
-        for item in self.outputs:
-            addr, value = item
+        for addr, value in self.get_outputs():
             v_out += value
             if addr in addresses:
                 v_out_mine += value
