@@ -433,6 +433,58 @@ def get_address_from_output_script(bytes):
 
 
 
+    
+
+def parse_input(vds):
+    d = {}
+    prevout_hash = hash_encode(vds.read_bytes(32))
+    prevout_n = vds.read_uint32()
+    scriptSig = vds.read_bytes(vds.read_compact_size())
+    sequence = vds.read_uint32()
+    if prevout_hash == '00'*32:
+        d['is_coinbase'] = True
+    else:
+        d['is_coinbase'] = False
+        d['prevout_hash'] = prevout_hash
+        d['prevout_n'] = prevout_n
+        d['sequence'] = sequence
+        d['pubkeys'] = []
+        d['signatures'] = {}
+        d['address'] = None
+        if scriptSig:
+            parse_scriptSig(d, scriptSig)
+    return d
+
+
+def parse_output(vds, i):
+    d = {}
+    d['value'] = vds.read_int64()
+    scriptPubKey = vds.read_bytes(vds.read_compact_size())
+    address = get_address_from_output_script(scriptPubKey)
+    d['address'] = address
+    d['scriptPubKey'] = scriptPubKey.encode('hex')
+    d['prevout_n'] = i
+    return d
+
+
+def deserialize(raw):
+    vds = BCDataStream()
+    vds.write(raw.decode('hex'))
+    d = {}
+    start = vds.read_cursor
+    d['version'] = vds.read_int32()
+    n_vin = vds.read_compact_size()
+    d['inputs'] = []
+    for i in xrange(n_vin):
+        d['inputs'].append(parse_input(vds))
+    n_vout = vds.read_compact_size()
+    d['outputs'] = []
+    for i in xrange(n_vout):
+        d['outputs'].append(parse_output(vds, i))
+    d['lockTime'] = vds.read_uint32()
+    return d
+
+
 push_script = lambda x: op_push(len(x)/2) + x
 
 class Transaction:
@@ -442,12 +494,25 @@ class Transaction:
             self.raw = self.serialize(self.inputs, self.outputs, for_sig = None) # for_sig=-1 means do not sign
         return self.raw
 
-    def __init__(self, inputs, outputs):
+    def __init__(self, inputs, outputs, locktime=0):
         self.inputs = inputs
         self.outputs = outputs
-        self.locktime = 0
+        self.locktime = locktime
         self.raw = None
         
+    @classmethod
+    def deserialize(klass, raw):
+        self = klass([],[])
+        self.update(raw)
+        return self
+
+    def update(self, raw):
+        d = deserialize(raw)
+        self.raw = raw
+        self.inputs = d['inputs']
+        self.outputs = map(lambda x: (x['address'], x['value']), d['outputs'])
+        self.locktime = d['lockTime']
+
 
     @classmethod 
     def sweep(klass, privkeys, network, to_address, fee):
@@ -675,66 +740,6 @@ class Transaction:
 
         print_error("is_complete", self.is_complete())
         self.raw = self.serialize( self.inputs, self.outputs )
-
-
-
-    @classmethod
-    def deserialize(klass, raw):
-        vds = BCDataStream()
-        vds.write(raw.decode('hex'))
-        d = {}
-        start = vds.read_cursor
-        d['version'] = vds.read_int32()
-        n_vin = vds.read_compact_size()
-        d['inputs'] = []
-        for i in xrange(n_vin):
-            d['inputs'].append(klass.parse_input(vds))
-        n_vout = vds.read_compact_size()
-        d['outputs'] = []
-        for i in xrange(n_vout):
-            d['outputs'].append(klass.parse_output(vds, i))
-        d['lockTime'] = vds.read_uint32()
-
-        inputs = d['inputs']
-        outputs = map(lambda x: (x['address'], x['value']), d['outputs'])
-
-        self = klass(inputs, outputs)
-        self.raw = raw
-        self.locktime = d['lockTime']
-        return self
-    
-    @classmethod
-    def parse_input(self, vds):
-        d = {}
-        prevout_hash = hash_encode(vds.read_bytes(32))
-        prevout_n = vds.read_uint32()
-        scriptSig = vds.read_bytes(vds.read_compact_size())
-        sequence = vds.read_uint32()
-
-        if prevout_hash == '00'*32:
-            d['is_coinbase'] = True
-        else:
-            d['is_coinbase'] = False
-            d['prevout_hash'] = prevout_hash
-            d['prevout_n'] = prevout_n
-            d['sequence'] = sequence
-            d['pubkeys'] = []
-            d['signatures'] = {}
-            d['address'] = None
-            if scriptSig:
-                parse_scriptSig(d, scriptSig)
-        return d
-
-    @classmethod
-    def parse_output(self, vds, i):
-        d = {}
-        d['value'] = vds.read_int64()
-        scriptPubKey = vds.read_bytes(vds.read_compact_size())
-        address = get_address_from_output_script(scriptPubKey)
-        d['address'] = address
-        d['scriptPubKey'] = scriptPubKey.encode('hex')
-        d['prevout_n'] = i
-        return d
 
 
     def add_pubkey_addresses(self, txlist):
