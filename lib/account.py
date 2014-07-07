@@ -81,19 +81,16 @@ class Account(object):
 
 class PendingAccount(Account):
     def __init__(self, v):
-        try:
-            self.pending_pubkey = v['pending_pubkey']
-        except:
-            pass
+        self.pending_address = v['pending']
 
     def get_addresses(self, is_change):
-        return []
+        return [self.pending_address] 
 
     def has_change(self):
         return False
 
     def dump(self):
-        return {} #{'pending_pubkey':self.pending_pubkey }
+        return {'pending':self.pending_address }
 
     def get_name(self, k):
         return _('Pending account')
@@ -265,7 +262,9 @@ class BIP32_Account(Account):
         return d
 
     def first_address(self):
-        return self.get_address(0,0)
+        pubkeys = self.derive_pubkeys(0, 0)
+        address = self.pubkeys_to_address(pubkeys)
+        return address
 
     def get_master_pubkeys(self):
         return [self.xpub]

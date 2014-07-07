@@ -1256,7 +1256,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         return True
 
     def get_action(self):
-        if not self.get_master_public_key():
+        if not self.master_public_keys:
             return 'create_seed'
         if not self.accounts:
             return 'create_accounts'
@@ -1278,7 +1278,7 @@ class NewWallet(Deterministic_Wallet):
 
     def get_master_public_key(self):
         """xpub of the main account"""
-        return self.master_public_keys["m/0'"]
+        return self.master_public_keys.get("m/0'")
 
     def get_master_public_keys(self):
         out = {}
@@ -1559,8 +1559,8 @@ class Wallet(object):
         config = storage.config
 
         self.wallet_types = [ 
-            ('standard', ("Standard wallet"),          OldWallet), 
-            ('imported', ("Imported wallet"),          Imported_Wallet), 
+            ('standard', ("Standard wallet"),          NewWallet if config.get('bip32') else OldWallet),
+            ('imported', ("Imported wallet"),          Imported_Wallet),
             ('2of2',     ("Multisig wallet (2 of 2)"), Wallet_2of2),
             ('2of3',     ("Multisig wallet (2 of 3)"), Wallet_2of3)
         ]
