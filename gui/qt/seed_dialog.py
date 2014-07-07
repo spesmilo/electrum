@@ -29,6 +29,7 @@ class SeedDialog(QDialog):
     def __init__(self, parent, seed, imported_keys):
         QDialog.__init__(self, parent)
         self.setModal(1)
+        self.setMinimumWidth(400)
         self.setWindowTitle('Electrum' + ' - ' + _('Seed'))
         vbox = show_seed_box(seed)
         if imported_keys:
