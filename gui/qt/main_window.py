@@ -1060,6 +1060,7 @@ class ElectrumWindow(QMainWindow):
                 self.wallet.add_keypairs(tx, keypairs, password)
                 self.wallet.sign_transaction(tx, keypairs, password)
             except Exception as e:
+                traceback.print_exc(file=sys.stdout)
                 tx.error = str(e)
             return tx
 

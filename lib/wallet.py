@@ -648,7 +648,7 @@ class Abstract_Wallet:
 
             # Insert the change output at a random position in the outputs
             posn = random.randint(0, len(outputs))
-            outputs[posn:posn] = [( change_addr,  change_amount)]
+            outputs[posn:posn] = [( 'address', change_addr,  change_amount)]
         return outputs
 
     def get_history(self, address):
