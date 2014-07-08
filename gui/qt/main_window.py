@@ -1775,7 +1775,7 @@ class ElectrumWindow(QMainWindow):
 
         self.wallet.create_pending_account(name, password)
         self.update_address_tab()
-        self.tabs.setCurrentIndex(2)
+        self.tabs.setCurrentIndex(3)
 
 
 
