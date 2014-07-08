@@ -2,7 +2,7 @@ from electrum.i18n import _
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-class QRTextEdit(QTextEdit):
+class QRTextEdit(QPlainTextEdit):
 
     def __init__(self, text=None):
         QTextEdit.__init__(self, text)
@@ -11,11 +11,11 @@ class QRTextEdit(QTextEdit):
         self.button.setStyleSheet("QToolButton { border: none; padding: 0px; }")
         self.button.setVisible(True)
         self.button.clicked.connect(lambda: self.qr_show() if self.isReadOnly() else self.qr_input())
+        self.setText = self.setPlainText
         self.scan_f = self.setText
 
-
     def resizeEvent(self, e):
-        o = QTextEdit.resizeEvent(self, e)
+        o = QPlainTextEdit.resizeEvent(self, e)
         sz = self.button.sizeHint()
         frameWidth = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
         self.button.move(self.rect().right() - frameWidth - sz.width(),

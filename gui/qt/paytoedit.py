@@ -28,7 +28,7 @@ RE_ADDRESS = '[1-9A-HJ-NP-Za-km-z]{26,}'
 RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'
 
 frozen_style = "QWidget { background-color:none; border:none;}"
-normal_style = "QTextEdit { }"
+normal_style = "QPlainTextEdit { }"
 
 class PayToEdit(QRTextEdit):
 
@@ -39,8 +39,6 @@ class PayToEdit(QRTextEdit):
         self.document().contentsChanged.connect(self.update_size)
         self.heightMin = 0
         self.heightMax = 150
-        self.setMinimumHeight(27)
-        self.setMaximumHeight(27)
         self.c = None
         self.textChanged.connect(self.check_text)
         self.outputs = []
@@ -161,9 +159,11 @@ class PayToEdit(QRTextEdit):
 
     def update_size(self):
         docHeight = self.document().size().height()
-        if self.heightMin <= docHeight <= self.heightMax:
-            self.setMinimumHeight(docHeight + 2)
-            self.setMaximumHeight(docHeight + 2)
+        h = docHeight*17 + 11
+        if self.heightMin <= h <= self.heightMax:
+            self.setMinimumHeight(h)
+            self.setMaximumHeight(h)
+        self.verticalScrollBar().hide()
 
 
     def setCompleter(self, completer):
@@ -207,7 +207,7 @@ class PayToEdit(QRTextEdit):
             e.ignore()
             return
 
-        QTextEdit.keyPressEvent(self, e)
+        QPlainTextEdit.keyPressEvent(self, e)
 
         ctrlOrShift = e.modifiers() and (Qt.ControlModifier or Qt.ShiftModifier)
         if self.c is None or (ctrlOrShift and e.text().isEmpty()):
