@@ -844,8 +844,11 @@ class ElectrumWindow(QMainWindow):
         def sign_thread():
             time.sleep(0.1)
             keypairs = {}
-            self.wallet.add_keypairs_from_wallet(tx, keypairs, password)
-            self.wallet.sign_transaction(tx, keypairs, password)
+            try:
+                self.wallet.add_keypairs_from_wallet(tx, keypairs, password)
+                self.wallet.sign_transaction(tx, keypairs, password)
+            except Exception as e:
+                tx.error = str(e)
             self.signed_tx_data = (tx, fee, label)
             self.emit(SIGNAL('send_tx2'))
         self.tx_wait_dialog = self.waiting_dialog('Signing..')
