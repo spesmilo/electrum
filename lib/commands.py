@@ -268,7 +268,6 @@ class Commands:
         return bitcoin.verify_message(address, signature, message)
 
     def _mktx(self, outputs, fee = None, change_addr = None, domain = None):
-
         for to_address, amount in outputs:
             if not is_valid(to_address):
                 raise Exception("Invalid Bitcoin address", to_address)
@@ -298,7 +297,7 @@ class Commands:
                     break
 
             amount = int(100000000*amount)
-            final_outputs.append((to_address, amount))
+            final_outputs.append(('address', to_address, amount))
 
         if fee: fee = int(100000000*fee)
         return self.wallet.mktx(final_outputs, self.password, fee , change_addr, domain)

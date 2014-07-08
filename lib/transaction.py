@@ -416,20 +416,20 @@ def get_address_from_output_script(bytes):
     # 65 BYTES:... CHECKSIG
     match = [ opcodes.OP_PUSHDATA4, opcodes.OP_CHECKSIG ]
     if match_decoded(decoded, match):
-        return "pubkey:" + decoded[0][1].encode('hex')
+        return 'pubkey', decoded[0][1].encode('hex')
 
     # Pay-by-Bitcoin-address TxOuts look like:
     # DUP HASH160 20 BYTES:... EQUALVERIFY CHECKSIG
     match = [ opcodes.OP_DUP, opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG ]
     if match_decoded(decoded, match):
-        return hash_160_to_bc_address(decoded[2][1])
+        return 'address', hash_160_to_bc_address(decoded[2][1])
 
     # p2sh
     match = [ opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUAL ]
     if match_decoded(decoded, match):
-        return hash_160_to_bc_address(decoded[1][1],5)
+        return 'address', hash_160_to_bc_address(decoded[1][1],5)
 
-    return "(None)"
+    return "(None)", "(None)"
 
 
 
@@ -460,7 +460,8 @@ def parse_output(vds, i):
     d = {}
     d['value'] = vds.read_int64()
     scriptPubKey = vds.read_bytes(vds.read_compact_size())
-    address = get_address_from_output_script(scriptPubKey)
+    type, address = get_address_from_output_script(scriptPubKey)
+    d['type'] = type
     d['address'] = address
     d['scriptPubKey'] = scriptPubKey.encode('hex')
     d['prevout_n'] = i
@@ -510,7 +511,7 @@ class Transaction:
         d = deserialize(raw)
         self.raw = raw
         self.inputs = d['inputs']
-        self.outputs = map(lambda x: (x['address'], x['value']), d['outputs'])
+        self.outputs = map(lambda x: (x['type'], x['address'], x['value']), d['outputs'])
         self.locktime = d['lockTime']
 
 
@@ -534,7 +535,7 @@ class Transaction:
             return
 
         total = sum( map(lambda x:int(x.get('value')), inputs) ) - fee
-        outputs = [(to_address, total)]
+        outputs = [('address', to_address, total)]
         self = klass(inputs, outputs)
         self.sign({ pubkey:privkey })
         return self
@@ -568,10 +569,12 @@ class Transaction:
 
 
     @classmethod
-    def pay_script(self, addr):
-        if addr.startswith('OP_RETURN:'):
-            h = addr[10:].encode('hex')
+    def pay_script(self, type, addr):
+        if type == 'op_return':
+            h = addr.encode('hex')
             return '6a' + push_script(h)
+        else:
+            assert type == 'address'
         addrtype, hash_160 = bc_address_to_hash_160(addr)
         if addrtype == 0:
             script = '76a9'                                      # op_dup, op_hash_160
@@ -629,7 +632,7 @@ class Transaction:
                     script += push_script(redeem_script)
 
             elif for_sig==i:
-                script = txin['redeemScript'] if p2sh else klass.pay_script(address)
+                script = txin['redeemScript'] if p2sh else klass.pay_script('address', address)
             else:
                 script = ''
             s += var_int( len(script)/2 )                            # script length
@@ -638,9 +641,9 @@ class Transaction:
 
         s += var_int( len(outputs) )                                 # number of outputs
         for output in outputs:
-            addr, amount = output
+            type, addr, amount = output
             s += int_to_hex( amount, 8)                              # amount
-            script = klass.pay_script(addr)
+            script = klass.pay_script(type, addr)
             s += var_int( len(script)/2 )                           #  script length
             s += script                                             #  script
         s += int_to_hex(0,4)                                        #  lock time
@@ -755,11 +758,11 @@ class Transaction:
     def get_outputs(self):
         """convert pubkeys to addresses"""
         o = []
-        for x, v in self.outputs:
-            if bitcoin.is_address(x):
+        for type, x, v in self.outputs:
+            if type == 'address':
                 addr = x
-            elif x.startswith('pubkey:'):
-                addr = public_key_to_bc_address(x[7:].decode('hex'))
+            elif type == 'pubkey':
+                addr = public_key_to_bc_address(x.decode('hex'))
             else:
                 addr = "(None)"
             o.append((addr,v))
@@ -850,7 +853,7 @@ class Transaction:
         if size >= 10000: 
             return True
 
-        for o in self.outputs:
+        for o in self.get_outputs():
             value = o[1]
             if value < 1000000:
                 return True

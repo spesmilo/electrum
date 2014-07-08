@@ -207,8 +207,8 @@ class Abstract_Wallet:
         tx.add_pubkey_addresses(self.transactions)
 
         # outputs of tx: inputs of tx2 
-        for x, v in tx.outputs:
-            if x.startswith('pubkey:'):
+        for type, x, v in tx.outputs:
+            if type == 'pubkey':
                 for tx2 in self.transactions.values():
                     tx2.add_pubkey_addresses({h:tx})
 
@@ -772,11 +772,12 @@ class Abstract_Wallet:
         return default_label
 
     def make_unsigned_transaction(self, outputs, fee=None, change_addr=None, domain=None, coins=None ):
-        for address, x in outputs:
-            if address.startswith('OP_RETURN:'):
+        for type, address, x in outputs:
+            if type == 'op_return':
                 continue
-            assert is_address(address), "Address " + address + " is invalid!"
-        amount = sum( map(lambda x:x[1], outputs) )
+            if type == 'address':
+                assert is_address(address), "Address " + address + " is invalid!"
+        amount = sum( map(lambda x:x[2], outputs) )
         inputs, total, fee = self.choose_tx_inputs( amount, fee, len(outputs), domain, coins )
         if not inputs:
             raise ValueError("Not enough funds")

@@ -69,13 +69,15 @@ class PayToEdit(QRTextEdit):
     def parse_address_and_amount(self, line):
         m = re.match('^OP_RETURN\s+"(.+)"$', line.strip())
         if m:
-            address = 'OP_RETURN:' + m.group(1)
+            type = 'op_return'
+            address = m.group(1)
             amount = 0
         else:
             x, y = line.split(',')
+            type = 'address'
             address = self.parse_address(x)
             amount = self.parse_amount(y)
-        return address, amount
+        return type, address, amount
 
 
     def parse_amount(self, x):
@@ -114,11 +116,11 @@ class PayToEdit(QRTextEdit):
 
         for line in lines:
             try:
-                to_address, amount = self.parse_address_and_amount(line)
+                type, to_address, amount = self.parse_address_and_amount(line)
             except:
                 continue
                 
-            outputs.append((to_address, amount))
+            outputs.append((type, to_address, amount))
             total += amount
 
         self.outputs = outputs
@@ -144,7 +146,7 @@ class PayToEdit(QRTextEdit):
             except:
                 amount = None
 
-            self.outputs = [(self.payto_address, amount)]
+            self.outputs = [('address', self.payto_address, amount)]
 
         return self.outputs[:]
 
