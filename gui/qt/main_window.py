@@ -765,7 +765,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_requests = self.wallet.storage.get('receive_requests',{}) 
         domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
         for addr in domain:
-            if not self.wallet.address_is_old(addr) and addr not in self.receive_requests.keys():
+            if not self.wallet.history.get(addr) and addr not in self.receive_requests.keys():
                 break
         else:
             addr = ''

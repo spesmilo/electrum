@@ -1252,7 +1252,7 @@ class Deterministic_Wallet(Abstract_Wallet):
             return False
         prev_addresses = prev_addresses[max(0, i - limit):]
         for addr in prev_addresses:
-            if self.address_is_old(addr):
+            if self.history.get(addr):
                 return False
         return True
 
