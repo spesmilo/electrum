@@ -142,10 +142,6 @@ class TestNewWallet(WalletTestCase):
         self.assertEqual(self.wallet.get_seed(self.password), self.seed_text)
         self.assertEqual(0, len(self.wallet.addresses()))
 
-    def test_get_master_keys(self):
-        self.assertEqual(self.master_xpub, self.wallet.get_master_public_key())
-        self.assertEqual(self.master_xpriv, self.wallet.get_master_private_key("m/", self.password))
-
     def test_add_account(self):
         self.wallet.create_account(self.first_account_name, self.password)
         self.assertEqual(1, len(self.wallet.addresses()))
