@@ -748,7 +748,7 @@ class ElectrumWindow(QMainWindow):
     def new_receive_address(self):
         domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
         for addr in domain:
-            if not self.wallet.address_is_old(addr) and addr not in self.receive_requests.keys():
+            if not self.wallet.history.get(addr) and addr not in self.receive_requests.keys():
                 break
         else:
             if isinstance(self.wallet, Imported_Wallet):
