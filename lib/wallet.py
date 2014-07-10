@@ -43,11 +43,10 @@ DUST_THRESHOLD = 5430
 IMPORTED_ACCOUNT = '/x'
 
 
-
-class WalletStorage:
+class WalletStorage(object):
 
     def __init__(self, config):
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.config = config
         self.data = {}
         self.file_exists = False
@@ -55,7 +54,6 @@ class WalletStorage:
         print_error( "wallet path", self.path )
         if self.path:
             self.read(self.path)
-
 
     def init_path(self, config):
         """Set the path of the wallet."""
@@ -84,7 +82,6 @@ class WalletStorage:
 
         return new_path
 
-
     def read(self, path):
         """Read the contents of the wallet file."""
         try:
@@ -100,12 +97,13 @@ class WalletStorage:
         self.data = d
         self.file_exists = True
 
-
     def get(self, key, default=None):
-        v = self.data.get(key)
-        if v is None:
-            v = default
-        return v
+
+        with self.lock:
+            v = self.data.get(key)
+            if v is None:
+                v = default
+            return v
 
     def put(self, key, value, save = True):
 
@@ -127,12 +125,11 @@ class WalletStorage:
             os.chmod(self.path,stat.S_IREAD | stat.S_IWRITE)
 
 
-class Abstract_Wallet:
+class Abstract_Wallet(object):
     """
     Wallet classes are created to handle various address generation methods.
     Completion states (watching-only, single account, no seed, etc) are handled inside classes.
     """
-
     def __init__(self, storage):
         self.storage = storage
         self.electrum_version = ELECTRUM_VERSION
@@ -150,12 +147,10 @@ class Abstract_Wallet:
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
 
         self.fee                   = int(storage.get('fee_per_kb', 10000))
-
         self.master_public_keys = storage.get('master_public_keys',{})
         self.master_private_keys = storage.get('master_private_keys', {})
 
         self.next_addresses = storage.get('next_addresses',{})
-
 
         # This attribute is set when wallet.start_threads is called.
         self.synchronizer = None
@@ -178,8 +173,6 @@ class Abstract_Wallet:
             if not self.check_new_tx(h, tx):
                 print_error("removing unreferenced tx", h)
                 self.transactions.pop(h)
-
-
 
         # not saved
         self.prevout_values = {}     # my own transaction outputs
@@ -340,7 +333,6 @@ class Abstract_Wallet:
         return s[0] == 1
 
     def get_address_index(self, address):
-
         for account in self.accounts.keys():
             for for_change in [0,1]:
                 addresses = self.accounts[account].get_addresses(for_change)
@@ -1058,6 +1050,7 @@ class Imported_Wallet(Abstract_Wallet):
 
     def is_beyond_limit(self, address, account, is_change):
         return False
+
 
 class Deterministic_Wallet(Abstract_Wallet):
 
