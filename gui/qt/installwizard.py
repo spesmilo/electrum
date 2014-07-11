@@ -545,8 +545,7 @@ class InstallWizard(QDialog):
                 wallet.create_accounts(password)
 
             else:
-                raise
-
+                 wallet = run_hook('installwizard_restore', self, self.storage)
 
             # create first keys offline
             self.waiting_dialog(wallet.synchronize)

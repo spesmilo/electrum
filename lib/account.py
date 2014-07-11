@@ -72,11 +72,8 @@ class Account(object):
     def get_name(self, k):
         return _('Main account')
 
-    def get_keyID(self, *sequence):
-        pass
-
-    def redeem_script(self, *sequence):
-        pass
+    def redeem_script(self, for_change, n):
+        return None
 
 
 class PendingAccount(Account):
@@ -220,17 +217,14 @@ class OldAccount(Account):
             raise Exception('Invalid password')
         return True
 
-    def redeem_script(self, sequence):
-        return None
-
     def get_master_pubkeys(self):
         return [self.mpk.encode('hex')]
 
     def get_type(self):
         return _('Old Electrum format')
 
-    def get_xpubkeys(self, sequence):
-        s = ''.join(map(lambda x: bitcoin.int_to_hex(x,2), sequence))
+    def get_xpubkeys(self, for_change, n):
+        s = ''.join(map(lambda x: bitcoin.int_to_hex(x,2), (for_change, n)))
         mpk = self.mpk.encode('hex')
         x_pubkey = 'fe' + mpk + s
         return [ x_pubkey ]
@@ -298,9 +292,6 @@ class BIP32_Account(Account):
             pk = bip32_private_key( sequence, k, c )
             out.append(pk)
         return out
-
-    def redeem_script(self, sequence):
-        return None
 
     def get_type(self):
         return _('Standard 1 of 1')

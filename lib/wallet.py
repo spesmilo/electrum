@@ -43,11 +43,10 @@ DUST_THRESHOLD = 0
 IMPORTED_ACCOUNT = '/x'
 
 
-
-class WalletStorage:
+class WalletStorage(object):
 
     def __init__(self, config):
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.config = config
         self.data = {}
         self.file_exists = False
@@ -55,7 +54,6 @@ class WalletStorage:
         print_error( "wallet path", self.path )
         if self.path:
             self.read(self.path)
-
 
     def init_path(self, config):
         """Set the path of the wallet."""
@@ -84,7 +82,6 @@ class WalletStorage:
 
         return new_path
 
-
     def read(self, path):
         """Read the contents of the wallet file."""
         try:
@@ -100,12 +97,13 @@ class WalletStorage:
         self.data = d
         self.file_exists = True
 
-
     def get(self, key, default=None):
-        v = self.data.get(key)
-        if v is None:
-            v = default
-        return v
+
+        with self.lock:
+            v = self.data.get(key)
+            if v is None:
+                v = default
+            return v
 
     def put(self, key, value, save = True):
 
@@ -127,12 +125,11 @@ class WalletStorage:
             os.chmod(self.path,stat.S_IREAD | stat.S_IWRITE)
 
 
-class Abstract_Wallet:
+class Abstract_Wallet(object):
     """
     Wallet classes are created to handle various address generation methods.
     Completion states (watching-only, single account, no seed, etc) are handled inside classes.
     """
-
     def __init__(self, storage):
         self.storage = storage
         self.electrum_version = ELECTRUM_VERSION
@@ -149,13 +146,11 @@ class Abstract_Wallet:
 
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
 
-        self.fee                   = int(storage.get('fee_per_kb',100000))
-
+        self.fee                   = int(storage.get('fee_per_kb', 100000))
         self.master_public_keys = storage.get('master_public_keys',{})
         self.master_private_keys = storage.get('master_private_keys', {})
 
         self.next_addresses = storage.get('next_addresses',{})
-
 
         # This attribute is set when wallet.start_threads is called.
         self.synchronizer = None
@@ -178,8 +173,6 @@ class Abstract_Wallet:
             if not self.check_new_tx(h, tx):
                 print_error("removing unreferenced tx", h)
                 self.transactions.pop(h)
-
-
 
         # not saved
         self.prevout_values = {}     # my own transaction outputs
@@ -207,8 +200,8 @@ class Abstract_Wallet:
         tx.add_pubkey_addresses(self.transactions)
 
         # outputs of tx: inputs of tx2 
-        for x, v in tx.outputs:
-            if x.startswith('pubkey:'):
+        for type, x, v in tx.outputs:
+            if type == 'pubkey':
                 for tx2 in self.transactions.values():
                     tx2.add_pubkey_addresses({h:tx})
 
@@ -340,7 +333,6 @@ class Abstract_Wallet:
         return s[0] == 1
 
     def get_address_index(self, address):
-
         for account in self.accounts.keys():
             for for_change in [0,1]:
                 addresses = self.accounts[account].get_addresses(for_change)
@@ -648,7 +640,7 @@ class Abstract_Wallet:
 
             # Insert the change output at a random position in the outputs
             posn = random.randint(0, len(outputs))
-            outputs[posn:posn] = [( change_addr,  change_amount)]
+            outputs[posn:posn] = [( 'address', change_addr,  change_amount)]
         return outputs
 
     def get_history(self, address):
@@ -772,11 +764,12 @@ class Abstract_Wallet:
         return default_label
 
     def make_unsigned_transaction(self, outputs, fee=None, change_addr=None, domain=None, coins=None ):
-        for address, x in outputs:
-            if address.startswith('OP_RETURN:'):
+        for type, address, x in outputs:
+            if type == 'op_return':
                 continue
-            assert is_address(address), "Address " + address + " is invalid!"
-        amount = sum( map(lambda x:x[1], outputs) )
+            if type == 'address':
+                assert is_address(address), "Address " + address + " is invalid!"
+        amount = sum( map(lambda x:x[2], outputs) )
         inputs, total, fee = self.choose_tx_inputs( amount, fee, len(outputs), domain, coins )
         if not inputs:
             raise ValueError("Not enough funds")
@@ -1058,6 +1051,7 @@ class Imported_Wallet(Abstract_Wallet):
     def is_beyond_limit(self, address, account, is_change):
         return False
 
+
 class Deterministic_Wallet(Abstract_Wallet):
 
     def __init__(self, storage):
@@ -1251,7 +1245,7 @@ class Deterministic_Wallet(Abstract_Wallet):
             return False
         prev_addresses = prev_addresses[max(0, i - limit):]
         for addr in prev_addresses:
-            if self.address_is_old(addr):
+            if self.history.get(addr):
                 return False
         return True
 
