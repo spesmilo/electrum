@@ -288,8 +288,7 @@ class TrezorQtGuiMixin(object):
     def password_dialog(self, msg=None):
         if not msg:
             msg = _("Please enter your Trezor password")
-        else:
-            msg = _(msg)
+
         d = QDialog()
         d.setModal(1)
         d.setLayout( make_password_dialog(d, None, msg, False) )
