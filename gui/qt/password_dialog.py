@@ -59,7 +59,7 @@ def make_password_dialog(self, wallet, msg, new_pass=True):
         grid.addWidget(QLabel(_('Password')), 0, 0)
         grid.addWidget(self.pw, 0, 1)
 
-    grid.addWidget(QLabel(_('New Password' if new_pass else 'Password')), 1, 0)
+    grid.addWidget(QLabel(_('New Password') if new_pass else _('Password')), 1, 0)
     grid.addWidget(self.new_pw, 1, 1)
 
     grid.addWidget(QLabel(_('Confirm Password')), 2, 0)
