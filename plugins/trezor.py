@@ -49,6 +49,11 @@ class Plugin(BasePlugin):
     def add_wallet_types(self, wallet_types):
         wallet_types.append(('trezor', _("Trezor wallet"), TrezorWallet))
 
+    def installwizard_restore(self, wizard, storage):
+        wallet = TrezorWallet(storage)
+        wallet.create_accounts(None)
+        return wallet
+
     def send_tx(self, tx, wallet):
         try:
             wallet.sign_transaction(tx, None, None)
