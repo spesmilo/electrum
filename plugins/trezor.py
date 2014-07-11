@@ -36,6 +36,7 @@ class Plugin(BasePlugin):
     def __init__(self, gui, name):
         BasePlugin.__init__(self, gui, name)
         self._is_available = self._init()
+        self.wallet = None
 
     def _init(self):
         return TREZOR
@@ -43,8 +44,23 @@ class Plugin(BasePlugin):
     def is_available(self):
         return self._is_available
 
+    def set_enabled(self, enabled):
+        self.wallet.storage.put('use_' + self.name, enabled)
+
+    def is_enabled(self):
+        if not self.is_available():
+            return False
+
+        if not self.wallet:
+            return True
+
+        return self.wallet.storage.get('use_' + self.name) is True
+
     def enable(self):
         return BasePlugin.enable(self)
+
+    def load_wallet(self, wallet):
+        self.wallet = wallet
 
     def add_wallet_types(self, wallet_types):
         wallet_types.append(('trezor', _("Trezor wallet"), TrezorWallet))
