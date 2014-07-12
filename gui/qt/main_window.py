@@ -75,7 +75,7 @@ PR_ERROR   = 4     # could not parse
 from electrum import ELECTRUM_VERSION
 import re
 
-from util import MyTreeWidget, HelpButton, EnterButton, line_dialog, text_dialog, ok_cancel_buttons, close_button
+from util import MyTreeWidget, HelpButton, EnterButton, line_dialog, text_dialog, ok_cancel_buttons, close_button, WaitingDialog
 
 
 def format_status(x):
