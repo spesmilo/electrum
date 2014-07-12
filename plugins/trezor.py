@@ -51,7 +51,7 @@ class Plugin(BasePlugin):
         if not self.is_available():
             return False
 
-        if not self.wallet:
+        if not self.wallet or self.wallet.storage.get('wallet_type') == 'trezor':
             return True
 
         return self.wallet.storage.get('use_' + self.name) is True
