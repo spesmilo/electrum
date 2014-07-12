@@ -168,8 +168,11 @@ class TrezorWallet(NewWallet):
         inputs = self.tx_inputs(tx)
         outputs = self.tx_outputs(tx)
         signed_tx = self.get_client().sign_tx('Bitcoin', inputs, outputs)[1]
+        values = [i['value'] for i in tx.inputs]
         raw = signed_tx.encode('hex')
         tx.update(raw)
+        for i, txinput in enumerate(tx.inputs):
+            txinput['value'] = values[i]
 
     def tx_inputs(self, tx):
         inputs = []
