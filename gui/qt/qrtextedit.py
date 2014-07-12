@@ -12,7 +12,6 @@ class QRTextEdit(QPlainTextEdit):
         self.button.setVisible(True)
         self.button.clicked.connect(lambda: self.qr_show() if self.isReadOnly() else self.qr_input())
         self.setText = self.setPlainText
-        self.scan_f = self.setText
 
     def resizeEvent(self, e):
         o = QPlainTextEdit.resizeEvent(self, e)
@@ -36,5 +35,7 @@ class QRTextEdit(QPlainTextEdit):
 
     def qr_input(self):
         from electrum.plugins import run_hook
-        if not run_hook('scan_qr_hook', self.scan_f):
-            QMessageBox.warning(self, _('Error'), _('QR Scanner not enabled'), _('OK'))
+        data = run_hook('scan_qr_hook')
+        if type(data) != str:
+            return
+        self.setText(data)

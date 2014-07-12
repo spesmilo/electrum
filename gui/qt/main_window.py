@@ -360,6 +360,7 @@ class ElectrumWindow(QMainWindow):
         raw_transaction_menu.addAction(_("&From file"), self.do_process_from_file)
         raw_transaction_menu.addAction(_("&From text"), self.do_process_from_text)
         raw_transaction_menu.addAction(_("&From the blockchain"), self.do_process_from_txid)
+        raw_transaction_menu.addAction(_("&From QR code"), self.read_tx_from_qrcode)
         self.raw_transaction_menu = raw_transaction_menu
 
         help_menu = menubar.addMenu(_("&Help"))
@@ -2090,6 +2091,21 @@ class ElectrumWindow(QMainWindow):
             traceback.print_exc(file=sys.stdout)
             QMessageBox.critical(None, _("Unable to parse transaction"), _("Electrum was unable to parse your transaction"))
 
+
+    def read_tx_from_qrcode(self):
+        data = run_hook('scan_qr_hook')
+        if not data:
+            return
+        # transactions are binary, but qrcode seems to return utf8...
+        z = data.decode('utf8')
+        s = ''
+        for b in z:
+            s += chr(ord(b))
+        data = s.encode('hex')
+        tx = self.tx_from_text(data)
+        if not tx:
+            return
+        self.show_transaction(tx)
 
 
     def read_tx_from_file(self):
