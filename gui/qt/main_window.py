@@ -75,7 +75,7 @@ PR_ERROR   = 4     # could not parse
 from electrum_ltc import ELECTRUM_VERSION
 import re
 
-from util import *
+from util import MyTreeWidget, HelpButton, EnterButton, line_dialog, text_dialog, ok_cancel_buttons, close_button, WaitingDialog
 
 
 def format_status(x):
@@ -286,12 +286,20 @@ class ElectrumWindow(QMainWindow):
         import installwizard
 
         wallet_folder = os.path.dirname(self.wallet.storage.path)
-        filename = unicode( QFileDialog.getSaveFileName(self, _('Enter a new file name'), wallet_folder) )
+        i = 1
+        while True:
+            filename = "wallet_%d"%i
+            if filename in os.listdir(wallet_folder):
+                i += 1
+            else:
+                break
+
+        filename = line_dialog(self, _('New Wallet'), _('Enter file name') + ':', _('OK'), filename)
         if not filename:
             return
-        filename = os.path.join(wallet_folder, filename)
 
-        storage = WalletStorage({'wallet_path': filename})
+        full_path = os.path.join(wallet_folder, filename)
+        storage = WalletStorage({'wallet_path': full_path})
         if storage.file_exists:
             QMessageBox.critical(None, "Error", _("File exists"))
             return
@@ -352,6 +360,7 @@ class ElectrumWindow(QMainWindow):
         raw_transaction_menu.addAction(_("&From file"), self.do_process_from_file)
         raw_transaction_menu.addAction(_("&From text"), self.do_process_from_text)
         raw_transaction_menu.addAction(_("&From the blockchain"), self.do_process_from_txid)
+        raw_transaction_menu.addAction(_("&From QR code"), self.read_tx_from_qrcode)
         self.raw_transaction_menu = raw_transaction_menu
 
         help_menu = menubar.addMenu(_("&Help"))
@@ -2082,6 +2091,21 @@ class ElectrumWindow(QMainWindow):
             traceback.print_exc(file=sys.stdout)
             QMessageBox.critical(None, _("Unable to parse transaction"), _("Electrum was unable to parse your transaction"))
 
+
+    def read_tx_from_qrcode(self):
+        data = run_hook('scan_qr_hook')
+        if not data:
+            return
+        # transactions are binary, but qrcode seems to return utf8...
+        z = data.decode('utf8')
+        s = ''
+        for b in z:
+            s += chr(ord(b))
+        data = s.encode('hex')
+        tx = self.tx_from_text(data)
+        if not tx:
+            return
+        self.show_transaction(tx)
 
 
     def read_tx_from_file(self):

@@ -46,18 +46,14 @@ class Plugin(BasePlugin):
 
     def init(self):
         self.win = self.gui.main_window
-        self.win.raw_transaction_menu.addAction(_("&From QR code"), self.read_raw_qr)
 
     def is_available(self):
         return self._is_available
 
-    def scan_qr_hook(self, func):
-        data = self.scan_qr()
-        if type(data) != str:
-            return
-        func(data)
+    def is_enabled(self):
+        return True
 
-    def scan_qr(self):
+    def scan_qr_hook(self):
         proc = zbar.Processor()
         try:
             proc.init(video_device=self.video_device())
@@ -79,23 +75,6 @@ class Plugin(BasePlugin):
                     continue
                 return r.data
         
-
-    def read_raw_qr(self):
-        qrcode = self.scan_qr()
-        if not qrcode:
-            return
-        data = qrcode
-
-        # transactions are binary, but qrcode seems to return utf8...
-        z = data.decode('utf8')
-        s = ''
-        for b in z:
-            s += chr(ord(b))
-        data = s.encode('hex')
-        tx = self.win.tx_from_text(data)
-        if not tx:
-            return
-        self.win.show_transaction(tx)
 
     def video_device(self):
         device = self.config.get("video_device", "default")
