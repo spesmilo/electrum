@@ -1495,14 +1495,16 @@ class ElectrumWindow(QMainWindow):
         pr.read_file(key)
         pr.domain = domain
         pr.verify()
-        self.show_pr_details(pr)
+        self.show_pr_details(pr, tx_hash)
 
-    def show_pr_details(self, pr):
+    def show_pr_details(self, pr, tx_hash=None):
         msg = 'Domain: ' + pr.domain
         msg += '\nStatus: ' + pr.get_status()
         msg += '\nMemo: ' + pr.get_memo()
         msg += '\nPayment URL: ' + pr.payment_url
         msg += '\n\nOutputs:\n' + '\n'.join(map(lambda x: x[1] + ' ' + self.format_amount(x[2])+ self.base_unit(), pr.get_outputs()))
+        if tx_hash:
+            msg += '\n\nTransaction ID: ' + tx_hash
         QMessageBox.information(self, 'Invoice', msg , 'OK')
 
     def do_pay_invoice(self, key):
