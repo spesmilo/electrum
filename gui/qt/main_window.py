@@ -1316,8 +1316,10 @@ class ElectrumWindow(QMainWindow):
 
 
     def create_invoices_tab(self):
-        l, w = self.create_list_tab([_('Requestor'), _('Memo'),_('Amount'), _('Status')])
+        l, w = self.create_list_tab([_('Requestor'), _('Memo'), _('Date'), _('Amount'), _('Status')])
         l.setColumnWidth(0, 150)
+        l.setColumnWidth(2, 150)
+        l.setColumnWidth(3, 150)
         h = l.header()
         h.setStretchLastSection(False)
         h.setResizeMode(1, QHeaderView.Stretch)
@@ -1330,20 +1332,16 @@ class ElectrumWindow(QMainWindow):
         invoices = self.wallet.storage.get('invoices', {})
         l = self.invoices_list
         l.clear()
-        for key, value in invoices.items():
-            try:
-                domain, memo, amount, expiration_date, status, tx_hash = value
-            except:
-                invoices.pop(key)
-                continue
+        for value in sorted(invoices.values(), key=lambda x: -x[3]):
+            domain, memo, amount, expiration_date, status, tx_hash = value
             if status == PR_UNPAID and expiration_date and expiration_date < time.time():
                 status = PR_EXPIRED
-            item = QTreeWidgetItem( [ domain, memo, self.format_amount(amount), format_status(status)] )
+            date_str = datetime.datetime.fromtimestamp(expiration_date).isoformat(' ')[:-3]
+            item = QTreeWidgetItem( [ domain, memo, date_str, self.format_amount(amount, whitespaces=True), format_status(status)] )
+            item.setFont(0, QFont(MONOSPACE_FONT))
+            item.setFont(3, QFont(MONOSPACE_FONT))
             l.addTopLevelItem(item)
-
         l.setCurrentItem(l.topLevelItem(0))
-
-
 
     def delete_imported_key(self, addr):
         if self.question(_("Do you want to remove")+" %s "%addr +_("from your wallet?")):
