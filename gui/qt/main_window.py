@@ -1332,12 +1332,13 @@ class ElectrumWindow(QMainWindow):
         invoices = self.wallet.storage.get('invoices', {})
         l = self.invoices_list
         l.clear()
-        for value in sorted(invoices.values(), key=lambda x: -x[3]):
+        for key, value in sorted(invoices.items(), key=lambda x: -x[1][3]):
             domain, memo, amount, expiration_date, status, tx_hash = value
             if status == PR_UNPAID and expiration_date and expiration_date < time.time():
                 status = PR_EXPIRED
             date_str = datetime.datetime.fromtimestamp(expiration_date).isoformat(' ')[:-3]
             item = QTreeWidgetItem( [ domain, memo, date_str, self.format_amount(amount, whitespaces=True), format_status(status)] )
+            item.setData(0, 32, key)
             item.setFont(0, QFont(MONOSPACE_FONT))
             item.setFont(3, QFont(MONOSPACE_FONT))
             l.addTopLevelItem(item)
@@ -1501,7 +1502,7 @@ class ElectrumWindow(QMainWindow):
         msg += '\nStatus: ' + pr.get_status()
         msg += '\nMemo: ' + pr.get_memo()
         msg += '\nPayment URL: ' + pr.payment_url
-        msg += '\n\nOutputs:\n' + '\n'.join(map(lambda x: x[0] + ' ' + self.format_amount(x[1])+ self.base_unit(), pr.get_outputs()))
+        msg += '\n\nOutputs:\n' + '\n'.join(map(lambda x: x[1] + ' ' + self.format_amount(x[2])+ self.base_unit(), pr.get_outputs()))
         QMessageBox.information(self, 'Invoice', msg , 'OK')
 
     def do_pay_invoice(self, key):
@@ -1522,8 +1523,7 @@ class ElectrumWindow(QMainWindow):
         item = self.invoices_list.itemAt(position)
         if not item:
             return
-        k = self.invoices_list.indexOfTopLevelItem(item)
-        key = self.invoices.keys()[k]
+        key = str(item.data(0, 32).toString())
         domain, memo, value, expiration, status, tx_hash = self.invoices[key]
         menu = QMenu()
         menu.addAction(_("Details"), lambda: self.show_invoice(key))
