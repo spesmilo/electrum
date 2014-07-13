@@ -20,6 +20,7 @@ DEFAULT_SERVERS = {
     'electrum.wmpb.tc': {'t':'50001', 's':'50002', 'h':'50081', 'g':'50082'},
     'electrum1.wemineltc.com': DEFAULT_PORTS,
     'explorer.litecoin.net': DEFAULT_PORTS,
+    'glacialsoftware.net': DEFAULT_PORTS,
     'ltc.electrum.in': DEFAULT_PORTS,
     'rho.hicapacity.org': DEFAULT_PORTS,
 }
