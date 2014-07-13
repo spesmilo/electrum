@@ -162,20 +162,20 @@ class Commands:
             i['prevout_hash'] = i['txid']
             i['prevout_n'] = i['vout']
         outputs = map(lambda x: (x[0],int(1e8*x[1])), outputs.items())
-        tx = Transaction.from_io(inputs, outputs)
+        tx = Transaction(inputs, outputs)
         return tx
 
     def signrawtransaction(self, raw_tx, private_keys):
-        tx = Transaction(raw_tx)
+        tx = Transaction.deserialize(raw_tx)
         self.wallet.signrawtransaction(tx, private_keys, self.password)
         return tx
 
     def decoderawtransaction(self, raw):
-        tx = Transaction(raw)
-        return tx.deserialize()
+        tx = Transaction.deserialize(raw)
+        return {'inputs':tx.inputs, 'outputs':tx.outputs}
 
     def sendrawtransaction(self, raw):
-        tx = Transaction(raw)
+        tx = Transaction.deserialize(raw)
         return self.network.synchronous_get([('blockchain.transaction.broadcast', [str(tx)])])[0]
 
     def createmultisig(self, num, pubkeys):
@@ -375,9 +375,9 @@ class Commands:
             if tx:
                 return tx
 
-        r = self.network.synchronous_get([ ('blockchain.transaction.get',[tx_hash]) ])[0]
-        if r:
-            return Transaction(r)
+        raw = self.network.synchronous_get([ ('blockchain.transaction.get',[tx_hash]) ])[0]
+        if raw:
+            return Transaction.deserialize(raw)
         else:
             return "unknown transaction"
 
