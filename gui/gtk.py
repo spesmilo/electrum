@@ -26,7 +26,7 @@ from gi.repository import Gtk, Gdk, GObject, cairo
 from decimal import Decimal
 from electrum.util import print_error
 from electrum.bitcoin import is_valid
-from electrum import mnemonic, pyqrnative, WalletStorage, Wallet
+from electrum import mnemonic, WalletStorage, Wallet
 
 Gdk.threads_init()
 APP_NAME = "Electrum"
@@ -1019,14 +1019,15 @@ class ElectrumWindow:
             hbox.pack_start(button,False, False, 0)
 
         def showqrcode(w, treeview, liststore):
+            import qrcode
             path, col = treeview.get_cursor()
             if not path: return
             address = liststore.get_value(liststore.get_iter(path), 0)
-            qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.H)
-            qr.addData(address)
-            qr.make()
+            qr = qrcode.QRCode()
+            qr.add_data(address)
             boxsize = 7
-            boxcount_row = qr.getModuleCount()
+            matrix = qr.get_matrix()
+            boxcount_row = len(matrix)
             size = (boxcount_row + 4) * boxsize
             def area_expose_cb(area, cr):
                 style = area.get_style()
@@ -1036,7 +1037,7 @@ class ElectrumWindow:
                 Gdk.cairo_set_source_color(cr, style.black)
                 for r in range(boxcount_row):
                     for c in range(boxcount_row):
-                        if qr.isDark(r, c):
+                        if matrix[r][c]:
                             cr.rectangle((c + 2) * boxsize, (r + 2) * boxsize, boxsize, boxsize)
                             cr.fill()
             area = Gtk.DrawingArea()
@@ -1209,7 +1210,7 @@ class ElectrumWindow:
             time_str = 'pending'
 
         inputs = map(lambda x: x.get('address'), tx.inputs)
-        outputs = map(lambda x: x.get('address'), tx.d['outputs'])
+        outputs = map(lambda x: x[0], tx.get_outputs())
         tx_details = "Transaction Details" +"\n\n" \
             + "Transaction ID:\n" + tx_hash + "\n\n" \
             + "Status: %d confirmations\n"%conf
