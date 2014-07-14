@@ -442,11 +442,6 @@ class Abstract_Wallet(object):
             if address in tx.get_output_addresses(): n += 1
         return n
 
-    def get_address_flags(self, addr):
-        flags = "C" if self.is_change(addr) else "I" if addr in self.imported_keys.keys() else "-"
-        flags += "F" if addr in self.frozen_addresses else "-"
-        return flags
-
     def get_tx_value(self, tx, account=None):
         domain = self.get_account_addresses(account)
         return tx.get_value(domain, self.prevout_values)
