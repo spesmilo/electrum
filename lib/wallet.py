@@ -1331,12 +1331,6 @@ class NewWallet(Deterministic_Wallet):
                 return True
         return False
 
-    def find_root_by_master_key(self, xpub):
-        for key, xpub2 in self.master_public_keys.items():
-            if key == "m/":continue
-            if xpub == xpub2:
-                return key
-
     def num_accounts(self):
         keys = []
         for k, v in self.accounts.items():
