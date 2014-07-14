@@ -380,19 +380,15 @@ class Abstract_Wallet(object):
 
     def signrawtransaction(self, tx, private_keys, password):
         # check that the password is correct. This will raise if it's not.
-        self.get_seed(password)
-
+        self.check_password(password)
         # build a list of public/private keys
         keypairs = {}
-
         # add private keys from parameter
         for sec in private_keys:
             pubkey = public_key_from_private_key(sec)
             keypairs[ pubkey ] = sec
-
         # add private_keys
         self.add_keypairs(tx, keypairs, password)
-
         # sign the transaction
         self.sign_transaction(tx, keypairs, password)
 
