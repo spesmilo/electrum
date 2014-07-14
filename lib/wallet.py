@@ -153,6 +153,9 @@ class Abstract_Wallet(object):
         # This attribute is set when wallet.start_threads is called.
         self.synchronizer = None
 
+        # imported_keys is deprecated. The GUI should call convert_imported_keys
+        self.imported_keys = self.storage.get('imported_keys',{})
+
         self.load_accounts()
 
         self.transactions = {}
@@ -218,7 +221,6 @@ class Abstract_Wallet(object):
 
     def load_accounts(self):
         self.accounts = {}
-        self.imported_keys = self.storage.get('imported_keys',{})
 
         d = self.storage.get('accounts', {})
         for k, v in d.items():
