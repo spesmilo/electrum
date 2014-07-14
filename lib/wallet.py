@@ -352,7 +352,7 @@ class Abstract_Wallet(object):
 
     def get_public_keys(self, address):
         account_id, sequence = self.get_address_index(address)
-        return self.accounts[account_id].get_pubkeys(sequence)
+        return self.accounts[account_id].get_pubkeys(*sequence)
 
     def add_keypairs(self, tx, keypairs, password):
         # first check the provided password. This will raise if invalid.
