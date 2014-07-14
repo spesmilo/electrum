@@ -816,11 +816,12 @@ class Abstract_Wallet(object):
             imported_account.update_password(old_password, new_password)
             self.save_accounts()
 
-        for k, v in self.master_private_keys.items():
-            b = pw_decode(v, old_password)
-            c = pw_encode(b, new_password)
-            self.master_private_keys[k] = c
-        self.storage.put('master_private_keys', self.master_private_keys, True)
+        if hasattr(self, 'master_private_keys'):
+            for k, v in self.master_private_keys.items():
+                b = pw_decode(v, old_password)
+                c = pw_encode(b, new_password)
+                self.master_private_keys[k] = c
+            self.storage.put('master_private_keys', self.master_private_keys, True)
 
         self.use_encryption = (new_password != None)
         self.storage.put('use_encryption', self.use_encryption,True)
