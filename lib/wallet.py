@@ -158,6 +158,24 @@ class Abstract_Wallet(object):
 
         self.load_accounts()
 
+        self.load_transactions()
+
+        # not saved
+        self.prevout_values = {}     # my own transaction outputs
+        self.spent_outputs = []
+        # spv
+        self.verifier = None
+        # there is a difference between wallet.up_to_date and interface.is_up_to_date()
+        # interface.is_up_to_date() returns true when all requests have been answered and processed
+        # wallet.up_to_date is true when the wallet is synchronized (stronger requirement)
+        self.up_to_date = False
+        self.lock = threading.Lock()
+        self.transaction_lock = threading.Lock()
+        self.tx_event = threading.Event()
+        for tx_hash, tx in self.transactions.items():
+            self.update_tx_outputs(tx_hash)
+
+    def load_transactions(self):
         self.transactions = {}
         tx_list = self.storage.get('transactions',{})
         for k, raw in tx_list.items():
@@ -166,32 +184,12 @@ class Abstract_Wallet(object):
             except Exception:
                 print_msg("Warning: Cannot deserialize transactions. skipping")
                 continue
-
             self.add_pubkey_addresses(tx)
             self.transactions[k] = tx
-
         for h,tx in self.transactions.items():
             if not self.check_new_tx(h, tx):
                 print_error("removing unreferenced tx", h)
                 self.transactions.pop(h)
-
-        # not saved
-        self.prevout_values = {}     # my own transaction outputs
-        self.spent_outputs = []
-
-        # spv
-        self.verifier = None
-
-        # there is a difference between wallet.up_to_date and interface.is_up_to_date()
-        # interface.is_up_to_date() returns true when all requests have been answered and processed
-        # wallet.up_to_date is true when the wallet is synchronized (stronger requirement)
-
-        self.up_to_date = False
-        self.lock = threading.Lock()
-        self.transaction_lock = threading.Lock()
-        self.tx_event = threading.Event()
-        for tx_hash, tx in self.transactions.items():
-            self.update_tx_outputs(tx_hash)
 
     def add_pubkey_addresses(self, tx):
         # find the address corresponding to pay-to-pubkey inputs
