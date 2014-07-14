@@ -147,16 +147,35 @@ class Abstract_Wallet(object):
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
 
         self.fee                   = int(storage.get('fee_per_kb', 100000))
-        self.master_public_keys = storage.get('master_public_keys',{})
-        self.master_private_keys = storage.get('master_private_keys', {})
 
         self.next_addresses = storage.get('next_addresses',{})
 
         # This attribute is set when wallet.start_threads is called.
         self.synchronizer = None
 
+        # imported_keys is deprecated. The GUI should call convert_imported_keys
+        self.imported_keys = self.storage.get('imported_keys',{})
+
         self.load_accounts()
 
+        self.load_transactions()
+
+        # not saved
+        self.prevout_values = {}     # my own transaction outputs
+        self.spent_outputs = []
+        # spv
+        self.verifier = None
+        # there is a difference between wallet.up_to_date and interface.is_up_to_date()
+        # interface.is_up_to_date() returns true when all requests have been answered and processed
+        # wallet.up_to_date is true when the wallet is synchronized (stronger requirement)
+        self.up_to_date = False
+        self.lock = threading.Lock()
+        self.transaction_lock = threading.Lock()
+        self.tx_event = threading.Event()
+        for tx_hash, tx in self.transactions.items():
+            self.update_tx_outputs(tx_hash)
+
+    def load_transactions(self):
         self.transactions = {}
         tx_list = self.storage.get('transactions',{})
         for k, raw in tx_list.items():
@@ -165,32 +184,12 @@ class Abstract_Wallet(object):
             except Exception:
                 print_msg("Warning: Cannot deserialize transactions. skipping")
                 continue
-
             self.add_pubkey_addresses(tx)
             self.transactions[k] = tx
-
         for h,tx in self.transactions.items():
             if not self.check_new_tx(h, tx):
                 print_error("removing unreferenced tx", h)
                 self.transactions.pop(h)
-
-        # not saved
-        self.prevout_values = {}     # my own transaction outputs
-        self.spent_outputs = []
-
-        # spv
-        self.verifier = None
-
-        # there is a difference between wallet.up_to_date and interface.is_up_to_date()
-        # interface.is_up_to_date() returns true when all requests have been answered and processed
-        # wallet.up_to_date is true when the wallet is synchronized (stronger requirement)
-
-        self.up_to_date = False
-        self.lock = threading.Lock()
-        self.transaction_lock = threading.Lock()
-        self.tx_event = threading.Event()
-        for tx_hash, tx in self.transactions.items():
-            self.update_tx_outputs(tx_hash)
 
     def add_pubkey_addresses(self, tx):
         # find the address corresponding to pay-to-pubkey inputs
@@ -220,7 +219,6 @@ class Abstract_Wallet(object):
 
     def load_accounts(self):
         self.accounts = {}
-        self.imported_keys = self.storage.get('imported_keys',{})
 
         d = self.storage.get('accounts', {})
         for k, v in d.items():
@@ -354,27 +352,7 @@ class Abstract_Wallet(object):
 
     def get_public_keys(self, address):
         account_id, sequence = self.get_address_index(address)
-        return self.accounts[account_id].get_pubkeys(sequence)
-
-    def can_sign(self, tx):
-
-        if self.is_watching_only():
-            return False
-
-        if tx.is_complete():
-            return False
-
-        addr_list, xpub_list = tx.inputs_to_sign()
-        for addr in addr_list:
-            if self.is_mine(addr):
-                return True
-
-        mpk = [ self.master_public_keys[k] for k in self.master_private_keys.keys() ]
-        for xpub, sequence in xpub_list:
-            if xpub in mpk:
-                return True
-
-        return False
+        return self.accounts[account_id].get_pubkeys(*sequence)
 
     def add_keypairs(self, tx, keypairs, password):
         # first check the provided password. This will raise if invalid.
@@ -402,19 +380,15 @@ class Abstract_Wallet(object):
 
     def signrawtransaction(self, tx, private_keys, password):
         # check that the password is correct. This will raise if it's not.
-        self.get_seed(password)
-
+        self.check_password(password)
         # build a list of public/private keys
         keypairs = {}
-
         # add private keys from parameter
         for sec in private_keys:
             pubkey = public_key_from_private_key(sec)
             keypairs[ pubkey ] = sec
-
         # add private_keys
         self.add_keypairs(tx, keypairs, password)
-
         # sign the transaction
         self.sign_transaction(tx, keypairs, password)
 
@@ -463,11 +437,6 @@ class Abstract_Wallet(object):
         for tx in self.transactions.values():
             if address in tx.get_output_addresses(): n += 1
         return n
-
-    def get_address_flags(self, addr):
-        flags = "C" if self.is_change(addr) else "I" if addr in self.imported_keys.keys() else "-"
-        flags += "F" if addr in self.frozen_addresses else "-"
-        return flags
 
     def get_tx_value(self, tx, account=None):
         domain = self.get_account_addresses(account)
@@ -847,11 +816,12 @@ class Abstract_Wallet(object):
             imported_account.update_password(old_password, new_password)
             self.save_accounts()
 
-        for k, v in self.master_private_keys.items():
-            b = pw_decode(v, old_password)
-            c = pw_encode(b, new_password)
-            self.master_private_keys[k] = c
-        self.storage.put('master_private_keys', self.master_private_keys, True)
+        if hasattr(self, 'master_private_keys'):
+            for k, v in self.master_private_keys.items():
+                b = pw_decode(v, old_password)
+                c = pw_encode(b, new_password)
+                self.master_private_keys[k] = c
+            self.storage.put('master_private_keys', self.master_private_keys, True)
 
         self.use_encryption = (new_password != None)
         self.storage.put('use_encryption', self.use_encryption,True)
@@ -1260,6 +1230,8 @@ class NewWallet(Deterministic_Wallet):
 
     def __init__(self, storage):
         Deterministic_Wallet.__init__(self, storage)
+        self.master_public_keys  = storage.get('master_public_keys', {})
+        self.master_private_keys = storage.get('master_private_keys', {})
 
     def default_account(self):
         return self.accounts["m/0'"]
@@ -1341,11 +1313,20 @@ class NewWallet(Deterministic_Wallet):
         self.add_master_public_key("m/", xpub)
         self.add_master_private_key("m/", xpriv, password)
 
-    def find_root_by_master_key(self, xpub):
-        for key, xpub2 in self.master_public_keys.items():
-            if key == "m/":continue
-            if xpub == xpub2:
-                return key
+    def can_sign(self, tx):
+        if self.is_watching_only():
+            return False
+        if tx.is_complete():
+            return False
+        addr_list, xpub_list = tx.inputs_to_sign()
+        for addr in addr_list:
+            if self.is_mine(addr):
+                return True
+        mpk = [ self.master_public_keys[k] for k in self.master_private_keys.keys() ]
+        for xpub, sequence in xpub_list:
+            if xpub in mpk:
+                return True
+        return False
 
     def num_accounts(self):
         keys = []
@@ -1542,6 +1523,19 @@ class OldWallet(Deterministic_Wallet):
     def check_pending_accounts(self):
         pass
 
+    def can_sign(self, tx):
+        if self.is_watching_only():
+            return False
+        if tx.is_complete():
+            return False
+        addr_list, xpub_list = tx.inputs_to_sign()
+        for addr in addr_list:
+            if self.is_mine(addr):
+                return True
+        for xpub, sequence in xpub_list:
+            if xpub == self.master_public_key:
+                return True
+        return False
 
 # former WalletFactory
 class Wallet(object):

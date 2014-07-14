@@ -1316,8 +1316,10 @@ class ElectrumWindow(QMainWindow):
 
 
     def create_invoices_tab(self):
-        l, w = self.create_list_tab([_('Requestor'), _('Memo'),_('Amount'), _('Status')])
+        l, w = self.create_list_tab([_('Requestor'), _('Memo'), _('Date'), _('Amount'), _('Status')])
         l.setColumnWidth(0, 150)
+        l.setColumnWidth(2, 150)
+        l.setColumnWidth(3, 150)
         h = l.header()
         h.setStretchLastSection(False)
         h.setResizeMode(1, QHeaderView.Stretch)
@@ -1330,20 +1332,17 @@ class ElectrumWindow(QMainWindow):
         invoices = self.wallet.storage.get('invoices', {})
         l = self.invoices_list
         l.clear()
-        for key, value in invoices.items():
-            try:
-                domain, memo, amount, expiration_date, status, tx_hash = value
-            except:
-                invoices.pop(key)
-                continue
+        for key, value in sorted(invoices.items(), key=lambda x: -x[1][3]):
+            domain, memo, amount, expiration_date, status, tx_hash = value
             if status == PR_UNPAID and expiration_date and expiration_date < time.time():
                 status = PR_EXPIRED
-            item = QTreeWidgetItem( [ domain, memo, self.format_amount(amount), format_status(status)] )
+            date_str = datetime.datetime.fromtimestamp(expiration_date).isoformat(' ')[:-3]
+            item = QTreeWidgetItem( [ domain, memo, date_str, self.format_amount(amount, whitespaces=True), format_status(status)] )
+            item.setData(0, 32, key)
+            item.setFont(0, QFont(MONOSPACE_FONT))
+            item.setFont(3, QFont(MONOSPACE_FONT))
             l.addTopLevelItem(item)
-
         l.setCurrentItem(l.topLevelItem(0))
-
-
 
     def delete_imported_key(self, addr):
         if self.question(_("Do you want to remove")+" %s "%addr +_("from your wallet?")):
@@ -1496,14 +1495,16 @@ class ElectrumWindow(QMainWindow):
         pr.read_file(key)
         pr.domain = domain
         pr.verify()
-        self.show_pr_details(pr)
+        self.show_pr_details(pr, tx_hash)
 
-    def show_pr_details(self, pr):
+    def show_pr_details(self, pr, tx_hash=None):
         msg = 'Domain: ' + pr.domain
         msg += '\nStatus: ' + pr.get_status()
         msg += '\nMemo: ' + pr.get_memo()
         msg += '\nPayment URL: ' + pr.payment_url
-        msg += '\n\nOutputs:\n' + '\n'.join(map(lambda x: x[0] + ' ' + self.format_amount(x[1])+ self.base_unit(), pr.get_outputs()))
+        msg += '\n\nOutputs:\n' + '\n'.join(map(lambda x: x[1] + ' ' + self.format_amount(x[2])+ self.base_unit(), pr.get_outputs()))
+        if tx_hash:
+            msg += '\n\nTransaction ID: ' + tx_hash
         QMessageBox.information(self, 'Invoice', msg , 'OK')
 
     def do_pay_invoice(self, key):
@@ -1524,8 +1525,7 @@ class ElectrumWindow(QMainWindow):
         item = self.invoices_list.itemAt(position)
         if not item:
             return
-        k = self.invoices_list.indexOfTopLevelItem(item)
-        key = self.invoices.keys()[k]
+        key = str(item.data(0, 32).toString())
         domain, memo, value, expiration, status, tx_hash = self.invoices[key]
         menu = QMenu()
         menu.addAction(_("Details"), lambda: self.show_invoice(key))
