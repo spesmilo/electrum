@@ -147,8 +147,6 @@ class Abstract_Wallet(object):
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
 
         self.fee                   = int(storage.get('fee_per_kb', 10000))
-        self.master_public_keys = storage.get('master_public_keys',{})
-        self.master_private_keys = storage.get('master_private_keys', {})
 
         self.next_addresses = storage.get('next_addresses',{})
 
@@ -355,26 +353,6 @@ class Abstract_Wallet(object):
     def get_public_keys(self, address):
         account_id, sequence = self.get_address_index(address)
         return self.accounts[account_id].get_pubkeys(sequence)
-
-    def can_sign(self, tx):
-
-        if self.is_watching_only():
-            return False
-
-        if tx.is_complete():
-            return False
-
-        addr_list, xpub_list = tx.inputs_to_sign()
-        for addr in addr_list:
-            if self.is_mine(addr):
-                return True
-
-        mpk = [ self.master_public_keys[k] for k in self.master_private_keys.keys() ]
-        for xpub, sequence in xpub_list:
-            if xpub in mpk:
-                return True
-
-        return False
 
     def add_keypairs(self, tx, keypairs, password):
         # first check the provided password. This will raise if invalid.
@@ -1260,6 +1238,8 @@ class NewWallet(Deterministic_Wallet):
 
     def __init__(self, storage):
         Deterministic_Wallet.__init__(self, storage)
+        self.master_public_keys  = storage.get('master_public_keys', {})
+        self.master_private_keys = storage.get('master_private_keys', {})
 
     def default_account(self):
         return self.accounts["m/0'"]
@@ -1340,6 +1320,21 @@ class NewWallet(Deterministic_Wallet):
         xpriv, xpub = bip32_root(mnemonic_to_seed(self.get_seed(password),'').encode('hex'))
         self.add_master_public_key("m/", xpub)
         self.add_master_private_key("m/", xpriv, password)
+
+    def can_sign(self, tx):
+        if self.is_watching_only():
+            return False
+        if tx.is_complete():
+            return False
+        addr_list, xpub_list = tx.inputs_to_sign()
+        for addr in addr_list:
+            if self.is_mine(addr):
+                return True
+        mpk = [ self.master_public_keys[k] for k in self.master_private_keys.keys() ]
+        for xpub, sequence in xpub_list:
+            if xpub in mpk:
+                return True
+        return False
 
     def find_root_by_master_key(self, xpub):
         for key, xpub2 in self.master_public_keys.items():
@@ -1542,6 +1537,19 @@ class OldWallet(Deterministic_Wallet):
     def check_pending_accounts(self):
         pass
 
+    def can_sign(self, tx):
+        if self.is_watching_only():
+            return False
+        if tx.is_complete():
+            return False
+        addr_list, xpub_list = tx.inputs_to_sign()
+        for addr in addr_list:
+            if self.is_mine(addr):
+                return True
+        for xpub, sequence in xpub_list:
+            if xpub == self.master_public_key:
+                return True
+        return False
 
 # former WalletFactory
 class Wallet(object):
