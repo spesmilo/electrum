@@ -17,10 +17,11 @@ try:
     import cmdtr
     from trezorlib.client import types
     from trezorlib.client import proto, BaseClient, ProtocolMixin
-    from trezorlib.pinmatrix import PinMatrixWidget
+    from trezorlib.qt.pinmatrix import PinMatrixWidget
     from trezorlib.transport import ConnectionError
     TREZOR = True
-except: TREZOR = False
+except ImportError:
+    TREZOR = False
 
 def log(msg):
     stderr.write("%s\n" % msg)
