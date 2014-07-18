@@ -83,6 +83,7 @@ class TrezorWallet(NewWallet):
     def __init__(self, storage):
         self.transport = None
         self.client = None
+        self.mpk = None
 
         NewWallet.__init__(self, storage)
 
