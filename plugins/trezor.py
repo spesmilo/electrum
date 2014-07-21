@@ -14,11 +14,11 @@ from lib.wallet import NewWallet
 
 
 try:
-    import cmdtr
     from trezorlib.client import types
     from trezorlib.client import proto, BaseClient, ProtocolMixin
     from trezorlib.qt.pinmatrix import PinMatrixWidget
     from trezorlib.transport import ConnectionError
+    from trezorlib.transport_hid import HidTransport
     TREZOR = True
 except ImportError:
     TREZOR = False
@@ -117,7 +117,11 @@ class TrezorWallet(NewWallet):
             raise Exception('please install github.com/trezor/python-trezor')
 
         if not self.client or self.client.bad:
-            self.transport = cmdtr.get_transport('usb', '')
+            try:
+                d = HidTransport.enumerate()[0]
+                self.transport = HidTransport(d)
+            except:
+                raise Exception("Trezor not found")
             self.client = QtGuiTrezorClient(self.transport)
             self.client.set_tx_api(self)
             #self.client.clear_session()# TODO Doesn't work with firmware 1.1, returns proto.Failure
