@@ -23,6 +23,7 @@ import os.path, json, ast, traceback
 import webbrowser
 import shutil
 import StringIO
+from qsdnlocale import QSDNLocale
 
 
 import PyQt4
@@ -188,6 +189,7 @@ class ElectrumWindow(QMainWindow):
 
         self.wallet = None
         self.payment_request = None
+        self.locale = QSDNLocale()
 
     def update_account_selector(self):
         # account selector
@@ -435,10 +437,23 @@ class ElectrumWindow(QMainWindow):
 
         run_hook('timer_actions')
 
+    # format amount to be shown to user:  Use this for interfacing with the user.
+    # Not for sending over the network or making URIs
+    # Use format_satoshis() in util for sending numbers to interface with other computers.
     def format_amount(self, x, is_diff=False, whitespaces=False):
-        return format_satoshis(x, is_diff, self.num_zeros, self.decimal_point, whitespaces)
-
-
+    	d = Decimal(format_satoshis(x, False, self.num_zeros, self.decimal_point, False))
+    	s = self.locale.toString(d)
+    	if d > 0 and is_diff:
+    	    s = '+' + s
+	p = s.indexOf(self.locale.decimalPoint())
+	if p == -1:
+	    p = s.length()
+	s = str(s)
+        if whitespaces:
+	    s += " "*( 1 + self.decimal_point - ( len(s) - p ))
+	    s = " "*( 13 - self.decimal_point - ( p )) + s 
+	return s
+        
     def get_decimal_point(self):
         return self.decimal_point
 
@@ -927,6 +942,10 @@ class ElectrumWindow(QMainWindow):
             self.amount_e.setPalette(palette)
             self.fee_e.setPalette(palette)
 
+        # these handle when the user presses '!'
+        self.connect(self.amount_e.validator(), SIGNAL('bang()'), lambda: entry_changed(False) )
+        self.connect(self.fee_e.validator(), SIGNAL('bang()'), lambda: entry_changed(True) )
+        # these handle legal changes in the numeric text
         self.amount_e.textChanged.connect(lambda: entry_changed(False) )
         self.fee_e.textChanged.connect(lambda: entry_changed(True) )
 
