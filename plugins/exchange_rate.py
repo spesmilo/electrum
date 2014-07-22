@@ -423,7 +423,7 @@ class Plugin(BasePlugin):
                     return
             elif cur_exchange == "Winkdex":
                 try:
-                    resp_hist = self.exchanger.get_json('winkdex.com', "/static/data/0_86400_730.json")['prices']
+                    resp_hist = self.exchanger.get_json('winkdex.com', "/api/v0/series?start_time=1342915200")['series'][0]['results']
                 except Exception:
                     return
             elif cur_exchange == "BitcoinVenezuela":
@@ -464,12 +464,14 @@ class Plugin(BasePlugin):
                     except KeyError:
                         tx_USD_val = "%.2f %s" % (self.btc_rate * Decimal(str(tx_info['value']))/100000000 , "USD")
                 elif cur_exchange == "Winkdex":
-                    tx_time_str = int(tx_time) - (int(tx_time) % (60 * 60 * 24))
+                    tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d') + "T16:00:00-04:00"
                     try:
-                        tx_rate = resp_hist[[x['x'] for x in resp_hist].index(tx_time_str)]['y']
-                        tx_USD_val = "%.2f %s" % (Decimal(tx_info['value']) / 100000000 * Decimal(tx_rate), "USD")
+                        tx_rate = resp_hist[[x['timestamp'] for x in resp_hist].index(tx_time_str)]['price']
+                        tx_USD_val = "%.2f %s" % (Decimal(tx_info['value']) / 100000000 * Decimal(tx_rate)/Decimal("100.0"), "USD")
                     except ValueError:
                         tx_USD_val = "%.2f %s" % (self.btc_rate * Decimal(tx_info['value'])/100000000 , "USD")
+                    except KeyError:
+                        tx_USD_val = _("No data")
                 elif cur_exchange == "BitcoinVenezuela":
                     tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
                     try:
