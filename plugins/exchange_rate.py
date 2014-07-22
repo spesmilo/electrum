@@ -48,7 +48,7 @@ class Exchanger(threading.Thread):
     def get_json(self, site, get_string):
         try:
             connection = httplib.HTTPSConnection(site)
-            connection.request("GET", get_string)
+            connection.request("GET", get_string, headers={"User-Agent":"Electrum"})
         except Exception:
             raise
         resp = connection.getresponse()
@@ -123,16 +123,13 @@ class Exchanger(threading.Thread):
 
     def update_wd(self):
         try:
-            winkresp = self.get_json('winkdex.com', "/static/data/0_600_288.json")
-            ####could need nonce value in GET, no Docs available
+            winkresp = self.get_json('winkdex.com', "/api/v0/price")
         except Exception:
             return
         quote_currencies = {"USD": 0.0}
-        ####get y of highest x in "prices"
-        lenprices = len(winkresp["prices"])
-        usdprice = winkresp["prices"][lenprices-1]["y"]
+        usdprice = decimal.Decimal(str(winkresp["price"]))/decimal.Decimal("100.0")
         try:
-            quote_currencies["USD"] = decimal.Decimal(str(usdprice))
+            quote_currencies["USD"] = usdprice
             with self.lock:
                 self.quote_currencies = quote_currencies
         except KeyError:
