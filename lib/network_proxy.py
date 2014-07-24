@@ -49,10 +49,15 @@ class NetworkProxy(threading.Thread):
         self.debug = False
         self.lock = threading.Lock()
         self.pending_transactions_for_notifications = []
-        self.banner = ''
         self.callbacks = {}
         self.running = True
         self.daemon = True
+
+        # status variables
+        self.status = 'disconnected'
+        self.servers = []
+        self.banner = ''
+        self.height = 0
 
     def is_running(self):
         return self.running
@@ -85,9 +90,18 @@ class NetworkProxy(threading.Thread):
         if self.debug: 
             print_error("<--", response)
 
-        if response.get('method') == 'network.subscribe':
-            status = response.get('status')
-            self.trigger_callback(status)
+        if response.get('method') == 'network.status':
+            #print_error("<--", response)
+            key, value = response.get('params')
+            if key == 'status':
+                self.status = value
+            elif key == 'banner':
+                self.banner = value
+            elif key == 'updated':
+                self.height = value
+            elif key == 'servers':
+                self.servers = value
+            self.trigger_callback(key)
             return
 
         msg_id = response.get('id')
@@ -150,16 +164,16 @@ class NetworkProxy(threading.Thread):
 
 
     def get_servers(self):
-        return self.synchronous_get([('network.get_servers',[])])[0]
+        return self.servers
 
     def get_header(self, height):
         return self.synchronous_get([('network.get_header',[height])])[0]
 
     def get_local_height(self):
-        return self.synchronous_get([('network.get_local_height',[])])[0]
+        return self.height
 
     def is_connected(self):
-        return self.synchronous_get([('network.is_connected',[])])[0]
+        return self.status == 'connected'
 
     def is_up_to_date(self):
         return self.synchronous_get([('network.is_up_to_date',[])])[0]
@@ -170,13 +184,11 @@ class NetworkProxy(threading.Thread):
     def stop(self):
         self.running = False
 
-
     def register_callback(self, event, callback):
         with self.lock:
             if not self.callbacks.get(event):
                 self.callbacks[event] = []
             self.callbacks[event].append(callback)
-
 
     def trigger_callback(self, event):
         with self.lock:

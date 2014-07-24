@@ -60,14 +60,16 @@ class ClientThread(threading.Thread):
         self.server = server
         self.daemon = True
         self.s = s
+        self.s.settimeout(0.1)
         self.network = network
         self.queue = Queue.Queue()
         self.unanswered_requests = {}
         self.debug = False
+        self.server.add_client(self)
 
 
     def run(self):
-        self.server.add_client(self)
+
         message = ''
         while True:
             self.send_responses()
@@ -140,9 +142,9 @@ class ClientThread(threading.Thread):
 class NetworkServer:
 
     def __init__(self, config):
-        network = Network(config)
-        network.start(wait=False)
-        self.network = network
+        self.network = Network(config)
+        self.network.trigger_callback = self.trigger_callback
+        self.network.start()
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.daemon_port = config.get('daemon_port', DAEMON_PORT)
@@ -150,28 +152,44 @@ class NetworkServer:
         self.socket.listen(5)
         self.socket.settimeout(1)
         self.running = False
+        # daemon terminates after period of inactivity
         self.timeout = config.get('daemon_timeout', 60)
-
-        #
         self.lock = threading.RLock()
+
+        # each GUI is a client of the daemon
         self.clients = []
-        # need to know which client subscribed to which address
-        #
-        # report status
-        self.network.status_callback = self.on_status
+        # daemon needs to know which client subscribed to which address
+
 
     def add_client(self, client):
+        for key in ['status','banner','updated','servers']:
+            value = self.get_status_value(key)
+            client.queue.put({'method':'network.status', 'params':[key, value]})
         with self.lock:
             self.clients.append(client)
+
 
     def remove_client(self, client):
         with self.lock:
             self.clients.remove(client)
         print_error("client quit:", len(self.clients))
 
-    def on_status(self, status):
+    def get_status_value(self, key):
+        if key == 'status':
+            value = self.network.connection_status
+        elif key == 'banner':
+            value = self.network.banner
+        elif key == 'updated':
+            value = self.network.get_local_height()
+        elif key == 'servers':
+            value = self.network.irc_servers
+        return value
+
+    def trigger_callback(self, key):
+        value = self.get_status_value(key)
+        print_error("daemon trigger callback", key, len(self.clients))
         for client in self.clients:
-            client.queue.put({'method':'network.subscribe', 'status':status})
+            client.queue.put({'method':'network.status', 'params':[key, value]})
 
     def main_loop(self):
         self.running = True
@@ -188,7 +206,8 @@ class NetworkServer:
                 continue
             client = ClientThread(self, self.network, connection)
             client.start()
-        print_error("daemon: timed out")
+
+        print_error("Daemon exiting (timeout)")
 
 
 

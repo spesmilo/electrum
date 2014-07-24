@@ -70,6 +70,8 @@ def pick_random_server(p='s'):
 
 from simple_config import SimpleConfig
 
+
+
 class Network(threading.Thread):
 
     def __init__(self, config=None):
@@ -114,6 +116,13 @@ class Network(threading.Thread):
         self.subscriptions[self.on_banner] = [('server.banner',[])]
         self.subscriptions[self.on_peers] = [('server.peers.subscribe',[])]
         self.pending_transactions_for_notifications = []
+
+        self.connection_status = 'disconnected'
+
+
+    def set_status(self, status):
+        self.connection_status = status
+        self.trigger_callback('status')
 
 
     def is_connected(self):
@@ -161,6 +170,7 @@ class Network(threading.Thread):
 
 
     def trigger_callback(self, event):
+        # note: this method is overwritten by daemon
         with self.lock:
             callbacks = self.callbacks.get(event,[])[:]
         if callbacks:
@@ -212,32 +222,14 @@ class Network(threading.Thread):
 
     def start_interfaces(self):
         self.interface = self.start_interface(self.default_server)
-
         for i in range(self.num_server):
             self.start_random_interface()
             
-
-    def start(self, wait=False):
+    def start(self):
         self.start_interfaces()
         threading.Thread.start(self)
-        if wait:
-            raise
-            return self.wait_until_connected()
-
-    def wait_until_connected(self):
-        "wait until connection status is known"
-        if self.config.get('auto_cycle'): 
-            # self.random_server() returns None if all servers have been tried
-            while not self.is_connected() and self.random_server():
-                time.sleep(0.1)
-        else:
-            self.interface.connect_event.wait()
-
-        return self.interface.is_connected
-
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
-
         self.config.set_key('auto_cycle', auto_connect, True)
         self.config.set_key("proxy", proxy, True)
         self.config.set_key("protocol", protocol, True)
@@ -277,7 +269,7 @@ class Network(threading.Thread):
         self.config.set_key('server', server, False)
         self.default_server = server
         self.send_subscriptions()
-        self.trigger_callback('connected')
+        self.set_status('connected')
 
 
     def stop_interface(self):
@@ -296,7 +288,7 @@ class Network(threading.Thread):
             self.stop_interface()
 
         # notify gui
-        self.trigger_callback('disconnecting')
+        self.set_status('connecting')
         # start interface
         self.default_server = server
         self.config.set_key("server", server, True)
@@ -357,7 +349,7 @@ class Network(threading.Thread):
                 if i == self.interface:
                     print_error('sending subscriptions to', self.interface.server)
                     self.send_subscriptions()
-                    self.trigger_callback('connected')
+                    self.set_status('connected')
             else:
                 self.disconnected_servers.add(i.server)
                 if i.server in self.interfaces:
@@ -366,7 +358,7 @@ class Network(threading.Thread):
                     self.heights.pop(i.server)
                 if i == self.interface:
                     #self.interface = None
-                    self.trigger_callback('disconnected')
+                    self.set_status('disconnected')
 
             if not self.interface.is_connected and self.config.get('auto_cycle'):
                 self.switch_to_random_interface()
@@ -397,7 +389,7 @@ class Network(threading.Thread):
     def on_peers(self, i, r):
         if not r: return
         self.irc_servers = parse_servers(r.get('result'))
-        self.trigger_callback('peers')
+        self.trigger_callback('servers')
 
     def on_banner(self, i, r):
         self.banner = r.get('result')

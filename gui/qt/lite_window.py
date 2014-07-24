@@ -793,8 +793,7 @@ class MiniDriver(QObject):
 
         if self.network:
             self.network.register_callback('updated',self.update_callback)
-            self.network.register_callback('connected', self.update_callback)
-            self.network.register_callback('disconnected', self.update_callback)
+            self.network.register_callback('status', self.update_callback)
 
         self.state = None
 
