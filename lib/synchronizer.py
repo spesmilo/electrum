@@ -56,8 +56,10 @@ class WalletSynchronizer(threading.Thread):
         with self.lock:
             self.running = True
         while self.is_running():
-            if not self.network.is_connected():
-                self.network.wait_until_connected()
+            while not self.network.is_connected():
+                import time
+                time.sleep(5)
+                #self.network.wait_until_connected()
             self.run_interface()
 
     def run_interface(self):

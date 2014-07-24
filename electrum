@@ -69,6 +69,7 @@ def arg_parser():
     parser.add_option("-g", "--gui", dest="gui", help="User interface: qt, lite, gtk, text or stdio")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
     parser.add_option("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
+    parser.add_option("-d", "--daemon", action="store_true", dest="daemon", default=False, help="use daemon")
     parser.add_option("-C", "--concealed", action="store_true", dest="concealed", default=False, help="don't echo seed to console when restoring")
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
     parser.add_option("-l", "--labels", action="store_true", dest="show_labels", default=False, help="show the labels of listed addresses")
@@ -109,11 +110,9 @@ def run_command(cmd, password=None, args=None):
     if args is None:
         args = []  # Do not use mutables as default values!
     if cmd.requires_network and not options.offline:
-        network = NetworkProxy(config)
-        if not network.start(start_daemon= (True if cmd.name!='daemon' else False)):
-            print "Daemon not running"
-            sys.exit(1)
-
+        s = daemon_socket()
+        network = NetworkProxy(s, config)
+        network.start()
         if wallet:
             wallet.start_threads(network)
             wallet.update()
@@ -133,6 +132,7 @@ def run_command(cmd, password=None, args=None):
     if cmd.requires_network and not options.offline:
         if wallet:
             wallet.stop_threads()
+        network.stop()
 
 
     if type(result) == str:
@@ -141,6 +141,28 @@ def run_command(cmd, password=None, args=None):
         print_json(result)
 
 
+
+def daemon_socket(start_daemon=True):
+    import socket
+    from electrum.daemon import DAEMON_PORT
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    daemon_port = config.get('daemon_port', DAEMON_PORT)
+    daemon_started = False
+    while True:
+        try:
+            s.connect(('', daemon_port))
+            return s
+        except socket.error:
+            if not start_daemon:
+                return False
+            elif not daemon_started:
+                import subprocess
+                logfile = open(os.path.join(config.path, 'daemon.log'),'w')
+                p = subprocess.Popen([__file__,"daemon","start"], stderr=logfile, stdout=logfile)
+                print "starting daemon (PID %d)"%p.pid
+                daemon_started = True
+            else:
+                time.sleep(0.1)
 
 
 
@@ -193,8 +215,13 @@ if __name__ == '__main__':
 
         # network interface
         if not options.offline:
-            network = Network(config)
-            network.start()
+            if options.daemon:
+                s = daemon_socket()
+                network = NetworkProxy(s, config)
+                network.start()
+            else:
+                network = Network(config)
+                network.start()
         else:
             network = None
 
@@ -209,6 +236,38 @@ if __name__ == '__main__':
         time.sleep(0.1)
         sys.exit(0)
 
+    if cmd == 'daemon':
+        arg = args[1]
+        if arg=='start':
+            from electrum import daemon, util
+            util.set_verbosity(True)
+            print_stderr( "Starting daemon [%s]"%config.get('server'))
+            server = daemon.NetworkServer(config)
+            try:
+                server.main_loop()
+            except KeyboardInterrupt:
+                print_msg("Ctrl C - Stopping server")
+            sys.exit(0)
+        elif arg in ['status','stop']:
+            s = daemon_socket(start_daemon=False)
+            if not s:
+                print_msg("Daemon not running")
+                sys.exit(1)
+            network = NetworkProxy(s, config)
+            network.start()
+            if arg == 'status':
+                print_json({
+                    'server':network.main_server(),
+                    'connected':network.is_connected()
+                })
+            elif arg == 'stop':
+                network.stop_daemon()
+            network.stop()
+        else:
+            print "unknown command \"%s\""% arg
+        sys.exit(0)
+
+
     if cmd not in known_commands:
         cmd = 'help'
 
@@ -216,7 +275,6 @@ if __name__ == '__main__':
 
     # instanciate wallet for command-line
     storage = WalletStorage(config)
-
 
     if cmd.name in ['create', 'restore']:
         if storage.file_exists:
@@ -427,7 +485,6 @@ if __name__ == '__main__':
 
     else:
         run_command(cmd, password, args)
-
 
     time.sleep(0.1)
     sys.exit(0)

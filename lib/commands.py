@@ -19,7 +19,7 @@
 import datetime
 import time
 import copy
-from util import print_msg, format_satoshis
+from util import print_msg, format_satoshis, print_stderr
 from bitcoin import is_valid, hash_160_to_bc_address, hash_160
 from decimal import Decimal
 import bitcoin
@@ -105,7 +105,6 @@ register_command('verifymessage',        3,-1, False, False, False, 'Verifies a 
 
 register_command('encrypt',              2,-1, False, False, False, 'encrypt a message with pubkey','encrypt <pubkey> <message>')
 register_command('decrypt',              2,-1, False, True, True,   'decrypt a message encrypted with pubkey','decrypt <pubkey> <message>')
-register_command('daemon',               1, 1, True, False, False,  '<stop|status>')
 register_command('getproof',             1, 1, True, False, False, 'get merkle proof', 'getproof <address>')
 register_command('getutxoaddress',       2, 2, True, False, False, 'get the address of an unspent transaction output','getutxoaddress <txid> <pos>')
 register_command('sweep',                2, 3, True, False, False, 'Sweep a private key.', 'sweep privkey addr [fee]')
@@ -132,17 +131,6 @@ class Commands:
 
     def getaddresshistory(self, addr):
         return self.network.synchronous_get([ ('blockchain.address.get_history',[addr]) ])[0]
-
-    def daemon(self, arg):
-        if arg=='stop':
-            return self.network.stop()
-        elif arg=='status':
-            return {
-                'server':self.network.main_server(),
-                'connected':self.network.is_connected()
-            }
-        else:
-            return "unknown command \"%s\""% arg
 
     def listunspent(self):
         l = copy.deepcopy(self.wallet.get_unspent_coins())

@@ -811,9 +811,9 @@ class MiniDriver(QObject):
     def update(self):
         if not self.network:
             self.initializing()
-        elif not self.network.interface:
-            self.initializing()
-        elif not self.network.interface.is_connected:
+        #elif not self.network.interface:
+        #    self.initializing()
+        elif not self.network.is_connected():
             self.connecting()
 
         if self.g.wallet is None:

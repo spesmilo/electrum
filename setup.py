@@ -76,6 +76,7 @@ setup(
         'electrum.mnemonic',
         'electrum.msqr',
         'electrum.network',
+        'electrum.network_proxy',
         'electrum.paymentrequest',
         'electrum.paymentrequest_pb2',
         'electrum.plugins',

@@ -221,6 +221,7 @@ class Network(threading.Thread):
         self.start_interfaces()
         threading.Thread.start(self)
         if wait:
+            raise
             return self.wait_until_connected()
 
     def wait_until_connected(self):
@@ -419,26 +420,4 @@ class Network(threading.Thread):
     def get_local_height(self):
         return self.blockchain.height()
 
-
-
-    #def retrieve_transaction(self, tx_hash, tx_height=0):
-    #    import transaction
-    #    r = self.synchronous_get([ ('blockchain.transaction.get',[tx_hash, tx_height]) ])[0]
-    #    if r:
-    #        return transaction.Transaction(r)
-
-
-
-
-
-if __name__ == "__main__":
-    network = NetworkProxy({})
-    network.start()
-    print network.get_servers()
-
-    q = Queue.Queue()
-    network.send([('blockchain.headers.subscribe',[])], q.put)
-    while True:
-        r = q.get(timeout=10000)
-        print r
 
