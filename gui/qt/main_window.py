@@ -23,7 +23,7 @@ import os.path, json, ast, traceback
 import webbrowser
 import shutil
 import StringIO
-from qsdnlocale import QSDNLocale
+from qsdn import QSDNConverter
 
 
 import PyQt4
@@ -175,6 +175,7 @@ class ElectrumWindow(QMainWindow):
         self.connect(self, QtCore.SIGNAL('payment_request_error'), self.payment_request_error)
 
         self.history_list.setFocus(True)
+        self.converter = QSDNConverter()
 
         # network callbacks
         if self.network:
@@ -189,7 +190,7 @@ class ElectrumWindow(QMainWindow):
 
         self.wallet = None
         self.payment_request = None
-        self.locale = QSDNLocale()
+        self.locale = QLocale.c()
 
     def update_account_selector(self):
         # account selector
@@ -442,7 +443,7 @@ class ElectrumWindow(QMainWindow):
     # Use format_satoshis() in util for sending numbers to interface with other computers.
     def format_amount(self, x, is_diff=False, whitespaces=False):
     	d = Decimal(format_satoshis(x, False, self.num_zeros, self.decimal_point, False))
-    	s = self.locale.toString(d)
+    	s = self.converter.toString(d)
     	if d > 0 and is_diff:
     	    s = '+' + s
 	p = s.indexOf(self.locale.decimalPoint())

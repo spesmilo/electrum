@@ -2,8 +2,8 @@
 
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
-from qsdnvalidator import QSDNNumericValidator
-from qsdnlocale import QSDNLocale
+from qsdn import QSDNNumericValidator
+from qsdn import QSDNConverter
 from decimal import Decimal
 
 class MyLineEdit(QLineEdit):
@@ -47,10 +47,8 @@ class BTCAmountEdit(AmountEdit):
     def __init__(self, decimal_point, is_int = False, parent=None, add_ws = False):
         AmountEdit.__init__(self, self._base_unit, is_int, parent)
         self.decimal_point = decimal_point
-        self.validators = [None, None, QSDNNumericValidator(14, 2, add_ws), None, None, \
-            QSDNNumericValidator(11, 5, add_ws), None, None, QSDNNumericValidator(8, 8, add_ws)]
-        self.setValidator(self.validators[self.decimal_point()])
-        self.locale = QSDNLocale()
+        self.converter = QSDNConverter()
+        self.setValidator(QSDNNumericValidator(16 - self.decimal_point(), self.decimal_point(), add_ws))
         self.connect(self.validator(), SIGNAL('bang()'), self.set_shortcut)
 
     def _base_unit(self):
@@ -65,10 +63,10 @@ class BTCAmountEdit(AmountEdit):
         raise Exception('Unknown base unit')
 
     def get_amount(self):
-        (x, ok) = self.locale.toDecimal(self.text(), 10)
+        (x, ok) = self.converter.toDecimal(self.text())
         if ok == False:
             return None
-        p = pow(10, self.decimal_point())
+        p = pow(Decimal(10), Decimal(self.decimal_point()))
         return int( p * x )
 
     def setAmount(self, amount):
@@ -78,5 +76,5 @@ class BTCAmountEdit(AmountEdit):
 
         p = pow(10, self.decimal_point())
         x = amount / Decimal(p)
-        self.setText(self.locale.toString(x))
+        self.setText(self.converter.toString(x))
 

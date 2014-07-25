@@ -1,7 +1,7 @@
 from PyQt4.QtGui import *
 from electrum.i18n import _
 from decimal import Decimal
-from qsdnlocale import QSDNLocale
+from qsdn import QSDNConverter
 
 class HistoryWidget(QTreeWidget):
 
@@ -10,7 +10,7 @@ class HistoryWidget(QTreeWidget):
         self.setColumnCount(2)
         self.setHeaderLabels([_("Amount"), _("To / From"), _("When")])
         self.setIndentation(0)
-        self.locale = QSDNLocale()
+        self.converter = QSDNConverter()
 
     def empty(self):
         self.clear()
@@ -23,7 +23,7 @@ class HistoryWidget(QTreeWidget):
         if date is None:
           date = _("Unknown")
         item = QTreeWidgetItem([amount, address, date])
-        (amount_v, ok) = self.locale.toFloat(amount)
+        (amount_v, ok) = self.converter.toDecimal(amount)
         if not ok or amount_v < 0:
           item.setForeground(0, QBrush(QColor("#BC1E1E")))
         self.insertTopLevelItem(0, item)
