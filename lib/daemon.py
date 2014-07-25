@@ -72,7 +72,11 @@ class ClientThread(threading.Thread):
 
         message = ''
         while True:
-            self.send_responses()
+            try:
+                self.send_responses()
+            except socket.error:
+                break
+
             try:
                 data = self.s.recv(1024)
             except socket.timeout:
@@ -99,6 +103,10 @@ class ClientThread(threading.Thread):
         method = request['method']
         params = request['params']
         _id = request['id']
+
+        if method == ('daemon.stop'):
+            self.server.stop()
+            return
 
         if method.startswith('network.'):
             out = {'id':_id}
@@ -168,6 +176,9 @@ class NetworkServer:
         self.clients = []
         # daemon needs to know which client subscribed to which address
 
+    def stop(self):
+        with self.lock:
+            self.running = False
 
     def add_client(self, client):
         for key in ['status','banner','updated','servers','interfaces']:
@@ -210,6 +221,7 @@ class NetworkServer:
             except socket.timeout:
                 if not self.clients:
                     if time.time() - t > self.timeout:
+                        print_error("Daemon timeout")
                         break
                 else:
                     t = time.time()
@@ -217,8 +229,8 @@ class NetworkServer:
             t = time.time()
             client = ClientThread(self, self.network, connection)
             client.start()
+        print_error("Daemon exiting")
 
-        print_error("Daemon exiting (timeout)")
 
 
 

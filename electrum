@@ -146,6 +146,12 @@ def run_command(cmd, password=None, args=None):
         print_json(result)
 
 
+def do_start_daemon():
+    import subprocess
+    logfile = open(os.path.join(config.path, 'daemon.log'),'w')
+    p = subprocess.Popen([__file__,"daemon"], stderr=logfile, stdout=logfile, close_fds=True)
+    print "starting daemon (PID %d)"%p.pid
+
 
 def daemon_socket(start_daemon=True):
     import socket
@@ -161,15 +167,10 @@ def daemon_socket(start_daemon=True):
             if not start_daemon:
                 return False
             elif not daemon_started:
-                import subprocess
-                logfile = open(os.path.join(config.path, 'daemon.log'),'w')
-                p = subprocess.Popen([__file__,"daemon","start"], stderr=logfile, stdout=logfile, close_fds=True)
-                print "starting daemon (PID %d)"%p.pid
+                do_start_daemon()
                 daemon_started = True
             else:
                 time.sleep(0.1)
-
-
 
 
 if __name__ == '__main__':
@@ -242,8 +243,7 @@ if __name__ == '__main__':
         sys.exit(0)
 
     if cmd == 'daemon':
-        arg = args[1]
-        if arg=='start':
+        if len(args) == 1:
             from electrum import daemon, util
             util.set_verbosity(True)
             print_stderr( "Starting daemon [%s]"%config.get('server'))
@@ -253,8 +253,18 @@ if __name__ == '__main__':
             except KeyboardInterrupt:
                 print_msg("Ctrl C - Stopping server")
             sys.exit(0)
+        arg = args[1]
+        if arg not in ['start', 'stop', 'status']:
+            print_msg("syntax: electrum daemon <start|status|stop>")
+            sys.exit(1)
+        s = daemon_socket(start_daemon=False)
+        if arg == 'start':
+            if s:
+                print_msg("Daemon already running")
+                sys.exit(1) 
+            do_start_daemon()
+            sys.exit(0)
         elif arg in ['status','stop']:
-            s = daemon_socket(start_daemon=False)
             if not s:
                 print_msg("Daemon not running")
                 sys.exit(1)

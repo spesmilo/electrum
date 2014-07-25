@@ -196,6 +196,9 @@ class NetworkProxy(threading.Thread):
     def stop(self):
         self.running = False
 
+    def stop_daemon(self):
+        return self.send([('daemon.stop',[])], None)
+
     def register_callback(self, event, callback):
         with self.lock:
             if not self.callbacks.get(event):
