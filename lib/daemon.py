@@ -214,6 +214,7 @@ class NetworkServer:
                 else:
                     t = time.time()
                 continue
+            t = time.time()
             client = ClientThread(self, self.network, connection)
             client.start()
 
