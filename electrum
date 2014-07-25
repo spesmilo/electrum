@@ -262,8 +262,10 @@ if __name__ == '__main__':
             network.start()
             if arg == 'status':
                 print_json({
-                    'server':network.main_server(),
-                    'connected':network.is_connected()
+                    'main_server': network.get_parameters()[0],
+                    'height': network.get_local_height(),
+                    'nodes': network.get_interfaces(),
+                    'connected': network.is_connected()
                 })
             elif arg == 'stop':
                 network.stop_daemon()
