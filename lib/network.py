@@ -318,7 +318,7 @@ class Network(threading.Thread):
     def new_blockchain_height(self, blockchain_height, i):
         if self.is_connected():
             if self.server_is_lagging():
-                print_error( "Server is lagging", blockchain_height, h)
+                print_error( "Server is lagging", blockchain_height, self.get_server_height())
                 if self.config.get('auto_cycle'):
                     self.set_server(i.server)
         
