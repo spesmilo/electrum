@@ -158,7 +158,7 @@ def daemon_socket(start_daemon=True):
             elif not daemon_started:
                 import subprocess
                 logfile = open(os.path.join(config.path, 'daemon.log'),'w')
-                p = subprocess.Popen([__file__,"daemon","start"], stderr=logfile, stdout=logfile)
+                p = subprocess.Popen([__file__,"daemon","start"], stderr=logfile, stdout=logfile, close_fds=True)
                 print "starting daemon (PID %d)"%p.pid
                 daemon_started = True
             else:
