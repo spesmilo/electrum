@@ -467,12 +467,13 @@ class ElectrumWindow(QMainWindow):
             icon = QIcon(":icons/status_disconnected.png")
 
         elif self.network.is_connected():
+            server_lag = self.network.get_local_height() - self.network.get_server_height()
             if not self.wallet.up_to_date:
                 text = _("Synchronizing...")
                 icon = QIcon(":icons/status_waiting.png")
-            #elif self.network.server_lag > 1:
-            #    text = _("Server is lagging (%d blocks)"%self.network.server_lag)
-            #    icon = QIcon(":icons/status_lagging.png")
+            elif server_lag > 1:
+                text = _("Server is lagging (%d blocks)"%server_lag)
+                icon = QIcon(":icons/status_lagging.png")
             else:
                 c, u = self.wallet.get_account_balance(self.current_account)
                 text =  _( "Balance" ) + ": %s "%( self.format_amount(c) ) + self.base_unit()

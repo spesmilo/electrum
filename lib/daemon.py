@@ -199,7 +199,7 @@ class NetworkServer:
         elif key == 'banner':
             value = self.network.banner
         elif key == 'updated':
-            value = self.network.get_local_height()
+            value = (self.network.get_local_height(), self.network.get_server_height())
         elif key == 'servers':
             value = self.network.get_servers()
         elif key == 'interfaces':

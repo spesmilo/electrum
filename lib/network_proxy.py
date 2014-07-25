@@ -57,7 +57,8 @@ class NetworkProxy(threading.Thread):
         self.status = 'connecting'
         self.servers = {}
         self.banner = ''
-        self.height = 0
+        self.blockchain_height = 0
+        self.server_height = 0
         self.interfaces = []
 
     def is_running(self):
@@ -99,7 +100,7 @@ class NetworkProxy(threading.Thread):
             elif key == 'banner':
                 self.banner = value
             elif key == 'updated':
-                self.height = value
+                self.blockchain_height, self.server_height = value
             elif key == 'servers':
                 self.servers = value
             elif key == 'interfaces':
@@ -176,7 +177,10 @@ class NetworkProxy(threading.Thread):
         return self.synchronous_get([('network.get_header',[height])])[0]
 
     def get_local_height(self):
-        return self.height
+        return self.blockchain_height
+
+    def get_server_height(self):
+        return self.server_height
 
     def is_connected(self):
         return self.status == 'connected'

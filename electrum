@@ -272,8 +272,9 @@ if __name__ == '__main__':
             network.start()
             if arg == 'status':
                 print_json({
-                    'main_server': network.get_parameters()[0],
-                    'height': network.get_local_height(),
+                    'server': network.get_parameters()[0],
+                    'blockchain_height': network.get_local_height(),
+                    'server_height': network.get_server_height(),
                     'nodes': network.get_interfaces(),
                     'connected': network.is_connected()
                 })
