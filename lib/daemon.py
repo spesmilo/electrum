@@ -169,7 +169,7 @@ class NetworkServer:
         self.socket.settimeout(1)
         self.running = False
         # daemon terminates after period of inactivity
-        self.timeout = config.get('daemon_timeout', 60)
+        self.timeout = config.get('daemon_timeout', 5*60)
         self.lock = threading.RLock()
 
         # each GUI is a client of the daemon
