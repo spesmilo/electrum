@@ -117,7 +117,7 @@ class Network(threading.Thread):
         self.subscriptions[self.on_peers] = [('server.peers.subscribe',[])]
         self.pending_transactions_for_notifications = []
 
-        self.connection_status = 'disconnected'
+        self.connection_status = 'connecting'
 
     def set_status(self, status):
         self.connection_status = status

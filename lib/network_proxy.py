@@ -54,7 +54,7 @@ class NetworkProxy(threading.Thread):
         self.daemon = True
 
         # status variables
-        self.status = 'disconnected'
+        self.status = 'connecting'
         self.servers = {}
         self.banner = ''
         self.height = 0
@@ -180,6 +180,9 @@ class NetworkProxy(threading.Thread):
 
     def is_connected(self):
         return self.status == 'connected'
+
+    def is_connecting(self):
+        return self.status == 'connecting'
 
     def is_up_to_date(self):
         return self.synchronous_get([('network.is_up_to_date',[])])[0]

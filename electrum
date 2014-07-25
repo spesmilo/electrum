@@ -113,6 +113,11 @@ def run_command(cmd, password=None, args=None):
         s = daemon_socket()
         network = NetworkProxy(s, config)
         network.start()
+        while network.is_connecting():
+            time.sleep(0.1)
+        if not network.is_connected():
+            print_msg("daemon is not connected")
+            sys.exit(1)
         if wallet:
             wallet.start_threads(network)
             wallet.update()

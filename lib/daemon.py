@@ -125,7 +125,8 @@ class ClientThread(threading.Thread):
         try:
             new_id = self.network.interface.send([(method, params)], cb) [0]
         except Exception as e:
-            self.queue.put(out = {'id':_id, 'error':str(e)}) 
+            self.queue.put({'id':_id, 'error':str(e)}) 
+            print_error("network interface error", str(e))
             return
 
         self.unanswered_requests[new_id] = _id
