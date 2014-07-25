@@ -55,9 +55,10 @@ class NetworkProxy(threading.Thread):
 
         # status variables
         self.status = 'disconnected'
-        self.servers = []
+        self.servers = {}
         self.banner = ''
         self.height = 0
+        self.interfaces = []
 
     def is_running(self):
         return self.running
@@ -101,6 +102,8 @@ class NetworkProxy(threading.Thread):
                 self.height = value
             elif key == 'servers':
                 self.servers = value
+            elif key == 'interfaces':
+                self.interfaces = value
             self.trigger_callback(key)
             return
 
@@ -166,6 +169,9 @@ class NetworkProxy(threading.Thread):
     def get_servers(self):
         return self.servers
 
+    def get_interfaces(self):
+        return self.interfaces
+
     def get_header(self, height):
         return self.synchronous_get([('network.get_header',[height])])[0]
 
@@ -178,8 +184,11 @@ class NetworkProxy(threading.Thread):
     def is_up_to_date(self):
         return self.synchronous_get([('network.is_up_to_date',[])])[0]
 
-    def main_server(self):
-        return self.synchronous_get([('network.main_server',[])])[0]
+    def get_parameters(self):
+        return self.synchronous_get([('network.get_parameters',[])])[0]
+
+    def set_parameters(self, *args):
+        return self.synchronous_get([('network.set_parameters',args)])[0]
 
     def stop(self):
         self.running = False

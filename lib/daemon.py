@@ -109,8 +109,10 @@ class ClientThread(threading.Thread):
             try:
                 out['result'] = f(*params)
             except BaseException as e:
-                out['error'] =str(e)
-            self.queue.put(out) 
+                out['error'] = str(e)
+                print_error("network error", str(e))
+
+            self.queue.put(out)
             return
 
         def cb(i,r):
@@ -120,7 +122,12 @@ class ClientThread(threading.Thread):
                 r['id'] = my_id
             self.queue.put(r)
 
-        new_id = self.network.interface.send([(method, params)], cb) [0]
+        try:
+            new_id = self.network.interface.send([(method, params)], cb) [0]
+        except Exception as e:
+            self.queue.put(out = {'id':_id, 'error':str(e)}) 
+            return
+
         self.unanswered_requests[new_id] = _id
 
 
@@ -162,7 +169,7 @@ class NetworkServer:
 
 
     def add_client(self, client):
-        for key in ['status','banner','updated','servers']:
+        for key in ['status','banner','updated','servers','interfaces']:
             value = self.get_status_value(key)
             client.queue.put({'method':'network.status', 'params':[key, value]})
         with self.lock:
@@ -182,7 +189,9 @@ class NetworkServer:
         elif key == 'updated':
             value = self.network.get_local_height()
         elif key == 'servers':
-            value = self.network.irc_servers
+            value = self.network.get_servers()
+        elif key == 'interfaces':
+            value = self.network.get_interfaces()
         return value
 
     def trigger_callback(self, key):

@@ -94,7 +94,7 @@ class Network(threading.Thread):
         if not self.default_server:
             self.default_server = pick_random_server(self.protocol)
 
-        self.irc_servers = [] # returned by interface (list from irc)
+        self.irc_servers = {} # returned by interface (list from irc)
         self.pending_servers = set([])
         self.disconnected_servers = set([])
         self.recent_servers = self.config.get('recent_servers',[]) # successful connections
@@ -119,28 +119,19 @@ class Network(threading.Thread):
 
         self.connection_status = 'disconnected'
 
-
     def set_status(self, status):
         self.connection_status = status
         self.trigger_callback('status')
 
-
     def is_connected(self):
         return self.interface and self.interface.is_connected
-
 
     def is_up_to_date(self):
         return self.interface.is_up_to_date()
 
-
-    def main_server(self):
-        return self.interface.server
-
-
     def send_subscriptions(self):
         for cb, sub in self.subscriptions.items():
             self.interface.send(sub, cb)
-
 
     def subscribe(self, messages, callback):
         with self.lock:
@@ -195,6 +186,14 @@ class Network(threading.Thread):
         server = random.choice( choice_list )
         return server
 
+    def get_parameters(self):
+        host, port, protocol = self.default_server.split(':')
+        proxy = self.proxy
+        auto_connect = self.config.get('auto_cycle', True)
+        return host, port, protocol, proxy, auto_connect
+
+    def get_interfaces(self):
+        return self.interfaces.keys()
 
     def get_servers(self):
         if self.irc_servers:

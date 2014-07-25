@@ -65,7 +65,7 @@ class WalletSynchronizer(threading.Thread):
             self.run_interface()
 
     def run_interface(self):
-        print_error("synchronizer: connected to", self.network.main_server())
+        #print_error("synchronizer: connected to", self.network.get_parameters())
 
         requested_tx = []
         missing_tx = []
