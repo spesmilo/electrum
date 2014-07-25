@@ -446,7 +446,7 @@ class Interface(threading.Thread):
             self.unanswered_requests[self.message_id] = method, params, callback
             ids.append(self.message_id)
             if self.debug:
-                print "-->", request
+                print_error("-->", request)
             self.message_id += 1
             out += request + '\n'
         while out:
