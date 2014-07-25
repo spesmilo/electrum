@@ -18,7 +18,9 @@
 
 
 import threading
+import time
 import Queue
+
 import bitcoin
 from util import print_error
 from transaction import Transaction
@@ -38,10 +40,12 @@ class WalletSynchronizer(threading.Thread):
         self.address_queue = Queue.Queue()
 
     def stop(self):
-        with self.lock: self.running = False
+        with self.lock:
+            self.running = False
 
     def is_running(self):
-        with self.lock: return self.running
+        with self.lock:
+            return self.running
 
     def add(self, address):
         self.address_queue.put(address)
@@ -56,12 +60,12 @@ class WalletSynchronizer(threading.Thread):
         with self.lock:
             self.running = True
         while self.is_running():
-            if not self.network.is_connected():
-                self.network.wait_until_connected()
+            while not self.network.is_connected():
+                time.sleep(1)
             self.run_interface()
 
     def run_interface(self):
-        print_error("synchronizer: connected to", self.network.main_server())
+        #print_error("synchronizer: connected to", self.network.get_parameters())
 
         requested_tx = []
         missing_tx = []

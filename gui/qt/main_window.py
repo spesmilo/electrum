@@ -179,8 +179,7 @@ class ElectrumWindow(QMainWindow):
         if self.network:
             self.network.register_callback('updated', lambda: self.need_update.set())
             self.network.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')))
-            self.network.register_callback('disconnected', lambda: self.emit(QtCore.SIGNAL('update_status')))
-            self.network.register_callback('disconnecting', lambda: self.emit(QtCore.SIGNAL('update_status')))
+            self.network.register_callback('status', lambda: self.emit(QtCore.SIGNAL('update_status')))
             self.network.register_callback('new_transaction', lambda: self.emit(QtCore.SIGNAL('transaction_signal')))
 
             # set initial message
@@ -468,11 +467,12 @@ class ElectrumWindow(QMainWindow):
             icon = QIcon(":icons/status_disconnected.png")
 
         elif self.network.is_connected():
+            server_lag = self.network.get_local_height() - self.network.get_server_height()
             if not self.wallet.up_to_date:
                 text = _("Synchronizing...")
                 icon = QIcon(":icons/status_waiting.png")
-            elif self.network.server_lag > 1:
-                text = _("Server is lagging (%d blocks)"%self.network.server_lag)
+            elif server_lag > 1:
+                text = _("Server is lagging (%d blocks)"%server_lag)
                 icon = QIcon(":icons/status_lagging.png")
             else:
                 c, u = self.wallet.get_account_balance(self.current_account)

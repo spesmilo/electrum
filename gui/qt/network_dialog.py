@@ -42,29 +42,26 @@ class NetworkDialog(QDialog):
         self.config = config
         self.protocol = None
 
+        self.servers = network.get_servers()
+        host, port, protocol, proxy_config, auto_connect = network.get_parameters()
+        if not proxy_config:
+            proxy_config = { "mode":"none", "host":"localhost", "port":"8080"}
+
         if parent:
-            n = len(network.interfaces)
+            n = len(network.get_interfaces())
             if n:
-                status = _("Blockchain") + ": " + "%d "%(network.blockchain.height()) + _("blocks") +  ".\n" + _("Getting block headers from %d nodes.")%n
+                status = _("Blockchain") + ": " + "%d "%(network.get_local_height()) + _("blocks") +  ".\n" + _("Getting block headers from %d nodes.")%n
             else:
                 status = _("Not connected")
-
             if network.is_connected():
-                status += "\n" + _("Server") + ": %s"%(network.interface.host) 
+                status += "\n" + _("Server") + ": %s"%(host) 
             else:
                 status += "\n" + _("Disconnected from server")
-                
         else:
-            import random
             status = _("Please choose a server.") + "\n" + _("Select 'Cancel' if you are offline.")
-
-        server = network.default_server
-        self.servers = network.get_servers()
-
 
         vbox = QVBoxLayout()
         vbox.setSpacing(30)
-
         hbox = QHBoxLayout()
         l = QLabel()
         l.setPixmap(QPixmap(":icons/network.png"))
@@ -95,34 +92,28 @@ class NetworkDialog(QDialog):
         grid.addWidget(QLabel(_('Protocol') + ':'), 3, 0)
         grid.addWidget(self.server_protocol, 3, 1)
 
-
         # server
         grid.addWidget(QLabel(_('Server') + ':'), 0, 0)
 
         # auto connect
         self.autocycle_cb = QCheckBox(_('Auto-connect'))
-        self.autocycle_cb.setChecked(self.config.get('auto_cycle', True))
+        self.autocycle_cb.setChecked(auto_connect)
         grid.addWidget(self.autocycle_cb, 0, 1)
         if not self.config.is_modifiable('auto_cycle'): self.autocycle_cb.setEnabled(False)
         msg = _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain.") + " " \
             + _("If it is disabled, Electrum will warn you if your server is lagging.")
         grid.addWidget(HelpButton(msg), 0, 4)
-
         grid.addWidget(self.server_host, 0, 2, 1, 2)
         grid.addWidget(self.server_port, 0, 3)
 
-
-        label = _('Active Servers') if network.irc_servers else _('Default Servers')
+        label = _('Servers') #_('Active Servers') if network.irc_servers else _('Default Servers')
         self.servers_list_widget = QTreeWidget(parent)
         self.servers_list_widget.setHeaderLabels( [ label, _('Limit') ] )
         self.servers_list_widget.setMaximumHeight(150)
         self.servers_list_widget.setColumnWidth(0, 240)
 
-        if server:
-            host, port, protocol = server.split(':')
-            self.change_server(host, protocol)
-
-        self.set_protocol(self.network.protocol)
+        self.change_server(host, protocol)
+        self.set_protocol(protocol)
 
         self.servers_list_widget.connect(self.servers_list_widget, 
                                          SIGNAL('currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)'), 
@@ -131,8 +122,6 @@ class NetworkDialog(QDialog):
 
         if not config.is_modifiable('server'):
             for w in [self.server_host, self.server_port, self.server_protocol, self.servers_list_widget]: w.setEnabled(False)
-
-
         
         def enable_set_server():
             enabled = not self.autocycle_cb.isChecked()
@@ -165,7 +154,6 @@ class NetworkDialog(QDialog):
         if not self.config.is_modifiable('proxy'):
             for w in [self.proxy_host, self.proxy_port, self.proxy_mode]: w.setEnabled(False)
 
-        proxy_config = network.proxy if network.proxy else { "mode":"none", "host":"localhost", "port":"8080"}
         self.proxy_mode.setCurrentIndex(self.proxy_mode.findText(str(proxy_config.get("mode").upper())))
         self.proxy_host.setText(proxy_config.get("host"))
         self.proxy_port.setText(proxy_config.get("port"))

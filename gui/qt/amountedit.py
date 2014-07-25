@@ -53,6 +53,12 @@ class AmountEdit(MyLineEdit):
             painter.setPen(self.help_palette.brush(QPalette.Disabled, QPalette.Text).color())
             painter.drawText(textRect, Qt.AlignRight | Qt.AlignVCenter, self.base_unit())
 
+    def get_amount(self):
+        try:
+            x = int(str(self.text()))
+        except:
+            return None
+        return x
 
 
 class BTCAmountEdit(AmountEdit):
