@@ -221,8 +221,8 @@ if __name__ == '__main__':
 
         # network interface
         if not options.offline:
-            if options.daemon:
-                s = daemon_socket()
+            s = daemon_socket(start_daemon=options.daemon)
+            if s:
                 network = NetworkProxy(s, config)
                 network.start()
             else:
