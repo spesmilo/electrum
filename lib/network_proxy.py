@@ -135,13 +135,13 @@ class NetworkProxy(threading.Thread):
             ids = []
             for m in messages:
                 method, params = m 
-                request = json.dumps( { 'id':self.message_id, 'method':method, 'params':params } )
+                request = { 'id':self.message_id, 'method':method, 'params':params }
                 self.unanswered_requests[self.message_id] = method, params, callback
                 ids.append(self.message_id)
                 if self.debug: 
                     print_error("-->", request)
                 self.message_id += 1
-                out += request + '\n'
+                out += json.dumps(request) + '\n'
             while out:
                 sent = self.socket.send( out )
                 out = out[sent:]
