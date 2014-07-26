@@ -25,7 +25,7 @@ import traceback
 import json
 import Queue
 from network import Network
-from util import print_error, print_stderr
+from util import print_error, print_stderr, parse_json
 from simple_config import SimpleConfig
 
 
@@ -39,15 +39,6 @@ Network also reports status changes
 DAEMON_PORT=8001
 
 
-def parse_json(message):
-    n = message.find('\n')
-    if n==-1: 
-        return None, message
-    try:
-        j = json.loads( message[0:n] )
-    except:
-        j = None
-    return j, message[n+1:]
 
 
 

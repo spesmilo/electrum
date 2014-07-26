@@ -211,3 +211,15 @@ def raw_input(prompt=None):
 import __builtin__
 builtin_raw_input = __builtin__.raw_input
 __builtin__.raw_input = raw_input
+
+
+
+def parse_json(message):
+    n = message.find('\n')
+    if n==-1: 
+        return None, message
+    try:
+        j = json.loads( message[0:n] )
+    except:
+        j = None
+    return j, message[n+1:]

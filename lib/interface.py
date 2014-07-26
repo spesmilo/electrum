@@ -33,7 +33,7 @@ DEFAULT_TIMEOUT = 5
 proxy_modes = ['socks4', 'socks5', 'http']
 
 
-    
+from util import parse_json    
 
 def cert_verify_hostname(s):
     # hostname verification (disabled)
@@ -392,7 +392,7 @@ class Interface(threading.Thread):
     def run_tcp(self):
         try:
             #if self.use_ssl: self.s.do_handshake()
-            out = ''
+            message = ''
             while self.is_connected:
                 try: 
                     timeout = False
@@ -417,18 +417,16 @@ class Interface(threading.Thread):
                     self.send([('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])], self.on_version)
                     continue
 
-                out += msg
+                message += msg
                 self.bytes_received += len(msg)
                 if msg == '': 
                     self.is_connected = False
 
                 while True:
-                    s = out.find('\n')
-                    if s==-1: break
-                    c = out[0:s]
-                    out = out[s+1:]
-                    c = json.loads(c)
-                    self.process_response(c)
+                    response, message = parse_json(message)
+                    if response is None:
+                        break
+                    self.process_response(response)
 
         except Exception:
             traceback.print_exc(file=sys.stdout)
