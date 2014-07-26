@@ -94,7 +94,7 @@ class Interface(threading.Thread):
 
 
 
-    def queue_json_response(self, c):
+    def process_response(self, c):
 
         # uncomment to debug
         if self.debug:
@@ -242,10 +242,10 @@ class Interface(threading.Thread):
         if response: 
             response = json.loads( response )
             if type(response) is not type([]):
-                self.queue_json_response(response)
+                self.process_response(response)
             else:
                 for item in response:
-                    self.queue_json_response(item)
+                    self.process_response(item)
 
         if response: 
             self.poll_interval = 1
@@ -428,7 +428,7 @@ class Interface(threading.Thread):
                     c = out[0:s]
                     out = out[s+1:]
                     c = json.loads(c)
-                    self.queue_json_response(c)
+                    self.process_response(c)
 
         except Exception:
             traceback.print_exc(file=sys.stdout)
