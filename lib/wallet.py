@@ -599,8 +599,10 @@ class Abstract_Wallet(object):
             if not change_addr:
 
                 # send change to one of the accounts involved in the tx
-                address = inputs[0].get('address')
-                account, _ = self.get_address_index(address)
+                for i in range(len(inputs)):
+                    address = inputs[i].get('address')
+                    account, _ = self.get_address_index(address)
+                    if account != IMPORTED_ACCOUNT: break
 
                 if not self.use_change or account == IMPORTED_ACCOUNT:
                     change_addr = inputs[-1]['address']
