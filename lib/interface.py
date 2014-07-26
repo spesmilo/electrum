@@ -49,7 +49,7 @@ def cert_verify_hostname(s):
 class Interface(threading.Thread):
 
 
-    def __init__(self, server, config = None):
+    def __init__(self, server, connect_timeout, connected_timeout, config = None):
 
         threading.Thread.__init__(self)
         self.daemon = True
@@ -89,7 +89,8 @@ class Interface(threading.Thread):
         self.proxy = self.parse_proxy_options(self.config.get('proxy'))
         if self.proxy:
             self.proxy_mode = proxy_modes.index(self.proxy["mode"]) + 1
-
+        self.connect_timeout = connect_timeout
+        self.connected_timeout = connected_timeout
 
 
 
@@ -327,7 +328,7 @@ class Interface(threading.Thread):
         for res in addrinfo:
             try:
                 s = socket.socket( res[0], socket.SOCK_STREAM )
-                s.settimeout(2)
+                s.settimeout(self.connect_timeout)
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
                 s.connect(res[4])
             except:
@@ -383,7 +384,7 @@ class Interface(threading.Thread):
                 print_error("saving certificate for", self.host)
                 os.rename(temporary_path, cert_path)
 
-        s.settimeout(60)
+        s.settimeout(self.connected_timeout)
         self.s = s
         self.is_connected = True
         print_error("connected to", self.host, self.port)
