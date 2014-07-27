@@ -1058,7 +1058,7 @@ class ElectrumWindow(QMainWindow):
             return
 
         # call hook to see if plugin needs gui interaction
-        run_hook('send_tx', tx, self.wallet)
+        run_hook('send_tx', tx)
 
         # sign the tx
         def sign_thread():

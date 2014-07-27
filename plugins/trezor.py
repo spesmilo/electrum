@@ -71,9 +71,9 @@ class Plugin(BasePlugin):
         wallet.create_accounts(None)
         return wallet
 
-    def send_tx(self, tx, wallet):
+    def send_tx(self, tx):
         try:
-            wallet.sign_transaction(tx, None, None)
+            self.wallet.sign_transaction(tx, None, None)
         except Exception as e:
             tx.error = str(e)
 
