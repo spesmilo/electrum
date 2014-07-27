@@ -25,6 +25,7 @@ EXCHANGES = ["BitcoinAverage",
              "CaVirtEx",
              "Coinbase",
              "CoinDesk",
+             "itBit",
              "LocalBitcoins",
              "Winkdex"]
 
@@ -74,6 +75,12 @@ class Exchanger(threading.Thread):
             except Exception:
                 return
             return btc_amount * decimal.Decimal(str(resp_rate["bpi"][str(quote_currency)]["rate_float"]))
+        elif self.use_exchange == "itBit":
+            try:
+                resp_rate = self.get_json('www.itbit.com', "/api/feeds/ticker/XBT" + str(quote_currency))
+            except Exception:
+                return
+            return btc_amount * decimal.Decimal(str(resp_rate["bid"]))
         return btc_amount * decimal.Decimal(str(quote_currencies[quote_currency]))
 
     def stop(self):
@@ -92,6 +99,7 @@ class Exchanger(threading.Thread):
             "CaVirtEx": self.update_cv,
             "CoinDesk": self.update_cd,
             "Coinbase": self.update_cb,
+            "itBit": self.update_ib,
             "LocalBitcoins": self.update_lb,
             "Winkdex": self.update_wd,
         }
@@ -117,6 +125,15 @@ class Exchanger(threading.Thread):
         quote_currencies = {}
         for cur in resp_currencies:
             quote_currencies[str(cur["currency"])] = 0.0
+        with self.lock:
+            self.quote_currencies = quote_currencies
+        self.parent.set_currencies(quote_currencies)
+
+    def update_ib(self):
+        available_currencies = ["USD", "EUR", "SGD"]
+        quote_currencies = {}
+        for cur in available_currencies:
+            quote_currencies[cur] = 0.0
         with self.lock:
             self.quote_currencies = quote_currencies
         self.parent.set_currencies(quote_currencies)
