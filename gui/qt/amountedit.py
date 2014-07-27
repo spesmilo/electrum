@@ -2,7 +2,8 @@
 
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
-
+from qsdn import QSDNNumericValidator
+from qsdn import QSDNConverter
 from decimal import Decimal
 
 class MyLineEdit(QLineEdit):
@@ -18,7 +19,6 @@ class AmountEdit(MyLineEdit):
     def __init__(self, base_unit, is_int = False, parent=None):
         QLineEdit.__init__(self, parent)
         self.base_unit = base_unit
-        self.textChanged.connect(self.numbify)
         self.is_int = is_int
         self.is_shortcut = False
         self.help_palette = QPalette()
@@ -26,21 +26,8 @@ class AmountEdit(MyLineEdit):
     def decimal_point(self):
         return 8
 
-    def numbify(self):
-        text = unicode(self.text()).strip()
-        if text == '!':
-            self.is_shortcut = True
-        pos = self.cursorPosition()
-        chars = '0123456789'
-        if not self.is_int: chars +='.'
-        s = ''.join([i for i in text if i in chars])
-        if not self.is_int:
-            if '.' in s:
-                p = s.find('.')
-                s = s.replace('.','')
-                s = s[:p] + '.' + s[p:p+self.decimal_point()]
-        self.setText(s)
-        self.setCursorPosition(pos)
+    def set_shortcut(self):
+	self.is_shortcut = True
 
     def paintEvent(self, event):
         QLineEdit.paintEvent(self, event)
@@ -63,9 +50,12 @@ class AmountEdit(MyLineEdit):
 
 class BTCAmountEdit(AmountEdit):
 
-    def __init__(self, decimal_point, is_int = False, parent=None):
+    def __init__(self, decimal_point, is_int = False, parent=None, add_ws = False):
         AmountEdit.__init__(self, self._base_unit, is_int, parent)
         self.decimal_point = decimal_point
+        self.converter = QSDNConverter()
+        self.setValidator(QSDNNumericValidator(16 - self.decimal_point(), self.decimal_point(), add_ws))
+        self.connect(self.validator(), SIGNAL('bang()'), self.set_shortcut)
 
     def _base_unit(self):
         p = self.decimal_point()
@@ -79,11 +69,10 @@ class BTCAmountEdit(AmountEdit):
         raise Exception('Unknown base unit')
 
     def get_amount(self):
-        try:
-            x = Decimal(str(self.text()))
-        except:
+        (x, ok) = self.converter.toDecimal(self.text())
+        if ok == False:
             return None
-        p = pow(10, self.decimal_point())
+        p = pow(Decimal(10), Decimal(self.decimal_point()))
         return int( p * x )
 
     def setAmount(self, amount):
@@ -93,5 +82,5 @@ class BTCAmountEdit(AmountEdit):
 
         p = pow(10, self.decimal_point())
         x = amount / Decimal(p)
-        self.setText(str(x))
+        self.setText(self.converter.toString(x))
 
