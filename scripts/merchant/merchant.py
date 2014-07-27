@@ -26,7 +26,7 @@ set_verbosity(False)
 
 import ConfigParser
 config = ConfigParser.ConfigParser()
-config.read("merchant.conf")
+config.read("scripts/merchant/merchant.conf")
 
 my_password = config.get('main','password')
 my_host = config.get('main','host')
@@ -40,7 +40,6 @@ cb_password = config.get('callback','password')
 
 wallet_path = config.get('electrum','wallet_path')
 master_public_key = config.get('electrum','mpk')
-master_chain = config.get('electrum','chain')
 
 
 pending_requests = {}
@@ -160,7 +159,7 @@ if __name__ == '__main__':
     # init network
     config = SimpleConfig({'wallet_path':wallet_path})
     network = Network(config)
-    network.start(wait=True)
+    network.start()
 
     # create watching_only wallet
     storage = WalletStorage(config)
