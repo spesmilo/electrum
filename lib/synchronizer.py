@@ -54,7 +54,7 @@ class WalletSynchronizer(threading.Thread):
         messages = []
         for addr in addresses:
             messages.append(('blockchain.address.subscribe', [addr]))
-        self.network.subscribe( messages, lambda i,r: self.queue.put(r))
+        self.network.send(messages, lambda r: self.queue.put(r))
 
     def run(self):
         with self.lock:

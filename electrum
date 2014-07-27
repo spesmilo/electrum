@@ -43,6 +43,7 @@ if is_local:
     sys.path.append('packages')
 
 
+from electrum import util
 from electrum import SimpleConfig, Network, Wallet, WalletStorage, NetworkProxy, Commands, known_commands, pick_random_server
 from electrum.util import print_msg, print_stderr, print_json, set_verbosity
 
@@ -150,7 +151,7 @@ def do_start_daemon():
     import subprocess
     logfile = open(os.path.join(config.path, 'daemon.log'),'w')
     p = subprocess.Popen([__file__,"daemon"], stderr=logfile, stdout=logfile, close_fds=True)
-    print "starting daemon (PID %d)"%p.pid
+    print_stderr("starting daemon (PID %d)"%p.pid)
 
 
 def daemon_socket(start_daemon=True):
@@ -222,12 +223,8 @@ if __name__ == '__main__':
         # network interface
         if not options.offline:
             s = daemon_socket(start_daemon=options.daemon)
-            if s:
-                network = NetworkProxy(s, config)
-                network.start()
-            else:
-                network = Network(config)
-                network.start()
+            network = NetworkProxy(s, config)
+            network.start()
         else:
             network = None
 

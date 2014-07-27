@@ -85,7 +85,6 @@ class Network(threading.Thread):
         self.blockchain = Blockchain(self.config, self)
         self.interfaces = {}
         self.queue = Queue.Queue()
-        self.callbacks = {}
         self.protocol = self.config.get('protocol','s')
         self.running = False
 
@@ -117,6 +116,9 @@ class Network(threading.Thread):
         self.pending_transactions_for_notifications = []
 
         self.connection_status = 'connecting'
+
+        self.requests_queue = Queue.Queue()
+        self.unanswered_requests = {}
 
     def get_server_height(self):
         return self.heights.get(self.default_server,0)
@@ -162,21 +164,22 @@ class Network(threading.Thread):
         else:
             return False
 
+    def get_status_value(self, key):
+        if key == 'status':
+            value = self.connection_status
+        elif key == 'banner':
+            value = self.banner
+        elif key == 'updated':
+            value = (self.get_local_height(), self.get_server_height())
+        elif key == 'servers':
+            value = self.get_servers()
+        elif key == 'interfaces':
+            value = self.get_interfaces()
+        return value
 
-    def register_callback(self, event, callback):
-        with self.lock:
-            if not self.callbacks.get(event):
-                self.callbacks[event] = []
-            self.callbacks[event].append(callback)
-
-
-    def trigger_callback(self, event):
-        # note: this method is overwritten by daemon
-        with self.lock:
-            callbacks = self.callbacks.get(event,[])[:]
-        if callbacks:
-            [callback() for callback in callbacks]
-
+    def trigger_callback(self, key):
+        value = self.get_status_value(key)
+        self.response_queue.put({'method':'network.status', 'params':[key, value]})
 
     def random_server(self):
         choice_list = []
@@ -234,9 +237,13 @@ class Network(threading.Thread):
         for i in range(self.num_server):
             self.start_random_interface()
             
-    def start(self):
+    def start(self, response_queue):
+        self.running = True
+        self.response_queue = response_queue
         self.start_interfaces()
         threading.Thread.start(self)
+        threading.Thread(target=self.process_thread).start()
+        self.blockchain.start()
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
         self.config.set_key('auto_cycle', auto_connect, True)
@@ -321,16 +328,55 @@ class Network(threading.Thread):
                 print_error( "Server is lagging", blockchain_height, self.get_server_height())
                 if self.config.get('auto_cycle'):
                     self.set_server(i.server)
-        
         self.trigger_callback('updated')
 
 
+    def process_thread(self):
+        while self.is_running():
+            try:
+                request = self.requests_queue.get(timeout=0.1)
+            except Queue.Empty:
+                continue
+            self.process(request)
+
+    def process(self, request):
+        method = request['method']
+        params = request['params']
+        _id = request['id']
+
+        if method.startswith('network.'):
+            out = {'id':_id}
+            try:
+                f = getattr(self, method[8:])
+            except AttributeError:
+                out['error'] = "unknown method"
+            try:
+                out['result'] = f(*params)
+            except BaseException as e:
+                out['error'] = str(e)
+                print_error("network error", str(e))
+
+            self.response_queue.put(out)
+            return
+
+        def cb(i,r):
+            _id = r.get('id')
+            if _id is not None:
+                my_id = self.unanswered_requests.pop(_id)
+                r['id'] = my_id
+            self.response_queue.put(r)
+
+        try:
+            new_id = self.interface.send([(method, params)], cb) [0]
+        except Exception as e:
+            self.response_queue.put({'id':_id, 'error':str(e)}) 
+            print_error("network interface error", str(e))
+            return
+
+        self.unanswered_requests[new_id] = _id
+
+
     def run(self):
-        self.blockchain.start()
-
-        with self.lock:
-            self.running = True
-
         while self.is_running():
             try:
                 i = self.queue.get(timeout = 30 if self.interfaces else 3)
@@ -382,9 +428,7 @@ class Network(threading.Thread):
             if self.server_is_lagging() and self.config.get('auto_cycle'):
                 print_error( "Server lagging, stopping interface")
                 self.stop_interface()
-
             self.trigger_callback('updated')
-
 
     def on_peers(self, i, r):
         if not r: return
@@ -396,10 +440,12 @@ class Network(threading.Thread):
         self.trigger_callback('banner')
 
     def stop(self):
-        with self.lock: self.running = False
+        with self.lock:
+            self.running = False
 
     def is_running(self):
-        with self.lock: return self.running
+        with self.lock:
+            return self.running
 
     
     def synchronous_get(self, requests, timeout=100000000):

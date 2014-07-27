@@ -4,17 +4,27 @@
 
 import time, electrum
 
-# 1. start the interface and wait for connection
-interface = electrum.Interface('ecdsa.net:50002:s')
-interface.start(wait = True)
-if not interface.is_connected:
-    print "not connected"
-    exit()
+# start network
+network = electrum.NetworkProxy(False)
+network.start()
+
+# wait until connected
+while network.is_connecting():
+    time.sleep(0.1)
+
+if not network.is_connected():
+    print_msg("daemon is not connected")
+    sys.exit(1)
 
 # 2. send the subscription
-callback = lambda _,result: electrum.print_json(result.get('result'))
-interface.send([('blockchain.headers.subscribe',[])], callback)
+callback = lambda result: electrum.print_json(result.get('result'))
+network.send([('blockchain.headers.subscribe',[])], callback)
 
 # 3. wait for results
-while interface.is_connected:
-    time.sleep(1)
+while network.is_connected():
+    try:
+        time.sleep(1)
+    except:
+        break
+
+network.stop()

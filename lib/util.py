@@ -223,3 +223,86 @@ def parse_json(message):
     except:
         j = None
     return j, message[n+1:]
+
+
+
+
+class timeout(Exception):
+    pass
+
+import socket, json
+
+class SocketPipe:
+
+    def __init__(self, socket):
+        self.socket = socket
+        self.message = ''
+        self.set_timeout(0.1)
+
+    def set_timeout(self, t):
+        self.socket.settimeout(t)
+
+    def get(self):
+        while True:
+            response, self.message = parse_json(self.message)
+            if response:
+                return response
+            try:
+                data = self.socket.recv(1024)
+            except socket.timeout:
+                raise timeout
+            except:
+                data = ''
+            if not data:
+                self.socket.close()
+                return None
+            self.message += data
+
+    def send(self, request):
+        out = json.dumps(request) + '\n'
+        while out:
+            sent = self.socket.send( out )
+            out = out[sent:]
+
+    def send_all(self, requests):
+        out = ''.join(map(lambda x: json.dumps(x) + '\n', requests))
+        while out:
+            sent = self.socket.send( out )
+            out = out[sent:]
+
+
+import Queue
+
+class QueuePipe:
+
+    def __init__(self, send_queue=None, get_queue=None):
+        self.send_queue = send_queue if send_queue else Queue.Queue()
+        self.get_queue = get_queue if get_queue else Queue.Queue()
+        self.set_timeout(0.1)
+
+    def get(self):
+        try:
+            return self.get_queue.get(timeout=self.timeout)
+        except Queue.Empty:
+            raise timeout
+
+    def get_all(self):
+        responses = []
+        while True:
+            try:
+                r = self.get_queue.get_nowait()
+                responses.append(r)
+            except Queue.Empty:
+                break
+        return responses
+
+    def set_timeout(self, t):
+        self.timeout = t
+
+    def send(self, request):
+        self.send_queue.put(request)
+
+    def send_all(self, requests):
+        for request in requests:
+            self.send(request)
+
