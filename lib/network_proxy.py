@@ -32,6 +32,12 @@ from simple_config import SimpleConfig
 from daemon import NetworkServer, DAEMON_PORT
 
 
+# policies
+SPAWN_DAEMON=0
+NEED_DAEMON=1
+NO_DAEMON=2
+USE_DAEMON_IF_AVAILABLE=3
+
 
 class NetworkProxy(threading.Thread):
 
@@ -119,8 +125,9 @@ class NetworkProxy(threading.Thread):
                     print_error( "received unexpected notification", method, params)
                     return
 
-        callback({'method':method, 'params':params, 'result':result, 'id':msg_id})
-
+        
+        r = {'method':method, 'params':params, 'result':result, 'id':msg_id}
+        callback(r)
 
 
     def send(self, messages, callback):

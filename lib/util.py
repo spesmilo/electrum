@@ -230,7 +230,12 @@ def parse_json(message):
 class timeout(Exception):
     pass
 
-import socket, json
+import socket
+import errno
+import json
+import ssl
+import traceback
+import time
 
 class SocketPipe:
 
@@ -251,8 +256,21 @@ class SocketPipe:
                 data = self.socket.recv(1024)
             except socket.timeout:
                 raise timeout
+            except ssl.SSLError:
+                raise timeout
+            except socket.error, err:
+                if err.errno == 60:
+                    raise timeout
+                elif err.errno in [11, 10035]:
+                    print_error("socket errno", err.errno)
+                    time.sleep(0.1)
+                    continue
+                else:
+                    traceback.print_exc(file=sys.stdout)
+                    data = ''
             except:
                 data = ''
+
             if not data:
                 self.socket.close()
                 return None
@@ -260,15 +278,37 @@ class SocketPipe:
 
     def send(self, request):
         out = json.dumps(request) + '\n'
-        while out:
-            sent = self.socket.send( out )
-            out = out[sent:]
+        self._send(out)
 
     def send_all(self, requests):
         out = ''.join(map(lambda x: json.dumps(x) + '\n', requests))
+        self._send(out)
+
+    def _send(self, out):
         while out:
-            sent = self.socket.send( out )
-            out = out[sent:]
+            try:
+                sent = self.socket.send( out )
+                out = out[sent:]
+            except ssl.SSLError as e:
+                print_error( "SSLError: retry", e)
+                time.sleep(0.1)
+                continue
+
+            except socket.error as e:
+                if e[0] in (errno.EWOULDBLOCK,errno.EAGAIN):
+                    print_error( "EAGAIN: retrying")
+                    time.sleep(0.1)
+                    continue
+                elif e[0] == 'The write operation timed out':
+                    print_error( "ssl: retry")
+                    time.sleep(0.1)
+                    continue
+                else:
+                    print repr(e[0])
+                    traceback.print_exc(file=sys.stdout)
+                    print_error( "Not connected, cannot send" )
+                    return False
+
 
 
 import Queue

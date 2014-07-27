@@ -109,16 +109,13 @@ class Network(threading.Thread):
         if not os.path.exists(dir_path):
             os.mkdir(dir_path)
 
-        # default subscriptions
-        self.subscriptions = {}
-        self.subscriptions[self.on_banner] = [('server.banner',[])]
-        self.subscriptions[self.on_peers] = [('server.peers.subscribe',[])]
-        self.pending_transactions_for_notifications = []
+        # address subscriptions and cached results
+        self.addresses = {} 
 
         self.connection_status = 'connecting'
 
         self.requests_queue = Queue.Queue()
-        self.unanswered_requests = {}
+
 
     def get_server_height(self):
         return self.heights.get(self.default_server,0)
@@ -139,30 +136,15 @@ class Network(threading.Thread):
         return self.interface and self.interface.is_connected
 
     def is_up_to_date(self):
+        raise
         return self.interface.is_up_to_date()
 
     def send_subscriptions(self):
-        for cb, sub in self.subscriptions.items():
-            self.interface.send(sub, cb)
+        for addr in self.addresses:
+            self.interface.send_request({'method':'blockchain.address.subscribe', 'params':[addr]})
+        self.interface.send_request({'method':'server.banner','params':[]})
+        self.interface.send_request({'method':'server.peers.subscribe','params':[]})
 
-    def subscribe(self, messages, callback):
-        with self.lock:
-            if self.subscriptions.get(callback) is None: 
-                self.subscriptions[callback] = []
-            for message in messages:
-                if message not in self.subscriptions[callback]:
-                    self.subscriptions[callback].append(message)
-
-        if self.is_connected():
-            self.interface.send( messages, callback )
-
-
-    def send(self, messages, callback):
-        if self.is_connected():
-            self.interface.send( messages, callback )
-            return True
-        else:
-            return False
 
     def get_status_value(self, key):
         if key == 'status':
@@ -225,7 +207,7 @@ class Network(threading.Thread):
         i = interface.Interface(server, self.config)
         self.pending_servers.add(server)
         i.start(self.queue)
-        return i 
+        return i
 
     def start_random_interface(self):
         server = self.random_server()
@@ -241,9 +223,9 @@ class Network(threading.Thread):
         self.running = True
         self.response_queue = response_queue
         self.start_interfaces()
-        threading.Thread.start(self)
-        threading.Thread(target=self.process_thread).start()
+        threading.Thread(target=self.process_requests_thread).start()
         self.blockchain.start()
+        threading.Thread.start(self)
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
         self.config.set_key('auto_cycle', auto_connect, True)
@@ -331,15 +313,24 @@ class Network(threading.Thread):
         self.trigger_callback('updated')
 
 
-    def process_thread(self):
+    def process_response(self, i, response):
+        method = response['method']
+        if method == 'blockchain.address.subscribe':
+            self.on_address(i, response)
+        elif method == 'blockchain.headers.subscribe':
+            self.on_header(i, response)
+        elif method == 'server.peers.subscribe':
+            self.on_peers(i, response)
+
+    def process_requests_thread(self):
         while self.is_running():
             try:
                 request = self.requests_queue.get(timeout=0.1)
             except Queue.Empty:
                 continue
-            self.process(request)
+            self.process_request(request)
 
-    def process(self, request):
+    def process_request(self, request):
         method = request['method']
         params = request['params']
         _id = request['id']
@@ -359,32 +350,29 @@ class Network(threading.Thread):
             self.response_queue.put(out)
             return
 
-        def cb(i,r):
-            _id = r.get('id')
-            if _id is not None:
-                my_id = self.unanswered_requests.pop(_id)
-                r['id'] = my_id
-            self.response_queue.put(r)
+        if method == 'blockchain.address.subscribe':
+            addr = params[0]
+            if addr in self.addresses:
+                self.response_queue.put({'id':_id, 'result':self.addresses[addr]}) 
+                return
 
-        try:
-            new_id = self.interface.send([(method, params)], cb) [0]
-        except Exception as e:
-            self.response_queue.put({'id':_id, 'error':str(e)}) 
-            print_error("network interface error", str(e))
-            return
-
-        self.unanswered_requests[new_id] = _id
+        self.interface.send_request(request)
 
 
     def run(self):
         while self.is_running():
             try:
-                i = self.queue.get(timeout = 30 if self.interfaces else 3)
+                i, response = self.queue.get(0.1) #timeout = 30 if self.interfaces else 3)
             except Queue.Empty:
                 if len(self.interfaces) < self.num_server:
                     self.start_random_interface()
                 continue
+            
+            if response is not None:
+                self.process_response(i, response)
+                continue
 
+            # if response is None it is a notification about the interface
             if i.server in self.pending_servers:
                 self.pending_servers.remove(i.server)
 
@@ -392,7 +380,7 @@ class Network(threading.Thread):
                 #if i.server in self.interfaces: raise
                 self.interfaces[i.server] = i
                 self.add_recent_server(i)
-                i.send([ ('blockchain.headers.subscribe',[])], self.on_header)
+                i.send_request({'method':'blockchain.headers.subscribe','params':[]})
                 if i == self.interface:
                     print_error('sending subscriptions to', self.interface.server)
                     self.send_subscriptions()
@@ -438,6 +426,12 @@ class Network(threading.Thread):
     def on_banner(self, i, r):
         self.banner = r.get('result')
         self.trigger_callback('banner')
+
+    def on_address(self, i, r):
+        addr = r.get('params')[0]
+        result = r.get('result')
+        self.addresses[addr] = result
+        self.response_queue.put(r)
 
     def stop(self):
         with self.lock:

@@ -54,7 +54,7 @@ class WalletSynchronizer(threading.Thread):
         messages = []
         for addr in addresses:
             messages.append(('blockchain.address.subscribe', [addr]))
-        self.network.send(messages, lambda r: self.queue.put(r))
+        self.network.send(messages, self.queue.put)
 
     def run(self):
         with self.lock:
@@ -147,7 +147,7 @@ class WalletSynchronizer(threading.Thread):
                 addr = params[0]
                 if self.wallet.get_status(self.wallet.get_history(addr)) != result:
                     if requested_histories.get(addr) is None:
-                        self.network.send([('blockchain.address.get_history', [addr])], lambda i,r:self.queue.put(r))
+                        self.network.send([('blockchain.address.get_history', [addr])], self.queue.put)
                         requested_histories[addr] = result
 
             elif method == 'blockchain.address.get_history':
