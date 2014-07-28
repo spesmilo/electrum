@@ -5,7 +5,10 @@
 import time, electrum
 
 # start network
-network = electrum.NetworkProxy(False)
+
+c = electrum.SimpleConfig()
+s = electrum.daemon.get_daemon(c,True)
+network = electrum.NetworkProxy(s,c)
 network.start()
 
 # wait until connected

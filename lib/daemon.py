@@ -30,10 +30,33 @@ from network import Network
 from util import print_error, print_stderr, parse_json
 from simple_config import SimpleConfig
 
-
-
 DAEMON_PORT=8001
 
+
+def do_start_daemon(config):
+    import subprocess
+    logfile = open(os.path.join(config.path, 'daemon.log'),'w')
+    p = subprocess.Popen(["python",__file__], stderr=logfile, stdout=logfile, close_fds=True)
+    print_stderr("starting daemon (PID %d)"%p.pid)
+
+
+def get_daemon(config, start_daemon=True):
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    daemon_port = config.get('daemon_port', DAEMON_PORT)
+    daemon_started = False
+    while True:
+        try:
+            s.connect(('', daemon_port))
+            return s
+        except socket.error:
+            if not start_daemon:
+                return False
+            elif not daemon_started:
+                do_start_daemon(config)
+                daemon_started = True
+            else:
+                time.sleep(0.1)
 
 
 class ClientThread(threading.Thread):
