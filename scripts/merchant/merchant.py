@@ -167,7 +167,7 @@ if __name__ == '__main__':
     wallet = Wallet(storage)
     if not storage.file_exists:
         wallet.seed = ''
-        wallet.create_watching_only_wallet(master_public_key,master_chain)
+        wallet.create_watching_only_wallet(master_public_key)
 
     wallet.synchronize = lambda: None # prevent address creation by the wallet
     wallet.start_threads(network)
