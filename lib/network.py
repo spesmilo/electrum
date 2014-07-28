@@ -447,11 +447,6 @@ class Network(threading.Thread):
         with self.lock:
             return self.running
 
-    
-    def synchronous_get(self, requests, timeout=100000000):
-        return self.interface.synchronous_get(requests)
-
-
     def get_header(self, tx_height):
         return self.blockchain.read_header(tx_height)
 
