@@ -223,7 +223,9 @@ class Network(threading.Thread):
         self.running = True
         self.response_queue = response_queue
         self.start_interfaces()
-        threading.Thread(target=self.process_requests_thread).start()
+        t = threading.Thread(target=self.process_requests_thread)
+        t.daemon = True
+        t.start()
         self.blockchain.start()
         threading.Thread.start(self)
 
