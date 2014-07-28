@@ -321,6 +321,8 @@ class Network(threading.Thread):
             self.on_header(i, response)
         elif method == 'server.peers.subscribe':
             self.on_peers(i, response)
+        elif method == 'server.banner':
+            self.on_banner(i, response)
 
     def process_requests_thread(self):
         while self.is_running():
