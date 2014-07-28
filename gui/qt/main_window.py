@@ -741,6 +741,7 @@ class ElectrumWindow(QMainWindow):
     def receive_list_menu(self, position):
         item = self.receive_list.itemAt(position)
         menu = QMenu()
+        menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(str(item.text(0))))
         menu.addAction(_("Delete"), lambda: self.receive_list_delete(item))
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
