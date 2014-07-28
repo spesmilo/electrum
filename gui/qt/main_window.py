@@ -408,7 +408,8 @@ class ElectrumWindow(QMainWindow):
                           self.notify(_("New transaction received. %(amount)s %(unit)s") % { 'amount' : self.format_amount(v), 'unit' : self.base_unit()})
 
     def notify(self, message):
-        self.tray.showMessage("Electrum", message, QSystemTrayIcon.Information, 20000)
+        if self.tray:
+            self.tray.showMessage("Electrum", message, QSystemTrayIcon.Information, 20000)
 
 
 
@@ -486,7 +487,8 @@ class ElectrumWindow(QMainWindow):
                 if quote:
                     text += "%s"%quote
 
-                self.tray.setToolTip(text)
+                if self.tray:
+                    self.tray.setToolTip(text)
                 icon = QIcon(":icons/status_connected.png")
         else:
             text = _("Not connected")
@@ -2623,7 +2625,6 @@ class ElectrumWindow(QMainWindow):
         NetworkDialog(self.wallet.network, self.config, self).do_exec()
 
     def closeEvent(self, event):
-        self.tray.hide()
         self.config.set_key("is_maximized", self.isMaximized())
         if not self.isMaximized():
             g = self.geometry()

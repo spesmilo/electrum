@@ -323,6 +323,8 @@ class Network(threading.Thread):
             self.on_peers(i, response)
         elif method == 'server.banner':
             self.on_banner(i, response)
+        else:
+            self.response_queue.put(response)
 
     def process_requests_thread(self):
         while self.is_running():

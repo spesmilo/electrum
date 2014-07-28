@@ -103,7 +103,7 @@ class WalletSynchronizer(threading.Thread):
             # request missing transactions
             for tx_hash, tx_height in missing_tx:
                 if (tx_hash, tx_height) not in requested_tx:
-                    self.network.send([ ('blockchain.transaction.get',[tx_hash, tx_height]) ], lambda i,r: self.queue.put(r))
+                    self.network.send([ ('blockchain.transaction.get',[tx_hash, tx_height]) ], self.queue.put)
                     requested_tx.append( (tx_hash, tx_height) )
             missing_tx = []
 
