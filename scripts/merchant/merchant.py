@@ -21,8 +21,9 @@ import time, thread, sys, socket, os
 import urllib2,json
 import Queue
 import sqlite3
-from electrum import Wallet, WalletStorage, SimpleConfig, Network, set_verbosity
-set_verbosity(False)
+
+import electrum
+electrum.set_verbosity(False)
 
 import ConfigParser
 config = ConfigParser.ConfigParser()
@@ -39,8 +40,7 @@ expired_url = config.get('callback','expired')
 cb_password = config.get('callback','password')
 
 wallet_path = config.get('electrum','wallet_path')
-master_public_key = config.get('electrum','mpk')
-master_chain = config.get('electrum','chain')
+xpub = config.get('electrum','xpub')
 
 
 pending_requests = {}
@@ -158,16 +158,18 @@ if __name__ == '__main__':
     check_create_table(conn)
 
     # init network
-    config = SimpleConfig({'wallet_path':wallet_path})
-    network = Network(config)
-    network.start(wait=True)
+    network = electrum.NetworkProxy(False)
+    network.start()
+    while network.is_connecting():
+        time.sleep(0.1)
 
     # create watching_only wallet
-    storage = WalletStorage(config)
-    wallet = Wallet(storage)
+    config = electrum.SimpleConfig({'wallet_path':wallet_path})
+    storage = electrum.WalletStorage(config)
+    wallet = electrum.wallet.NewWallet(storage)
     if not storage.file_exists:
         wallet.seed = ''
-        wallet.create_watching_only_wallet(master_public_key)
+        wallet.create_watching_only_wallet(xpub)
 
     wallet.synchronize = lambda: None # prevent address creation by the wallet
     wallet.start_threads(network)
