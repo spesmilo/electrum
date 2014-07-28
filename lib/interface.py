@@ -105,6 +105,10 @@ class Interface(threading.Thread):
             if queue is None:
                 queue = self.response_queue
 
+            if method == 'server.version':
+                self.server_version = result
+                return
+
         else:
             queue = self.response_queue
             # notification
@@ -127,10 +131,6 @@ class Interface(threading.Thread):
 
         queue.put((self, {'method':method, 'params':params, 'result':result, 'id':_id}))
 
-
-    def on_version(self, i, result):
-        self.server_version = result
-                
 
     def start_tcp(self):
 
