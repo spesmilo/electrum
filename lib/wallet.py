@@ -987,6 +987,8 @@ class Abstract_Wallet(object):
                 age = tx_age
         return age > age_limit
 
+    def can_sign(self, tx):
+        pass
 
 class Imported_Wallet(Abstract_Wallet):
 
