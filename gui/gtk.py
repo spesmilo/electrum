@@ -220,19 +220,15 @@ def run_settings_dialog(self):
 def run_network_dialog( network, parent ):
     image = Gtk.Image()
     image.set_from_stock(Gtk.STOCK_NETWORK, Gtk.IconSize.DIALOG)
+    host, port, protocol, proxy_config, auto_connect = network.get_parameters()
     if parent:
         if network.is_connected():
-            interface = network.interface
-            status = "Connected to %s:%d\n%d blocks"%(interface.host, interface.port, network.blockchain.height())
+            status = "Connected to %s:%d\n%d blocks"%(host, port, network.blockchain.height())
         else:
             status = "Not connected"
     else:
         import random
         status = "Please choose a server.\nSelect cancel if you are offline."
-
-    if network.is_connected():
-        server = interface.server
-        host, port, protocol = server.split(':')
 
     servers = network.get_servers()
 
@@ -302,7 +298,7 @@ def run_network_dialog( network, parent ):
     treeview = Gtk.TreeView(model=server_list)
     treeview.show()
 
-    label = 'Active Servers' if network.irc_servers else 'Default Servers'
+    label = 'Active Servers' if network.is_connected() else 'Default Servers'
     tvcolumn = Gtk.TreeViewColumn(label)
     treeview.append_column(tvcolumn)
     cell = Gtk.CellRendererText()
@@ -443,18 +439,15 @@ def add_help_button(hbox, message):
     hbox.pack_start(button,False, False, 0)
 
 
-class MyWindow(Gtk.Window): __gsignals__ = dict( mykeypress = (GObject.SignalFlags.RUN_LAST | GObject.SignalFlags.ACTION, None, (str,)) )
-
-GObject.type_register(MyWindow)
-#FIXME: can't find docs how to create keybindings in PyGI
-#Gtk.binding_entry_add_signall(MyWindow, Gdk.KEY_W, Gdk.ModifierType.CONTROL_MASK, 'mykeypress', ['ctrl+W'])
-#Gtk.binding_entry_add_signall(MyWindow, Gdk.KEY_Q, Gdk.ModifierType.CONTROL_MASK, 'mykeypress', ['ctrl+Q'])
-
-
 class ElectrumWindow:
 
     def show_message(self, msg):
         show_message(msg, self.window)
+
+    def on_key(self, w, event):
+        if Gdk.ModifierType.CONTROL_MASK & event.state and event.keyval in [113,119]:
+            Gtk.main_quit()
+        return True
 
     def __init__(self, wallet, config, network):
         self.config = config
@@ -462,14 +455,14 @@ class ElectrumWindow:
         self.network = network
         self.funds_error = False # True if not enough funds
         self.num_zeros = int(self.config.get('num_zeros',0))
-
-        self.window = MyWindow(Gtk.WindowType.TOPLEVEL)
+        self.window = Gtk.Window(Gtk.WindowType.TOPLEVEL)
+        self.window.connect('key-press-event', self.on_key)
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.config.path
         if not self.wallet.seed: title += ' [seedless]'
         self.window.set_title(title)
         self.window.connect("destroy", Gtk.main_quit)
         self.window.set_border_width(0)
-        self.window.connect('mykeypress', Gtk.main_quit)
+        #self.window.connect('mykeypress', Gtk.main_quit)
         self.window.set_default_size(720, 350)
         self.wallet_updated = False
 
@@ -1110,17 +1103,18 @@ class ElectrumWindow:
         return vbox
 
     def update_status_bar(self):
-        interface = self.network.interface
+
         if self.funds_error:
             text = "Not enough funds"
-        elif interface and interface.is_connected:
-            self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(interface.host, interface.port, self.network.blockchain.height()))
+        elif self.network.is_connected():
+            host, port, _,_,_ = network.get_parameters()
+            height = self.network.get_local_height()
+            self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(host, port, height))
             if not self.wallet.up_to_date:
                 self.status_image.set_from_stock(Gtk.STOCK_REFRESH, Gtk.IconSize.MENU)
                 text = "Synchronizing..."
             else:
                 self.status_image.set_from_stock(Gtk.STOCK_YES, Gtk.IconSize.MENU)
-                self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(interface.host, interface.port, self.network.blockchain.height()))
                 c, u = self.wallet.get_balance()
                 text =  "Balance: %s "%( format_satoshis(c,False,self.num_zeros) )
                 if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True,self.num_zeros).strip() )

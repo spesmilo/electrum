@@ -106,7 +106,7 @@ class NetworkDialog(QDialog):
         grid.addWidget(self.server_host, 0, 2, 1, 2)
         grid.addWidget(self.server_port, 0, 3)
 
-        label = _('Servers') #_('Active Servers') if network.irc_servers else _('Default Servers')
+        label = _('Active Servers') if network.is_connected() else _('Default Servers')
         self.servers_list_widget = QTreeWidget(parent)
         self.servers_list_widget.setHeaderLabels( [ label, _('Limit') ] )
         self.servers_list_widget.setMaximumHeight(150)
