@@ -135,16 +135,11 @@ class Network(threading.Thread):
     def is_connected(self):
         return self.interface and self.interface.is_connected
 
-    def is_up_to_date(self):
-        raise
-        return self.interface.is_up_to_date()
-
     def send_subscriptions(self):
         for addr in self.addresses:
             self.interface.send_request({'method':'blockchain.address.subscribe', 'params':[addr]})
         self.interface.send_request({'method':'server.banner','params':[]})
         self.interface.send_request({'method':'server.peers.subscribe','params':[]})
-
 
     def get_status_value(self, key):
         if key == 'status':
@@ -255,8 +250,13 @@ class Network(threading.Thread):
 
 
     def switch_to_random_interface(self):
-        if self.interfaces:
-            self.switch_to_interface(random.choice(self.interfaces.values()))
+        while True:
+            i = random.choice(self.interfaces.values())
+            if i.is_connected:
+                self.switch_to_interface(i)
+                break
+            else:
+                time.sleep(0.1)
 
     def switch_to_interface(self, interface):
         server = interface.server

@@ -252,7 +252,11 @@ class TcpInterface(threading.Thread):
         method = request.get('method')
         params = request.get('params')
         with self.lock:
-            self.pipe.send({'id':self.message_id, 'method':method, 'params':params})
+            try:
+                self.pipe.send({'id':self.message_id, 'method':method, 'params':params})
+            except socket.error:
+                self.is_connected = False
+                return
             self.unanswered_requests[self.message_id] = method, params, _id, queue
             self.message_id += 1
         if self.debug:
@@ -282,9 +286,6 @@ class TcpInterface(threading.Thread):
             self.s.shutdown(socket.SHUT_RDWR)
             self.s.close()
         self.is_connected = False
-
-    def is_up_to_date(self):
-        return self.unanswered_requests == {}
 
     def start(self, response_queue):
         self.response_queue = response_queue
