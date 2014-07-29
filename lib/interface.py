@@ -70,6 +70,9 @@ class TcpInterface(threading.Thread):
         self.message_id = 0
         self.unanswered_requests = {}
 
+        # are we waiting for a pong?
+        self.is_ping = False
+
         # parse server
         self.server = server
         self.host, self.port, self.protocol = self.server.split(':')
@@ -117,6 +120,7 @@ class TcpInterface(threading.Thread):
 
         if method == 'server.version':
             self.server_version = result
+            self.is_ping = False
             return
 
         queue.put((self, {'method':method, 'params':params, 'result':result, 'id':_id}))
@@ -254,7 +258,8 @@ class TcpInterface(threading.Thread):
         with self.lock:
             try:
                 self.pipe.send({'id':self.message_id, 'method':method, 'params':params})
-            except socket.error:
+            except socket.error, e:
+                print_error("socked error:", self.server, e)
                 self.is_connected = False
                 return
             self.unanswered_requests[self.message_id] = method, params, _id, queue
@@ -301,8 +306,14 @@ class TcpInterface(threading.Thread):
         while self.is_connected:
             # ping the server with server.version
             if time.time() - t > 60:
-                self.send_request({'method':'server.version', 'params':[ELECTRUM_VERSION, PROTOCOL_VERSION]})
-                t = time.time()
+                if self.is_ping:
+                    print_error("ping timeout", self.server)
+                    self.is_connected = False
+                    break
+                else:
+                    self.send_request({'method':'server.version', 'params':[ELECTRUM_VERSION, PROTOCOL_VERSION]})
+                    self.is_ping = True
+                    t = time.time()
             try:
                 response = self.pipe.get()
             except util.timeout:
