@@ -250,13 +250,12 @@ class Network(threading.Thread):
 
 
     def switch_to_random_interface(self):
-        while True:
+        while self.interfaces:
             i = random.choice(self.interfaces.values())
             if i.is_connected:
                 self.switch_to_interface(i)
-                break
             else:
-                time.sleep(0.1)
+                self.interfaces.pop(i.server)
 
     def switch_to_interface(self, interface):
         server = interface.server
