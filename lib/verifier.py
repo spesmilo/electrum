@@ -111,7 +111,7 @@ class TxVerifier(threading.Thread):
                             requested_merkle.append(tx_hash)
 
             try:
-                r = self.queue.get(timeout=1)
+                r = self.queue.get(timeout=0.1)
             except Queue.Empty:
                 continue
 
