@@ -254,6 +254,7 @@ class Network(threading.Thread):
             i = random.choice(self.interfaces.values())
             if i.is_connected:
                 self.switch_to_interface(i)
+                break
             else:
                 self.interfaces.pop(i.server)
 
