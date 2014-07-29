@@ -159,7 +159,7 @@ class ElectrumGui:
             wizard = installwizard.InstallWizard(self.config, self.network, storage)
             wallet = wizard.run(action)
             if not wallet: 
-                exit()
+                return
         else:
             wallet.start_threads(self.network)
 
