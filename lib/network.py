@@ -259,7 +259,6 @@ class Network(threading.Thread):
             self.switch_to_interface(random.choice(self.interfaces.values()))
 
     def switch_to_interface(self, interface):
-        assert not self.interface.is_connected
         server = interface.server
         print_error("switching to", server)
         self.interface = interface
