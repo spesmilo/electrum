@@ -116,8 +116,6 @@ class NetworkServer(threading.Thread):
         self.network_queue = Queue.Queue()
 
         self.running = False
-        # daemon terminates after period of inactivity
-        self.timeout = config.get('daemon_timeout', 5*60)
         self.lock = threading.RLock()
 
         # each GUI is a client of the daemon
@@ -167,6 +165,7 @@ def daemon_loop(server):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     daemon_port = server.config.get('daemon_port', DAEMON_PORT)
+    daemon_timeout = server.config.get('daemon_timeout', 5*60)
     s.bind(('', daemon_port))
     s.listen(5)
     s.settimeout(1)
@@ -176,7 +175,7 @@ def daemon_loop(server):
             connection, address = s.accept()
         except socket.timeout:
             if not server.clients:
-                if time.time() - t > server.timeout:
+                if time.time() - t > daemon_timeout:
                     print_error("Daemon timeout")
                     break
             else:
