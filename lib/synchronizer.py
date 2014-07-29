@@ -61,7 +61,7 @@ class WalletSynchronizer(threading.Thread):
             self.running = True
         while self.is_running():
             while not self.network.is_connected():
-                time.sleep(1)
+                time.sleep(0.1)
             self.run_interface()
 
     def run_interface(self):
@@ -123,24 +123,17 @@ class WalletSynchronizer(threading.Thread):
 
             # 2. get a response
             try:
-                r = self.queue.get(block=True, timeout=1)
+                r = self.queue.get(timeout=0.1)
             except Queue.Empty:
                 continue
 
-            # see if it changed
-            #if interface != self.network.interface:
-            #    break
-            
-            if not r:
-                continue
-
-            # 3. handle response
+            # 3. process response
             method = r['method']
             params = r['params']
             result = r.get('result')
             error = r.get('error')
             if error:
-                print "error", r
+                print_error("error", r)
                 continue
 
             if method == 'blockchain.address.subscribe':
