@@ -86,8 +86,9 @@ class NetworkProxy(threading.Thread):
                 break
             self.process(response)
 
-        print_error("NetworkProxy thread terminating")
-        self.stop()
+        if self.network:
+            self.network.stop()
+        print_error("NetworkProxy: terminating")
 
     def process(self, response):
         if self.debug: 
@@ -215,8 +216,6 @@ class NetworkProxy(threading.Thread):
 
     def stop(self):
         self.running = False
-        if self.network:
-            self.network.stop()
 
     def stop_daemon(self):
         return self.send([('daemon.stop',[])], None)

@@ -368,7 +368,7 @@ class Network(threading.Thread):
     def run(self):
         while self.is_running():
             try:
-                i, response = self.queue.get(0.1) #timeout = 30 if self.interfaces else 3)
+                i, response = self.queue.get(timeout=0.1) #timeout = 30 if self.interfaces else 3)
             except Queue.Empty:
                 if len(self.interfaces) < self.num_server:
                     self.start_random_interface()
@@ -403,6 +403,10 @@ class Network(threading.Thread):
 
             if not self.interface.is_connected and self.config.get('auto_cycle'):
                 self.switch_to_random_interface()
+
+        print_error("Network: Stopping interfaces")
+        for i in self.interfaces.values():
+            i.stop()
 
 
     def on_header(self, i, r):
@@ -440,6 +444,7 @@ class Network(threading.Thread):
         self.response_queue.put(r)
 
     def stop(self):
+        print_error("stopping network")
         with self.lock:
             self.running = False
 

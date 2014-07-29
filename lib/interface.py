@@ -311,9 +311,9 @@ class TcpInterface(threading.Thread):
                 break
             self.process_response(response)
 
-        print_error("exit interface", self.server)
         self.change_status()
-        
+        print_error("closing connection:", self.server)
+
     def change_status(self):
         # print_error( "change status", self.server, self.is_connected)
         self.response_queue.put((self, None))

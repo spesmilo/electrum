@@ -209,7 +209,7 @@ if __name__ == '__main__':
 
         # we use daemon threads, their termination is enforced.
         # this sleep command gives them time to terminate cleanly.
-        time.sleep(0.2)
+        time.sleep(0.3)
         sys.exit(0)
 
     if cmd == 'daemon':
