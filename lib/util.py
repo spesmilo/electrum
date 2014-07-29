@@ -266,9 +266,10 @@ class SocketPipe:
                     time.sleep(0.1)
                     continue
                 else:
-                    traceback.print_exc(file=sys.stdout)
+                    print_error("pipe: socket error", err)
                     data = ''
             except:
+                traceback.print_exc(file=sys.stderr)
                 data = ''
 
             if not data:
