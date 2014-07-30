@@ -185,6 +185,8 @@ def daemon_loop(server):
         client = ClientThread(server, connection)
         client.start()
     server.stop()
+    # sleep so that other threads can terminate cleanly
+    time.sleep(0.5)
     print_error("Daemon exiting")
 
 
