@@ -42,11 +42,11 @@ def do_start_daemon(config):
 
 def get_daemon(config, start_daemon=True):
     import socket
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     daemon_port = config.get('daemon_port', DAEMON_PORT)
     daemon_started = False
     while True:
         try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.connect(('', daemon_port))
             return s
         except socket.error:
