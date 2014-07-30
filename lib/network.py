@@ -94,7 +94,6 @@ class Network(threading.Thread):
             self.default_server = pick_random_server(self.protocol)
 
         self.irc_servers = {} # returned by interface (list from irc)
-        self.pending_servers = set([])
         self.disconnected_servers = set([])
         self.recent_servers = self.config.get('recent_servers',[]) # successful connections
 
@@ -111,9 +110,7 @@ class Network(threading.Thread):
 
         # address subscriptions and cached results
         self.addresses = {} 
-
         self.connection_status = 'connecting'
-
         self.requests_queue = Queue.Queue()
 
 
@@ -130,7 +127,7 @@ class Network(threading.Thread):
 
     def set_status(self, status):
         self.connection_status = status
-        self.trigger_callback('status')
+        self.notify('status')
 
     def is_connected(self):
         return self.interface and self.interface.is_connected
@@ -154,7 +151,7 @@ class Network(threading.Thread):
             value = self.get_interfaces()
         return value
 
-    def trigger_callback(self, key):
+    def notify(self, key):
         value = self.get_status_value(key)
         self.response_queue.put({'method':'network.status', 'params':[key, value]})
 
@@ -162,7 +159,7 @@ class Network(threading.Thread):
         choice_list = []
         l = filter_protocol(self.get_servers(), self.protocol)
         for s in l:
-            if s in self.pending_servers or s in self.disconnected_servers or s in self.interfaces.keys():
+            if s in self.disconnected_servers or s in self.interfaces.keys():
                 continue
             else:
                 choice_list.append(s)
@@ -200,7 +197,7 @@ class Network(threading.Thread):
         if server in self.interfaces.keys():
             return
         i = interface.Interface(server, self.config)
-        self.pending_servers.add(server)
+        self.interfaces[i.server] = i
         i.start(self.queue)
         return i
 
@@ -311,7 +308,7 @@ class Network(threading.Thread):
                 print_error( "Server is lagging", blockchain_height, self.get_server_height())
                 if self.config.get('auto_cycle'):
                     self.set_server(i.server)
-        self.trigger_callback('updated')
+        self.notify('updated')
 
 
     def process_response(self, i, response):
@@ -378,12 +375,8 @@ class Network(threading.Thread):
                 continue
 
             # if response is None it is a notification about the interface
-            if i.server in self.pending_servers:
-                self.pending_servers.remove(i.server)
 
             if i.is_connected:
-                #if i.server in self.interfaces: raise
-                self.interfaces[i.server] = i
                 self.add_recent_server(i)
                 i.send_request({'method':'blockchain.headers.subscribe','params':[]})
                 if i == self.interface:
@@ -425,16 +418,16 @@ class Network(threading.Thread):
             if self.server_is_lagging() and self.config.get('auto_cycle'):
                 print_error( "Server lagging, stopping interface")
                 self.stop_interface()
-            self.trigger_callback('updated')
+            self.notify('updated')
 
     def on_peers(self, i, r):
         if not r: return
         self.irc_servers = parse_servers(r.get('result'))
-        self.trigger_callback('servers')
+        self.notify('servers')
 
     def on_banner(self, i, r):
         self.banner = r.get('result')
-        self.trigger_callback('banner')
+        self.notify('banner')
 
     def on_address(self, i, r):
         addr = r.get('params')[0]
