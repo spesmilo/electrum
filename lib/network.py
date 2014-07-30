@@ -23,6 +23,8 @@ DEFAULT_SERVERS = {
     'electrum.stepkrav.pw':DEFAULT_PORTS,
 }
 
+DISCONNECTED_RETRY_INTERVAL = 60
+
 
 def parse_servers(result):
     """ parse servers list into dict format"""
@@ -94,7 +96,10 @@ class Network(threading.Thread):
             self.default_server = pick_random_server(self.protocol)
 
         self.irc_servers = {} # returned by interface (list from irc)
+
         self.disconnected_servers = set([])
+        self.disconnected_time = time.time()
+
         self.recent_servers = self.config.get('recent_servers',[]) # successful connections
 
         self.banner = ''
@@ -165,9 +170,6 @@ class Network(threading.Thread):
                 choice_list.append(s)
         
         if not choice_list: 
-            if not self.interfaces:
-                # we are probably offline, retry later
-                self.disconnected_servers = set([])
             return
         
         server = random.choice( choice_list )
@@ -364,10 +366,16 @@ class Network(threading.Thread):
     def run(self):
         while self.is_running():
             try:
-                i, response = self.queue.get(timeout=0.1) #timeout = 30 if self.interfaces else 3)
+                i, response = self.queue.get(timeout=0.1)
             except Queue.Empty:
+
                 if len(self.interfaces) < self.num_server:
                     self.start_random_interface()
+                if not self.interfaces:
+                    if time.time() - self.disconnected_time > DISCONNECTED_RETRY_INTERVAL:
+                        print_error('network: retrying connections')
+                        self.disconnected_servers = set([])
+                        self.disconnected_time = time.time()
                 continue
             
             if response is not None:
