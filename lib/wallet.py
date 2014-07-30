@@ -355,7 +355,9 @@ class Abstract_Wallet(object):
         return self.accounts[account_id].get_pubkeys(*sequence)
 
     def add_keypairs(self, tx, keypairs, password):
-        # first check the provided password. This will raise if invalid.
+
+        if self.is_watching_only():
+            return
         self.check_password(password)
 
         addr_list, xpub_list = tx.inputs_to_sign()
