@@ -200,6 +200,7 @@ class Network(threading.Thread):
             return
         i = interface.Interface(server, self.config)
         self.interfaces[i.server] = i
+        self.notify('interfaces')
         i.start(self.queue)
         return i
 
@@ -256,6 +257,7 @@ class Network(threading.Thread):
                 break
             else:
                 self.interfaces.pop(i.server)
+                self.notify('interfaces')
 
     def switch_to_interface(self, interface):
         server = interface.server
@@ -395,6 +397,7 @@ class Network(threading.Thread):
                 self.disconnected_servers.add(i.server)
                 if i.server in self.interfaces:
                     self.interfaces.pop(i.server)
+                    self.notify('interfaces')
                 if i.server in self.heights:
                     self.heights.pop(i.server)
                 if i == self.interface:
