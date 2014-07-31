@@ -24,25 +24,29 @@ import threading
 import traceback
 import json
 import Queue
+
+import util
 from network import Network
-from util import print_error, print_stderr
+from util import print_error, print_stderr, parse_json
 from simple_config import SimpleConfig
-
-from daemon import parse_json, NetworkServer, DAEMON_PORT
-
+from daemon import NetworkServer, DAEMON_PORT
 
 
+# policies
+SPAWN_DAEMON=0
+NEED_DAEMON=1
+NO_DAEMON=2
+USE_DAEMON_IF_AVAILABLE=3
 
 
 class NetworkProxy(threading.Thread):
 
     def __init__(self, socket, config=None):
+
         if config is None:
             config = {}  # Do not use mutables as default arguments!
         threading.Thread.__init__(self)
         self.config = SimpleConfig(config) if type(config) == type({}) else config
-        self.socket = socket
-        self.socket.settimeout(0.1)
         self.message_id = 0
         self.unanswered_requests = {}
         self.subscriptions = {}
@@ -52,6 +56,14 @@ class NetworkProxy(threading.Thread):
         self.callbacks = {}
         self.running = True
         self.daemon = True
+
+        if socket:
+            self.pipe = util.SocketPipe(socket)
+            self.network = None
+        else:
+            self.network = Network(config)
+            self.pipe = util.QueuePipe(send_queue=self.network.requests_queue)
+            self.network.start(self.pipe.get_queue)
 
         # status variables
         self.status = 'connecting'
@@ -65,35 +77,25 @@ class NetworkProxy(threading.Thread):
         return self.running
 
     def run(self):
-        # read responses and trigger callbacks
-        message = ''
         while self.is_running():
             try:
-                data = self.socket.recv(1024)
-            except socket.timeout:
+                response = self.pipe.get()
+            except util.timeout:
                 continue
-            except:
-                data = ''
-            if not data:
+            if response is None:
                 break
-            message += data
-            while True:
-                response, message = parse_json(message)
-                if response is not None: 
-                    self.process(response)
-                else:
-                    break
-        # fixme: server does not detect if we don't call shutdown
-        self.socket.shutdown(2)
-        self.socket.close()
-        print_error("NetworkProxy thread terminating")
+            self.process(response)
+
+        self.trigger_callback('stop')
+        if self.network:
+            self.network.stop()
+        print_error("NetworkProxy: terminating")
 
     def process(self, response):
         if self.debug: 
             print_error("<--", response)
 
         if response.get('method') == 'network.status':
-            #print_error("<--", response)
             key, value = response.get('params')
             if key == 'status':
                 self.status = value
@@ -109,48 +111,64 @@ class NetworkProxy(threading.Thread):
             return
 
         msg_id = response.get('id')
-        with self.lock: 
-            method, params, callback = self.unanswered_requests.pop(msg_id)
-
         result = response.get('result')
-        callback(None, {'method':method, 'params':params, 'result':result, 'id':msg_id})
+        if msg_id is not None:
+            with self.lock:
+                method, params, callback = self.unanswered_requests.pop(msg_id)
+        else:
+            method = response.get('method')
+            params = response.get('params')
+            with self.lock:
+                for k,v in self.subscriptions.items():
+                    if (method, params) in v:
+                        callback = k
+                        break
+                else:
+                    print_error( "received unexpected notification", method, params)
+                    return
 
-
-    def subscribe(self, messages, callback):
-        # detect if it is a subscription
-        with self.lock:
-            if self.subscriptions.get(callback) is None: 
-                self.subscriptions[callback] = []
-            for message in messages:
-                if message not in self.subscriptions[callback]:
-                    self.subscriptions[callback].append(message)
-
-        self.send( messages, callback )
+        
+        r = {'method':method, 'params':params, 'result':result, 'id':msg_id}
+        callback(r)
 
 
     def send(self, messages, callback):
         """return the ids of the requests that we sent"""
+
+        # detect subscriptions
+        sub = []
+        for message in messages:
+            m, v = message
+            if m[-10:] == '.subscribe':
+                sub.append(message)
+        if sub:
+            with self.lock:
+                if self.subscriptions.get(callback) is None: 
+                    self.subscriptions[callback] = []
+                for message in sub:
+                    if message not in self.subscriptions[callback]:
+                        self.subscriptions[callback].append(message)
+
         with self.lock:
-            out = ''
+            requests = []
             ids = []
             for m in messages:
                 method, params = m 
-                request = json.dumps( { 'id':self.message_id, 'method':method, 'params':params } )
+                request = { 'id':self.message_id, 'method':method, 'params':params }
                 self.unanswered_requests[self.message_id] = method, params, callback
                 ids.append(self.message_id)
+                requests.append(request)
                 if self.debug: 
                     print_error("-->", request)
                 self.message_id += 1
-                out += request + '\n'
-            while out:
-                sent = self.socket.send( out )
-                out = out[sent:]
+
+            self.pipe.send_all(requests)
             return ids
 
 
     def synchronous_get(self, requests, timeout=100000000):
         queue = Queue.Queue()
-        ids = self.send(requests, lambda i,x: queue.put(x))
+        ids = self.send(requests, queue.put)
         id2 = ids[:]
         res = {}
         while ids:
@@ -189,7 +207,7 @@ class NetworkProxy(threading.Thread):
         return self.status == 'connecting'
 
     def is_up_to_date(self):
-        return self.synchronous_get([('network.is_up_to_date',[])])[0]
+        return self.unanswered_requests == {}
 
     def get_parameters(self):
         return self.synchronous_get([('network.get_parameters',[])])[0]
@@ -215,4 +233,3 @@ class NetworkProxy(threading.Thread):
         if callbacks:
             [callback() for callback in callbacks]
 
-        print_error("trigger_callback", event, len(callbacks))

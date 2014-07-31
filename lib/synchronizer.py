@@ -54,14 +54,14 @@ class WalletSynchronizer(threading.Thread):
         messages = []
         for addr in addresses:
             messages.append(('blockchain.address.subscribe', [addr]))
-        self.network.subscribe( messages, lambda i,r: self.queue.put(r))
+        self.network.send(messages, self.queue.put)
 
     def run(self):
         with self.lock:
             self.running = True
         while self.is_running():
             while not self.network.is_connected():
-                time.sleep(1)
+                time.sleep(0.1)
             self.run_interface()
 
     def run_interface(self):
@@ -103,7 +103,7 @@ class WalletSynchronizer(threading.Thread):
             # request missing transactions
             for tx_hash, tx_height in missing_tx:
                 if (tx_hash, tx_height) not in requested_tx:
-                    self.network.send([ ('blockchain.transaction.get',[tx_hash, tx_height]) ], lambda i,r: self.queue.put(r))
+                    self.network.send([ ('blockchain.transaction.get',[tx_hash, tx_height]) ], self.queue.put)
                     requested_tx.append( (tx_hash, tx_height) )
             missing_tx = []
 
@@ -123,31 +123,24 @@ class WalletSynchronizer(threading.Thread):
 
             # 2. get a response
             try:
-                r = self.queue.get(block=True, timeout=1)
+                r = self.queue.get(timeout=0.1)
             except Queue.Empty:
                 continue
 
-            # see if it changed
-            #if interface != self.network.interface:
-            #    break
-            
-            if not r:
-                continue
-
-            # 3. handle response
+            # 3. process response
             method = r['method']
             params = r['params']
             result = r.get('result')
             error = r.get('error')
             if error:
-                print "error", r
+                print_error("error", r)
                 continue
 
             if method == 'blockchain.address.subscribe':
                 addr = params[0]
                 if self.wallet.get_status(self.wallet.get_history(addr)) != result:
                     if requested_histories.get(addr) is None:
-                        self.network.send([('blockchain.address.get_history', [addr])], lambda i,r:self.queue.put(r))
+                        self.network.send([('blockchain.address.get_history', [addr])], self.queue.put)
                         requested_histories[addr] = result
 
             elif method == 'blockchain.address.get_history':

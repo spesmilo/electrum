@@ -7,8 +7,7 @@ password = choose a password
 database = database filename
 
 [electrum]
-mpk = the master public key of your wallet (in hexadecimal)
-chain = second part of the mastrer public key (hexadecimal)
+xpub = the master public key of your wallet
 wallet_path = path where the script will save the wallet
 
 [callback]

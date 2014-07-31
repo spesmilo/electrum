@@ -33,7 +33,8 @@ DEFAULT_TIMEOUT = 5
 proxy_modes = ['socks4', 'socks5', 'http']
 
 
-    
+import util
+
 
 def cert_verify_hostname(s):
     # hostname verification (disabled)
@@ -46,227 +47,88 @@ def cert_verify_hostname(s):
 
 
 
-class Interface(threading.Thread):
+def Interface(server, config = None):
+    host, port, protocol = server.split(':')
+    port = int(port)
+    if protocol in 'st':
+        return TcpInterface(server, config)
+    elif protocol in 'hg':
+        return HttpInterface(server, config)
+    else:
+        raise Exception('Unknown protocol: %s'%protocol)
 
+class TcpInterface(threading.Thread):
 
     def __init__(self, server, config = None):
-
         threading.Thread.__init__(self)
         self.daemon = True
         self.config = config if config is not None else SimpleConfig()
-        self.connect_event = threading.Event()
-
-        self.subscriptions = {}
         self.lock = threading.Lock()
 
-        self.rtime = 0
-        self.bytes_received = 0
         self.is_connected = False
-        self.poll_interval = 1
-
         self.debug = False # dump network messages. can be changed at runtime using the console
-
-        #json
         self.message_id = 0
         self.unanswered_requests = {}
 
+        # are we waiting for a pong?
+        self.is_ping = False
+
         # parse server
         self.server = server
-        try:
-            host, port, protocol = self.server.split(':')
-            port = int(port)
-        except Exception:
-            self.server = None
-            return
-
-        if protocol not in 'ghst':
-            raise Exception('Unknown protocol: %s'%protocol)
-
-        self.host = host
-        self.port = port
-        self.protocol = protocol
-        self.use_ssl = ( protocol in 'sg' )
+        self.host, self.port, self.protocol = self.server.split(':')
+        self.port = int(self.port)
+        self.use_ssl = (self.protocol == 's')
         self.proxy = self.parse_proxy_options(self.config.get('proxy'))
         if self.proxy:
             self.proxy_mode = proxy_modes.index(self.proxy["mode"]) + 1
 
 
-
-
-
-    def queue_json_response(self, c):
-
-        # uncomment to debug
+    def process_response(self, response):
         if self.debug:
-            print_error( "<--",c )
+            print_error("<--", response)
 
-        msg_id = c.get('id')
-        error = c.get('error')
-        
+        msg_id = response.get('id')
+        error = response.get('error')
+        result = response.get('result')
+
         if error:
-            print_error("received error:", c)
-            if msg_id is not None:
-                with self.lock: 
-                    method, params, callback = self.unanswered_requests.pop(msg_id)
-                callback(self,{'method':method, 'params':params, 'error':error, 'id':msg_id})
-
+            print_error("received error:", response)
             return
-
+        
         if msg_id is not None:
-            with self.lock: 
-                method, params, callback = self.unanswered_requests.pop(msg_id)
-            result = c.get('result')
-
+            with self.lock:
+                method, params, _id, queue = self.unanswered_requests.pop(msg_id)
+            if queue is None:
+                queue = self.response_queue
         else:
             # notification
-            method = c.get('method')
-            params = c.get('params')
-
+            method = response.get('method')
+            params = response.get('params')
+            _id = None
+            queue = self.response_queue
+            # restore parameters
             if method == 'blockchain.numblocks.subscribe':
                 result = params[0]
                 params = []
-
             elif method == 'blockchain.headers.subscribe':
                 result = params[0]
                 params = []
-
             elif method == 'blockchain.address.subscribe':
                 addr = params[0]
                 result = params[1]
                 params = [addr]
 
-            with self.lock:
-                for k,v in self.subscriptions.items():
-                    if (method, params) in v:
-                        callback = k
-                        break
-                else:
-                    print_error( "received unexpected notification", method, params)
-                    print_error( self.subscriptions )
-                    return
-
-
-        callback(self, {'method':method, 'params':params, 'result':result, 'id':msg_id})
-
-
-    def on_version(self, i, result):
-        self.server_version = result
-
-
-    def start_http(self):
-        self.session_id = None
-        self.is_connected = True
-        self.connection_msg = ('https' if self.use_ssl else 'http') + '://%s:%d'%( self.host, self.port )
-        try:
-            self.poll()
-        except Exception:
-            print_error("http init session failed")
-            self.is_connected = False
+        if method == 'server.version':
+            self.server_version = result
+            self.is_ping = False
             return
 
-        if self.session_id:
-            print_error('http session:',self.session_id)
-            self.is_connected = True
-        else:
-            self.is_connected = False
-
-    def run_http(self):
-        self.is_connected = True
-        while self.is_connected:
-            try:
-                if self.session_id:
-                    self.poll()
-                time.sleep(self.poll_interval)
-            except socket.gaierror:
-                break
-            except socket.error:
-                break
-            except Exception:
-                traceback.print_exc(file=sys.stdout)
-                break
-            
-        self.is_connected = False
-
-                
-    def poll(self):
-        self.send([], None)
-
-
-    def send_http(self, messages, callback):
-        import urllib2, json, time, cookielib
-        print_error( "send_http", messages )
-        
-        if self.proxy:
-            socks.setdefaultproxy(self.proxy_mode, self.proxy["host"], int(self.proxy["port"]) )
-            socks.wrapmodule(urllib2)
-
-        cj = cookielib.CookieJar()
-        opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
-        urllib2.install_opener(opener)
-
-        t1 = time.time()
-
-        data = []
-        ids = []
-        for m in messages:
-            method, params = m
-            if type(params) != type([]): params = [params]
-            data.append( { 'method':method, 'id':self.message_id, 'params':params } )
-            self.unanswered_requests[self.message_id] = method, params, callback
-            ids.append(self.message_id)
-            self.message_id += 1
-
-        if data:
-            data_json = json.dumps(data)
-        else:
-            # poll with GET
-            data_json = None 
-
-            
-        headers = {'content-type': 'application/json'}
-        if self.session_id:
-            headers['cookie'] = 'SESSION=%s'%self.session_id
-
-        try:
-            req = urllib2.Request(self.connection_msg, data_json, headers)
-            response_stream = urllib2.urlopen(req, timeout=DEFAULT_TIMEOUT)
-        except Exception:
-            return
-
-        for index, cookie in enumerate(cj):
-            if cookie.name=='SESSION':
-                self.session_id = cookie.value
-
-        response = response_stream.read()
-        self.bytes_received += len(response)
-        if response: 
-            response = json.loads( response )
-            if type(response) is not type([]):
-                self.queue_json_response(response)
-            else:
-                for item in response:
-                    self.queue_json_response(item)
-
-        if response: 
-            self.poll_interval = 1
-        else:
-            if self.poll_interval < 15: 
-                self.poll_interval += 1
-        #print self.poll_interval, response
-
-        self.rtime = time.time() - t1
-        self.is_connected = True
-        return ids
-
-
+        queue.put((self, {'method':method, 'params':params, 'result':result, 'id':_id}))
 
 
     def start_tcp(self):
 
-        self.connection_msg = self.host + ':%d' % self.port
-
         if self.proxy is not None:
-
             socks.setdefaultproxy(self.proxy_mode, self.proxy["host"], int(self.proxy["port"]))
             socket.socket = socks.socksocket
             # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
@@ -276,7 +138,6 @@ class Interface(threading.Thread):
 
         if self.use_ssl:
             cert_path = os.path.join( self.config.path, 'certs', self.host)
-
             if not os.path.exists(cert_path):
                 is_new = True
                 # get server certificate.
@@ -363,7 +224,7 @@ class Interface(threading.Thread):
                         x.parse(cert)
                         x.slow_parse()
                     except:
-                        traceback.print_exc(file=sys.stdout)
+                        traceback.print_exc(file=sys.stderr)
                         print_error("wrong certificate", self.host)
                         return
                     try:
@@ -376,7 +237,7 @@ class Interface(threading.Thread):
                 return
             except Exception:
                 print_error("wrap_socket failed", self.host)
-                traceback.print_exc(file=sys.stdout)
+                traceback.print_exc(file=sys.stderr)
                 return
 
             if is_new:
@@ -387,134 +248,24 @@ class Interface(threading.Thread):
         self.s = s
         self.is_connected = True
         print_error("connected to", self.host, self.port)
+        self.pipe = util.SocketPipe(s)
+        
 
-
-    def run_tcp(self):
-        try:
-            #if self.use_ssl: self.s.do_handshake()
-            out = ''
-            while self.is_connected:
-                try: 
-                    timeout = False
-                    msg = self.s.recv(1024)
-                except socket.timeout:
-                    timeout = True
-                except ssl.SSLError:
-                    timeout = True
-                except socket.error, err:
-                    if err.errno == 60:
-                        timeout = True
-                    elif err.errno in [11, 10035]:
-                        print_error("socket errno", err.errno)
-                        time.sleep(0.1)
-                        continue
-                    else:
-                        traceback.print_exc(file=sys.stdout)
-                        raise
-
-                if timeout:
-                    # ping the server with server.version, as a real ping does not exist yet
-                    self.send([('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])], self.on_version)
-                    continue
-
-                out += msg
-                self.bytes_received += len(msg)
-                if msg == '': 
-                    self.is_connected = False
-
-                while True:
-                    s = out.find('\n')
-                    if s==-1: break
-                    c = out[0:s]
-                    out = out[s+1:]
-                    c = json.loads(c)
-                    self.queue_json_response(c)
-
-        except Exception:
-            traceback.print_exc(file=sys.stdout)
-
-        self.is_connected = False
-
-
-    def send_tcp(self, messages, callback):
-        """return the ids of the requests that we sent"""
-        out = ''
-        ids = []
-        for m in messages:
-            method, params = m 
-            request = json.dumps( { 'id':self.message_id, 'method':method, 'params':params } )
-            self.unanswered_requests[self.message_id] = method, params, callback
-            ids.append(self.message_id)
-            if self.debug:
-                print_error("-->", request)
-            self.message_id += 1
-            out += request + '\n'
-        while out:
+    def send_request(self, request, queue=None):
+        _id = request.get('id')
+        method = request.get('method')
+        params = request.get('params')
+        with self.lock:
             try:
-                sent = self.s.send( out )
-                out = out[sent:]
-            except socket.error,e:
-                if e[0] in (errno.EWOULDBLOCK,errno.EAGAIN):
-                    print_error( "EAGAIN: retrying")
-                    time.sleep(0.1)
-                    continue
-                else:
-                    traceback.print_exc(file=sys.stdout)
-                    # this happens when we get disconnected
-                    print_error( "Not connected, cannot send" )
-                    return None
-        return ids
-
-
-
-
-
-    def start_interface(self):
-
-        if self.protocol in 'st':
-            self.start_tcp()
-        elif self.protocol in 'gh':
-            self.start_http()
-
-        self.connect_event.set()
-
-
-
-    def stop_subscriptions(self):
-        for callback in self.subscriptions.keys():
-            callback(self, None)
-        self.subscriptions = {}
-
-
-    def send(self, messages, callback):
-
-        sub = []
-        for message in messages:
-            m, v = message
-            if m[-10:] == '.subscribe':
-                sub.append(message)
-
-        if sub:
-            with self.lock:
-                if self.subscriptions.get(callback) is None: 
-                    self.subscriptions[callback] = []
-                for message in sub:
-                    if message not in self.subscriptions[callback]:
-                        self.subscriptions[callback].append(message)
-
-        if not self.is_connected: 
-            print_error("interface: trying to send while not connected")
-            return
-
-        if self.protocol in 'st':
-            with self.lock:
-                out = self.send_tcp(messages, callback)
-        else:
-            # do not use lock, http is synchronous
-            out = self.send_http(messages, callback)
-
-        return out
-
+                self.pipe.send({'id':self.message_id, 'method':method, 'params':params})
+            except socket.error, e:
+                print_error("socked error:", self.server, e)
+                self.is_connected = False
+                return
+            self.unanswered_requests[self.message_id] = method, params, _id, queue
+            self.message_id += 1
+        if self.debug:
+            print_error("-->", request)
 
     def parse_proxy_options(self, s):
         if type(s) == type({}): return s  # fixme: type should be fixed
@@ -535,59 +286,168 @@ class Interface(threading.Thread):
             proxy["port"] = "8080" if proxy["mode"] == "http" else "1080"
         return proxy
 
-
-
     def stop(self):
         if self.is_connected and self.protocol in 'st' and self.s:
             self.s.shutdown(socket.SHUT_RDWR)
             self.s.close()
+        self.is_connected = False
 
+    def start(self, response_queue):
+        self.response_queue = response_queue
+        threading.Thread.start(self)
+
+    def run(self):
+        self.start_tcp()
+        self.change_status()
+        if not self.is_connected:
+            return
+
+        t = 0
+        while self.is_connected:
+            # ping the server with server.version
+            if time.time() - t > 60:
+                if self.is_ping:
+                    print_error("ping timeout", self.server)
+                    self.is_connected = False
+                    break
+                else:
+                    self.send_request({'method':'server.version', 'params':[ELECTRUM_VERSION, PROTOCOL_VERSION]})
+                    self.is_ping = True
+                    t = time.time()
+            try:
+                response = self.pipe.get()
+            except util.timeout:
+                continue
+            if response is None:
+                self.is_connected = False
+                break
+            self.process_response(response)
+
+        self.change_status()
+        print_error("closing connection:", self.server)
+
+    def change_status(self):
+        # print_error( "change status", self.server, self.is_connected)
+        self.response_queue.put((self, None))
+
+
+
+class HttpInterface(TcpInterface):
+
+    def run(self):
+        self.start_http()
+        if self.is_connected:
+            self.send_request({'method':'server.version', 'params':[ELECTRUM_VERSION, PROTOCOL_VERSION]})
+            self.change_status()
+            self.run_http()
+        self.change_status()
+
+    def send_request(self, request, queue=None):
+        import urllib2, json, time, cookielib
+        print_error( "send_http", messages )
+        
+        if self.proxy:
+            socks.setdefaultproxy(self.proxy_mode, self.proxy["host"], int(self.proxy["port"]) )
+            socks.wrapmodule(urllib2)
+
+        cj = cookielib.CookieJar()
+        opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
+        urllib2.install_opener(opener)
+
+        t1 = time.time()
+
+        data = []
+        ids = []
+        for m in messages:
+            method, params = m
+            if type(params) != type([]): params = [params]
+            data.append( { 'method':method, 'id':self.message_id, 'params':params } )
+            self.unanswered_requests[self.message_id] = method, params, callback
+            ids.append(self.message_id)
+            self.message_id += 1
+
+        if data:
+            data_json = json.dumps(data)
+        else:
+            # poll with GET
+            data_json = None 
+
+            
+        headers = {'content-type': 'application/json'}
+        if self.session_id:
+            headers['cookie'] = 'SESSION=%s'%self.session_id
+
+        try:
+            req = urllib2.Request(self.connection_msg, data_json, headers)
+            response_stream = urllib2.urlopen(req, timeout=DEFAULT_TIMEOUT)
+        except Exception:
+            return
+
+        for index, cookie in enumerate(cj):
+            if cookie.name=='SESSION':
+                self.session_id = cookie.value
+
+        response = response_stream.read()
+        self.bytes_received += len(response)
+        if response: 
+            response = json.loads( response )
+            if type(response) is not type([]):
+                self.process_response(response)
+            else:
+                for item in response:
+                    self.process_response(item)
+        if response: 
+            self.poll_interval = 1
+        else:
+            if self.poll_interval < 15: 
+                self.poll_interval += 1
+        #print self.poll_interval, response
+        self.rtime = time.time() - t1
+        self.is_connected = True
+        return ids
+
+    def poll(self):
+        self.send([], None)
+
+    def start_http(self):
+        self.rtime = 0
+        self.bytes_received = 0
+        self.poll_interval = 1
+
+        self.session_id = None
+        self.is_connected = True
+        self.connection_msg = ('https' if self.use_ssl else 'http') + '://%s:%d'%( self.host, self.port )
+        try:
+            self.poll()
+        except Exception:
+            print_error("http init session failed")
+            self.is_connected = False
+            return
+
+        if self.session_id:
+            print_error('http session:',self.session_id)
+            self.is_connected = True
+        else:
+            self.is_connected = False
+
+    def run_http(self):
+        self.is_connected = True
+        while self.is_connected:
+            try:
+                if self.session_id:
+                    self.poll()
+                time.sleep(self.poll_interval)
+            except socket.gaierror:
+                break
+            except socket.error:
+                break
+            except Exception:
+                traceback.print_exc(file=sys.stdout)
+                break
+            
         self.is_connected = False
 
 
-    def is_up_to_date(self):
-        return self.unanswered_requests == {}
-
-
-
-    def start(self, queue = None, wait = False):
-        if not self.server:
-            return
-        self.queue = queue if queue else Queue.Queue()
-        threading.Thread.start(self)
-        if wait:
-            self.connect_event.wait()
-
-
-    def run(self):
-        self.start_interface()
-        if self.is_connected:
-            self.send([('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])], self.on_version)
-            self.change_status()
-            self.run_tcp() if self.protocol in 'st' else self.run_http()
-        self.change_status()
-        
-
-    def change_status(self):
-        #print "change status", self.server, self.is_connected
-        self.queue.put(self)
-
-
-    def synchronous_get(self, requests, timeout=100000000):
-        queue = Queue.Queue()
-        ids = self.send(requests, lambda i,r: queue.put(r))
-        id2 = ids[:]
-        res = {}
-        while ids:
-            r = queue.get(True, timeout)
-            _id = r.get('id')
-            if _id in ids:
-                ids.remove(_id)
-                res[_id] = r.get('result')
-        out = []
-        for _id in id2:
-            out.append(res[_id])
-        return out
 
 
 

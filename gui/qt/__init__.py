@@ -159,18 +159,21 @@ class ElectrumGui:
             wizard = installwizard.InstallWizard(self.config, self.network, storage)
             wallet = wizard.run(action)
             if not wallet: 
-                exit()
+                return
         else:
             wallet.start_threads(self.network)
 
         # init tray
-        self.dark_icon = self.config.get("dark_icon", False)
-        icon = QIcon(":icons/electrum_dark_icon.png") if self.dark_icon else QIcon(':icons/electrum_light_icon.png')
-        self.tray = QSystemTrayIcon(icon, None)
-        self.tray.setToolTip('Electrum-LTC')
-        self.tray.activated.connect(self.tray_activated)
-        self.build_tray_menu()
-        self.tray.show()
+        if 1:
+            self.dark_icon = self.config.get("dark_icon", False)
+            icon = QIcon(":icons/electrum_dark_icon.png") if self.dark_icon else QIcon(':icons/electrum_light_icon.png')
+            self.tray = QSystemTrayIcon(icon, None)
+            self.tray.setToolTip('Electrum-LTC')
+            self.tray.activated.connect(self.tray_activated)
+            self.build_tray_menu()
+            self.tray.show()
+        else:
+            self.tray = None
 
         # main window
         self.main_window = w = ElectrumWindow(self.config, self.network, self)
@@ -206,6 +209,8 @@ class ElectrumGui:
         w.update_wallet()
 
         self.app.exec_()
+        if self.tray:
+            self.tray.hide()
 
         # clipboard persistence
         # see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html

@@ -181,12 +181,14 @@ class ElectrumWindow(QMainWindow):
             self.network.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')))
             self.network.register_callback('status', lambda: self.emit(QtCore.SIGNAL('update_status')))
             self.network.register_callback('new_transaction', lambda: self.emit(QtCore.SIGNAL('transaction_signal')))
+            self.network.register_callback('stop', self.close)
 
             # set initial message
             self.console.showMessage(self.network.banner)
 
         self.wallet = None
         self.payment_request = None
+        self.qr_window = None
 
     def update_account_selector(self):
         # account selector
@@ -408,7 +410,8 @@ class ElectrumWindow(QMainWindow):
                           self.notify(_("New transaction received. %(amount)s %(unit)s") % { 'amount' : self.format_amount(v), 'unit' : self.base_unit()})
 
     def notify(self, message):
-        self.tray.showMessage("Electrum-LTC", message, QSystemTrayIcon.Information, 20000)
+        if self.tray:
+            self.tray.showMessage("Electrum-LTC", message, QSystemTrayIcon.Information, 20000)
 
 
 
@@ -429,6 +432,8 @@ class ElectrumWindow(QMainWindow):
         return fileName
 
     def close(self):
+        if self.qr_window:
+            self.qr_window.close()
         QMainWindow.close(self)
         run_hook('close_main_window')
 
@@ -486,7 +491,8 @@ class ElectrumWindow(QMainWindow):
                 if quote:
                     text += "%s"%quote
 
-                self.tray.setToolTip(text)
+                if self.tray:
+                    self.tray.setToolTip(text)
                 icon = QIcon(":icons/status_connected.png")
         else:
             text = _("Not connected")
@@ -702,6 +708,7 @@ class ElectrumWindow(QMainWindow):
 
         self.receive_qr = QRCodeWidget(fixedSize=200)
         grid.addWidget(self.receive_qr, 0, 4, 5, 2)
+        self.receive_qr.mousePressEvent = lambda x: self.toggle_qr_window()
 
         grid.setRowStretch(5, 1)
 
@@ -739,6 +746,7 @@ class ElectrumWindow(QMainWindow):
     def receive_list_menu(self, position):
         item = self.receive_list.itemAt(position)
         menu = QMenu()
+        menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(str(item.text(0))))
         menu.addAction(_("Delete"), lambda: self.receive_list_delete(item))
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
@@ -782,6 +790,22 @@ class ElectrumWindow(QMainWindow):
         self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)
 
+    def toggle_qr_window(self):
+        import qrwindow
+        if not self.qr_window:
+            self.qr_window = qrwindow.QR_Window(self)
+            self.qr_window.setVisible(True)
+            self.qr_window_geometry = self.qr_window.geometry()
+        else:
+            if not self.qr_window.isVisible():
+                self.qr_window.setVisible(True)
+                self.qr_window.setGeometry(self.qr_window_geometry)
+            else:
+                self.qr_window_geometry = self.qr_window.geometry()
+                self.qr_window.setVisible(False)
+        self.update_receive_qr()
+
+
     def receive_at(self, addr):
         if not bitcoin.is_address(addr):
             return
@@ -819,7 +843,8 @@ class ElectrumWindow(QMainWindow):
         else:
             url = ""
         self.receive_qr.setData(url)
-        run_hook('update_receive_qr', addr, amount, message, url)
+        if self.qr_window:
+            self.qr_window.set_content(addr, amount, message, url)
 
 
     def create_send_tab(self):
@@ -2623,7 +2648,6 @@ class ElectrumWindow(QMainWindow):
         NetworkDialog(self.wallet.network, self.config, self).do_exec()
 
     def closeEvent(self, event):
-        self.tray.hide()
         self.config.set_key("is_maximized", self.isMaximized())
         if not self.isMaximized():
             g = self.geometry()

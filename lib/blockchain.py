@@ -302,34 +302,18 @@ class Blockchain(threading.Thread):
 
     def request_header(self, i, h, queue):
         print_error("requesting header %d from %s"%(h, i.server))
-        i.send([ ('blockchain.block.get_header',[h])], lambda i,r: queue.put((i,r)))
+        i.send_request({'method':'blockchain.block.get_header', 'params':[h]}, queue)
 
-    def retrieve_header(self, i, queue):
+    def retrieve_request(self, queue):
         while True:
             try:
                 ir = queue.get(timeout=1)
             except Queue.Empty:
-                print_error('timeout')
+                print_error('blockchain: request timeout')
                 continue
-
-            if not ir: 
-                continue
-
             i, r = ir
-
-            if r.get('error'):
-                print_error('Verifier received an error:', r)
-                continue
-
-            # 3. handle response
-            method = r['method']
-            params = r['params']
             result = r['result']
-
-            if method == 'blockchain.block.get_header':
-                return result
-                
-
+            return result
 
     def get_chain(self, interface, final_header):
 
@@ -341,7 +325,7 @@ class Blockchain(threading.Thread):
         while self.is_running():
 
             if requested_header:
-                header = self.retrieve_header(interface, queue)
+                header = self.retrieve_request(queue)
                 if not header: return
                 chain = [ header ] + chain
                 requested_header = False
@@ -374,9 +358,8 @@ class Blockchain(threading.Thread):
         n = min_index
         while n < max_index + 1:
             print_error( "Requesting chunk:", n )
-            r = i.synchronous_get([ ('blockchain.block.get_chunk',[n])])[0]
-            if not r: 
-                continue
+            i.send_request({'method':'blockchain.block.get_chunk', 'params':[n]}, queue)
+            r = self.retrieve_request(queue)
             try:
                 self.verify_chunk(n, r)
                 n = n + 1

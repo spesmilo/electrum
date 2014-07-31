@@ -24,214 +24,170 @@ import threading
 import traceback
 import json
 import Queue
+
+import util
 from network import Network
-from util import print_error, print_stderr
+from util import print_error, print_stderr, parse_json
 from simple_config import SimpleConfig
-
-
-"""
-The Network object is not aware of clients/subscribers
-It only does subscribe/unsubscribe to addresses
-Which client has wich address is managed by the daemon
-Network also reports status changes
-"""
 
 DAEMON_PORT=8001
 
 
-def parse_json(message):
-    n = message.find('\n')
-    if n==-1: 
-        return None, message
-    try:
-        j = json.loads( message[0:n] )
-    except:
-        j = None
-    return j, message[n+1:]
+def do_start_daemon(config):
+    import subprocess
+    logfile = open(os.path.join(config.path, 'daemon.log'),'w')
+    p = subprocess.Popen(["python",__file__], stderr=logfile, stdout=logfile, close_fds=True)
+    print_stderr("starting daemon (PID %d)"%p.pid)
+
+
+def get_daemon(config, start_daemon=True):
+    import socket
+    daemon_port = config.get('daemon_port', DAEMON_PORT)
+    daemon_started = False
+    while True:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect(('', daemon_port))
+            return s
+        except socket.error:
+            if not start_daemon:
+                return False
+            elif not daemon_started:
+                do_start_daemon(config)
+                daemon_started = True
+            else:
+                time.sleep(0.1)
 
 
 
 class ClientThread(threading.Thread):
-    # read messages from client (socket), and sends them to Network
-    # responses are sent back on the same socket
 
-    def __init__(self, server, network, s):
+    def __init__(self, server, s):
         threading.Thread.__init__(self)
         self.server = server
         self.daemon = True
-        self.s = s
-        self.s.settimeout(0.1)
-        self.network = network
-        self.queue = Queue.Queue()
-        self.unanswered_requests = {}
-        self.debug = False
+        self.client_pipe = util.SocketPipe(s)
+        self.daemon_pipe = util.QueuePipe(send_queue = self.server.network.requests_queue)
         self.server.add_client(self)
 
+    def reading_thread(self):
+        while self.running:
+            try:
+                request = self.client_pipe.get()
+            except util.timeout:
+                continue
+            if request is None:
+                self.running = False
+                break
+
+            if request.get('method') == 'daemon.stop':
+                self.server.stop()
+                continue
+
+            self.daemon_pipe.send(request)
 
     def run(self):
-
-        message = ''
-        while True:
+        self.running = True
+        threading.Thread(target=self.reading_thread).start()
+        while self.running:
             try:
-                self.send_responses()
-            except socket.error:
-                break
-
-            try:
-                data = self.s.recv(1024)
-            except socket.timeout:
+                response = self.daemon_pipe.get()
+            except util.timeout:
                 continue
-            except:
-                data = ''
-            if not data:
+            try:
+                self.client_pipe.send(response)
+            except socket.error:
+                self.running = False
                 break
-            message += data
-            while True:
-                cmd, message = parse_json(message)
-                if not cmd:
-                    break
-                self.process(cmd)
-
         self.server.remove_client(self)
 
 
 
 
-    def process(self, request):
-        if self.debug: 
-            print_error("<--", request)
-        method = request['method']
-        params = request['params']
-        _id = request['id']
 
-        if method == ('daemon.stop'):
-            self.server.stop()
-            return
-
-        if method.startswith('network.'):
-            out = {'id':_id}
-            try:
-                f = getattr(self.network, method[8:])
-            except AttributeError:
-                out['error'] = "unknown method"
-            try:
-                out['result'] = f(*params)
-            except BaseException as e:
-                out['error'] = str(e)
-                print_error("network error", str(e))
-
-            self.queue.put(out)
-            return
-
-        def cb(i,r):
-            _id = r.get('id')
-            if _id is not None:
-                my_id = self.unanswered_requests.pop(_id)
-                r['id'] = my_id
-            self.queue.put(r)
-
-        try:
-            new_id = self.network.interface.send([(method, params)], cb) [0]
-        except Exception as e:
-            self.queue.put({'id':_id, 'error':str(e)}) 
-            print_error("network interface error", str(e))
-            return
-
-        self.unanswered_requests[new_id] = _id
-
-
-    def send_responses(self):
-        while True:
-            try:
-                r = self.queue.get_nowait()
-            except Queue.Empty:
-                break
-            out = json.dumps(r) + '\n'
-            while out:
-                n = self.s.send(out)
-                out = out[n:]
-            if self.debug: 
-                print_error("-->", r)
-
-
-
-class NetworkServer:
+class NetworkServer(threading.Thread):
 
     def __init__(self, config):
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self.config = config
         self.network = Network(config)
-        self.network.trigger_callback = self.trigger_callback
-        self.network.start()
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.daemon_port = config.get('daemon_port', DAEMON_PORT)
-        self.socket.bind(('', self.daemon_port))
-        self.socket.listen(5)
-        self.socket.settimeout(1)
+        # network sends responses on that queue
+        self.network_queue = Queue.Queue()
+
         self.running = False
-        # daemon terminates after period of inactivity
-        self.timeout = config.get('daemon_timeout', 5*60)
         self.lock = threading.RLock()
 
         # each GUI is a client of the daemon
         self.clients = []
-        # daemon needs to know which client subscribed to which address
+        # todo: the daemon needs to know which client subscribed to which address
+
+    def is_running(self):
+        with self.lock:
+            return self.running
 
     def stop(self):
         with self.lock:
             self.running = False
 
+    def start(self):
+        self.running = True
+        threading.Thread.start(self)
+
     def add_client(self, client):
         for key in ['status','banner','updated','servers','interfaces']:
-            value = self.get_status_value(key)
-            client.queue.put({'method':'network.status', 'params':[key, value]})
+            value = self.network.get_status_value(key)
+            client.daemon_pipe.get_queue.put({'method':'network.status', 'params':[key, value]})
         with self.lock:
             self.clients.append(client)
-
 
     def remove_client(self, client):
         with self.lock:
             self.clients.remove(client)
         print_error("client quit:", len(self.clients))
 
-    def get_status_value(self, key):
-        if key == 'status':
-            value = self.network.connection_status
-        elif key == 'banner':
-            value = self.network.banner
-        elif key == 'updated':
-            value = (self.network.get_local_height(), self.network.get_server_height())
-        elif key == 'servers':
-            value = self.network.get_servers()
-        elif key == 'interfaces':
-            value = self.network.get_interfaces()
-        return value
-
-    def trigger_callback(self, key):
-        value = self.get_status_value(key)
-        print_error("daemon trigger callback", key, len(self.clients))
-        for client in self.clients:
-            client.queue.put({'method':'network.status', 'params':[key, value]})
-
-    def main_loop(self):
-        self.running = True
-        t = time.time()
-        while self.running:
+    def run(self):
+        self.network.start(self.network_queue)
+        while self.is_running():
             try:
-                connection, address = self.socket.accept()
-            except socket.timeout:
-                if not self.clients:
-                    if time.time() - t > self.timeout:
-                        print_error("Daemon timeout")
-                        break
-                else:
-                    t = time.time()
+                response = self.network_queue.get(timeout=0.1)
+            except Queue.Empty:
                 continue
-            t = time.time()
-            client = ClientThread(self, self.network, connection)
-            client.start()
-        print_error("Daemon exiting")
+            for client in self.clients:
+                client.daemon_pipe.get_queue.put(response)
+
+        self.network.stop()
+        print_error("server exiting")
 
 
+
+def daemon_loop(server):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    daemon_port = server.config.get('daemon_port', DAEMON_PORT)
+    daemon_timeout = server.config.get('daemon_timeout', 5*60)
+    s.bind(('', daemon_port))
+    s.listen(5)
+    s.settimeout(1)
+    t = time.time()
+    while server.running:
+        try:
+            connection, address = s.accept()
+        except socket.timeout:
+            if not server.clients:
+                if time.time() - t > daemon_timeout:
+                    print_error("Daemon timeout")
+                    break
+            else:
+                t = time.time()
+            continue
+        t = time.time()
+        client = ClientThread(server, connection)
+        client.start()
+    server.stop()
+    # sleep so that other threads can terminate cleanly
+    time.sleep(0.5)
+    print_error("Daemon exiting")
 
 
 if __name__ == '__main__':
@@ -239,8 +195,10 @@ if __name__ == '__main__':
     config = simple_config.SimpleConfig()
     util.set_verbosity(True)
     server = NetworkServer(config)
+    server.start()
     try:
-        server.main_loop()
+        daemon_loop(server)
     except KeyboardInterrupt:
         print "Ctrl C - Stopping server"
+        server.stop()
         sys.exit(1)

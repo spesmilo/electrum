@@ -25,6 +25,8 @@ DEFAULT_SERVERS = {
     'rho.hicapacity.org': DEFAULT_PORTS,
 }
 
+DISCONNECTED_RETRY_INTERVAL = 60
+
 
 def parse_servers(result):
     """ parse servers list into dict format"""
@@ -87,7 +89,6 @@ class Network(threading.Thread):
         self.blockchain = Blockchain(self.config, self)
         self.interfaces = {}
         self.queue = Queue.Queue()
-        self.callbacks = {}
         self.protocol = self.config.get('protocol','s')
         self.running = False
 
@@ -97,8 +98,10 @@ class Network(threading.Thread):
             self.default_server = pick_random_server(self.protocol)
 
         self.irc_servers = {} # returned by interface (list from irc)
-        self.pending_servers = set([])
+
         self.disconnected_servers = set([])
+        self.disconnected_time = time.time()
+
         self.recent_servers = self.config.get('recent_servers',[]) # successful connections
 
         self.banner = ''
@@ -112,13 +115,11 @@ class Network(threading.Thread):
         if not os.path.exists(dir_path):
             os.mkdir(dir_path)
 
-        # default subscriptions
-        self.subscriptions = {}
-        self.subscriptions[self.on_banner] = [('server.banner',[])]
-        self.subscriptions[self.on_peers] = [('server.peers.subscribe',[])]
-        self.pending_transactions_for_notifications = []
-
+        # address subscriptions and cached results
+        self.addresses = {} 
         self.connection_status = 'connecting'
+        self.requests_queue = Queue.Queue()
+
 
     def get_server_height(self):
         return self.heights.get(self.default_server,0)
@@ -133,66 +134,44 @@ class Network(threading.Thread):
 
     def set_status(self, status):
         self.connection_status = status
-        self.trigger_callback('status')
+        self.notify('status')
 
     def is_connected(self):
         return self.interface and self.interface.is_connected
 
-    def is_up_to_date(self):
-        return self.interface.is_up_to_date()
-
     def send_subscriptions(self):
-        for cb, sub in self.subscriptions.items():
-            self.interface.send(sub, cb)
+        for addr in self.addresses:
+            self.interface.send_request({'method':'blockchain.address.subscribe', 'params':[addr]})
+        self.interface.send_request({'method':'server.banner','params':[]})
+        self.interface.send_request({'method':'server.peers.subscribe','params':[]})
 
-    def subscribe(self, messages, callback):
-        with self.lock:
-            if self.subscriptions.get(callback) is None: 
-                self.subscriptions[callback] = []
-            for message in messages:
-                if message not in self.subscriptions[callback]:
-                    self.subscriptions[callback].append(message)
+    def get_status_value(self, key):
+        if key == 'status':
+            value = self.connection_status
+        elif key == 'banner':
+            value = self.banner
+        elif key == 'updated':
+            value = (self.get_local_height(), self.get_server_height())
+        elif key == 'servers':
+            value = self.get_servers()
+        elif key == 'interfaces':
+            value = self.get_interfaces()
+        return value
 
-        if self.is_connected():
-            self.interface.send( messages, callback )
-
-
-    def send(self, messages, callback):
-        if self.is_connected():
-            self.interface.send( messages, callback )
-            return True
-        else:
-            return False
-
-
-    def register_callback(self, event, callback):
-        with self.lock:
-            if not self.callbacks.get(event):
-                self.callbacks[event] = []
-            self.callbacks[event].append(callback)
-
-
-    def trigger_callback(self, event):
-        # note: this method is overwritten by daemon
-        with self.lock:
-            callbacks = self.callbacks.get(event,[])[:]
-        if callbacks:
-            [callback() for callback in callbacks]
-
+    def notify(self, key):
+        value = self.get_status_value(key)
+        self.response_queue.put({'method':'network.status', 'params':[key, value]})
 
     def random_server(self):
         choice_list = []
         l = filter_protocol(self.get_servers(), self.protocol)
         for s in l:
-            if s in self.pending_servers or s in self.disconnected_servers or s in self.interfaces.keys():
+            if s in self.disconnected_servers or s in self.interfaces.keys():
                 continue
             else:
                 choice_list.append(s)
         
         if not choice_list: 
-            if not self.interfaces:
-                # we are probably offline, retry later
-                self.disconnected_servers = set([])
             return
         
         server = random.choice( choice_list )
@@ -222,9 +201,10 @@ class Network(threading.Thread):
         if server in self.interfaces.keys():
             return
         i = interface.Interface(server, self.config)
-        self.pending_servers.add(server)
+        self.interfaces[i.server] = i
+        self.notify('interfaces')
         i.start(self.queue)
-        return i 
+        return i
 
     def start_random_interface(self):
         server = self.random_server()
@@ -236,8 +216,14 @@ class Network(threading.Thread):
         for i in range(self.num_server):
             self.start_random_interface()
             
-    def start(self):
+    def start(self, response_queue):
+        self.running = True
+        self.response_queue = response_queue
         self.start_interfaces()
+        t = threading.Thread(target=self.process_requests_thread)
+        t.daemon = True
+        t.start()
+        self.blockchain.start()
         threading.Thread.start(self)
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
@@ -266,11 +252,16 @@ class Network(threading.Thread):
 
 
     def switch_to_random_interface(self):
-        if self.interfaces:
-            self.switch_to_interface(random.choice(self.interfaces.values()))
+        while self.interfaces:
+            i = random.choice(self.interfaces.values())
+            if i.is_connected:
+                self.switch_to_interface(i)
+                break
+            else:
+                self.interfaces.pop(i.server)
+                self.notify('interfaces')
 
     def switch_to_interface(self, interface):
-        assert not self.interface.is_connected
         server = interface.server
         print_error("switching to", server)
         self.interface = interface
@@ -323,32 +314,83 @@ class Network(threading.Thread):
                 print_error( "Server is lagging", blockchain_height, self.get_server_height())
                 if self.config.get('auto_cycle'):
                     self.set_server(i.server)
-        
-        self.trigger_callback('updated')
+        self.notify('updated')
+
+
+    def process_response(self, i, response):
+        method = response['method']
+        if method == 'blockchain.address.subscribe':
+            self.on_address(i, response)
+        elif method == 'blockchain.headers.subscribe':
+            self.on_header(i, response)
+        elif method == 'server.peers.subscribe':
+            self.on_peers(i, response)
+        elif method == 'server.banner':
+            self.on_banner(i, response)
+        else:
+            self.response_queue.put(response)
+
+    def process_requests_thread(self):
+        while self.is_running():
+            try:
+                request = self.requests_queue.get(timeout=0.1)
+            except Queue.Empty:
+                continue
+            self.process_request(request)
+
+    def process_request(self, request):
+        method = request['method']
+        params = request['params']
+        _id = request['id']
+
+        if method.startswith('network.'):
+            out = {'id':_id}
+            try:
+                f = getattr(self, method[8:])
+            except AttributeError:
+                out['error'] = "unknown method"
+            try:
+                out['result'] = f(*params)
+            except BaseException as e:
+                out['error'] = str(e)
+                print_error("network error", str(e))
+
+            self.response_queue.put(out)
+            return
+
+        if method == 'blockchain.address.subscribe':
+            addr = params[0]
+            if addr in self.addresses:
+                self.response_queue.put({'id':_id, 'result':self.addresses[addr]}) 
+                return
+
+        self.interface.send_request(request)
 
 
     def run(self):
-        self.blockchain.start()
-
-        with self.lock:
-            self.running = True
-
         while self.is_running():
             try:
-                i = self.queue.get(timeout = 30 if self.interfaces else 3)
+                i, response = self.queue.get(timeout=0.1)
             except Queue.Empty:
+
                 if len(self.interfaces) < self.num_server:
                     self.start_random_interface()
+                if not self.interfaces:
+                    if time.time() - self.disconnected_time > DISCONNECTED_RETRY_INTERVAL:
+                        print_error('network: retrying connections')
+                        self.disconnected_servers = set([])
+                        self.disconnected_time = time.time()
+                continue
+            
+            if response is not None:
+                self.process_response(i, response)
                 continue
 
-            if i.server in self.pending_servers:
-                self.pending_servers.remove(i.server)
+            # if response is None it is a notification about the interface
 
             if i.is_connected:
-                #if i.server in self.interfaces: raise
-                self.interfaces[i.server] = i
                 self.add_recent_server(i)
-                i.send([ ('blockchain.headers.subscribe',[])], self.on_header)
+                i.send_request({'method':'blockchain.headers.subscribe','params':[]})
                 if i == self.interface:
                     print_error('sending subscriptions to', self.interface.server)
                     self.send_subscriptions()
@@ -357,6 +399,7 @@ class Network(threading.Thread):
                 self.disconnected_servers.add(i.server)
                 if i.server in self.interfaces:
                     self.interfaces.pop(i.server)
+                    self.notify('interfaces')
                 if i.server in self.heights:
                     self.heights.pop(i.server)
                 if i == self.interface:
@@ -365,6 +408,10 @@ class Network(threading.Thread):
 
             if not self.interface.is_connected and self.config.get('auto_cycle'):
                 self.switch_to_random_interface()
+
+        print_error("Network: Stopping interfaces")
+        for i in self.interfaces.values():
+            i.stop()
 
 
     def on_header(self, i, r):
@@ -384,29 +431,31 @@ class Network(threading.Thread):
             if self.server_is_lagging() and self.config.get('auto_cycle'):
                 print_error( "Server lagging, stopping interface")
                 self.stop_interface()
-
-            self.trigger_callback('updated')
-
+            self.notify('updated')
 
     def on_peers(self, i, r):
         if not r: return
         self.irc_servers = parse_servers(r.get('result'))
-        self.trigger_callback('servers')
+        self.notify('servers')
 
     def on_banner(self, i, r):
         self.banner = r.get('result')
-        self.trigger_callback('banner')
+        self.notify('banner')
+
+    def on_address(self, i, r):
+        addr = r.get('params')[0]
+        result = r.get('result')
+        self.addresses[addr] = result
+        self.response_queue.put(r)
 
     def stop(self):
-        with self.lock: self.running = False
+        print_error("stopping network")
+        with self.lock:
+            self.running = False
 
     def is_running(self):
-        with self.lock: return self.running
-
-    
-    def synchronous_get(self, requests, timeout=100000000):
-        return self.interface.synchronous_get(requests)
-
+        with self.lock:
+            return self.running
 
     def get_header(self, tx_height):
         return self.blockchain.read_header(tx_height)

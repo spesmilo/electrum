@@ -840,7 +840,7 @@ class Transaction:
     def as_dict(self):
         import json
         out = {
-            "hex":self.raw,
+            "hex":str(self),
             "complete":self.is_complete()
             }
         return out
@@ -849,7 +849,7 @@ class Transaction:
     def required_fee(self, verifier):
         # see https://en.bitcoin.it/wiki/Transaction_fees
         threshold = 57600000*4
-        size = len(self.raw)/2
+        size = len(str(self))/2
 
         fee = 0
         for o in self.get_outputs():

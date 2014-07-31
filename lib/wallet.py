@@ -355,7 +355,9 @@ class Abstract_Wallet(object):
         return self.accounts[account_id].get_pubkeys(*sequence)
 
     def add_keypairs(self, tx, keypairs, password):
-        # first check the provided password. This will raise if invalid.
+
+        if self.is_watching_only():
+            return
         self.check_password(password)
 
         addr_list, xpub_list = tx.inputs_to_sign()
@@ -791,7 +793,7 @@ class Abstract_Wallet(object):
         self.network.send([('blockchain.transaction.broadcast', [str(tx)])], self.on_broadcast)
         return tx.hash()
 
-    def on_broadcast(self, i, r):
+    def on_broadcast(self, r):
         self.tx_result = r.get('result')
         self.tx_event.set()
 
@@ -987,6 +989,8 @@ class Abstract_Wallet(object):
                 age = tx_age
         return age > age_limit
 
+    def can_sign(self, tx):
+        pass
 
 class Imported_Wallet(Abstract_Wallet):
 
