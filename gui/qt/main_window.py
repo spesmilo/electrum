@@ -188,6 +188,7 @@ class ElectrumWindow(QMainWindow):
 
         self.wallet = None
         self.payment_request = None
+        self.qr_window = None
 
     def update_account_selector(self):
         # account selector
@@ -431,6 +432,8 @@ class ElectrumWindow(QMainWindow):
         return fileName
 
     def close(self):
+        if self.qr_window:
+            self.qr_window.close()
         QMainWindow.close(self)
         run_hook('close_main_window')
 
@@ -705,6 +708,7 @@ class ElectrumWindow(QMainWindow):
 
         self.receive_qr = QRCodeWidget(fixedSize=200)
         grid.addWidget(self.receive_qr, 0, 4, 5, 2)
+        self.receive_qr.mousePressEvent = lambda x: self.toggle_qr_window()
 
         grid.setRowStretch(5, 1)
 
@@ -786,6 +790,22 @@ class ElectrumWindow(QMainWindow):
         self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)
 
+    def toggle_qr_window(self):
+        import qrwindow
+        if not self.qr_window:
+            self.qr_window = qrwindow.QR_Window(self)
+            self.qr_window.setVisible(True)
+            self.qr_window_geometry = self.qr_window.geometry()
+        else:
+            if not self.qr_window.isVisible():
+                self.qr_window.setVisible(True)
+                self.qr_window.setGeometry(self.qr_window_geometry)
+            else:
+                self.qr_window_geometry = self.qr_window.geometry()
+                self.qr_window.setVisible(False)
+        self.update_receive_qr()
+
+
     def receive_at(self, addr):
         if not bitcoin.is_address(addr):
             return
@@ -823,7 +843,8 @@ class ElectrumWindow(QMainWindow):
         else:
             url = ""
         self.receive_qr.setData(url)
-        run_hook('update_receive_qr', addr, amount, message, url)
+        if self.qr_window:
+            self.qr_window.set_content(addr, amount, message, url)
 
 
     def create_send_tab(self):
