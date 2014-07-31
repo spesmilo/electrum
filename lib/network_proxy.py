@@ -86,6 +86,7 @@ class NetworkProxy(threading.Thread):
                 break
             self.process(response)
 
+        self.trigger_callback('stop')
         if self.network:
             self.network.stop()
         print_error("NetworkProxy: terminating")

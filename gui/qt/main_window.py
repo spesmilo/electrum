@@ -181,6 +181,7 @@ class ElectrumWindow(QMainWindow):
             self.network.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')))
             self.network.register_callback('status', lambda: self.emit(QtCore.SIGNAL('update_status')))
             self.network.register_callback('new_transaction', lambda: self.emit(QtCore.SIGNAL('transaction_signal')))
+            self.network.register_callback('stop', self.close)
 
             # set initial message
             self.console.showMessage(self.network.banner)
