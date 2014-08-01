@@ -1368,19 +1368,29 @@ class NewWallet(Deterministic_Wallet):
         account = BIP32_Account({'xpub':xpub})
         return account
 
-    def make_seed(self):
-        import mnemonic, ecdsa
-        entropy = ecdsa.util.randrange( pow(2,160) )
+
+    @classmethod
+    def make_seed(self, custom_entropy=1):
+        import mnemonic
+        import ecdsa
+        import math
+
+        n = int(math.ceil(math.log(custom_entropy,2)))
+        n_added = max(16, 160-n)
+        print_error("make_seed: adding %d bits"%n_added)
+        my_entropy = ecdsa.util.randrange( pow(2, n_added) )
         nonce = 0
         while True:
-            ss = "%040x"%(entropy+nonce)
-            s = hashlib.sha256(ss.decode('hex')).digest().encode('hex')
-            # we keep only 13 words, that's approximately 139 bits of entropy
-            words = mnemonic.mn_encode(s)[0:13]
+            s = "%x"% ( custom_entropy * (my_entropy + nonce))
+            if len(s) % 8:
+                s = "0"* (8 - len(s) % 8) + s
+            words = mnemonic.mn_encode(s)
             seed = ' '.join(words)
+            # this removes 8 bits of entropy
             if is_new_seed(seed):
-                break  # this will remove 8 bits of entropy
+                break
             nonce += 1
+        print_error(seed)
         return seed
 
     def prepare_seed(self, seed):
