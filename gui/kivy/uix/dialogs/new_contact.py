@@ -1,7 +1,6 @@
 from kivy.app import App
 from kivy.factory import Factory
 from kivy.properties import ObjectProperty
-from kivy.cache import Cache
 
 Factory.register('QrScannerDialog', module='electrum_gui.kivy.uix.dialogs.qr_scanner')
 

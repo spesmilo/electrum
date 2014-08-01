@@ -60,14 +60,14 @@ wsgiref/*
 hotshot/*
 pydoc_data/*
 tty.pyo
-anydbm.pyo
+#anydbm.pyo
 nturl2path.pyo
 LICENCE.txt
 macurl2path.pyo
 dummy_threading.pyo
 audiodev.pyo
 antigravity.pyo
-dumbdbm.pyo
+#dumbdbm.pyo
 sndhdr.pyo
 __phello__.foo.pyo
 sunaudio.pyo
@@ -93,7 +93,7 @@ plat-linux3/regen
 
 #>sqlite3
 # conditionnal include depending if some recipes are included or not.
-sqlite3/*
-lib-dynload/_sqlite3.so
+#sqlite3/*
+#lib-dynload/_sqlite3.so
 #<sqlite3
 

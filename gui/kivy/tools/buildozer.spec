@@ -32,7 +32,7 @@ source.exclude_exts = spec
 version = 1.9.8
 
 # (list) Application requirements
-requirements = pil, qrcode, ecdsa, pbkdf2, openssl, pyopenssl, pyasn, pyasn-modules,  plyer==master, kivy==master
+requirements = tlslite, openssl, pyopenssl, pil, qrcode, ecdsa, pbkdf2, pyasn1, pyasn1-modules,  plyer==master, kivy==master
 
 # (str) Presplash of the application
 presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
@@ -52,7 +52,7 @@ fullscreen = False
 #
 
 # (list) Permissions
-android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE , CAMERA, NFC
+android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE, CAMERA, NFC
 # (int) Android API to use
 #android.api = 14
 
@@ -100,7 +100,7 @@ android.branch = master
 #android.ouya.icon.filename = %(source.dir)s/data/ouya_icon.png
 
 # (str) XML file to include as an intent filters in <activity> tag
-#android.manifest.intent_filters =
+#android.manifest.intent_filters = nfc_filter.xml
 
 # (list) Android additionnal libraries to copy into libs/armeabi
 android.add_libs_armeabi = lib/android/*.so

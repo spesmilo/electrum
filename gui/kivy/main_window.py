@@ -4,6 +4,11 @@ import datetime
 from electrum import WalletStorage, Wallet
 from electrum.i18n import _, set_language
 
+from kivy.config import Config
+Config.set('modules', 'screen', 'droid2')
+Config.set('graphics', 'width', '480')
+Config.set('graphics', 'height', '840')
+
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.logger import Logger
@@ -30,9 +35,9 @@ inch = None
 util = False
 re = None
 
-# register widget cache for keeping memory down timeout to 4 minutes to cache
+# register widget cache for keeping memory down timeout to forever to cache
 # the data
-Cache.register('electrum_widgets', timeout=240)
+Cache.register('electrum_widgets', timeout=0)
 
 class ElectrumWindow(App):
 
@@ -375,19 +380,23 @@ class ElectrumWindow(App):
                          module='electrum_gui.kivy.uix.screens')
         Factory.register('ScreenDashboard',
                          module='electrum_gui.kivy.uix.screens')
-        Factory.register('EffectWidget',
-                         module='electrum_gui.kivy.uix.effectwidget')
-
-        # load and focus the ui
-        #Load mainscreen
-
+        #Factory.register('EffectWidget',
+        #                 module='electrum_gui.kivy.uix.effectwidget')
         Factory.register('QRCodeWidget',
                          module='electrum_gui.kivy.uix.qrcodewidget')
         Factory.register('MainScreen',
                          module='electrum_gui.kivy.uix.screens')
         Factory.register('CSpinner',
                          module='electrum_gui.kivy.uix.screens')
+        # preload widgets. Remove this if you want to load the widgets on demand
+        Cache.append('electrum_widgets', 'AnimatedPopup', Factory.AnimatedPopup())
+        Cache.append('electrum_widgets', 'TabbedCarousel', Factory.TabbedCarousel())
+        Cache.append('electrum_widgets', 'QRCodeWidget', Factory.QRCodeWidget())
+        Cache.append('electrum_widgets', 'CSpinner', Factory.CSpinner())
 
+
+        # load and focus the ui
+        #Load mainscreen
         dr = Builder.load_file('gui/kivy/uix/ui_screens/mainscreen.kv')
         self.root.add_widget(dr)
         self.root.manager = manager = dr.ids.manager
@@ -1032,7 +1041,7 @@ class ElectrumWindow(App):
 
         # populate
         def set_address(*l):
-            content = screen_send.content.ids
+            content = screen_send.ids
             content.payto_e.text = m_addr
             content.message_e.text = message
             if amount:
@@ -1051,7 +1060,7 @@ class ElectrumWindow(App):
         # switch_to the send screen
         tabs.ids.panel.switch_to(tabs.ids.tab_send)
 
-        content = screen_send.content.ids
+        content = screen_send.ids
         if content:
             self.set_frozen(content, False)
         screen_send.screen_label.text = _("please wait...")
@@ -1064,12 +1073,11 @@ class ElectrumWindow(App):
         # switch_to the send screen
         tabs.ids.panel.switch_to(tabs.ids.tab_send)
 
-        content = screen_send.content
         self.set_frozen(content, True)
 
-        content.ids.payto_e.text = self.gui_object.payment_request.domain
-        content.ids.amount_e.text = self.format_amount(self.gui_object.payment_request.get_amount())
-        content.ids.message_e.text = self.gui_object.payment_request.memo
+        screen_send.ids.payto_e.text = self.gui_object.payment_request.domain
+        screen_send.ids.amount_e.text = self.format_amount(self.gui_object.payment_request.get_amount())
+        screen_send.ids.message_e.text = self.gui_object.payment_request.memo
 
         # wait for screen to load
         Clock.schedule_once(set_address, .5)

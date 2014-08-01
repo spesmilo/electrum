@@ -489,6 +489,7 @@
 <ScreenReceive>
     mode: 'qr'
     name: 'receive'
+    on_mode: if args[1] == 'nfc': from electrum_gui.kivy.nfc_scanner import NFCScanner
     action_view: Factory.ReceiveActionView()
     on_activate:
         self.ids.toggle_qr.state = 'down'
