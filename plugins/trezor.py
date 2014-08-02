@@ -5,12 +5,12 @@ from sys import stderr
 
 from gui.qt.password_dialog import make_password_dialog, run_password_dialog
 from gui.qt.util import ok_cancel_buttons
-from lib.account import BIP32_Account
-from lib.bitcoin import EncodeBase58Check
-from lib.i18n import _
-from lib.plugins import BasePlugin
-from lib.transaction import deserialize
-from lib.wallet import NewWallet
+from electrum.account import BIP32_Account
+from electrum.bitcoin import EncodeBase58Check
+from electrum.i18n import _
+from electrum.plugins import BasePlugin
+from electrum.transaction import deserialize
+from electrum.wallet import NewWallet
 
 
 try:
