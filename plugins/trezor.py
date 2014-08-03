@@ -1,8 +1,10 @@
 from PyQt4.Qt import QMessageBox, QDialog, QVBoxLayout, QLabel, QThread, SIGNAL
+import PyQt4.QtCore as QtCore
 from binascii import unhexlify
 from struct import pack
 from sys import stderr
 from time import sleep
+from base64 import b64encode
 
 from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
 from electrum_gui.qt.util import ok_cancel_buttons
@@ -164,6 +166,21 @@ class TrezorWallet(NewWallet):
         #do nothing - no priv keys available
         pass
 
+    def sign_message(self, address, message, password):
+        try:
+            address_path = self.address_id(address)
+            address_n = self.get_client().expand_path(address_path)
+        except Exception, e:
+            raise
+        try:
+            msg_sig = self.get_client().sign_message('Bitcoin', address_n, message)
+        except Exception, e:
+            raise e
+        finally:
+            twd.emit(SIGNAL('trezor_done'))
+        b64_msg_sig = b64encode(msg_sig.signature)
+        return str(b64_msg_sig)
+
     def sign_transaction(self, tx, keypairs, password):
         if tx.error or tx.is_complete():
             return
@@ -289,6 +306,8 @@ class TrezorQtGuiMixin(object):
             message = "Confirm transaction outputs on Trezor device to continue"
         elif msg.code == 8:
             message = "Confirm transaction fee on Trezor device to continue"
+        elif msg.code == 7:
+            message = "Confirm message to sign on Trezor device to continue"
         else:
             message = "Check Trezor device to continue"
         twd.start(message)
@@ -355,8 +374,9 @@ class TrezorWaitingDialog(QThread):
 
     def start(self, message):
         self.d = QDialog()
-        self.d.setModal(True)
+        self.d.setModal(1)
         self.d.setWindowTitle('Please Check Trezor Device')
+        self.d.setWindowFlags(self.d.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)
         l = QLabel(message)
         vbox = QVBoxLayout(self.d)
         vbox.addWidget(l)
