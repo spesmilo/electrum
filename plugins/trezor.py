@@ -1,4 +1,4 @@
-from PyQt4.Qt import QMessageBox, QDialog, QVBoxLayout, QLabel, QThread, SIGNAL, QObject
+from PyQt4.Qt import QMessageBox, QDialog, QVBoxLayout, QLabel, QThread, SIGNAL
 from binascii import unhexlify
 from struct import pack
 from sys import stderr
@@ -27,8 +27,6 @@ except ImportError:
 def log(msg):
     stderr.write("%s\n" % msg)
     stderr.flush()
-
-gl_emitter = QObject()
 
 class Plugin(BasePlugin):
 
@@ -180,7 +178,7 @@ class TrezorWallet(NewWallet):
         except Exception, e:
             raise e
         finally:
-            gl_emitter.emit(SIGNAL('trezor_done'))
+            twd.emit(SIGNAL('trezor_done'))
         values = [i['value'] for i in tx.inputs]
         raw = signed_tx.encode('hex')
         tx.update(raw)
@@ -365,7 +363,7 @@ class TrezorWaitingDialog(QThread):
         self.d.show()
         if not self.waiting:
             self.waiting = True
-            self.d.connect(gl_emitter, SIGNAL('trezor_done'), self.stop)
+            self.d.connect(twd, SIGNAL('trezor_done'), self.stop)
 
     def stop(self):
         self.d.hide()
