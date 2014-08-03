@@ -1,7 +1,8 @@
-from PyQt4.Qt import QMessageBox, QDialog, QVBoxLayout, QLabel
+from PyQt4.Qt import QMessageBox, QDialog, QVBoxLayout, QLabel, QThread, SIGNAL, QObject
 from binascii import unhexlify
 from struct import pack
 from sys import stderr
+from time import sleep
 
 from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
 from electrum_gui.qt.util import ok_cancel_buttons
@@ -27,6 +28,8 @@ def log(msg):
     stderr.write("%s\n" % msg)
     stderr.flush()
 
+gl_emitter = QObject()
+window_open = False
 
 class Plugin(BasePlugin):
 
@@ -174,6 +177,7 @@ class TrezorWallet(NewWallet):
         inputs = self.tx_inputs(tx)
         outputs = self.tx_outputs(tx)
         signed_tx = self.get_client().sign_tx('Bitcoin', inputs, outputs)[1]
+        gl_emitter.emit(SIGNAL('trezor_done'))
         values = [i['value'] for i in tx.inputs]
         raw = signed_tx.encode('hex')
         tx.update(raw)
@@ -280,10 +284,16 @@ class TrezorQtGuiMixin(object):
         super(TrezorQtGuiMixin, self).__init__(*args, **kwargs)
 
     def callback_ButtonRequest(self, msg):
-        i = QMessageBox.question(None, _('Trezor'), _("Please check request on Trezor's screen"), _('OK'), _('Cancel'))
-        if i == 0:
-            return proto.ButtonAck()
-        return proto.Cancel()    
+        if window_open:
+            gl_emitter.emit(SIGNAL('trezor_done'))
+        if msg.code == 3:
+            message = "Confirm transaction outputs on Trezor device to continue"
+        elif msg.code == 8:
+            message = "Confirm transaction fee on Trezor device to continue"
+        else:
+            message = "Check Trezor device to continue"
+        twd.start(message)
+        return proto.ButtonAck()
 
     def callback_PinMatrixRequest(self, msg):
         if msg.type == 1:
@@ -339,6 +349,32 @@ class TrezorQtGuiMixin(object):
         if not d.exec_(): return
         return str(matrix.get_value())
 
+class TrezorWaitingDialog(QThread):
+    def __init__(self):
+        QThread.__init__(self)
+
+    def start(self, message):
+        self.done = False
+        self.d = QDialog()
+        self.d.setModal(True)
+        self.d.setWindowTitle('Please Check Trezor Device')
+        l = QLabel(message)
+        vbox = QVBoxLayout(self.d)
+        vbox.addWidget(l)
+        self.d.show()
+        window_open = True
+        self.d.connect(gl_emitter, SIGNAL('trezor_done'), self.stop)
+
+    def run(self):
+        while not self.done:
+            sleep(0.1)
+
+    def stop(self):
+        self.d.hide()
+        window_open = False
+        self.done = True
+
+
 if TREZOR:
     class QtGuiTrezorClient(ProtocolMixin, TrezorQtGuiMixin, BaseClient):
         def call_raw(self, msg):
@@ -349,3 +385,6 @@ if TREZOR:
                 raise
     
             return resp
+
+    twd = TrezorWaitingDialog()
+
