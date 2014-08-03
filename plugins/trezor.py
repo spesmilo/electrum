@@ -175,8 +175,12 @@ class TrezorWallet(NewWallet):
 
         inputs = self.tx_inputs(tx)
         outputs = self.tx_outputs(tx)
-        signed_tx = self.get_client().sign_tx('Bitcoin', inputs, outputs)[1]
-        gl_emitter.emit(SIGNAL('trezor_done'))
+        try:
+            signed_tx = self.get_client().sign_tx('Bitcoin', inputs, outputs)[1]
+        except Exception, e:
+            raise e
+        finally:
+            gl_emitter.emit(SIGNAL('trezor_done'))
         values = [i['value'] for i in tx.inputs]
         raw = signed_tx.encode('hex')
         tx.update(raw)
