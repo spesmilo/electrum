@@ -3,8 +3,8 @@ from binascii import unhexlify
 from struct import pack
 from sys import stderr
 
-from gui.qt.password_dialog import make_password_dialog, run_password_dialog
-from gui.qt.util import ok_cancel_buttons
+from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
+from electrum_gui.qt.util import ok_cancel_buttons
 from electrum.account import BIP32_Account
 from electrum.bitcoin import EncodeBase58Check
 from electrum.i18n import _
