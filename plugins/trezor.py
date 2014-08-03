@@ -4,12 +4,12 @@ from binascii import unhexlify
 from struct import pack
 from sys import stderr
 from time import sleep
-from base64 import b64encode
+from base64 import b64encode, b64decode
 
 from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
 from electrum_gui.qt.util import ok_cancel_buttons
 from electrum.account import BIP32_Account
-from electrum.bitcoin import EncodeBase58Check
+from electrum.bitcoin import EncodeBase58Check, public_key_to_bc_address
 from electrum.i18n import _
 from electrum.plugins import BasePlugin
 from electrum.transaction import deserialize
@@ -165,6 +165,21 @@ class TrezorWallet(NewWallet):
     def add_keypairs(self, tx, keypairs, password):
         #do nothing - no priv keys available
         pass
+
+    def decrypt_message(self, pubkey, message, password):
+        try:
+            address = public_key_to_bc_address(pubkey.decode('hex'))
+            address_path = self.address_id(address)
+            address_n = self.get_client().expand_path(address_path)
+        except Exception, e:
+            raise e
+        try:
+            decrypted_msg = self.get_client().decrypt_message(address_n, b64decode(message))
+        except Exception, e:
+            raise e
+        finally:
+            twd.emit(SIGNAL('trezor_done'))
+        return str(decrypted_msg)
 
     def sign_message(self, address, message, password):
         try:
