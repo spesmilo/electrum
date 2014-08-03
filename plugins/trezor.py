@@ -29,7 +29,6 @@ def log(msg):
     stderr.flush()
 
 gl_emitter = QObject()
-window_open = False
 
 class Plugin(BasePlugin):
 
@@ -284,8 +283,6 @@ class TrezorQtGuiMixin(object):
         super(TrezorQtGuiMixin, self).__init__(*args, **kwargs)
 
     def callback_ButtonRequest(self, msg):
-        if window_open:
-            gl_emitter.emit(SIGNAL('trezor_done'))
         if msg.code == 3:
             message = "Confirm transaction outputs on Trezor device to continue"
         elif msg.code == 8:
@@ -352,9 +349,9 @@ class TrezorQtGuiMixin(object):
 class TrezorWaitingDialog(QThread):
     def __init__(self):
         QThread.__init__(self)
+        self.waiting = False
 
     def start(self, message):
-        self.done = False
         self.d = QDialog()
         self.d.setModal(True)
         self.d.setWindowTitle('Please Check Trezor Device')
@@ -362,17 +359,13 @@ class TrezorWaitingDialog(QThread):
         vbox = QVBoxLayout(self.d)
         vbox.addWidget(l)
         self.d.show()
-        window_open = True
-        self.d.connect(gl_emitter, SIGNAL('trezor_done'), self.stop)
-
-    def run(self):
-        while not self.done:
-            sleep(0.1)
+        if not self.waiting:
+            self.waiting = True
+            self.d.connect(gl_emitter, SIGNAL('trezor_done'), self.stop)
 
     def stop(self):
         self.d.hide()
-        window_open = False
-        self.done = True
+        self.waiting = False
 
 
 if TREZOR:
