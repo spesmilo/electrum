@@ -1657,6 +1657,7 @@ n = 1626
 # Instead, the digit represented by a word is variable, it depends on the previous word.
 
 def mn_encode( message ):
+    assert len(message) % 8 == 0
     out = []
     for i in range(len(message)/8):
         word = message[8*i:8*i+8]

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 #!/usr/bin/env python
 #
 # Electrum - lightweight Bitcoin client
@@ -16,17 +17,64 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import hashlib
+import base64
+import re
+import sys
+import hmac
 
-import hashlib, base64, ecdsa, re
 from util import print_error
+from version import SEED_PREFIX
+
+try:
+    import ecdsa
+except ImportError:
+    sys.exit("Error: python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'")
+
+try:
+    import aes
+except ImportError:
+    sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
+
+################################## transactions
+
+MIN_RELAY_TX_FEE = 1000
+
+
+# AES encryption
+EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
+DecodeAES = lambda secret, e: aes.decryptData(secret, base64.b64decode(e))
+
+
+def pw_encode(s, password):
+    if password:
+        secret = Hash(password)
+        return EncodeAES(secret, s.encode("utf8"))
+    else:
+        return s
+
+
+def pw_decode(s, password):
+    if password is not None:
+        secret = Hash(password)
+        try:
+            d = DecodeAES(secret, s).decode("utf8")
+        except Exception:
+            raise Exception('Invalid password')
+        return d
+    else:
+        return s
+
 
 def rev_hex(s):
     return s.decode('hex')[::-1].encode('hex')
+
 
 def int_to_hex(i, length=1):
     s = hex(i)[2:].rstrip('L')
     s = "0"*(2*length - len(s)) + s
     return rev_hex(s)
+
 
 def var_int(i):
     # https://en.bitcoin.it/wiki/Protocol_specification#Variable_length_integer
@@ -39,6 +87,7 @@ def var_int(i):
     else:
         return "ff"+int_to_hex(i,8)
 
+
 def op_push(i):
     if i<0x4c:
         return int_to_hex(i)
@@ -48,12 +97,47 @@ def op_push(i):
         return '4d' + int_to_hex(i,2)
     else:
         return '4e' + int_to_hex(i,4)
-    
 
 
-Hash = lambda x: hashlib.sha256(hashlib.sha256(x).digest()).digest()
+def sha256(x):
+    return hashlib.sha256(x).digest()
+
+
+def Hash(x):
+    if type(x) is unicode: x=x.encode('utf-8')
+    return sha256(sha256(x))
+
+
 hash_encode = lambda x: x[::-1].encode('hex')
 hash_decode = lambda x: x.decode('hex')[::-1]
+hmac_sha_512 = lambda x,y: hmac.new(x, y, hashlib.sha512).digest()
+
+
+def mnemonic_to_seed(mnemonic, passphrase):
+    from pbkdf2 import PBKDF2
+    import hmac
+    PBKDF2_ROUNDS = 2048
+    return PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
+
+
+is_new_seed = lambda x: hmac_sha_512("Seed version", x.encode('utf8')).encode('hex')[0:2].startswith(SEED_PREFIX)
+
+def is_old_seed(seed):
+    import mnemonic
+    words = seed.strip().split()
+    try:
+        mnemonic.mn_decode(words)
+        uses_electrum_words = True
+    except Exception:
+        uses_electrum_words = False
+
+    try:
+        seed.decode('hex')
+        is_hex = (len(seed) == 32)
+    except Exception:
+        is_hex = False
+
+    return is_hex or (uses_electrum_words and len(words) == 12)
 
 
 # pywallet openssl private key implementation
@@ -80,9 +164,9 @@ def i2d_ECPrivateKey(pkey, compressed=False):
               '022100' + \
               '%064x' % _r + \
               '020101a144034200'
-        
+
     return key.decode('hex') + i2o_ECPublicKey(pkey.pubkey, compressed)
-    
+
 def i2o_ECPublicKey(pubkey, compressed=False):
     # public keys are 65 bytes long (520 bits)
     # 0x04 + 32-byte X-coordinate + 32-byte Y-coordinate
@@ -97,23 +181,23 @@ def i2o_ECPublicKey(pubkey, compressed=False):
         key = '04' + \
               '%064x' % pubkey.point.x() + \
               '%064x' % pubkey.point.y()
-            
+
     return key.decode('hex')
-            
+
 # end pywallet openssl private key implementation
 
-                                                
-            
-############ functions from pywallet ##################### 
+
+
+############ functions from pywallet #####################
 
 def hash_160(public_key):
     try:
         md = hashlib.new('ripemd160')
-        md.update(hashlib.sha256(public_key).digest())
+        md.update(sha256(public_key))
         return md.digest()
-    except:
+    except Exception:
         import ripemd
-        md = ripemd.new(hashlib.sha256(public_key).digest())
+        md = ripemd.new(sha256(public_key))
         return md.digest()
 
 
@@ -131,18 +215,10 @@ def bc_address_to_hash_160(addr):
     bytes = b58decode(addr, 25)
     return ord(bytes[0]), bytes[1:21]
 
-def encode_point(pubkey, compressed=False):
-    order = generator_secp256k1.order()
-    p = pubkey.pubkey.point
-    x_str = ecdsa.util.number_to_string(p.x(), order)
-    y_str = ecdsa.util.number_to_string(p.y(), order)
-    if compressed:
-        return chr(2 + (p.y() & 1)) + x_str
-    else:
-        return chr(4) + pubkey.to_string() #x_str + y_str
 
 __b58chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 __b58base = len(__b58chars)
+
 
 def b58encode(v):
     """ encode v, which is a string of bytes, to base58."""
@@ -166,6 +242,7 @@ def b58encode(v):
         else: break
 
     return (__b58chars[0]*nPad) + result
+
 
 def b58decode(v, length):
     """ decode v into a string of len bytes."""
@@ -196,6 +273,7 @@ def EncodeBase58Check(vchIn):
     hash = Hash(vchIn)
     return b58encode(vchIn + hash[0:4])
 
+
 def DecodeBase58Check(psz):
     vchRet = b58decode(psz, None)
     key = vchRet[0:-4]
@@ -207,8 +285,10 @@ def DecodeBase58Check(psz):
     else:
         return key
 
+
 def PrivKeyToSecret(privkey):
     return privkey[9:9+32]
+
 
 def SecretToASecret(secret, compressed=False, addrtype=0):
     vchIn = chr((addrtype+128)&255) + secret
@@ -227,104 +307,198 @@ def regenerate_key(sec):
     if not b:
         return False
     b = b[0:32]
-    secret = int('0x' + b.encode('hex'), 16)
-    return EC_KEY(secret)
+    return EC_KEY(b)
+
 
 def GetPubKey(pubkey, compressed=False):
     return i2o_ECPublicKey(pubkey, compressed)
 
+
 def GetPrivKey(pkey, compressed=False):
     return i2d_ECPrivateKey(pkey, compressed)
 
+
 def GetSecret(pkey):
     return ('%064x' % pkey.secret).decode('hex')
+
 
 def is_compressed(sec):
     b = ASecretToSecret(sec)
     return len(b) == 33
 
 
-def address_from_private_key(sec):
+def public_key_from_private_key(sec):
     # rebuild public key from private key, compressed or uncompressed
     pkey = regenerate_key(sec)
     assert pkey
-
-    # figure out if private key is compressed
     compressed = is_compressed(sec)
-        
-    # rebuild private and public key from regenerated secret
-    private_key = GetPrivKey(pkey, compressed)
     public_key = GetPubKey(pkey.pubkey, compressed)
-    address = public_key_to_bc_address(public_key)
+    return public_key.encode('hex')
+
+
+def address_from_private_key(sec):
+    public_key = public_key_from_private_key(sec)
+    address = public_key_to_bc_address(public_key.decode('hex'))
     return address
 
 
 def is_valid(addr):
+    return is_address(addr)
+
+
+def is_address(addr):
     ADDRESS_RE = re.compile('[1-9A-HJ-NP-Za-km-z]{26,}\\Z')
     if not ADDRESS_RE.match(addr): return False
     try:
         addrtype, h = bc_address_to_hash_160(addr)
-    except:
+    except Exception:
         return False
     return addr == hash_160_to_bc_address(h, addrtype)
 
 
+def is_private_key(key):
+    try:
+        k = ASecretToSecret(key)
+        return k is not False
+    except:
+        return False
+
+
 ########### end pywallet functions #######################
 
-# secp256k1, http://www.oid-info.com/get/1.3.132.0.10
-_p = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2FL
-_r = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141L
-_b = 0x0000000000000000000000000000000000000000000000000000000000000007L
-_a = 0x0000000000000000000000000000000000000000000000000000000000000000L
-_Gx = 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798L
-_Gy = 0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8L
-curve_secp256k1 = ecdsa.ellipticcurve.CurveFp( _p, _a, _b )
-generator_secp256k1 = ecdsa.ellipticcurve.Point( curve_secp256k1, _Gx, _Gy, _r )
-oid_secp256k1 = (1,3,132,0,10)
-SECP256k1 = ecdsa.curves.Curve("SECP256k1", curve_secp256k1, generator_secp256k1, oid_secp256k1 ) 
+try:
+    from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
+except Exception:
+    print "cannot import ecdsa.curve_secp256k1. You probably need to upgrade ecdsa.\nTry: sudo pip install --upgrade ecdsa"
+    exit()
 
+from ecdsa.curves import SECP256k1
+from ecdsa.ellipticcurve import Point
 from ecdsa.util import string_to_number, number_to_string
 
 def msg_magic(message):
-    return "\x18Bitcoin Signed Message:\n" + chr( len(message) ) + message
+    varint = var_int(len(message))
+    encoded_varint = "".join([chr(int(varint[i:i+2], 16)) for i in xrange(0, len(varint), 2)])
+    return "\x18Bitcoin Signed Message:\n" + encoded_varint + message
+
+
+def verify_message(address, signature, message):
+    try:
+        EC_KEY.verify_message(address, signature, message)
+        return True
+    except Exception as e:
+        print_error("Verification error: {0}".format(e))
+        return False
+
+
+def encrypt_message(message, pubkey):
+    return EC_KEY.encrypt_message(message, pubkey.decode('hex'))
+
+
+def chunks(l, n):
+    return [l[i:i+n] for i in xrange(0, len(l), n)]
+
+
+def ECC_YfromX(x,curved=curve_secp256k1, odd=True):
+    _p = curved.p()
+    _a = curved.a()
+    _b = curved.b()
+    for offset in range(128):
+        Mx = x + offset
+        My2 = pow(Mx, 3, _p) + _a * pow(Mx, 2, _p) + _b % _p
+        My = pow(My2, (_p+1)/4, _p )
+
+        if curved.contains_point(Mx,My):
+            if odd == bool(My&1):
+                return [My,offset]
+            return [_p-My,offset]
+    raise Exception('ECC_YfromX: No Y found')
+
+
+def negative_point(P):
+    return Point( P.curve(), P.x(), -P.y(), P.order() )
+
+
+def point_to_ser(P, comp=True ):
+    if comp:
+        return ( ('%02x'%(2+(P.y()&1)))+('%064x'%P.x()) ).decode('hex')
+    return ( '04'+('%064x'%P.x())+('%064x'%P.y()) ).decode('hex')
+
+
+def ser_to_point(Aser):
+    curve = curve_secp256k1
+    generator = generator_secp256k1
+    _r  = generator.order()
+    assert Aser[0] in ['\x02','\x03','\x04']
+    if Aser[0] == '\x04':
+        return Point( curve, string_to_number(Aser[1:33]), string_to_number(Aser[33:]), _r )
+    Mx = string_to_number(Aser[1:])
+    return Point( curve, Mx, ECC_YfromX(Mx, curve, Aser[0]=='\x03')[0], _r )
+
+
+
+class MyVerifyingKey(ecdsa.VerifyingKey):
+    @classmethod
+    def from_signature(klass, sig, recid, h, curve):
+        """ See http://www.secg.org/download/aid-780/sec1-v2.pdf, chapter 4.1.6 """
+        from ecdsa import util, numbertheory
+        import msqr
+        curveFp = curve.curve
+        G = curve.generator
+        order = G.order()
+        # extract r,s from signature
+        r, s = util.sigdecode_string(sig, order)
+        # 1.1
+        x = r + (recid/2) * order
+        # 1.3
+        alpha = ( x * x * x  + curveFp.a() * x + curveFp.b() ) % curveFp.p()
+        beta = msqr.modular_sqrt(alpha, curveFp.p())
+        y = beta if (beta - recid) % 2 == 0 else curveFp.p() - beta
+        # 1.4 the constructor checks that nR is at infinity
+        R = Point(curveFp, x, y, order)
+        # 1.5 compute e from message:
+        e = string_to_number(h)
+        minus_e = -e % order
+        # 1.6 compute Q = r^-1 (sR - eG)
+        inv_r = numbertheory.inverse_mod(r,order)
+        Q = inv_r * ( s * R + minus_e * G )
+        return klass.from_public_point( Q, curve )
 
 
 class EC_KEY(object):
-    def __init__( self, secret ):
+    def __init__( self, k ):
+        secret = string_to_number(k)
         self.pubkey = ecdsa.ecdsa.Public_key( generator_secp256k1, generator_secp256k1 * secret )
         self.privkey = ecdsa.ecdsa.Private_key( self.pubkey, secret )
         self.secret = secret
 
+    def get_public_key(self, compressed=True):
+        return point_to_ser(self.pubkey.point, compressed).encode('hex')
+
     def sign_message(self, message, compressed, address):
         private_key = ecdsa.SigningKey.from_secret_exponent( self.secret, curve = SECP256k1 )
         public_key = private_key.get_verifying_key()
-        signature = private_key.sign_digest( Hash( msg_magic(message) ), sigencode = ecdsa.util.sigencode_string )
+        signature = private_key.sign_digest_deterministic( Hash( msg_magic(message) ), hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_string )
         assert public_key.verify_digest( signature, Hash( msg_magic(message) ), sigdecode = ecdsa.util.sigdecode_string)
         for i in range(4):
             sig = base64.b64encode( chr(27 + i + (4 if compressed else 0)) + signature )
             try:
                 self.verify_message( address, sig, message)
                 return sig
-            except:
+            except Exception:
                 continue
         else:
-            raise BaseException("error: cannot sign message")
+            raise Exception("error: cannot sign message")
+
 
     @classmethod
     def verify_message(self, address, signature, message):
-        """ See http://www.secg.org/download/aid-780/sec1-v2.pdf for the math """
-        from ecdsa import numbertheory, ellipticcurve, util
-        import msqr
-        curve = curve_secp256k1
-        G = generator_secp256k1
-        order = G.order()
-        # extract r,s from signature
         sig = base64.b64decode(signature)
-        if len(sig) != 65: raise BaseException("Wrong encoding")
-        r,s = util.sigdecode_string(sig[1:], order)
+        if len(sig) != 65: raise Exception("Wrong encoding")
+
         nV = ord(sig[0])
         if nV < 27 or nV >= 35:
-            raise BaseException("Bad encoding")
+            raise Exception("Bad encoding")
         if nV >= 31:
             compressed = True
             nV -= 4
@@ -332,613 +506,259 @@ class EC_KEY(object):
             compressed = False
 
         recid = nV - 27
-        # 1.1
-        x = r + (recid/2) * order
-        # 1.3
-        alpha = ( x * x * x  + curve.a() * x + curve.b() ) % curve.p()
-        beta = msqr.modular_sqrt(alpha, curve.p())
-        y = beta if (beta - recid) % 2 == 0 else curve.p() - beta
-        # 1.4 the constructor checks that nR is at infinity
-        R = ellipticcurve.Point(curve, x, y, order)
-        # 1.5 compute e from message:
         h = Hash( msg_magic(message) )
-        e = string_to_number(h)
-        minus_e = -e % order
-        # 1.6 compute Q = r^-1 (sR - eG)
-        inv_r = numbertheory.inverse_mod(r,order)
-        Q = inv_r * ( s * R + minus_e * G )
-        public_key = ecdsa.VerifyingKey.from_public_point( Q, curve = SECP256k1 )
-        # check that Q is the public key
+        public_key = MyVerifyingKey.from_signature( sig[1:], recid, h, curve = SECP256k1 )
+
+        # check public key
         public_key.verify_digest( sig[1:], h, sigdecode = ecdsa.util.sigdecode_string)
+
         # check that we get the original signing address
-        addr = public_key_to_bc_address( encode_point(public_key, compressed) )
+        addr = public_key_to_bc_address( point_to_ser(public_key.pubkey.point, compressed) )
         if address != addr:
-            raise BaseException("Bad signature")
+            raise Exception("Bad signature")
+
+
+    # ecies encryption/decryption methods; aes-256-cbc is used as the cipher; hmac-sha256 is used as the mac
+
+    @classmethod
+    def encrypt_message(self, message, pubkey):
+
+        pk = ser_to_point(pubkey)
+        if not ecdsa.ecdsa.point_is_valid(generator_secp256k1, pk.x(), pk.y()):
+            raise Exception('invalid pubkey')
+
+        ephemeral_exponent = number_to_string(ecdsa.util.randrange(pow(2,256)), generator_secp256k1.order())
+        ephemeral = EC_KEY(ephemeral_exponent)
+
+        ecdh_key = (pk * ephemeral.privkey.secret_multiplier).x()
+        ecdh_key = ('%064x' % ecdh_key).decode('hex')
+        key = hashlib.sha512(ecdh_key).digest()
+        key_e, key_m = key[:32], key[32:]
+
+        iv_ciphertext = aes.encryptData(key_e, message)
+
+        ephemeral_pubkey = ephemeral.get_public_key(compressed=True).decode('hex')
+        encrypted = 'BIE1' + ephemeral_pubkey + iv_ciphertext
+        mac = hmac.new(key_m, encrypted, hashlib.sha256).digest()
+
+        return base64.b64encode(encrypted + mac)
+
+
+    def decrypt_message(self, encrypted):
+
+        encrypted = base64.b64decode(encrypted)
+
+        if len(encrypted) < 85:
+            raise Exception('invalid ciphertext: length')
+
+        magic = encrypted[:4]
+        ephemeral_pubkey = encrypted[4:37]
+        iv_ciphertext = encrypted[37:-32]
+        mac = encrypted[-32:]
+
+        if magic != 'BIE1':
+            raise Exception('invalid ciphertext: invalid magic bytes')
+
+        try:
+            ephemeral_pubkey = ser_to_point(ephemeral_pubkey)
+        except AssertionError, e:
+            raise Exception('invalid ciphertext: invalid ephemeral pubkey')
+
+        if not ecdsa.ecdsa.point_is_valid(generator_secp256k1, ephemeral_pubkey.x(), ephemeral_pubkey.y()):
+            raise Exception('invalid ciphertext: invalid ephemeral pubkey')
+
+        ecdh_key = (ephemeral_pubkey * self.privkey.secret_multiplier).x()
+        ecdh_key = ('%064x' % ecdh_key).decode('hex')
+        key = hashlib.sha512(ecdh_key).digest()
+        key_e, key_m = key[:32], key[32:]
+        if mac != hmac.new(key_m, encrypted[:-32], hashlib.sha256).digest():
+            raise Exception('invalid ciphertext: invalid mac')
+
+        return aes.decryptData(key_e, iv_ciphertext)
 
 
 ###################################### BIP32 ##############################
 
 random_seed = lambda n: "%032x"%ecdsa.util.randrange( pow(2,n) )
+BIP32_PRIME = 0x80000000
 
 
-
-def bip32_init(seed):
-    import hmac
-    seed = seed.decode('hex')        
-    I = hmac.new("Bitcoin seed", seed, hashlib.sha512).digest()
-
-    master_secret = I[0:32]
-    master_chain = I[32:]
-
+def get_pubkeys_from_secret(secret):
     # public key
-    curve = SECP256k1
-    master_private_key = ecdsa.SigningKey.from_string( master_secret, curve = SECP256k1 )
-    master_public_key = master_private_key.get_verifying_key()
-    K = master_public_key.to_string()
-    K_compressed = GetPubKey(master_public_key.pubkey,True)
-    return master_secret, master_chain, K, K_compressed
+    private_key = ecdsa.SigningKey.from_string( secret, curve = SECP256k1 )
+    public_key = private_key.get_verifying_key()
+    K = public_key.to_string()
+    K_compressed = GetPubKey(public_key.pubkey,True)
+    return K, K_compressed
 
-    
-def CKD(k, c, n):
+
+# Child private key derivation function (from master private key)
+# k = master private key (32 bytes)
+# c = master chain code (extra entropy for key derivation) (32 bytes)
+# n = the index of the key we want to derive. (only 32 bits will be used)
+# If n is negative (i.e. the 32nd bit is set), the resulting private key's
+#  corresponding public key can NOT be determined without the master private key.
+# However, if n is positive, the resulting private key's corresponding
+#  public key can be determined without the master private key.
+def CKD_priv(k, c, n):
+    is_prime = n & BIP32_PRIME
+    return _CKD_priv(k, c, rev_hex(int_to_hex(n,4)).decode('hex'), is_prime)
+
+def _CKD_priv(k, c, s, is_prime):
     import hmac
     from ecdsa.util import string_to_number, number_to_string
     order = generator_secp256k1.order()
-    keypair = EC_KEY(string_to_number(k))
-    K = GetPubKey(keypair.pubkey,True)
-    I = hmac.new(c, K + rev_hex(int_to_hex(n,4)).decode('hex'), hashlib.sha512).digest()
-    k_n = number_to_string( (string_to_number(I[0:32]) * string_to_number(k)) % order , order )
+    keypair = EC_KEY(k)
+    cK = GetPubKey(keypair.pubkey,True)
+    data = chr(0) + k + s if is_prime else cK + s
+    I = hmac.new(c, data, hashlib.sha512).digest()
+    k_n = number_to_string( (string_to_number(I[0:32]) + string_to_number(k)) % order , order )
     c_n = I[32:]
     return k_n, c_n
 
+# Child public key derivation function (from public key only)
+# K = master public key
+# c = master chain code
+# n = index of key we want to derive
+# This function allows us to find the nth public key, as long as n is
+#  non-negative. If n is negative, we need the master private key to find it.
+def CKD_pub(cK, c, n):
+    if n & BIP32_PRIME: raise
+    return _CKD_pub(cK, c, rev_hex(int_to_hex(n,4)).decode('hex'))
 
-def CKD_prime(K, c, n):
+# helper function, callable with arbitrary string
+def _CKD_pub(cK, c, s):
     import hmac
     from ecdsa.util import string_to_number, number_to_string
     order = generator_secp256k1.order()
-
-    K_public_key = ecdsa.VerifyingKey.from_string( K, curve = SECP256k1 )
-    K_compressed = GetPubKey(K_public_key.pubkey,True)
-
-    I = hmac.new(c, K_compressed + rev_hex(int_to_hex(n,4)).decode('hex'), hashlib.sha512).digest()
-
-    #pubkey = ecdsa.ecdsa.Public_key( generator_secp256k1, string_to_number(I[0:32]) * K_public_key.pubkey.point )
-    public_key = ecdsa.VerifyingKey.from_public_point( string_to_number(I[0:32]) * K_public_key.pubkey.point, curve = SECP256k1 )
-    K_n = public_key.to_string()
-    K_n_compressed = GetPubKey(public_key.pubkey,True)
+    I = hmac.new(c, cK + s, hashlib.sha512).digest()
+    curve = SECP256k1
+    pubkey_point = string_to_number(I[0:32])*curve.generator + ser_to_point(cK)
+    public_key = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
     c_n = I[32:]
-
-    return K_n, K_n_compressed, c_n
-
-
-
-class ElectrumSequence:
-    """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
-
-    def __init__(self, mpk, mpk2 = None, mpk3 = None):
-        self.mpk = mpk
-        self.mpk2 = mpk2
-        self.mpk3 = mpk3
-
-    @classmethod
-    def mpk_from_seed(klass, seed):
-        curve = SECP256k1
-        secexp = klass.stretch_key(seed)
-        master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
-        master_public_key = master_private_key.get_verifying_key().to_string().encode('hex')
-        return master_public_key
-
-    @classmethod
-    def stretch_key(self,seed):
-        oldseed = seed
-        for i in range(100000):
-            seed = hashlib.sha256(seed + oldseed).digest()
-        return string_to_number( seed )
-
-    def get_sequence(self, sequence, mpk):
-        for_change, n = sequence
-        return string_to_number( Hash( "%d:%d:"%(n,for_change) + mpk.decode('hex') ) )
-
-    def get_address(self, sequence):
-        if not self.mpk2:
-            pubkey = self.get_pubkey(sequence)
-            address = public_key_to_bc_address( pubkey.decode('hex') )
-        elif not self.mpk3:
-            pubkey1 = self.get_pubkey(sequence)
-            pubkey2 = self.get_pubkey(sequence, mpk = self.mpk2)
-            address = Transaction.multisig_script([pubkey1, pubkey2], 2)["address"]
-        else:
-            pubkey1 = self.get_pubkey(sequence)
-            pubkey2 = self.get_pubkey(sequence, mpk = self.mpk2)
-            pubkey3 = self.get_pubkey(sequence, mpk = self.mpk3)
-            address = Transaction.multisig_script([pubkey1, pubkey2, pubkey3], 2)["address"]
-        return address
-
-    def get_pubkey(self, sequence, mpk=None):
-        curve = SECP256k1
-        if mpk is None: mpk = self.mpk
-        z = self.get_sequence(sequence, mpk)
-        master_public_key = ecdsa.VerifyingKey.from_string( mpk.decode('hex'), curve = SECP256k1 )
-        pubkey_point = master_public_key.pubkey.point + z*curve.generator
-        public_key2 = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
-        return '04' + public_key2.to_string().encode('hex')
-
-    def get_private_key_from_stretched_exponent(self, sequence, secexp):
-        order = generator_secp256k1.order()
-        secexp = ( secexp + self.get_sequence(sequence, self.mpk) ) % order
-        pk = number_to_string( secexp, generator_secp256k1.order() )
-        compressed = False
-        return SecretToASecret( pk, compressed )
-        
-    def get_private_key(self, sequence, seed):
-        secexp = self.stretch_key(seed)
-        return self.get_private_key_from_stretched_exponent(sequence, secexp)
-
-    def get_private_keys(self, sequence_list, seed):
-        secexp = self.stretch_key(seed)
-        return [ self.get_private_key_from_stretched_exponent( sequence, secexp) for sequence in sequence_list]
-
-    def check_seed(self, seed):
-        curve = SECP256k1
-        secexp = self.stretch_key(seed)
-        master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
-        master_public_key = master_private_key.get_verifying_key().to_string().encode('hex')
-        if master_public_key != self.mpk:
-            print_error('invalid password (mpk)')
-            raise BaseException('Invalid password')
-        return True
-
-    def get_input_info(self, sequence):
-        if not self.mpk2:
-            pk_addr = self.get_address(sequence)
-            redeemScript = None
-        elif not self.mpk3:
-            pubkey1 = self.get_pubkey(sequence)
-            pubkey2 = self.get_pubkey(sequence,mpk=self.mpk2)
-            pk_addr = public_key_to_bc_address( pubkey1.decode('hex') ) # we need to return that address to get the right private key
-            redeemScript = Transaction.multisig_script([pubkey1, pubkey2], 2)['redeemScript']
-        else:
-            pubkey1 = self.get_pubkey(sequence)
-            pubkey2 = self.get_pubkey(sequence, mpk=self.mpk2)
-            pubkey3 = self.get_pubkey(sequence, mpk=self.mpk3)
-            pk_addr = public_key_to_bc_address( pubkey1.decode('hex') ) # we need to return that address to get the right private key
-            redeemScript = Transaction.multisig_script([pubkey1, pubkey2, pubkey3], 2)['redeemScript']
-        return pk_addr, redeemScript
-
-
-
-
-class BIP32Sequence:
-
-    def __init__(self, mpk, mpk2 = None, mpk3 = None):
-        self.mpk = mpk
-        self.mpk2 = mpk2
-        self.mpk3 = mpk3
-    
-    @classmethod
-    def mpk_from_seed(klass, seed):
-        master_secret, master_chain, master_public_key, master_public_key_compressed = bip32_init(seed)
-        return master_public_key.encode('hex'), master_chain.encode('hex')
-
-    def get_pubkey(self, sequence, mpk = None):
-        if not mpk: mpk = self.mpk
-        master_public_key, master_chain = self.mpk
-        K = master_public_key.decode('hex')
-        chain = master_chain.decode('hex')
-        for i in sequence:
-            K, K_compressed, chain = CKD_prime(K, chain, i)
-        return K_compressed.encode('hex')
-
-    def get_address(self, sequence):
-        if not self.mpk2:
-            pubkey = self.get_pubkey(sequence)
-            address = public_key_to_bc_address( pubkey.decode('hex') )
-        elif not self.mpk3:
-            pubkey1 = self.get_pubkey(sequence)
-            pubkey2 = self.get_pubkey(sequence, mpk = self.mpk2)
-            address = Transaction.multisig_script([pubkey1, pubkey2], 2)["address"]
-        else:
-            pubkey1 = self.get_pubkey(sequence)
-            pubkey2 = self.get_pubkey(sequence, mpk = self.mpk2)
-            pubkey3 = self.get_pubkey(sequence, mpk = self.mpk3)
-            address = Transaction.multisig_script([pubkey1, pubkey2, pubkey3], 2)["address"]
-        return address
-
-    def get_private_key(self, sequence, seed):
-        master_secret, master_chain, master_public_key, master_public_key_compressed = bip32_init(seed)
-        chain = master_chain
-        k = master_secret
-        for i in sequence:
-            k, chain = CKD(k, chain, i)
-        return SecretToASecret(k, True)
-
-    def get_private_keys(self, sequence_list, seed):
-        return [ self.get_private_key( sequence, seed) for sequence in sequence_list]
-
-    def check_seed(self, seed):
-        master_secret, master_chain, master_public_key, master_public_key_compressed = bip32_init(seed)
-        assert self.mpk == (master_public_key.encode('hex'), master_chain.encode('hex'))
-
-    def get_input_info(self, sequence):
-        if not self.mpk2:
-            pk_addr = self.get_address(sequence)
-            redeemScript = None
-        elif not self.mpk3:
-            pubkey1 = self.get_pubkey(sequence)
-            pubkey2 = self.get_pubkey(sequence, mpk=self.mpk2)
-            pk_addr = public_key_to_bc_address( pubkey1.decode('hex') ) # we need to return that address to get the right private key
-            redeemScript = Transaction.multisig_script([pubkey1, pubkey2], 2)['redeemScript']
-        else:
-            pubkey1 = self.get_pubkey(sequence)
-            pubkey2 = self.get_pubkey(sequence, mpk=self.mpk2)
-            pubkey3 = self.get_pubkey(sequence, mpk=self.mpk3)
-            pk_addr = public_key_to_bc_address( pubkey1.decode('hex') ) # we need to return that address to get the right private key
-            redeemScript = Transaction.multisig_script([pubkey1, pubkey2, pubkey3], 2)['redeemScript']
-        return pk_addr, redeemScript
-
-################################## transactions
-
-MIN_RELAY_TX_FEE = 10000
-
-class Transaction:
-    
-    def __init__(self, raw):
-        self.raw = raw
-        self.deserialize()
-        self.inputs = self.d['inputs']
-        self.outputs = self.d['outputs']
-        self.outputs = map(lambda x: (x['address'],x['value']), self.outputs)
-        self.input_info = None
-        self.is_complete = True
-        
-    @classmethod
-    def from_io(klass, inputs, outputs):
-        raw = klass.serialize(inputs, outputs, for_sig = -1) # for_sig=-1 means do not sign
-        self = klass(raw)
-        self.is_complete = False
-        self.inputs = inputs
-        self.outputs = outputs
-        extras = []
-        for i in self.inputs:
-            e = { 'txid':i['tx_hash'], 'vout':i['index'], 'scriptPubKey':i.get('raw_output_script') }
-            extras.append(e)
-        self.input_info = extras
-        return self
-
-    def __str__(self):
-        return self.raw
-
-    @classmethod
-    def multisig_script(klass, public_keys, num=None):
-        n = len(public_keys)
-        if num is None: num = n
-        # supports only "2 of 2", and "2 of 3" transactions
-        assert num <= n and n in [2,3]
-    
-        if num==2:
-            s = '52'
-        elif num == 3:
-            s = '53'
-        else:
-            raise
-    
-        for k in public_keys:
-            s += var_int(len(k)/2)
-            s += k
-        if n==2:
-            s += '52'
-        elif n==3:
-            s += '53'
-        else:
-            raise
-        s += 'ae'
-
-        out = { "address": hash_160_to_bc_address(hash_160(s.decode('hex')), 5), "redeemScript":s }
-        return out
-
-    @classmethod
-    def serialize( klass, inputs, outputs, for_sig = None ):
-
-        s  = int_to_hex(1,4)                                         # version
-        s += var_int( len(inputs) )                                  # number of inputs
-        for i in range(len(inputs)):
-            txin = inputs[i]
-            s += txin['tx_hash'].decode('hex')[::-1].encode('hex')   # prev hash
-            s += int_to_hex(txin['index'],4)                         # prev index
-
-            if for_sig is None:
-                pubkeysig = txin.get('pubkeysig')
-                if pubkeysig:
-                    pubkey, sig = pubkeysig[0]
-                    sig = sig + chr(1)                               # hashtype
-                    script  = op_push( len(sig))
-                    script += sig.encode('hex')
-                    script += op_push( len(pubkey))
-                    script += pubkey.encode('hex')
-                else:
-                    signatures = txin['signatures']
-                    pubkeys = txin['pubkeys']
-                    script = '00'                                    # op_0
-                    for sig in signatures:
-                        sig = sig + '01'
-                        script += op_push(len(sig)/2)
-                        script += sig
-
-                    redeem_script = klass.multisig_script(pubkeys,2).get('redeemScript')
-                    script += op_push(len(redeem_script)/2)
-                    script += redeem_script
-
-            elif for_sig==i:
-                if txin.get('redeemScript'):
-                    script = txin['redeemScript']                    # p2sh uses the inner script
-                else:
-                    script = txin['raw_output_script']               # scriptsig
-            else:
-                script=''
-            s += var_int( len(script)/2 )                            # script length
-            s += script
-            s += "ffffffff"                                          # sequence
-
-        s += var_int( len(outputs) )                                 # number of outputs
-        for output in outputs:
-            addr, amount = output
-            s += int_to_hex( amount, 8)                              # amount
-            addrtype, hash_160 = bc_address_to_hash_160(addr)
-            if addrtype == 0:
-                script = '76a9'                                      # op_dup, op_hash_160
-                script += '14'                                       # push 0x14 bytes
-                script += hash_160.encode('hex')
-                script += '88ac'                                     # op_equalverify, op_checksig
-            elif addrtype == 5:
-                script = 'a9'                                        # op_hash_160
-                script += '14'                                       # push 0x14 bytes
-                script += hash_160.encode('hex')
-                script += '87'                                       # op_equal
-            else:
-                raise
-            
-            s += var_int( len(script)/2 )                           #  script length
-            s += script                                             #  script
-        s += int_to_hex(0,4)                                        #  lock time
-        if for_sig is not None and for_sig != -1:
-            s += int_to_hex(1, 4)                                   #  hash type
-        return s
-
-
-    def for_sig(self,i):
-        return self.serialize(self.inputs, self.outputs, for_sig = i)
-
-
-    def hash(self):
-        return Hash(self.raw.decode('hex') )[::-1].encode('hex')
-
-    def sign(self, private_keys):
-        import deserialize
-
-        for i in range(len(self.inputs)):
-            txin = self.inputs[i]
-            tx_for_sig = self.serialize( self.inputs, self.outputs, for_sig = i )
-
-            if txin.get('redeemScript'):
-                # 1 parse the redeem script
-                num, redeem_pubkeys = deserialize.parse_redeemScript(txin.get('redeemScript'))
-                self.inputs[i]["pubkeys"] = redeem_pubkeys
-
-                # build list of public/private keys
-                keypairs = {}
-                for sec in private_keys.values():
-                    compressed = is_compressed(sec)
-                    pkey = regenerate_key(sec)
-                    pubkey = GetPubKey(pkey.pubkey, compressed)
-                    keypairs[ pubkey.encode('hex') ] = sec
-
-                # list of already existing signatures
-                signatures = txin.get("signatures",[])
-                print_error("signatures",signatures)
-
-                for pubkey in redeem_pubkeys:
-                    public_key = ecdsa.VerifyingKey.from_string(pubkey[2:].decode('hex'), curve = SECP256k1)
-                    for s in signatures:
-                        try:
-                            public_key.verify_digest( s.decode('hex')[:-1], Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
-                            break
-                        except ecdsa.keys.BadSignatureError:
-                            continue
-                    else:
-                        # check if we have a key corresponding to the redeem script
-                        if pubkey in keypairs.keys():
-                            # add signature
-                            sec = keypairs[pubkey]
-                            compressed = is_compressed(sec)
-                            pkey = regenerate_key(sec)
-                            secexp = pkey.secret
-                            private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
-                            public_key = private_key.get_verifying_key()
-                            sig = private_key.sign_digest( Hash( tx_for_sig.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
-                            assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
-                            signatures.append( sig.encode('hex') )
-                        
-                # for p2sh, pubkeysig is a tuple (may be incomplete)
-                self.inputs[i]["signatures"] = signatures
-                print_error("signatures",signatures)
-                self.is_complete = len(signatures) == num
-
-            else:
-                sec = private_keys[txin['address']]
-                compressed = is_compressed(sec)
-                pkey = regenerate_key(sec)
-                secexp = pkey.secret
-
-                private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
-                public_key = private_key.get_verifying_key()
-                pkey = EC_KEY(secexp)
-                pubkey = GetPubKey(pkey.pubkey, compressed)
-                sig = private_key.sign_digest( Hash( tx_for_sig.decode('hex') ), sigencode = ecdsa.util.sigencode_der )
-                assert public_key.verify_digest( sig, Hash( tx_for_sig.decode('hex') ), sigdecode = ecdsa.util.sigdecode_der)
-
-                self.inputs[i]["pubkeysig"] = [(pubkey, sig)]
-                self.is_complete = True
-
-        self.raw = self.serialize( self.inputs, self.outputs )
-
-
-    def deserialize(self):
-        import deserialize
-        vds = deserialize.BCDataStream()
-        vds.write(self.raw.decode('hex'))
-        self.d = deserialize.parse_Transaction(vds)
-        return self.d
-    
-
-    def has_address(self, addr):
-        found = False
-        for txin in self.inputs:
-            if addr == txin.get('address'): 
-                found = True
-                break
-        for txout in self.outputs:
-            if addr == txout[0]:
-                found = True
-                break
-        return found
-
-
-    def get_value(self, addresses, prevout_values):
-        # return the balance for that tx
-        is_relevant = False
-        is_send = False
-        is_pruned = False
-        is_partial = False
-        v_in = v_out = v_out_mine = 0
-
-        for item in self.inputs:
-            addr = item.get('address')
-            if addr in addresses:
-                is_send = True
-                is_relevant = True
-                key = item['prevout_hash']  + ':%d'%item['prevout_n']
-                value = prevout_values.get( key )
-                if value is None:
-                    is_pruned = True
-                else:
-                    v_in += value
-            else:
-                is_partial = True
-
-        if not is_send: is_partial = False
-                    
-        for item in self.outputs:
-            addr, value = item
-            v_out += value
-            if addr in addresses:
-                v_out_mine += value
-                is_relevant = True
-
-        if is_pruned:
-            # some inputs are mine:
-            fee = None
-            if is_send:
-                v = v_out_mine - v_out
-            else:
-                # no input is mine
-                v = v_out_mine
-
-        else:
-            v = v_out_mine - v_in
-
-            if is_partial:
-                # some inputs are mine, but not all
-                fee = None
-                is_send = v < 0
-            else:
-                # all inputs are mine
-                fee = v_out - v_in
-
-        return is_relevant, is_send, v, fee
-
-    def as_dict(self):
-        import json
-        out = {
-            "hex":self.raw,
-            "complete":self.is_complete
-            }
-        if not self.is_complete:
-            extras = []
-            for i in self.inputs:
-                e = { 'txid':i['tx_hash'], 'vout':i['index'],
-                      'scriptPubKey':i.get('raw_output_script'),
-                      'KeyID':i.get('KeyID'),
-                      'redeemScript':i.get('redeemScript'),
-                      'signatures':i.get('signatures'),
-                      'pubkeys':i.get('pubkeys'),
-                      }
-                extras.append(e)
-            self.input_info = extras
-
-            if self.input_info:
-                out['input_info'] = json.dumps(self.input_info).replace(' ','')
-
-        return out
-
-
-    def requires_fee(self, verifier):
-        # see https://en.bitcoin.it/wiki/Transaction_fees
-        threshold = 57600000
-        size = len(self.raw)/2
-        if size >= 10000: 
-            return True
-
-        for o in self.outputs:
-            value = o[1]
-            if value < 1000000:
-                return True
-        sum = 0
-        for i in self.inputs:
-            age = verifier.get_confirmations(i["tx_hash"])[0]
-            sum += i["value"] * age
-        priority = sum / size
-        print_error(priority, threshold)
-        return priority < threshold 
-
-
-
-
-def test_bip32():
-    seed = "ff000000000000000000000000000000"
-    master_secret, master_chain, master_public_key, master_public_key_compressed = bip32_init(seed)
-        
-    print "secret key", master_secret.encode('hex')
-    print "chain code", master_chain.encode('hex')
-
-    key_id = hash_160(master_public_key_compressed)
-    print "keyid", key_id.encode('hex')
-    print "base58"
-    print "address", hash_160_to_bc_address(key_id)
-    print "secret key", SecretToASecret(master_secret, True)
-
-    print "-- m/0 --"
-    k0, c0 = CKD(master_secret, master_chain, 0)
-    print "secret", k0.encode('hex')
-    print "chain", c0.encode('hex')
-    print "secret key", SecretToASecret(k0, True)
-    
-    K0, K0_compressed, c0 = CKD_prime(master_public_key, master_chain, 0)
-    print "address", hash_160_to_bc_address(hash_160(K0_compressed))
-    
-    print "-- m/0/1 --"
-    K01, K01_compressed, c01 = CKD_prime(K0, c0, 1)
-    print "address", hash_160_to_bc_address(hash_160(K01_compressed))
-    
-    print "-- m/0/1/3 --"
-    K013, K013_compressed, c013 = CKD_prime(K01, c01, 3)
-    print "address", hash_160_to_bc_address(hash_160(K013_compressed))
-    
-    print "-- m/0/1/3/7 --"
-    K0137, K0137_compressed, c0137 = CKD_prime(K013, c013, 7)
-    print "address", hash_160_to_bc_address(hash_160(K0137_compressed))
-        
-
-
-if __name__ == '__main__':
-    test_bip32()
-
-
+    cK_n = GetPubKey(public_key.pubkey,True)
+    return cK_n, c_n
+
+
+BITCOIN_HEADER_PRIV = "0488ade4"
+BITCOIN_HEADER_PUB = "0488b21e"
+
+TESTNET_HEADER_PRIV = "04358394"
+TESTNET_HEADER_PUB = "043587cf"
+
+BITCOIN_HEADERS = (BITCOIN_HEADER_PUB, BITCOIN_HEADER_PRIV)
+TESTNET_HEADERS = (TESTNET_HEADER_PUB, TESTNET_HEADER_PRIV)
+
+def _get_headers(testnet):
+    """Returns the correct headers for either testnet or bitcoin, in the form
+    of a 2-tuple, like (public, private)."""
+    if testnet:
+        return TESTNET_HEADERS
+    else:
+        return BITCOIN_HEADERS
+
+
+def deserialize_xkey(xkey):
+
+    xkey = DecodeBase58Check(xkey)
+    assert len(xkey) == 78
+
+    xkey_header = xkey[0:4].encode('hex')
+    # Determine if the key is a bitcoin key or a testnet key.
+    if xkey_header in TESTNET_HEADERS:
+        head = TESTNET_HEADER_PRIV
+    elif xkey_header in BITCOIN_HEADERS:
+        head = BITCOIN_HEADER_PRIV
+    else:
+        raise Exception("Unknown xkey header: '%s'" % xkey_header)
+
+    depth = ord(xkey[4])
+    fingerprint = xkey[5:9]
+    child_number = xkey[9:13]
+    c = xkey[13:13+32]
+    if xkey[0:4].encode('hex') == head:
+        K_or_k = xkey[13+33:]
+    else:
+        K_or_k = xkey[13+32:]
+    return depth, fingerprint, child_number, c, K_or_k
+
+
+def get_xkey_name(xkey, testnet=False):
+    depth, fingerprint, child_number, c, K = deserialize_xkey(xkey)
+    n = int(child_number.encode('hex'), 16)
+    if n & BIP32_PRIME:
+        child_id = "%d'"%(n - BIP32_PRIME)
+    else:
+        child_id = "%d"%n
+    if depth == 0:
+        return ''
+    elif depth == 1:
+        return child_id
+    else:
+        raise BaseException("xpub depth error")
+
+
+def xpub_from_xprv(xprv, testnet=False):
+    depth, fingerprint, child_number, c, k = deserialize_xkey(xprv)
+    K, cK = get_pubkeys_from_secret(k)
+    header_pub, _  = _get_headers(testnet)
+    xpub = header_pub.decode('hex') + chr(depth) + fingerprint + child_number + c + cK
+    return EncodeBase58Check(xpub)
+
+
+def bip32_root(seed, testnet=False):
+    import hmac
+    header_pub, header_priv = _get_headers(testnet)
+    seed = seed.decode('hex')
+    I = hmac.new("Bitcoin seed", seed, hashlib.sha512).digest()
+    master_k = I[0:32]
+    master_c = I[32:]
+    K, cK = get_pubkeys_from_secret(master_k)
+    xprv = (header_priv + "00" + "00000000" + "00000000").decode("hex") + master_c + chr(0) + master_k
+    xpub = (header_pub + "00" + "00000000" + "00000000").decode("hex") + master_c + cK
+    return EncodeBase58Check(xprv), EncodeBase58Check(xpub)
+
+
+def bip32_private_derivation(xprv, branch, sequence, testnet=False):
+    header_pub, header_priv = _get_headers(testnet)
+    depth, fingerprint, child_number, c, k = deserialize_xkey(xprv)
+    assert sequence.startswith(branch)
+    sequence = sequence[len(branch):]
+    for n in sequence.split('/'):
+        if n == '': continue
+        i = int(n[:-1]) + BIP32_PRIME if n[-1] == "'" else int(n)
+        parent_k = k
+        k, c = CKD_priv(k, c, i)
+        depth += 1
+
+    _, parent_cK = get_pubkeys_from_secret(parent_k)
+    fingerprint = hash_160(parent_cK)[0:4]
+    child_number = ("%08X"%i).decode('hex')
+    K, cK = get_pubkeys_from_secret(k)
+    xprv = header_priv.decode('hex') + chr(depth) + fingerprint + child_number + c + chr(0) + k
+    xpub = header_pub.decode('hex') + chr(depth) + fingerprint + child_number + c + cK
+    return EncodeBase58Check(xprv), EncodeBase58Check(xpub)
+
+
+def bip32_public_derivation(xpub, branch, sequence, testnet=False):
+    header_pub, _ = _get_headers(testnet)
+    depth, fingerprint, child_number, c, cK = deserialize_xkey(xpub)
+    assert sequence.startswith(branch)
+    sequence = sequence[len(branch):]
+    for n in sequence.split('/'):
+        if n == '': continue
+        i = int(n)
+        parent_cK = cK
+        cK, c = CKD_pub(cK, c, i)
+        depth += 1
+
+    fingerprint = hash_160(parent_cK)[0:4]
+    child_number = ("%08X"%i).decode('hex')
+    xpub = header_pub.decode('hex') + chr(depth) + fingerprint + child_number + c + cK
+    return EncodeBase58Check(xpub)
+
+
+def bip32_private_key(sequence, k, chain):
+    for i in sequence:
+        k, chain = CKD_priv(k, chain, i)
+    return SecretToASecret(k, True)

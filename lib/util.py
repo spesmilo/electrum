@@ -1,17 +1,28 @@
-import os, sys, re
+import os, sys, re, json
 import platform
 import shutil
 from datetime import datetime
-is_verbose = True
+is_verbose = False
 
+
+class MyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        from transaction import Transaction
+        if isinstance(obj, Transaction):
+            return obj.as_dict()
+        return super(MyEncoder, self).default(obj)
 
 
 def set_verbosity(b):
     global is_verbose
     is_verbose = b
 
+
 def print_error(*args):
     if not is_verbose: return
+    print_stderr(*args)
+
+def print_stderr(*args):
     args = [str(item) for item in args]
     sys.stderr.write(" ".join(args) + "\n")
     sys.stderr.flush()
@@ -23,24 +34,12 @@ def print_msg(*args):
     sys.stdout.flush()
 
 def print_json(obj):
-    import json
-    s = json.dumps(obj,sort_keys = True, indent = 4)
+    try:
+        s = json.dumps(obj, sort_keys = True, indent = 4, cls=MyEncoder)
+    except TypeError:
+        s = repr(obj)
     sys.stdout.write(s + "\n")
     sys.stdout.flush()
-
-
-def check_windows_wallet_migration():
-    if platform.release() != "XP":
-        if os.path.exists(os.path.join(os.environ["LOCALAPPDATA"], "Electrum")):
-            if os.path.exists(os.path.join(os.environ["APPDATA"], "Electrum")):
-                print_msg("Two Electrum folders have been found, the default Electrum location for Windows has changed from %s to %s since Electrum 1.7, please check your wallets and fix the problem manually." % (os.environ["LOCALAPPDATA"], os.environ["APPDATA"]))
-                sys.exit()
-            try:
-                shutil.move(os.path.join(os.environ["LOCALAPPDATA"], "Electrum"), os.path.join(os.environ["APPDATA"]))
-                print_msg("Your wallet has been moved from %s to %s."% (os.environ["LOCALAPPDATA"], os.environ["APPDATA"]))
-            except:
-                print_msg("Failed to move your wallet.")
-    
 
 def user_dir():
     if "HOME" in os.environ:
@@ -49,9 +48,11 @@ def user_dir():
         return os.path.join(os.environ["APPDATA"], "Electrum")
     elif "LOCALAPPDATA" in os.environ:
         return os.path.join(os.environ["LOCALAPPDATA"], "Electrum")
+    elif 'ANDROID_DATA' in os.environ:
+        return "/sdcard/electrum/"
     else:
-        #raise BaseException("No home directory found in environment variables.")
-        return 
+        #raise Exception("No home directory found in environment variables.")
+        return
 
 def appdata_dir():
     """Find the path to the application data directory; add an electrum folder and return path."""
@@ -61,6 +62,8 @@ def appdata_dir():
         return os.path.join(sys.prefix, "share", "electrum")
     elif (platform.system() == "Darwin" or
           platform.system() == "DragonFly" or
+          platform.system() == "OpenBSD" or
+          platform.system() == "FreeBSD" or
 	  platform.system() == "NetBSD"):
         return "/Library/Application Support/Electrum"
     else:
@@ -79,7 +82,7 @@ def local_data_dir():
     return local_data
 
 
-def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8):
+def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespaces=False):
     from decimal import Decimal
     s = Decimal(x)
     sign, digits, exp = s.as_tuple()
@@ -88,15 +91,16 @@ def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8):
         digits.insert(0,'0')
     digits.insert(-decimal_point,'.')
     s = ''.join(digits).rstrip('0')
-    if sign: 
+    if sign:
         s = '-' + s
     elif is_diff:
         s = "+" + s
 
     p = s.find('.')
     s += "0"*( 1 + num_zeros - ( len(s) - p ))
-    s += " "*( 1 + decimal_point - ( len(s) - p ))
-    s = " "*( 13 - decimal_point - ( p )) + s 
+    if whitespaces:
+        s += " "*( 1 + decimal_point - ( len(s) - p ))
+        s = " "*( 13 - decimal_point - ( p )) + s
     return s
 
 
@@ -149,34 +153,194 @@ def age(from_date, since_date = None, target_tz=None, include_seconds=False):
         return "over %d years ago" % (round(distance_in_minutes / 525600))
 
 
-
-
 # URL decode
-_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
-urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
+#_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
+#urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
-def parse_url(url):
-    o = url[8:].split('?')
-    address = o[0]
-    if len(o)>1:
-        params = o[1].split('&')
-    else:
-        params = []
+def parse_URI(uri):
+    import urlparse
+    import bitcoin
+    from decimal import Decimal
 
-    amount = label = message = signature = identity = ''
-    for p in params:
-        k,v = p.split('=')
-        uv = urldecode(v)
-        if k == 'amount': amount = uv
-        elif k == 'message': message = uv
-        elif k == 'label': label = uv
-        elif k == 'signature':
-            identity, signature = uv.split(':')
-            url = url.replace('&%s=%s'%(k,v),'')
-        else: 
-            print k,v
+    if ':' not in uri:
+        assert bitcoin.is_address(uri)
+        return uri, None, None, None, None
 
-    return address, amount, label, message, signature, identity, url
+    u = urlparse.urlparse(uri)
+    assert u.scheme == 'bitcoin'
+
+    address = u.path
+    valid_address = bitcoin.is_address(address)
+
+    pq = urlparse.parse_qs(u.query)
+    
+    for k, v in pq.items():
+        if len(v)!=1:
+            raise Exception('Duplicate Key', k)
+
+    amount = label = message = request_url = ''
+    if 'amount' in pq:
+        am = pq['amount'][0]
+        m = re.match('([0-9\.]+)X([0-9])', am)
+        if m:
+            k = int(m.group(2)) - 8
+            amount = Decimal(m.group(1)) * pow(  Decimal(10) , k)
+        else:
+            amount = Decimal(am) * 100000000
+    if 'message' in pq:
+        message = pq['message'][0]
+    if 'label' in pq:
+        label = pq['label'][0]
+    if 'r' in pq:
+        request_url = pq['r'][0]
+        
+    if request_url != '':
+        return address, amount, label, message, request_url
+
+    assert valid_address
+
+    return address, amount, label, message, request_url
 
 
+# Python bug (http://bugs.python.org/issue1927) causes raw_input
+# to be redirected improperly between stdin/stderr on Unix systems
+def raw_input(prompt=None):
+    if prompt:
+        sys.stdout.write(prompt)
+    return builtin_raw_input()
+import __builtin__
+builtin_raw_input = __builtin__.raw_input
+__builtin__.raw_input = raw_input
+
+
+
+def parse_json(message):
+    n = message.find('\n')
+    if n==-1: 
+        return None, message
+    try:
+        j = json.loads( message[0:n] )
+    except:
+        j = None
+    return j, message[n+1:]
+
+
+
+
+class timeout(Exception):
+    pass
+
+import socket
+import errno
+import json
+import ssl
+import traceback
+import time
+
+class SocketPipe:
+
+    def __init__(self, socket):
+        self.socket = socket
+        self.message = ''
+        self.set_timeout(0.1)
+
+    def set_timeout(self, t):
+        self.socket.settimeout(t)
+
+    def get(self):
+        while True:
+            response, self.message = parse_json(self.message)
+            if response:
+                return response
+            try:
+                data = self.socket.recv(1024)
+            except socket.timeout:
+                raise timeout
+            except ssl.SSLError:
+                raise timeout
+            except socket.error, err:
+                if err.errno == 60:
+                    raise timeout
+                elif err.errno in [11, 10035]:
+                    print_error("socket errno", err.errno)
+                    time.sleep(0.1)
+                    continue
+                else:
+                    print_error("pipe: socket error", err)
+                    data = ''
+            except:
+                traceback.print_exc(file=sys.stderr)
+                data = ''
+
+            if not data:
+                self.socket.close()
+                return None
+            self.message += data
+
+    def send(self, request):
+        out = json.dumps(request) + '\n'
+        self._send(out)
+
+    def send_all(self, requests):
+        out = ''.join(map(lambda x: json.dumps(x) + '\n', requests))
+        self._send(out)
+
+    def _send(self, out):
+        while out:
+            try:
+                sent = self.socket.send(out)
+                out = out[sent:]
+            except ssl.SSLError as e:
+                print_error("SSLError:", e)
+                time.sleep(0.1)
+                continue
+            except socket.error as e:
+                if e[0] in (errno.EWOULDBLOCK,errno.EAGAIN):
+                    print_error("EAGAIN: retrying")
+                    time.sleep(0.1)
+                    continue
+                elif e[0] in ['timed out', 'The write operation timed out']:
+                    print_error("socket timeout, retry")
+                    time.sleep(0.1)
+                    continue
+                else:
+                    traceback.print_exc(file=sys.stdout)
+                    raise e
+
+
+
+import Queue
+
+class QueuePipe:
+
+    def __init__(self, send_queue=None, get_queue=None):
+        self.send_queue = send_queue if send_queue else Queue.Queue()
+        self.get_queue = get_queue if get_queue else Queue.Queue()
+        self.set_timeout(0.1)
+
+    def get(self):
+        try:
+            return self.get_queue.get(timeout=self.timeout)
+        except Queue.Empty:
+            raise timeout
+
+    def get_all(self):
+        responses = []
+        while True:
+            try:
+                r = self.get_queue.get_nowait()
+                responses.append(r)
+            except Queue.Empty:
+                break
+        return responses
+
+    def set_timeout(self, t):
+        self.timeout = t
+
+    def send(self, request):
+        self.send_queue.put(request)
+
+    def send_all(self, requests):
+        for request in requests:
+            self.send(request)
 

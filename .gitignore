@@ -1,8 +1,15 @@
 ####-*.patch
+gui/icons_rc.py
 lib/icons_rc.py
 *.pyc
+*.swp
 build/
 dist/
 *.egg/
 /electrum.py
 contrib/pyinstaller/
+Electrum.egg-info/
+gui/qt/icons_rc.py
+locale/
+.devlocaltmp/
+*_trial_temp

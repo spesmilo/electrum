@@ -1,5 +1,5 @@
 from electrum.util import print_error
-from electrum_gui.i18n import _
+
 import httplib, urllib
 import socket
 import hashlib
@@ -7,7 +7,7 @@ import json
 from urlparse import urlparse, parse_qs
 try:
     import PyQt4
-except:
+except Exception:
     sys.exit("Error: Could not import PyQt4 on Linux systems, you may try 'sudo apt-get install python-qt4'")
 
 from PyQt4.QtGui import *
@@ -16,11 +16,19 @@ import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 import aes
 import base64
-from electrum_gui import bmp, pyqrnative, BasePlugin
-from electrum_gui.i18n import _
-from electrum_gui.gui_classic import HelpButton
+from electrum.plugins import BasePlugin
+from electrum.i18n import _
+
+from electrum_gui.qt import HelpButton, EnterButton
 
 class Plugin(BasePlugin):
+
+    def fullname(self):
+        return _('Label Sync')
+
+    def description(self):
+        return '%s\n\n%s%s%s' % (_("This plugin can sync your labels across multiple Electrum installs by using a remote database to save your data. Labels, transactions and addresses are all sent and stored encrypted on the remote server. This code might increase the load of your wallet with a few microseconds as it will sync labels on each startup."), _("To get started visit"), " http://labelectrum.herokuapp.com/ ", _(" to sign up for an account."))
+
     def version(self):
         return "0.2.1"
 
@@ -35,35 +43,33 @@ class Plugin(BasePlugin):
 
         return decoded_message
 
-    def __init__(self, gui):
+
+    def init(self):
         self.target_host = 'labelectrum.herokuapp.com'
-        BasePlugin.__init__(self, gui, 'labels', _('Label Sync'),_('This plugin can sync your labels accross multiple Electrum installs by using a remote database to save your data. Labels,  \
-transactions and addresses are all sent and stored encrypted on the remote server. This code might increase the load of your wallet with a few microseconds as it will sync labels on each startup.\n\n\
-To get started visit http://labelectrum.herokuapp.com/ to sign up for an account.'))
+        self.window = self.gui.main_window
 
-        self.wallet = gui.wallet
-        self.gui = gui
-        self.config = gui.config
-        self.labels = self.wallet.labels
-        self.transactions = self.wallet.transactions
-        self.encode_password = hashlib.sha1(self.config.get("master_public_key")).digest().encode('hex')[:32]
-
-        self.wallet_id = hashlib.sha256(str(self.config.get("master_public_key"))).digest().encode('hex')
+    def load_wallet(self, wallet):
+        self.wallet = wallet
+        if self.wallet.get_master_public_key():
+            mpk = self.wallet.get_master_public_key()
+        else:
+            mpk = self.wallet.master_public_keys["m/0'/"][1]
+        self.encode_password = hashlib.sha1(mpk).digest().encode('hex')[:32]
+        self.wallet_id = hashlib.sha256(mpk).digest().encode('hex')
 
         addresses = [] 
-        for k, account in self.wallet.accounts.items():
-            for address in account[0]:
+        for account in self.wallet.accounts.values():
+            for address in account.get_addresses(0):
                 addresses.append(address)
 
         self.addresses = addresses
 
-    def auth_token(self):
-        return self.config.get("plugin_label_api_key")
-
-    def init_gui(self):
-        if self.is_enabled() and self.auth_token():
+        if self.auth_token():
             # If there is an auth token we can try to actually start syncing
             self.full_pull()
+
+    def auth_token(self):
+        return self.config.get("plugin_label_api_key")
 
     def is_available(self):
         return True
@@ -88,6 +94,9 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
             print_error('Error connecting to service: %s ' %  e)
             return False
 
+    def settings_widget(self, window):
+        return EnterButton(_('Settings'), self.settings_dialog)
+
     def settings_dialog(self):
         def check_for_api_key(api_key):
             if api_key and len(api_key) > 12:
@@ -100,7 +109,7 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
               self.download.setEnabled(False)
               self.accept.setEnabled(False)
 
-        d = QDialog(self.gui)
+        d = QDialog()
         layout = QGridLayout(d)
         layout.addWidget(QLabel("API Key: "),0,0)
 
@@ -140,19 +149,20 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
         else:
           return False
 
-    def toggle(self):
-        enabled = not self.is_enabled()
-        self.set_enabled(enabled)
-        self.init_gui()
-
-        if not self.auth_token() and enabled: # First run, throw plugin settings in your face
+    def enable(self):
+        if not self.auth_token(): # First run, throw plugin settings in your face
+            self.init()
+            self.load_wallet(self.gui.main_window.wallet)
             if self.settings_dialog():
-              self.set_enabled(True)
-              return True
+                self.set_enabled(True)
+                return True
             else:
-              self.set_enabled(False)
-              return False
-        return enabled
+                self.set_enabled(False)
+                return False
+
+        self.set_enabled(True)
+        return True
+
 
     def full_push(self):
         if self.do_full_push():
@@ -161,15 +171,15 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
     def full_pull(self, force = False):
         if self.do_full_pull(force) and force:
             QMessageBox.information(None, _("Labels synchronized"), _("Your labels have been synchronized."))
-            self.gui.update_history_tab()
-            self.gui.update_completions()
-            self.gui.update_receive_tab()
-            self.gui.update_contacts_tab()
+            self.window.update_history_tab()
+            self.window.update_completions()
+            self.window.update_receive_tab()
+            self.window.update_contacts_tab()
 
     def do_full_push(self):
         try:
             bundle = {"labels": {}}
-            for key, value in self.labels.iteritems():
+            for key, value in self.wallet.labels.iteritems():
                 encoded = self.encode(key)
                 bundle["labels"][encoded] = self.encode(value)
 
@@ -213,8 +223,8 @@ To get started visit http://labelectrum.herokuapp.com/ to sign up for an account
             for label in response:
                  decoded_key = self.decode(label["external_id"]) 
                  decoded_label = self.decode(label["text"]) 
-                 if force or not self.labels.get(decoded_key):
-                     self.labels[decoded_key] = decoded_label 
+                 if force or not self.wallet.labels.get(decoded_key):
+                     self.wallet.labels[decoded_key] = decoded_label 
             return True
         except socket.gaierror as e:
             print_error('Error connecting to service: %s ' %  e)

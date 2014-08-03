@@ -1,3 +1,82 @@
+# Release 1.9.8
+(This release includes features initially planned for version 2.0)
+
+* Electrum servers were upgraded to version 0.9. The new server stores
+  a Patrica tree of all UTXOs, an idea proposed by Alan Reiner in the
+  bitcointalk forum. This property allows the client to directly
+  request the balance of any address. The new commands are:
+     1. getaddressbalance <address> 
+     2. getaddressunspent <address>
+     3. getutxoaddress <txid> <pos>
+
+* Command-line commands that require a connection to the network spawn
+  a daemon, that remains connected and handles subsequent
+  commands. The daemon terminates itself if it remains unused for more
+  than one minute. The purpose of this is to make scripting more
+  efficient. For example, a bash script using many electrum commands
+  will open only one connection.
+
+# Release 1.9.7
+* Fix for offline signing
+* Various bugfixes
+* GUI usability improvements
+* Coinbase Buyback plugin
+
+# Release 1.9.6
+* During wallet creation, do not write seed to disk until it is encrypted.
+* Confirmation dialog if the transaction fee is higher than 1mBTC.
+* bugfixes
+
+# Release 1.9.5
+
+* Coin control: select addresses to send from
+* Put addresses that have been used in a minimized section (Qt GUI)
+* Allow non ascii chars in passwords
+
+
+# Release 1.9.4
+bugfixes: offline transactions
+
+# Release 1.9.3
+bugfixes: connection problems, transactions staying unverified
+
+# Release 1.9.2
+* fix a syntax error
+
+# Release 1.9.1
+* fix regression with --offline mode
+* fix regression with --portable mode: use a dedicated directory
+
+# Release 1.9
+
+* The client connects to multiple servers in order to retrieve block headers and find the longest chain
+* SSL certificate validation (to prevent MITM)
+* Deterministic signatures (RFC 6979)
+* Menu to create/restore/open wallets
+* Create transactions with multiple outputs from CSV (comma separated values)
+* New text gui: stdio
+* Plugins are no longer tied to the qt GUI, they can reach all GUIs
+* Proxy bugs have been fixed
+
+
+# Release 1.8.1
+
+* Notification option when receiving new tranactions 
+* Confirm dialogue before sending large amounts 
+* Alternative datafile location for non-windows systems
+* Fix offline wallet creation
+* Remove enforced tx fee
+* Tray icon improvements
+* Various bugfixes 
+
+
+# Release 1.8
+
+* Menubar in classic gui
+* Updated the QR Code plugin to enable offline/online wallets to transmit unsigned/signed transactions via QR code.
+* Fixed bug where never-confirmed transactions prevented further spending
+
+
 # Release 1.7.4
 
 * Increase default fee

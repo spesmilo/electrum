@@ -6,21 +6,11 @@ include electrum
 recursive-include lib *.py
 recursive-include gui *.py
 recursive-include plugins *.py
-recursive-include ecdsa *.py
-recursive-include aes *.py
+recursive-include packages *.py
 include app.fil
 include icons.qrc
 recursive-include icons *
-include scripts
-include scripts/blocks
-include scripts/get_history
-include scripts/merchant.conf.template
-include scripts/merchant.py
-include scripts/merchant.readme
-include scripts/peers
-include scripts/servers
-include scripts/validate_tx
-include scripts/watch_address
+recursive-include scripts *
 recursive-include data *
 recursive-include locale *.mo
 recursive-include docs *
