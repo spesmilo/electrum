@@ -101,6 +101,7 @@ class Network(threading.Thread):
         self.disconnected_time = time.time()
 
         self.recent_servers = self.config.get('recent_servers',[]) # successful connections
+        self.pending_servers = set()
 
         self.banner = ''
         self.interface = None
@@ -164,7 +165,7 @@ class Network(threading.Thread):
         choice_list = []
         l = filter_protocol(self.get_servers(), self.protocol)
         for s in l:
-            if s in self.disconnected_servers or s in self.interfaces.keys():
+            if s in self.pending_servers or s in self.disconnected_servers or s in self.interfaces.keys():
                 continue
             else:
                 choice_list.append(s)
@@ -199,8 +200,7 @@ class Network(threading.Thread):
         if server in self.interfaces.keys():
             return
         i = interface.Interface(server, self.config)
-        self.interfaces[i.server] = i
-        self.notify('interfaces')
+        self.pending_servers.add(server)
         i.start(self.queue)
         return i
 
@@ -256,8 +256,7 @@ class Network(threading.Thread):
                 self.switch_to_interface(i)
                 break
             else:
-                self.interfaces.pop(i.server)
-                self.notify('interfaces')
+                self.remove_interface(i)
 
     def switch_to_interface(self, interface):
         server = interface.server
@@ -305,6 +304,14 @@ class Network(threading.Thread):
         self.recent_servers = self.recent_servers[0:20]
         self.config.set_key('recent_servers', self.recent_servers)
 
+
+    def add_interface(self, i):
+        self.interfaces[i.server] = i
+        self.notify('interfaces')
+
+    def remove_interface(self, i):
+        self.interfaces.pop(i.server)
+        self.notify('interfaces')
 
     def new_blockchain_height(self, blockchain_height, i):
         if self.is_connected():
@@ -385,8 +392,11 @@ class Network(threading.Thread):
                 continue
 
             # if response is None it is a notification about the interface
+            if i.server in self.pending_servers:
+                self.pending_servers.remove(i.server)
 
             if i.is_connected:
+                self.add_interface(i)
                 self.add_recent_server(i)
                 i.send_request({'method':'blockchain.headers.subscribe','params':[]})
                 if i == self.interface:
@@ -396,12 +406,10 @@ class Network(threading.Thread):
             else:
                 self.disconnected_servers.add(i.server)
                 if i.server in self.interfaces:
-                    self.interfaces.pop(i.server)
-                    self.notify('interfaces')
+                    self.remove_interface(i)
                 if i.server in self.heights:
                     self.heights.pop(i.server)
                 if i == self.interface:
-                    #self.interface = None
                     self.set_status('disconnected')
 
             if not self.interface.is_connected and self.config.get('auto_cycle'):
