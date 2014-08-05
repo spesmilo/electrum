@@ -5,7 +5,7 @@ from electrum import Interface, SimpleConfig
 from electrum.network import filter_protocol, parse_servers
 from collections import defaultdict
 
-#electrum.util.set_verbosity(1)
+# electrum.util.set_verbosity(1)
 
 # 1. start interface and wait for connection
 interface = electrum.Interface('ecdsa.net:50002:s')
@@ -28,7 +28,6 @@ print "Contacting %d servers"%len(peers)
 # start interfaces
 config = SimpleConfig()
 interfaces = map ( lambda server: Interface(server, config), peers )
-results_queue = Queue.Queue()
 reached_servers = []
 for i in interfaces:
     i.start(q)
@@ -46,8 +45,7 @@ while peers:
     if i.server in peers:
         peers.remove(i.server)
     if i.is_connected:
-        i.send_request({'method':'blockchain.headers.subscribe','params':[]}, results_queue)
-        reached_servers.append(i.server)
+        reached_servers.append(i)
     else:
         print "Connection failed:", i.server
 
@@ -83,11 +81,15 @@ def analyze(results):
     return out
 
 
+results_queue = Queue.Queue()
+for i in reached_servers:
+    i.send_request({'method':'blockchain.headers.subscribe','params':[]}, results_queue)
+
 results = {}
 while reached_servers:
     i, r = results_queue.get(timeout=10000)
     results[i.server] = r.get('result')
-    reached_servers.remove(i.server)
+    reached_servers.remove(i)
     i.stop()
 
 errors = analyze(results).keys()
