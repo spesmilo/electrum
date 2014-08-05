@@ -1374,7 +1374,6 @@ class NewWallet(Deterministic_Wallet):
         import mnemonic
         import ecdsa
         import math
-
         n = int(math.ceil(math.log(custom_entropy,2)))
         n_added = max(16, 160-n)
         print_error("make_seed: adding %d bits"%n_added)
@@ -1387,7 +1386,7 @@ class NewWallet(Deterministic_Wallet):
             words = mnemonic.mn_encode(s)
             seed = ' '.join(words)
             # this removes 8 bits of entropy
-            if is_new_seed(seed):
+            if not is_old_seed(seed) and is_new_seed(seed):
                 break
             nonce += 1
         print_error(seed)
