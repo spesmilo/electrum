@@ -26,16 +26,17 @@ i.stop()
 
 print "Contacting %d servers"%len(peers)
 # start interfaces
+q2 = Queue.Queue()
 config = SimpleConfig()
 interfaces = map ( lambda server: Interface(server, config), peers )
 reached_servers = []
 for i in interfaces:
-    i.start(q)
+    i.start(q2)
 
 t0 = time.time()
 while peers:
     try:
-        i, r = q.get(timeout=1)
+        i, r = q2.get(timeout=1)
     except:
         if time.time() - t0 > 10:
             print "timeout"
