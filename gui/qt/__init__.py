@@ -22,7 +22,7 @@ from electrum.util import print_error, print_msg
 from electrum.plugins import run_hook
 import os.path, json, ast, traceback
 import shutil
-
+import signal
 
 try:
     import PyQt4
@@ -208,6 +208,7 @@ class ElectrumGui:
         w.connect_slots(s)
         w.update_wallet()
 
+        signal.signal(signal.SIGINT, lambda *args: self.app.quit())
         self.app.exec_()
         if self.tray:
             self.tray.hide()
