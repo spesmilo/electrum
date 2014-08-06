@@ -32,12 +32,6 @@ from simple_config import SimpleConfig
 from daemon import NetworkServer, DAEMON_PORT
 
 
-# policies
-SPAWN_DAEMON=0
-NEED_DAEMON=1
-NO_DAEMON=2
-USE_DAEMON_IF_AVAILABLE=3
-
 
 class NetworkProxy(threading.Thread):
 
@@ -64,6 +58,9 @@ class NetworkProxy(threading.Thread):
             self.network = Network(config)
             self.pipe = util.QueuePipe(send_queue=self.network.requests_queue)
             self.network.start(self.pipe.get_queue)
+            for key in ['status','banner','updated','servers','interfaces']:
+                value = self.network.get_status_value(key)
+                self.pipe.get_queue.put({'method':'network.status', 'params':[key, value]})
 
         # status variables
         self.status = 'connecting'

@@ -107,7 +107,7 @@ def process_request(amount, confirmations, expires_in, password):
     except Exception:
         return "incorrect parameters"
 
-    account = wallet.accounts["m/0'/0"]
+    account = wallet.default_account()
     addr = account.get_address(0, num)
     num += 1
 

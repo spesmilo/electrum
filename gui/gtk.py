@@ -1107,7 +1107,8 @@ class ElectrumWindow:
         if self.funds_error:
             text = "Not enough funds"
         elif self.network.is_connected():
-            host, port, _,_,_ = network.get_parameters()
+            host, port, _,_,_ = self.network.get_parameters()
+            port = int(port)
             height = self.network.get_local_height()
             self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(host, port, height))
             if not self.wallet.up_to_date:
