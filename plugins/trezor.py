@@ -150,8 +150,8 @@ class TrezorWallet(NewWallet):
 
     def get_public_key(self, bip32_path):
         address_n = self.get_client().expand_path(bip32_path)
-        res = self.get_client().get_public_node(address_n)
-        xpub = "0488B21E".decode('hex') + chr(res.depth) + self.i4b(res.fingerprint) + self.i4b(res.child_num) + res.chain_code + res.public_key
+        node = self.get_client().get_public_node(address_n).node
+        xpub = "0488B21E".decode('hex') + chr(node.depth) + self.i4b(node.fingerprint) + self.i4b(node.child_num) + node.chain_code + node.public_key
         return EncodeBase58Check(xpub)
 
     def get_master_public_key(self):
