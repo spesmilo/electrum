@@ -12,7 +12,7 @@ interface = electrum.Interface('electrum-ltc.bysh.me:50002:s')
 q = Queue.Queue()
 interface.start(q)
 
-i, r = q.get(timeout=10000)
+i, r = q.get()
 if not interface.is_connected:
     print "not connected"
     exit(1)
