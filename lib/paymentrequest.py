@@ -77,6 +77,7 @@ def load_certificates():
                 x.parse(c)
             except Exception as e:
                 util.print_error("cannot parse cert:", e)
+                continue
             ca_list[x.getFingerprint()] = x
     ca_f.close()
     util.print_error("%d certificates"%len(ca_list))
@@ -324,6 +325,9 @@ class PaymentRequest:
 
 
 if __name__ == "__main__":
+
+    util.set_verbosity(True)
+    load_certificates()
 
     try:
         uri = sys.argv[1]
