@@ -87,7 +87,6 @@ def arg_parser():
     parser.add_option("-G", "--gap", dest="gap_limit", default=None, help="gap limit")
     parser.add_option("-W", "--password", dest="password", default=None, help="set password for usage with commands (currently only implemented for create command, do not use it for longrunning gui session since the password is visible in /proc)")
     parser.add_option("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
-    parser.add_option("--bip32", action="store_true", dest="bip32", default=False, help="bip32 (not final)")
     parser.add_option("--2of3", action="store_true", dest="2of3", default=False, help="create 2of3 wallet")
     parser.add_option("--mpk", dest="mpk", default=False, help="restore from master public key")
     parser.add_option("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
@@ -288,7 +287,7 @@ if __name__ == '__main__':
                     sys.exit("Error: Invalid seed")
                 wallet = Wallet.from_seed(seed, storage)
                 wallet.add_seed(seed, password)
-                wallet.create_accounts(password)
+                wallet.create_main_account(password)
 
             if not options.offline:
                 network = Network(config)
@@ -309,7 +308,7 @@ if __name__ == '__main__':
                 wallet = Wallet(storage)
                 seed = wallet.make_seed()
                 wallet.add_seed(seed, password)
-                wallet.create_accounts(password)
+                wallet.create_main_account(password)
                 wallet.synchronize()
                 print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
                 print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
