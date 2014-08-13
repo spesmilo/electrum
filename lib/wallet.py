@@ -1247,8 +1247,7 @@ class NewWallet(Deterministic_Wallet):
         return 'm/' in self.master_private_keys.keys()
 
     def get_master_public_key(self):
-        """xpub of the main account"""
-        return self.master_public_keys.get("m/0'")
+        return self.master_public_keys.get("m/")
 
     def get_master_public_keys(self):
         out = {}
