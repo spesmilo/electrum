@@ -1247,8 +1247,7 @@ class NewWallet(Deterministic_Wallet):
         return 'm/' in self.master_private_keys.keys()
 
     def get_master_public_key(self):
-        """xpub of the main account"""
-        return self.master_public_keys.get("m/0'")
+        return self.master_public_keys.get("m/")
 
     def get_master_public_keys(self):
         out = {}
@@ -1313,7 +1312,8 @@ class NewWallet(Deterministic_Wallet):
         return xpub
 
     def create_master_keys(self, password):
-        xpriv, xpub = bip32_root(mnemonic_to_seed(self.get_seed(password),'').encode('hex'))
+        seed = self.get_seed(password)
+        xpriv, xpub = bip32_root(seed)
         self.add_master_public_key("m/", xpub)
         self.add_master_private_key("m/", xpriv, password)
 

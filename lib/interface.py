@@ -257,15 +257,16 @@ class TcpInterface(threading.Thread):
         params = request.get('params')
         with self.lock:
             try:
-                self.pipe.send({'id':self.message_id, 'method':method, 'params':params})
+                r = {'id':self.message_id, 'method':method, 'params':params}
+                self.pipe.send(r)
+                if self.debug:
+                    print_error("-->", r)
             except socket.error, e:
                 print_error("socked error:", self.server, e)
                 self.is_connected = False
                 return
             self.unanswered_requests[self.message_id] = method, params, _id, queue
             self.message_id += 1
-        if self.debug:
-            print_error("-->", request)
 
     def parse_proxy_options(self, s):
         if type(s) == type({}): return s  # fixme: type should be fixed
