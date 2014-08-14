@@ -30,6 +30,9 @@ import traceback
 is_local = os.path.dirname(os.path.realpath(__file__)) == os.getcwd()
 is_android = 'ANDROID_DATA' in os.environ
 
+if is_local:
+    sys.path.append('packages')
+
 import __builtin__
 __builtin__.use_local_modules = is_local or is_android
 
@@ -38,9 +41,6 @@ if __builtin__.use_local_modules:
     import imp
     imp.load_module('electrum', *imp.find_module('lib'))
     imp.load_module('electrum_gui', *imp.find_module('gui'))
-
-if is_local:
-    sys.path.append('packages')
 
 
 from electrum import util
