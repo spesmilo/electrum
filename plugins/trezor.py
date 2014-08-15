@@ -112,7 +112,7 @@ class TrezorWallet(NewWallet):
         return False
 
     def default_account(self):
-        return "44'/0'/0'"
+        return "44'/2'/0'"
 
     def get_client(self):
         if not TREZOR:
@@ -133,7 +133,7 @@ class TrezorWallet(NewWallet):
         return self.client
 
     def account_id(self, i):
-        return "44'/0'/%d'"%i
+        return "44'/2'/%d'"%i
 
     def address_id(self, address):
         account_id, (change, address_index) = self.get_address_index(address)
@@ -156,7 +156,7 @@ class TrezorWallet(NewWallet):
 
     def get_master_public_key(self):
         if not self.mpk:
-            self.mpk = self.get_public_key("44'/0'")
+            self.mpk = self.get_public_key("44'/2'")
         return self.mpk
 
     def i4b(self, x):
