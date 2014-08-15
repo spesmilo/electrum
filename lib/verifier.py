@@ -138,7 +138,12 @@ class TxVerifier(threading.Thread):
         self.merkle_roots[tx_hash] = self.hash_merkle_root(result['merkle'], tx_hash, pos)
         header = self.network.get_header(tx_height)
         if not header: return
-        assert header.get('merkle_root') == self.merkle_roots[tx_hash]
+        if header.get('merkle_root') != self.merkle_roots[tx_hash]:
+            print_error("merkle verification failed for", tx_hash)
+            print_error(header)
+            print_error(result)
+            return
+
         # we passed all the tests
         timestamp = header.get('timestamp')
         with self.lock:
