@@ -112,7 +112,7 @@ class TrezorWallet(NewWallet):
         return False
 
     def default_account(self):
-        return "44'/0'/0'"
+        return "44'/2'/0'"
 
     def get_client(self):
         if not TREZOR:
@@ -133,7 +133,7 @@ class TrezorWallet(NewWallet):
         return self.client
 
     def account_id(self, i):
-        return "44'/0'/%d'"%i
+        return "44'/2'/%d'"%i
 
     def address_id(self, address):
         account_id, (change, address_index) = self.get_address_index(address)
@@ -156,7 +156,7 @@ class TrezorWallet(NewWallet):
 
     def get_master_public_key(self):
         if not self.mpk:
-            self.mpk = self.get_public_key("44'/0'")
+            self.mpk = self.get_public_key("44'/2'")
         return self.mpk
 
     def i4b(self, x):
@@ -188,7 +188,7 @@ class TrezorWallet(NewWallet):
         except Exception, e:
             raise
         try:
-            msg_sig = self.get_client().sign_message('Bitcoin', address_n, message)
+            msg_sig = self.get_client().sign_message('Litecoin', address_n, message)
         except Exception, e:
             raise e
         finally:
@@ -206,7 +206,7 @@ class TrezorWallet(NewWallet):
         inputs = self.tx_inputs(tx)
         outputs = self.tx_outputs(tx)
         try:
-            signed_tx = self.get_client().sign_tx('Bitcoin', inputs, outputs)[1]
+            signed_tx = self.get_client().sign_tx('Litecoin', inputs, outputs)[1]
         except Exception, e:
             raise e
         finally:
@@ -300,7 +300,7 @@ class TrezorWallet(NewWallet):
             address = self.addresses(False, False)[0]
             address_id = self.address_id(address)
             n = self.get_client().expand_path(address_id)
-            device_address = self.get_client().get_address('Bitcoin', n)
+            device_address = self.get_client().get_address('Litecoin', n)
             self.device_checked = True
 
             if device_address != address:
