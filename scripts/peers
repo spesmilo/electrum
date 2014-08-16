@@ -87,11 +87,22 @@ for i in reached_servers:
     i.send_request({'method':'blockchain.headers.subscribe','params':[]}, results_queue)
 
 results = {}
+t0 = time.time()
 while reached_servers:
-    i, r = results_queue.get(timeout=10000)
+    try:
+        i, r = results_queue.get(timeout=1)
+    except:
+        if time.time() - t0 > 10:
+            break
+        else:
+            continue
     results[i.server] = r.get('result')
     reached_servers.remove(i)
     i.stop()
+
+for i in reached_servers:
+    print i.server, "did not answer"
+print "%d answers"%len(results)
 
 errors = analyze(results).keys()
 
