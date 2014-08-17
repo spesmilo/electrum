@@ -1,4 +1,4 @@
-from PyQt4.Qt import QMessageBox, QDialog, QVBoxLayout, QLabel, QThread, SIGNAL
+from PyQt4.Qt import QMessageBox, QDialog, QVBoxLayout, QLabel, QThread, SIGNAL, QGridLayout, QInputDialog, QPushButton
 import PyQt4.QtCore as QtCore
 from binascii import unhexlify
 from struct import pack
@@ -7,7 +7,7 @@ from time import sleep
 from base64 import b64encode, b64decode
 
 from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
-from electrum_gui.qt.util import ok_cancel_buttons
+from electrum_gui.qt.util import ok_cancel_buttons, EnterButton
 from electrum.account import BIP32_Account
 from electrum.bitcoin import EncodeBase58Check, public_key_to_bc_address
 from electrum.i18n import _
@@ -39,6 +39,7 @@ class Plugin(BasePlugin):
     def __init__(self, gui, name):
         BasePlugin.__init__(self, gui, name)
         self._is_available = self._init()
+        self._requires_settings = True
         self.wallet = None
 
     def _init(self):
@@ -46,6 +47,9 @@ class Plugin(BasePlugin):
 
     def is_available(self):
         return self._is_available
+
+    def requires_settings(self):
+        return self._requires_settings
 
     def set_enabled(self, enabled):
         self.wallet.storage.put('use_' + self.name, enabled)
@@ -78,6 +82,41 @@ class Plugin(BasePlugin):
             self.wallet.sign_transaction(tx, None, None)
         except Exception as e:
             tx.error = str(e)
+
+    def settings_widget(self, window):
+        return EnterButton(_('Settings'), self.settings_dialog)
+
+    def settings_dialog(self):
+        get_label = lambda: self.wallet.get_client().features.label
+        update_label = lambda: current_label_label.setText("Label: %s" % get_label())
+
+        d = QDialog()
+        layout = QGridLayout(d)
+        layout.addWidget(QLabel("Trezor Options"),0,0)
+        layout.addWidget(QLabel("ID:"),1,0)
+        layout.addWidget(QLabel(" %s" % self.wallet.get_client().get_device_id()),1,1)
+
+        def modify_label():
+            response = QInputDialog().getText(None, "Set New Trezor Label", "New Trezor Label:  (upon submission confirm on Trezor)")
+            if not response[1]:
+                return
+            new_label = str(response[0])
+            twd.start("Please confirm label change on Trezor")
+            status = self.wallet.get_client().apply_settings(label=new_label)
+            twd.stop()
+            update_label()
+
+        current_label_label = QLabel()
+        update_label()
+        change_label_button = QPushButton("Modify")
+        change_label_button.clicked.connect(modify_label)
+        layout.addWidget(current_label_label,3,0)
+        layout.addWidget(change_label_button,3,1)
+
+        if d.exec_():
+          return True
+        else:
+          return False
 
 
 class TrezorWallet(NewWallet):
