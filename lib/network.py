@@ -378,7 +378,7 @@ class Network(threading.Thread):
                 i, response = self.queue.get(timeout=0.1)
             except Queue.Empty:
 
-                if len(self.interfaces) < self.num_server:
+                if len(self.interfaces) + len(self.pending_servers) < self.num_server:
                     self.start_random_interface()
                 if not self.interfaces:
                     if time.time() - self.disconnected_time > DISCONNECTED_RETRY_INTERVAL:
