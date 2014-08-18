@@ -91,8 +91,8 @@ class ClientThread(threading.Thread):
         threading.Thread(target=self.reading_thread).start()
         while self.running:
             try:
-                response = self.response_queue.get()
-            except util.timeout:
+                response = self.response_queue.get(timeout=0.1)
+            except Queue.Empty:
                 continue
             try:
                 self.client_pipe.send(response)
@@ -142,12 +142,12 @@ class NetworkServer(threading.Thread):
             client.response_queue.put({'method':'network.status', 'params':[key, value]})
         with self.lock:
             self.clients.append(client)
+            print_error("new client:", len(self.clients))
 
     def remove_client(self, client):
         with self.lock:
             self.clients.remove(client)
-        print_error("client quit:", len(self.clients))
-
+            print_error("client quit:", len(self.clients))
 
     def send_request(self, client, request):
         with self.lock:
