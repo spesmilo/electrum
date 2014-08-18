@@ -52,7 +52,7 @@ data_files += [
     ])
 ]
 
-# replace tlslite
+# replace tlslite because of https://github.com/trevp/tlslite/issues/15
 os.system("pip install http://download.electrum.org/tlslite-0.4.5.tar.gz")
 
 setup(
