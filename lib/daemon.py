@@ -48,6 +48,8 @@ def get_daemon(config, start_daemon=True):
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.connect(('', daemon_port))
+            if not daemon_started:
+                print_stderr("Connected to daemon on port %d"%daemon_port)
             return s
         except socket.error:
             if not start_daemon:
