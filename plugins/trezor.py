@@ -9,7 +9,7 @@ from base64 import b64encode, b64decode
 from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
 from electrum_gui.qt.util import ok_cancel_buttons
 from electrum.account import BIP32_Account
-from electrum.bitcoin import EncodeBase58Check, public_key_to_bc_address
+from electrum.bitcoin import EncodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
 from electrum.i18n import _
 from electrum.plugins import BasePlugin
 from electrum.transaction import deserialize
@@ -255,23 +255,24 @@ class TrezorWallet(NewWallet):
         outputs = []
 
         for type, address, amount in tx.outputs:
+            assert type == 'address'
             txoutputtype = types.TxOutputType()
-
             if self.is_change(address):
                 address_path = self.address_id(address)
                 address_n = self.get_client().expand_path(address_path)
                 txoutputtype.address_n.extend(address_n)
             else:
                 txoutputtype.address = address
-
             txoutputtype.amount = amount
-
-            txoutputtype.script_type = types.PAYTOADDRESS
-            #TODO
-            #if output['is_p2sh']:
-            #    txoutputtype.script_type = types.PAYTOSCRIPTHASH
-
+            addrtype, hash_160 = bc_address_to_hash_160(address)
+            if addrtype == 0:
+                txoutputtype.script_type = types.PAYTOADDRESS
+            elif addrtype == 5:
+                txoutputtype.script_type = types.PAYTOSCRIPTHASH
+            else:
+                raise BaseException('addrtype')
             outputs.append(txoutputtype)
+
         return outputs
 
     def electrum_tx_to_txtype(self, tx):
