@@ -108,6 +108,12 @@ class TrezorWallet(NewWallet):
     def can_create_accounts(self):
         return True
 
+    def can_change_password(self):
+        return False
+
+    def has_seed(self):
+        return False
+
     def is_watching_only(self):
         return False
 

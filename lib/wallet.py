@@ -992,6 +992,12 @@ class Abstract_Wallet(object):
     def can_sign(self, tx):
         pass
 
+    def is_watching_only(self):
+        False
+
+    def can_change_password(self):
+        return not self.is_watching_only()
+
 class Imported_Wallet(Abstract_Wallet):
 
     def __init__(self, storage):
