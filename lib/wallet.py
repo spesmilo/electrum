@@ -961,6 +961,10 @@ class Abstract_Wallet(object):
     def get_accounts(self):
         return self.accounts
 
+    def add_account(self, account_id, account):
+        self.accounts[account_id] = account
+        self.save_accounts()
+
     def save_accounts(self):
         d = {}
         for k, v in self.accounts.items():
@@ -1136,13 +1140,7 @@ class Deterministic_Wallet(Abstract_Wallet):
                 self.create_new_address(account, for_change)
 
     def check_pending_accounts(self):
-        for account_id, addr in self.next_addresses.items():
-            if self.address_is_old(addr):
-                print_error( "creating account", account_id )
-                xpub = self.master_public_keys[account_id]
-                account = BIP32_Account({'xpub':xpub})
-                self.add_account(account_id, account)
-                self.next_addresses.pop(account_id)
+        pass
 
     def synchronize_account(self, account):
         self.synchronize_sequence(account, 0)
@@ -1184,35 +1182,6 @@ class Deterministic_Wallet(Abstract_Wallet):
             self.synchronize()
         self.fill_addressbook()
 
-    def create_account(self, name, password):
-        i = self.num_accounts()
-        account_id = self.account_id(i)
-        account = self.make_account(account_id, password)
-        self.add_account(account_id, account)
-        if name:
-            self.set_label(account_id, name)
-
-        # add address of the next account
-        _, _ = self.next_account_address(password)
-
-
-    def add_account(self, account_id, account):
-        self.accounts[account_id] = account
-        self.save_accounts()
-
-    def account_is_pending(self, k):
-        return type(self.accounts.get(k)) == PendingAccount
-
-    def delete_pending_account(self, k):
-        assert self.account_is_pending(k)
-        self.accounts.pop(k)
-        self.save_accounts()
-
-    def create_pending_account(self, name, password):
-        account_id, addr = self.next_account_address(password)
-        self.set_label(account_id, name)
-        self.accounts[account_id] = PendingAccount({'pending':addr})
-        self.save_accounts()
 
     def is_beyond_limit(self, address, account, is_change):
         if type(account) == ImportedAccount:
@@ -1236,7 +1205,9 @@ class Deterministic_Wallet(Abstract_Wallet):
             return 'create_accounts'
 
 
-class NewWallet(Deterministic_Wallet):
+
+class BIP32_Wallet(Deterministic_Wallet):
+    # bip32 derivation
 
     def __init__(self, storage):
         Deterministic_Wallet.__init__(self, storage)
@@ -1283,7 +1254,7 @@ class NewWallet(Deterministic_Wallet):
         self.add_master_public_key(account_id, xpub)
         self.add_account(account_id, account)
 
-    def create_watching_only_wallet(self, xpub):
+    def create_xpub_wallet(self, xpub):
         account = BIP32_Account({'xpub':xpub})
         account_id = 'm/' + bitcoin.get_xkey_name(xpub)
         self.storage.put('seed_version', self.seed_version, True)
@@ -1304,25 +1275,6 @@ class NewWallet(Deterministic_Wallet):
         self.master_private_keys[name] = pw_encode(xpriv, password)
         self.storage.put('master_private_keys', self.master_private_keys, True)
 
-    def add_master_keys(self, root, account_id, password):
-        x = self.master_private_keys.get(root)
-        if x:
-            master_xpriv = pw_decode(x, password )
-            xpriv, xpub = bip32_private_derivation(master_xpriv, root, account_id)
-            self.add_master_public_key(account_id, xpub)
-            self.add_master_private_key(account_id, xpriv, password)
-        else:
-            master_xpub = self.master_public_keys[root]
-            xpub = bip32_public_derivation(master_xpub, root, account_id)
-            self.add_master_public_key(account_id, xpub)
-        return xpub
-
-    def create_master_keys(self, password):
-        seed = self.get_seed(password)
-        xpriv, xpub = bip32_root(seed)
-        self.add_master_public_key("m/", xpub)
-        self.add_master_private_key("m/", xpriv, password)
-
     def can_sign(self, tx):
         if self.is_watching_only():
             return False
@@ -1338,31 +1290,52 @@ class NewWallet(Deterministic_Wallet):
                 return True
         return False
 
-    def num_accounts(self):
-        keys = []
-        for k, v in self.accounts.items():
-            if type(v) != BIP32_Account:
-                continue
-            keys.append(k)
 
-        i = 0
-        while True:
-            account_id = self.account_id(i)
-            if account_id not in keys: break
-            i += 1
-        return i
+class BIP32_HD_Wallet(BIP32_Wallet):
+    # sequence of accounts
+
+    def create_account(self, name, password):
+        i = self.num_accounts()
+        account_id = self.account_id(i)
+        account = self.make_account(account_id, password)
+        self.add_account(account_id, account)
+        if name:
+            self.set_label(account_id, name)
+        # add address of the next account
+        _, _ = self.next_account_address(password)
+
+    def account_is_pending(self, k):
+        return type(self.accounts.get(k)) == PendingAccount
+
+    def delete_pending_account(self, k):
+        assert self.account_is_pending(k)
+        self.accounts.pop(k)
+        self.save_accounts()
+
+    def create_pending_account(self, name, password):
+        account_id, addr = self.next_account_address(password)
+        self.set_label(account_id, name)
+        self.accounts[account_id] = PendingAccount({'pending':addr})
+        self.save_accounts()
+
+    def check_pending_accounts(self):
+        for account_id, addr in self.next_addresses.items():
+            if self.address_is_old(addr):
+                print_error( "creating account", account_id )
+                xpub = self.master_public_keys[account_id]
+                account = BIP32_Account({'xpub':xpub})
+                self.add_account(account_id, account)
+                self.next_addresses.pop(account_id)
 
     def next_account_address(self, password):
         i = self.num_accounts()
         account_id = self.account_id(i)
-
         addr = self.next_addresses.get(account_id)
         if not addr:
             account = self.make_account(account_id, password)
             addr = account.first_address()
             self.next_addresses[account_id] = addr
             self.storage.put('next_addresses', self.next_addresses)
-
         return account_id, addr
 
     def account_id(self, i):
@@ -1374,6 +1347,36 @@ class NewWallet(Deterministic_Wallet):
         account = BIP32_Account({'xpub':xpub})
         return account
 
+    def num_accounts(self):
+        keys = []
+        for k, v in self.accounts.items():
+            if type(v) != BIP32_Account:
+                continue
+            keys.append(k)
+        i = 0
+        while True:
+            account_id = self.account_id(i)
+            if account_id not in keys: break
+            i += 1
+        return i
+
+    def add_master_keys(self, root, account_id, password):
+        x = self.master_private_keys.get(root)
+        if x:
+            master_xpriv = pw_decode(x, password )
+            xpriv, xpub = bip32_private_derivation(master_xpriv, root, account_id)
+            self.add_master_public_key(account_id, xpub)
+            self.add_master_private_key(account_id, xpriv, password)
+        else:
+            master_xpub = self.master_public_keys[root]
+            xpub = bip32_public_derivation(master_xpub, root, account_id)
+            self.add_master_public_key(account_id, xpub)
+        return xpub
+
+
+
+class NewWallet(BIP32_HD_Wallet):
+    # BIP39 seed generation
 
     @classmethod
     def make_seed(self, custom_entropy=1):
@@ -1401,6 +1404,14 @@ class NewWallet(Deterministic_Wallet):
     def prepare_seed(self, seed):
         import unicodedata
         return NEW_SEED_VERSION, unicodedata.normalize('NFC', unicode(seed.strip()))
+
+    def create_master_keys(self, password):
+        seed = self.get_seed(password)
+        xpriv, xpub = bip32_root(seed)
+        self.add_master_public_key("m/", xpub)
+        self.add_master_private_key("m/", xpriv, password)
+
+
 
 
 class Wallet_2of2(NewWallet):
@@ -1538,9 +1549,6 @@ class OldWallet(Deterministic_Wallet):
         import mnemonic
         s = self.get_seed(password)
         return ' '.join(mnemonic.mn_encode(s))
-
-    def check_pending_accounts(self):
-        pass
 
     def can_sign(self, tx):
         if self.is_watching_only():
@@ -1684,12 +1692,12 @@ class Wallet(object):
 
     @classmethod
     def from_xpub(self, xpub, storage):
-        w = NewWallet(storage)
-        w.create_watching_only_wallet(xpub)
+        w = BIP32_Wallet(storage)
+        w.create_xpub_wallet(xpub)
         return w
 
     @classmethod
     def from_xprv(self, xprv, password, storage):
-        w = NewWallet(storage)
+        w = BIP32_Wallet(storage)
         w.create_xprv_wallet(xprv, password)
         return w
