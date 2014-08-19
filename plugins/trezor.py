@@ -70,7 +70,11 @@ class Plugin(BasePlugin):
 
     def installwizard_restore(self, wizard, storage):
         wallet = TrezorWallet(storage)
-        wallet.create_accounts(None)
+        try:
+            wallet.create_accounts(None)
+        except BaseException as e:
+            QMessageBox.information(None, _('Error'), str(e), _('OK'))
+            return
         return wallet
 
     def send_tx(self, tx):
