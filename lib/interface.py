@@ -36,15 +36,6 @@ proxy_modes = ['socks4', 'socks5', 'http']
 import util
 
 
-def cert_verify_hostname(s):
-    # hostname verification (disabled)
-    from backports.ssl_match_hostname import match_hostname, CertificateError
-    try:
-        match_hostname(s.getpeercert(True), host)
-        print_error("hostname matches", host)
-    except CertificateError, ce:
-        print_error("hostname did not match", host)
-
 
 
 def Interface(server, config = None):
