@@ -240,6 +240,7 @@ if __name__ == '__main__':
                 })
             elif arg == 'stop':
                 network.stop_daemon()
+                print_msg("Daemon stopped")
             network.stop()
         else:
             print "unknown command \"%s\""% arg
