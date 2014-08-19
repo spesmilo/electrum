@@ -1275,25 +1275,6 @@ class BIP32_Wallet(Deterministic_Wallet):
         self.master_private_keys[name] = pw_encode(xpriv, password)
         self.storage.put('master_private_keys', self.master_private_keys, True)
 
-    def add_master_keys(self, root, account_id, password):
-        x = self.master_private_keys.get(root)
-        if x:
-            master_xpriv = pw_decode(x, password )
-            xpriv, xpub = bip32_private_derivation(master_xpriv, root, account_id)
-            self.add_master_public_key(account_id, xpub)
-            self.add_master_private_key(account_id, xpriv, password)
-        else:
-            master_xpub = self.master_public_keys[root]
-            xpub = bip32_public_derivation(master_xpub, root, account_id)
-            self.add_master_public_key(account_id, xpub)
-        return xpub
-
-    def create_master_keys(self, password):
-        seed = self.get_seed(password)
-        xpriv, xpub = bip32_root(seed)
-        self.add_master_public_key("m/", xpub)
-        self.add_master_private_key("m/", xpriv, password)
-
     def can_sign(self, tx):
         if self.is_watching_only():
             return False
@@ -1379,6 +1360,20 @@ class BIP32_HD_Wallet(BIP32_Wallet):
             i += 1
         return i
 
+    def add_master_keys(self, root, account_id, password):
+        x = self.master_private_keys.get(root)
+        if x:
+            master_xpriv = pw_decode(x, password )
+            xpriv, xpub = bip32_private_derivation(master_xpriv, root, account_id)
+            self.add_master_public_key(account_id, xpub)
+            self.add_master_private_key(account_id, xpriv, password)
+        else:
+            master_xpub = self.master_public_keys[root]
+            xpub = bip32_public_derivation(master_xpub, root, account_id)
+            self.add_master_public_key(account_id, xpub)
+        return xpub
+
+
 
 class NewWallet(BIP32_HD_Wallet):
     # BIP39 seed generation
@@ -1409,6 +1404,12 @@ class NewWallet(BIP32_HD_Wallet):
     def prepare_seed(self, seed):
         import unicodedata
         return NEW_SEED_VERSION, unicodedata.normalize('NFC', unicode(seed.strip()))
+
+    def create_master_keys(self, password):
+        seed = self.get_seed(password)
+        xpriv, xpub = bip32_root(seed)
+        self.add_master_public_key("m/", xpub)
+        self.add_master_private_key("m/", xpriv, password)
 
 
 
