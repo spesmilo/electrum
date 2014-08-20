@@ -341,7 +341,7 @@ class TrezorQtGuiMixin(object):
 
     def callback_PinMatrixRequest(self, msg):
         if msg.type == 1:
-            desc = 'old PIN'
+            desc = 'current PIN'
         elif msg.type == 2:
             desc = 'new PIN'
         elif msg.type == 3:
