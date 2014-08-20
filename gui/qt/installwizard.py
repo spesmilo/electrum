@@ -421,7 +421,11 @@ class InstallWizard(QDialog):
                 wallet.add_master_public_key("remote/", xpub2)
 
             elif action == 'create_accounts':
-                wallet.create_accounts(password)
+                try:
+                    wallet.create_accounts(password)
+                except BaseException as e:
+                    QMessageBox.information(None, _('Error'), str(e), _('OK'))
+                    return
                 self.waiting_dialog(wallet.synchronize)
 
             elif action == 'create_cold_seed':

@@ -221,7 +221,7 @@ class ElectrumWindow(QMainWindow):
         # update menus
         self.new_account_menu.setEnabled(self.wallet.can_create_accounts())
         self.private_keys_menu.setEnabled(not self.wallet.is_watching_only())
-        self.password_menu.setEnabled(not self.wallet.is_watching_only())
+        self.password_menu.setEnabled(self.wallet.can_change_password())
         self.seed_menu.setEnabled(self.wallet.has_seed())
         self.mpk_menu.setEnabled(self.wallet.is_deterministic())
         self.import_menu.setEnabled(self.wallet.can_import())
@@ -1725,17 +1725,9 @@ class ElectrumWindow(QMainWindow):
 
 
     def update_buttons_on_seed(self):
-        if self.wallet.has_seed():
-           self.seed_button.show()
-        else:
-           self.seed_button.hide()
-
-        if not self.wallet.is_watching_only():
-           self.password_button.show()
-           self.send_button.setText(_("Send"))
-        else:
-           self.password_button.hide()
-           self.send_button.setText(_("Create unsigned transaction"))
+        self.seed_button.setVisible(self.wallet.has_seed())
+        self.password_button.setVisible(self.wallet.can_change_password())
+        self.send_button.setText(_("Create unsigned transaction") if self.wallet.is_watching_only() else _("Send"))
 
 
     def change_password_dialog(self):
