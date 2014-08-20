@@ -1273,18 +1273,11 @@ class BIP32_Wallet(Deterministic_Wallet):
         self.master_private_keys[name] = pw_encode(xpriv, password)
         self.storage.put('master_private_keys', self.master_private_keys, True)
 
-    def add_master_keys(self, root, derivation, password):
-        x = self.master_private_keys.get(root)
-        if x:
-            master_xpriv = pw_decode(x, password )
-            xpriv, xpub = bip32_private_derivation(master_xpriv, root, derivation)
-            self.add_master_public_key(derivation, xpub)
-            self.add_master_private_key(derivation, xpriv, password)
-        else:
-            master_xpub = self.master_public_keys[root]
-            xpub = bip32_public_derivation(master_xpub, root, derivation)
-            self.add_master_public_key(derivation, xpub)
-        return xpub
+    def derive_xkeys(self, root, derivation, password):
+        x = self.master_private_keys[root]
+        root_xprv = pw_decode(x, password)
+        xprv, xpub = bip32_private_derivation(root_xprv, root, derivation)
+        return xpub, xprv
 
     def can_sign(self, tx):
         if self.is_watching_only():
@@ -1359,7 +1352,11 @@ class BIP32_HD_Wallet(BIP32_Wallet):
     def make_account(self, account_id, password):
         """Creates and saves the master keys, but does not save the account"""
         derivation = self.root_name + "%d'"%int(account_id)
-        xpub = self.add_master_keys(self.root_name, derivation, password)
+        xpub, xprv = self.derive_xkeys(self.root_name, derivation, password)
+        self.add_master_public_key(derivation, xpub)
+        if xprv:
+            self.add_master_private_key(derivation, xprv, password)
+
         account = BIP32_Account({'xpub':xpub})
         return account
 

@@ -424,6 +424,8 @@ class InstallWizard(QDialog):
                 try:
                     wallet.create_main_account(password)
                 except BaseException as e:
+                    import traceback
+                    traceback.print_exc(file=sys.stdout)
                     QMessageBox.information(None, _('Error'), str(e), _('OK'))
                     return
                 self.waiting_dialog(wallet.synchronize)

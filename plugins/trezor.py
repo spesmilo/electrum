@@ -71,7 +71,7 @@ class Plugin(BasePlugin):
     def installwizard_restore(self, wizard, storage):
         wallet = TrezorWallet(storage)
         try:
-            wallet.create_accounts(None)
+            wallet.create_main_account(None)
         except BaseException as e:
             QMessageBox.information(None, _('Error'), str(e), _('OK'))
             return
@@ -85,24 +85,13 @@ class Plugin(BasePlugin):
 
 
 class TrezorWallet(NewWallet):
+    wallet_type = 'trezor'
 
     def __init__(self, storage):
+        NewWallet.__init__(self, storage)
         self.transport = None
         self.client = None
         self.mpk = None
-
-        NewWallet.__init__(self, storage)
-
-        self.seed = 'trezor'
-
-        self.storage.put('gap_limit', 20, False)    #obey BIP44 gap limit of 20
-
-        self.use_encryption = False
-
-        self.storage.put('seed', self.seed, False)
-        self.storage.put('seed_version', self.seed_version, False)
-        self.storage.put('use_encryption', self.use_encryption, False)
-
         self.device_checked = False
 
     def get_action(self):
@@ -120,9 +109,6 @@ class TrezorWallet(NewWallet):
 
     def is_watching_only(self):
         return False
-
-    def default_account(self):
-        return "44'/0'/0'"
 
     def get_client(self):
         if not TREZOR:
@@ -144,21 +130,17 @@ class TrezorWallet(NewWallet):
             self.proper_device = False
         return self.client
 
-    def account_id(self, i):
-        return "44'/0'/%d'"%i
-
     def address_id(self, address):
         account_id, (change, address_index) = self.get_address_index(address)
         return "%s/%d/%d" % (account_id, change, address_index)
 
-    def create_accounts(self, password):
-        self.create_account('Main account', '') #name, empty password
+    def create_main_account(self, password):
+        self.create_account('Main account', None) #name, empty password
 
-    def make_account(self, account_id, password):
-        xpub = self.get_public_key(account_id)
-        self.add_master_public_key(account_id, xpub)
-        account = BIP32_Account({'xpub':xpub})
-        return account
+    def derive_xkeys(self, root, derivation, password):
+        derivation = derivation.replace(self.root_name,"44'/0'/")
+        xpub = self.get_public_key(derivation)
+        return xpub, None
 
     def get_public_key(self, bip32_path):
         address_n = self.get_client().expand_path(bip32_path)
