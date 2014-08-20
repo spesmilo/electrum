@@ -172,7 +172,7 @@ class TrezorWallet(NewWallet):
         return self.mpk
 
     def i4b(self, x):
-        return pack('I', x)
+        return pack('>I', x)
 
     def add_keypairs(self, tx, keypairs, password):
         #do nothing - no priv keys available
