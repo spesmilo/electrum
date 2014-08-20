@@ -24,6 +24,7 @@ import threading
 import random
 import time
 import math
+import json
 
 from util import print_msg, print_error
 
@@ -90,15 +91,16 @@ class WalletStorage(object):
         except IOError:
             return
         try:
-            d = ast.literal_eval( data )  #parse raw data from reading wallet file
-        except Exception:
-            raise IOError("Cannot read wallet file.")
-
+            d = json.loads(data)
+        except:
+            try:
+                d = ast.literal_eval(data)  #parse raw data from reading wallet file
+            except Exception:
+                raise IOError("Cannot read wallet file.")
         self.data = d
         self.file_exists = True
 
     def get(self, key, default=None):
-
         with self.lock:
             v = self.data.get(key)
             if v is None:
@@ -116,9 +118,9 @@ class WalletStorage(object):
                 self.write()
 
     def write(self):
-        s = repr(self.data)
+        s = json.dumps(self.data, indent=4, sort_keys=True)
         f = open(self.path,"w")
-        f.write( s )
+        f.write(s)
         f.close()
         if 'ANDROID_DATA' not in os.environ:
             import stat
