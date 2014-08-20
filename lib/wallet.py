@@ -229,7 +229,7 @@ class Abstract_Wallet(object):
 
         d = self.storage.get('accounts', {})
         for k, v in d.items():
-            if k == 0:
+            if self.wallet_type == 'old' and k in [0, '0']:
                 v['mpk'] = self.storage.get('master_public_key')
                 self.accounts[k] = OldAccount(v)
             elif v.get('imported'):
@@ -1124,6 +1124,9 @@ class Deterministic_Wallet(Abstract_Wallet):
                     if n > nmax: nmax = n
         return nmax + 1
 
+    def default_account(self):
+        return self.accounts['0']
+
     def create_new_address(self, account=None, for_change=0):
         if account is None:
             account = self.default_account()
@@ -1230,9 +1233,6 @@ class BIP32_Wallet(Deterministic_Wallet):
         self.master_public_keys  = storage.get('master_public_keys', {})
         self.master_private_keys = storage.get('master_private_keys', {})
         self.gap_limit = 20
-
-    def default_account(self):
-        return self.accounts['0']
 
     def is_watching_only(self):
         return not bool(self.master_private_keys)
@@ -1483,9 +1483,7 @@ class Wallet_2of3(Wallet_2of2):
 
 
 class OldWallet(Deterministic_Wallet):
-
-    def default_account(self):
-        return self.accounts[0]
+    wallet_type = 'old'
 
     def make_seed(self):
         import mnemonic
@@ -1526,7 +1524,7 @@ class OldWallet(Deterministic_Wallet):
         self.create_account(mpk)
 
     def create_account(self, mpk):
-        self.accounts[0] = OldAccount({'mpk':mpk, 0:[], 1:[]})
+        self.accounts['0'] = OldAccount({'mpk':mpk, 0:[], 1:[]})
         self.save_accounts()
 
     def create_watching_only_wallet(self, mpk):
@@ -1541,7 +1539,7 @@ class OldWallet(Deterministic_Wallet):
 
     def check_password(self, password):
         seed = self.get_seed(password)
-        self.accounts[0].check_seed(seed)
+        self.accounts['0'].check_seed(seed)
 
     def get_mnemonic(self, password):
         import mnemonic
@@ -1572,6 +1570,7 @@ class Wallet(object):
         config = storage.config
 
         self.wallet_types = [ 
+            ('old',      ("Old wallet"),               OldWallet),
             ('standard', ("Standard wallet"),          NewWallet),
             ('imported', ("Imported wallet"),          Imported_Wallet),
             ('2of2',     ("Multisig wallet (2 of 2)"), Wallet_2of2),
@@ -1596,7 +1595,7 @@ class Wallet(object):
             return NewWallet(storage)
         else:
             msg = "This wallet seed is not supported."
-            if seed_version in [5]:
+            if seed_version in [5, 7]:
                 msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
             print msg
             sys.exit(1)
