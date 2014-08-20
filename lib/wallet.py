@@ -177,6 +177,11 @@ class Abstract_Wallet(object):
         for tx_hash, tx in self.transactions.items():
             self.update_tx_outputs(tx_hash)
 
+        # save wallet type the first time
+        if self.storage.get('wallet_type') is None:
+            self.storage.put('wallet_type', self.wallet_type, True)
+
+
     def load_transactions(self):
         self.transactions = {}
         tx_list = self.storage.get('transactions',{})
@@ -1005,13 +1010,13 @@ class Abstract_Wallet(object):
         return not self.is_watching_only()
 
 class Imported_Wallet(Abstract_Wallet):
+    wallet_type = 'imported'
 
     def __init__(self, storage):
         Abstract_Wallet.__init__(self, storage)
         a = self.accounts.get(IMPORTED_ACCOUNT)
         if not a:
             self.accounts[IMPORTED_ACCOUNT] = ImportedAccount({'imported':{}})
-        self.storage.put('wallet_type', 'imported', True)
 
     def is_watching_only(self):
         acc = self.accounts[IMPORTED_ACCOUNT]
@@ -1218,6 +1223,7 @@ class Deterministic_Wallet(Abstract_Wallet):
 class BIP32_Wallet(Deterministic_Wallet):
     # Wallet with a single BIP32 account, no seed
     # gap limit 20
+    root_name = 'x/'
 
     def __init__(self, storage):
         Deterministic_Wallet.__init__(self, storage)
@@ -1415,6 +1421,7 @@ class NewWallet(BIP32_HD_Wallet, BIP39_Wallet):
     # bip 44
     root_name = 'root/'
     root_derivation = "m/44'/0'"
+    wallet_type = 'standard'
 
 
 class Wallet_2of2(BIP39_Wallet):
@@ -1422,10 +1429,7 @@ class Wallet_2of2(BIP39_Wallet):
     # Cannot create accounts
     root_name = "x1/"
     root_derivation = "m/44'/0'"
-
-    def __init__(self, storage):
-        BIP39_Wallet.__init__(self, storage)
-        self.storage.put('wallet_type', '2of2', True)
+    wallet_type = '2of2'
 
     def can_import(self):
         return False
@@ -1453,11 +1457,8 @@ class Wallet_2of2(BIP39_Wallet):
 
 
 class Wallet_2of3(Wallet_2of2):
-    """ This class is used for multisignature addresses"""
-
-    def __init__(self, storage):
-        Wallet_2of2.__init__(self, storage)
-        self.storage.put('wallet_type', '2of3', True)
+    # multisig 2 of 3
+    wallet_type = '2of3'
 
     def create_main_account(self, password):
         xpub1 = self.master_public_keys.get("x1/")
