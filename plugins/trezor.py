@@ -94,7 +94,7 @@ class TrezorWallet(NewWallet):
         NewWallet.__init__(self, storage)
 
         self.seed = 'trezor'
-        
+
         self.storage.put('gap_limit', 20, False)    #obey BIP44 gap limit of 20
 
         self.use_encryption = False
@@ -133,6 +133,8 @@ class TrezorWallet(NewWallet):
                 d = HidTransport.enumerate()[0]
                 self.transport = HidTransport(d)
             except:
+                d = QDialog()
+                QMessageBox.warning(d, _('Warning'), _('Could not connect to your Trezor. Please verify the cable is connected and that no other app is using it.'), _('OK'))
                 raise Exception("Trezor not found")
             self.client = QtGuiTrezorClient(self.transport)
             self.client.set_tx_api(self)
@@ -170,7 +172,7 @@ class TrezorWallet(NewWallet):
         return self.mpk
 
     def i4b(self, x):
-        return pack('I', x)
+        return pack('>I', x)
 
     def add_keypairs(self, tx, keypairs, password):
         #do nothing - no priv keys available
@@ -341,7 +343,7 @@ class TrezorQtGuiMixin(object):
 
     def callback_PinMatrixRequest(self, msg):
         if msg.type == 1:
-            desc = 'old PIN'
+            desc = 'current PIN'
         elif msg.type == 2:
             desc = 'new PIN'
         elif msg.type == 3:
