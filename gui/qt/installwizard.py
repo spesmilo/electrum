@@ -373,21 +373,22 @@ class InstallWizard(QDialog):
 
         if action == 'new':
             action, wallet_type = self.restore_or_create()
+            if action == 'create':
+                self.storage.put('wallet_type', wallet_type)
+
         if action is None:
             return
+
         if action == 'restore':
             wallet = self.restore(wallet_type)
             if not wallet:
                 return
             action = None
-        elif action == 'create':
-            self.storage.put('wallet_type', wallet_type)
+        else:
             wallet = Wallet(self.storage)
             action = wallet.get_action()
             # fixme: password is only needed for multiple accounts
             password = None
-        else:
-            raise BaseException('unknown action')
 
         while action is not None:
             util.print_error("installwizard:", wallet, action)
