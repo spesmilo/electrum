@@ -381,6 +381,7 @@ class InstallWizard(QDialog):
                 return
             action = None
         elif action == 'create':
+            self.storage.put('wallet_type', wallet_type)
             wallet = Wallet(self.storage)
             action = wallet.get_action()
             # fixme: password is only needed for multiple accounts
