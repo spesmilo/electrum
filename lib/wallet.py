@@ -138,7 +138,6 @@ class Abstract_Wallet(object):
         self.gap_limit_for_change = 3 # constant
         # saved fields
         self.seed_version          = storage.get('seed_version', NEW_SEED_VERSION)
-        self.gap_limit             = storage.get('gap_limit', 5)
         self.use_change            = storage.get('use_change',True)
         self.use_encryption        = storage.get('use_encryption', False)
         self.seed                  = storage.get('seed', '')               # encrypted
@@ -1223,16 +1222,15 @@ class Deterministic_Wallet(Abstract_Wallet):
         return out
 
 
+
 class BIP32_Wallet(Deterministic_Wallet):
-    # Wallet with a single BIP32 account, no seed
-    # gap limit 20
-    root_name = 'x/'
+    # abstract class, bip32 logic
+    gap_limit = 20
 
     def __init__(self, storage):
         Deterministic_Wallet.__init__(self, storage)
         self.master_public_keys  = storage.get('master_public_keys', {})
         self.master_private_keys = storage.get('master_private_keys', {})
-        self.gap_limit = 20
 
     def is_watching_only(self):
         return not bool(self.master_private_keys)
@@ -1250,20 +1248,6 @@ class BIP32_Wallet(Deterministic_Wallet):
         xpriv = self.get_master_private_key(self.root_name, password)
         xpub = self.master_public_keys[self.root_name]
         assert deserialize_xkey(xpriv)[3] == deserialize_xkey(xpub)[3]
-
-    def create_xprv_wallet(self, xprv, password):
-        xpub = bitcoin.xpub_from_xprv(xprv)
-        account = BIP32_Account({'xpub':xpub})
-        self.storage.put('seed_version', self.seed_version, True)
-        self.add_master_private_key(self.root_name, xprv, password)
-        self.add_master_public_key(self.root_name, xpub)
-        self.add_account('0', account)
-
-    def create_xpub_wallet(self, xpub):
-        account = BIP32_Account({'xpub':xpub})
-        self.storage.put('seed_version', self.seed_version, True)
-        self.add_master_public_key(self.root_name, xpub)
-        self.add_account('0', account)
 
     def add_master_public_key(self, name, xpub):
         self.master_public_keys[name] = xpub
@@ -1293,6 +1277,27 @@ class BIP32_Wallet(Deterministic_Wallet):
             if xpub in mpk:
                 return True
         return False
+
+
+class BIP32_Simple_Wallet(BIP32_Wallet):
+    # Wallet with a single BIP32 account, no seed
+    # gap limit 20
+    root_name = 'x/'
+    wallet_type = 'xpub'
+
+    def create_xprv_wallet(self, xprv, password):
+        xpub = bitcoin.xpub_from_xprv(xprv)
+        account = BIP32_Account({'xpub':xpub})
+        self.storage.put('seed_version', self.seed_version, True)
+        self.add_master_private_key(self.root_name, xprv, password)
+        self.add_master_public_key(self.root_name, xpub)
+        self.add_account('0', account)
+
+    def create_xpub_wallet(self, xpub):
+        account = BIP32_Account({'xpub':xpub})
+        self.storage.put('seed_version', self.seed_version, True)
+        self.add_master_public_key(self.root_name, xpub)
+        self.add_account('0', account)
 
 
 class BIP32_HD_Wallet(BIP32_Wallet):
@@ -1484,6 +1489,11 @@ class Wallet_2of3(Wallet_2of2):
 
 class OldWallet(Deterministic_Wallet):
     wallet_type = 'old'
+    gap_limit = 5
+
+    def __init__(self, storage):
+        Deterministic_Wallet.__init__(self, storage)
+        self.gap_limit = storage.get('gap_limit', 5)
 
     def make_seed(self):
         import mnemonic
@@ -1571,6 +1581,7 @@ class Wallet(object):
 
         self.wallet_types = [ 
             ('old',      ("Old wallet"),               OldWallet),
+            ('xpub',     ("BIP32 Import"),             BIP32_Simple_Wallet),
             ('standard', ("Standard wallet"),          NewWallet),
             ('imported', ("Imported wallet"),          Imported_Wallet),
             ('2of2',     ("Multisig wallet (2 of 2)"), Wallet_2of2),
@@ -1689,12 +1700,12 @@ class Wallet(object):
 
     @classmethod
     def from_xpub(self, xpub, storage):
-        w = BIP32_Wallet(storage)
+        w = BIP32_Simple_Wallet(storage)
         w.create_xpub_wallet(xpub)
         return w
 
     @classmethod
     def from_xprv(self, xprv, password, storage):
-        w = BIP32_Wallet(storage)
+        w = BIP32_Simple_Wallet(storage)
         w.create_xprv_wallet(xprv, password)
         return w
