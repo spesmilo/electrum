@@ -1574,7 +1574,7 @@ class Wallet(object):
         config = storage.config
 
         self.wallet_types = [ 
-            ('standard', ("Standard wallet"),          NewWallet if config.get('bip32') else OldWallet),
+            #('standard', ("Standard wallet"),          NewWallet if config.get('bip32') else OldWallet),
             ('imported', ("Imported wallet"),          Imported_Wallet),
             ('2of2',     ("Multisig wallet (2 of 2)"), Wallet_2of2),
             ('2of3',     ("Multisig wallet (2 of 3)"), Wallet_2of3)
