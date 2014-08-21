@@ -373,25 +373,22 @@ class InstallWizard(QDialog):
 
         if action == 'new':
             action, wallet_type = self.restore_or_create()
-            self.storage.put('wallet_type', wallet_type, False)
-
         if action is None:
             return
-
         if action == 'restore':
             wallet = self.restore(wallet_type)
             if not wallet:
                 return
             action = None
-
-        else:
+        elif action == 'create':
             wallet = Wallet(self.storage)
             action = wallet.get_action()
             # fixme: password is only needed for multiple accounts
             password = None
+        else:
+            raise BaseException('unknown action')
 
         while action is not None:
-
             util.print_error("installwizard:", wallet, action)
 
             if action == 'create_seed':
@@ -457,12 +454,10 @@ class InstallWizard(QDialog):
         if action == 'restore':
             self.waiting_dialog(lambda: wallet.restore(self.waiting_label.setText))
             if self.network:
-                if wallet.is_found():
-                    QMessageBox.information(None, _('Information'), _("Recovery successful"), _('OK'))
-                else:
-                    QMessageBox.information(None, _('Information'), _("No transactions found for this seed"), _('OK'))
+                msg = _("Recovery successful") if wallet.is_found() else _("No transactions found for this seed")
             else:
-                QMessageBox.information(None, _('Information'), _("This wallet was restored offline. It may contain more addresses than displayed."), _('OK'))
+                msg = _("This wallet was restored offline. It may contain more addresses than displayed.")
+            QMessageBox.information(None, _('Information'), msg, _('OK'))
 
         return wallet
 
@@ -491,7 +486,7 @@ class InstallWizard(QDialog):
                 elif Wallet.is_private_key(text):
                     wallet = Wallet.from_private_key(text, self.storage)
                 else:
-                    raise
+                    raise BaseException('unknown wallet type')
 
             elif t in ['2of2']:
                 r = self.multi_seed_dialog(1)
