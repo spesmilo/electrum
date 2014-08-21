@@ -373,7 +373,8 @@ class InstallWizard(QDialog):
 
         if action == 'new':
             action, wallet_type = self.restore_or_create()
-            self.storage.put('wallet_type', wallet_type, False)
+            if action == 'create':
+                self.storage.put('wallet_type', wallet_type)
 
         if action is None:
             return
@@ -383,7 +384,6 @@ class InstallWizard(QDialog):
             if not wallet:
                 return
             action = None
-
         else:
             wallet = Wallet(self.storage)
             action = wallet.get_action()
@@ -391,7 +391,6 @@ class InstallWizard(QDialog):
             password = None
 
         while action is not None:
-
             util.print_error("installwizard:", wallet, action)
 
             if action == 'create_seed':
@@ -404,26 +403,28 @@ class InstallWizard(QDialog):
                 wallet.add_seed(seed, password)
 
             elif action == 'add_cosigner':
-                xpub_hot = wallet.master_public_keys.get("m/")
-                r = self.multi_mpk_dialog(xpub_hot, 1)
+                xpub1 = wallet.master_public_keys.get("x1/")
+                r = self.multi_mpk_dialog(xpub1, 1)
                 if not r:
                     return
-                xpub_cold = r[0]
-                wallet.add_master_public_key("cold/", xpub_cold)
+                xpub2 = r[0]
+                wallet.add_master_public_key("x2/", xpub2)
 
             elif action == 'add_two_cosigners':
-                xpub_hot = wallet.master_public_keys.get("m/")
-                r = self.multi_mpk_dialog(xpub_hot, 2)
+                xpub1 = wallet.master_public_keys.get("x1/")
+                r = self.multi_mpk_dialog(xpub1, 2)
                 if not r:
                     return
-                xpub1, xpub2 = r
-                wallet.add_master_public_key("cold/", xpub1)
-                wallet.add_master_public_key("remote/", xpub2)
+                xpub2, xpub3 = r
+                wallet.add_master_public_key("x2/", xpub2)
+                wallet.add_master_public_key("x3/", xpub3)
 
             elif action == 'create_accounts':
                 try:
-                    wallet.create_accounts(password)
+                    wallet.create_main_account(password)
                 except BaseException as e:
+                    import traceback
+                    traceback.print_exc(file=sys.stdout)
                     QMessageBox.information(None, _('Error'), str(e), _('OK'))
                     return
                 self.waiting_dialog(wallet.synchronize)
@@ -455,12 +456,10 @@ class InstallWizard(QDialog):
         if action == 'restore':
             self.waiting_dialog(lambda: wallet.restore(self.waiting_label.setText))
             if self.network:
-                if wallet.is_found():
-                    QMessageBox.information(None, _('Information'), _("Recovery successful"), _('OK'))
-                else:
-                    QMessageBox.information(None, _('Information'), _("No transactions found for this seed"), _('OK'))
+                msg = _("Recovery successful") if wallet.is_found() else _("No transactions found for this seed")
             else:
-                QMessageBox.information(None, _('Information'), _("This wallet was restored offline. It may contain more addresses than displayed."), _('OK'))
+                msg = _("This wallet was restored offline. It may contain more addresses than displayed.")
+            QMessageBox.information(None, _('Information'), msg, _('OK'))
 
         return wallet
 
@@ -472,12 +471,7 @@ class InstallWizard(QDialog):
                 text = self.enter_seed_dialog(MSG_ENTER_ANYTHING, None)
                 if not text:
                     return
-                if Wallet.is_seed(text):
-                    password = self.password_dialog()
-                    wallet = Wallet.from_seed(text, self.storage)
-                    wallet.add_seed(text, password)
-                    wallet.create_accounts(password)
-                elif Wallet.is_xprv(text):
+                if Wallet.is_xprv(text):
                     password = self.password_dialog()
                     wallet = Wallet.from_xprv(text, password, self.storage)
                 elif Wallet.is_old_mpk(text):
@@ -488,8 +482,13 @@ class InstallWizard(QDialog):
                     wallet = Wallet.from_address(text, self.storage)
                 elif Wallet.is_private_key(text):
                     wallet = Wallet.from_private_key(text, self.storage)
+                elif Wallet.is_seed(text):
+                    password = self.password_dialog()
+                    wallet = Wallet.from_seed(text, self.storage)
+                    wallet.add_seed(text, password)
+                    wallet.create_main_account(password)
                 else:
-                    raise
+                    raise BaseException('unknown wallet type')
 
             elif t in ['2of2']:
                 r = self.multi_seed_dialog(1)
@@ -507,17 +506,17 @@ class InstallWizard(QDialog):
                     if Wallet.is_seed(text2):
                         wallet.add_cold_seed(text2, password)
                     else:
-                        wallet.add_master_public_key("cold/", text2)
+                        wallet.add_master_public_key("x2/", text2)
                 else:
                     assert Wallet.is_xpub(text1)
                     if Wallet.is_seed(text2):
                         wallet.add_seed(text2, password)
-                        wallet.add_master_public_key("cold/", text1)
+                        wallet.add_master_public_key("x2/", text1)
                     else:
-                        wallet.add_master_public_key("m/", text1)
-                        wallet.add_master_public_key("cold/", text2)
+                        wallet.add_master_public_key("x1/", text1)
+                        wallet.add_master_public_key("x2/", text2)
 
-                wallet.create_accounts(password)
+                wallet.create_main_account(password)
 
 
             elif t in ['2of3']:
@@ -536,17 +535,17 @@ class InstallWizard(QDialog):
                     if Wallet.is_seed(text2):
                         wallet.add_cold_seed(text2, password)
                     else:
-                        wallet.add_master_public_key("cold/", text2)
+                        wallet.add_master_public_key("x2/", text2)
 
                 elif Wallet.is_xpub(text1):
                     if Wallet.is_seed(text2):
                         wallet.add_seed(text2, password)
-                        wallet.add_master_public_key("cold/", text1)
+                        wallet.add_master_public_key("x2/", text1)
                     else:
-                        wallet.add_master_public_key("m/", text1)
-                        wallet.add_master_public_key("cold/", text2)
+                        wallet.add_master_public_key("x1/", text1)
+                        wallet.add_master_public_key("x2/", text2)
 
-                wallet.create_accounts(password)
+                wallet.create_main_account(password)
 
             else:
                 wallet = run_hook('installwizard_restore', self, self.storage)

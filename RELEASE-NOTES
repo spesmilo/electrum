@@ -1,5 +1,49 @@
+# Release 2.0
+
+ * New address derivation (BIP39 + BIP32 + BIP44).
+
+ * 8 bits of the seed phrase are used to store a version number. The
+   current version number (0x01) refers to the current wallet
+   structure (BIP44). The version number also serves as a checksum for
+   the seed, and it will prevent the import of seeds from incompatible
+   wallets.
+
+ * New serialization format for unsigned or partially signed
+   transactions, that includes the master public key and derivation
+   needed to sign inputs. This new format is compact enough to
+   send transactions to cold storage using QR codes
+
+ * Deterministic Multisig wallets using parallel BIP32 derivations and
+   P2SH addresses (2 of 2, 2 of 3).
+
+ * New plugins:
+   - Trezor: support for the Trezor hardware wallet by SatoshiLabs
+   - Cosigner Pool: shared memory pool for partially signed transactions
+
+ * BIP70: verification of signed payment requests
+   - Verification is pure python, using tlslite.
+   - In the GUI, payment requests are in the 'Invoices' tab.
+
+ * New 'Receive' tab:
+   - create and manage payment requests, with QR Codes
+   - the former Receive tab was renamed to 'Addresses'
+   - the former Point of Sale plugin is replaced by a resizeable
+     window that pops up if you click on the QR code
+
+ * The 'Send' tab in the Qt GUI supports transactions with multiple
+   outputs, and with OP_RETURN "message"
+
+ * The GUI can use the daemon: "electrum -d". The daemon can serve
+   several clients. It times out if no client uses if for more than 5
+   minutes.
+
+ * Wallet files are saved as JSON instead of Python.
+
+ * Documentation is now hosted on a wiki: http://electrum.orain.org
+
+
+
 # Release 1.9.8
-(This release includes features initially planned for version 2.0)
 
 * Electrum servers were upgraded to version 0.9. The new server stores
   a Patrica tree of all UTXOs, an idea proposed by Alan Reiner in the

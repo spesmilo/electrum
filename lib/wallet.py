@@ -24,6 +24,7 @@ import threading
 import random
 import time
 import math
+import json
 
 from util import print_msg, print_error
 
@@ -90,15 +91,16 @@ class WalletStorage(object):
         except IOError:
             return
         try:
-            d = ast.literal_eval( data )  #parse raw data from reading wallet file
-        except Exception:
-            raise IOError("Cannot read wallet file.")
-
+            d = json.loads(data)
+        except:
+            try:
+                d = ast.literal_eval(data)  #parse raw data from reading wallet file
+            except Exception:
+                raise IOError("Cannot read wallet file.")
         self.data = d
         self.file_exists = True
 
     def get(self, key, default=None):
-
         with self.lock:
             v = self.data.get(key)
             if v is None:
@@ -116,9 +118,9 @@ class WalletStorage(object):
                 self.write()
 
     def write(self):
-        s = repr(self.data)
+        s = json.dumps(self.data, indent=4, sort_keys=True)
         f = open(self.path,"w")
-        f.write( s )
+        f.write(s)
         f.close()
         if 'ANDROID_DATA' not in os.environ:
             import stat
@@ -136,7 +138,6 @@ class Abstract_Wallet(object):
         self.gap_limit_for_change = 3 # constant
         # saved fields
         self.seed_version          = storage.get('seed_version', NEW_SEED_VERSION)
-        self.gap_limit             = storage.get('gap_limit', 5)
         self.use_change            = storage.get('use_change',True)
         self.use_encryption        = storage.get('use_encryption', False)
         self.seed                  = storage.get('seed', '')               # encrypted
@@ -174,6 +175,11 @@ class Abstract_Wallet(object):
         self.tx_event = threading.Event()
         for tx_hash, tx in self.transactions.items():
             self.update_tx_outputs(tx_hash)
+
+        # save wallet type the first time
+        if self.storage.get('wallet_type') is None:
+            self.storage.put('wallet_type', self.wallet_type, True)
+
 
     def load_transactions(self):
         self.transactions = {}
@@ -222,7 +228,7 @@ class Abstract_Wallet(object):
 
         d = self.storage.get('accounts', {})
         for k, v in d.items():
-            if k == 0:
+            if self.wallet_type == 'old' and k in [0, '0']:
                 v['mpk'] = self.storage.get('master_public_key')
                 self.accounts[k] = OldAccount(v)
             elif v.get('imported'):
@@ -1003,13 +1009,13 @@ class Abstract_Wallet(object):
         return not self.is_watching_only()
 
 class Imported_Wallet(Abstract_Wallet):
+    wallet_type = 'imported'
 
     def __init__(self, storage):
         Abstract_Wallet.__init__(self, storage)
         a = self.accounts.get(IMPORTED_ACCOUNT)
         if not a:
             self.accounts[IMPORTED_ACCOUNT] = ImportedAccount({'imported':{}})
-        self.storage.put('wallet_type', 'imported', True)
 
     def is_watching_only(self):
         acc = self.accounts[IMPORTED_ACCOUNT]
@@ -1117,6 +1123,9 @@ class Deterministic_Wallet(Abstract_Wallet):
                     if n > nmax: nmax = n
         return nmax + 1
 
+    def default_account(self):
+        return self.accounts['0']
+
     def create_new_address(self, account=None, for_change=0):
         if account is None:
             account = self.default_account()
@@ -1204,28 +1213,6 @@ class Deterministic_Wallet(Abstract_Wallet):
         if not self.accounts:
             return 'create_accounts'
 
-
-
-class BIP32_Wallet(Deterministic_Wallet):
-    # bip32 derivation
-
-    def __init__(self, storage):
-        Deterministic_Wallet.__init__(self, storage)
-        self.master_public_keys  = storage.get('master_public_keys', {})
-        self.master_private_keys = storage.get('master_private_keys', {})
-
-    def default_account(self):
-        return self.accounts["m/0'"]
-
-    def is_watching_only(self):
-        return not bool(self.master_private_keys)
-
-    def can_create_accounts(self):
-        return 'm/' in self.master_private_keys.keys()
-
-    def get_master_public_key(self):
-        return self.master_public_keys.get("m/")
-
     def get_master_public_keys(self):
         out = {}
         for k, account in self.accounts.items():
@@ -1234,38 +1221,33 @@ class BIP32_Wallet(Deterministic_Wallet):
             out[name] = mpk_text
         return out
 
+
+
+class BIP32_Wallet(Deterministic_Wallet):
+    # abstract class, bip32 logic
+    gap_limit = 20
+
+    def __init__(self, storage):
+        Deterministic_Wallet.__init__(self, storage)
+        self.master_public_keys  = storage.get('master_public_keys', {})
+        self.master_private_keys = storage.get('master_private_keys', {})
+
+    def is_watching_only(self):
+        return not bool(self.master_private_keys)
+
+    def get_master_public_key(self):
+        return self.master_public_keys.get(self.root_name)
+
     def get_master_private_key(self, account, password):
         k = self.master_private_keys.get(account)
         if not k: return
-        xpriv = pw_decode( k, password)
-        return xpriv
+        xprv = pw_decode(k, password)
+        return xprv
 
     def check_password(self, password):
-        xpriv = self.get_master_private_key( "m/", password )
-        xpub = self.master_public_keys["m/"]
+        xpriv = self.get_master_private_key(self.root_name, password)
+        xpub = self.master_public_keys[self.root_name]
         assert deserialize_xkey(xpriv)[3] == deserialize_xkey(xpub)[3]
-
-    def create_xprv_wallet(self, xprv, password):
-        xpub = bitcoin.xpub_from_xprv(xprv)
-        account = BIP32_Account({'xpub':xpub})
-        account_id = 'm/' + bitcoin.get_xkey_name(xpub)
-        self.storage.put('seed_version', self.seed_version, True)
-        self.add_master_private_key(account_id, xprv, password)
-        self.add_master_public_key(account_id, xpub)
-        self.add_account(account_id, account)
-
-    def create_xpub_wallet(self, xpub):
-        account = BIP32_Account({'xpub':xpub})
-        account_id = 'm/' + bitcoin.get_xkey_name(xpub)
-        self.storage.put('seed_version', self.seed_version, True)
-        self.add_master_public_key(account_id, xpub)
-        self.add_account(account_id, account)
-
-    def create_accounts(self, password):
-        # First check the password is valid (this raises if it isn't).
-        if not self.is_watching_only():
-            self.check_password(password)
-        self.create_account('Main account', password)
 
     def add_master_public_key(self, name, xpub):
         self.master_public_keys[name] = xpub
@@ -1274,6 +1256,12 @@ class BIP32_Wallet(Deterministic_Wallet):
     def add_master_private_key(self, name, xpriv, password):
         self.master_private_keys[name] = pw_encode(xpriv, password)
         self.storage.put('master_private_keys', self.master_private_keys, True)
+
+    def derive_xkeys(self, root, derivation, password):
+        x = self.master_private_keys[root]
+        root_xprv = pw_decode(x, password)
+        xprv, xpub = bip32_private_derivation(root_xprv, root, derivation)
+        return xpub, xprv
 
     def can_sign(self, tx):
         if self.is_watching_only():
@@ -1291,12 +1279,41 @@ class BIP32_Wallet(Deterministic_Wallet):
         return False
 
 
+class BIP32_Simple_Wallet(BIP32_Wallet):
+    # Wallet with a single BIP32 account, no seed
+    # gap limit 20
+    root_name = 'x/'
+    wallet_type = 'xpub'
+
+    def create_xprv_wallet(self, xprv, password):
+        xpub = bitcoin.xpub_from_xprv(xprv)
+        account = BIP32_Account({'xpub':xpub})
+        self.storage.put('seed_version', self.seed_version, True)
+        self.add_master_private_key(self.root_name, xprv, password)
+        self.add_master_public_key(self.root_name, xpub)
+        self.add_account('0', account)
+
+    def create_xpub_wallet(self, xpub):
+        account = BIP32_Account({'xpub':xpub})
+        self.storage.put('seed_version', self.seed_version, True)
+        self.add_master_public_key(self.root_name, xpub)
+        self.add_account('0', account)
+
+
 class BIP32_HD_Wallet(BIP32_Wallet):
-    # sequence of accounts
+    # wallet that can create accounts
+
+    def create_main_account(self, password):
+        # First check the password is valid (this raises if it isn't).
+        if not self.is_watching_only():
+            self.check_password(password)
+        self.create_account('Main account', password)
+
+    def can_create_accounts(self):
+        return self.root_name in self.master_private_keys.keys()
 
     def create_account(self, name, password):
-        i = self.num_accounts()
-        account_id = self.account_id(i)
+        account_id = "%d"%self.num_accounts()
         account = self.make_account(account_id, password)
         self.add_account(account_id, account)
         if name:
@@ -1328,8 +1345,7 @@ class BIP32_HD_Wallet(BIP32_Wallet):
                 self.next_addresses.pop(account_id)
 
     def next_account_address(self, password):
-        i = self.num_accounts()
-        account_id = self.account_id(i)
+        account_id = '%d'%self.num_accounts()
         addr = self.next_addresses.get(account_id)
         if not addr:
             account = self.make_account(account_id, password)
@@ -1338,12 +1354,14 @@ class BIP32_HD_Wallet(BIP32_Wallet):
             self.storage.put('next_addresses', self.next_addresses)
         return account_id, addr
 
-    def account_id(self, i):
-        return "m/%d'"%i
-
     def make_account(self, account_id, password):
         """Creates and saves the master keys, but does not save the account"""
-        xpub = self.add_master_keys("m/", account_id, password)
+        derivation = self.root_name + "%d'"%int(account_id)
+        xpub, xprv = self.derive_xkeys(self.root_name, derivation, password)
+        self.add_master_public_key(derivation, xpub)
+        if xprv:
+            self.add_master_private_key(derivation, xprv, password)
+
         account = BIP32_Account({'xpub':xpub})
         return account
 
@@ -1355,28 +1373,22 @@ class BIP32_HD_Wallet(BIP32_Wallet):
             keys.append(k)
         i = 0
         while True:
-            account_id = self.account_id(i)
-            if account_id not in keys: break
+            account_id = '%d'%i
+            if account_id not in keys:
+                break
             i += 1
         return i
 
-    def add_master_keys(self, root, account_id, password):
-        x = self.master_private_keys.get(root)
-        if x:
-            master_xpriv = pw_decode(x, password )
-            xpriv, xpub = bip32_private_derivation(master_xpriv, root, account_id)
-            self.add_master_public_key(account_id, xpub)
-            self.add_master_private_key(account_id, xpriv, password)
-        else:
-            master_xpub = self.master_public_keys[root]
-            xpub = bip32_public_derivation(master_xpub, root, account_id)
-            self.add_master_public_key(account_id, xpub)
-        return xpub
 
-
-
-class NewWallet(BIP32_HD_Wallet):
+class BIP39_Wallet(BIP32_Wallet):
     # BIP39 seed generation
+
+    def create_master_keys(self, password):
+        seed = self.get_seed(password)
+        xprv, xpub = bip32_root(seed)
+        xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
+        self.add_master_public_key(self.root_name, xpub)
+        self.add_master_private_key(self.root_name, xprv, password)
 
     @classmethod
     def make_seed(self, custom_entropy=1):
@@ -1405,45 +1417,39 @@ class NewWallet(BIP32_HD_Wallet):
         import unicodedata
         return NEW_SEED_VERSION, unicodedata.normalize('NFC', unicode(seed.strip()))
 
-    def create_master_keys(self, password):
-        seed = self.get_seed(password)
-        xpriv, xpub = bip32_root(seed)
-        self.add_master_public_key("m/", xpub)
-        self.add_master_private_key("m/", xpriv, password)
 
 
+class NewWallet(BIP32_HD_Wallet, BIP39_Wallet):
+    # bip 44
+    root_name = 'x/'
+    root_derivation = "m/44'/2'"
+    wallet_type = 'standard'
 
 
-class Wallet_2of2(NewWallet):
-    """ This class is used for multisignature addresses"""
-
-    def __init__(self, storage):
-        NewWallet.__init__(self, storage)
-        self.storage.put('wallet_type', '2of2', True)
-
-    def default_account(self):
-        return self.accounts['m/']
-
-    def can_create_accounts(self):
-        return False
+class Wallet_2of2(BIP39_Wallet):
+    # Wallet with multisig addresses. 
+    # Cannot create accounts
+    root_name = "x1/"
+    root_derivation = "m/44'/2'"
+    wallet_type = '2of2'
 
     def can_import(self):
         return False
 
-    def create_account(self, name, password):
-        xpub1 = self.master_public_keys.get("m/")
-        xpub2 = self.master_public_keys.get("cold/")
+    def create_main_account(self, password):
+        xpub1 = self.master_public_keys.get("x1/")
+        xpub2 = self.master_public_keys.get("x2/")
         account = BIP32_Account_2of2({'xpub':xpub1, 'xpub2':xpub2})
-        self.add_account('m/', account)
+        self.add_account('0', account)
 
     def get_master_public_keys(self):
-        xpub1 = self.master_public_keys.get("m/")
-        xpub2 = self.master_public_keys.get("cold/")
-        return {'hot':xpub1, 'cold':xpub2}
+        xpub1 = self.master_public_keys.get("x1/")
+        xpub2 = self.master_public_keys.get("x2/")
+        return {'x1':xpub1, 'x2':xpub2}
 
     def get_action(self):
-        xpub1 = self.master_public_keys.get("m/")
-        xpub2 = self.master_public_keys.get("cold/")
+        xpub1 = self.master_public_keys.get("x1/")
+        xpub2 = self.master_public_keys.get("x2/")
         if xpub1 is None:
             return 'create_seed'
         if xpub2 is None:
@@ -1453,29 +1459,26 @@ class Wallet_2of2(NewWallet):
 
 
 class Wallet_2of3(Wallet_2of2):
-    """ This class is used for multisignature addresses"""
+    # multisig 2 of 3
+    wallet_type = '2of3'
 
-    def __init__(self, storage):
-        Wallet_2of2.__init__(self, storage)
-        self.storage.put('wallet_type', '2of3', True)
-
-    def create_account(self, name, password):
-        xpub1 = self.master_public_keys.get("m/")
-        xpub2 = self.master_public_keys.get("cold/")
-        xpub3 = self.master_public_keys.get("remote/")
+    def create_main_account(self, password):
+        xpub1 = self.master_public_keys.get("x1/")
+        xpub2 = self.master_public_keys.get("x2/")
+        xpub3 = self.master_public_keys.get("x3/")
         account = BIP32_Account_2of3({'xpub':xpub1, 'xpub2':xpub2, 'xpub3':xpub3})
-        self.add_account('m/', account)
+        self.add_account('0', account)
 
     def get_master_public_keys(self):
-        xpub1 = self.master_public_keys.get("m/")
-        xpub2 = self.master_public_keys.get("cold/")
-        xpub3 = self.master_public_keys.get("remote/")
-        return {'hot':xpub1, 'cold':xpub2, 'remote':xpub3}
+        xpub1 = self.master_public_keys.get("x1/")
+        xpub2 = self.master_public_keys.get("x2/")
+        xpub3 = self.master_public_keys.get("x3/")
+        return {'x1':xpub1, 'x2':xpub2, 'x3':xpub3}
 
     def get_action(self):
-        xpub1 = self.master_public_keys.get("m/")
-        xpub2 = self.master_public_keys.get("cold/")
-        xpub3 = self.master_public_keys.get("remote/")
+        xpub1 = self.master_public_keys.get("x1/")
+        xpub2 = self.master_public_keys.get("x2/")
+        xpub3 = self.master_public_keys.get("x3/")
         if xpub1 is None:
             return 'create_seed'
         if xpub2 is None or xpub3 is None:
@@ -1485,9 +1488,12 @@ class Wallet_2of3(Wallet_2of2):
 
 
 class OldWallet(Deterministic_Wallet):
+    wallet_type = 'old'
+    gap_limit = 5
 
-    def default_account(self):
-        return self.accounts[0]
+    def __init__(self, storage):
+        Deterministic_Wallet.__init__(self, storage)
+        self.gap_limit = storage.get('gap_limit', 5)
 
     def make_seed(self):
         import mnemonic
@@ -1523,12 +1529,12 @@ class OldWallet(Deterministic_Wallet):
     def get_master_public_keys(self):
         return {'Main Account':self.get_master_public_key()}
 
-    def create_accounts(self, password):
+    def create_main_account(self, password):
         mpk = self.storage.get("master_public_key")
         self.create_account(mpk)
 
     def create_account(self, mpk):
-        self.accounts[0] = OldAccount({'mpk':mpk, 0:[], 1:[]})
+        self.accounts['0'] = OldAccount({'mpk':mpk, 0:[], 1:[]})
         self.save_accounts()
 
     def create_watching_only_wallet(self, mpk):
@@ -1543,7 +1549,7 @@ class OldWallet(Deterministic_Wallet):
 
     def check_password(self, password):
         seed = self.get_seed(password)
-        self.accounts[0].check_seed(seed)
+        self.accounts['0'].check_seed(seed)
 
     def get_mnemonic(self, password):
         import mnemonic
@@ -1574,7 +1580,9 @@ class Wallet(object):
         config = storage.config
 
         self.wallet_types = [ 
-            ('standard', ("Standard wallet"),          NewWallet if config.get('bip32') else OldWallet),
+            ('old',      ("Old wallet"),               OldWallet),
+            ('xpub',     ("BIP32 Import"),             BIP32_Simple_Wallet),
+            ('standard', ("Standard wallet"),          NewWallet),
             ('imported', ("Imported wallet"),          Imported_Wallet),
             ('2of2',     ("Multisig wallet (2 of 2)"), Wallet_2of2),
             ('2of3',     ("Multisig wallet (2 of 3)"), Wallet_2of3)
@@ -1586,7 +1594,7 @@ class Wallet(object):
                 return WalletClass(storage)
 
         if not storage.file_exists:
-            seed_version = NEW_SEED_VERSION if config.get('bip32') is True else OLD_SEED_VERSION
+            seed_version = NEW_SEED_VERSION
         else:
             seed_version = storage.get('seed_version')
             if not seed_version:
@@ -1598,7 +1606,7 @@ class Wallet(object):
             return NewWallet(storage)
         else:
             msg = "This wallet seed is not supported."
-            if seed_version in [5]:
+            if seed_version in [5, 7]:
                 msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
             print msg
             sys.exit(1)
@@ -1692,12 +1700,12 @@ class Wallet(object):
 
     @classmethod
     def from_xpub(self, xpub, storage):
-        w = BIP32_Wallet(storage)
+        w = BIP32_Simple_Wallet(storage)
         w.create_xpub_wallet(xpub)
         return w
 
     @classmethod
     def from_xprv(self, xprv, password, storage):
-        w = BIP32_Wallet(storage)
+        w = BIP32_Simple_Wallet(storage)
         w.create_xprv_wallet(xprv, password)
         return w
