@@ -1421,7 +1421,7 @@ class BIP39_Wallet(BIP32_Wallet):
 
 class NewWallet(BIP32_HD_Wallet, BIP39_Wallet):
     # bip 44
-    root_name = 'root/'
+    root_name = 'x/'
     root_derivation = "m/44'/0'"
     wallet_type = 'standard'
 
