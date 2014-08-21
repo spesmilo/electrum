@@ -470,12 +470,7 @@ class InstallWizard(QDialog):
                 text = self.enter_seed_dialog(MSG_ENTER_ANYTHING, None)
                 if not text:
                     return
-                if Wallet.is_seed(text):
-                    password = self.password_dialog()
-                    wallet = Wallet.from_seed(text, self.storage)
-                    wallet.add_seed(text, password)
-                    wallet.create_main_account(password)
-                elif Wallet.is_xprv(text):
+                if Wallet.is_xprv(text):
                     password = self.password_dialog()
                     wallet = Wallet.from_xprv(text, password, self.storage)
                 elif Wallet.is_old_mpk(text):
@@ -486,6 +481,11 @@ class InstallWizard(QDialog):
                     wallet = Wallet.from_address(text, self.storage)
                 elif Wallet.is_private_key(text):
                     wallet = Wallet.from_private_key(text, self.storage)
+                elif Wallet.is_seed(text):
+                    password = self.password_dialog()
+                    wallet = Wallet.from_seed(text, self.storage)
+                    wallet.add_seed(text, password)
+                    wallet.create_main_account(password)
                 else:
                     raise BaseException('unknown wallet type')
 
