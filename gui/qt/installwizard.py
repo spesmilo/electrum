@@ -553,7 +553,7 @@ class InstallWizard(QDialog):
                 if Wallet.is_seed(text3):
                     wallet.add_cosigner_seed(text3, "x3/", password)
                 elif Wallet.is_xpub(text3):
-                    wallet.add_master_public_key("x3/", text2)
+                    wallet.add_master_public_key("x3/", text3)
 
                 wallet.create_main_account(password)
 
