@@ -45,7 +45,11 @@ class Plugin(BasePlugin):
         return TREZOR
 
     def is_available(self):
-        return self._is_available
+        if self.wallet is None:
+            return self._is_available
+        if self.wallet.storage.get('wallet_type') == 'trezor':
+            return True
+        return False
 
     def set_enabled(self, enabled):
         self.wallet.storage.put('use_' + self.name, enabled)
