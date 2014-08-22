@@ -30,6 +30,10 @@ def log(msg):
     stderr.write("%s\n" % msg)
     stderr.flush()
 
+def give_error(message):
+    QMessageBox.warning(QDialog(), _('Warning'), _(message), _('OK'))
+    raise Exception(message)
+
 class Plugin(BasePlugin):
 
     def fullname(self): return 'Trezor Wallet'
@@ -116,16 +120,14 @@ class TrezorWallet(NewWallet):
 
     def get_client(self):
         if not TREZOR:
-            raise Exception('please install github.com/trezor/python-trezor')
+            give_error('please install github.com/trezor/python-trezor')
 
         if not self.client or self.client.bad:
             try:
                 d = HidTransport.enumerate()[0]
                 self.transport = HidTransport(d)
             except:
-                d = QDialog()
-                QMessageBox.warning(d, _('Warning'), _('Could not connect to your Trezor. Please verify the cable is connected and that no other app is using it.'), _('OK'))
-                raise Exception("Trezor not found")
+                give_error('Could not connect to your Trezor. Please verify the cable is connected and that no other app is using it.')
             self.client = QtGuiTrezorClient(self.transport)
             self.client.set_tx_api(self)
             #self.client.clear_session()# TODO Doesn't work with firmware 1.1, returns proto.Failure
@@ -174,7 +176,7 @@ class TrezorWallet(NewWallet):
         try:
             decrypted_msg = self.get_client().decrypt_message(address_n, b64decode(message))
         except Exception, e:
-            raise e
+            give_error(e)
         finally:
             twd.emit(SIGNAL('trezor_done'))
         return str(decrypted_msg)
@@ -184,11 +186,11 @@ class TrezorWallet(NewWallet):
             address_path = self.address_id(address)
             address_n = self.get_client().expand_path(address_path)
         except Exception, e:
-            raise
+            give_error(e)
         try:
             msg_sig = self.get_client().sign_message('Bitcoin', address_n, message)
         except Exception, e:
-            raise e
+            give_error(e)
         finally:
             twd.emit(SIGNAL('trezor_done'))
         b64_msg_sig = b64encode(msg_sig.signature)
@@ -199,14 +201,14 @@ class TrezorWallet(NewWallet):
             return
 
         if not self.check_proper_device():
-            raise Exception('Wrong device or password')
+            give_error('Wrong device or password')
 
         inputs = self.tx_inputs(tx)
         outputs = self.tx_outputs(tx)
         try:
             signed_tx = self.get_client().sign_tx('Bitcoin', inputs, outputs)[1]
         except Exception, e:
-            raise e
+            give_error(e)
         finally:
             twd.emit(SIGNAL('trezor_done'))
         values = [i['value'] for i in tx.inputs]
@@ -229,8 +231,8 @@ class TrezorWallet(NewWallet):
 
             if ('is_coinbase' in txinput and txinput['is_coinbase']):
                 prev_hash = "\0"*32
-                prev_index = 0xffffffff # signed int -1               
-            else:        
+                prev_index = 0xffffffff # signed int -1
+            else:
                 prev_hash = unhexlify(txinput['prevout_hash'])
                 prev_index = txinput['prevout_n']
 
