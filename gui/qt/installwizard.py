@@ -501,20 +501,20 @@ class InstallWizard(QDialog):
                 else:
                     password = None
 
+                if Wallet.is_seed(text2) and Wallet.is_xpub(text1):
+                    c = text1
+                    text1 = text2
+                    text2 = c
+
                 if Wallet.is_seed(text1):
                     wallet.add_seed(text1, password)
-                    if Wallet.is_seed(text2):
-                        wallet.add_cold_seed(text2, password)
-                    else:
-                        wallet.add_master_public_key("x2/", text2)
                 else:
-                    assert Wallet.is_xpub(text1)
-                    if Wallet.is_seed(text2):
-                        wallet.add_seed(text2, password)
-                        wallet.add_master_public_key("x2/", text1)
-                    else:
-                        wallet.add_master_public_key("x1/", text1)
-                        wallet.add_master_public_key("x2/", text2)
+                    wallet.add_master_public_key("x1/", text1)
+
+                if Wallet.is_seed(text2):
+                    wallet.add_cosigner_seed(text2, "x2/", password)
+                elif Wallet.is_xpub(text2):
+                    wallet.add_master_public_key("x2/", text2)
 
                 wallet.create_main_account(password)
 
@@ -530,20 +530,30 @@ class InstallWizard(QDialog):
                 else:
                     password = None
 
+                if Wallet.is_xpub(text1) and Wallet.is_seed(text2):
+                    temp = text1
+                    text1 = text2
+                    text2 = temp
+
+                if Wallet.is_xpub(text1) and Wallet.is_seed(text3):
+                    temp = text1
+                    text1 = text3
+                    text3 = temp
+
                 if Wallet.is_seed(text1):
                     wallet.add_seed(text1, password)
-                    if Wallet.is_seed(text2):
-                        wallet.add_cold_seed(text2, password)
-                    else:
-                        wallet.add_master_public_key("x2/", text2)
+                else:
+                    wallet.add_master_public_key("x1/", text1)
 
-                elif Wallet.is_xpub(text1):
-                    if Wallet.is_seed(text2):
-                        wallet.add_seed(text2, password)
-                        wallet.add_master_public_key("x2/", text1)
-                    else:
-                        wallet.add_master_public_key("x1/", text1)
-                        wallet.add_master_public_key("x2/", text2)
+                if Wallet.is_seed(text2):
+                    wallet.add_cosigner_seed(text2, "x2/", password)
+                elif Wallet.is_xpub(text2):
+                    wallet.add_master_public_key("x2/", text2)
+
+                if Wallet.is_seed(text3):
+                    wallet.add_cosigner_seed(text3, "x3/", password)
+                elif Wallet.is_xpub(text3):
+                    wallet.add_master_public_key("x3/", text2)
 
                 wallet.create_main_account(password)
 
