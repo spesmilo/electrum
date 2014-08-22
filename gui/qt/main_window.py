@@ -535,6 +535,9 @@ class ElectrumWindow(QMainWindow):
             block_explorer = 'https://blockr.io/tx/info/'
         elif be == 'Insight.is':
             block_explorer = 'http://live.insight.is/tx/'
+        elif be == "Blocktrail.com":
+            block_explorer = 'https://www.blocktrail.com/tx/'
+
         if not item: return
         tx_hash = str(item.data(0, Qt.UserRole).toString())
         if not tx_hash: return
@@ -2552,7 +2555,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(HelpButton(_('Using change addresses makes it more difficult for other people to track your transactions.')+' '), 4, 2)
         if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
 
-        block_explorers = ['Blockchain.info', 'Blockr.io', 'Insight.is']
+        block_explorers = ['Blockchain.info', 'Blockr.io', 'Insight.is', "Blocktrail.com"]
         block_ex_label = QLabel(_('Online Block Explorer') + ':')
         grid.addWidget(block_ex_label, 5, 0)
         block_ex_combo = QComboBox()
