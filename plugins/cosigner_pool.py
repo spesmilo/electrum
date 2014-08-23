@@ -102,16 +102,23 @@ class Plugin(BasePlugin):
             self.listener = Listener(self)
             self.listener.start()
 
+    def enable(self):
+        self.set_enabled(True)
+        self.init()
+        if self.win.wallet:
+            self.load_wallet(self.win.wallet)
+        return True
+
     def load_wallet(self, wallet):
         self.wallet = wallet
         mpk = self.wallet.get_master_public_keys()
 
-        self.cold = mpk.get('cold')
+        self.cold = mpk.get('x2')
         if self.cold:
             self.cold_K = bitcoin.deserialize_xkey(self.cold)[-1].encode('hex')
             self.cold_hash = bitcoin.Hash(self.cold_K).encode('hex')
 
-        self.hot = mpk.get('hot')
+        self.hot = mpk.get('x1')
         if self.hot:
             self.hot_K = bitcoin.deserialize_xkey(self.hot)[-1].encode('hex')
             self.hot_hash = bitcoin.Hash(self.hot_K).encode('hex')
@@ -170,7 +177,7 @@ class Plugin(BasePlugin):
             password = None
 
         message = self.listener.message
-        xpriv = self.wallet.get_master_private_key('m/', password)
+        xpriv = self.wallet.get_master_private_key('x1/', password)
         if not xpriv:
             return
         try:
