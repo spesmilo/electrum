@@ -34,8 +34,12 @@ class QRTextEdit(QPlainTextEdit):
         QRDialog(str(self.toPlainText())).exec_()
 
     def qr_input(self):
-        from electrum.plugins import run_hook
-        data = run_hook('scan_qr_hook')
+        from electrum import qrscanner
+        try:
+            data = qrscanner.scan_qr(self.win.config)
+        except BaseException, e:
+            QMessageBox.warning(self.win, _('Error'), _(e), _('OK'))
+            return
         if type(data) != str:
             return
         self.setText(data)

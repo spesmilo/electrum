@@ -2570,6 +2570,25 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(showtx_cb, 6, 0)
         grid.addWidget(HelpButton(_('Display the details of your transactions before broadcasting it.')), 6, 2)
 
+
+        from electrum import qrscanner
+        system_cameras = qrscanner._find_system_cameras()
+        qr_combo = QComboBox()
+        on_change = lambda x: self.config.set_key("video_device", str(qr_combo.itemData(x).toString()), True)
+        qr_combo.currentIndexChanged.connect(on_change)
+        qr_combo.addItem("Default","default")
+        for camera, device in system_cameras.items():
+            qr_combo.addItem(camera, device)
+        #combo.addItem("Manually specify a device", config.get("video_device"))
+        index = qr_combo.findData(self.config.get("video_device"))
+        qr_combo.setCurrentIndex(index)
+        qr_label = QLabel(_('Video Device') + ':')
+        grid.addWidget(qr_label, 7, 0)
+        grid.addWidget(qr_combo, 7, 1)
+        qr_combo.setEnabled(qrscanner.zbar is not None)
+        help_msg = _("Install the zbar package to enable this.\nOn linux, type: 'apt-get install python-zbar'")
+        grid.addWidget(HelpButton(help_msg), 7, 2)
+
         vbox.addLayout(grid)
         vbox.addStretch(1)
         vbox.addLayout(ok_cancel_buttons(d))
