@@ -284,7 +284,7 @@ class BTChipWallet(NewWallet):
         redeemScripts = []        
         signatures = []
         preparedTrustedInputs = []
-        changePath = None
+        changePath = "" 
         changeAmount = None
         output = None
         outputAmount = None
