@@ -315,7 +315,6 @@ class BTChipWallet(NewWallet):
                 outputAmount = amount
 
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
-        # S-L-O-W. Make it better
         if not self.check_proper_device():
             give_error('Wrong device or password')
 
