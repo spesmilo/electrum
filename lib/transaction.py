@@ -729,7 +729,7 @@ class Transaction:
             redeem_pubkeys = txin['pubkeys']
             for_sig = Hash(self.tx_for_sig(i).decode('hex'))
             for pubkey in redeem_pubkeys:
-                if pubkey in keypairs.keys():
+                if keypairs and pubkey in keypairs.keys():
                     # add signature
                     sec = keypairs[pubkey]
                     pkey = regenerate_key(sec)
