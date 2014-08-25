@@ -131,7 +131,8 @@ class TestNewWallet(WalletTestCase):
         # in setUp()
         new_dir = tempfile.mkdtemp()
         config = FakeConfig(new_dir)
-        wallet = NewWallet(config)
+        storage = WalletStorage(config)
+        wallet = NewWallet(storage)
         self.assertTrue(wallet.is_watching_only())
         shutil.rmtree(new_dir)  # Don't leave useless stuff in /tmp
 
