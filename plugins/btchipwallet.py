@@ -16,7 +16,7 @@ from electrum.plugins import BasePlugin
 from electrum.transaction import deserialize
 from electrum.wallet import NewWallet
 
-from lib.util import format_satoshis
+from electrum.util import format_satoshis
 import hashlib
 
 try:
