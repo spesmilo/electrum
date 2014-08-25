@@ -110,6 +110,8 @@ class Plugin(BasePlugin):
 
     def load_wallet(self, wallet):
         self.wallet = wallet
+        if not self.is_available():
+            return
         mpk = self.wallet.get_master_public_keys()
         self.cosigner_list = []
         for key, xpub in mpk.items():
