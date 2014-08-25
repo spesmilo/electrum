@@ -3,6 +3,7 @@ import tempfile
 import sys
 import unittest
 import os
+import json
 
 from StringIO import StringIO
 from lib.wallet import WalletStorage, NewWallet
@@ -97,7 +98,7 @@ class TestWalletStorage(WalletTestCase):
         contents = ""
         with open(path, "r") as f:
             contents = f.read()
-        self.assertEqual(repr(some_dict), contents)
+        self.assertEqual(some_dict, json.loads(contents))
 
 
 class TestNewWallet(WalletTestCase):
