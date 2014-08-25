@@ -50,6 +50,7 @@ def run_hook(name, *args):
         except Exception:
             print_error("Plugin error")
             traceback.print_exc(file=sys.stdout)
+            r = False
 
         if r:
             results.append(r)
