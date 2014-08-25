@@ -45,42 +45,36 @@ class Listener(threading.Thread):
         threading.Thread.__init__(self)
         self.daemon = True
         self.parent = parent
-        self.key = None
+        self.keyname = None
+        self.keyhash = None
         self.is_running = False
         self.message = None
-        self.delete = False
- 
-    def set_key(self, key):
-        self.key = key
+
+    def set_key(self, keyname, keyhash):
+        self.keyname = keyname
+        self.keyhash = keyhash
 
     def clear(self):
-        self.delete = True
+        server.delete(self.keyhash)
+        self.message = None
+
 
     def run(self):
         self.is_running = True
         while self.is_running:
-
-            if not self.key:
+            if not self.keyhash:
                 time.sleep(2)
                 continue
-
             if not self.message:
                 try:
-                    self.message = server.get(self.key)
+                    self.message = server.get(self.keyhash)
                 except Exception as e:
                     util.print_error("cannot contact cosigner pool")
                     time.sleep(30)
                     continue
-
                 if self.message:
                     self.parent.win.emit(SIGNAL("cosigner:receive"))
-            else:
-                if self.delete:
-                    # save it to disk
-                    server.delete(self.key)
-                    self.message = None
-                    self.delete = False
-
+            # poll every 30 seconds
             time.sleep(30)
 
 
@@ -109,21 +103,23 @@ class Plugin(BasePlugin):
             self.load_wallet(self.win.wallet)
         return True
 
+    def is_available(self):
+        if self.wallet is None:
+            return True
+        return self.wallet.wallet_type in ['2of2', '2of3']
+
     def load_wallet(self, wallet):
         self.wallet = wallet
         mpk = self.wallet.get_master_public_keys()
-
-        self.cold = mpk.get('x2')
-        if self.cold:
-            self.cold_K = bitcoin.deserialize_xkey(self.cold)[-1].encode('hex')
-            self.cold_hash = bitcoin.Hash(self.cold_K).encode('hex')
-
-        self.hot = mpk.get('x1')
-        if self.hot:
-            self.hot_K = bitcoin.deserialize_xkey(self.hot)[-1].encode('hex')
-            self.hot_hash = bitcoin.Hash(self.hot_K).encode('hex')
-            self.listener.set_key(self.hot_hash)
-
+        self.cosigner_list = []
+        for key, xpub in mpk.items():
+            keyname = key + '/' # fixme
+            K = bitcoin.deserialize_xkey(xpub)[-1].encode('hex')
+            _hash = bitcoin.Hash(K).encode('hex')
+            if self.wallet.master_private_keys.get(keyname):
+                self.listener.set_key(keyname, _hash)
+            else:
+                self.cosigner_list.append((xpub, K, _hash))
 
     def transaction_dialog(self, d):
         self.send_button = b = QPushButton(_("Send to cosigner"))
@@ -131,18 +127,18 @@ class Plugin(BasePlugin):
         d.buttons.insertWidget(2, b)
         self.transaction_dialog_update(d)
 
-
     def transaction_dialog_update(self, d):
         if d.tx.is_complete():
             self.send_button.hide()
             return
-        if self.cosigner_can_sign(d.tx):
-            self.send_button.show()
+        for xpub, K, _hash in self.cosigner_list:
+            if self.cosigner_can_sign(d.tx, xpub):
+                self.send_button.show()
+                break
         else:
             self.send_button.hide()
 
-
-    def cosigner_can_sign(self, tx):
+    def cosigner_can_sign(self, tx, cosigner_xpub):
         from electrum.transaction import x_to_xpub
         xpub_set = set([])
         for txin in tx.inputs:
@@ -151,24 +147,21 @@ class Plugin(BasePlugin):
                 if xpub:
                     xpub_set.add(xpub)
 
-        return self.cold in xpub_set
-
+        return cosigner_xpub in xpub_set
 
     def do_send(self, tx):
-        if not self.cosigner_can_sign(tx):
-            return
-
-        message = bitcoin.encrypt_message(tx.raw, self.cold_K)
-
-        try:
-            server.put(self.cold_hash, message)
-            self.win.show_message("Your transaction was sent to the cosigning pool.\nOpen your cosigner wallet to retrieve it.")
-        except Exception as e:
-            self.win.show_message(str(e))
-
+        for xpub, K, _hash in self.cosigner_list:
+            if not self.cosigner_can_sign(tx, xpub):
+                continue
+            message = bitcoin.encrypt_message(tx.raw, K)
+            try:
+                server.put(_hash, message)
+            except Exception as e:
+                self.win.show_message(str(e))
+                return
+        self.win.show_message("Your transaction was sent to the cosigning pool.\nOpen your cosigner wallet to retrieve it.")
 
     def on_receive(self):
-
         if self.wallet.use_encryption:
             password = self.win.password_dialog('An encrypted transaction was retrieved from cosigning pool.\nPlease enter your password to decrypt it.')
             if not password:
@@ -177,11 +170,12 @@ class Plugin(BasePlugin):
             password = None
 
         message = self.listener.message
-        xpriv = self.wallet.get_master_private_key('x1/', password)
-        if not xpriv:
+        key = self.listener.keyname
+        xprv = self.wallet.get_master_private_key(key, password)
+        if not xprv:
             return
         try:
-            k = bitcoin.deserialize_xkey(xpriv)[-1].encode('hex')
+            k = bitcoin.deserialize_xkey(xprv)[-1].encode('hex')
             EC = bitcoin.EC_KEY(k.decode('hex'))
             message = EC.decrypt_message(message)
         except Exception as e:
@@ -190,7 +184,6 @@ class Plugin(BasePlugin):
             return
 
         self.listener.clear()
-
         tx = transaction.Transaction.deserialize(message)
         self.win.show_transaction(tx)
 
