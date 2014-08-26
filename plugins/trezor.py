@@ -81,6 +81,8 @@ class Plugin(BasePlugin):
         wallet_types.append(('trezor', _("Trezor wallet"), TrezorWallet))
 
     def installwizard_restore(self, wizard, storage):
+        if storage.get('wallet_type') != 'trezor': 
+            return
         wallet = TrezorWallet(storage)
         try:
             wallet.create_main_account(None)

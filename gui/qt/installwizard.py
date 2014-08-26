@@ -538,6 +538,7 @@ class InstallWizard(QDialog):
                 wallet.create_main_account(password)
 
             else:
+                self.storage.put('wallet_type', t)
                 wallet = run_hook('installwizard_restore', self, self.storage)
                 if not wallet:
                     return
