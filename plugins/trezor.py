@@ -206,12 +206,9 @@ class TrezorWallet(NewWallet):
         pass
 
     def decrypt_message(self, pubkey, message, password):
-        try:
-            address = public_key_to_bc_address(pubkey.decode('hex'))
-            address_path = self.address_id(address)
-            address_n = self.get_client().expand_path(address_path)
-        except Exception, e:
-            raise e
+        address = public_key_to_bc_address(pubkey.decode('hex'))
+        address_path = self.address_id(address)
+        address_n = self.get_client().expand_path(address_path)
         try:
             decrypted_msg = self.get_client().decrypt_message(address_n, b64decode(message))
         except Exception, e:
