@@ -218,6 +218,9 @@ class BTChipWallet(NewWallet):
         give_error("Not supported")
 
     def sign_message(self, address, message, password):
+        self.get_client() # prompt for the PIN before displaying the dialog if necessary
+        if not self.check_proper_device():
+            give_error('Wrong device or password')        
         address_path = self.address_id(address)
         waitDialog.start("Signing Message ...")
         aborted = False
