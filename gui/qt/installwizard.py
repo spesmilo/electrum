@@ -33,6 +33,7 @@ class InstallWizard(QDialog):
         self.network = network
         self.storage = storage
         self.setMinimumSize(575, 400)
+        self.setMaximumSize(575, 400)
         self.setWindowTitle('Electrum')
         self.connect(self, QtCore.SIGNAL('accept'), self.accept)
 
@@ -313,16 +314,19 @@ class InstallWizard(QDialog):
             return None
 
 
-    def question(self, msg, icon=None):
+    def question(self, msg, yes_label=_('OK'), no_label=_('Cancel'), icon=None):
         vbox = QVBoxLayout()
         self.set_layout(vbox)
         if icon:
             logo = QLabel()
             logo.setPixmap(icon)
             vbox.addWidget(logo)
-        vbox.addWidget(QLabel(msg))
+
+        label = QLabel(msg)
+        label.setWordWrap(True)
+        vbox.addWidget(label)
         vbox.addStretch(1)
-        vbox.addLayout(ok_cancel_buttons(self, _('OK')))
+        vbox.addLayout(ok_cancel_buttons(self, yes_label, no_label))
         if not self.exec_(): 
             return None
         return True
@@ -343,29 +347,6 @@ class InstallWizard(QDialog):
         return run_password_dialog(self, None, self)[2]
 
 
-    def create_cold_seed(self, wallet):
-        from electrum.bitcoin import mnemonic_to_seed, bip32_root
-        msg = _('You are about to generate the cold storage seed of your wallet.') + '\n' \
-              + _('For safety, you should do this on an offline computer.')
-        icon = QPixmap( ':icons/cold_seed.png').scaledToWidth(56)
-        if not self.question(msg, icon):
-            return
-
-        cold_seed = wallet.make_seed()
-        if not self.show_seed(cold_seed, 'cold'):
-            return
-        if not self.verify_seed(cold_seed, 'cold'):
-            return
-
-        hex_seed = mnemonic_to_seed(cold_seed,'').encode('hex')
-        xpriv, xpub = bip32_root(hex_seed)
-        wallet.add_master_public_key('cold/', xpub)
-
-        msg = _('Your master public key was saved in your wallet file.') + '\n'\
-              + _('Your cold seed must be stored on paper; it is not in the wallet file.')+ '\n\n' \
-              + _('This program is about to close itself.') + '\n'\
-              + _('You will need to reopen your wallet on an online computer, in order to complete the creation of your wallet')
-        self.show_message(msg)
 
 
 
@@ -429,14 +410,13 @@ class InstallWizard(QDialog):
                     return
                 self.waiting_dialog(wallet.synchronize)
 
-            elif action == 'create_cold_seed':
-                self.create_cold_seed(wallet)
-                return
-
             else:
-                 r = run_hook('install_wizard_action', self, wallet, action)
-                 if not r: 
-                     raise BaseException('unknown wizard action', action)
+                f = run_hook('get_wizard_action', self, wallet, action)
+                if not f: 
+                    raise BaseException('unknown wizard action', action)
+                r = f(wallet, self)
+                if not r:
+                    return
 
             # next action
             action = wallet.get_action()

@@ -1464,6 +1464,12 @@ class Wallet_2of2(BIP39_Wallet):
         self.add_master_public_key(name, xpub)
         self.add_master_private_key(name, xprv, password)
 
+    def add_cosigner_xpub(self, seed, name):
+        # store only master xpub
+        xprv, xpub = bip32_root(mnemonic_to_seed(seed,''))
+        xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
+        self.add_master_public_key(name, xpub)
+
 
 
 class Wallet_2of3(Wallet_2of2):
