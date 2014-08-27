@@ -706,10 +706,9 @@ def xpub_from_xprv(xprv, testnet=False):
     return EncodeBase58Check(xpub)
 
 
-def bip32_root(mnemonic_seed, testnet=False):
+def bip32_root(seed, testnet=False):
     import hmac
     header_pub, header_priv = _get_headers(testnet)
-    seed = mnemonic_to_seed(mnemonic_seed,'')
     I = hmac.new("Bitcoin seed", seed, hashlib.sha512).digest()
     master_k = I[0:32]
     master_c = I[32:]

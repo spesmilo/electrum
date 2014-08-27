@@ -1988,6 +1988,7 @@ class ElectrumWindow(QMainWindow):
             decrypted = self.wallet.decrypt_message(str(pubkey_e.text()), str(encrypted_e.toPlainText()), password)
             message_e.setText(decrypted)
         except Exception as e:
+            traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
 
 
@@ -1998,6 +1999,7 @@ class ElectrumWindow(QMainWindow):
             encrypted = bitcoin.encrypt_message(message, str(pubkey_e.text()))
             encrypted_e.setText(encrypted)
         except Exception as e:
+            traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
 
 

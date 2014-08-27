@@ -3,6 +3,7 @@ import tempfile
 import sys
 import unittest
 import os
+import json
 
 from StringIO import StringIO
 from lib.wallet import WalletStorage, NewWallet
@@ -97,20 +98,15 @@ class TestWalletStorage(WalletTestCase):
         contents = ""
         with open(path, "r") as f:
             contents = f.read()
-        self.assertEqual(repr(some_dict), contents)
+        self.assertEqual(some_dict, json.loads(contents))
 
 
 class TestNewWallet(WalletTestCase):
 
-    seed_text = "The seed will sprout and grow up tall."
+    seed_text = "travel nowhere air position hill peace suffer parent beautiful rise blood power home crumble teach"
     password = "secret"
 
-    master_xpub = "xpub661MyMwAqRbcGEop5Rnp68oX1ikeFNVMtx1utwXZGRKMmeXVxwBM5UzkwU9nGB1EofZekLDRfi1w5F9P7Vac3PEuWdWHr2gHLW8vp5YyKJ1"
-    master_xpriv = "xprv9s21ZrQH143K3kjLyQFoizrnTgv9qumWXj6K6Z7wi5nNtrCMRPs6XggH6Bbgz9CUgPJnZnV74yUdRSr8qWVELr9QQTgU5aNL33ViMyD9nhs"
-
     first_account_name = "account1"
-    first_account_first_address = "1Jv9pLCJ4Sqr7aDYLGX5QhET4ps5qRcB9V"
-    first_account_second_address = "14n9EsZsgTTc4eC4TxeP1ccP8bXgwxPMmL"
 
     import_private_key = "L52XzL2cMkHxqxBXRyEpnPQZGUs3uKiL3R11XbAdHigRzDozKZeW"
     import_key_address = "15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma"
@@ -131,7 +127,8 @@ class TestNewWallet(WalletTestCase):
         # in setUp()
         new_dir = tempfile.mkdtemp()
         config = FakeConfig(new_dir)
-        wallet = NewWallet(config)
+        storage = WalletStorage(config)
+        wallet = NewWallet(storage)
         self.assertTrue(wallet.is_watching_only())
         shutil.rmtree(new_dir)  # Don't leave useless stuff in /tmp
 
@@ -142,22 +139,6 @@ class TestNewWallet(WalletTestCase):
         self.assertEqual(self.wallet.get_seed(self.password), self.seed_text)
         self.assertEqual(0, len(self.wallet.addresses()))
 
-    def test_add_account(self):
-        self.wallet.create_account(self.first_account_name, self.password)
-        self.assertEqual(1, len(self.wallet.addresses()))
-        self.assertIn(self.first_account_first_address,
-                         self.wallet.addresses())
-
-    def test_add_account_add_address(self):
-        self.wallet.create_account(self.first_account_name, self.password)
-        self.wallet.synchronizer = FakeSynchronizer()
-
-        self.wallet.create_new_address()
-        self.assertEqual(2, len(self.wallet.addresses()))
-        self.assertIn(self.first_account_first_address,
-                         self.wallet.addresses())
-        self.assertIn(self.first_account_second_address,
-                      self.wallet.addresses())
 
     def test_key_import(self):
         # Wallets have no imported keys by default.
