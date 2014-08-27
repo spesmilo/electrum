@@ -81,6 +81,8 @@ class Plugin(BasePlugin):
         wallet_types.append(('trezor', _("Trezor wallet"), TrezorWallet))
 
     def installwizard_restore(self, wizard, storage):
+        if storage.get('wallet_type') != 'trezor': 
+            return
         wallet = TrezorWallet(storage)
         try:
             wallet.create_main_account(None)
@@ -177,7 +179,7 @@ class TrezorWallet(NewWallet):
 
     def address_id(self, address):
         account_id, (change, address_index) = self.get_address_index(address)
-        return "%s/%d/%d" % (account_id, change, address_index)
+        return "44'/2'/%s'/%d/%d" % (account_id, change, address_index)
 
     def create_main_account(self, password):
         self.create_account('Main account', None) #name, empty password
@@ -206,12 +208,9 @@ class TrezorWallet(NewWallet):
         pass
 
     def decrypt_message(self, pubkey, message, password):
-        try:
-            address = public_key_to_bc_address(pubkey.decode('hex'))
-            address_path = self.address_id(address)
-            address_n = self.get_client().expand_path(address_path)
-        except Exception, e:
-            raise e
+        address = public_key_to_bc_address(pubkey.decode('hex'))
+        address_path = self.address_id(address)
+        address_n = self.get_client().expand_path(address_path)
         try:
             decrypted_msg = self.get_client().decrypt_message(address_n, b64decode(message))
         except Exception, e:
@@ -221,6 +220,8 @@ class TrezorWallet(NewWallet):
         return str(decrypted_msg)
 
     def sign_message(self, address, message, password):
+        if not self.check_proper_device():
+            give_error('Wrong device or password')
         try:
             address_path = self.address_id(address)
             address_n = self.get_client().expand_path(address_path)
