@@ -320,7 +320,7 @@ class Commands:
 
             label, is_default_label = self.wallet.get_label(tx_hash)
 
-            out.append({'txid':tx_hash, 'date':"%16s"%time_str, 'label':label, 'value':format_satoshis(value)})
+            out.append({'txid':tx_hash, 'date':"%16s"%time_str, 'label':label, 'value':format_satoshis(value), 'confirmations':conf})
         return out
 
     def setlabel(self, key, label):

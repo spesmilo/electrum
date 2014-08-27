@@ -1385,7 +1385,7 @@ class BIP39_Wallet(BIP32_Wallet):
 
     def create_master_keys(self, password):
         seed = self.get_seed(password)
-        xprv, xpub = bip32_root(seed)
+        xprv, xpub = bip32_root(mnemonic_to_seed(seed,''))
         xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
         self.add_master_public_key(self.root_name, xpub)
         self.add_master_private_key(self.root_name, xprv, password)
@@ -1459,10 +1459,16 @@ class Wallet_2of2(BIP39_Wallet):
 
     def add_cosigner_seed(self, seed, name, password):
         # we don't store the seed, only the master xpriv
-        xprv, xpub = bip32_root(seed)
+        xprv, xpub = bip32_root(mnemonic_to_seed(seed,''))
         xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
         self.add_master_public_key(name, xpub)
         self.add_master_private_key(name, xprv, password)
+
+    def add_cosigner_xpub(self, seed, name):
+        # store only master xpub
+        xprv, xpub = bip32_root(mnemonic_to_seed(seed,''))
+        xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
+        self.add_master_public_key(name, xpub)
 
 
 
