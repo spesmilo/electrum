@@ -83,7 +83,7 @@ class Mnemonic(object):
     def make_seed(self, num_bits=128, custom_entropy=1):
         n = int(math.ceil(math.log(custom_entropy,2)))
         # we add at least 16 bits
-        n_added = max(16, num_bits-n)
+        n_added = max(16, 8 + num_bits - n)
         print_error("make_seed: adding %d bits"%n_added)
         my_entropy = ecdsa.util.randrange( pow(2, n_added) )
         nonce = 0
@@ -97,5 +97,6 @@ class Mnemonic(object):
             # this removes 8 bits of entropy
             if is_new_seed(seed):
                 break
+        print_error('%d words'%len(seed.split()))
         return seed
 
