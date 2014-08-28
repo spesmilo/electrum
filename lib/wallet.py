@@ -36,6 +36,7 @@ from transaction import Transaction
 from plugins import run_hook
 import bitcoin
 from synchronizer import WalletSynchronizer
+from mnemonic import Mnemonic
 
 COINBASE_MATURITY = 100
 DUST_THRESHOLD = 5430
@@ -1278,6 +1279,32 @@ class BIP32_Wallet(Deterministic_Wallet):
                 return True
         return False
 
+    def create_master_keys(self, password):
+        seed = self.get_seed(password)
+        self.add_cosigner_seed(seed, self.root_name, password)
+
+    def add_cosigner_seed(self, seed, name, password):
+        # we don't store the seed, only the master xpriv
+        xprv, xpub = bip32_root(self.mnemonic_to_seed(seed,''))
+        xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
+        self.add_master_public_key(name, xpub)
+        self.add_master_private_key(name, xprv, password)
+
+    def add_cosigner_xpub(self, seed, name):
+        # store only master xpub
+        xprv, xpub = bip32_root(self.mnemonic_to_seed(seed,''))
+        xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
+        self.add_master_public_key(name, xpub)
+
+    def mnemonic_to_seed(self, seed, password):
+         return Mnemonic.mnemonic_to_seed(seed, password)
+
+    def make_seed(self):
+        return Mnemonic('english').make_seed()
+
+    def prepare_seed(self, seed):
+        return NEW_SEED_VERSION, Mnemonic.prepare_seed(seed)
+
 
 class BIP32_Simple_Wallet(BIP32_Wallet):
     # Wallet with a single BIP32 account, no seed
@@ -1380,53 +1407,15 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         return i
 
 
-class BIP39_Wallet(BIP32_Wallet):
-    # BIP39 seed generation
 
-    def create_master_keys(self, password):
-        seed = self.get_seed(password)
-        xprv, xpub = bip32_root(mnemonic_to_seed(seed,''))
-        xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
-        self.add_master_public_key(self.root_name, xpub)
-        self.add_master_private_key(self.root_name, xprv, password)
-
-    @classmethod
-    def make_seed(self, custom_entropy=1):
-        import mnemonic
-        import ecdsa
-        import math
-        n = int(math.ceil(math.log(custom_entropy,2)))
-        n_added = max(16, 160-n)
-        print_error("make_seed: adding %d bits"%n_added)
-        my_entropy = ecdsa.util.randrange( pow(2, n_added) )
-        nonce = 0
-        while True:
-            s = "%x"% ( custom_entropy * (my_entropy + nonce))
-            if len(s) % 8:
-                s = "0"* (8 - len(s) % 8) + s
-            words = mnemonic.mn_encode(s)
-            seed = ' '.join(words)
-            # this removes 8 bits of entropy
-            if not is_old_seed(seed) and is_new_seed(seed):
-                break
-            nonce += 1
-        print_error(seed)
-        return seed
-
-    def prepare_seed(self, seed):
-        import unicodedata
-        return NEW_SEED_VERSION, unicodedata.normalize('NFC', unicode(seed.strip()))
-
-
-
-class NewWallet(BIP32_HD_Wallet, BIP39_Wallet):
+class NewWallet(BIP32_HD_Wallet, Mnemonic):
     # bip 44
     root_name = 'x/'
     root_derivation = "m/44'/0'"
     wallet_type = 'standard'
 
 
-class Wallet_2of2(BIP39_Wallet):
+class Wallet_2of2(BIP32_Wallet, Mnemonic):
     # Wallet with multisig addresses. 
     # Cannot create accounts
     root_name = "x1/"
@@ -1456,19 +1445,6 @@ class Wallet_2of2(BIP39_Wallet):
             return 'add_cosigner'
         if not self.accounts:
             return 'create_accounts'
-
-    def add_cosigner_seed(self, seed, name, password):
-        # we don't store the seed, only the master xpriv
-        xprv, xpub = bip32_root(mnemonic_to_seed(seed,''))
-        xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
-        self.add_master_public_key(name, xpub)
-        self.add_master_private_key(name, xprv, password)
-
-    def add_cosigner_xpub(self, seed, name):
-        # store only master xpub
-        xprv, xpub = bip32_root(mnemonic_to_seed(seed,''))
-        xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
-        self.add_master_public_key(name, xpub)
 
 
 
@@ -1510,12 +1486,12 @@ class OldWallet(Deterministic_Wallet):
         self.gap_limit = storage.get('gap_limit', 5)
 
     def make_seed(self):
-        import mnemonic
+        import old_mnemonic
         seed = random_seed(128)
-        return ' '.join(mnemonic.mn_encode(seed))
+        return ' '.join(old_mnemonic.mn_encode(seed))
 
     def prepare_seed(self, seed):
-        import mnemonic
+        import old_mnemonic
         # see if seed was entered as hex
         seed = seed.strip()
         try:
@@ -1526,7 +1502,7 @@ class OldWallet(Deterministic_Wallet):
             pass
 
         words = seed.split()
-        seed = mnemonic.mn_decode(words)
+        seed = old_mnemonic.mn_decode(words)
         if not seed:
             raise Exception("Invalid seed")
 
@@ -1566,9 +1542,9 @@ class OldWallet(Deterministic_Wallet):
         self.accounts['0'].check_seed(seed)
 
     def get_mnemonic(self, password):
-        import mnemonic
+        import old_mnemonic
         s = self.get_seed(password)
-        return ' '.join(mnemonic.mn_encode(s))
+        return ' '.join(old_mnemonic.mn_encode(s))
 
     def can_sign(self, tx):
         if self.is_watching_only():

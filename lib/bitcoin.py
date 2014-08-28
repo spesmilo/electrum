@@ -111,16 +111,8 @@ def Hash(x):
 hash_encode = lambda x: x[::-1].encode('hex')
 hash_decode = lambda x: x.decode('hex')[::-1]
 hmac_sha_512 = lambda x,y: hmac.new(x, y, hashlib.sha512).digest()
-
-
-def mnemonic_to_seed(mnemonic, passphrase):
-    from pbkdf2 import PBKDF2
-    import hmac
-    PBKDF2_ROUNDS = 2048
-    return PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
-
-
 is_new_seed = lambda x: hmac_sha_512("Seed version", x.encode('utf8')).encode('hex')[0:2].startswith(SEED_PREFIX)
+
 
 def is_old_seed(seed):
     import mnemonic
