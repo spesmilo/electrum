@@ -182,8 +182,8 @@ class Exchanger(threading.Thread):
         quote_currencies = {}
         try:
             for r in jsonresp["data"]:
-                if jsonresp["data"][r]["name"].startswith("LTC_"):
-                    quote_currencies[r[-3:]] = Decimal(jsonresp["data"][r]["last"])
+                if r["name"].startswith("LTC_"):
+                    quote_currencies[r["name"][-3:]] = Decimal(r["last"])
             with self.lock:
                 self.quote_currencies = quote_currencies
         except KeyError:
@@ -378,6 +378,16 @@ class Plugin(BasePlugin):
                         return
                 else:
                     return
+            elif cur_exchange == "Kraken":
+                cur_currency = self.fiat_unit()
+                if cur_currency in ("EUR", "USD"):
+                    try:
+                        resp_hist = self.exchanger.get_json('api.kraken.com', "https://api.kraken.com/0/public/OHLC?pair=LTC"+cur_currency+"&interval=1440")['result']['XLTCZ'+cur_currency]
+                        resp_hist = dict([(t[0], t[4]) for t in resp_hist])
+                    except Exception:
+                        return
+                else:
+                    return
 
             self.gui.main_window.is_edit = True
             self.gui.main_window.history_list.setColumnCount(6)
@@ -417,11 +427,20 @@ class Plugin(BasePlugin):
                         tx_BTCVEN_val = "%.2f %s" % (Decimal(str(tx_info['value'])) / 100000000 * Decimal(num), cur_currency)
                     except KeyError:
                         tx_BTCVEN_val = _("No data")
+                elif cur_exchange == "Kraken":
+                    tx_day_time = int(tx_time / 86400) * 86400
+                    try:
+                        num = resp_hist[tx_day_time]
+                        tx_KRAKEN_val = "%.2f %s" % (Decimal(str(tx_info['value'])) / 100000000 * Decimal(num), cur_currency)
+                    except KeyError:
+                        tx_KRAKEN_val = _("No data")
 
                 if cur_exchange == "CoinDesk" or cur_exchange == "Winkdex":
                     item.setText(5, tx_USD_val)
                 elif cur_exchange == "BitcoinVenezuela":
                     item.setText(5, tx_BTCVEN_val)
+                elif cur_exchange == "Kraken":
+                    item.setText(5, tx_KRAKEN_val)
                 if Decimal(str(tx_info['value'])) < 0:
                     item.setForeground(5, QBrush(QColor("#BC1E1E")))
 
@@ -464,6 +483,8 @@ class Plugin(BasePlugin):
                     hist_checkbox.setEnabled(True)
                 elif cur_request in ("ARS", "EUR", "USD", "VEF") and (cur_exchange == "BitcoinVenezuela"):
                     hist_checkbox.setEnabled(True)
+                elif cur_request in ("EUR", "USD") and (cur_exchange == "Kraken"):
+                    hist_checkbox.setEnabled(True)
                 else:
                     hist_checkbox.setChecked(False)
                     hist_checkbox.setEnabled(False)
@@ -497,6 +518,11 @@ class Plugin(BasePlugin):
                         hist_checkbox.setEnabled(True)
                     else:
                         disable_check()
+                elif cur_request == "Kraken":
+                    if cur_currency in ("EUR", "USD"):
+                        hist_checkbox.setEnabled(True)
+                    else:
+                        disable_check()
                 else:
                     disable_check()
                 set_currencies(combo)
@@ -517,7 +543,7 @@ class Plugin(BasePlugin):
             cur_exchange = self.config.get('use_exchange', "BTC-e")
             if cur_exchange == "CoinDesk" or cur_exchange == "Winkdex":
                 hist_checkbox.setEnabled(True)
-            elif cur_exchange == "BitcoinVenezuela":
+            elif cur_exchange == "BitcoinVenezuela" or cur_exchange == "Kraken":
                 hist_checkbox.setEnabled(True)
             else:
                 hist_checkbox.setEnabled(False)
