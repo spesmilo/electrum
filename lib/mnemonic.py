@@ -32,9 +32,19 @@ class Mnemonic(object):
     # Seed derivation follows BIP39
     # Mnemonic phrase uses a hash based checksum, instead of a wordlist-dependent checksum
 
-    def __init__(self, lang='english'):
+    def __init__(self, lang=None):
+        if lang is None:
+            lang = 'english'
         path = os.path.join(os.path.dirname(__file__), 'wordlist', lang + '.txt')
-        self.wordlist = open(path,'r').read().strip().split('\n')
+        lines = open(path,'r').read().strip().split('\n')
+        self.wordlist = []
+        for line in lines:
+            line = line.split('#')[0]
+            line = line.strip(' \r')
+            assert ' ' not in line
+            if line:
+                self.wordlist.append(line)
+        print_error("wordlist has %d words"%len(self.wordlist))
 
     @classmethod
     def mnemonic_to_seed(self, mnemonic, passphrase):
