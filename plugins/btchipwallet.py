@@ -10,7 +10,7 @@ from base64 import b64encode, b64decode
 from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
 from electrum_gui.qt.util import ok_cancel_buttons
 from electrum.account import BIP32_Account
-from electrum.bitcoin import EC_KEY, EncodeBase58Check, DecodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
+from electrum.bitcoin import EncodeBase58Check, DecodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
 from electrum.i18n import _
 from electrum.plugins import BasePlugin
 from electrum.transaction import deserialize
@@ -137,13 +137,13 @@ class BTChipWallet(NewWallet):
                 firmware = self.client.getFirmwareVersion()['version'].split(".")
                 if int(firmware[0]) <> 1 or int(firmware[1]) <> 4:
                     aborted = True
-                    give_error("Unsupported firmware version")
-                if int(firmware[2]) < 8:
+                    raise Exception("Unsupported firmware version")
+                if int(firmware[2]) < 9:
                     aborted = True
-                    give_error("Please update your firmware - 1.4.8 or higher is necessary")
+                    raise Exception("Please update your firmware - 1.4.9 or higher is necessary")
                 try:
                     self.client.getOperationMode()
-                except BTChipException,e:
+                except BTChipException, e:
                     if (e.sw == 0x6985):
                         d.close()
                         dialog = StartBTChipPersoDialog()                        
@@ -154,18 +154,39 @@ class BTChipWallet(NewWallet):
                         self.client = btchip(d)
                     else:
                         raise e
-                if not noPin:
+                if not noPin:                    
                     # Immediately prompts for the PIN
-                    confirmed, p, pin = self.password_dialog("Enter your BTChip PIN")                
+                    remaining_attempts = self.client.getVerifyPinRemainingAttempts()                    
+                    if remaining_attempts <> 1:
+                        msg = "Enter your BTChip PIN - remaining attempts : " + str(remaining_attempts)
+                    else:
+                        msg = "Enter your BTChip PIN - WARNING : LAST ATTEMPT. If the PIN is not correct, the dongle will be wiped."
+                    confirmed, p, pin = self.password_dialog(msg)                
                     if not confirmed:
                         aborted = True
-                        give_error('Aborted by user')
-                    pin = pin.encode()                    
+                        raise Exception('Aborted by user - please unplug the dongle and plug it again before retrying')
+                    pin = pin.encode()                   
                     self.client.verifyPin(pin)
+
+            except BTChipException, e:
+                try:
+                    self.client.dongle.close()
+                except:
+                    pass
+                self.client = None                
+                if (e.sw == 0x6faa):
+                    raise Exception("Dongle is temporarily locked - please unplug it and replug it again")                    
+                if ((e.sw & 0xFFF0) == 0x63c0):
+                    raise Exception("Invalid PIN - please unplug the dongle and plug it again before retrying")
+                raise e
             except Exception, e:
-                self.client = None
+                try:                 
+                    self.client.dongle.close()
+                except:
+                    pass                
+                self.client = None                                
                 if not aborted:
-                    give_error("Could not connect to your BTChip dongle. Please verify access permissions or PIN")
+                    raise Exception("Could not connect to your BTChip dongle. Please verify access permissions or PIN")
                 else:
                     raise e
             self.client.bad = False
@@ -232,34 +253,31 @@ class BTChipWallet(NewWallet):
         give_error("Not supported")
 
     def sign_message(self, address, message, password):
+        use2FA = False
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
         if not self.check_proper_device():
             give_error('Wrong device or password')        
         address_path = self.address_id(address)
         waitDialog.start("Signing Message ...")
-        aborted = False
         try:
             info = self.get_client().signMessagePrepare(address_path, message)
             pin = ""
             if info['confirmationNeeded']:                
                 # TODO : handle different confirmation types. For the time being only supports keyboard 2FA
+                use2FA = True
                 confirmed, p, pin = self.password_dialog()
                 if not confirmed:
-                    aborted = True
-                    give_error('Aborted by user')
+                    raise Exception('Aborted by user')
                 pin = pin.encode()
                 self.client.bad = True
                 self.get_client(True)
             signature = self.get_client().signMessageSign(pin)
         except Exception, e:
-            if not aborted:
-                give_error(e)
-            else:
-                raise e
+            give_error(e)
         finally:
             if waitDialog.waiting:
                 waitDialog.emit(SIGNAL('dongle_done'))
-        self.client.bad = True
+        self.client.bad = use2FA
 
         # Parse the ASN.1 signature
 
@@ -276,20 +294,7 @@ class BTChipWallet(NewWallet):
 
         # And convert it
 
-        #Optimization for 1.4.9+
-        #return b64encode(chr(27 + 4 + (signature[0] & 0x01)) + r + s) 
-
-        for i in range(4):
-            sig = b64encode( chr(27 + i + 4) + r + s)
-            try:
-                EC_KEY.verify_message(address, sig, message)
-                return sig
-            except Exception:
-                continue
-            else:
-                raise Exception("error: cannot sign message")
-        return b64encode(chr(27 + 4 + (signature[0] & 0x01)) + r + s)
-
+        return b64encode(chr(27 + 4 + (signature[0] & 0x01)) + r + s) 
 
     def choose_tx_inputs( self, amount, fixed_fee, num_outputs, domain = None, coins = None ):
         # Overloaded to get the fee, as BTChip recomputes the change amount
@@ -312,7 +317,6 @@ class BTChipWallet(NewWallet):
         output = None
         outputAmount = None
         use2FA = False
-        aborted = False
         pin = ""
         # Fetch inputs of the transaction to sign
         for txinput in tx.inputs:
@@ -366,8 +370,7 @@ class BTChipWallet(NewWallet):
                     waitDialog.emit(SIGNAL('dongle_done'))
                     confirmed, p, pin = self.password_dialog()
                     if not confirmed:
-                        aborted = True
-                        give_error('Aborted by user')
+                        raise Exception('Aborted by user')
                     pin = pin.encode()
                     self.client.bad = True
                     self.get_client(True)
@@ -381,10 +384,7 @@ class BTChipWallet(NewWallet):
                     inputIndex = inputIndex + 1
                 firstTransaction = False
         except Exception, e:
-            if not aborted:
-                give_error(e)
-            else:
-                raise e
+            give_error(e)
         finally:
             if waitDialog.waiting:
                 waitDialog.emit(SIGNAL('dongle_done'))
