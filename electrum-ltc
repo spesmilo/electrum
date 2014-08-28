@@ -90,6 +90,8 @@ def arg_parser():
     parser.add_option("--2of3", action="store_true", dest="2of3", default=False, help="create 2of3 wallet")
     parser.add_option("--mpk", dest="mpk", default=False, help="restore from master public key")
     parser.add_option("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
+    parser.add_option("--nbits", dest="nbits", default="128", help="number of bits for make_seed")
+    parser.add_option("--entropy", dest="entropy", default="1", help="custom entropy for make_seed")
     return parser
 
 
@@ -385,6 +387,9 @@ if __name__ == '__main__':
     elif cmd.name == 'listaddresses':
         args = [cmd, options.show_all, options.show_labels]
 
+    elif cmd.name == 'make_seed':
+        args = [cmd, int(options.nbits), long(options.entropy)]
+
     elif cmd.name in ['payto', 'mktx']:
         domain = [options.from_addr] if options.from_addr else None
         args = ['mktx', args[1], Decimal(args[2]), Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, domain]
@@ -421,6 +426,8 @@ if __name__ == '__main__':
             print_msg("Warning: Final argument was reconstructed from several arguments:", repr(message))
             args = args[0:cmd.min_args] + [message]
 
+    if cmd.name == 'check_seed':
+        args.append(long(options.entropy))
 
 
     # run the command

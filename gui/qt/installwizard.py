@@ -252,6 +252,9 @@ class InstallWizard(QDialog):
 
 
     def network_dialog(self):
+        # skip this if config already exists
+        if self.config.get('server') is not None:
+            return
         
         grid = QGridLayout()
         grid.setSpacing(5)
@@ -289,15 +292,10 @@ class InstallWizard(QDialog):
         
         if b2.isChecked():
             return NetworkDialog(self.network, self.config, None).do_exec()
-
-        elif b1.isChecked():
+        else:
             self.config.set_key('auto_cycle', True, True)
             return
 
-        else:
-            self.config.set_key("server", None, True)
-            self.config.set_key('auto_cycle', False, True)
-            return
         
 
     def show_message(self, msg, icon=None):

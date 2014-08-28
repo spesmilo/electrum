@@ -221,9 +221,10 @@ def run_network_dialog( network, parent ):
     image = Gtk.Image()
     image.set_from_stock(Gtk.STOCK_NETWORK, Gtk.IconSize.DIALOG)
     host, port, protocol, proxy_config, auto_connect = network.get_parameters()
+    server = "%s:%s:%s"%(host, port, protocol)
     if parent:
         if network.is_connected():
-            status = "Connected to %s:%d\n%d blocks"%(host, port, network.blockchain.height())
+            status = "Connected to %s\n%d blocks"%(host, network.get_local_height())
         else:
             status = "Not connected"
     else:
@@ -340,12 +341,11 @@ def run_network_dialog( network, parent ):
 
     try:
         host, port, protocol = server.split(':')
-        proxy = network.config.get('proxy')
-        auto_connect = network.config.get('auto_cycle')
-        network.set_parameters(host, port, protocol, proxy, auto_connect)
     except Exception:
         show_message("error:" + server)
         return False
+
+    network.set_parameters(host, port, protocol, proxy_config, auto_connect)
 
 
 
