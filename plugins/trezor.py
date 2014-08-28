@@ -179,7 +179,7 @@ class TrezorWallet(NewWallet):
 
     def address_id(self, address):
         account_id, (change, address_index) = self.get_address_index(address)
-        return "%s/%d/%d" % (account_id, change, address_index)
+        return "44'/0'/%s'/%d/%d" % (account_id, change, address_index)
 
     def create_main_account(self, password):
         self.create_account('Main account', None) #name, empty password
