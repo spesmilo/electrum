@@ -262,17 +262,17 @@ class TrezorWallet(NewWallet):
 
         for txinput in tx.inputs:
             txinputtype = types.TxInputType()
-            address = txinput['address']
-            try:
-                address_path = self.address_id(address)
-                address_n = self.get_client().expand_path(address_path)
-                txinputtype.address_n.extend(address_n)
-            except: pass
-
             if ('is_coinbase' in txinput and txinput['is_coinbase']):
                 prev_hash = "\0"*32
                 prev_index = 0xffffffff # signed int -1
             else:
+                address = txinput['address']
+                try:
+                    address_path = self.address_id(address)
+                    address_n = self.get_client().expand_path(address_path)
+                    txinputtype.address_n.extend(address_n)
+                except: pass
+
                 prev_hash = unhexlify(txinput['prevout_hash'])
                 prev_index = txinput['prevout_n']
 
