@@ -2556,7 +2556,7 @@ class ElectrumWindow(QMainWindow):
         nz.valueChanged.connect(on_nz)
         widgets.append((nz_label, nz, nz_help))
 
-        fee_label = QLabel(_('Transaction fee') + ':')
+        fee_label = QLabel(_('Transaction fee per kb') + ':')
         fee_help = HelpButton(_('Fee per kilobyte of transaction.') + '\n' + _('Recommended value') + ': ' + self.format_amount(10000) + ' ' + self.base_unit())
         fee_e = BTCAmountEdit(self.get_decimal_point)
         fee_e.setAmount(self.wallet.fee)
