@@ -2517,27 +2517,27 @@ class ElectrumWindow(QMainWindow):
         grid = QGridLayout()
         grid.setColumnStretch(0,1)
 
-        nz_label = QLabel(_('Display zeros') + ':')
+        nz_label = QLabel(_('Zeros after decimal point') + ':')
         grid.addWidget(nz_label, 0, 0)
-        nz_e = AmountEdit(None,True)
-        nz_e.setText("%d"% self.num_zeros)
-        grid.addWidget(nz_e, 0, 1)
+        nz = QSpinBox()
+        nz.setMinimum(0)
+        nz.setMaximum(self.decimal_point)
+        nz.setValue(self.num_zeros)
+        grid.addWidget(nz, 0, 1)
         msg = _('Number of zeros displayed after the decimal point. For example, if this is set to 2, "1." will be displayed as "1.00"')
         grid.addWidget(HelpButton(msg), 0, 2)
         if not self.config.is_modifiable('num_zeros'):
-            for w in [nz_e, nz_label]: w.setEnabled(False)
+            for w in [nz, nz_label]: w.setEnabled(False)
         def on_nz():
-            nz = nz_e.get_amount()
-            if nz>8:
-                nz = 8
-            if self.num_zeros != nz:
-                self.num_zeros = nz
+            value = nz.value()
+            if self.num_zeros != value:
+                self.num_zeros = value
                 self.config.set_key('num_zeros', nz, True)
                 self.update_history_tab()
                 self.update_address_tab()
-        nz_e.editingFinished.connect(on_nz)
+        nz.valueChanged.connect(on_nz)
 
-        lang_label=QLabel(_('Language') + ':')
+        lang_label = QLabel(_('Language') + ':')
         grid.addWidget(lang_label, 1, 0)
         lang_combo = QComboBox()
         from electrum.i18n import languages
