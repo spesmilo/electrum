@@ -2635,7 +2635,7 @@ class ElectrumWindow(QMainWindow):
         usechange_cb.stateChanged.connect(on_usechange)
         widgets.append((usechange_cb, None, usechange_help))
 
-        showtx_cb = QCheckBox(_('Show before broadcast'))
+        showtx_cb = QCheckBox(_('Show transaction before broadcast'))
         showtx_cb.setChecked(self.config.get('show_before_broadcast', False))
         showtx_cb.stateChanged.connect(lambda x: self.config.set_key('show_before_broadcast', showtx_cb.isChecked()))
         showtx_help = HelpButton(_('Display the details of your transactions before broadcasting it.'))
