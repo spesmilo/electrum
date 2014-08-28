@@ -674,6 +674,8 @@ class Transaction:
         r = 0
         s = 0
         for txin in self.inputs:
+            if txin.get('is_coinbase'):
+                continue
             signatures = filter(lambda x: x is not None, txin['signatures'])
             s += len(signatures)
             r += txin['num_sig']
