@@ -16,7 +16,7 @@ from electrum.plugins import BasePlugin
 from electrum.transaction import deserialize
 from electrum.wallet import NewWallet
 
-from lib.util import format_satoshis
+from electrum.util import format_satoshis
 import hashlib
 
 try:
@@ -25,6 +25,8 @@ try:
     from btchip.btchip import btchip
     from btchip.btchipUtils import compress_public_key,format_transaction, get_regular_input_script
     from btchip.bitcoinTransaction import bitcoinTransaction
+    from btchip.btchipPersoWizard import StartBTChipPersoDialog
+    from btchip.btchipException import BTChipException
     BTCHIP = True
 except ImportError:
     BTCHIP = False
@@ -139,6 +141,19 @@ class BTChipWallet(NewWallet):
                 if int(firmware[2]) < 8:
                     aborted = True
                     give_error("Please update your firmware - 1.4.8 or higher is necessary")
+                try:
+                    self.client.getOperationMode()
+                except BTChipException,e:
+                    if (e.sw == 0x6985):
+                        d.close()
+                        dialog = StartBTChipPersoDialog()                        
+                        dialog.exec_()
+                        # Then fetch the reference again  as it was invalidated
+                        d = getDongle(True)
+                        d.setWaitImpl(DongleWaitQT(d))
+                        self.client = btchip(d)
+                    else:
+                        raise e
                 if not noPin:
                     # Immediately prompts for the PIN
                     confirmed, p, pin = self.password_dialog("Enter your BTChip PIN")                
@@ -148,6 +163,7 @@ class BTChipWallet(NewWallet):
                     pin = pin.encode()                    
                     self.client.verifyPin(pin)
             except Exception, e:
+                self.client = None
                 if not aborted:
                     give_error("Could not connect to your BTChip dongle. Please verify access permissions or PIN")
                 else:
@@ -159,14 +175,12 @@ class BTChipWallet(NewWallet):
 
     def address_id(self, address):
         account_id, (change, address_index) = self.get_address_index(address)
-        # FIXME review
         return "44'/0'/%s'/%d/%d" % (account_id, change, address_index)
 
     def create_main_account(self, password):
         self.create_account('Main account', None) #name, empty password
 
     def derive_xkeys(self, root, derivation, password):
-        # FIXME review
         derivation = derivation.replace(self.root_name,"44'/0'/")
         xpub = self.get_public_key(derivation)
         return xpub, None
@@ -218,6 +232,9 @@ class BTChipWallet(NewWallet):
         give_error("Not supported")
 
     def sign_message(self, address, message, password):
+        self.get_client() # prompt for the PIN before displaying the dialog if necessary
+        if not self.check_proper_device():
+            give_error('Wrong device or password')        
         address_path = self.address_id(address)
         waitDialog.start("Signing Message ...")
         aborted = False
@@ -242,6 +259,7 @@ class BTChipWallet(NewWallet):
         finally:
             if waitDialog.waiting:
                 waitDialog.emit(SIGNAL('dongle_done'))
+        self.client.bad = True
 
         # Parse the ASN.1 signature
 
@@ -258,6 +276,9 @@ class BTChipWallet(NewWallet):
 
         # And convert it
 
+        #Optimization for 1.4.9+
+        #return b64encode(chr(27 + 4 + (signature[0] & 0x01)) + r + s) 
+
         for i in range(4):
             sig = b64encode( chr(27 + i + 4) + r + s)
             try:
@@ -265,8 +286,10 @@ class BTChipWallet(NewWallet):
                 return sig
             except Exception:
                 continue
-        else:
-            raise Exception("error: cannot sign message")
+            else:
+                raise Exception("error: cannot sign message")
+        return b64encode(chr(27 + 4 + (signature[0] & 0x01)) + r + s)
+
 
     def choose_tx_inputs( self, amount, fixed_fee, num_outputs, domain = None, coins = None ):
         # Overloaded to get the fee, as BTChip recomputes the change amount
@@ -290,6 +313,7 @@ class BTChipWallet(NewWallet):
         outputAmount = None
         use2FA = False
         aborted = False
+        pin = ""
         # Fetch inputs of the transaction to sign
         for txinput in tx.inputs:
             if ('is_coinbase' in txinput and txinput['is_coinbase']):
@@ -350,8 +374,10 @@ class BTChipWallet(NewWallet):
                     waitDialog.start("Signing ...")
                 else:
                     # Sign input with the provided PIN
-                    signatures.append(self.get_client().untrustedHashSign(inputsPaths[inputIndex],
-                    pin))
+                    inputSignature = self.get_client().untrustedHashSign(inputsPaths[inputIndex],
+                    pin)
+                    inputSignature[0] = 0x30 # force for 1.4.9+
+                    signatures.append(inputSignature)
                     inputIndex = inputIndex + 1
                 firstTransaction = False
         except Exception, e:
