@@ -179,7 +179,7 @@ class TrezorWallet(NewWallet):
 
     def address_id(self, address):
         account_id, (change, address_index) = self.get_address_index(address)
-        return "44'/0'/%s'/%d/%d" % (account_id, change, address_index)
+        return "%s/%d/%d" % (account_id, change, address_index)
 
     def create_main_account(self, password):
         self.create_account('Main account', None) #name, empty password
@@ -262,17 +262,17 @@ class TrezorWallet(NewWallet):
 
         for txinput in tx.inputs:
             txinputtype = types.TxInputType()
-            address = txinput['address']
-            try:
-                address_path = self.address_id(address)
-                address_n = self.get_client().expand_path(address_path)
-                txinputtype.address_n.extend(address_n)
-            except: pass
-
             if ('is_coinbase' in txinput and txinput['is_coinbase']):
                 prev_hash = "\0"*32
                 prev_index = 0xffffffff # signed int -1
             else:
+                address = txinput['address']
+                try:
+                    address_path = self.address_id(address)
+                    address_n = self.get_client().expand_path(address_path)
+                    txinputtype.address_n.extend(address_n)
+                except: pass
+
                 prev_hash = unhexlify(txinput['prevout_hash'])
                 prev_index = txinput['prevout_n']
 
