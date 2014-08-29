@@ -1,7 +1,7 @@
 from decimal import Decimal
 _ = lambda x:x
 #from i18n import _
-from electrum import mnemonic_encode, WalletStorage, Wallet
+from electrum.wallet import WalletStorage, Wallet
 from electrum.util import format_satoshis, set_verbosity
 from electrum.bitcoin import is_valid
 from electrum.network import filter_protocol

@@ -115,10 +115,10 @@ is_new_seed = lambda x: hmac_sha_512("Seed version", x.encode('utf8')).encode('h
 
 
 def is_old_seed(seed):
-    import mnemonic
+    import old_mnemonic
     words = seed.strip().split()
     try:
-        mnemonic.mn_decode(words)
+        old_mnemonic.mn_decode(words)
         uses_electrum_words = True
     except Exception:
         uses_electrum_words = False

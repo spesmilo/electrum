@@ -26,7 +26,7 @@ from gi.repository import Gtk, Gdk, GObject, cairo
 from decimal import Decimal
 from electrum.util import print_error
 from electrum.bitcoin import is_valid
-from electrum import mnemonic, WalletStorage, Wallet
+from electrum import WalletStorage, Wallet
 
 Gdk.threads_init()
 APP_NAME = "Electrum"
