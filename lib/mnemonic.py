@@ -32,9 +32,19 @@ class Mnemonic(object):
     # Seed derivation follows BIP39
     # Mnemonic phrase uses a hash based checksum, instead of a wordlist-dependent checksum
 
-    def __init__(self, lang='english'):
+    def __init__(self, lang=None):
+        if lang is None:
+            lang = 'english'
         path = os.path.join(os.path.dirname(__file__), 'wordlist', lang + '.txt')
-        self.wordlist = open(path,'r').read().strip().split('\n')
+        lines = open(path,'r').read().strip().split('\n')
+        self.wordlist = []
+        for line in lines:
+            line = line.split('#')[0]
+            line = line.strip(' \r')
+            assert ' ' not in line
+            if line:
+                self.wordlist.append(line)
+        print_error("wordlist has %d words"%len(self.wordlist))
 
     @classmethod
     def mnemonic_to_seed(self, mnemonic, passphrase):
@@ -73,7 +83,7 @@ class Mnemonic(object):
     def make_seed(self, num_bits=128, custom_entropy=1):
         n = int(math.ceil(math.log(custom_entropy,2)))
         # we add at least 16 bits
-        n_added = max(16, num_bits-n)
+        n_added = max(16, 8 + num_bits - n)
         print_error("make_seed: adding %d bits"%n_added)
         my_entropy = ecdsa.util.randrange( pow(2, n_added) )
         nonce = 0
@@ -87,5 +97,6 @@ class Mnemonic(object):
             # this removes 8 bits of entropy
             if is_new_seed(seed):
                 break
+        print_error('%d words'%len(seed.split()))
         return seed
 

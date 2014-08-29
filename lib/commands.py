@@ -108,8 +108,8 @@ register_command('decrypt',              2,-1, False, True, True,   'decrypt a m
 register_command('getproof',             1, 1, True, False, False, 'get merkle proof', 'getproof <address>')
 register_command('getutxoaddress',       2, 2, True, False, False, 'get the address of an unspent transaction output','getutxoaddress <txid> <pos>')
 register_command('sweep',                2, 3, True, False, False, 'Sweep a private key.', 'sweep privkey addr [fee]')
-register_command('make_seed',            2, 2, False, False, False, 'Create a seed.','options: --nbits --entropy')
-register_command('check_seed',           1,-1, False, False, False, 'Check that a seed was generated with external entropy. Option: --entropy')
+register_command('make_seed',            3, 3, False, False, False, 'Create a seed.','options: --nbits --entropy --lang')
+register_command('check_seed',           1,-1, False, False, False, 'Check that a seed was generated with external entropy. Option: --entropy --lang')
 
 
 class Commands:
@@ -131,14 +131,14 @@ class Commands:
             apply(self._callback, ())
         return result
 
-    def make_seed(self, nbits, custom_entropy):
+    def make_seed(self, nbits, custom_entropy, language):
         from mnemonic import Mnemonic
-        s = Mnemonic('english').make_seed(nbits, custom_entropy)
+        s = Mnemonic(language).make_seed(nbits, custom_entropy)
         return s
 
-    def check_seed(self, seed, custom_entropy):
+    def check_seed(self, seed, custom_entropy, language):
         from mnemonic import Mnemonic
-        return Mnemonic('english').check_seed(seed, custom_entropy)
+        return Mnemonic(language).check_seed(seed, custom_entropy)
 
     def getaddresshistory(self, addr):
         return self.network.synchronous_get([ ('blockchain.address.get_history',[addr]) ])[0]
