@@ -1304,7 +1304,8 @@ class ElectrumGui():
                 r = change_password_dialog(False, None)
                 password = r[2] if r else None
                 wallet.add_seed(seed, password)
-                wallet.create_accounts(password)
+                wallet.create_master_keys(password)
+                wallet.create_main_account(password)
                 wallet.synchronize()  # generate first addresses offline
 
             elif action == 'restore':
@@ -1314,7 +1315,8 @@ class ElectrumGui():
                 r = change_password_dialog(False, None)
                 password = r[2] if r else None
                 wallet.add_seed(seed, password)
-                wallet.create_accounts(password)
+                wallet.create_master_keys(password)
+                wallet.create_main_account(password)
                 
             else:
                 exit()
