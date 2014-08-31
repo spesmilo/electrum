@@ -380,6 +380,7 @@ class InstallWizard(QDialog):
                     return
                 password = self.password_dialog()
                 wallet.add_seed(seed, password)
+                wallet.create_master_keys(password)
 
             elif action == 'add_cosigner':
                 xpub1 = wallet.master_public_keys.get("x1/")
@@ -464,6 +465,7 @@ class InstallWizard(QDialog):
                     password = self.password_dialog()
                     wallet = Wallet.from_seed(text, self.storage)
                     wallet.add_seed(text, password)
+                    wallet.create_master_keys(password)
                     wallet.create_main_account(password)
                 else:
                     raise BaseException('unknown wallet type')
@@ -486,6 +488,7 @@ class InstallWizard(QDialog):
 
                 if Wallet.is_seed(text1):
                     wallet.add_seed(text1, password)
+                    wallet.create_master_keys(password)
                 else:
                     wallet.add_master_public_key("x1/", text1)
 
@@ -520,6 +523,7 @@ class InstallWizard(QDialog):
 
                 if Wallet.is_seed(text1):
                     wallet.add_seed(text1, password)
+                    wallet.create_master_keys(password)
                 else:
                     wallet.add_master_public_key("x1/", text1)
 

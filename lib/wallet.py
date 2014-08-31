@@ -1071,7 +1071,6 @@ class Deterministic_Wallet(Abstract_Wallet):
         self.storage.put('seed', self.seed, True)
         self.storage.put('seed_version', self.seed_version, True)
         self.storage.put('use_encryption', self.use_encryption,True)
-        self.create_master_keys(password)
 
     def get_seed(self, password):
         return pw_decode(self.seed, password)
