@@ -174,6 +174,8 @@ class TrezorWallet(NewWallet):
             except:
                 give_error('Could not connect to your Trezor. Please verify the cable is connected and that no other app is using it.')
             self.client = QtGuiTrezorClient(self.transport)
+	    if (self.client.features.major_version == 1 and self.client.features.minor_version < 2) or (self.client.features.major_version == 1 and self.client.features.minor_version == 2 and self.client.features.patch_version < 1):
+		give_error('Outdated Trezor firmware. Please update the firmware from https://www.mytrezor.com') 
             self.client.set_tx_api(self)
             #self.client.clear_session()# TODO Doesn't work with firmware 1.1, returns proto.Failure
             self.client.bad = False
