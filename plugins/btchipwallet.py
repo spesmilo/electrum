@@ -86,6 +86,8 @@ class Plugin(BasePlugin):
 
     @hook
     def installwizard_restore(self, wizard, storage):
+        if storage.get('wallet_type') != 'btchip':
+            return
         wallet = BTChipWallet(storage)
         try:
             wallet.create_main_account(None)
