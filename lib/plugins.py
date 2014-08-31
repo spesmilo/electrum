@@ -6,7 +6,7 @@ from i18n import _
 plugins = []
 
 
-def init_plugins(self):
+def init_plugins(config):
     import imp, pkgutil, __builtin__, os
     global plugins
 
@@ -23,7 +23,7 @@ def init_plugins(self):
 
     for name, p in zip(plugin_names, plugin_modules):
         try:
-            plugins.append( p.Plugin(self, name) )
+            plugins.append( p.Plugin(config, name) )
         except Exception:
             print_msg(_("Error: cannot initialize plugin"),p)
             traceback.print_exc(file=sys.stdout)
@@ -61,10 +61,9 @@ def run_hook(name, *args):
 
 class BasePlugin:
 
-    def __init__(self, gui, name):
-        self.gui = gui
+    def __init__(self, config, name):
         self.name = name
-        self.config = gui.config
+        self.config = config
         # add self to hooks
         for k in dir(self):
             if k in hook_names:

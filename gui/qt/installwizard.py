@@ -2,6 +2,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
+import electrum
 from electrum.i18n import _
 from electrum import Wallet, Wallet_2of2, Wallet_2of3
 from electrum import bitcoin
@@ -96,13 +97,7 @@ class InstallWizard(QDialog):
         grid.addWidget(gb2, 3, 0)
         group2 = QButtonGroup()
 
-        self.wallet_types = [ 
-            ('standard', _("Standard wallet"),          Wallet), 
-            ('2of2',     _("Multisig wallet (2 of 2)"), Wallet_2of2),
-            ('2of3',     _("Multisig wallet (2 of 3)"), Wallet_2of3)
-        ]
-        run_hook('add_wallet_types', self.wallet_types)
-
+        self.wallet_types = filter(lambda x: x[0] not in ['old','xpub','imported'], electrum.wallet.wallet_types)
         for i, (t,l,c) in enumerate(self.wallet_types):
             button = QRadioButton(gb2)
             button.setText(l)

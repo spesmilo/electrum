@@ -44,9 +44,9 @@ class Plugin(BasePlugin):
         return decoded_message
 
     @hook
-    def init(self):
+    def init_qt(self, gui):
         self.target_host = 'labelectrum.herokuapp.com'
-        self.window = self.gui.main_window
+        self.window = gui.main_window
 
     @hook
     def load_wallet(self, wallet):
@@ -154,7 +154,7 @@ class Plugin(BasePlugin):
     def enable(self):
         if not self.auth_token(): # First run, throw plugin settings in your face
             self.init()
-            self.load_wallet(self.gui.main_window.wallet)
+            self.load_wallet(self.window.wallet)
             if self.settings_dialog():
                 self.set_enabled(True)
                 return True

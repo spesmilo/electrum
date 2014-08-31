@@ -7,6 +7,7 @@ from sys import stderr
 from time import sleep
 from base64 import b64encode, b64decode
 
+import electrum
 from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
 from electrum_gui.qt.util import ok_cancel_buttons
 from electrum.account import BIP32_Account
@@ -41,14 +42,18 @@ def give_error(message):
 
 class Plugin(BasePlugin):
 
-    def fullname(self): return 'BTChip Wallet'
+    def fullname(self):
+        return 'BTChip Wallet'
 
-    def description(self): return 'Provides support for BTChip hardware wallet\n\nRequires github.com/btchip/btchip-python'
+    def description(self):
+        return 'Provides support for BTChip hardware wallet\n\nRequires github.com/btchip/btchip-python'
 
     def __init__(self, gui, name):
         BasePlugin.__init__(self, gui, name)
         self._is_available = self._init()
         self.wallet = None
+        electrum.wallet.wallet_types.append(('btchip', _("BTChip wallet"), BTChipWallet))
+
 
     def _init(self):
         return BTCHIP
@@ -76,12 +81,12 @@ class Plugin(BasePlugin):
         return BasePlugin.enable(self)
 
     @hook
-    def load_wallet(self, wallet):
-        self.wallet = wallet
+    def init_qt(self, gui):
+        self.gui = gui
 
     @hook
-    def add_wallet_types(self, wallet_types):
-        wallet_types.append(('btchip', _("BTChip wallet"), BTChipWallet))
+    def load_wallet(self, wallet):
+        self.wallet = wallet
 
     @hook
     def installwizard_restore(self, wizard, storage):

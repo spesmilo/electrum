@@ -339,7 +339,8 @@ class Plugin(BasePlugin):
         self.exchanges = [self.config.get('use_exchange', "Blockchain")]
 
     @hook
-    def init(self):
+    def init_qt(self, gui):
+        self.gui = gui
         self.win = self.gui.main_window
         self.win.connect(self.win, SIGNAL("refresh_currencies()"), self.win.update_status)
         self.btc_rate = Decimal("0.0")

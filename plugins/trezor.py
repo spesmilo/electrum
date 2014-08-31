@@ -6,6 +6,7 @@ from sys import stderr
 from time import sleep
 from base64 import b64encode, b64decode
 
+import electrum
 from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
 from electrum_gui.qt.util import ok_cancel_buttons, EnterButton
 from electrum.account import BIP32_Account
@@ -36,15 +37,18 @@ def give_error(message):
 
 class Plugin(BasePlugin):
 
-    def fullname(self): return 'Trezor Wallet'
+    def fullname(self):
+        return 'Trezor Wallet'
 
-    def description(self): return 'Provides support for Trezor hardware wallet\n\nRequires github.com/trezor/python-trezor'
+    def description(self):
+        return 'Provides support for Trezor hardware wallet\n\nRequires github.com/trezor/python-trezor'
 
-    def __init__(self, gui, name):
-        BasePlugin.__init__(self, gui, name)
+    def __init__(self, config, name):
+        BasePlugin.__init__(self, config, name)
         self._is_available = self._init()
         self._requires_settings = True
         self.wallet = None
+        electrum.wallet.wallet_types.append(('trezor', _("Trezor wallet"), TrezorWallet))
 
     def _init(self):
         return TREZOR
@@ -77,10 +81,6 @@ class Plugin(BasePlugin):
     @hook
     def load_wallet(self, wallet):
         self.wallet = wallet
-
-    @hook
-    def add_wallet_types(self, wallet_types):
-        wallet_types.append(('trezor', _("Trezor wallet"), TrezorWallet))
 
     @hook
     def installwizard_restore(self, wizard, storage):

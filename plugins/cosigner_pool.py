@@ -90,8 +90,8 @@ class Plugin(BasePlugin):
         return description
 
     @hook
-    def init(self):
-        self.win = self.gui.main_window
+    def init_qt(self, gui):
+        self.win = gui.main_window
         self.win.connect(self.win, SIGNAL('cosigner:receive'), self.on_receive)
         if self.listener is None:
             self.listener = Listener(self)

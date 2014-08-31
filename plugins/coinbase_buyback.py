@@ -52,6 +52,10 @@ class Plugin(BasePlugin):
     def _init(self):
         return loaded_qweb
 
+    @hook
+    def init_qt(self, gui):
+        self.gui = gui
+
     def is_available(self):
         return self._is_available
 

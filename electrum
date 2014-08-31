@@ -47,6 +47,9 @@ from electrum import util
 from electrum import SimpleConfig, Network, Wallet, WalletStorage, NetworkProxy, Commands, known_commands, pick_random_server
 from electrum.util import print_msg, print_stderr, print_json, set_verbosity
 from electrum.daemon import get_daemon
+from electrum.plugins import init_plugins
+
+
 
 # get password routine
 def prompt_password(prompt, confirm=True):
@@ -173,6 +176,7 @@ if __name__ == '__main__':
     set_verbosity(config_options.get('verbose'))
 
     config = SimpleConfig(config_options)
+    init_plugins(config)
 
     if len(args) == 0:
         url = None
