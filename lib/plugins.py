@@ -29,29 +29,28 @@ def init_plugins(self):
             traceback.print_exc(file=sys.stdout)
 
 
+hook_names = set()
+hooks = {}
+
+def hook(func):
+    n = func.func_name
+    if n not in hook_names:
+        hook_names.add(n)
+    return func
+
 
 def run_hook(name, *args):
-    
-    global plugins
-
     results = []
-
-    for p in plugins:
-
+    f_list = hooks.get(name,[])
+    for p, f in f_list:
         if not p.is_enabled():
             continue
-
-        f = getattr(p, name, None)
-        if not callable(f):
-            continue
-
         try:
             r = f(*args)
         except Exception:
             print_error("Plugin error")
             traceback.print_exc(file=sys.stdout)
             r = False
-
         if r:
             results.append(r)
 
@@ -60,13 +59,18 @@ def run_hook(name, *args):
         return results[0]
 
 
-
 class BasePlugin:
 
     def __init__(self, gui, name):
         self.gui = gui
         self.name = name
         self.config = gui.config
+        # add self to hooks
+        for k in dir(self):
+            if k in hook_names:
+                l = hooks.get(k, [])
+                l.append((self, getattr(self, k)))
+                hooks[k] = l
 
     def fullname(self):
         return self.name
@@ -86,7 +90,6 @@ class BasePlugin:
                 self.init()
 
         return self.is_enabled()
-
     
     def enable(self):
         self.set_enabled(True)
@@ -111,3 +114,4 @@ class BasePlugin:
 
     def settings_dialog(self):
         pass
+

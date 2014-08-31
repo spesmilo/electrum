@@ -1,5 +1,5 @@
 from PyQt4.QtGui import *
-from electrum import BasePlugin
+from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
 
 class Plugin(BasePlugin):
@@ -15,7 +15,7 @@ class Plugin(BasePlugin):
         self.vkb = None
         self.vkb_index = 0
 
-
+    @hook
     def password_dialog(self, pw, grid, pos):
         vkb_button = QPushButton(_("+"))
         vkb_button.setFixedWidth(20)

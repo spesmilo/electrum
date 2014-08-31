@@ -11,7 +11,7 @@ from electrum_gui.qt.util import ok_cancel_buttons, EnterButton
 from electrum.account import BIP32_Account
 from electrum.bitcoin import EncodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
 from electrum.i18n import _
-from electrum.plugins import BasePlugin
+from electrum.plugins import BasePlugin, hook
 from electrum.transaction import deserialize
 from electrum.wallet import NewWallet
 
@@ -74,12 +74,15 @@ class Plugin(BasePlugin):
     def enable(self):
         return BasePlugin.enable(self)
 
+    @hook
     def load_wallet(self, wallet):
         self.wallet = wallet
 
+    @hook
     def add_wallet_types(self, wallet_types):
         wallet_types.append(('trezor', _("Trezor wallet"), TrezorWallet))
 
+    @hook
     def installwizard_restore(self, wizard, storage):
         if storage.get('wallet_type') != 'trezor': 
             return
@@ -91,6 +94,7 @@ class Plugin(BasePlugin):
             return
         return wallet
 
+    @hook
     def send_tx(self, tx):
         try:
             self.wallet.sign_transaction(tx, None, None)

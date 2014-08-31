@@ -9,7 +9,7 @@ import threading
 import time
 import re
 from decimal import Decimal
-from electrum.plugins import BasePlugin
+from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
 from electrum_gui.qt.util import *
 from electrum_gui.qt.amountedit import AmountEdit
@@ -338,6 +338,7 @@ class Plugin(BasePlugin):
         self.currencies = [self.fiat_unit()]
         self.exchanges = [self.config.get('use_exchange', "Blockchain")]
 
+    @hook
     def init(self):
         self.win = self.gui.main_window
         self.win.connect(self.win, SIGNAL("refresh_currencies()"), self.win.update_status)
@@ -353,6 +354,7 @@ class Plugin(BasePlugin):
         self.win.emit(SIGNAL("refresh_currencies()"))
         self.win.emit(SIGNAL("refresh_currencies_combo()"))
 
+    @hook
     def get_fiat_balance_text(self, btc_balance, r):
         # return balance as: 1.23 USD
         r[0] = self.create_fiat_balance_text(Decimal(btc_balance) / 100000000)
@@ -364,6 +366,7 @@ class Plugin(BasePlugin):
         if quote:
             r[0] = "%s"%quote
 
+    @hook
     def get_fiat_status_text(self, btc_balance, r2):
         # return status as:   (1.23 USD)    1 BTC~123.45 USD
         text = ""
@@ -391,6 +394,7 @@ class Plugin(BasePlugin):
             quote_text = "%.2f %s" % (quote_balance, quote_currency)
         return quote_text
 
+    @hook
     def load_wallet(self, wallet):
         self.wallet = wallet
         tx_list = {}
