@@ -29,6 +29,7 @@ try:
     from btchip.btchipPersoWizard import StartBTChipPersoDialog
     from btchip.btchipException import BTChipException
     BTCHIP = True
+    BTCHIP_DEBUG = False
 except ImportError:
     BTCHIP = False
 
@@ -141,7 +142,7 @@ class BTChipWallet(NewWallet):
         aborted = False
         if not self.client or self.client.bad:
             try:
-                d = getDongle(True)
+                d = getDongle(BTCHIP_DEBUG)
                 d.setWaitImpl(DongleWaitQT(d))
                 self.client = btchip(d)
                 firmware = self.client.getFirmwareVersion()['version'].split(".")
@@ -159,7 +160,7 @@ class BTChipWallet(NewWallet):
                         dialog = StartBTChipPersoDialog()                        
                         dialog.exec_()
                         # Then fetch the reference again  as it was invalidated
-                        d = getDongle(True)
+                        d = getDongle(BTCHIP_DEBUG)
                         d.setWaitImpl(DongleWaitQT(d))
                         self.client = btchip(d)
                     else:
