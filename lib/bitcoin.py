@@ -45,6 +45,17 @@ MIN_RELAY_TX_FEE = 1000
 EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
 DecodeAES = lambda secret, e: aes.decryptData(secret, base64.b64decode(e))
 
+def strip_PKCS7_padding(s):
+    """return s stripped of PKCS7 padding"""
+    if len(s)%16 or not s:
+        raise ValueError("String of len %d can't be PCKS7-padded" % len(s))
+    numpads = ord(s[-1])
+    if numpads > 16:
+        raise ValueError("String ending with %r can't be PCKS7-padded" % s[-1])
+    if s[-numpads:] != numpads*chr(numpads):
+        raise ValueError("Invalid PKCS7 padding")
+    return s[:-numpads]
+
 
 def aes_encrypt_with_iv(key, iv, data):
     mode = aes.AESModeOfOperation.modeOfOperation["CBC"]
@@ -66,7 +77,7 @@ def aes_decrypt_with_iv(key, iv, data):
     data = map(ord, data)
     moo = aes.AESModeOfOperation()
     decr = moo.decrypt(data, None, mode, key, keysize, iv)
-    decr = aes.strip_PKCS7_padding(decr)
+    decr = strip_PKCS7_padding(decr)
     return decr
 
 
