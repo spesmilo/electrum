@@ -535,7 +535,7 @@ class EC_KEY(object):
             raise Exception("Bad signature")
 
 
-    # ecies encryption/decryption methods; aes-256-cbc is used as the cipher; hmac-sha256 is used as the mac
+    # ECIES encryption/decryption methods; AES-128-CBC with PKCS7 is used as the cipher; hmac-sha256 is used as the mac
 
     @classmethod
     def encrypt_message(self, message, pubkey):
