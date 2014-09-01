@@ -1,6 +1,8 @@
 from PyQt4.QtGui import *
 from electrum_ltc import BasePlugin
 from electrum_ltc.i18n import _
+from electrum_ltc.plugins import BasePlugin, hook
+from electrum_ltc.i18n import _
 
 class Plugin(BasePlugin):
 
@@ -11,11 +13,13 @@ class Plugin(BasePlugin):
     def description(self):
         return '%s\n%s' % (_("Add an optional virtual keyboard to the password dialog."), _("Warning: do not use this if it makes you pick a weaker password."))
 
-    def init(self):
+    @hook
+    def init_qt(self, gui):
+        self.gui = gui
         self.vkb = None
         self.vkb_index = 0
 
-
+    @hook
     def password_dialog(self, pw, grid, pos):
         vkb_button = QPushButton(_("+"))
         vkb_button.setFixedWidth(20)

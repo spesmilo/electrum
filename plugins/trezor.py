@@ -6,12 +6,13 @@ from sys import stderr
 from time import sleep
 from base64 import b64encode, b64decode
 
+import electrum_ltc as electrum
 from electrum_ltc_gui.qt.password_dialog import make_password_dialog, run_password_dialog
 from electrum_ltc_gui.qt.util import ok_cancel_buttons, EnterButton
 from electrum_ltc.account import BIP32_Account
 from electrum_ltc.bitcoin import EncodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
 from electrum_ltc.i18n import _
-from electrum_ltc.plugins import BasePlugin
+from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.transaction import deserialize
 from electrum_ltc.wallet import NewWallet
 
@@ -36,15 +37,18 @@ def give_error(message):
 
 class Plugin(BasePlugin):
 
-    def fullname(self): return 'Trezor Wallet'
+    def fullname(self):
+        return 'Trezor Wallet'
 
-    def description(self): return 'Provides support for Trezor hardware wallet\n\nRequires github.com/trezor/python-trezor'
+    def description(self):
+        return 'Provides support for Trezor hardware wallet\n\nRequires github.com/trezor/python-trezor'
 
-    def __init__(self, gui, name):
-        BasePlugin.__init__(self, gui, name)
+    def __init__(self, config, name):
+        BasePlugin.__init__(self, config, name)
         self._is_available = self._init()
         self._requires_settings = True
         self.wallet = None
+        electrum.wallet.wallet_types.append(('trezor', _("Trezor wallet"), TrezorWallet))
 
     def _init(self):
         return TREZOR
@@ -74,12 +78,11 @@ class Plugin(BasePlugin):
     def enable(self):
         return BasePlugin.enable(self)
 
+    @hook
     def load_wallet(self, wallet):
         self.wallet = wallet
 
-    def add_wallet_types(self, wallet_types):
-        wallet_types.append(('trezor', _("Trezor wallet"), TrezorWallet))
-
+    @hook
     def installwizard_restore(self, wizard, storage):
         if storage.get('wallet_type') != 'trezor': 
             return
@@ -91,6 +94,7 @@ class Plugin(BasePlugin):
             return
         return wallet
 
+    @hook
     def send_tx(self, tx):
         try:
             self.wallet.sign_transaction(tx, None, None)
@@ -170,6 +174,8 @@ class TrezorWallet(NewWallet):
             except:
                 give_error('Could not connect to your Trezor. Please verify the cable is connected and that no other app is using it.')
             self.client = QtGuiTrezorClient(self.transport)
+	    if (self.client.features.major_version == 1 and self.client.features.minor_version < 2) or (self.client.features.major_version == 1 and self.client.features.minor_version == 2 and self.client.features.patch_version < 1):
+		give_error('Outdated Trezor firmware. Please update the firmware from https://www.mytrezor.com') 
             self.client.set_tx_api(self)
             #self.client.clear_session()# TODO Doesn't work with firmware 1.1, returns proto.Failure
             self.client.bad = False

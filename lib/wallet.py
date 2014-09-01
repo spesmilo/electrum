@@ -1559,6 +1559,17 @@ class OldWallet(Deterministic_Wallet):
                 return True
         return False
 
+
+
+wallet_types = [ 
+    ('old',      ("Old wallet"),               OldWallet),
+    ('xpub',     ("BIP32 Import"),             BIP32_Simple_Wallet),
+    ('standard', ("Standard wallet"),          NewWallet),
+    ('imported', ("Imported wallet"),          Imported_Wallet),
+    ('2of2',     ("Multisig wallet (2 of 2)"), Wallet_2of2),
+    ('2of3',     ("Multisig wallet (2 of 3)"), Wallet_2of3)
+]
+
 # former WalletFactory
 class Wallet(object):
     """The main wallet "entry point".
@@ -1568,19 +1579,14 @@ class Wallet(object):
     def __new__(self, storage):
         config = storage.config
 
-        self.wallet_types = [ 
-            ('old',      ("Old wallet"),               OldWallet),
-            ('xpub',     ("BIP32 Import"),             BIP32_Simple_Wallet),
-            ('standard', ("Standard wallet"),          NewWallet),
-            ('imported', ("Imported wallet"),          Imported_Wallet),
-            ('2of2',     ("Multisig wallet (2 of 2)"), Wallet_2of2),
-            ('2of3',     ("Multisig wallet (2 of 3)"), Wallet_2of3)
-        ]
-        run_hook('add_wallet_types', self.wallet_types)
-
-        for t, l, WalletClass in self.wallet_types:
-            if t == storage.get('wallet_type'):
-                return WalletClass(storage)
+        run_hook('add_wallet_types', wallet_types)
+        wallet_type = storage.get('wallet_type')
+        if wallet_type:
+            for t, l, WalletClass in wallet_types:
+                if t == wallet_type:
+                    return WalletClass(storage)
+            else:
+                raise BaseException('unknown wallet type', wallet_type)
 
         if not storage.file_exists:
             seed_version = NEW_SEED_VERSION

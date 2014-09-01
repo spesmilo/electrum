@@ -26,7 +26,7 @@ from PyQt4.QtCore import *
 
 from electrum_ltc import bitcoin, util
 from electrum_ltc import transaction
-from electrum_ltc.plugins import BasePlugin
+from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.i18n import _
 
 import sys
@@ -89,8 +89,9 @@ class Plugin(BasePlugin):
     def description(self):
         return description
 
-    def init(self):
-        self.win = self.gui.main_window
+    @hook
+    def init_qt(self, gui):
+        self.win = gui.main_window
         self.win.connect(self.win, SIGNAL('cosigner:receive'), self.on_receive)
         if self.listener is None:
             self.listener = Listener(self)
@@ -108,6 +109,7 @@ class Plugin(BasePlugin):
             return True
         return self.wallet.wallet_type in ['2of2', '2of3']
 
+    @hook
     def load_wallet(self, wallet):
         self.wallet = wallet
         if not self.is_available():
@@ -123,12 +125,14 @@ class Plugin(BasePlugin):
             else:
                 self.cosigner_list.append((xpub, K, _hash))
 
+    @hook
     def transaction_dialog(self, d):
         self.send_button = b = QPushButton(_("Send to cosigner"))
         b.clicked.connect(lambda: self.do_send(d.tx))
         d.buttons.insertWidget(2, b)
         self.transaction_dialog_update(d)
 
+    @hook
     def transaction_dialog_update(self, d):
         if d.tx.is_complete():
             self.send_button.hide()

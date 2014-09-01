@@ -7,12 +7,13 @@ from sys import stderr
 from time import sleep
 from base64 import b64encode, b64decode
 
+import electrum_ltc as electrum
 from electrum_ltc_gui.qt.password_dialog import make_password_dialog, run_password_dialog
 from electrum_ltc_gui.qt.util import ok_cancel_buttons
 from electrum_ltc.account import BIP32_Account
 from electrum_ltc.bitcoin import EncodeBase58Check, DecodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
 from electrum_ltc.i18n import _
-from electrum_ltc.plugins import BasePlugin
+from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.transaction import deserialize
 from electrum_ltc.wallet import NewWallet
 
@@ -28,6 +29,7 @@ try:
     from btchip.btchipPersoWizard import StartBTChipPersoDialog
     from btchip.btchipException import BTChipException
     BTCHIP = True
+    BTCHIP_DEBUG = False
 except ImportError:
     BTCHIP = False
 
@@ -41,25 +43,28 @@ def give_error(message):
 
 class Plugin(BasePlugin):
 
-    def fullname(self): return 'BTChip Wallet'
+    def fullname(self):
+        return 'BTChip Wallet'
 
-    def description(self): return 'Provides support for BTChip hardware wallet\n\nRequires github.com/btchip/btchip-python'
+    def description(self):
+        return 'Provides support for BTChip hardware wallet\n\nRequires github.com/btchip/btchip-python'
 
     def __init__(self, gui, name):
         BasePlugin.__init__(self, gui, name)
         self._is_available = self._init()
         self.wallet = None
+        electrum.wallet.wallet_types.append(('btchip', _("BTChip wallet"), BTChipWallet))
+
 
     def _init(self):
         return BTCHIP
 
     def is_available(self):
-        #if self.wallet is None:
-        #    return self._is_available
-        #if self.wallet.storage.get('wallet_type') == 'btchip':
-        #    return True
-        #return False
-        return self._is_available
+        if self.wallet is None:
+            return self._is_available
+        if self.wallet.storage.get('wallet_type') == 'btchip':
+            return True
+        return False
 
     def set_enabled(self, enabled):
         self.wallet.storage.put('use_' + self.name, enabled)
@@ -76,13 +81,18 @@ class Plugin(BasePlugin):
     def enable(self):
         return BasePlugin.enable(self)
 
+    @hook
+    def init_qt(self, gui):
+        self.gui = gui
+
+    @hook
     def load_wallet(self, wallet):
         self.wallet = wallet
 
-    def add_wallet_types(self, wallet_types):
-        wallet_types.append(('btchip', _("BTChip wallet"), BTChipWallet))
-
+    @hook
     def installwizard_restore(self, wizard, storage):
+        if storage.get('wallet_type') != 'btchip':
+            return
         wallet = BTChipWallet(storage)
         try:
             wallet.create_main_account(None)
@@ -91,6 +101,7 @@ class Plugin(BasePlugin):
             return
         return wallet
 
+    @hook
     def send_tx(self, tx):
         try:
             self.wallet.sign_transaction(tx, None, None)
@@ -131,7 +142,7 @@ class BTChipWallet(NewWallet):
         aborted = False
         if not self.client or self.client.bad:
             try:
-                d = getDongle(True)
+                d = getDongle(BTCHIP_DEBUG)
                 d.setWaitImpl(DongleWaitQT(d))
                 self.client = btchip(d)
                 firmware = self.client.getFirmwareVersion()['version'].split(".")
@@ -149,7 +160,7 @@ class BTChipWallet(NewWallet):
                         dialog = StartBTChipPersoDialog()                        
                         dialog.exec_()
                         # Then fetch the reference again  as it was invalidated
-                        d = getDongle(True)
+                        d = getDongle(BTCHIP_DEBUG)
                         d.setWaitImpl(DongleWaitQT(d))
                         self.client = btchip(d)
                     else:

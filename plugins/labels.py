@@ -16,7 +16,7 @@ import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 import aes
 import base64
-from electrum_ltc.plugins import BasePlugin
+from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.i18n import _
 
 from electrum_ltc_gui.qt import HelpButton, EnterButton
@@ -43,11 +43,12 @@ class Plugin(BasePlugin):
 
         return decoded_message
 
-
-    def init(self):
+    @hook
+    def init_qt(self, gui):
         self.target_host = 'labelectrum.herokuapp.com'
-        self.window = self.gui.main_window
+        self.window = gui.main_window
 
+    @hook
     def load_wallet(self, wallet):
         self.wallet = wallet
         if self.wallet.get_master_public_key():
@@ -77,6 +78,7 @@ class Plugin(BasePlugin):
     def requires_settings(self):
         return True
 
+    @hook
     def set_label(self, item,label, changed):
         if not changed:
             return 
@@ -152,7 +154,7 @@ class Plugin(BasePlugin):
     def enable(self):
         if not self.auth_token(): # First run, throw plugin settings in your face
             self.init()
-            self.load_wallet(self.gui.main_window.wallet)
+            self.load_wallet(self.window.wallet)
             if self.settings_dialog():
                 self.set_enabled(True)
                 return True
