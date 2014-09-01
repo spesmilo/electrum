@@ -522,8 +522,7 @@ class EC_KEY(object):
         ephemeral_exponent = number_to_string(ecdsa.util.randrange(pow(2,256)), generator_secp256k1.order())
         ephemeral = EC_KEY(ephemeral_exponent)
 
-        ecdh_key = (pk * ephemeral.privkey.secret_multiplier).x()
-        ecdh_key = ('%064x' % ecdh_key).decode('hex')
+        ecdh_key = point_to_ser(pk * ephemeral.privkey.secret_multiplier)
         key = hashlib.sha512(ecdh_key).digest()
         key_e, key_m = key[:32], key[32:]
 
@@ -559,8 +558,7 @@ class EC_KEY(object):
         if not ecdsa.ecdsa.point_is_valid(generator_secp256k1, ephemeral_pubkey.x(), ephemeral_pubkey.y()):
             raise Exception('invalid ciphertext: invalid ephemeral pubkey')
 
-        ecdh_key = (ephemeral_pubkey * self.privkey.secret_multiplier).x()
-        ecdh_key = ('%064x' % ecdh_key).decode('hex')
+        ecdh_key = point_to_ser(ephemeral_pubkey * self.privkey.secret_multiplier)
         key = hashlib.sha512(ecdh_key).digest()
         key_e, key_m = key[:32], key[32:]
         if mac != hmac.new(key_m, encrypted[:-32], hashlib.sha256).digest():
