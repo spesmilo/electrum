@@ -118,6 +118,8 @@ class TestNewWallet(WalletTestCase):
         # This cannot be constructed by electrum at random, it should be safe
         # from eventual collisions.
         self.wallet.add_seed(self.seed_text, self.password)
+        self.wallet.create_master_keys(self.password)
+        self.wallet.create_main_account(self.password)
 
     def test_wallet_with_seed_is_not_watching_only(self):
         self.assertFalse(self.wallet.is_watching_only())
@@ -137,12 +139,10 @@ class TestNewWallet(WalletTestCase):
 
     def test_get_seed_returns_correct_seed(self):
         self.assertEqual(self.wallet.get_seed(self.password), self.seed_text)
-        self.assertEqual(0, len(self.wallet.addresses()))
 
 
     def test_key_import(self):
         # Wallets have no imported keys by default.
-        self.wallet.create_account(self.first_account_name, self.password)
         self.assertFalse(self.wallet.has_imported_keys())
 
         # Importing a key works.
@@ -161,5 +161,4 @@ class TestNewWallet(WalletTestCase):
     def test_update_password(self):
         new_password = "secret2"
         self.wallet.update_password(self.password, new_password)
-        self.wallet.create_account(self.first_account_name, new_password)
-        self.assertEqual(1, len(self.wallet.addresses()))
+        self.wallet.get_seed(new_password)
