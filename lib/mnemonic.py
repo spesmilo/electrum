@@ -34,8 +34,13 @@ class Mnemonic(object):
 
     def __init__(self, lang=None):
         if lang is None:
-            lang = 'english'
-        path = os.path.join(os.path.dirname(__file__), 'wordlist', lang + '.txt')
+            filename = 'english.txt'
+        elif lang[0:2] == 'pt':
+            filename = 'portuguese.txt'
+        else:
+            filename = 'english.txt'
+
+        path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
         lines = open(path,'r').read().strip().split('\n')
         self.wordlist = []
         for line in lines:

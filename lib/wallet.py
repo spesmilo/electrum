@@ -1298,7 +1298,8 @@ class BIP32_Wallet(Deterministic_Wallet):
          return Mnemonic.mnemonic_to_seed(seed, password)
 
     def make_seed(self):
-        return Mnemonic('english').make_seed()
+        lang = self.storage.config.get('language')
+        return Mnemonic(lang).make_seed()
 
     def prepare_seed(self, seed):
         return NEW_SEED_VERSION, Mnemonic.prepare_seed(seed)
