@@ -54,7 +54,7 @@ class Mnemonic(object):
     @classmethod
     def prepare_seed(self, seed):
         import unicodedata
-        return unicodedata.normalize('NFC', unicode(seed.strip()))
+        return unicodedata.normalize('NFKD', unicode(seed.strip()))
 
     def mnemonic_encode(self, i):
         n = len(self.wordlist)
