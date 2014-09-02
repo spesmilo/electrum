@@ -465,22 +465,22 @@ class DongleWaitingDialog(QThread):
 if BTCHIP:
     waitDialog = DongleWaitingDialog()
 
-# Tickle the UI a bit while waiting
-class DongleWaitQT(DongleWait):
-    def __init__(self, dongle):
-        self.dongle = dongle
+    # Tickle the UI a bit while waiting
+    class DongleWaitQT(DongleWait):
+        def __init__(self, dongle):
+            self.dongle = dongle
 
-    def waitFirstResponse(self, timeout):
-        customTimeout = 0
-        while customTimeout < timeout:
-            try:
-                response = self.dongle.waitFirstResponse(200)
-                return response
-            except USBError, e:
-                if e.backend_error_code == -7:
-                    QApplication.processEvents()
-                    customTimeout = customTimeout + 100
-                    pass
-                else:
-                    raise e
-        raise e
+        def waitFirstResponse(self, timeout):
+            customTimeout = 0
+            while customTimeout < timeout:
+                try:
+                    response = self.dongle.waitFirstResponse(200)
+                    return response
+                except USBError, e:
+                    if e.backend_error_code == -7:
+                        QApplication.processEvents()
+                        customTimeout = customTimeout + 100
+                        pass
+                    else:
+                        raise e
+            raise e

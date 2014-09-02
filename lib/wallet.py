@@ -577,7 +577,6 @@ class Abstract_Wallet(object):
             coins = self.get_unspent_coins(domain)
 
         inputs = []
-
         for item in coins:
             if item.get('coinbase') and item.get('height') + COINBASE_MATURITY > self.network.get_local_height():
                 continue
@@ -588,8 +587,8 @@ class Abstract_Wallet(object):
             if total >= amount + fee: break
         else:
             inputs = []
-
         return inputs, total, fee
+
 
     def set_fee(self, fee):
         if self.fee != fee:
@@ -619,7 +618,6 @@ class Abstract_Wallet(object):
             # Insert the change output at a random position in the outputs
             posn = random.randint(0, len(outputs))
             outputs[posn:posn] = [( 'address', change_addr,  change_amount)]
-        return outputs
 
     def get_history(self, address):
         with self.lock:
@@ -753,7 +751,8 @@ class Abstract_Wallet(object):
             raise ValueError("Not enough funds")
         for txin in inputs:
             self.add_input_info(txin)
-        outputs = self.add_tx_change(inputs, outputs, amount, fee, total, change_addr)
+        self.add_tx_change(inputs, outputs, amount, fee, total, change_addr)
+        run_hook('make_unsigned_transaction', inputs, outputs)
         return Transaction(inputs, outputs)
 
     def mktx(self, outputs, password, fee=None, change_addr=None, domain= None, coins = None ):
