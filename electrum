@@ -89,7 +89,6 @@ def arg_parser():
     parser.add_option("-G", "--gap", dest="gap_limit", default=None, help="gap limit")
     parser.add_option("-W", "--password", dest="password", default=None, help="set password for usage with commands (currently only implemented for create command, do not use it for longrunning gui session since the password is visible in /proc)")
     parser.add_option("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
-    parser.add_option("--2of3", action="store_true", dest="2of3", default=False, help="create 2of3 wallet")
     parser.add_option("--mpk", dest="mpk", default=False, help="restore from master public key")
     parser.add_option("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
     parser.add_option("--nbits", dest="nbits", default="128", help="number of bits for make_seed")
@@ -310,22 +309,14 @@ if __name__ == '__main__':
                 print_msg("Warning: This wallet was restored offline. It may contain more addresses than displayed.")
 
         else:
-            if not config.get('2of3'):
-                wallet = Wallet(storage)
-                seed = wallet.make_seed()
-                wallet.add_seed(seed, password)
-                wallet.create_master_keys(password)
-                wallet.create_main_account(password)
-                wallet.synchronize()
-                print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
-                print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
-            else:
-                wallet = Wallet_2of3(storage)
-                cold_seed = wallet.make_seed()
-                #wallet.save_seed()
-                print_msg("Your cold seed is:\n\"%s\"" % cold_seed)
-                print_msg("Please store it on paper. ")
-                print_msg("Open this file on your online computer to complete your wallet creation.")
+            wallet = Wallet(storage)
+            seed = wallet.make_seed()
+            wallet.add_seed(seed, password)
+            wallet.create_master_keys(password)
+            wallet.create_main_account(password)
+            wallet.synchronize()
+            print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
+            print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
 
 
         print_msg("Wallet saved in '%s'" % wallet.storage.path)
