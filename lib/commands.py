@@ -245,8 +245,8 @@ class Commands:
         return self.wallet.get_master_public_keys()
 
     def getseed(self):
-        mnemonic = self.wallet.get_mnemonic(self.password)
-        return { 'mnemonic':mnemonic, 'version':self.wallet.seed_version }
+        s = self.wallet.get_mnemonic(self.password)
+        return s.encode('utf8')
 
     def importprivkey(self, sec):
         try:
