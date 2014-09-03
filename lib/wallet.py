@@ -740,11 +740,12 @@ class Abstract_Wallet(object):
         return default_label
 
     def make_unsigned_transaction(self, outputs, fee=None, change_addr=None, domain=None, coins=None ):
-        for type, address, x in outputs:
+        for type, data, value in outputs:
             if type == 'op_return':
-                continue
+                assert len(data) < 41, "string too long"
+                assert value == 0
             if type == 'address':
-                assert is_address(address), "Address " + address + " is invalid!"
+                assert is_address(data), "Address " + data + " is invalid!"
         amount = sum( map(lambda x:x[2], outputs) )
         inputs, total, fee = self.choose_tx_inputs( amount, fee, len(outputs), domain, coins )
         if not inputs:
