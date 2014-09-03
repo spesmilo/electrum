@@ -134,7 +134,7 @@ class Commands:
     def make_seed(self, nbits, custom_entropy, language):
         from mnemonic import Mnemonic
         s = Mnemonic(language).make_seed(nbits, custom_entropy)
-        return s
+        return s.encode('utf8')
 
     def check_seed(self, seed, custom_entropy, language):
         from mnemonic import Mnemonic

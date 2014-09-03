@@ -37,6 +37,8 @@ class Mnemonic(object):
             filename = 'english.txt'
         elif lang[0:2] == 'pt':
             filename = 'portuguese.txt'
+        elif lang[0:2] == 'ja':
+            filename = 'japanese.txt'
         else:
             filename = 'english.txt'
 
@@ -48,7 +50,7 @@ class Mnemonic(object):
             line = line.strip(' \r')
             assert ' ' not in line
             if line:
-                self.wordlist.append(line)
+                self.wordlist.append(line.decode('utf8'))
         print_error("wordlist has %d words"%len(self.wordlist))
 
     @classmethod
