@@ -20,6 +20,7 @@ import os
 import hmac
 import math
 import hashlib
+import unicodedata
 
 import ecdsa
 import pbkdf2
@@ -43,14 +44,16 @@ class Mnemonic(object):
             filename = 'english.txt'
 
         path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
-        lines = open(path,'r').read().strip().split('\n')
+        s = open(path,'r').read().strip()
+        s = unicodedata.normalize('NFKD', s.decode('utf8'))
+        lines = s.split('\n')
         self.wordlist = []
         for line in lines:
             line = line.split('#')[0]
             line = line.strip(' \r')
             assert ' ' not in line
             if line:
-                self.wordlist.append(line.decode('utf8'))
+                self.wordlist.append(line)
         print_error("wordlist has %d words"%len(self.wordlist))
 
     @classmethod
@@ -60,7 +63,6 @@ class Mnemonic(object):
 
     @classmethod
     def prepare_seed(self, seed):
-        import unicodedata
         return unicodedata.normalize('NFKD', unicode(seed.strip()))
 
     def mnemonic_encode(self, i):
