@@ -2000,9 +2000,9 @@ class ElectrumWindow(QMainWindow):
         try:
             decrypted = self.wallet.decrypt_message(str(pubkey_e.text()), str(encrypted_e.toPlainText()), password)
             message_e.setText(decrypted)
-        except Exception as e:
+        except BaseException as e:
             traceback.print_exc(file=sys.stdout)
-            self.show_message(str(e))
+            self.show_warning(str(e))
 
 
     def do_encrypt(self, message_e, pubkey_e, encrypted_e):
@@ -2011,10 +2011,9 @@ class ElectrumWindow(QMainWindow):
         try:
             encrypted = bitcoin.encrypt_message(message, str(pubkey_e.text()))
             encrypted_e.setText(encrypted)
-        except Exception as e:
+        except BaseException as e:
             traceback.print_exc(file=sys.stdout)
-            self.show_message(str(e))
-
+            self.show_warning(str(e))
 
 
     def encrypt_message(self, address = ''):
@@ -2064,6 +2063,9 @@ class ElectrumWindow(QMainWindow):
 
     def show_message(self, msg):
         QMessageBox.information(self, _('Message'), msg, _('OK'))
+
+    def show_warning(self, msg):
+        QMessageBox.warning(self, _('Warning'), msg, _('OK'))
 
     def password_dialog(self, msg=None):
         d = QDialog(self)
