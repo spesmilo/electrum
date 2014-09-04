@@ -166,10 +166,11 @@ if __name__ == '__main__':
     # create watching_only wallet
     config = electrum.SimpleConfig({'wallet_path':wallet_path})
     storage = electrum.WalletStorage(config)
-    wallet = electrum.wallet.NewWallet(storage)
     if not storage.file_exists:
-        wallet.seed = ''
-        wallet.create_watching_only_wallet(xpub)
+        print "creating wallet file"
+        wallet = electrum.wallet.Wallet.from_xpub(xpub, storage)
+    else:
+        wallet = electrum.wallet.Wallet(storage)
 
     wallet.synchronize = lambda: None # prevent address creation by the wallet
     wallet.start_threads(network)

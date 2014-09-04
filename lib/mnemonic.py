@@ -20,6 +20,7 @@ import os
 import hmac
 import math
 import hashlib
+import unicodedata
 
 import ecdsa
 import pbkdf2
@@ -34,9 +35,18 @@ class Mnemonic(object):
 
     def __init__(self, lang=None):
         if lang is None:
-            lang = 'english'
-        path = os.path.join(os.path.dirname(__file__), 'wordlist', lang + '.txt')
-        lines = open(path,'r').read().strip().split('\n')
+            filename = 'english.txt'
+        elif lang[0:2] == 'pt':
+            filename = 'portuguese.txt'
+        elif lang[0:2] == 'ja':
+            filename = 'japanese.txt'
+        else:
+            filename = 'english.txt'
+
+        path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
+        s = open(path,'r').read().strip()
+        s = unicodedata.normalize('NFKD', s.decode('utf8'))
+        lines = s.split('\n')
         self.wordlist = []
         for line in lines:
             line = line.split('#')[0]
@@ -53,8 +63,7 @@ class Mnemonic(object):
 
     @classmethod
     def prepare_seed(self, seed):
-        import unicodedata
-        return unicodedata.normalize('NFC', unicode(seed.strip()))
+        return unicodedata.normalize('NFKD', unicode(seed.strip()))
 
     def mnemonic_encode(self, i):
         n = len(self.wordlist)

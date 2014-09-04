@@ -214,16 +214,17 @@ class TrezorWallet(NewWallet):
         pass
 
     def decrypt_message(self, pubkey, message, password):
-        address = public_key_to_bc_address(pubkey.decode('hex'))
-        address_path = self.address_id(address)
-        address_n = self.get_client().expand_path(address_path)
-        try:
-            decrypted_msg = self.get_client().decrypt_message(address_n, b64decode(message))
-        except Exception, e:
-            give_error(e)
-        finally:
-            twd.emit(SIGNAL('trezor_done'))
-        return str(decrypted_msg)
+        raise BaseException( _('Decrypt method is not implemented in Trezor') )
+        #address = public_key_to_bc_address(pubkey.decode('hex'))
+        #address_path = self.address_id(address)
+        #address_n = self.get_client().expand_path(address_path)
+        #try:
+        #    decrypted_msg = self.get_client().decrypt_message(address_n, b64decode(message))
+        #except Exception, e:
+        #    give_error(e)
+        #finally:
+        #    twd.emit(SIGNAL('trezor_done'))
+        #return str(decrypted_msg)
 
     def sign_message(self, address, message, password):
         if not self.check_proper_device():
