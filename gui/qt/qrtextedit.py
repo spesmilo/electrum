@@ -31,7 +31,11 @@ class QRTextEdit(QPlainTextEdit):
 
     def qr_show(self):
         from qrcodewidget import QRDialog
-        QRDialog(str(self.toPlainText())).exec_()
+        try:
+            s = unicode(self.toPlainText())
+        except:
+            s = str(self.toPlainText())
+        QRDialog(s).exec_()
 
     def qr_input(self):
         from electrum import qrscanner
