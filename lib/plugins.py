@@ -79,16 +79,6 @@ class BasePlugin:
 
     def requires_settings(self):
         return False
-
-    def toggle(self):
-        if self.is_enabled():
-            if self.disable():
-                self.close()
-        else:
-            if self.enable():
-                self.init()
-
-        return self.is_enabled()
     
     def enable(self):
         self.set_enabled(True)
@@ -98,7 +88,11 @@ class BasePlugin:
         self.set_enabled(False)
         return True
 
-    def init(self): pass
+    def init_qt(self, gui): pass
+
+    def load_wallet(self, wallet): pass
+
+    #def init(self): pass
 
     def close(self): pass
 

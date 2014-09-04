@@ -467,6 +467,9 @@ class ElectrumWindow(QMainWindow):
         raise Exception('Unknown base unit')
 
     def update_status(self):
+        if not self.wallet:
+            return
+
         if self.network is None or not self.network.is_running():
             text = _("Offline")
             icon = QIcon(":icons/status_disconnected.png")
@@ -2717,7 +2720,14 @@ class ElectrumWindow(QMainWindow):
         w.setLayout(grid)
 
         def do_toggle(cb, p, w):
-            r = p.toggle()
+            if p.is_enabled():
+                if p.disable():
+                    p.close()
+            else:
+                if p.enable():
+                    p.load_wallet(self.wallet)
+                    p.init_qt(self.gui_object)
+            r = p.is_enabled()
             cb.setChecked(r)
             if w: w.setEnabled(r)
 

@@ -82,10 +82,6 @@ class Plugin(BasePlugin):
         return BasePlugin.enable(self)
 
     @hook
-    def init_qt(self, gui):
-        self.gui = gui
-
-    @hook
     def load_wallet(self, wallet):
         self.wallet = wallet
 
