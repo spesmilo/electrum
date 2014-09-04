@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
-import sys, time, electrum
+import sys
+import time
+import electrum
 
 try:
     addr = sys.argv[1]
@@ -8,19 +10,25 @@ except Exception:
     print "usage: watch_address <bitcoin_address>"
     sys.exit(1)
 
+# start network
+c = electrum.SimpleConfig()
+s = electrum.daemon.get_daemon(c,True)
+network = electrum.NetworkProxy(s,c)
+network.start()
 
-# 1. start the interface and wait for connection
-interface = electrum.Interface('electrum.no-ip.org:50002:s')
-interface.start(wait = True)
-if not interface.is_connected:
-    print "not connected"
-    exit()
+# wait until connected
+while network.is_connecting():
+    time.sleep(0.1)
+
+if not network.is_connected():
+    print_msg("daemon is not connected")
+    sys.exit(1)
 
 # 2. send the subscription
-callback = lambda _,result: electrum.print_json(result.get('result'))
-interface.send([('blockchain.address.subscribe',[addr])], callback)
+callback = lambda response: electrum.print_json(response.get('result'))
+network.send([('blockchain.address.subscribe',[addr])], callback)
 
 # 3. wait for results
-while True:
+while network.is_connected():
     time.sleep(1)
 

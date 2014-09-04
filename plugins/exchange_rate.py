@@ -9,7 +9,7 @@ import threading
 import time
 import re
 from decimal import Decimal
-from electrum.plugins import BasePlugin
+from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
 from electrum_gui.qt.util import *
 from electrum_gui.qt.amountedit import AmountEdit
@@ -25,6 +25,7 @@ EXCHANGES = ["BitcoinAverage",
              "CaVirtEx",
              "Coinbase",
              "CoinDesk",
+             "itBit",
              "LocalBitcoins",
              "Winkdex"]
 
@@ -48,7 +49,7 @@ class Exchanger(threading.Thread):
     def get_json(self, site, get_string):
         try:
             connection = httplib.HTTPSConnection(site)
-            connection.request("GET", get_string)
+            connection.request("GET", get_string, headers={"User-Agent":"Electrum"})
         except Exception:
             raise
         resp = connection.getresponse()
@@ -74,6 +75,12 @@ class Exchanger(threading.Thread):
             except Exception:
                 return
             return btc_amount * decimal.Decimal(str(resp_rate["bpi"][str(quote_currency)]["rate_float"]))
+        elif self.use_exchange == "itBit":
+            try:
+                resp_rate = self.get_json('www.itbit.com', "/api/feeds/ticker/XBT" + str(quote_currency))
+            except Exception:
+                return
+            return btc_amount * decimal.Decimal(str(resp_rate["bid"]))
         return btc_amount * decimal.Decimal(str(quote_currencies[quote_currency]))
 
     def stop(self):
@@ -92,6 +99,7 @@ class Exchanger(threading.Thread):
             "CaVirtEx": self.update_cv,
             "CoinDesk": self.update_cd,
             "Coinbase": self.update_cb,
+            "itBit": self.update_ib,
             "LocalBitcoins": self.update_lb,
             "Winkdex": self.update_wd,
         }
@@ -121,18 +129,24 @@ class Exchanger(threading.Thread):
             self.quote_currencies = quote_currencies
         self.parent.set_currencies(quote_currencies)
 
+    def update_ib(self):
+        available_currencies = ["USD", "EUR", "SGD"]
+        quote_currencies = {}
+        for cur in available_currencies:
+            quote_currencies[cur] = 0.0
+        with self.lock:
+            self.quote_currencies = quote_currencies
+        self.parent.set_currencies(quote_currencies)
+
     def update_wd(self):
         try:
-            winkresp = self.get_json('winkdex.com', "/static/data/0_600_288.json")
-            ####could need nonce value in GET, no Docs available
+            winkresp = self.get_json('winkdex.com', "/api/v0/price")
         except Exception:
             return
         quote_currencies = {"USD": 0.0}
-        ####get y of highest x in "prices"
-        lenprices = len(winkresp["prices"])
-        usdprice = winkresp["prices"][lenprices-1]["y"]
+        usdprice = decimal.Decimal(str(winkresp["price"]))/decimal.Decimal("100.0")
         try:
-            quote_currencies["USD"] = decimal.Decimal(str(usdprice))
+            quote_currencies["USD"] = usdprice
             with self.lock:
                 self.quote_currencies = quote_currencies
         except KeyError:
@@ -323,22 +337,36 @@ class Plugin(BasePlugin):
         BasePlugin.__init__(self,a,b)
         self.currencies = [self.fiat_unit()]
         self.exchanges = [self.config.get('use_exchange', "Blockchain")]
+        self.exchanger = None
 
-    def init(self):
+    @hook
+    def init_qt(self, gui):
+        self.gui = gui
         self.win = self.gui.main_window
         self.win.connect(self.win, SIGNAL("refresh_currencies()"), self.win.update_status)
         self.btc_rate = Decimal("0.0")
-        # Do price discovery
-        self.exchanger = Exchanger(self)
-        self.exchanger.start()
-        self.gui.exchanger = self.exchanger #
-        self.add_fiat_edit()
+        if self.exchanger is None:
+            # Do price discovery
+            self.exchanger = Exchanger(self)
+            self.exchanger.start()
+            self.gui.exchanger = self.exchanger #
+            self.add_fiat_edit()
+            self.add_fiat_edit()
+            self.win.update_status()
+
+    def close(self):
+        self.exchanger.stop()
+        self.exchanger = None
+        self.win.tabs.removeTab(1)
+        self.win.tabs.insertTab(1, self.win.create_send_tab(), _('Send'))
+        self.win.update_status()
 
     def set_currencies(self, currency_options):
         self.currencies = sorted(currency_options)
         self.win.emit(SIGNAL("refresh_currencies()"))
         self.win.emit(SIGNAL("refresh_currencies_combo()"))
 
+    @hook
     def get_fiat_balance_text(self, btc_balance, r):
         # return balance as: 1.23 USD
         r[0] = self.create_fiat_balance_text(Decimal(btc_balance) / 100000000)
@@ -350,6 +378,7 @@ class Plugin(BasePlugin):
         if quote:
             r[0] = "%s"%quote
 
+    @hook
     def get_fiat_status_text(self, btc_balance, r2):
         # return status as:   (1.23 USD)    1 BTC~123.45 USD
         text = ""
@@ -377,6 +406,7 @@ class Plugin(BasePlugin):
             quote_text = "%.2f %s" % (quote_balance, quote_currency)
         return quote_text
 
+    @hook
     def load_wallet(self, wallet):
         self.wallet = wallet
         tx_list = {}
@@ -391,19 +421,6 @@ class Plugin(BasePlugin):
         return True
 
 
-    def toggle(self):
-        enabled = BasePlugin.toggle(self)
-        self.win.update_status()
-        self.win.tabs.removeTab(1)
-        new_send_tab = self.gui.main_window.create_send_tab()
-        self.win.tabs.insertTab(1, new_send_tab, _('Send'))
-        if enabled:
-            self.add_fiat_edit()
-        return enabled
-
-
-    def close(self):
-        self.exchanger.stop()
 
     def history_tab_update(self):
         if self.config.get('history_rates', 'unchecked') == "checked":
@@ -426,7 +443,7 @@ class Plugin(BasePlugin):
                     return
             elif cur_exchange == "Winkdex":
                 try:
-                    resp_hist = self.exchanger.get_json('winkdex.com', "/static/data/0_86400_730.json")['prices']
+                    resp_hist = self.exchanger.get_json('winkdex.com', "/api/v0/series?start_time=1342915200")['series'][0]['results']
                 except Exception:
                     return
             elif cur_exchange == "BitcoinVenezuela":
@@ -467,12 +484,14 @@ class Plugin(BasePlugin):
                     except KeyError:
                         tx_USD_val = "%.2f %s" % (self.btc_rate * Decimal(str(tx_info['value']))/100000000 , "USD")
                 elif cur_exchange == "Winkdex":
-                    tx_time_str = int(tx_time) - (int(tx_time) % (60 * 60 * 24))
+                    tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d') + "T16:00:00-04:00"
                     try:
-                        tx_rate = resp_hist[[x['x'] for x in resp_hist].index(tx_time_str)]['y']
-                        tx_USD_val = "%.2f %s" % (Decimal(tx_info['value']) / 100000000 * Decimal(tx_rate), "USD")
+                        tx_rate = resp_hist[[x['timestamp'] for x in resp_hist].index(tx_time_str)]['price']
+                        tx_USD_val = "%.2f %s" % (Decimal(tx_info['value']) / 100000000 * Decimal(tx_rate)/Decimal("100.0"), "USD")
                     except ValueError:
                         tx_USD_val = "%.2f %s" % (self.btc_rate * Decimal(tx_info['value'])/100000000 , "USD")
+                    except KeyError:
+                        tx_USD_val = _("No data")
                 elif cur_exchange == "BitcoinVenezuela":
                     tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
                     try:

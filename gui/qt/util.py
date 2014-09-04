@@ -94,10 +94,10 @@ def close_button(dialog, label=_("Close") ):
     b.setDefault(True)
     return hbox
 
-def ok_cancel_buttons2(dialog, ok_label=_("OK") ):
+def ok_cancel_buttons2(dialog, ok_label=_("OK"), cancel_label=_('Cancel')):
     hbox = QHBoxLayout()
     hbox.addStretch(1)
-    b = QPushButton(_("Cancel"))
+    b = QPushButton(cancel_label)
     hbox.addWidget(b)
     b.clicked.connect(dialog.reject)
     b = QPushButton(ok_label)
@@ -106,9 +106,25 @@ def ok_cancel_buttons2(dialog, ok_label=_("OK") ):
     b.setDefault(True)
     return hbox, b
 
-def ok_cancel_buttons(dialog, ok_label=_("OK") ):
-    hbox, b = ok_cancel_buttons2(dialog, ok_label)
+def ok_cancel_buttons(dialog, ok_label=_("OK"), cancel_label=_('Cancel')):
+    hbox, b = ok_cancel_buttons2(dialog, ok_label, cancel_label)
     return hbox
+
+def line_dialog(parent, title, label, ok_label, default=None):
+    dialog = QDialog(parent)
+    dialog.setMinimumWidth(500)
+    dialog.setWindowTitle(title)
+    dialog.setModal(1)
+    l = QVBoxLayout()
+    dialog.setLayout(l)
+    l.addWidget(QLabel(label))
+    txt = QLineEdit()
+    if default:
+        txt.setText(default)
+    l.addWidget(txt)
+    l.addLayout(ok_cancel_buttons(dialog, ok_label))
+    if dialog.exec_():
+        return unicode(txt.text())
 
 def text_dialog(parent, title, label, ok_label, default=None):
     from qrtextedit import QRTextEdit

@@ -77,6 +77,7 @@ def load_certificates():
                 x.parse(c)
             except Exception as e:
                 util.print_error("cannot parse cert:", e)
+                continue
             ca_list[x.getFingerprint()] = x
     ca_f.close()
     util.print_error("%d certificates"%len(ca_list))
@@ -249,7 +250,7 @@ class PaymentRequest:
 
         for o in pay_det.outputs:
             addr = transaction.get_address_from_output_script(o.script)[1]
-            self.outputs.append( (addr, o.amount) )
+            self.outputs.append( ('address', addr, o.amount) )
 
         self.memo = self.details.memo
 
@@ -269,7 +270,7 @@ class PaymentRequest:
         return self.details.expires
 
     def get_amount(self):
-        return sum(map(lambda x:x[1], self.outputs))
+        return sum(map(lambda x:x[2], self.outputs))
 
     def get_domain(self):
         return self.domain
@@ -294,7 +295,7 @@ class PaymentRequest:
         paymnt.transactions.append(raw_tx)
 
         ref_out = paymnt.refund_to.add()
-        ref_out.script = transaction.Transaction.pay_script(refund_addr)
+        ref_out.script = transaction.Transaction.pay_script('address', refund_addr)
         paymnt.memo = "Paid using Electrum"
         pm = paymnt.SerializeToString()
 
@@ -324,6 +325,9 @@ class PaymentRequest:
 
 
 if __name__ == "__main__":
+
+    util.set_verbosity(True)
+    load_certificates()
 
     try:
         uri = sys.argv[1]

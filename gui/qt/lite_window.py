@@ -793,8 +793,7 @@ class MiniDriver(QObject):
 
         if self.network:
             self.network.register_callback('updated',self.update_callback)
-            self.network.register_callback('connected', self.update_callback)
-            self.network.register_callback('disconnected', self.update_callback)
+            self.network.register_callback('status', self.update_callback)
 
         self.state = None
 
@@ -811,9 +810,9 @@ class MiniDriver(QObject):
     def update(self):
         if not self.network:
             self.initializing()
-        elif not self.network.interface:
-            self.initializing()
-        elif not self.network.interface.is_connected:
+        #elif not self.network.interface:
+        #    self.initializing()
+        elif not self.network.is_connected():
             self.connecting()
 
         if self.g.wallet is None:

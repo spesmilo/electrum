@@ -30,6 +30,9 @@ import traceback
 is_local = os.path.dirname(os.path.realpath(__file__)) == os.getcwd()
 is_android = 'ANDROID_DATA' in os.environ
 
+if is_local:
+    sys.path.append('packages')
+
 import __builtin__
 __builtin__.use_local_modules = is_local or is_android
 
@@ -39,12 +42,14 @@ if __builtin__.use_local_modules:
     imp.load_module('electrum', *imp.find_module('lib'))
     imp.load_module('electrum_gui', *imp.find_module('gui'))
 
-if is_local:
-    sys.path.append('packages')
 
-
+from electrum import util
 from electrum import SimpleConfig, Network, Wallet, WalletStorage, NetworkProxy, Commands, known_commands, pick_random_server
 from electrum.util import print_msg, print_stderr, print_json, set_verbosity
+from electrum.daemon import get_daemon
+from electrum.plugins import init_plugins
+
+
 
 # get password routine
 def prompt_password(prompt, confirm=True):
@@ -69,6 +74,7 @@ def arg_parser():
     parser.add_option("-g", "--gui", dest="gui", help="User interface: qt, lite, gtk, text or stdio")
     parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
     parser.add_option("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
+    parser.add_option("-d", "--daemon", action="store_true", dest="daemon", default=False, help="use daemon")
     parser.add_option("-C", "--concealed", action="store_true", dest="concealed", default=False, help="don't echo seed to console when restoring")
     parser.add_option("-a", "--all", action="store_true", dest="show_all", default=False, help="show all addresses")
     parser.add_option("-l", "--labels", action="store_true", dest="show_labels", default=False, help="show the labels of listed addresses")
@@ -80,14 +86,13 @@ def arg_parser():
     parser.add_option("-v", "--verbose", action="store_true", dest="verbose", default=False, help="show debugging information")
     parser.add_option("-P", "--portable", action="store_true", dest="portable", default=False, help="portable wallet")
     parser.add_option("-L", "--lang", dest="language", default=None, help="defaut language used in GUI")
-    parser.add_option("-u", "--usb", dest="bitkey", action="store_true", help="Turn on support for hardware wallets (EXPERIMENTAL)")
     parser.add_option("-G", "--gap", dest="gap_limit", default=None, help="gap limit")
     parser.add_option("-W", "--password", dest="password", default=None, help="set password for usage with commands (currently only implemented for create command, do not use it for longrunning gui session since the password is visible in /proc)")
     parser.add_option("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
-    parser.add_option("--bip32", action="store_true", dest="bip32", default=False, help="bip32 (not final)")
-    parser.add_option("--2of3", action="store_true", dest="2of3", default=False, help="create 2of3 wallet")
     parser.add_option("--mpk", dest="mpk", default=False, help="restore from master public key")
     parser.add_option("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
+    parser.add_option("--nbits", dest="nbits", default="128", help="number of bits for make_seed")
+    parser.add_option("--entropy", dest="entropy", default="1", help="custom entropy for make_seed")
     return parser
 
 
@@ -103,17 +108,18 @@ def print_help_cb(self, opt, value, parser):
     sys.exit(1)
 
 
-
-
 def run_command(cmd, password=None, args=None):
     if args is None:
         args = []  # Do not use mutables as default values!
     if cmd.requires_network and not options.offline:
-        network = NetworkProxy(config)
-        if not network.start(start_daemon= (True if cmd.name!='daemon' else False)):
-            print "Daemon not running"
+        s = get_daemon(config, True)
+        network = NetworkProxy(s, config)
+        network.start()
+        while network.is_connecting():
+            time.sleep(0.1)
+        if not network.is_connected():
+            print_msg("daemon is not connected")
             sys.exit(1)
-
         if wallet:
             wallet.start_threads(network)
             wallet.update()
@@ -133,15 +139,13 @@ def run_command(cmd, password=None, args=None):
     if cmd.requires_network and not options.offline:
         if wallet:
             wallet.stop_threads()
+        network.stop()
 
 
     if type(result) == str:
         print_msg(result)
     elif result is not None:
         print_json(result)
-
-
-
 
 
 
@@ -170,6 +174,7 @@ if __name__ == '__main__':
     set_verbosity(config_options.get('verbose'))
 
     config = SimpleConfig(config_options)
+    init_plugins(config)
 
     if len(args) == 0:
         url = None
@@ -193,7 +198,8 @@ if __name__ == '__main__':
 
         # network interface
         if not options.offline:
-            network = Network(config)
+            s = get_daemon(config, start_daemon=options.daemon)
+            network = NetworkProxy(s, config)
             network.start()
         else:
             network = None
@@ -206,8 +212,43 @@ if __name__ == '__main__':
 
         # we use daemon threads, their termination is enforced.
         # this sleep command gives them time to terminate cleanly.
-        time.sleep(0.1)
+        time.sleep(0.3)
         sys.exit(0)
+
+    if cmd == 'daemon':
+        arg = args[1] if len(args)>1 else None
+        if arg not in ['start', 'stop', 'status']:
+            print_msg("syntax: electrum daemon <start|status|stop>")
+            sys.exit(1)
+        s = get_daemon(config, False)
+        if arg == 'start':
+            if s:
+                print_msg("Daemon already running")
+                sys.exit(1) 
+            get_daemon(config, True)
+            sys.exit(0)
+        elif arg in ['status','stop']:
+            if not s:
+                print_msg("Daemon not running")
+                sys.exit(1)
+            network = NetworkProxy(s, config)
+            network.start()
+            if arg == 'status':
+                print_json({
+                    'server': network.get_parameters()[0],
+                    'blockchain_height': network.get_local_height(),
+                    'server_height': network.get_server_height(),
+                    'nodes': network.get_interfaces(),
+                    'connected': network.is_connected()
+                })
+            elif arg == 'stop':
+                network.stop_daemon()
+                print_msg("Daemon stopped")
+            network.stop()
+        else:
+            print "unknown command \"%s\""% arg
+        sys.exit(0)
+
 
     if cmd not in known_commands:
         cmd = 'help'
@@ -216,7 +257,6 @@ if __name__ == '__main__':
 
     # instanciate wallet for command-line
     storage = WalletStorage(config)
-
 
     if cmd.name in ['create', 'restore']:
         if storage.file_exists:
@@ -251,7 +291,8 @@ if __name__ == '__main__':
                     sys.exit("Error: Invalid seed")
                 wallet = Wallet.from_seed(seed, storage)
                 wallet.add_seed(seed, password)
-                wallet.create_accounts(password)
+                wallet.create_master_keys(password)
+                wallet.create_main_account(password)
 
             if not options.offline:
                 network = Network(config)
@@ -268,21 +309,14 @@ if __name__ == '__main__':
                 print_msg("Warning: This wallet was restored offline. It may contain more addresses than displayed.")
 
         else:
-            if not config.get('2of3'):
-                wallet = Wallet(storage)
-                seed = wallet.make_seed()
-                wallet.add_seed(seed, password)
-                wallet.create_accounts(password)
-                wallet.synchronize()
-                print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
-                print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
-            else:
-                wallet = Wallet_2of3(storage)
-                cold_seed = wallet.make_seed()
-                #wallet.save_seed()
-                print_msg("Your cold seed is:\n\"%s\"" % cold_seed)
-                print_msg("Please store it on paper. ")
-                print_msg("Open this file on your online computer to complete your wallet creation.")
+            wallet = Wallet(storage)
+            seed = wallet.make_seed()
+            wallet.add_seed(seed, password)
+            wallet.create_master_keys(password)
+            wallet.create_main_account(password)
+            wallet.synchronize()
+            print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
+            print_msg("Please keep it in a safe place; if you lose it, you will not be able to restore your wallet.")
 
 
         print_msg("Wallet saved in '%s'" % wallet.storage.path)
@@ -349,6 +383,9 @@ if __name__ == '__main__':
     elif cmd.name == 'listaddresses':
         args = [cmd, options.show_all, options.show_labels]
 
+    elif cmd.name == 'make_seed':
+        args = [cmd, int(options.nbits), long(options.entropy), options.language]
+
     elif cmd.name in ['payto', 'mktx']:
         domain = [options.from_addr] if options.from_addr else None
         args = ['mktx', args[1], Decimal(args[2]), Decimal(options.tx_fee) if options.tx_fee else None, options.change_addr, domain]
@@ -385,6 +422,8 @@ if __name__ == '__main__':
             print_msg("Warning: Final argument was reconstructed from several arguments:", repr(message))
             args = args[0:cmd.min_args] + [message]
 
+    if cmd.name == 'check_seed':
+        args.append(long(options.entropy))
 
 
     # run the command
@@ -427,7 +466,6 @@ if __name__ == '__main__':
 
     else:
         run_command(cmd, password, args)
-
 
     time.sleep(0.1)
     sys.exit(0)

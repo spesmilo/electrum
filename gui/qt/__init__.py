@@ -22,7 +22,7 @@ from electrum.util import print_error, print_msg
 from electrum.plugins import run_hook
 import os.path, json, ast, traceback
 import shutil
-
+import signal
 
 try:
     import PyQt4
@@ -44,7 +44,6 @@ except Exception:
 
 from util import *
 from main_window import ElectrumWindow
-from electrum.plugins import init_plugins
 
 
 class OpenFileEventFilter(QObject):
@@ -70,7 +69,6 @@ class ElectrumGui:
         if app is None:
             self.app = QApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
-        init_plugins(self)
 
 
     def build_tray_menu(self):
@@ -159,18 +157,21 @@ class ElectrumGui:
             wizard = installwizard.InstallWizard(self.config, self.network, storage)
             wallet = wizard.run(action)
             if not wallet: 
-                exit()
+                return
         else:
             wallet.start_threads(self.network)
 
         # init tray
-        self.dark_icon = self.config.get("dark_icon", False)
-        icon = QIcon(":icons/electrum_dark_icon.png") if self.dark_icon else QIcon(':icons/electrum_light_icon.png')
-        self.tray = QSystemTrayIcon(icon, None)
-        self.tray.setToolTip('Electrum')
-        self.tray.activated.connect(self.tray_activated)
-        self.build_tray_menu()
-        self.tray.show()
+        if 1:
+            self.dark_icon = self.config.get("dark_icon", False)
+            icon = QIcon(":icons/electrum_dark_icon.png") if self.dark_icon else QIcon(':icons/electrum_light_icon.png')
+            self.tray = QSystemTrayIcon(icon, None)
+            self.tray.setToolTip('Electrum')
+            self.tray.activated.connect(self.tray_activated)
+            self.build_tray_menu()
+            self.tray.show()
+        else:
+            self.tray = None
 
         # main window
         self.main_window = w = ElectrumWindow(self.config, self.network, self)
@@ -190,7 +191,7 @@ class ElectrumGui:
                 self.go_full()
 
         # plugins that need to change the GUI do it here
-        run_hook('init')
+        run_hook('init_qt', self)
 
         w.load_wallet(wallet)
 
@@ -205,7 +206,10 @@ class ElectrumGui:
         w.connect_slots(s)
         w.update_wallet()
 
+        signal.signal(signal.SIGINT, lambda *args: self.app.quit())
         self.app.exec_()
+        if self.tray:
+            self.tray.hide()
 
         # clipboard persistence
         # see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html

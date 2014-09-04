@@ -18,7 +18,9 @@
 
 
 import threading
+import time
 import Queue
+
 import bitcoin
 from util import print_error
 from transaction import Transaction
@@ -38,10 +40,12 @@ class WalletSynchronizer(threading.Thread):
         self.address_queue = Queue.Queue()
 
     def stop(self):
-        with self.lock: self.running = False
+        with self.lock:
+            self.running = False
 
     def is_running(self):
-        with self.lock: return self.running
+        with self.lock:
+            return self.running
 
     def add(self, address):
         self.address_queue.put(address)
@@ -50,18 +54,18 @@ class WalletSynchronizer(threading.Thread):
         messages = []
         for addr in addresses:
             messages.append(('blockchain.address.subscribe', [addr]))
-        self.network.subscribe( messages, lambda i,r: self.queue.put(r))
+        self.network.send(messages, self.queue.put)
 
     def run(self):
         with self.lock:
             self.running = True
         while self.is_running():
-            if not self.network.is_connected():
-                self.network.wait_until_connected()
+            while not self.network.is_connected():
+                time.sleep(0.1)
             self.run_interface()
 
     def run_interface(self):
-        print_error("synchronizer: connected to", self.network.main_server())
+        #print_error("synchronizer: connected to", self.network.get_parameters())
 
         requested_tx = []
         missing_tx = []
@@ -99,7 +103,7 @@ class WalletSynchronizer(threading.Thread):
             # request missing transactions
             for tx_hash, tx_height in missing_tx:
                 if (tx_hash, tx_height) not in requested_tx:
-                    self.network.send([ ('blockchain.transaction.get',[tx_hash, tx_height]) ], lambda i,r: self.queue.put(r))
+                    self.network.send([ ('blockchain.transaction.get',[tx_hash, tx_height]) ], self.queue.put)
                     requested_tx.append( (tx_hash, tx_height) )
             missing_tx = []
 
@@ -119,31 +123,24 @@ class WalletSynchronizer(threading.Thread):
 
             # 2. get a response
             try:
-                r = self.queue.get(block=True, timeout=1)
+                r = self.queue.get(timeout=0.1)
             except Queue.Empty:
                 continue
 
-            # see if it changed
-            #if interface != self.network.interface:
-            #    break
-            
-            if not r:
-                continue
-
-            # 3. handle response
+            # 3. process response
             method = r['method']
             params = r['params']
             result = r.get('result')
             error = r.get('error')
             if error:
-                print "error", r
+                print_error("error", r)
                 continue
 
             if method == 'blockchain.address.subscribe':
                 addr = params[0]
                 if self.wallet.get_status(self.wallet.get_history(addr)) != result:
                     if requested_histories.get(addr) is None:
-                        self.network.send([('blockchain.address.get_history', [addr])], lambda i,r:self.queue.put(r))
+                        self.network.send([('blockchain.address.get_history', [addr])], self.queue.put)
                         requested_histories[addr] = result
 
             elif method == 'blockchain.address.get_history':
@@ -183,7 +180,7 @@ class WalletSynchronizer(threading.Thread):
                 tx_hash = params[0]
                 tx_height = params[1]
                 assert tx_hash == bitcoin.hash_encode(bitcoin.Hash(result.decode('hex')))
-                tx = Transaction(result)
+                tx = Transaction.deserialize(result)
                 self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
                 self.was_updated = True
                 requested_tx.remove( (tx_hash, tx_height) )

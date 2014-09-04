@@ -102,13 +102,16 @@ class TxVerifier(threading.Thread):
             # request missing tx
             for tx_hash, tx_height in self.transactions.items():
                 if tx_hash not in self.verified_tx:
+                    # do not request merkle branch before headers are available
+                    if tx_height > self.network.get_local_height():
+                        continue
                     if self.merkle_roots.get(tx_hash) is None and tx_hash not in requested_merkle:
-                        if self.network.send([ ('blockchain.transaction.get_merkle',[tx_hash, tx_height]) ], lambda i,r: self.queue.put(r)):
+                        if self.network.send([ ('blockchain.transaction.get_merkle',[tx_hash, tx_height]) ], self.queue.put):
                             print_error('requesting merkle', tx_hash)
                             requested_merkle.append(tx_hash)
 
             try:
-                r = self.queue.get(timeout=1)
+                r = self.queue.get(timeout=0.1)
             except Queue.Empty:
                 continue
 
@@ -126,17 +129,20 @@ class TxVerifier(threading.Thread):
             if method == 'blockchain.transaction.get_merkle':
                 tx_hash = params[0]
                 self.verify_merkle(tx_hash, result)
-                requested_merkle.remove(tx_hash)
 
 
     def verify_merkle(self, tx_hash, result):
         tx_height = result.get('block_height')
         pos = result.get('pos')
-        self.merkle_roots[tx_hash] = self.hash_merkle_root(result['merkle'], tx_hash, pos)
+        merkle_root = self.hash_merkle_root(result['merkle'], tx_hash, pos)
         header = self.network.get_header(tx_height)
         if not header: return
-        assert header.get('merkle_root') == self.merkle_roots[tx_hash]
+        if header.get('merkle_root') != merkle_root:
+            print_error("merkle verification failed for", tx_hash)
+            return
+
         # we passed all the tests
+        self.merkle_roots[tx_hash] = merkle_root
         timestamp = header.get('timestamp')
         with self.lock:
             self.verified_tx[tx_hash] = (tx_height, timestamp, pos)

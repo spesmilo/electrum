@@ -26,7 +26,7 @@ from gi.repository import Gtk, Gdk, GObject, cairo
 from decimal import Decimal
 from electrum.util import print_error
 from electrum.bitcoin import is_valid
-from electrum import mnemonic, pyqrnative, WalletStorage, Wallet
+from electrum import WalletStorage, Wallet
 
 Gdk.threads_init()
 APP_NAME = "Electrum"
@@ -220,19 +220,16 @@ def run_settings_dialog(self):
 def run_network_dialog( network, parent ):
     image = Gtk.Image()
     image.set_from_stock(Gtk.STOCK_NETWORK, Gtk.IconSize.DIALOG)
+    host, port, protocol, proxy_config, auto_connect = network.get_parameters()
+    server = "%s:%s:%s"%(host, port, protocol)
     if parent:
         if network.is_connected():
-            interface = network.interface
-            status = "Connected to %s:%d\n%d blocks"%(interface.host, interface.port, network.blockchain.height())
+            status = "Connected to %s\n%d blocks"%(host, network.get_local_height())
         else:
             status = "Not connected"
     else:
         import random
         status = "Please choose a server.\nSelect cancel if you are offline."
-
-    if network.is_connected():
-        server = interface.server
-        host, port, protocol = server.split(':')
 
     servers = network.get_servers()
 
@@ -302,7 +299,7 @@ def run_network_dialog( network, parent ):
     treeview = Gtk.TreeView(model=server_list)
     treeview.show()
 
-    label = 'Active Servers' if network.irc_servers else 'Default Servers'
+    label = 'Active Servers' if network.is_connected() else 'Default Servers'
     tvcolumn = Gtk.TreeViewColumn(label)
     treeview.append_column(tvcolumn)
     cell = Gtk.CellRendererText()
@@ -344,12 +341,11 @@ def run_network_dialog( network, parent ):
 
     try:
         host, port, protocol = server.split(':')
-        proxy = network.config.get('proxy')
-        auto_connect = network.config.get('auto_cycle')
-        network.set_parameters(host, port, protocol, proxy, auto_connect)
     except Exception:
         show_message("error:" + server)
         return False
+
+    network.set_parameters(host, port, protocol, proxy_config, auto_connect)
 
 
 
@@ -443,18 +439,15 @@ def add_help_button(hbox, message):
     hbox.pack_start(button,False, False, 0)
 
 
-class MyWindow(Gtk.Window): __gsignals__ = dict( mykeypress = (GObject.SignalFlags.RUN_LAST | GObject.SignalFlags.ACTION, None, (str,)) )
-
-GObject.type_register(MyWindow)
-#FIXME: can't find docs how to create keybindings in PyGI
-#Gtk.binding_entry_add_signall(MyWindow, Gdk.KEY_W, Gdk.ModifierType.CONTROL_MASK, 'mykeypress', ['ctrl+W'])
-#Gtk.binding_entry_add_signall(MyWindow, Gdk.KEY_Q, Gdk.ModifierType.CONTROL_MASK, 'mykeypress', ['ctrl+Q'])
-
-
 class ElectrumWindow:
 
     def show_message(self, msg):
         show_message(msg, self.window)
+
+    def on_key(self, w, event):
+        if Gdk.ModifierType.CONTROL_MASK & event.state and event.keyval in [113,119]:
+            Gtk.main_quit()
+        return True
 
     def __init__(self, wallet, config, network):
         self.config = config
@@ -462,14 +455,14 @@ class ElectrumWindow:
         self.network = network
         self.funds_error = False # True if not enough funds
         self.num_zeros = int(self.config.get('num_zeros',0))
-
-        self.window = MyWindow(Gtk.WindowType.TOPLEVEL)
+        self.window = Gtk.Window(Gtk.WindowType.TOPLEVEL)
+        self.window.connect('key-press-event', self.on_key)
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.config.path
         if not self.wallet.seed: title += ' [seedless]'
         self.window.set_title(title)
         self.window.connect("destroy", Gtk.main_quit)
         self.window.set_border_width(0)
-        self.window.connect('mykeypress', Gtk.main_quit)
+        #self.window.connect('mykeypress', Gtk.main_quit)
         self.window.set_default_size(720, 350)
         self.wallet_updated = False
 
@@ -1019,14 +1012,15 @@ class ElectrumWindow:
             hbox.pack_start(button,False, False, 0)
 
         def showqrcode(w, treeview, liststore):
+            import qrcode
             path, col = treeview.get_cursor()
             if not path: return
             address = liststore.get_value(liststore.get_iter(path), 0)
-            qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.H)
-            qr.addData(address)
-            qr.make()
+            qr = qrcode.QRCode()
+            qr.add_data(address)
             boxsize = 7
-            boxcount_row = qr.getModuleCount()
+            matrix = qr.get_matrix()
+            boxcount_row = len(matrix)
             size = (boxcount_row + 4) * boxsize
             def area_expose_cb(area, cr):
                 style = area.get_style()
@@ -1036,7 +1030,7 @@ class ElectrumWindow:
                 Gdk.cairo_set_source_color(cr, style.black)
                 for r in range(boxcount_row):
                     for c in range(boxcount_row):
-                        if qr.isDark(r, c):
+                        if matrix[r][c]:
                             cr.rectangle((c + 2) * boxsize, (r + 2) * boxsize, boxsize, boxsize)
                             cr.fill()
             area = Gtk.DrawingArea()
@@ -1109,17 +1103,19 @@ class ElectrumWindow:
         return vbox
 
     def update_status_bar(self):
-        interface = self.network.interface
+
         if self.funds_error:
             text = "Not enough funds"
-        elif interface and interface.is_connected:
-            self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(interface.host, interface.port, self.network.blockchain.height()))
+        elif self.network.is_connected():
+            host, port, _,_,_ = self.network.get_parameters()
+            port = int(port)
+            height = self.network.get_local_height()
+            self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(host, port, height))
             if not self.wallet.up_to_date:
                 self.status_image.set_from_stock(Gtk.STOCK_REFRESH, Gtk.IconSize.MENU)
                 text = "Synchronizing..."
             else:
                 self.status_image.set_from_stock(Gtk.STOCK_YES, Gtk.IconSize.MENU)
-                self.network_button.set_tooltip_text("Connected to %s:%d.\n%d blocks"%(interface.host, interface.port, self.network.blockchain.height()))
                 c, u = self.wallet.get_balance()
                 text =  "Balance: %s "%( format_satoshis(c,False,self.num_zeros) )
                 if u: text +=  "[%s unconfirmed]"%( format_satoshis(u,True,self.num_zeros).strip() )
@@ -1209,7 +1205,7 @@ class ElectrumWindow:
             time_str = 'pending'
 
         inputs = map(lambda x: x.get('address'), tx.inputs)
-        outputs = map(lambda x: x.get('address'), tx.d['outputs'])
+        outputs = map(lambda x: x[0], tx.get_outputs())
         tx_details = "Transaction Details" +"\n\n" \
             + "Transaction ID:\n" + tx_hash + "\n\n" \
             + "Status: %d confirmations\n"%conf
@@ -1308,7 +1304,8 @@ class ElectrumGui():
                 r = change_password_dialog(False, None)
                 password = r[2] if r else None
                 wallet.add_seed(seed, password)
-                wallet.create_accounts(password)
+                wallet.create_master_keys(password)
+                wallet.create_main_account(password)
                 wallet.synchronize()  # generate first addresses offline
 
             elif action == 'restore':
@@ -1318,7 +1315,8 @@ class ElectrumGui():
                 r = change_password_dialog(False, None)
                 password = r[2] if r else None
                 wallet.add_seed(seed, password)
-                wallet.create_accounts(password)
+                wallet.create_master_keys(password)
+                wallet.create_main_account(password)
                 
             else:
                 exit()

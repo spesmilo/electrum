@@ -19,7 +19,7 @@
 import datetime
 import time
 import copy
-from util import print_msg, format_satoshis
+from util import print_msg, format_satoshis, print_stderr
 from bitcoin import is_valid, hash_160_to_bc_address, hash_160
 from decimal import Decimal
 import bitcoin
@@ -105,10 +105,11 @@ register_command('verifymessage',        3,-1, False, False, False, 'Verifies a 
 
 register_command('encrypt',              2,-1, False, False, False, 'encrypt a message with pubkey','encrypt <pubkey> <message>')
 register_command('decrypt',              2,-1, False, True, True,   'decrypt a message encrypted with pubkey','decrypt <pubkey> <message>')
-register_command('daemon',               1, 1, True, False, False,  '<stop|status>')
 register_command('getproof',             1, 1, True, False, False, 'get merkle proof', 'getproof <address>')
 register_command('getutxoaddress',       2, 2, True, False, False, 'get the address of an unspent transaction output','getutxoaddress <txid> <pos>')
 register_command('sweep',                2, 3, True, False, False, 'Sweep a private key.', 'sweep privkey addr [fee]')
+register_command('make_seed',            3, 3, False, False, False, 'Create a seed.','options: --nbits --entropy --lang')
+register_command('check_seed',           1,-1, False, False, False, 'Check that a seed was generated with external entropy. Option: --entropy --lang')
 
 
 class Commands:
@@ -130,19 +131,17 @@ class Commands:
             apply(self._callback, ())
         return result
 
+    def make_seed(self, nbits, custom_entropy, language):
+        from mnemonic import Mnemonic
+        s = Mnemonic(language).make_seed(nbits, custom_entropy)
+        return s.encode('utf8')
+
+    def check_seed(self, seed, custom_entropy, language):
+        from mnemonic import Mnemonic
+        return Mnemonic(language).check_seed(seed, custom_entropy)
+
     def getaddresshistory(self, addr):
         return self.network.synchronous_get([ ('blockchain.address.get_history',[addr]) ])[0]
-
-    def daemon(self, arg):
-        if arg=='stop':
-            return self.network.stop()
-        elif arg=='status':
-            return {
-                'server':self.network.main_server(),
-                'connected':self.network.is_connected()
-            }
-        else:
-            return "unknown command \"%s\""% arg
 
     def listunspent(self):
         l = copy.deepcopy(self.wallet.get_unspent_coins())
@@ -162,20 +161,20 @@ class Commands:
             i['prevout_hash'] = i['txid']
             i['prevout_n'] = i['vout']
         outputs = map(lambda x: (x[0],int(1e8*x[1])), outputs.items())
-        tx = Transaction.from_io(inputs, outputs)
+        tx = Transaction(inputs, outputs)
         return tx
 
     def signrawtransaction(self, raw_tx, private_keys):
-        tx = Transaction(raw_tx)
+        tx = Transaction.deserialize(raw_tx)
         self.wallet.signrawtransaction(tx, private_keys, self.password)
         return tx
 
     def decoderawtransaction(self, raw):
-        tx = Transaction(raw)
-        return tx.deserialize()
+        tx = Transaction.deserialize(raw)
+        return {'inputs':tx.inputs, 'outputs':tx.outputs}
 
     def sendrawtransaction(self, raw):
-        tx = Transaction(raw)
+        tx = Transaction.deserialize(raw)
         return self.network.synchronous_get([('blockchain.transaction.broadcast', [str(tx)])])[0]
 
     def createmultisig(self, num, pubkeys):
@@ -207,7 +206,7 @@ class Commands:
 
     def getpubkeys(self, addr):
         out = { 'address':addr }
-        out['pubkeys'] = self.wallet.getpubkeys(addr)
+        out['pubkeys'] = self.wallet.get_public_keys(addr)
         return out
 
     def getbalance(self, account= None):
@@ -246,8 +245,8 @@ class Commands:
         return self.wallet.get_master_public_keys()
 
     def getseed(self):
-        mnemonic = self.wallet.get_mnemonic(self.password)
-        return { 'mnemonic':mnemonic, 'version':self.wallet.seed_version }
+        s = self.wallet.get_mnemonic(self.password)
+        return s.encode('utf8')
 
     def importprivkey(self, sec):
         try:
@@ -268,7 +267,6 @@ class Commands:
         return bitcoin.verify_message(address, signature, message)
 
     def _mktx(self, outputs, fee = None, change_addr = None, domain = None):
-
         for to_address, amount in outputs:
             if not is_valid(to_address):
                 raise Exception("Invalid Bitcoin address", to_address)
@@ -298,7 +296,7 @@ class Commands:
                     break
 
             amount = int(100000000*amount)
-            final_outputs.append((to_address, amount))
+            final_outputs.append(('address', to_address, amount))
 
         if fee: fee = int(100000000*fee)
         return self.wallet.mktx(final_outputs, self.password, fee , change_addr, domain)
@@ -333,7 +331,7 @@ class Commands:
 
             label, is_default_label = self.wallet.get_label(tx_hash)
 
-            out.append({'txid':tx_hash, 'date':"%16s"%time_str, 'label':label, 'value':format_satoshis(value)})
+            out.append({'txid':tx_hash, 'date':"%16s"%time_str, 'label':label, 'value':format_satoshis(value), 'confirmations':conf})
         return out
 
     def setlabel(self, key, label):
@@ -376,9 +374,9 @@ class Commands:
             if tx:
                 return tx
 
-        r = self.network.synchronous_get([ ('blockchain.transaction.get',[tx_hash]) ])[0]
-        if r:
-            return Transaction(r)
+        raw = self.network.synchronous_get([ ('blockchain.transaction.get',[tx_hash]) ])[0]
+        if raw:
+            return Transaction.deserialize(raw)
         else:
             return "unknown transaction"
 

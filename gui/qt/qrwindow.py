@@ -1,3 +1,21 @@
+#!/usr/bin/env python
+#
+# Electrum - lightweight Bitcoin client
+# Copyright (C) 2014 Thomas Voegtlin
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import re
 import platform
 from decimal import Decimal
@@ -9,9 +27,7 @@ import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
 from electrum_gui.qt.qrcodewidget import QRCodeWidget
-from electrum import BasePlugin
 from electrum.i18n import _
-
 
 if platform.system() == 'Windows':
     MONOSPACE_FONT = 'Lucida Console'
@@ -68,53 +84,6 @@ class QR_Window(QWidget):
         label_text = "<span style='font-size: 21pt'>%s</span>" % message if message else ""
         self.label_label.setText(label_text)
         self.qrw.setData(url)
-
-
-
-
-class Plugin(BasePlugin):
-
-    def fullname(self):
-        return 'Point of Sale'
-
-
-    def description(self):
-        return _('Show payment requests in a large, separate window.')
-
-
-    def init(self):
-        self.window = self.gui.main_window
-        self.qr_window = None
-        self.toggle_QR_window(True)
-
-
-    def close(self):
-        self.toggle_QR_window(False)
-
-
-    def close_main_window(self):
-        if self.qr_window: 
-            self.qr_window.close()
-            self.qr_window = None
-
-
-    def update_receive_qr(self, address, amount, message, url):
-        self.qr_window.set_content( address, amount, message, url )
-
-    
-    def toggle_QR_window(self, show):
-        if show and not self.qr_window:
-            self.qr_window = QR_Window(self.gui.main_window)
-            self.qr_window.setVisible(True)
-            self.qr_window_geometry = self.qr_window.geometry()
-
-        elif show and self.qr_window and not self.qr_window.isVisible():
-            self.qr_window.setVisible(True)
-            self.qr_window.setGeometry(self.qr_window_geometry)
-
-        elif not show and self.qr_window and self.qr_window.isVisible():
-            self.qr_window_geometry = self.qr_window.geometry()
-            self.qr_window.setVisible(False)
 
 
 

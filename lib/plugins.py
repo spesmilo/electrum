@@ -6,7 +6,7 @@ from i18n import _
 plugins = []
 
 
-def init_plugins(self):
+def init_plugins(config):
     import imp, pkgutil, __builtin__, os
     global plugins
 
@@ -23,46 +23,53 @@ def init_plugins(self):
 
     for name, p in zip(plugin_names, plugin_modules):
         try:
-            plugins.append( p.Plugin(self, name) )
+            plugins.append( p.Plugin(config, name) )
         except Exception:
             print_msg(_("Error: cannot initialize plugin"),p)
             traceback.print_exc(file=sys.stdout)
 
 
+hook_names = set()
+hooks = {}
+
+def hook(func):
+    n = func.func_name
+    if n not in hook_names:
+        hook_names.add(n)
+    return func
+
 
 def run_hook(name, *args):
-    
-    global plugins
-
-    found = 0
-
-    for p in plugins:
-
+    results = []
+    f_list = hooks.get(name,[])
+    for p, f in f_list:
         if not p.is_enabled():
             continue
-
-        f = getattr(p, name, None)
-        if not callable(f):
-            continue
-
-        found += 1
-
         try:
-            f(*args)
+            r = f(*args)
         except Exception:
             print_error("Plugin error")
             traceback.print_exc(file=sys.stdout)
-            
-    return found
+            r = False
+        if r:
+            results.append(r)
 
+    if results:
+        assert len(results) == 1, results
+        return results[0]
 
 
 class BasePlugin:
 
-    def __init__(self, gui, name):
-        self.gui = gui
+    def __init__(self, config, name):
         self.name = name
-        self.config = gui.config
+        self.config = config
+        # add self to hooks
+        for k in dir(self):
+            if k in hook_names:
+                l = hooks.get(k, [])
+                l.append((self, getattr(self, k)))
+                hooks[k] = l
 
     def fullname(self):
         return self.name
@@ -72,17 +79,6 @@ class BasePlugin:
 
     def requires_settings(self):
         return False
-
-    def toggle(self):
-        if self.is_enabled():
-            if self.disable():
-                self.close()
-        else:
-            if self.enable():
-                self.init()
-
-        return self.is_enabled()
-
     
     def enable(self):
         self.set_enabled(True)
@@ -92,7 +88,11 @@ class BasePlugin:
         self.set_enabled(False)
         return True
 
-    def init(self): pass
+    def init_qt(self, gui): pass
+
+    def load_wallet(self, wallet): pass
+
+    #def init(self): pass
 
     def close(self): pass
 
@@ -107,3 +107,4 @@ class BasePlugin:
 
     def settings_dialog(self):
         pass
+

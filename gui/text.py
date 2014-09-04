@@ -124,7 +124,7 @@ class ElectrumGui:
     def print_balance(self):
         if not self.network:
             msg = _("Offline")
-        elif self.network.interface and self.network.interface.is_connected:
+        elif self.network.is_connected():
             if not self.wallet.up_to_date:
                 msg = _("Synchronizing...")
             else: 

@@ -28,7 +28,7 @@ RE_ADDRESS = '[1-9A-HJ-NP-Za-km-z]{26,}'
 RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'
 
 frozen_style = "QWidget { background-color:none; border:none;}"
-normal_style = "QTextEdit { }"
+normal_style = "QPlainTextEdit { }"
 
 class PayToEdit(QRTextEdit):
 
@@ -39,8 +39,6 @@ class PayToEdit(QRTextEdit):
         self.document().contentsChanged.connect(self.update_size)
         self.heightMin = 0
         self.heightMax = 150
-        self.setMinimumHeight(27)
-        self.setMaximumHeight(27)
         self.c = None
         self.textChanged.connect(self.check_text)
         self.outputs = []
@@ -71,13 +69,15 @@ class PayToEdit(QRTextEdit):
     def parse_address_and_amount(self, line):
         m = re.match('^OP_RETURN\s+"(.+)"$', line.strip())
         if m:
-            address = 'OP_RETURN:' + m.group(1)
+            type = 'op_return'
+            address = m.group(1)
             amount = 0
         else:
             x, y = line.split(',')
+            type = 'address'
             address = self.parse_address(x)
             amount = self.parse_amount(y)
-        return address, amount
+        return type, address, amount
 
 
     def parse_amount(self, x):
@@ -116,11 +116,11 @@ class PayToEdit(QRTextEdit):
 
         for line in lines:
             try:
-                to_address, amount = self.parse_address_and_amount(line)
+                type, to_address, amount = self.parse_address_and_amount(line)
             except:
                 continue
                 
-            outputs.append((to_address, amount))
+            outputs.append((type, to_address, amount))
             total += amount
 
         self.outputs = outputs
@@ -146,7 +146,7 @@ class PayToEdit(QRTextEdit):
             except:
                 amount = None
 
-            self.outputs = [(self.payto_address, amount)]
+            self.outputs = [('address', self.payto_address, amount)]
 
         return self.outputs[:]
 
@@ -161,9 +161,11 @@ class PayToEdit(QRTextEdit):
 
     def update_size(self):
         docHeight = self.document().size().height()
-        if self.heightMin <= docHeight <= self.heightMax:
-            self.setMinimumHeight(docHeight + 2)
-            self.setMaximumHeight(docHeight + 2)
+        h = docHeight*17 + 11
+        if self.heightMin <= h <= self.heightMax:
+            self.setMinimumHeight(h)
+            self.setMaximumHeight(h)
+        self.verticalScrollBar().hide()
 
 
     def setCompleter(self, completer):
@@ -207,7 +209,7 @@ class PayToEdit(QRTextEdit):
             e.ignore()
             return
 
-        QTextEdit.keyPressEvent(self, e)
+        QPlainTextEdit.keyPressEvent(self, e)
 
         ctrlOrShift = e.modifiers() and (Qt.ControlModifier or Qt.ShiftModifier)
         if self.c is None or (ctrlOrShift and e.text().isEmpty()):

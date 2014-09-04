@@ -4,6 +4,7 @@ include electrum.desktop
 include *.py
 include electrum
 recursive-include lib *.py
+recursive-include lib/wordlist *
 recursive-include gui *.py
 recursive-include plugins *.py
 recursive-include packages *.py

@@ -5,42 +5,48 @@ from electrum import Interface, SimpleConfig
 from electrum.network import filter_protocol, parse_servers
 from collections import defaultdict
 
+# electrum.util.set_verbosity(1)
+
 # 1. start interface and wait for connection
-interface = electrum.Interface('ecdsa.net:50002:s')
-interface.start(wait = True)
+interface = electrum.Interface('ecdsa.net:110:s')
+q = Queue.Queue()
+interface.start(q)
+
+i, r = q.get()
 if not interface.is_connected:
     print "not connected"
-    exit()
+    exit(1)
 
 # 2. get list of peers
-q = Queue.Queue()
-interface.send([('server.peers.subscribe',[])], lambda i,x: q.put(x))
-r = q.get(timeout=10000)
+interface.send_request({'id':0, 'method':'server.peers.subscribe','params':[]})
+i, r = q.get(timeout=10000)
 peers = parse_servers(r.get('result'))
 peers = filter_protocol(peers,'s')
+i.stop()
 
 print "Contacting %d servers"%len(peers)
 # start interfaces
+q2 = Queue.Queue()
 config = SimpleConfig()
 interfaces = map ( lambda server: Interface(server, config), peers )
-results_queue = Queue.Queue()
 reached_servers = []
-for i in interfaces: i.start(q)
+for i in interfaces:
+    i.start(q2)
 
 t0 = time.time()
 while peers:
     try:
-        i = q.get(timeout=1)
+        i, r = q2.get(timeout=1)
     except:
         if time.time() - t0 > 10:
             print "timeout"
             break
         else:
             continue
-    peers.remove(i.server)
+    if i.server in peers:
+        peers.remove(i.server)
     if i.is_connected:
-        i.send([('blockchain.headers.subscribe',[])], lambda i,x: results_queue.put((i,x)))
-        reached_servers.append(i.server)
+        reached_servers.append(i)
     else:
         print "Connection failed:", i.server
 
@@ -76,11 +82,27 @@ def analyze(results):
     return out
 
 
+results_queue = Queue.Queue()
+for i in reached_servers:
+    i.send_request({'method':'blockchain.headers.subscribe','params':[]}, results_queue)
+
 results = {}
+t0 = time.time()
 while reached_servers:
-    i, r = results_queue.get(timeout=10000)
+    try:
+        i, r = results_queue.get(timeout=1)
+    except:
+        if time.time() - t0 > 10:
+            break
+        else:
+            continue
     results[i.server] = r.get('result')
-    reached_servers.remove(i.server)
+    reached_servers.remove(i)
+    i.stop()
+
+for i in reached_servers:
+    print i.server, "did not answer"
+print "%d answers"%len(results)
 
 errors = analyze(results).keys()
 

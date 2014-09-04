@@ -52,11 +52,13 @@ data_files += [
     ])
 ]
 
+# replace tlslite because of https://github.com/trevp/tlslite/issues/15
+os.system("pip install http://download.electrum.org/tlslite-0.4.5.tar.gz")
 
 setup(
     name="Electrum",
     version=version.ELECTRUM_VERSION,
-    install_requires=['slowaes', 'ecdsa>=0.9', 'pbkdf2', 'requests', 'pyasn1', 'pyasn1-modules', 'tlslite>=0.4.5', 'qrcode', 'scrypt'],
+    install_requires=['slowaes', 'ecdsa>=0.9', 'pbkdf2', 'requests', 'pyasn1', 'pyasn1-modules', 'qrcode', 'scrypt'],
     package_dir={
         'electrum': 'lib',
         'electrum_gui': 'gui',
@@ -76,6 +78,7 @@ setup(
         'electrum.mnemonic',
         'electrum.msqr',
         'electrum.network',
+        'electrum.network_proxy',
         'electrum.paymentrequest',
         'electrum.paymentrequest_pb2',
         'electrum.plugins',
