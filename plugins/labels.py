@@ -24,6 +24,7 @@ from electrum_gui.qt import HelpButton, EnterButton
 class Plugin(BasePlugin):
 
     target_host = 'labelectrum.herokuapp.com'
+    encode_password = None
 
     def fullname(self):
         return _('Label Sync')
@@ -37,7 +38,6 @@ class Plugin(BasePlugin):
     def encode(self, message):
         encrypted = aes.encryptData(self.encode_password, unicode(message))
         encoded_message = base64.b64encode(encrypted)
-
         return encoded_message
 
     def decode(self, message):
@@ -87,6 +87,8 @@ class Plugin(BasePlugin):
 
     @hook
     def set_label(self, item,label, changed):
+        if self.encode_password is None:
+            return
         if not changed:
             return 
         try:
