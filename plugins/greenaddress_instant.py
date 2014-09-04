@@ -44,6 +44,10 @@ class Plugin(BasePlugin):
     def description(self):
         return description
 
+    @hook 
+    def init_qt(self, gui):
+        self.win = gui.main_window
+
     @hook
     def transaction_dialog(self, d):
         self.wallet = d.wallet
@@ -68,37 +72,13 @@ class Plugin(BasePlugin):
         else:
             self.verify_button.hide()
 
-    def password_dialog(self):
-        d = QDialog(self)
-        d.setModal(1)
-        d.setWindowTitle(_("Enter Password"))
-
-        pw = QLineEdit()
-        pw.setEchoMode(2)
-
-        vbox = QVBoxLayout()
-        msg = _('GreenAddress requires your signature to verify that transaction is instant.\n'
-                'Please enter your password to sign a verification request.')
-        vbox.addWidget(QLabel(msg))
-
-        grid = QGridLayout()
-        grid.setSpacing(8)
-        grid.addWidget(QLabel(_('Password')), 1, 0)
-        grid.addWidget(pw, 1, 1)
-        vbox.addLayout(grid)
-
-        vbox.addLayout(ok_cancel_buttons(d))
-        d.setLayout(vbox)
-
-        run_hook('password_dialog', pw, grid, 1)
-        if not d.exec_(): return
-        return unicode(pw.text())
-
     def do_verify(self, tx):
         # 1. get the password and sign the verification request
         password = None
         if self.wallet.use_encryption:
-            password = self.password_dialog()
+            msg = _('GreenAddress requires your signature to verify that transaction is instant.\n'
+                    'Please enter your password to sign a verification request.')
+            password = self.win.password_dialog(msg)
             if not password:
                 return
         try:
