@@ -337,6 +337,7 @@ class Plugin(BasePlugin):
         BasePlugin.__init__(self,a,b)
         self.currencies = [self.fiat_unit()]
         self.exchanges = [self.config.get('use_exchange', "Blockchain")]
+        self.exchanger = None
 
     @hook
     def init_qt(self, gui):
@@ -344,11 +345,21 @@ class Plugin(BasePlugin):
         self.win = self.gui.main_window
         self.win.connect(self.win, SIGNAL("refresh_currencies()"), self.win.update_status)
         self.btc_rate = Decimal("0.0")
-        # Do price discovery
-        self.exchanger = Exchanger(self)
-        self.exchanger.start()
-        self.gui.exchanger = self.exchanger #
-        self.add_fiat_edit()
+        if self.exchanger is None:
+            # Do price discovery
+            self.exchanger = Exchanger(self)
+            self.exchanger.start()
+            self.gui.exchanger = self.exchanger #
+            self.add_fiat_edit()
+            self.add_fiat_edit()
+            self.win.update_status()
+
+    def close(self):
+        self.exchanger.stop()
+        self.exchanger = None
+        self.win.tabs.removeTab(1)
+        self.win.tabs.insertTab(1, self.win.create_send_tab(), _('Send'))
+        self.win.update_status()
 
     def set_currencies(self, currency_options):
         self.currencies = sorted(currency_options)
@@ -410,19 +421,6 @@ class Plugin(BasePlugin):
         return True
 
 
-    def toggle(self):
-        enabled = BasePlugin.toggle(self)
-        self.win.update_status()
-        self.win.tabs.removeTab(1)
-        new_send_tab = self.gui.main_window.create_send_tab()
-        self.win.tabs.insertTab(1, new_send_tab, _('Send'))
-        if enabled:
-            self.add_fiat_edit()
-        return enabled
-
-
-    def close(self):
-        self.exchanger.stop()
 
     def history_tab_update(self):
         if self.config.get('history_rates', 'unchecked') == "checked":
