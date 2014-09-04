@@ -23,6 +23,8 @@ from electrum_gui.qt import HelpButton, EnterButton
 
 class Plugin(BasePlugin):
 
+    target_host = 'labelectrum.herokuapp.com'
+
     def fullname(self):
         return _('Label Sync')
 
@@ -40,21 +42,26 @@ class Plugin(BasePlugin):
 
     def decode(self, message):
         decoded_message = aes.decryptData(self.encode_password, base64.b64decode(unicode(message)) )
-
         return decoded_message
+
+    
 
     @hook
     def init_qt(self, gui):
-        self.target_host = 'labelectrum.herokuapp.com'
         self.window = gui.main_window
+        if not self.auth_token(): # First run, throw plugin settings in your face
+            self.load_wallet(self.window.wallet)
+            if self.settings_dialog():
+                self.set_enabled(True)
+                return True
+            else:
+                self.set_enabled(False)
+                return False
 
     @hook
     def load_wallet(self, wallet):
         self.wallet = wallet
-        if self.wallet.get_master_public_key():
-            mpk = self.wallet.get_master_public_key()
-        else:
-            mpk = self.wallet.master_public_keys["m/0'/"][1]
+        mpk = self.wallet.get_master_public_key()
         self.encode_password = hashlib.sha1(mpk).digest().encode('hex')[:32]
         self.wallet_id = hashlib.sha256(mpk).digest().encode('hex')
 
@@ -150,20 +157,6 @@ class Plugin(BasePlugin):
           return True
         else:
           return False
-
-    def enable(self):
-        if not self.auth_token(): # First run, throw plugin settings in your face
-            self.init()
-            self.load_wallet(self.window.wallet)
-            if self.settings_dialog():
-                self.set_enabled(True)
-                return True
-            else:
-                self.set_enabled(False)
-                return False
-
-        self.set_enabled(True)
-        return True
 
 
     def full_push(self):

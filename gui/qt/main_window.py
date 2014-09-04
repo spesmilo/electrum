@@ -2727,6 +2727,7 @@ class ElectrumWindow(QMainWindow):
                     p.close()
             else:
                 if p.enable():
+                    p.load_wallet(self.wallet)
                     p.init_qt(self.gui_object)
             r = p.is_enabled()
             cb.setChecked(r)

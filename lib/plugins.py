@@ -88,7 +88,11 @@ class BasePlugin:
         self.set_enabled(False)
         return True
 
-    def init(self): pass
+    def init_qt(self, gui): pass
+
+    def load_wallet(self, wallet): pass
+
+    #def init(self): pass
 
     def close(self): pass
 
