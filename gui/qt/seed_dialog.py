@@ -72,6 +72,8 @@ def show_seed_box(seed, sid=None):
                + _("If you ever need to recover your wallet from seed, you will need both this seed and your cold seed.") + " " \
 
     label1 = QLabel(msg+ ":")
+    from itertools import izip_longest
+    seed = '\n'.join(map(lambda x: ' '.join(x), izip_longest(*(iter(seed.split()),) * 5, fillvalue='')))
     seed_text = QRTextEdit(seed)
     seed_text.setReadOnly(True)
     seed_text.setMaximumHeight(130)
