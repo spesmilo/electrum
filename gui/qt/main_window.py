@@ -2201,7 +2201,7 @@ class ElectrumWindow(QMainWindow):
         try:
             for position, row in enumerate(csvReader):
                 address = row[0]
-                if not is_address(address):
+                if not bitcoin.is_address(address):
                     errors.append((position, address))
                     continue
                 amount = Decimal(row[1])
