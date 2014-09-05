@@ -1571,7 +1571,7 @@ class OldWallet(Deterministic_Wallet):
             if self.is_mine(addr):
                 return True
         for xpub, sequence in xpub_list:
-            if xpub == self.master_public_key:
+            if xpub == self.get_master_public_key():
                 return True
         return False
 
