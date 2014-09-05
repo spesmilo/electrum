@@ -20,7 +20,7 @@ class ElectrumGui:
             print "Wallet not found. try 'electrum create'"
             exit()
 
-	self.done = 0
+        self.done = 0
         self.last_balance = ""
 
         set_verbosity(False)
