@@ -5,7 +5,7 @@ from PyQt4.QtCore import *
 class QRTextEdit(QPlainTextEdit):
 
     def __init__(self, text=None):
-        QTextEdit.__init__(self, text)
+        QPlainTextEdit.__init__(self, text)
         self.button = QToolButton(self)
         self.button.setIcon(QIcon(":icons/qrcode.png"))
         self.button.setStyleSheet("QToolButton { border: none; padding: 0px; }")
@@ -32,9 +32,9 @@ class QRTextEdit(QPlainTextEdit):
     def qr_show(self):
         from qrcodewidget import QRDialog
         try:
-            s = unicode(self.toPlainText())
-        except:
             s = str(self.toPlainText())
+        except:
+            s = unicode(self.toPlainText())
         QRDialog(s).exec_()
 
     def qr_input(self):

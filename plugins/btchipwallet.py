@@ -53,7 +53,7 @@ class Plugin(BasePlugin):
         BasePlugin.__init__(self, gui, name)
         self._is_available = self._init()
         self.wallet = None
-        electrum.wallet.wallet_types.append(('btchip', _("BTChip wallet"), BTChipWallet))
+        electrum.wallet.wallet_types.append(('hardware', 'btchip', _("BTChip wallet"), BTChipWallet))
 
 
     def _init(self):

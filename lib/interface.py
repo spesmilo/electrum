@@ -82,10 +82,6 @@ class TcpInterface(threading.Thread):
         error = response.get('error')
         result = response.get('result')
 
-        if error:
-            print_error("received error:", response)
-            return
-        
         if msg_id is not None:
             with self.lock:
                 method, params, _id, queue = self.unanswered_requests.pop(msg_id)
@@ -114,7 +110,10 @@ class TcpInterface(threading.Thread):
             self.is_ping = False
             return
 
-        queue.put((self, {'method':method, 'params':params, 'result':result, 'id':_id}))
+        if error:
+            queue.put((self, {'method':method, 'params':params, 'error':error, 'id':_id}))
+        else:
+            queue.put((self, {'method':method, 'params':params, 'result':result, 'id':_id}))
 
 
     def get_socket(self):
