@@ -109,6 +109,7 @@ class NetworkProxy(threading.Thread):
 
         msg_id = response.get('id')
         result = response.get('result')
+        error = response.get('error')
         if msg_id is not None:
             with self.lock:
                 method, params, callback = self.unanswered_requests.pop(msg_id)
@@ -125,7 +126,7 @@ class NetworkProxy(threading.Thread):
                     return
 
         
-        r = {'method':method, 'params':params, 'result':result, 'id':msg_id}
+        r = {'method':method, 'params':params, 'result':result, 'id':msg_id, 'error':error}
         callback(r)
 
 
@@ -171,11 +172,11 @@ class NetworkProxy(threading.Thread):
         while ids:
             r = queue.get(True, timeout)
             _id = r.get('id')
-            if _id in ids:
-                ids.remove(_id)
-                res[_id] = r.get('result')
-            else:
-                raise
+            ids.remove(_id)
+            if r.get('error'):
+                return BaseException(r.get('error'))
+            result = r.get('result')
+            res[_id] = r.get('result')
         out = []
         for _id in id2:
             out.append(res[_id])
