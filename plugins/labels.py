@@ -219,9 +219,16 @@ class Plugin(BasePlugin):
 
             for label in response:
                  decoded_key = self.decode(label["external_id"]) 
-                 decoded_label = self.decode(label["text"]) 
+                 decoded_label = self.decode(label["text"])
+                 try:
+                     json.dumps(decoded_key)
+                     json.dumps(decoded_label)
+                 except:
+                     print_error('json error: cannot save label', decoded_key)
+                     continue
                  if force or not self.wallet.labels.get(decoded_key):
                      self.wallet.labels[decoded_key] = decoded_label 
+            self.wallet.storage.put('labels', self.wallet.labels)
             return True
         except socket.gaierror as e:
             print_error('Error connecting to service: %s ' %  e)

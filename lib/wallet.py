@@ -25,6 +25,7 @@ import random
 import time
 import math
 import json
+import copy
 
 from util import print_msg, print_error
 
@@ -92,13 +93,20 @@ class WalletStorage(object):
         except IOError:
             return
         try:
-            d = json.loads(data)
+            self.data = json.loads(data)
         except:
             try:
                 d = ast.literal_eval(data)  #parse raw data from reading wallet file
             except Exception:
                 raise IOError("Cannot read wallet file.")
-        self.data = d
+            self.data = {}
+            for key, value in d.items():
+                try:
+                    json.dumps(key)
+                    json.dumps(value)
+                except:
+                    continue
+                self.data[key] = value
         self.file_exists = True
 
     def get(self, key, default=None):
@@ -106,13 +114,20 @@ class WalletStorage(object):
             v = self.data.get(key)
             if v is None:
                 v = default
+            else:
+                v = copy.deepcopy(v)
             return v
 
     def put(self, key, value, save = True):
-
+        try:
+            json.dumps(key)
+            json.dumps(value)
+        except:
+            print_error("json error: cannot save", key)
+            return
         with self.lock:
             if value is not None:
-                self.data[key] = value
+                self.data[key] = copy.deepcopy(value)
             elif key in self.data:
                 self.data.pop(key)
             if save:
@@ -1556,19 +1571,20 @@ class OldWallet(Deterministic_Wallet):
             if self.is_mine(addr):
                 return True
         for xpub, sequence in xpub_list:
-            if xpub == self.master_public_key:
+            if xpub == self.get_master_public_key():
                 return True
         return False
 
 
 
 wallet_types = [ 
-    ('old',      ("Old wallet"),               OldWallet),
-    ('xpub',     ("BIP32 Import"),             BIP32_Simple_Wallet),
-    ('standard', ("Standard wallet"),          NewWallet),
-    ('imported', ("Imported wallet"),          Imported_Wallet),
-    ('2of2',     ("Multisig wallet (2 of 2)"), Wallet_2of2),
-    ('2of3',     ("Multisig wallet (2 of 3)"), Wallet_2of3)
+    # category   type        description                   constructor
+    ('standard', 'old',      ("Old wallet"),               OldWallet),
+    ('standard', 'xpub',     ("BIP32 Import"),             BIP32_Simple_Wallet),
+    ('standard', 'standard', ("Standard wallet"),          NewWallet),
+    ('standard', 'imported', ("Imported wallet"),          Imported_Wallet),
+    ('multisig', '2of2',     ("Multisig wallet (2 of 2)"), Wallet_2of2),
+    ('multisig', '2of3',     ("Multisig wallet (2 of 3)"), Wallet_2of3)
 ]
 
 # former WalletFactory
@@ -1583,7 +1599,7 @@ class Wallet(object):
         run_hook('add_wallet_types', wallet_types)
         wallet_type = storage.get('wallet_type')
         if wallet_type:
-            for t, l, WalletClass in wallet_types:
+            for cat, t, name, WalletClass in wallet_types:
                 if t == wallet_type:
                     return WalletClass(storage)
             else:
