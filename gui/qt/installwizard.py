@@ -346,10 +346,12 @@ class InstallWizard(QDialog):
                 if not wallet_type:
                     return
             elif wallet_type == 'hardware':
-                hardware_wallets = [('trezor',_("Trezor")), ('btchip',_("BTChip"))]
+                hardware_wallets = map(lambda x:(x[1],x[2]), filter(lambda x:x[0]=='hardware', electrum.wallet.wallet_types))
                 wallet_type = self.choice(_("Hardware Wallet"), 'Select your hardware wallet', hardware_wallets)
                 if not wallet_type:
                     return
+            elif wallet_type == 'twofactor':
+                wallet_type = '2fa'
 
             if action == 'create':
                 self.storage.put('wallet_type', wallet_type)
