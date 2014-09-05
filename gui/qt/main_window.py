@@ -1627,6 +1627,7 @@ class ElectrumWindow(QMainWindow):
                     label = self.wallet.labels.get(address,'')
                     c, u = self.wallet.get_addr_balance(address)
                     balance = self.format_amount(c + u)
+                    if is_change and not is_used and balance == 0: continue # Adding in this line for #768
                     item = QTreeWidgetItem( [ address, label, balance, "%d"%num] )
                     item.setFont(0, QFont(MONOSPACE_FONT))
                     item.setData(0, 32, True) # label can be edited
@@ -1641,6 +1642,7 @@ class ElectrumWindow(QMainWindow):
                         used_item.addChild(item)
                     else:
                         seq_item.addChild(item)
+                if is_change and not seq_item.child(0): account_item.removeChild(seq_item) # If no change addresses with any balance, don't even show the Change tab (as it will be empty anyways)
 
         # we use column 1 because column 0 may be hidden
         l.setCurrentItem(l.topLevelItem(0),1)
