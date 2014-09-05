@@ -351,7 +351,6 @@ class Plugin(BasePlugin):
             self.exchanger.start()
             self.gui.exchanger = self.exchanger #
             self.add_fiat_edit()
-            self.add_fiat_edit()
             self.win.update_status()
 
     def close(self):
@@ -421,7 +420,7 @@ class Plugin(BasePlugin):
         return True
 
 
-
+    @hook
     def history_tab_update(self):
         if self.config.get('history_rates', 'unchecked') == "checked":
             cur_exchange = self.config.get('use_exchange', "Blockchain")
