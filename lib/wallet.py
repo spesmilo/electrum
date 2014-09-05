@@ -1599,7 +1599,7 @@ class Wallet(object):
         run_hook('add_wallet_types', wallet_types)
         wallet_type = storage.get('wallet_type')
         if wallet_type:
-            for t, l, WalletClass in wallet_types:
+            for cat, t, name, WalletClass in wallet_types:
                 if t == wallet_type:
                     return WalletClass(storage)
             else:
