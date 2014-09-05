@@ -174,6 +174,76 @@ def is_old_seed(seed):
 
     return is_hex or (uses_electrum_words and len(words) == 12)
 
+def parse_stealth(stealth):
+    addr_bytes = DecodeBase58Check(stealth)
+    version = int(addr_bytes[0].encode('hex'),16)
+    option = int(addr_bytes[1].encode('hex'),16)
+    scan_pubkey = addr_bytes[2:35]
+    multi_n = int(addr_bytes[35:36].encode('hex'),16)
+    spend_pubkeys = []
+    for i in range(multi_n):
+        spend_pubkeys.append(addr_bytes[36+(i*33):69+(i*33)])
+    multi_m = int(addr_bytes[69+(i*33):70+(i*33)].encode('hex'),16)
+    prefix_len = int(addr_bytes[70+(i*33):71+(i*33)].encode('hex'),16)
+    prefix = addr_bytes[71+(i*33):]
+    return version, option, scan_pubkey, multi_n, spend_pubkeys, multi_m, prefix_len, prefix
+
+def get_stealth_send(stealth):
+    version, option, scan_pubkey, multi_n, spend_pubkeys, multi_m, prefix_len, prefix = parse_stealth(stealth)
+    while True: # This loop is here in case all nonces do not give prefix match. create new ephemkey
+        key = EC_KEY(("%064x" % ecdsa.util.randrange( 2**255 )).decode('hex'))
+        ephemst = key.get_public_key()                  # We need the pubkey as a string
+        nonce = ecdsa.util.randrange( (2**32) - 1 )
+        firstnonce = nonce
+        while True:
+            nonce = nonce + 1
+            if nonce > 4294967295L: nonce = 0           # if greater than 0xffffffff then set to 0
+            noncest = "%08x" % nonce                    # we need the nonce in a string
+            hashme = (noncest + ephemst).decode('hex')  # put strings together and turn them into hex strings
+            hashprefix = hash_160(hashme)[:4]           # This is bitcoin.py's RipeMD160 hash of a SHA256 hash of the data. Only first 4 bytes taken
+            if check_prefix(prefix_len, prefix, hashprefix) or firstnonce == nonce or prefix_len == 0: # If (nonce + ephemkey) ripemd160 hash first bits match prefix bits or if all 32 bit nonces don't return a success, create a new pubkey
+                break
+        if check_prefix(prefix_len, prefix, hashprefix) or prefix_len == 0:        # If (nonce + ephemkey) ripemd160 hash first bits match prefix bits
+            break
+    if multi_n > 1:
+        newaddr = find_stealth_address(scan_pubkey, spend_pubkeys, key, multi_m)
+    else:
+        newaddr = find_stealth_address(scan_pubkey, spend_pubkeys, key)
+    ret_script = ('06' + noncest + ephemst).decode('hex') # Note: the '06' before the nonce is the version byte. Currently 0x06 only.
+    return newaddr, ret_script
+
+def check_prefix(pre_num, prefix, p_hash): # Check the first 'pre_num' bits of both 'prefix' and 'p_hash' and see if they match
+    if pre_num == 0: return True
+    assert len(p_hash) == 4, _("Hash head size incorrect")
+    prebits = pre_num
+    byte_pos = 0
+    while prebits > 8: # This compares the first complete bytes as bytes if the pre_num is higher than 8 bits
+        if prefix[byte_pos] != p_hash[byte_pos]:
+            return False
+        prebits = prebits - 8
+        byte_pos = byte_pos + 1
+    prefix_bits = (((1 << (8 - prebits)) - 1) ^ 0xff) & int(prefix[byte_pos].encode('hex'), 16)
+    hash_bits = (((1 << (8 - prebits)) - 1) ^ 0xff) & int(p_hash[byte_pos].encode('hex'), 16)
+    if prefix_bits == hash_bits: # In order to check only the first 'prebits' bits of the byte, we mask both bytes to change all bits past 'prebits' length to 0
+        return True
+    else:
+        return False
+
+def is_stealth_address(stealth):
+    try:
+        ver, op, scan, n, spends, m, prefix_len, prefix = parse_stealth(stealth)
+        assert ver == 42 # Bitcoin Main net
+        #assert op == 0 # This option is currently not used. May want to check for it later.
+        assert ser_to_point(scan)
+        assert n == len(spends)
+        for spend in spends:
+            assert ser_to_point(spend)
+        assert m <= n
+        if prefix == chr(0): prefix = ''
+        assert len(prefix) == (prefix_len / 8) + (prefix_len % 8 > 0)
+    except AssertionError:
+        return False
+    return True
 
 # pywallet openssl private key implementation
 
@@ -382,6 +452,7 @@ def is_valid(addr):
 
 
 def is_address(addr):
+    if is_stealth_address(addr): return True
     ADDRESS_RE = re.compile('[1-9A-HJ-NP-Za-km-z]{26,}\\Z')
     if not ADDRESS_RE.match(addr): return False
     try:
@@ -470,6 +541,35 @@ def ser_to_point(Aser):
     Mx = string_to_number(Aser[1:])
     return Point( curve, Mx, ECC_YfromX(Mx, curve, Aser[0]=='\x03')[0], _r )
 
+
+def find_stealth_address(scan_pubkey, spend_pubkeys, ephemkey, multisig_m = 0): # This takes scan_pubkey and spend_pubkeys and creates the new address
+    S1 = diffie_hellman(ephemkey.secret, scan_pubkey)
+    c = sha256(S1)
+    shared_point = EC_KEY(c).pubkey.point
+    addr_pubkey = []
+    if len(spend_pubkeys) == 1:
+        point = ser_to_point(spend_pubkeys[0]) + shared_point
+        addr_pubkey.append(point_to_ser(point))
+        address = public_key_to_bc_address(addr_pubkey[0])
+    else:
+        assert multisig_m > 0 and multisig_m <= len(spend_pubkeys)
+        for i in range(len(spend_pubkeys)):
+            point = ser_to_point(spend_pubkeys[i]) + shared_point
+            addr_pubkey.append(point_to_ser(point))
+        multiobj = createmultisig(multisig_m, addr_pubkey)
+        address = multiobj['address']
+    return address
+
+
+def diffie_hellman(e, Q): # e as int, Q as serialized pubkey
+    Q = point_to_ser(ser_to_point(Q), False)
+    curve = SECP256k1
+    public_key = ecdsa.VerifyingKey.from_string(Q[1:], curve=curve)
+    point = public_key.pubkey.point
+    point = e * point
+    result = point_to_ser(point)
+    assert len(result) == 33
+    return result
 
 
 class MyVerifyingKey(ecdsa.VerifyingKey):
