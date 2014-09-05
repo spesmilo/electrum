@@ -231,6 +231,9 @@ def check_prefix(pre_num, prefix, p_hash): # Check the first 'pre_num' bits of b
 
 def is_stealth_address(stealth):
     try:
+        bytes = DecodeBase58Check(stealth)
+        assert bytes != None
+        assert bytes[0] == chr(42)
         ver, op, scan, n, spends, m, prefix_len, prefix = parse_stealth(stealth)
         assert ver == 42 # Bitcoin Main net
         #assert op == 0 # This option is currently not used. May want to check for it later.
