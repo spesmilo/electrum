@@ -100,7 +100,7 @@ class WalletStorage(object):
             except Exception:
                 raise IOError("Cannot read wallet file.")
             self.data = {}
-            for k, v in d.items():
+            for key, value in d.items():
                 try:
                     json.dumps(key)
                     json.dumps(value)
