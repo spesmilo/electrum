@@ -58,69 +58,40 @@ class InstallWizard(QDialog):
         grid = QGridLayout()
         grid.setSpacing(5)
 
-        label = QLabel(_("What do you want to do?"))
-        label.setWordWrap(True)
-        grid.addWidget(label, 0, 0)
-
-        gb1 = QGroupBox()
-        grid.addWidget(gb1, 0, 0)
-
-        group1 = QButtonGroup()
+        gb1 = QGroupBox(_("What do you want to do?"))
+        vbox.addWidget(gb1)
 
         b1 = QRadioButton(gb1)
         b1.setText(_("Create new wallet"))
         b1.setChecked(True)
-
         b2 = QRadioButton(gb1)
         b2.setText(_("Restore an existing wallet"))
-
+        group1 = QButtonGroup()
         group1.addButton(b1)
         group1.addButton(b2)
+        vbox.addWidget(b1)
+        vbox.addWidget(b2)
 
-        grid.addWidget(b1, 1, 0)
-        grid.addWidget(b2, 2, 0)
-        vbox.addLayout(grid)
-
-        grid2 = QGridLayout()
-        grid2.setSpacing(5)
-
-        class ClickableLabel(QLabel):
-            def mouseReleaseEvent(self, ev):
-                self.emit(SIGNAL('clicked()'))
-
-        label2 = ClickableLabel(_("Wallet type:") + " [+]")
-        hbox = QHBoxLayout()
-        hbox.addWidget(label2)
-        grid2.addLayout(hbox, 0, 0)
-        
-        gb2 = QGroupBox()
-        grid.addWidget(gb2, 3, 0)
+        gb2 = QGroupBox(_("Wallet type:"))
+        vbox.addWidget(gb2)
         group2 = QButtonGroup()
 
-        self.wallet_types = filter(lambda x: x[0] not in ['old','xpub','imported'], electrum.wallet.wallet_types)
-        for i, (t,l,c) in enumerate(self.wallet_types):
+        self.wallet_types = [
+            ('standard',  _("Standard wallet")),
+            #('2fa',       _("Wallet with two-factor authentication")),
+            ('multisig',  _("Multi-signatures wallet")),
+            ('hardware',  _("Hardware wallet")),
+        ]
+
+        for i, (t,l) in enumerate(self.wallet_types):
             button = QRadioButton(gb2)
             button.setText(l)
-            grid2.addWidget(button, i+1, 0)
+            vbox.addWidget(button)
             group2.addButton(button)
             group2.setId(button, i)
             if i==0:
                 button.setChecked(True)
-            #else:
-            #    button.setHidden(True)
 
-
-        def toggle():
-            buttons = group2.buttons()
-            x = buttons[1].isHidden()
-            label2.setText(_("Wallet type:") + (' [+]' if x else ' [-]'))
-            for b in buttons[1:]:
-                b.setHidden(not x)
-
-        self.connect(label2, SIGNAL('clicked()'), toggle)
-        grid2.addWidget(label2)
- 
-        vbox.addLayout(grid2)
         vbox.addStretch(1)
         hbox, button = ok_cancel_buttons2(self, _('Next'))
         vbox.addLayout(hbox)
@@ -292,7 +263,6 @@ class InstallWizard(QDialog):
             return
 
         
-
     def show_message(self, msg, icon=None):
         vbox = QVBoxLayout()
         self.set_layout(vbox)
@@ -307,6 +277,29 @@ class InstallWizard(QDialog):
             return None
 
 
+    def choice(self, title, msg, choices):
+        vbox = QVBoxLayout()
+        self.set_layout(vbox)
+        vbox.addWidget(QLabel(title))
+        gb2 = QGroupBox(msg)
+        vbox.addWidget(gb2)
+        group2 = QButtonGroup()
+        for i,c in enumerate(choices):
+            button = QRadioButton(gb2)
+            button.setText(c[1])
+            vbox.addWidget(button)
+            group2.addButton(button)
+            group2.setId(button, i)
+            if i==0:
+                button.setChecked(True)
+        vbox.addStretch(1)
+        vbox.addLayout(ok_cancel_buttons(self, _("Next")))
+        if not self.exec_():
+            return
+        wallet_type = choices[group2.checkedId()][0]
+        return wallet_type
+
+
     def question(self, msg, yes_label=_('OK'), no_label=_('Cancel'), icon=None):
         vbox = QVBoxLayout()
         self.set_layout(vbox)
@@ -314,7 +307,6 @@ class InstallWizard(QDialog):
             logo = QLabel()
             logo.setPixmap(icon)
             vbox.addWidget(logo)
-
         label = QLabel(msg)
         label.setWordWrap(True)
         vbox.addWidget(label)
@@ -347,6 +339,16 @@ class InstallWizard(QDialog):
 
         if action == 'new':
             action, wallet_type = self.restore_or_create()
+            if wallet_type == 'multisig':
+                wallet_type = self.choice(_("Multi Signature Wallet"), 'Select wallet type', [('2of2', _("2 of 2")),('2of3',_("2 of 3"))])
+                if not wallet_type:
+                    return
+            elif wallet_type == 'hardware':
+                hardware_wallets = [('trezor',_("Trezor")), ('btchip',_("BTChip"))]
+                wallet_type = self.choice(_("Hardware Wallet"), 'Select your hardware wallet', hardware_wallets)
+                if not wallet_type:
+                    return
+
             if action == 'create':
                 self.storage.put('wallet_type', wallet_type)
 
