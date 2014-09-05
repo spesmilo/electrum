@@ -25,6 +25,7 @@ import random
 import time
 import math
 import json
+import copy
 
 from util import print_msg, print_error
 
@@ -92,13 +93,20 @@ class WalletStorage(object):
         except IOError:
             return
         try:
-            d = json.loads(data)
+            self.data = json.loads(data)
         except:
             try:
                 d = ast.literal_eval(data)  #parse raw data from reading wallet file
             except Exception:
                 raise IOError("Cannot read wallet file.")
-        self.data = d
+            self.data = {}
+            for k, v in d.items():
+                try:
+                    json.dumps(key)
+                    json.dumps(value)
+                except:
+                    continue
+                self.data[key] = value
         self.file_exists = True
 
     def get(self, key, default=None):
@@ -106,13 +114,20 @@ class WalletStorage(object):
             v = self.data.get(key)
             if v is None:
                 v = default
+            else:
+                v = copy.deepcopy(v)
             return v
 
     def put(self, key, value, save = True):
-
+        try:
+            json.dumps(key)
+            json.dumps(value)
+        except:
+            print_error("json error: cannot save", key)
+            return
         with self.lock:
             if value is not None:
-                self.data[key] = value
+                self.data[key] = copy.deepcopy(value)
             elif key in self.data:
                 self.data.pop(key)
             if save:
