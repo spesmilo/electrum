@@ -1578,12 +1578,13 @@ class OldWallet(Deterministic_Wallet):
 
 
 wallet_types = [ 
-    ('old',      ("Old wallet"),               OldWallet),
-    ('xpub',     ("BIP32 Import"),             BIP32_Simple_Wallet),
-    ('standard', ("Standard wallet"),          NewWallet),
-    ('imported', ("Imported wallet"),          Imported_Wallet),
-    ('2of2',     ("Multisig wallet (2 of 2)"), Wallet_2of2),
-    ('2of3',     ("Multisig wallet (2 of 3)"), Wallet_2of3)
+    # category   type        description                   constructor
+    ('standard', 'old',      ("Old wallet"),               OldWallet),
+    ('standard', 'xpub',     ("BIP32 Import"),             BIP32_Simple_Wallet),
+    ('standard', 'standard', ("Standard wallet"),          NewWallet),
+    ('standard', 'imported', ("Imported wallet"),          Imported_Wallet),
+    ('multisig', '2of2',     ("Multisig wallet (2 of 2)"), Wallet_2of2),
+    ('multisig', '2of3',     ("Multisig wallet (2 of 3)"), Wallet_2of3)
 ]
 
 # former WalletFactory

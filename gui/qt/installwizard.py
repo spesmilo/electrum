@@ -78,14 +78,16 @@ class InstallWizard(QDialog):
 
         self.wallet_types = [
             ('standard',  _("Standard wallet")),
-            #('2fa',       _("Wallet with two-factor authentication")),
+            ('twofactor', _("Wallet with two-factor authentication")),
             ('multisig',  _("Multi-signatures wallet")),
             ('hardware',  _("Hardware wallet")),
         ]
 
-        for i, (t,l) in enumerate(self.wallet_types):
+        for i, (wtype,name) in enumerate(self.wallet_types):
+            if not filter(lambda x:x[0]==wtype, electrum.wallet.wallet_types):
+                continue
             button = QRadioButton(gb2)
-            button.setText(l)
+            button.setText(name)
             vbox.addWidget(button)
             group2.addButton(button)
             group2.setId(button, i)
