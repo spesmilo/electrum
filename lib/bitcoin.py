@@ -85,7 +85,7 @@ def aes_decrypt_with_iv(key, iv, data):
     return decr
 
 def aes_ecb_block_decrypt(key, data):
-    iv = '\x00'*16
+    iv = '\x00'*len(key)
     decr = aes_decrypt_no_strip(key, iv, data)
     return decr
 
