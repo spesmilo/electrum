@@ -23,7 +23,6 @@ from qrtextedit import QRTextEdit
 import re
 from decimal import Decimal
 from electrum import bitcoin
-from electrum.i18n import _
 
 RE_ADDRESS = '[1-9A-HJ-NP-Za-km-z]{26,}'
 RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'
@@ -143,20 +142,16 @@ class PayToEdit(QRTextEdit):
             self.unlock_amount()
 
 
-    def get_outputs(self, show_err=True):
+    def get_errors(self):
+        return self.errors
+
+    def get_outputs(self):
         if self.payto_address:
             try:
                 amount = self.amount_edit.get_amount()
             except:
                 amount = None
-
             self.outputs = [('address', self.payto_address, amount)]
-
-        if self.errors != [] and show_err:
-            errtext = ""
-            for x in self.errors:
-                errtext += _("Line #") + str(x[0]+1) + ": " + x[1] + "\n"
-            raise ValueError(_("ABORTING! Invalid Lines found:") + "\n\n" + errtext)
 
         return self.outputs[:]
 
