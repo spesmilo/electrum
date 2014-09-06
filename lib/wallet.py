@@ -696,7 +696,7 @@ class Abstract_Wallet(object):
                 lst = list(outputs[i])
                 lst[1] = newaddr
                 outputs[i] = tuple(lst)
-                outputs.insert(i, ['op_return', op_ret, 0])
+                outputs.insert(i, ('op_return', op_ret, 0))
                 stealth_ops.append(i)
 
         # get coins
