@@ -429,6 +429,11 @@ def get_address_from_output_script(bytes):
     if match_decoded(decoded, match):
         return 'address', hash_160_to_bc_address(decoded[1][1],5)
 
+    # OP_RETURN
+    match = [ opcodes.OP_RETURN, opcodes.OP_PUSHDATA4 ]
+    if match_decoded(decoded, match):
+        return 'op_return', decoded[1][1]
+
     return "(None)", "(None)"
 
 
@@ -765,6 +770,11 @@ class Transaction:
                 addr = x
             elif type == 'pubkey':
                 addr = public_key_to_bc_address(x.decode('hex'))
+            elif type == 'op_return':
+                try:
+                    addr = 'OP_RETURN: "' + x.decode('utf8') + '"'
+                except:
+                    addr = 'OP_RETURN: "' + x.encode('hex') + '"'
             else:
                 addr = "(None)"
             o.append((addr,v))
