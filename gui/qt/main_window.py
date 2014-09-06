@@ -1034,7 +1034,12 @@ class ElectrumWindow(QMainWindow):
         if self.payment_request:
             outputs = self.payment_request.get_outputs()
         else:
-            outputs = self.payto_e.get_outputs()
+            try:
+                outputs = self.payto_e.get_outputs(True)
+            except ValueError as e:
+                traceback.print_exc(file=sys.stdout)
+                self.show_message(str(e))
+                return
 
         if not outputs:
             QMessageBox.warning(self, _('Error'), _('No outputs'), _('OK'))
