@@ -23,6 +23,7 @@ from qrtextedit import QRTextEdit
 import re
 from decimal import Decimal
 from electrum import bitcoin
+from electrum.i18n import _
 
 RE_ADDRESS = '[1-9A-HJ-NP-Za-km-z]{26,}'
 RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'
@@ -42,6 +43,7 @@ class PayToEdit(QRTextEdit):
         self.c = None
         self.textChanged.connect(self.check_text)
         self.outputs = []
+        self.errors = []
         self.is_pr = False
         self.scan_f = self.win.pay_from_URI
         self.update_size()
@@ -94,6 +96,7 @@ class PayToEdit(QRTextEdit):
 
 
     def check_text(self):
+        self.errors = []
         if self.is_pr:
             return
 
@@ -114,10 +117,11 @@ class PayToEdit(QRTextEdit):
                 self.unlock_amount()
                 return
 
-        for line in lines:
+        for i, line in enumerate(lines):
             try:
                 type, to_address, amount = self.parse_address_and_amount(line)
             except:
+                self.errors.append((i, line.strip()))
                 continue
                 
             outputs.append((type, to_address, amount))
@@ -139,7 +143,7 @@ class PayToEdit(QRTextEdit):
             self.unlock_amount()
 
 
-    def get_outputs(self):
+    def get_outputs(self, show_err=True):
         if self.payto_address:
             try:
                 amount = self.amount_edit.get_amount()
@@ -147,6 +151,12 @@ class PayToEdit(QRTextEdit):
                 amount = None
 
             self.outputs = [('address', self.payto_address, amount)]
+
+        if self.errors != [] and show_err:
+            errtext = ""
+            for x in self.errors:
+                errtext += _("Line #") + str(x[0]+1) + ": " + x[1] + "\n"
+            raise ValueError(_("ABORTING! Invalid Lines found:") + "\n\n" + errtext)
 
         return self.outputs[:]
 
