@@ -92,6 +92,6 @@ class BTCAmountEdit(AmountEdit):
             return
 
         p = pow(10, self.decimal_point())
-        x = amount / Decimal(p)
+        x = Decimal(amount) / Decimal(p)
         self.setText(str(x))
 
