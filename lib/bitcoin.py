@@ -558,9 +558,10 @@ def find_stealth_address(scan_pubkey, spend_pubkeys, ephemkey, multisig_m = 0): 
         assert multisig_m > 0 and multisig_m <= len(spend_pubkeys)
         for i in range(len(spend_pubkeys)):
             point = ser_to_point(spend_pubkeys[i]) + shared_point
-            addr_pubkey.append(point_to_ser(point))
-        multiobj = createmultisig(multisig_m, addr_pubkey)
-        address = multiobj['address']
+            addr_pubkey.append(point_to_ser(point).encode('hex'))
+        from transaction import Transaction
+        redeem_script = Transaction.multisig_script(sorted(addr_pubkey), multisig_m)
+        address = hash_160_to_bc_address(hash_160(redeem_script.decode('hex')), 5)
     return address
 
 
