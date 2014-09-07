@@ -2,6 +2,7 @@ from electrum.util import print_error
 
 import httplib, urllib
 import socket
+import threading
 import hashlib
 import json
 from urlparse import urlparse, parse_qs
@@ -74,7 +75,7 @@ class Plugin(BasePlugin):
 
         if self.auth_token():
             # If there is an auth token we can try to actually start syncing
-            self.full_pull()
+            threading.Thread(target=self.do_full_pull).start()
 
     def auth_token(self):
         return self.config.get("plugin_label_api_key")
@@ -141,7 +142,7 @@ class Plugin(BasePlugin):
         layout.addWidget(self.upload, 2,1)
 
         self.download = QPushButton("Force download")
-        self.download.clicked.connect(lambda: self.full_pull(True))
+        self.download.clicked.connect(self.full_pull)
         layout.addWidget(self.download, 2,2)
 
         c = QPushButton(_("Cancel"))
@@ -165,13 +166,17 @@ class Plugin(BasePlugin):
         if self.do_full_push():
             QMessageBox.information(None, _("Labels uploaded"), _("Your labels have been uploaded."))
 
-    def full_pull(self, force = False):
-        if self.do_full_pull(force) and force:
-            QMessageBox.information(None, _("Labels synchronized"), _("Your labels have been synchronized."))
-            self.window.update_history_tab()
-            self.window.update_completions()
-            self.window.update_receive_tab()
-            self.window.update_contacts_tab()
+    def full_pull(self):
+        try:
+            self.do_full_pull(True)
+        except BaseException as e:
+            QMessageBox.information(None, _("Error"), str(e))
+            return
+        QMessageBox.information(None, _("Labels synchronized"), _("Your labels have been synchronized."))
+        self.window.update_history_tab()
+        self.window.update_completions()
+        self.window.update_receive_tab()
+        self.window.update_contacts_tab()
 
     def do_full_push(self):
         try:
@@ -180,12 +185,12 @@ class Plugin(BasePlugin):
                 try:
                     encoded_key = self.encode(key)
                 except:
-                    print_error('cannot encode', encoded_key)
+                    print_error('cannot encode', key)
                     continue
                 try:
                     encoded_value = self.encode(value)
                 except:
-                    print_error('cannot encode', encoded_value)
+                    print_error('cannot encode', value)
                     continue
                 bundle["labels"][encoded_key] = encoded_value
 
@@ -211,34 +216,25 @@ class Plugin(BasePlugin):
             return False
 
     def do_full_pull(self, force = False):
-        try:
-            connection = httplib.HTTPConnection(self.target_host)
-            connection.request("GET", ("/api/wallets/%s/labels.json?auth_token=%s" % (self.wallet_id, self.auth_token())),"", {'Content-Type': 'application/json'})
-            response = connection.getresponse()
-            if response.reason == httplib.responses[httplib.NOT_FOUND]:
-                return
+        connection = httplib.HTTPConnection(self.target_host)
+        connection.request("GET", ("/api/wallets/%s/labels.json?auth_token=%s" % (self.wallet_id, self.auth_token())),"", {'Content-Type': 'application/json'})
+        response = connection.getresponse()
+        if response.reason == httplib.responses[httplib.NOT_FOUND]:
+            return
+        response = json.loads(response.read())
+        if "error" in response:
+            raise BaseException(_("Could not sync labels: %s" % response["error"]))
+
+        for label in response:
+            decoded_key = self.decode(label["external_id"])
+            decoded_label = self.decode(label["text"])
             try:
-                response = json.loads(response.read())
-            except ValueError as e:
-                return False
-
-            if "error" in response:
-                QMessageBox.warning(None, _("Error"),_("Could not sync labels: %s" % response["error"]))
-                return False
-
-            for label in response:
-                 decoded_key = self.decode(label["external_id"]) 
-                 decoded_label = self.decode(label["text"])
-                 try:
-                     json.dumps(decoded_key)
-                     json.dumps(decoded_label)
-                 except:
-                     print_error('json error: cannot save label', decoded_key)
-                     continue
-                 if force or not self.wallet.labels.get(decoded_key):
-                     self.wallet.labels[decoded_key] = decoded_label 
-            self.wallet.storage.put('labels', self.wallet.labels)
-            return True
-        except socket.gaierror as e:
-            print_error('Error connecting to service: %s ' %  e)
-            return False
+                json.dumps(decoded_key)
+                json.dumps(decoded_label)
+            except:
+                print_error('json error: cannot save label', decoded_key)
+                continue
+            if force or not self.wallet.labels.get(decoded_key):
+                self.wallet.labels[decoded_key] = decoded_label
+        self.wallet.storage.put('labels', self.wallet.labels)
+        print_error("received labels")
