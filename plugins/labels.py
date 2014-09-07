@@ -17,6 +17,8 @@ import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 import aes
 import base64
+
+import electrum
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
 
@@ -31,18 +33,18 @@ class Plugin(BasePlugin):
         return _('Label Sync')
 
     def description(self):
-        return '%s\n\n%s%s%s' % (_("This plugin can sync your labels across multiple Electrum installs by using a remote database to save your data. Labels encrypted before they are sent to the remote server, but transactions IDs and addresses are not. This code might increase the load of your wallet with a few microseconds as it will sync labels on each startup."), _("To get started visit"), " http://labelectrum.herokuapp.com/ ", _(" to sign up for an account."))
+        return '%s\n\n%s%s%s' % (_("This plugin can sync your labels across multiple Electrum installs by using a remote database to save your data. Labels, transactions ids and addresses are encrypted before they are sent to the remote server. This code might increase the load of your wallet with a few microseconds as it will sync labels on each startup."), _("To get started visit"), " http://labelectrum.herokuapp.com/ ", _(" to sign up for an account."))
 
     def version(self):
         return "0.2.1"
 
     def encode(self, message):
-        encrypted = aes.encryptData(self.encode_password, unicode(message))
+        encrypted = electrum.bitcoin.aes_encrypt_with_iv(self.encode_password, self.encode_password, unicode(message))
         encoded_message = base64.b64encode(encrypted)
         return encoded_message
 
     def decode(self, message):
-        decoded_message = aes.decryptData(self.encode_password, base64.b64decode(unicode(message)) )
+        decoded_message = electrum.bitcoin.aes_decrypt_with_iv(self.encode_password, self.encode_password, base64.b64decode(unicode(message)) )
         return decoded_message
 
     
@@ -183,11 +185,16 @@ class Plugin(BasePlugin):
             bundle = {"labels": {}}
             for key, value in self.wallet.labels.iteritems():
                 try:
+                    encoded_key = self.encode(key)
+                except:
+                    print_error('cannot encode', repr(key))
+                    continue
+                try:
                     encoded_value = self.encode(value)
                 except:
                     print_error('cannot encode', repr(value))
                     continue
-                bundle["labels"][key] = encoded_value
+                bundle["labels"][encoded_key] = encoded_value
 
             params = json.dumps(bundle)
             connection = httplib.HTTPConnection(self.target_host)
@@ -221,7 +228,10 @@ class Plugin(BasePlugin):
             raise BaseException(_("Could not sync labels: %s" % response["error"]))
 
         for label in response:
-            key = label["external_id"]
+            try:
+                key = self.decode(label["external_id"])
+            except:
+                continue
             try:
                 value = self.decode(label["text"])
             except:
