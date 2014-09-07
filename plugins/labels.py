@@ -39,12 +39,12 @@ class Plugin(BasePlugin):
         return "0.2.1"
 
     def encode(self, message):
-        encrypted = electrum.bitcoin.aes_encrypt_with_iv(self.encode_password, self.encode_password, unicode(message))
+        encrypted = electrum.bitcoin.aes_encrypt_with_iv(self.encode_password, self.iv, unicode(message))
         encoded_message = base64.b64encode(encrypted)
         return encoded_message
 
     def decode(self, message):
-        decoded_message = electrum.bitcoin.aes_decrypt_with_iv(self.encode_password, self.encode_password, base64.b64decode(unicode(message)) )
+        decoded_message = electrum.bitcoin.aes_decrypt_with_iv(self.encode_password, self.iv, base64.b64decode(unicode(message)) )
         return decoded_message
 
     
@@ -66,6 +66,7 @@ class Plugin(BasePlugin):
         self.wallet = wallet
         mpk = self.wallet.get_master_public_key()
         self.encode_password = hashlib.sha1(mpk).digest().encode('hex')[:32]
+        self.iv = hashlib.sha256(self.encode_password).digest()[:16]
         self.wallet_id = hashlib.sha256(mpk).digest().encode('hex')
 
         addresses = [] 
