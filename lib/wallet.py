@@ -612,7 +612,7 @@ class Abstract_Wallet(object):
 
     def estimated_fee(self, inputs, num_outputs):
         estimated_size =  len(inputs) * 180 + num_outputs * 34    # this assumes non-compressed keys
-        fee = self.fee * int(math.ceil(estimated_size/1000.))
+        fee = self.fee * (estimated_size/1000.)
         return fee
 
     def add_tx_change( self, inputs, outputs, amount, fee, total, change_addr=None):
