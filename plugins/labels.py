@@ -177,8 +177,17 @@ class Plugin(BasePlugin):
         try:
             bundle = {"labels": {}}
             for key, value in self.wallet.labels.iteritems():
-                encoded = self.encode(key)
-                bundle["labels"][encoded] = self.encode(value)
+                try:
+                    encoded_key = self.encode(key)
+                except:
+                    print_error('cannot encode', encoded_key)
+                    continue
+                try:
+                    encoded_value = self.encode(value)
+                except:
+                    print_error('cannot encode', encoded_value)
+                    continue
+                bundle["labels"][encoded_key] = encoded_value
 
             params = json.dumps(bundle)
             connection = httplib.HTTPConnection(self.target_host)
