@@ -995,7 +995,6 @@ class ElectrumWindow(QMainWindow):
 
     def set_pay_from(self, domain = None):
         self.pay_from = [] if domain == [] else self.wallet.get_unspent_coins(domain)
-        self.amount_e.setText("!");
         self.redraw_from_list()
 
     def redraw_from_list(self):
