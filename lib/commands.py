@@ -108,6 +108,8 @@ register_command('decrypt',              2,-1, False, True, True,   'decrypt a m
 register_command('getproof',             1, 1, True, False, False, 'get merkle proof', 'getproof <address>')
 register_command('getutxoaddress',       2, 2, True, False, False, 'get the address of an unspent transaction output','getutxoaddress <txid> <pos>')
 register_command('sweep',                2, 3, True, False, False, 'Sweep a private key.', 'sweep privkey addr [fee]')
+register_command('make_seed',            3, 3, False, False, False, 'Create a seed.','options: --nbits --entropy --lang')
+register_command('check_seed',           1,-1, False, False, False, 'Check that a seed was generated with external entropy. Option: --entropy --lang')
 
 
 class Commands:
@@ -128,6 +130,15 @@ class Commands:
         if self._callback:
             apply(self._callback, ())
         return result
+
+    def make_seed(self, nbits, custom_entropy, language):
+        from mnemonic import Mnemonic
+        s = Mnemonic(language).make_seed(nbits, custom_entropy)
+        return s.encode('utf8')
+
+    def check_seed(self, seed, custom_entropy, language):
+        from mnemonic import Mnemonic
+        return Mnemonic(language).check_seed(seed, custom_entropy)
 
     def getaddresshistory(self, addr):
         return self.network.synchronous_get([ ('blockchain.address.get_history',[addr]) ])[0]
@@ -234,8 +245,8 @@ class Commands:
         return self.wallet.get_master_public_keys()
 
     def getseed(self):
-        mnemonic = self.wallet.get_mnemonic(self.password)
-        return { 'mnemonic':mnemonic, 'version':self.wallet.seed_version }
+        s = self.wallet.get_mnemonic(self.password)
+        return s.encode('utf8')
 
     def importprivkey(self, sec):
         try:
@@ -320,7 +331,7 @@ class Commands:
 
             label, is_default_label = self.wallet.get_label(tx_hash)
 
-            out.append({'txid':tx_hash, 'date':"%16s"%time_str, 'label':label, 'value':format_satoshis(value)})
+            out.append({'txid':tx_hash, 'date':"%16s"%time_str, 'label':label, 'value':format_satoshis(value), 'confirmations':conf})
         return out
 
     def setlabel(self, key, label):

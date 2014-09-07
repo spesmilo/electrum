@@ -5,7 +5,7 @@ from PyQt4.QtCore import *
 class QRTextEdit(QPlainTextEdit):
 
     def __init__(self, text=None):
-        QTextEdit.__init__(self, text)
+        QPlainTextEdit.__init__(self, text)
         self.button = QToolButton(self)
         self.button.setIcon(QIcon(":icons/qrcode.png"))
         self.button.setStyleSheet("QToolButton { border: none; padding: 0px; }")
@@ -31,11 +31,19 @@ class QRTextEdit(QPlainTextEdit):
 
     def qr_show(self):
         from qrcodewidget import QRDialog
-        QRDialog(str(self.toPlainText())).exec_()
+        try:
+            s = str(self.toPlainText())
+        except:
+            s = unicode(self.toPlainText())
+        QRDialog(s).exec_()
 
     def qr_input(self):
-        from electrum.plugins import run_hook
-        data = run_hook('scan_qr_hook')
+        from electrum import qrscanner
+        try:
+            data = qrscanner.scan_qr(self.win.config)
+        except BaseException, e:
+            QMessageBox.warning(self.win, _('Error'), _(e), _('OK'))
+            return
         if type(data) != str:
             return
         self.setText(data)

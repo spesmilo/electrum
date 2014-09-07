@@ -22,7 +22,7 @@ try:
 except ImportError as e:
     loaded_qweb = False
 
-from electrum import BasePlugin
+from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _, set_language
 from electrum.util import user_dir
 from electrum.util import appdata_dir
@@ -52,12 +52,17 @@ class Plugin(BasePlugin):
     def _init(self):
         return loaded_qweb
 
+    @hook
+    def init_qt(self, gui):
+        self.gui = gui
+
     def is_available(self):
         return self._is_available
 
     def enable(self):
         return BasePlugin.enable(self)
 
+    @hook
     def receive_tx(self, tx, wallet):
         domain = wallet.get_account_addresses(None)
         is_relevant, is_send, v, fee = tx.get_value(domain, wallet.prevout_values)

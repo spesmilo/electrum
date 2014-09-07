@@ -44,7 +44,6 @@ except Exception:
 
 from util import *
 from main_window import ElectrumWindow
-from electrum.plugins import init_plugins
 
 
 class OpenFileEventFilter(QObject):
@@ -70,7 +69,6 @@ class ElectrumGui:
         if app is None:
             self.app = QApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
-        init_plugins(self)
 
 
     def build_tray_menu(self):
@@ -193,7 +191,7 @@ class ElectrumGui:
                 self.go_full()
 
         # plugins that need to change the GUI do it here
-        run_hook('init')
+        run_hook('init_qt', self)
 
         w.load_wallet(wallet)
 

@@ -45,6 +45,42 @@ MIN_RELAY_TX_FEE = 1000
 EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))
 DecodeAES = lambda secret, e: aes.decryptData(secret, base64.b64decode(e))
 
+def strip_PKCS7_padding(s):
+    """return s stripped of PKCS7 padding"""
+    if len(s)%16 or not s:
+        raise ValueError("String of len %d can't be PCKS7-padded" % len(s))
+    numpads = ord(s[-1])
+    if numpads > 16:
+        raise ValueError("String ending with %r can't be PCKS7-padded" % s[-1])
+    if s[-numpads:] != numpads*chr(numpads):
+        raise ValueError("Invalid PKCS7 padding")
+    return s[:-numpads]
+
+
+def aes_encrypt_with_iv(key, iv, data):
+    mode = aes.AESModeOfOperation.modeOfOperation["CBC"]
+    key = map(ord, key)
+    iv = map(ord, iv)
+    data = aes.append_PKCS7_padding(data)
+    keysize = len(key)
+    assert keysize in aes.AES.keySize.values(), 'invalid key size: %s' % keysize
+    moo = aes.AESModeOfOperation()
+    (mode, length, ciph) = moo.encrypt(data, mode, key, keysize, iv)
+    return ''.join(map(chr, ciph))
+
+def aes_decrypt_with_iv(key, iv, data):
+    mode = aes.AESModeOfOperation.modeOfOperation["CBC"]
+    key = map(ord, key)
+    iv = map(ord, iv)
+    keysize = len(key)
+    assert keysize in aes.AES.keySize.values(), 'invalid key size: %s' % keysize
+    data = map(ord, data)
+    moo = aes.AESModeOfOperation()
+    decr = moo.decrypt(data, None, mode, key, keysize, iv)
+    decr = strip_PKCS7_padding(decr)
+    return decr
+
+
 
 def pw_encode(s, password):
     if password:
@@ -111,22 +147,14 @@ def Hash(x):
 hash_encode = lambda x: x[::-1].encode('hex')
 hash_decode = lambda x: x.decode('hex')[::-1]
 hmac_sha_512 = lambda x,y: hmac.new(x, y, hashlib.sha512).digest()
-
-
-def mnemonic_to_seed(mnemonic, passphrase):
-    from pbkdf2 import PBKDF2
-    import hmac
-    PBKDF2_ROUNDS = 2048
-    return PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
-
-
 is_new_seed = lambda x: hmac_sha_512("Seed version", x.encode('utf8')).encode('hex')[0:2].startswith(SEED_PREFIX)
 
+
 def is_old_seed(seed):
-    import mnemonic
+    import old_mnemonic
     words = seed.strip().split()
     try:
-        mnemonic.mn_decode(words)
+        old_mnemonic.mn_decode(words)
         uses_electrum_words = True
     except Exception:
         uses_electrum_words = False
@@ -518,7 +546,7 @@ class EC_KEY(object):
             raise Exception("Bad signature")
 
 
-    # ecies encryption/decryption methods; aes-256-cbc is used as the cipher; hmac-sha256 is used as the mac
+    # ECIES encryption/decryption methods; AES-128-CBC with PKCS7 is used as the cipher; hmac-sha256 is used as the mac
 
     @classmethod
     def encrypt_message(self, message, pubkey):
@@ -529,16 +557,12 @@ class EC_KEY(object):
 
         ephemeral_exponent = number_to_string(ecdsa.util.randrange(pow(2,256)), generator_secp256k1.order())
         ephemeral = EC_KEY(ephemeral_exponent)
-
-        ecdh_key = (pk * ephemeral.privkey.secret_multiplier).x()
-        ecdh_key = ('%064x' % ecdh_key).decode('hex')
+        ecdh_key = point_to_ser(pk * ephemeral.privkey.secret_multiplier)
         key = hashlib.sha512(ecdh_key).digest()
-        key_e, key_m = key[:32], key[32:]
-
-        iv_ciphertext = aes.encryptData(key_e, message)
-
+        iv, key_e, key_m = key[0:16], key[16:32], key[32:]
+        ciphertext = aes_encrypt_with_iv(key_e, iv, message)
         ephemeral_pubkey = ephemeral.get_public_key(compressed=True).decode('hex')
-        encrypted = 'BIE1' + ephemeral_pubkey + iv_ciphertext
+        encrypted = 'BIE1' + ephemeral_pubkey + ciphertext
         mac = hmac.new(key_m, encrypted, hashlib.sha256).digest()
 
         return base64.b64encode(encrypted + mac)
@@ -553,7 +577,7 @@ class EC_KEY(object):
 
         magic = encrypted[:4]
         ephemeral_pubkey = encrypted[4:37]
-        iv_ciphertext = encrypted[37:-32]
+        ciphertext = encrypted[37:-32]
         mac = encrypted[-32:]
 
         if magic != 'BIE1':
@@ -567,14 +591,13 @@ class EC_KEY(object):
         if not ecdsa.ecdsa.point_is_valid(generator_secp256k1, ephemeral_pubkey.x(), ephemeral_pubkey.y()):
             raise Exception('invalid ciphertext: invalid ephemeral pubkey')
 
-        ecdh_key = (ephemeral_pubkey * self.privkey.secret_multiplier).x()
-        ecdh_key = ('%064x' % ecdh_key).decode('hex')
+        ecdh_key = point_to_ser(ephemeral_pubkey * self.privkey.secret_multiplier)
         key = hashlib.sha512(ecdh_key).digest()
-        key_e, key_m = key[:32], key[32:]
+        iv, key_e, key_m = key[0:16], key[16:32], key[32:]
         if mac != hmac.new(key_m, encrypted[:-32], hashlib.sha256).digest():
             raise Exception('invalid ciphertext: invalid mac')
 
-        return aes.decryptData(key_e, iv_ciphertext)
+        return aes_decrypt_with_iv(key_e, iv, ciphertext)
 
 
 ###################################### BIP32 ##############################
@@ -706,10 +729,9 @@ def xpub_from_xprv(xprv, testnet=False):
     return EncodeBase58Check(xpub)
 
 
-def bip32_root(mnemonic_seed, testnet=False):
+def bip32_root(seed, testnet=False):
     import hmac
     header_pub, header_priv = _get_headers(testnet)
-    seed = mnemonic_to_seed(mnemonic_seed,'')
     I = hmac.new("Bitcoin seed", seed, hashlib.sha512).digest()
     master_k = I[0:32]
     master_c = I[32:]

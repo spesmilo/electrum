@@ -1,4 +1,4 @@
-from PyQt4.Qt import QMessageBox, QDialog, QVBoxLayout, QLabel, QThread, SIGNAL
+from PyQt4.Qt import QMessageBox, QDialog, QVBoxLayout, QLabel, QThread, SIGNAL, QGridLayout, QInputDialog, QPushButton
 import PyQt4.QtCore as QtCore
 from binascii import unhexlify
 from struct import pack
@@ -6,12 +6,13 @@ from sys import stderr
 from time import sleep
 from base64 import b64encode, b64decode
 
+import electrum
 from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
-from electrum_gui.qt.util import ok_cancel_buttons
+from electrum_gui.qt.util import ok_cancel_buttons, EnterButton
 from electrum.account import BIP32_Account
 from electrum.bitcoin import EncodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
 from electrum.i18n import _
-from electrum.plugins import BasePlugin
+from electrum.plugins import BasePlugin, hook
 from electrum.transaction import deserialize
 from electrum.wallet import NewWallet
 
@@ -30,22 +31,37 @@ def log(msg):
     stderr.write("%s\n" % msg)
     stderr.flush()
 
+def give_error(message):
+    QMessageBox.warning(QDialog(), _('Warning'), _(message), _('OK'))
+    raise Exception(message)
+
 class Plugin(BasePlugin):
 
-    def fullname(self): return 'Trezor Wallet'
+    def fullname(self):
+        return 'Trezor Wallet'
 
-    def description(self): return 'Provides support for Trezor hardware wallet\n\nRequires github.com/trezor/python-trezor'
+    def description(self):
+        return 'Provides support for Trezor hardware wallet\n\nRequires github.com/trezor/python-trezor'
 
-    def __init__(self, gui, name):
-        BasePlugin.__init__(self, gui, name)
+    def __init__(self, config, name):
+        BasePlugin.__init__(self, config, name)
         self._is_available = self._init()
+        self._requires_settings = True
         self.wallet = None
+        electrum.wallet.wallet_types.append(('hardware', 'trezor', _("Trezor wallet"), TrezorWallet))
 
     def _init(self):
         return TREZOR
 
     def is_available(self):
-        return self._is_available
+        if self.wallet is None:
+            return self._is_available
+        if self.wallet.storage.get('wallet_type') == 'trezor':
+            return True
+        return False
+
+    def requires_settings(self):
+        return self._requires_settings
 
     def set_enabled(self, enabled):
         self.wallet.storage.put('use_' + self.name, enabled)
@@ -62,47 +78,73 @@ class Plugin(BasePlugin):
     def enable(self):
         return BasePlugin.enable(self)
 
+    @hook
     def load_wallet(self, wallet):
         self.wallet = wallet
 
-    def add_wallet_types(self, wallet_types):
-        wallet_types.append(('trezor', _("Trezor wallet"), TrezorWallet))
-
+    @hook
     def installwizard_restore(self, wizard, storage):
+        if storage.get('wallet_type') != 'trezor': 
+            return
         wallet = TrezorWallet(storage)
         try:
-            wallet.create_accounts(None)
+            wallet.create_main_account(None)
         except BaseException as e:
             QMessageBox.information(None, _('Error'), str(e), _('OK'))
             return
         return wallet
 
+    @hook
     def send_tx(self, tx):
         try:
             self.wallet.sign_transaction(tx, None, None)
         except Exception as e:
             tx.error = str(e)
 
+    def settings_widget(self, window):
+        return EnterButton(_('Settings'), self.settings_dialog)
+
+    def settings_dialog(self):
+        get_label = lambda: self.wallet.get_client().features.label
+        update_label = lambda: current_label_label.setText("Label: %s" % get_label())
+
+        d = QDialog()
+        layout = QGridLayout(d)
+        layout.addWidget(QLabel("Trezor Options"),0,0)
+        layout.addWidget(QLabel("ID:"),1,0)
+        layout.addWidget(QLabel(" %s" % self.wallet.get_client().get_device_id()),1,1)
+
+        def modify_label():
+            response = QInputDialog().getText(None, "Set New Trezor Label", "New Trezor Label:  (upon submission confirm on Trezor)")
+            if not response[1]:
+                return
+            new_label = str(response[0])
+            twd.start("Please confirm label change on Trezor")
+            status = self.wallet.get_client().apply_settings(label=new_label)
+            twd.stop()
+            update_label()
+
+        current_label_label = QLabel()
+        update_label()
+        change_label_button = QPushButton("Modify")
+        change_label_button.clicked.connect(modify_label)
+        layout.addWidget(current_label_label,3,0)
+        layout.addWidget(change_label_button,3,1)
+
+        if d.exec_():
+          return True
+        else:
+          return False
+
 
 class TrezorWallet(NewWallet):
+    wallet_type = 'trezor'
 
     def __init__(self, storage):
+        NewWallet.__init__(self, storage)
         self.transport = None
         self.client = None
         self.mpk = None
-
-        NewWallet.__init__(self, storage)
-
-        self.seed = 'trezor'
-        
-        self.storage.put('gap_limit', 20, False)    #obey BIP44 gap limit of 20
-
-        self.use_encryption = False
-
-        self.storage.put('seed', self.seed, False)
-        self.storage.put('seed_version', self.seed_version, False)
-        self.storage.put('use_encryption', self.use_encryption, False)
-
         self.device_checked = False
 
     def get_action(self):
@@ -121,20 +163,19 @@ class TrezorWallet(NewWallet):
     def is_watching_only(self):
         return False
 
-    def default_account(self):
-        return "44'/0'/0'"
-
     def get_client(self):
         if not TREZOR:
-            raise Exception('please install github.com/trezor/python-trezor')
+            give_error('please install github.com/trezor/python-trezor')
 
         if not self.client or self.client.bad:
             try:
                 d = HidTransport.enumerate()[0]
                 self.transport = HidTransport(d)
             except:
-                raise Exception("Trezor not found")
+                give_error('Could not connect to your Trezor. Please verify the cable is connected and that no other app is using it.')
             self.client = QtGuiTrezorClient(self.transport)
+	    if (self.client.features.major_version == 1 and self.client.features.minor_version < 2) or (self.client.features.major_version == 1 and self.client.features.minor_version == 2 and self.client.features.patch_version < 1):
+		give_error('Outdated Trezor firmware. Please update the firmware from https://www.mytrezor.com') 
             self.client.set_tx_api(self)
             #self.client.clear_session()# TODO Doesn't work with firmware 1.1, returns proto.Failure
             self.client.bad = False
@@ -142,21 +183,17 @@ class TrezorWallet(NewWallet):
             self.proper_device = False
         return self.client
 
-    def account_id(self, i):
-        return "44'/0'/%d'"%i
-
     def address_id(self, address):
         account_id, (change, address_index) = self.get_address_index(address)
-        return "%s/%d/%d" % (account_id, change, address_index)
+        return "44'/0'/%s'/%d/%d" % (account_id, change, address_index)
 
-    def create_accounts(self, password):
-        self.create_account('Main account', '') #name, empty password
+    def create_main_account(self, password):
+        self.create_account('Main account', None) #name, empty password
 
-    def make_account(self, account_id, password):
-        xpub = self.get_public_key(account_id)
-        self.add_master_public_key(account_id, xpub)
-        account = BIP32_Account({'xpub':xpub})
-        return account
+    def derive_xkeys(self, root, derivation, password):
+        derivation = derivation.replace(self.root_name,"44'/0'/")
+        xpub = self.get_public_key(derivation)
+        return xpub, None
 
     def get_public_key(self, bip32_path):
         address_n = self.get_client().expand_path(bip32_path)
@@ -170,37 +207,37 @@ class TrezorWallet(NewWallet):
         return self.mpk
 
     def i4b(self, x):
-        return pack('I', x)
+        return pack('>I', x)
 
     def add_keypairs(self, tx, keypairs, password):
         #do nothing - no priv keys available
         pass
 
     def decrypt_message(self, pubkey, message, password):
-        try:
-            address = public_key_to_bc_address(pubkey.decode('hex'))
-            address_path = self.address_id(address)
-            address_n = self.get_client().expand_path(address_path)
-        except Exception, e:
-            raise e
-        try:
-            decrypted_msg = self.get_client().decrypt_message(address_n, b64decode(message))
-        except Exception, e:
-            raise e
-        finally:
-            twd.emit(SIGNAL('trezor_done'))
-        return str(decrypted_msg)
+        raise BaseException( _('Decrypt method is not implemented in Trezor') )
+        #address = public_key_to_bc_address(pubkey.decode('hex'))
+        #address_path = self.address_id(address)
+        #address_n = self.get_client().expand_path(address_path)
+        #try:
+        #    decrypted_msg = self.get_client().decrypt_message(address_n, b64decode(message))
+        #except Exception, e:
+        #    give_error(e)
+        #finally:
+        #    twd.emit(SIGNAL('trezor_done'))
+        #return str(decrypted_msg)
 
     def sign_message(self, address, message, password):
+        if not self.check_proper_device():
+            give_error('Wrong device or password')
         try:
             address_path = self.address_id(address)
             address_n = self.get_client().expand_path(address_path)
         except Exception, e:
-            raise
+            give_error(e)
         try:
             msg_sig = self.get_client().sign_message('Bitcoin', address_n, message)
         except Exception, e:
-            raise e
+            give_error(e)
         finally:
             twd.emit(SIGNAL('trezor_done'))
         b64_msg_sig = b64encode(msg_sig.signature)
@@ -211,14 +248,14 @@ class TrezorWallet(NewWallet):
             return
 
         if not self.check_proper_device():
-            raise Exception('Wrong device or password')
+            give_error('Wrong device or password')
 
         inputs = self.tx_inputs(tx)
         outputs = self.tx_outputs(tx)
         try:
             signed_tx = self.get_client().sign_tx('Bitcoin', inputs, outputs)[1]
         except Exception, e:
-            raise e
+            give_error(e)
         finally:
             twd.emit(SIGNAL('trezor_done'))
         values = [i['value'] for i in tx.inputs]
@@ -232,17 +269,17 @@ class TrezorWallet(NewWallet):
 
         for txinput in tx.inputs:
             txinputtype = types.TxInputType()
-            address = txinput['address']
-            try:
-                address_path = self.address_id(address)
-                address_n = self.get_client().expand_path(address_path)
-                txinputtype.address_n.extend(address_n)
-            except: pass
-
             if ('is_coinbase' in txinput and txinput['is_coinbase']):
                 prev_hash = "\0"*32
-                prev_index = 0xffffffff # signed int -1               
-            else:        
+                prev_index = 0xffffffff # signed int -1
+            else:
+                address = txinput['address']
+                try:
+                    address_path = self.address_id(address)
+                    address_n = self.get_client().expand_path(address_path)
+                    txinputtype.address_n.extend(address_n)
+                except: pass
+
                 prev_hash = unhexlify(txinput['prevout_hash'])
                 prev_index = txinput['prevout_n']
 
@@ -341,7 +378,7 @@ class TrezorQtGuiMixin(object):
 
     def callback_PinMatrixRequest(self, msg):
         if msg.type == 1:
-            desc = 'old PIN'
+            desc = 'current PIN'
         elif msg.type == 2:
             desc = 'new PIN'
         elif msg.type == 3:

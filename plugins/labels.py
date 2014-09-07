@@ -16,12 +16,15 @@ import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 import aes
 import base64
-from electrum.plugins import BasePlugin
+from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
 
 from electrum_gui.qt import HelpButton, EnterButton
 
 class Plugin(BasePlugin):
+
+    target_host = 'labelectrum.herokuapp.com'
+    encode_password = None
 
     def fullname(self):
         return _('Label Sync')
@@ -35,25 +38,30 @@ class Plugin(BasePlugin):
     def encode(self, message):
         encrypted = aes.encryptData(self.encode_password, unicode(message))
         encoded_message = base64.b64encode(encrypted)
-
         return encoded_message
 
     def decode(self, message):
         decoded_message = aes.decryptData(self.encode_password, base64.b64decode(unicode(message)) )
-
         return decoded_message
 
+    
 
-    def init(self):
-        self.target_host = 'labelectrum.herokuapp.com'
-        self.window = self.gui.main_window
+    @hook
+    def init_qt(self, gui):
+        self.window = gui.main_window
+        if not self.auth_token(): # First run, throw plugin settings in your face
+            self.load_wallet(self.window.wallet)
+            if self.settings_dialog():
+                self.set_enabled(True)
+                return True
+            else:
+                self.set_enabled(False)
+                return False
 
+    @hook
     def load_wallet(self, wallet):
         self.wallet = wallet
-        if self.wallet.get_master_public_key():
-            mpk = self.wallet.get_master_public_key()
-        else:
-            mpk = self.wallet.master_public_keys["m/0'/"][1]
+        mpk = self.wallet.get_master_public_key()
         self.encode_password = hashlib.sha1(mpk).digest().encode('hex')[:32]
         self.wallet_id = hashlib.sha256(mpk).digest().encode('hex')
 
@@ -77,7 +85,10 @@ class Plugin(BasePlugin):
     def requires_settings(self):
         return True
 
+    @hook
     def set_label(self, item,label, changed):
+        if self.encode_password is None:
+            return
         if not changed:
             return 
         try:
@@ -149,20 +160,6 @@ class Plugin(BasePlugin):
         else:
           return False
 
-    def enable(self):
-        if not self.auth_token(): # First run, throw plugin settings in your face
-            self.init()
-            self.load_wallet(self.gui.main_window.wallet)
-            if self.settings_dialog():
-                self.set_enabled(True)
-                return True
-            else:
-                self.set_enabled(False)
-                return False
-
-        self.set_enabled(True)
-        return True
-
 
     def full_push(self):
         if self.do_full_push():
@@ -222,9 +219,16 @@ class Plugin(BasePlugin):
 
             for label in response:
                  decoded_key = self.decode(label["external_id"]) 
-                 decoded_label = self.decode(label["text"]) 
+                 decoded_label = self.decode(label["text"])
+                 try:
+                     json.dumps(decoded_key)
+                     json.dumps(decoded_label)
+                 except:
+                     print_error('json error: cannot save label', decoded_key)
+                     continue
                  if force or not self.wallet.labels.get(decoded_key):
                      self.wallet.labels[decoded_key] = decoded_label 
+            self.wallet.storage.put('labels', self.wallet.labels)
             return True
         except socket.gaierror as e:
             print_error('Error connecting to service: %s ' %  e)
