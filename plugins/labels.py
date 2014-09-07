@@ -31,7 +31,7 @@ class Plugin(BasePlugin):
         return _('Label Sync')
 
     def description(self):
-        return '%s\n\n%s%s%s' % (_("This plugin can sync your labels across multiple Electrum installs by using a remote database to save your data. Labels, transactions and addresses are all sent and stored encrypted on the remote server. This code might increase the load of your wallet with a few microseconds as it will sync labels on each startup."), _("To get started visit"), " http://labelectrum.herokuapp.com/ ", _(" to sign up for an account."))
+        return '%s\n\n%s%s%s' % (_("This plugin can sync your labels across multiple Electrum installs by using a remote database to save your data. Labels encrypted before they are sent to the remote server, but transactions IDs and addresses are not. This code might increase the load of your wallet with a few microseconds as it will sync labels on each startup."), _("To get started visit"), " http://labelectrum.herokuapp.com/ ", _(" to sign up for an account."))
 
     def version(self):
         return "0.2.1"
@@ -183,16 +183,11 @@ class Plugin(BasePlugin):
             bundle = {"labels": {}}
             for key, value in self.wallet.labels.iteritems():
                 try:
-                    encoded_key = self.encode(key)
-                except:
-                    print_error('cannot encode', repr(key))
-                    continue
-                try:
                     encoded_value = self.encode(value)
                 except:
                     print_error('cannot encode', repr(value))
                     continue
-                bundle["labels"][encoded_key] = encoded_value
+                bundle["labels"][key] = encoded_value
 
             params = json.dumps(bundle)
             connection = httplib.HTTPConnection(self.target_host)
@@ -226,15 +221,18 @@ class Plugin(BasePlugin):
             raise BaseException(_("Could not sync labels: %s" % response["error"]))
 
         for label in response:
-            decoded_key = self.decode(label["external_id"])
-            decoded_label = self.decode(label["text"])
+            key = label["external_id"]
             try:
-                json.dumps(decoded_key)
-                json.dumps(decoded_label)
+                value = self.decode(label["text"])
             except:
-                print_error('json error: cannot save label', decoded_key)
                 continue
-            if force or not self.wallet.labels.get(decoded_key):
-                self.wallet.labels[decoded_key] = decoded_label
+            try:
+                json.dumps(key)
+                json.dumps(value)
+            except:
+                print_error('error: no json', key)
+                continue
+            if force or not self.wallet.labels.get(key):
+                self.wallet.labels[key] = value
         self.wallet.storage.put('labels', self.wallet.labels)
         print_error("received labels")
