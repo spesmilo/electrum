@@ -2599,6 +2599,7 @@ class ElectrumWindow(QMainWindow):
             self.update_receive_tab()
             self.update_address_tab()
             self.update_invoices_tab()
+            fee_e.setAmount(self.wallet.fee_per_kb)
             self.update_status()
         unit_combo.currentIndexChanged.connect(on_unit)
         widgets.append((unit_label, unit_combo, unit_help))
