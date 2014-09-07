@@ -27,6 +27,12 @@ EXCHANGES = ["Bit2C",
              "OKCoin",
              "Vault of Satoshi"]
 
+EXCH_SUPPORT_HIST = [("BitcoinVenezuela", "ARS"),
+                     ("BitcoinVenezuela", "EUR"),
+                     ("BitcoinVenezuela", "USD"),
+                     ("BitcoinVenezuela", "VEF"),
+                     ("Kraken", "EUR"),
+                     ("Kraken", "USD")]
 
 class Exchanger(threading.Thread):
 
@@ -39,7 +45,6 @@ class Exchanger(threading.Thread):
         self.query_rates = threading.Event()
         self.use_exchange = self.parent.config.get('use_exchange', "BTC-e")
         self.parent.exchanges = EXCHANGES
-        self.parent.currencies = ["EUR","GBP","USD"]
         self.parent.win.emit(SIGNAL("refresh_exchanges_combo()"))
         self.parent.win.emit(SIGNAL("refresh_currencies_combo()"))
         self.is_running = False
@@ -221,7 +226,7 @@ class Exchanger(threading.Thread):
 
     def update_ok(self):
         try:
-            jsonresp = self.get_json('www.okcoin.com', "/api/ticker.do?symbol=ltc_cny")
+            jsonresp = self.get_json('www.okcoin.cn', "/api/ticker.do?symbol=ltc_cny")
         except Exception:
             return
         quote_currencies = {"CNY": 0.0}
@@ -246,8 +251,6 @@ class Exchanger(threading.Thread):
         self.parent.set_currencies(quote_currencies)
 
 
-    def get_currencies(self):
-        return [] if self.quote_currencies == None else sorted(self.quote_currencies.keys())
 
 
 class Plugin(BasePlugin):
@@ -437,7 +440,7 @@ class Plugin(BasePlugin):
                     except KeyError:
                         tx_KRAKEN_val = _("No data")
 
-                if cur_exchange == "CoinDesk" or cur_exchange == "Winkdex":
+                if cur_exchange in ["CoinDesk", "Winkdex"]:
                     item.setText(5, tx_USD_val)
                 elif cur_exchange == "BitcoinVenezuela":
                     item.setText(5, tx_BTCVEN_val)
@@ -467,10 +470,7 @@ class Plugin(BasePlugin):
         combo_ex = QComboBox()
         hist_checkbox = QCheckBox()
         hist_checkbox.setEnabled(False)
-        if self.config.get('history_rates', 'unchecked') == 'unchecked':
-            hist_checkbox.setChecked(False)
-        else:
-            hist_checkbox.setChecked(True)
+        hist_checkbox.setChecked(self.config.get('history_rates', 'unchecked') != 'unchecked')
         ok_button = QPushButton(_("OK"))
 
         def on_change(x):
@@ -481,15 +481,10 @@ class Plugin(BasePlugin):
             if cur_request != self.fiat_unit():
                 self.config.set_key('currency', cur_request, True)
                 cur_exchange = self.config.get('use_exchange', "BTC-e")
-                if cur_request == "USD" and (cur_exchange == "CoinDesk" or cur_exchange == "Winkdex"):
-                    hist_checkbox.setEnabled(True)
-                elif cur_request in ("ARS", "EUR", "USD", "VEF") and (cur_exchange == "BitcoinVenezuela"):
-                    hist_checkbox.setEnabled(True)
-                elif cur_request in ("EUR", "USD") and (cur_exchange == "Kraken"):
+                if (cur_exchange, cur_request) in EXCH_SUPPORT_HIST:
                     hist_checkbox.setEnabled(True)
                 else:
-                    hist_checkbox.setChecked(False)
-                    hist_checkbox.setEnabled(False)
+                    disable_check()
                 self.win.update_status()
                 try:
                     self.fiat_button
@@ -510,21 +505,8 @@ class Plugin(BasePlugin):
                 combo.clear()
                 self.exchanger.query_rates.set()
                 cur_currency = self.fiat_unit()
-                if cur_request == "CoinDesk" or cur_request == "Winkdex":
-                    if cur_currency == "USD":
-                        hist_checkbox.setEnabled(True)
-                    else:
-                        disable_check()
-                elif cur_request == "BitcoinVenezuela":
-                    if cur_currency in ("ARS", "EUR", "USD", "VEF"):
-                        hist_checkbox.setEnabled(True)
-                    else:
-                        disable_check()
-                elif cur_request == "Kraken":
-                    if cur_currency in ("EUR", "USD"):
-                        hist_checkbox.setEnabled(True)
-                    else:
-                        disable_check()
+                if (cur_request, cur_currency) in EXCH_SUPPORT_HIST:
+                    hist_checkbox.setEnabled(True)
                 else:
                     disable_check()
                 set_currencies(combo)
@@ -543,16 +525,12 @@ class Plugin(BasePlugin):
 
         def set_hist_check(hist_checkbox):
             cur_exchange = self.config.get('use_exchange', "BTC-e")
-            if cur_exchange == "CoinDesk" or cur_exchange == "Winkdex":
-                hist_checkbox.setEnabled(True)
-            elif cur_exchange == "BitcoinVenezuela" or cur_exchange == "Kraken":
-                hist_checkbox.setEnabled(True)
-            else:
-                hist_checkbox.setEnabled(False)
+            hist_checkbox.setEnabled(cur_exchange in ["BitcoinVenezuela", "Kraken"])
 
         def set_currencies(combo):
-            current_currency = self.fiat_unit()
             try:
+                combo.blockSignals(True)
+                current_currency = self.fiat_unit()
                 combo.clear()
             except Exception:
                 return
@@ -561,6 +539,9 @@ class Plugin(BasePlugin):
                 index = self.currencies.index(current_currency)
             except Exception:
                 index = 0
+                if len(self.currencies):
+                    on_change(0)
+            combo.blockSignals(False)
             combo.setCurrentIndex(index)
 
         def set_exchanges(combo_ex):
@@ -576,6 +557,8 @@ class Plugin(BasePlugin):
             combo_ex.setCurrentIndex(index)
 
         def ok_clicked():
+            if self.config.get('use_exchange', "BTC-e") in ["CoinDesk", "itBit"]:
+                self.exchanger.query_rates.set()
             d.accept();
 
         set_exchanges(combo_ex)

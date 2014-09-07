@@ -23,7 +23,6 @@ from qrtextedit import QRTextEdit
 import re
 from decimal import Decimal
 from electrum_ltc import bitcoin
-from electrum_ltc.i18n import _
 
 RE_ADDRESS = '[1-9A-HJ-NP-Za-km-z]{26,}'
 RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'
@@ -43,6 +42,7 @@ class PayToEdit(QRTextEdit):
         self.c = None
         self.textChanged.connect(self.check_text)
         self.outputs = []
+        self.errors = []
         self.is_pr = False
         self.scan_f = self.win.pay_from_URI
         self.update_size()
@@ -95,6 +95,7 @@ class PayToEdit(QRTextEdit):
 
 
     def check_text(self):
+        self.errors = []
         if self.is_pr:
             return
 
@@ -115,28 +116,15 @@ class PayToEdit(QRTextEdit):
                 self.unlock_amount()
                 return
 
-        errors = []
-        errtext = ""
         for i, line in enumerate(lines):
             try:
                 type, to_address, amount = self.parse_address_and_amount(line)
             except:
-                x, y = line.split(',')
-                r = x.strip()
-                m = re.match('^'+RE_ALIAS+'$', r)
-                address = m.group(2) if m else r
-                errors.append((i, address))
+                self.errors.append((i, line.strip()))
                 continue
                 
             outputs.append((type, to_address, amount))
             total += amount
-
-        if errors != []:
-            for x in errors:
-                errtext += "Line #" + str(x[0]+1) + ": " + x[1] + "\n"
-            QMessageBox.critical(None, _("Invalid Addresses"), _("ABORTING! Invalid Addresses found:") + "\n\n" + errtext)
-            self.clear()
-            return
 
         self.outputs = outputs
         self.payto_address = None
@@ -154,13 +142,15 @@ class PayToEdit(QRTextEdit):
             self.unlock_amount()
 
 
+    def get_errors(self):
+        return self.errors
+
     def get_outputs(self):
         if self.payto_address:
             try:
                 amount = self.amount_edit.get_amount()
             except:
                 amount = None
-
             self.outputs = [('address', self.payto_address, amount)]
 
         return self.outputs[:]
