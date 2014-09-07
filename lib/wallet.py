@@ -42,6 +42,7 @@ from mnemonic import Mnemonic
 COINBASE_MATURITY = 100
 DUST_THRESHOLD = 5430
 
+
 # internal ID for imported account
 IMPORTED_ACCOUNT = '/x'
 
@@ -163,7 +164,7 @@ class Abstract_Wallet(object):
 
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
 
-        self.fee                   = int(storage.get('fee_per_kb', 10000))
+        self.fee_per_kb            = int(storage.get('fee_per_kb', 10000))
 
         self.next_addresses = storage.get('next_addresses',{})
 
@@ -579,60 +580,13 @@ class Abstract_Wallet(object):
                     coins = coins[1:] + [ coins[0] ]
         return [x[1] for x in coins]
 
-    def choose_tx_inputs( self, amount, fixed_fee, num_outputs, domain = None, coins = None ):
-        """ todo: minimize tx size """
-        total = 0
-        fee = self.fee if fixed_fee is None else fixed_fee
-
-        if not coins:
-            if domain is None:
-                domain = self.addresses(True)
-            for i in self.frozen_addresses:
-                if i in domain: domain.remove(i)
-            coins = self.get_unspent_coins(domain)
-
-        inputs = []
-        for item in coins:
-            if item.get('coinbase') and item.get('height') + COINBASE_MATURITY > self.network.get_local_height():
-                continue
-            v = item.get('value')
-            total += v
-            inputs.append(item)
-            fee = self.estimated_fee(inputs, num_outputs) if fixed_fee is None else fixed_fee
-            if total >= amount + fee: break
-        else:
-            inputs = []
-        return inputs, total, fee
 
 
     def set_fee(self, fee):
-        if self.fee != fee:
-            self.fee = fee
-            self.storage.put('fee_per_kb', self.fee, True)
+        if self.fee_per_kb != fee:
+            self.fee_per_kb = fee
+            self.storage.put('fee_per_kb', self.fee_per_kb, True)
 
-    def estimated_fee(self, inputs, num_outputs):
-        estimated_size =  len(inputs) * 180 + num_outputs * 34    # this assumes non-compressed keys
-        fee = self.fee * int(math.ceil(estimated_size/1000.))
-        return fee
-
-    def add_tx_change( self, inputs, outputs, amount, fee, total, change_addr=None):
-        "add change to a transaction"
-        change_amount = total - ( amount + fee )
-        if change_amount > DUST_THRESHOLD:
-            if not change_addr:
-
-                # send change to one of the accounts involved in the tx
-                address = inputs[0].get('address')
-                account, _ = self.get_address_index(address)
-
-                if not self.use_change or account == IMPORTED_ACCOUNT:
-                    change_addr = address
-                else:
-                    change_addr = self.accounts[account].get_addresses(1)[-self.gap_limit_for_change]
-
-            # Insert the change output at a random position in the outputs
-            posn = random.randint(0, len(outputs))
-            outputs[posn:posn] = [( 'address', change_addr,  change_amount)]
 
     def get_history(self, address):
         with self.lock:
@@ -754,22 +708,77 @@ class Abstract_Wallet(object):
 
         return default_label
 
-    def make_unsigned_transaction(self, outputs, fee=None, change_addr=None, domain=None, coins=None ):
+    def estimated_fee(self, tx):
+        estimated_size = len(tx.serialize(-1))/2
+        #print_error('estimated_size', estimated_size)
+        return int(self.fee_per_kb*estimated_size/1024.)
+
+    def make_unsigned_transaction(self, outputs, fixed_fee=None, change_addr=None, domain=None, coins=None ):
+        # check outputs
         for type, data, value in outputs:
             if type == 'op_return':
                 assert len(data) < 41, "string too long"
-                assert value == 0
+                #assert value == 0
             if type == 'address':
                 assert is_address(data), "Address " + data + " is invalid!"
+
+        # get coins
+        if not coins:
+            if domain is None:
+                domain = self.addresses(True)
+            for i in self.frozen_addresses:
+                if i in domain: domain.remove(i)
+            coins = self.get_unspent_coins(domain)
+
         amount = sum( map(lambda x:x[2], outputs) )
-        inputs, total, fee = self.choose_tx_inputs( amount, fee, len(outputs), domain, coins )
-        if not inputs:
-            raise ValueError("Not enough funds")
-        for txin in inputs:
-            self.add_input_info(txin)
-        self.add_tx_change(inputs, outputs, amount, fee, total, change_addr)
-        run_hook('make_unsigned_transaction', inputs, outputs)
-        return Transaction(inputs, outputs)
+        total = 0
+        inputs = []
+        tx = Transaction(inputs, outputs)
+        for item in coins:
+            if item.get('coinbase') and item.get('height') + COINBASE_MATURITY > self.network.get_local_height():
+                continue
+            v = item.get('value')
+            total += v
+            self.add_input_info(item)
+            tx.add_input(item)
+            fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx)
+            if total >= amount + fee: break
+        else:
+            print_error("Not enough funds", total, amount, fee)
+            return None
+
+        # change address
+        if not change_addr:
+            # send change to one of the accounts involved in the tx
+            address = inputs[0].get('address')
+            account, _ = self.get_address_index(address)
+            if not self.use_change or account == IMPORTED_ACCOUNT:
+                change_addr = address
+            else:
+                change_addr = self.accounts[account].get_addresses(1)[-self.gap_limit_for_change]
+
+        # if change is above dust threshold, add a change output.
+        change_amount = total - ( amount + fee )
+        if change_amount > DUST_THRESHOLD:
+            # Insert the change output at a random position in the outputs
+            posn = random.randint(0, len(tx.outputs))
+            tx.outputs[posn:posn] = [( 'address', change_addr,  change_amount)]
+            # recompute fee including change output
+            fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx)
+            # remove change output
+            tx.outputs.pop(posn)
+            # if change is still above dust threshold, re-add change output.
+            change_amount = total - ( amount + fee )
+            if change_amount > DUST_THRESHOLD:
+                tx.outputs[posn:posn] = [( 'address', change_addr,  change_amount)]
+                print_error('change', change_amount)
+            else:
+                print_error('not keeping dust', change_amount)
+        else:
+            print_error('not keeping dust', change_amount)
+
+        run_hook('make_unsigned_transaction', tx)
+        return tx
 
     def mktx(self, outputs, password, fee=None, change_addr=None, domain= None, coins = None ):
         tx = self.make_unsigned_transaction(outputs, fee, change_addr, domain, coins)

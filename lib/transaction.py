@@ -32,6 +32,7 @@ import struct
 import struct
 import StringIO
 import mmap
+import random
 
 NO_SIGNATURE = 'ff'
 
@@ -497,7 +498,7 @@ class Transaction:
 
     def __str__(self):
         if self.raw is None:
-            self.raw = self.serialize(self.inputs, self.outputs, for_sig = None) # for_sig=-1 means do not sign
+            self.raw = self.serialize()
         return self.raw
 
     def __init__(self, inputs, outputs, locktime=0):
@@ -518,7 +519,6 @@ class Transaction:
         self.inputs = d['inputs']
         self.outputs = map(lambda x: (x['type'], x['address'], x['value']), d['outputs'])
         self.locktime = d['lockTime']
-
 
     @classmethod 
     def sweep(klass, privkeys, network, to_address, fee):
@@ -594,8 +594,14 @@ class Transaction:
         return script
 
 
-    @classmethod
-    def serialize(klass, inputs, outputs, for_sig = None ):
+    def serialize(self, for_sig=None):
+        # for_sig:
+        #   -1   : do not sign, estimate length
+        #   i>=0 : sign input i
+        #   None : add all signatures
+
+        inputs = self.inputs
+        outputs = self.outputs
 
         s  = int_to_hex(1,4)                                         # version
         s += var_int( len(inputs) )                                  # number of inputs
@@ -613,11 +619,15 @@ class Transaction:
             signatures = filter(lambda x: x is not None, x_signatures)
             is_complete = len(signatures) == num_sig
 
-            if for_sig is None:
+            if for_sig in [-1, None]:
                 # if we have enough signatures, we use the actual pubkeys
                 # use extended pubkeys (with bip32 derivation)
                 sig_list = []
-                if is_complete:
+                if for_sig == -1:
+                    # we assume that signature will be 0x48 bytes long
+                    pubkeys = txin['pubkeys']
+                    sig_list = [ "00"* 0x48 ] * num_sig
+                elif is_complete:
                     pubkeys = txin['pubkeys']
                     for signature in signatures:
                         sig_list.append(signature + '01')
@@ -633,13 +643,14 @@ class Transaction:
                 else:
                     script = '00'                                    # op_0
                     script += sig_list
-                    redeem_script = klass.multisig_script(pubkeys,2)
+                    redeem_script = self.multisig_script(pubkeys,2)
                     script += push_script(redeem_script)
 
             elif for_sig==i:
-                script = txin['redeemScript'] if p2sh else klass.pay_script('address', address)
+                script = txin['redeemScript'] if p2sh else self.pay_script('address', address)
             else:
                 script = ''
+
             s += var_int( len(script)/2 )                            # script length
             s += script
             s += "ffffffff"                                          # sequence
@@ -648,7 +659,7 @@ class Transaction:
         for output in outputs:
             type, addr, amount = output
             s += int_to_hex( amount, 8)                              # amount
-            script = klass.pay_script(type, addr)
+            script = self.pay_script(type, addr)
             s += var_int( len(script)/2 )                           #  script length
             s += script                                             #  script
         s += int_to_hex(0,4)                                        #  lock time
@@ -656,10 +667,8 @@ class Transaction:
             s += int_to_hex(1, 4)                                   #  hash type
         return s
 
-
     def tx_for_sig(self,i):
-        return self.serialize(self.inputs, self.outputs, for_sig = i)
-
+        return self.serialize(for_sig = i)
 
     def hash(self):
         return Hash(self.raw.decode('hex') )[::-1].encode('hex')
@@ -672,8 +681,20 @@ class Transaction:
         txin['signatures'][ii] = sig
         txin['x_pubkeys'][ii] = pubkey
         self.inputs[i] = txin
-        self.raw = self.serialize(self.inputs, self.outputs)
+        self.raw = self.serialize()
 
+    def add_input(self, input):
+        self.inputs.append(input)
+        self.raw = None
+
+    def input_value(self):
+        return sum([x['value'] for x in self.inputs])
+
+    def output_value(self):
+        return sum([ x[2] for x in self.outputs])
+
+    def get_fee(self):
+        return self.input_value() - self.output_value()
 
     def signature_count(self):
         r = 0
@@ -747,9 +768,8 @@ class Transaction:
                     assert public_key.verify_digest( sig, for_sig, sigdecode = ecdsa.util.sigdecode_der)
                     self.add_signature(i, pubkey, sig.encode('hex'))
 
-
         print_error("is_complete", self.is_complete())
-        self.raw = self.serialize( self.inputs, self.outputs )
+        self.raw = self.serialize()
 
 
     def add_pubkey_addresses(self, txlist):
@@ -861,7 +881,7 @@ class Transaction:
     def requires_fee(self, verifier):
         # see https://en.bitcoin.it/wiki/Transaction_fees
         threshold = 57600000
-        size = len(str(self))/2
+        size = len(self.serialize(-1))/2
         if size >= 10000:
             return True
 
