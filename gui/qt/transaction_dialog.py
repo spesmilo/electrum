@@ -212,7 +212,7 @@ class TxDialog(QDialog):
         vbox.addWidget(i_text)
 
         vbox.addWidget(QLabel(_("Outputs")))
-        lines = map(lambda x: x[0] + u'\t\t' + self.parent.format_amount(x[1]), self.tx.get_outputs())
+        lines = map(lambda x: x[0] + u'\t\t' + self.parent.format_amount(x[1]) if x[1] else x[0], self.tx.get_outputs())
         o_text = QTextEdit()
         o_text.setText('\n'.join(lines))
         o_text.setReadOnly(True)
