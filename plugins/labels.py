@@ -185,12 +185,12 @@ class Plugin(BasePlugin):
                 try:
                     encoded_key = self.encode(key)
                 except:
-                    print_error('cannot encode', key)
+                    print_error('cannot encode', repr(key))
                     continue
                 try:
                     encoded_value = self.encode(value)
                 except:
-                    print_error('cannot encode', value)
+                    print_error('cannot encode', repr(value))
                     continue
                 bundle["labels"][encoded_key] = encoded_value
 
