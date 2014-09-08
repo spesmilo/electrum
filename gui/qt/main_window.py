@@ -134,8 +134,6 @@ class ElectrumWindow(QMainWindow):
         self.num_zeros     = int(config.get('num_zeros',0))
         self.invoices      = {}
 
-        set_language(config.get('language'))
-
         self.completions = QStringListModel()
 
         self.tabs = tabs = QTabWidget(self)
