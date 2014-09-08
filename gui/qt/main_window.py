@@ -2278,7 +2278,7 @@ class ElectrumWindow(QMainWindow):
         vbox.addLayout(h)
 
         private_keys = {}
-        addresses = self.wallet.addresses(True)
+        addresses = self.wallet.addresses(True, False)
         done = False
         def privkeys_thread():
             for addr in addresses:
