@@ -114,8 +114,7 @@ class StatusBarButton(QPushButton):
 default_column_widths = { "history":[40,140,350,140], "contacts":[350,330], "receive": [370,200,130] }
 
 class ElectrumWindow(QMainWindow):
-
-
+    labelsChanged = pyqtSignal()
 
     def __init__(self, config, network, gui_object):
         QMainWindow.__init__(self)
@@ -171,6 +170,7 @@ class ElectrumWindow(QMainWindow):
         self.connect(self, QtCore.SIGNAL('transaction_signal'), lambda: self.notify_transactions() )
         self.connect(self, QtCore.SIGNAL('payment_request_ok'), self.payment_request_ok)
         self.connect(self, QtCore.SIGNAL('payment_request_error'), self.payment_request_error)
+        self.labelsChanged.connect(self.update_tabs)
 
         self.history_list.setFocus(True)
 
@@ -507,12 +507,15 @@ class ElectrumWindow(QMainWindow):
     def update_wallet(self):
         self.update_status()
         if self.wallet.up_to_date or not self.network or not self.network.is_connected():
-            self.update_history_tab()
-            self.update_receive_tab()
-            self.update_address_tab()
-            self.update_contacts_tab()
-            self.update_completions()
-            self.update_invoices_tab()
+            self.update_tabs()
+
+    def update_tabs(self):
+        self.update_history_tab()
+        self.update_receive_tab()
+        self.update_address_tab()
+        self.update_contacts_tab()
+        self.update_completions()
+        self.update_invoices_tab()
 
 
     def create_history_tab(self):
