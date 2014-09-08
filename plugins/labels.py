@@ -17,6 +17,8 @@ import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 import aes
 import base64
+
+import electrum
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
 
@@ -31,18 +33,18 @@ class Plugin(BasePlugin):
         return _('Label Sync')
 
     def description(self):
-        return '%s\n\n%s%s%s' % (_("This plugin can sync your labels across multiple Electrum installs by using a remote database to save your data. Labels, transactions and addresses are all sent and stored encrypted on the remote server. This code might increase the load of your wallet with a few microseconds as it will sync labels on each startup."), _("To get started visit"), " http://labelectrum.herokuapp.com/ ", _(" to sign up for an account."))
+        return '%s\n\n%s%s%s' % (_("This plugin can sync your labels across multiple Electrum installs by using a remote database to save your data. Labels, transactions ids and addresses are encrypted before they are sent to the remote server. This code might increase the load of your wallet with a few microseconds as it will sync labels on each startup."), _("To get started visit"), " http://labelectrum.herokuapp.com/ ", _(" to sign up for an account."))
 
     def version(self):
         return "0.2.1"
 
     def encode(self, message):
-        encrypted = aes.encryptData(self.encode_password, unicode(message))
+        encrypted = electrum.bitcoin.aes_encrypt_with_iv(self.encode_password, self.iv, unicode(message))
         encoded_message = base64.b64encode(encrypted)
         return encoded_message
 
     def decode(self, message):
-        decoded_message = aes.decryptData(self.encode_password, base64.b64decode(unicode(message)) )
+        decoded_message = electrum.bitcoin.aes_decrypt_with_iv(self.encode_password, self.iv, base64.b64decode(unicode(message)) )
         return decoded_message
 
     
@@ -64,6 +66,7 @@ class Plugin(BasePlugin):
         self.wallet = wallet
         mpk = self.wallet.get_master_public_key()
         self.encode_password = hashlib.sha1(mpk).digest().encode('hex')[:32]
+        self.iv = hashlib.sha256(self.encode_password).digest()[:16]
         self.wallet_id = hashlib.sha256(mpk).digest().encode('hex')
 
         addresses = [] 
@@ -226,15 +229,21 @@ class Plugin(BasePlugin):
             raise BaseException(_("Could not sync labels: %s" % response["error"]))
 
         for label in response:
-            decoded_key = self.decode(label["external_id"])
-            decoded_label = self.decode(label["text"])
             try:
-                json.dumps(decoded_key)
-                json.dumps(decoded_label)
+                key = self.decode(label["external_id"])
             except:
-                print_error('json error: cannot save label', decoded_key)
                 continue
-            if force or not self.wallet.labels.get(decoded_key):
-                self.wallet.labels[decoded_key] = decoded_label
+            try:
+                value = self.decode(label["text"])
+            except:
+                continue
+            try:
+                json.dumps(key)
+                json.dumps(value)
+            except:
+                print_error('error: no json', key)
+                continue
+            if force or not self.wallet.labels.get(key):
+                self.wallet.labels[key] = value
         self.wallet.storage.put('labels', self.wallet.labels)
         print_error("received labels")

@@ -1191,12 +1191,10 @@ class Deterministic_Wallet(Abstract_Wallet):
         def wait_for_wallet():
             self.set_up_to_date(False)
             while not self.is_up_to_date():
-                msg = "%s\n%s %d\n%s %.1f"%(
+                msg = "%s\n%s %d"%(
                     _("Please wait..."),
                     _("Addresses generated:"),
-                    len(self.addresses(True)),
-                    _("Kilobytes received:"),
-                    self.network.interface.bytes_received/1024.)
+                    len(self.addresses(True)))
 
                 apply(callback, (msg,))
                 time.sleep(0.1)
