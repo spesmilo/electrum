@@ -76,6 +76,7 @@ from electrum_ltc import ELECTRUM_VERSION
 import re
 
 from util import MyTreeWidget, HelpButton, EnterButton, line_dialog, text_dialog, ok_cancel_buttons, close_button, WaitingDialog
+from util import filename_field, ok_cancel_buttons2, address_field
 
 
 def format_status(x):
@@ -909,51 +910,49 @@ class ElectrumWindow(QMainWindow):
         self.fee_e_help = HelpButton(msg)
         grid.addWidget(self.fee_e_help, 5, 3)
         self.update_fee_edit()
-
         self.send_button = EnterButton(_("Send"), self.do_send)
         grid.addWidget(self.send_button, 6, 1)
-
         b = EnterButton(_("Clear"), self.do_clear)
         grid.addWidget(b, 6, 2)
-
         self.payto_sig = QLabel('')
         grid.addWidget(self.payto_sig, 7, 0, 1, 4)
-
-        #QShortcut(QKeySequence("Up"), w, w.focusPreviousChild)
-        #QShortcut(QKeySequence("Down"), w, w.focusNextChild)
         w.setLayout(grid)
 
-        def entry_changed( is_fee ):
+        def on_shortcut():
+            sendable = self.get_sendable_balance()
+            inputs = self.get_coins()
+            for i in inputs: self.wallet.add_input_info(i)
+            output = ('address', self.payto_e.payto_address, sendable) if self.payto_e.payto_address else ('op_return', 'dummy_tx', sendable)
+            dummy_tx = Transaction(inputs, [output])
+            fee = self.wallet.estimated_fee(dummy_tx)
+            self.amount_e.setAmount(sendable-fee)
+            self.amount_e.textEdited.emit("")
+            self.fee_e.setAmount(fee)
 
-            if self.amount_e.is_shortcut:
-                self.amount_e.is_shortcut = False
-                sendable = self.get_sendable_balance()
-                # there is only one output because we are completely spending inputs
-                inputs, total, fee = self.wallet.choose_tx_inputs( sendable, 0, 1, coins = self.get_coins())
-                fee = self.wallet.estimated_fee(inputs, 1)
-                amount = total - fee
-                self.amount_e.setAmount(amount)
-                self.amount_e.textEdited.emit("")
-                self.fee_e.setAmount(fee)
-                return
+        self.amount_e.shortcut.connect(on_shortcut)
 
-            amount = self.amount_e.get_amount()
-            fee = self.fee_e.get_amount()
+        def text_edited(is_fee):
             outputs = self.payto_e.get_outputs()
-
-            if not is_fee: 
-                fee = None
-
+            amount = self.amount_e.get_amount()
+            fee = self.fee_e.get_amount() if is_fee else None
             if amount is None:
                 self.fee_e.setAmount(None)
-                not_enough_funds = False
+                self.not_enough_funds = False
             else:
-                inputs, total, fee = self.wallet.choose_tx_inputs(amount, fee, len(outputs), coins = self.get_coins())
-                not_enough_funds = len(inputs) == 0
+                if not outputs:
+                    outputs = [('op_return', 'dummy_tx', amount)]
+                tx = self.wallet.make_unsigned_transaction(outputs, fee, coins = self.get_coins())
+                self.not_enough_funds = (tx is None)
                 if not is_fee:
+                    fee = tx.get_fee() if tx else None
                     self.fee_e.setAmount(fee)
-                    
-            if not not_enough_funds:
+
+        self.payto_e.textChanged.connect(lambda:text_edited(False))
+        self.amount_e.textEdited.connect(lambda:text_edited(False))
+        self.fee_e.textEdited.connect(lambda:text_edited(True))
+
+        def entry_changed():
+            if not self.not_enough_funds:
                 palette = QPalette()
                 palette.setColor(self.amount_e.foregroundRole(), QColor('black'))
                 text = ""
@@ -963,13 +962,12 @@ class ElectrumWindow(QMainWindow):
                 text = _( "Not enough funds" )
                 c, u = self.wallet.get_frozen_balance()
                 if c+u: text += ' (' + self.format_amount(c+u).strip() + ' ' + self.base_unit() + ' ' +_("are frozen") + ')'
-
             self.statusBar().showMessage(text)
             self.amount_e.setPalette(palette)
             self.fee_e.setPalette(palette)
 
-        self.amount_e.textChanged.connect(lambda: entry_changed(False) )
-        self.fee_e.textChanged.connect(lambda: entry_changed(True) )
+        self.amount_e.textChanged.connect(entry_changed)
+        self.fee_e.textChanged.connect(entry_changed)
 
         run_hook('create_send_tab', grid)
         return w
@@ -1055,27 +1053,17 @@ class ElectrumWindow(QMainWindow):
                 QMessageBox.warning(self, _('Error'), _('Invalid Amount'), _('OK'))
                 return
 
-        amount = sum(map(lambda x:x[2], outputs))
-
         fee = self.fee_e.get_amount()
         if fee is None:
             QMessageBox.warning(self, _('Error'), _('Invalid Fee'), _('OK'))
             return
 
-        confirm_amount = self.config.get('confirm_amount', 100000000)
+        amount = sum(map(lambda x:x[2], outputs))
+        confirm_amount = self.config.get('confirm_amount', 1000000000)
         if amount >= confirm_amount:
             o = '\n'.join(map(lambda x:x[1], outputs))
             if not self.question(_("send %(amount)s to %(address)s?")%{ 'amount' : self.format_amount(amount) + ' '+ self.base_unit(), 'address' : o}):
                 return
-            
-        if not self.config.get('can_edit_fees', False):
-            if not self.question(_("A fee of %(fee)s will be added to this transaction.\nProceed?")%{ 'fee' : self.format_amount(fee) + ' '+ self.base_unit()}):
-                return
-        else:
-            confirm_fee = self.config.get('confirm_fee', 1000000)
-            if fee >= confirm_fee:
-                if not self.question(_("The fee for this transaction seems unusually high.\nAre you really sure you want to pay %(fee)s in fees?")%{ 'fee' : self.format_amount(fee) + ' '+ self.base_unit()}):
-                    return
 
         coins = self.get_coins()
         return outputs, fee, label, coins
@@ -1086,22 +1074,34 @@ class ElectrumWindow(QMainWindow):
         if not r:
             return
         outputs, fee, label, coins = r
-        self.send_tx(outputs, fee, label, coins)
 
-
-    @protected
-    def send_tx(self, outputs, fee, label, coins, password):
-        self.send_button.setDisabled(True)
-
-        # first, create an unsigned tx 
         try:
             tx = self.wallet.make_unsigned_transaction(outputs, fee, None, coins = coins)
             tx.error = None
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
-            self.send_button.setDisabled(False)
             return
+
+        if tx.get_fee() < tx.required_fee(self.wallet.verifier):
+            QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
+            return
+
+        if not self.config.get('can_edit_fees', False):
+            if not self.question(_("A fee of %(fee)s will be added to this transaction.\nProceed?")%{ 'fee' : self.format_amount(fee) + ' '+ self.base_unit()}):
+                return
+        else:
+            confirm_fee = self.config.get('confirm_fee', 1000000)
+            if fee >= confirm_fee:
+                if not self.question(_("The fee for this transaction seems unusually high.\nAre you really sure you want to pay %(fee)s in fees?")%{ 'fee' : self.format_amount(fee) + ' '+ self.base_unit()}):
+                    return
+
+        self.send_tx(tx, label)
+
+
+    @protected
+    def send_tx(self, tx, label, password):
+        self.send_button.setDisabled(True)
 
         # call hook to see if plugin needs gui interaction
         run_hook('send_tx', tx)
@@ -1122,10 +1122,6 @@ class ElectrumWindow(QMainWindow):
         def sign_done(tx):
             if tx.error:
                 self.show_message(tx.error)
-                self.send_button.setDisabled(False)
-                return
-            if fee < tx.required_fee(self.wallet.verifier):
-                QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
                 self.send_button.setDisabled(False)
                 return
             if label:
@@ -1272,6 +1268,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def do_clear(self):
+        self.not_enough_funds = False
         self.payto_e.is_pr = False
         self.payto_sig.setVisible(False)
         for e in [self.payto_e, self.message_e, self.amount_e, self.fee_e]:
@@ -2279,7 +2276,7 @@ class ElectrumWindow(QMainWindow):
         vbox.addLayout(h)
 
         private_keys = {}
-        addresses = self.wallet.addresses(True)
+        addresses = self.wallet.addresses(True, False)
         done = False
         def privkeys_thread():
             for addr in addresses:
@@ -2478,7 +2475,7 @@ class ElectrumWindow(QMainWindow):
         if not d.exec_():
             return
 
-        fee = self.wallet.fee
+        fee = self.wallet.fee_per_kb
         tx = Transaction.sweep(get_pk(), self.network, get_address(), fee)
         self.show_transaction(tx)
 
@@ -2566,7 +2563,7 @@ class ElectrumWindow(QMainWindow):
         fee_label = QLabel(_('Transaction fee per kb') + ':')
         fee_help = HelpButton(_('Fee per kilobyte of transaction.') + '\n' + _('Recommended value') + ': ' + self.format_amount(10000) + ' ' + self.base_unit())
         fee_e = BTCAmountEdit(self.get_decimal_point)
-        fee_e.setAmount(self.wallet.fee)
+        fee_e.setAmount(self.wallet.fee_per_kb)
         if not self.config.is_modifiable('fee_per_kb'):
             for w in [fee_e, fee_label]: w.setEnabled(False)
         def on_fee():
@@ -2601,6 +2598,7 @@ class ElectrumWindow(QMainWindow):
             self.update_receive_tab()
             self.update_address_tab()
             self.update_invoices_tab()
+            fee_e.setAmount(self.wallet.fee_per_kb)
             self.update_status()
         unit_combo.currentIndexChanged.connect(on_unit)
         widgets.append((unit_label, unit_combo, unit_help))

@@ -164,7 +164,7 @@ def run_settings_dialog(self):
     fee_label.set_size_request(150,10)
     fee_label.show()
     fee.pack_start(fee_label,False, False, 10)
-    fee_entry.set_text( str( Decimal(self.wallet.fee) /100000000 ) )
+    fee_entry.set_text( str( Decimal(self.wallet.fee_per_kb) /100000000 ) )
     fee_entry.connect('changed', numbify, False)
     fee_entry.show()
     fee.pack_start(fee_entry,False,False, 10)
@@ -686,12 +686,13 @@ class ElectrumWindow:
             if not is_fee: fee = None
             if amount is None:
                 return
-            #assume two outputs - one for change
-            inputs, total, fee = self.wallet.choose_tx_inputs( amount, fee, 2 )
+            tx = self.wallet.make_unsigned_transaction([('op_return', 'dummy_tx', amount)], fee)
             if not is_fee:
-                fee_entry.set_text( str( Decimal( fee ) / 100000000 ) )
-                self.fee_box.show()
-            if inputs:
+                if tx:
+                    fee = tx.get_fee()
+                    fee_entry.set_text( str( Decimal( fee ) / 100000000 ) )
+                    self.fee_box.show()
+            if tx:
                 amount_entry.modify_text(Gtk.StateType.NORMAL, Gdk.color_parse("#000000"))
                 fee_entry.modify_text(Gtk.StateType.NORMAL, Gdk.color_parse("#000000"))
                 send_button.set_sensitive(True)
