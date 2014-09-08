@@ -759,7 +759,7 @@ class Abstract_Wallet(object):
 
         # if change is above dust threshold, add a change output.
         change_amount = total - ( amount + fee )
-        if fixed_fee is not None:
+        if fixed_fee is not None and change_amount > 0:
             # Insert the change output at a random position in the outputs
             posn = random.randint(0, len(tx.outputs))
             tx.outputs[posn:posn] = [( 'address', change_addr,  change_amount)]
