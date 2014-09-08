@@ -76,7 +76,7 @@ from electrum import ELECTRUM_VERSION
 import re
 
 from util import MyTreeWidget, HelpButton, EnterButton, line_dialog, text_dialog, ok_cancel_buttons, close_button, WaitingDialog
-from util import filename_field, ok_cancel_buttons2
+from util import filename_field, ok_cancel_buttons2, address_field
 
 
 def format_status(x):
