@@ -2559,7 +2559,7 @@ class ElectrumWindow(QMainWindow):
             value = nz.value()
             if self.num_zeros != value:
                 self.num_zeros = value
-                self.config.set_key('num_zeros', nz, True)
+                self.config.set_key('num_zeros', value, True)
                 self.update_history_tab()
                 self.update_address_tab()
         nz.valueChanged.connect(on_nz)
