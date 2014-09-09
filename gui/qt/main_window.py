@@ -224,6 +224,7 @@ class ElectrumWindow(QMainWindow):
         self.seed_menu.setEnabled(self.wallet.has_seed())
         self.mpk_menu.setEnabled(self.wallet.is_deterministic())
         self.import_menu.setEnabled(self.wallet.can_import())
+        self.export_menu.setEnabled(self.wallet.can_export())
 
         self.update_lock_icon()
         self.update_buttons_on_seed()
@@ -338,7 +339,7 @@ class ElectrumWindow(QMainWindow):
         self.private_keys_menu = wallet_menu.addMenu(_("&Private keys"))
         self.private_keys_menu.addAction(_("&Sweep"), self.sweep_key_dialog)
         self.import_menu = self.private_keys_menu.addAction(_("&Import"), self.do_import_privkey)
-        self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
+        self.export_menu = self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
         wallet_menu.addAction(_("&Export History"), self.export_history_dialog)
 
         tools_menu = menubar.addMenu(_("&Tools"))
@@ -1451,8 +1452,9 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Request payment"), lambda: self.receive_at(addr))
             menu.addAction(_("Edit label"), lambda: self.edit_label(True))
             menu.addAction(_("Public keys"), lambda: self.show_public_keys(addr))
-            if not self.wallet.is_watching_only():
+            if self.wallet.can_export():
                 menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
+            if not self.wallet.is_watching_only():
                 menu.addAction(_("Sign/verify message"), lambda: self.sign_verify_message(addr))
                 menu.addAction(_("Encrypt/decrypt message"), lambda: self.encrypt_message(addr))
             if self.wallet.is_imported(addr):

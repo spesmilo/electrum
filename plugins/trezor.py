@@ -154,6 +154,9 @@ class TrezorWallet(NewWallet):
     def can_import(self):
         return False
 
+    def can_export(self):
+        return False
+
     def can_create_accounts(self):
         return True
 

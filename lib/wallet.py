@@ -1009,6 +1009,9 @@ class Abstract_Wallet(object):
     def can_import(self):
         return not self.is_watching_only()
 
+    def can_export(self):
+        return not self.is_watching_only()
+
     def is_used(self, address):
         h = self.history.get(address,[])
         c, u = self.get_addr_balance(address)
