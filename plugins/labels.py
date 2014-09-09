@@ -247,3 +247,4 @@ class Plugin(BasePlugin):
                 self.wallet.labels[key] = value
         self.wallet.storage.put('labels', self.wallet.labels)
         print_error("received labels")
+        self.window.labelsChanged.emit()

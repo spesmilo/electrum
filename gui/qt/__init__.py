@@ -16,10 +16,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import sys, time, datetime, re, threading
-from electrum_ltc.i18n import _, set_language
-from electrum_ltc.util import print_error, print_msg
-from electrum_ltc.plugins import run_hook
+import sys
+import time
+import datetime
+import re
+import threading
 import os.path, json, ast, traceback
 import shutil
 import signal
@@ -33,8 +34,10 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
+from electrum_ltc.i18n import _, set_language
+from electrum_ltc.util import print_error, print_msg
+from electrum_ltc.plugins import run_hook
 from electrum_ltc import WalletStorage, Wallet
-from electrum_ltc.i18n import _
 from electrum_ltc.bitcoin import MIN_RELAY_TX_FEE
 
 try:
@@ -62,6 +65,7 @@ class OpenFileEventFilter(QObject):
 class ElectrumGui:
 
     def __init__(self, config, network, app=None):
+        set_language(config.get('language'))
         self.network = network
         self.config = config
         self.windows = []

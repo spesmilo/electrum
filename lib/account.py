@@ -95,6 +95,9 @@ class PendingAccount(Account):
     def get_master_pubkeys(self):
         return []
 
+    def get_type(self):
+        return _('pending')
+
 class ImportedAccount(Account):
     def __init__(self, d):
         self.keypairs = d['imported']
