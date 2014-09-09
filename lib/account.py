@@ -99,12 +99,7 @@ class PendingAccount(Account):
         self.pending_address = v['pending']
 
     def synchronize(self, wallet):
-        if wallet.address_is_old(self.pending_address):
-            print_error( "creating account", account_id )
-            xpub = wallet.master_public_keys[account_id]
-            account = BIP32_Account({'xpub':xpub})
-            wallet.add_account(account_id, account)
-            #self.next_addresses.pop(account_id)
+        return
 
     def get_addresses(self, is_change):
         return [self.pending_address] 
