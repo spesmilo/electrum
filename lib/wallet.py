@@ -166,8 +166,6 @@ class Abstract_Wallet(object):
 
         self.fee_per_kb            = int(storage.get('fee_per_kb', 10000))
 
-        self.next_addresses = storage.get('next_addresses',{})
-
         # This attribute is set when wallet.start_threads is called.
         self.synchronizer = None
 
@@ -333,15 +331,10 @@ class Abstract_Wallet(object):
         run_hook('set_label', name, text, changed)
         return changed
 
-    def addresses(self, include_change = True, _next=True):
+    def addresses(self, include_change = True):
         o = []
         for a in self.accounts.keys():
             o += self.get_account_addresses(a, include_change)
-
-        if _next:
-            for addr in self.next_addresses.values():
-                if addr not in o:
-                    o += [addr]
         return o
 
     def is_mine(self, address):
@@ -360,11 +353,6 @@ class Abstract_Wallet(object):
                 for addr in addresses:
                     if address == addr:
                         return account, (for_change, addresses.index(addr))
-
-        for k,v in self.next_addresses.items():
-            if v == address:
-                return k, (0,0)
-
         raise Exception("Address not found", address)
 
     def get_private_key(self, address, password):
@@ -1161,37 +1149,18 @@ class Deterministic_Wallet(Abstract_Wallet):
         if account is None:
             account = self.default_account()
         address = account.create_new_address(for_change)
+        self.add_address(address)
+        return address
+
+    def add_address(self, address):
         self.history[address] = []
         if self.synchronizer:
             self.synchronizer.add(address)
         self.save_accounts()
-        return address
-
-    def synchronize_sequence(self, account, for_change):
-        limit = self.gap_limit_for_change if for_change else self.gap_limit
-        while True:
-            addresses = account.get_addresses(for_change)
-            if len(addresses) < limit:
-                self.create_new_address(account, for_change)
-                continue
-            if map( lambda a: self.address_is_old(a), addresses[-limit:] ) == limit*[False]:
-                break
-            else:
-                self.create_new_address(account, for_change)
-
-    def check_pending_accounts(self):
-        pass
-
-    def synchronize_account(self, account):
-        self.synchronize_sequence(account, 0)
-        self.synchronize_sequence(account, 1)
 
     def synchronize(self):
-        self.check_pending_accounts()
         for account in self.accounts.values():
-            if type(account) in [ImportedAccount, PendingAccount]:
-                continue
-            self.synchronize_account(account)
+            account.synchronize(self)
 
     def restore(self, callback):
         from i18n import _
@@ -1359,14 +1328,37 @@ class BIP32_Simple_Wallet(BIP32_Wallet):
 class BIP32_HD_Wallet(BIP32_Wallet):
     # wallet that can create accounts
 
-    def create_main_account(self, password):
-        # First check the password is valid (this raises if it isn't).
-        if not self.is_watching_only():
-            self.check_password(password)
-        self.create_account('Main account', password)
-
     def can_create_accounts(self):
         return self.root_name in self.master_private_keys.keys()
+
+    def num_accounts(self):
+        keys = []
+        for k, v in self.accounts.items():
+            if type(v) != BIP32_Account:
+                continue
+            keys.append(k)
+        i = 0
+        while True:
+            account_id = '%d'%i
+            if account_id not in keys:
+                break
+            i += 1
+        return i
+
+    def next_account_address(self, password):
+        account_id = '%d'%self.num_accounts()
+        account = self.make_account(account_id, password)
+        addr = account.first_address()
+        return account_id, addr
+
+    def make_account(self, account_id, password):
+        """Creates and saves the master keys, but does not save the account"""
+        derivation = self.root_name + "%d'"%int(account_id)
+        xpub, xprv = self.derive_xkeys(self.root_name, derivation, password)
+        self.add_master_public_key(derivation, xpub)
+        self.add_master_private_key(derivation, xprv, password)
+        account = BIP32_Account({'xpub':xpub})
+        return account
 
     def create_account(self, name, password):
         account_id = "%d"%self.num_accounts()
@@ -1375,7 +1367,14 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         if name:
             self.set_label(account_id, name)
         # add address of the next account
-        _, _ = self.next_account_address(password)
+        account_id, addr = self.next_account_address(password)
+        self.storage.put('next_address',(account_id, addr))
+
+    def create_main_account(self, password):
+        # First check the password is valid (this raises if it isn't).
+        if not self.is_watching_only():
+            self.check_password(password)
+        self.create_account('Main account', password)
 
     def account_is_pending(self, k):
         return type(self.accounts.get(k)) == PendingAccount
@@ -1391,49 +1390,6 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         self.accounts[account_id] = PendingAccount({'pending':addr})
         self.save_accounts()
 
-    def check_pending_accounts(self):
-        for account_id, addr in self.next_addresses.items():
-            if self.address_is_old(addr):
-                print_error( "creating account", account_id )
-                xpub = self.master_public_keys[account_id]
-                account = BIP32_Account({'xpub':xpub})
-                self.add_account(account_id, account)
-                self.next_addresses.pop(account_id)
-
-    def next_account_address(self, password):
-        account_id = '%d'%self.num_accounts()
-        addr = self.next_addresses.get(account_id)
-        if not addr:
-            account = self.make_account(account_id, password)
-            addr = account.first_address()
-            self.next_addresses[account_id] = addr
-            self.storage.put('next_addresses', self.next_addresses)
-        return account_id, addr
-
-    def make_account(self, account_id, password):
-        """Creates and saves the master keys, but does not save the account"""
-        derivation = self.root_name + "%d'"%int(account_id)
-        xpub, xprv = self.derive_xkeys(self.root_name, derivation, password)
-        self.add_master_public_key(derivation, xpub)
-        if xprv:
-            self.add_master_private_key(derivation, xprv, password)
-
-        account = BIP32_Account({'xpub':xpub})
-        return account
-
-    def num_accounts(self):
-        keys = []
-        for k, v in self.accounts.items():
-            if type(v) != BIP32_Account:
-                continue
-            keys.append(k)
-        i = 0
-        while True:
-            account_id = '%d'%i
-            if account_id not in keys:
-                break
-            i += 1
-        return i
 
 
 
