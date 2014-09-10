@@ -534,6 +534,10 @@ class Transaction:
                 item['address'] = address
                 item['prevout_hash'] = item['tx_hash']
                 item['prevout_n'] = item['tx_pos']
+                item['pubkeys'] = [pubkey]
+                item['x_pubkeys'] = [None]
+                item['signatures'] = [None]
+                item['num_sig'] = 1
             inputs += u
 
         if not inputs:

@@ -23,8 +23,8 @@ import re
 import sys
 import hmac
 
+import version
 from util import print_error
-from version import SEED_PREFIX
 
 try:
     import ecdsa
@@ -148,7 +148,10 @@ def Hash(x):
 hash_encode = lambda x: x[::-1].encode('hex')
 hash_decode = lambda x: x.decode('hex')[::-1]
 hmac_sha_512 = lambda x,y: hmac.new(x, y, hashlib.sha512).digest()
-is_new_seed = lambda x: hmac_sha_512("Seed version", x.encode('utf8')).encode('hex')[0:2].startswith(SEED_PREFIX)
+
+def is_new_seed(x, prefix=version.SEED_BIP44):
+    s = hmac_sha_512("Seed version", x.encode('utf8')).encode('hex')
+    return s.startswith(prefix)
 
 
 def is_old_seed(seed):
