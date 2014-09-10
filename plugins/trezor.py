@@ -351,7 +351,7 @@ class TrezorWallet(NewWallet):
     def check_proper_device(self):
         self.get_client().ping('t')
         if not self.device_checked:
-            address = self.addresses(False, False)[0]
+            address = self.addresses(False)[0]
             address_id = self.address_id(address)
             n = self.get_client().expand_path(address_id)
             device_address = self.get_client().get_address('Bitcoin', n)

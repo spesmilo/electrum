@@ -1343,6 +1343,13 @@ class BIP32_HD_Wallet(BIP32_Wallet):
                 l.append(next_address)
         return l
 
+    def get_address_index(self, address):
+        if self.next_account:
+            next_id, next_xpub, next_address = self.next_account
+            if address == next_address:
+                return next_id, (0,0)
+        return BIP32_Wallet.get_address_index(self, address)
+
     def num_accounts(self):
         keys = []
         for k, v in self.accounts.items():
@@ -1390,6 +1397,9 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         assert type(self.accounts.get(k)) == PendingAccount
         self.accounts.pop(k)
         self.save_accounts()
+        # prepare the next account
+        self.next_account = self.get_next_account(password)
+        self.storage.put('next_account', self.next_account)
 
     def create_pending_account(self, name, password):
         next_id, next_xpub, next_address = self.next_account if self.next_account else self.get_next_account_address(password)
@@ -1407,6 +1417,7 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         if self.next_account is None:
             try:
                 self.next_account = self.get_next_account(None)
+                self.storage.put('next_account', self.next_account)
             except:
                 pass
 
@@ -1418,6 +1429,12 @@ class BIP32_HD_Wallet(BIP32_Wallet):
                 self.add_account(next_id, BIP32_Account({'xpub':next_xpub}))
                 # here the user should get a notification
                 self.next_account = None
+                self.storage.put('next_account', self.next_account)
+            elif self.history.get(next_address, []):
+                if next_id not in self.accounts:
+                    print_error("create pending account", next_id)
+                    self.accounts[next_id] = PendingAccount({'pending':next_address})
+                    self.save_accounts()
 
 
 
