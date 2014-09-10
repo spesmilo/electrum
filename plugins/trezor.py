@@ -133,9 +133,9 @@ class Plugin(BasePlugin):
         layout.addWidget(change_label_button,3,1)
 
         if d.exec_():
-          return True
+            return True
         else:
-          return False
+            return False
 
 
 class TrezorWallet(NewWallet):
