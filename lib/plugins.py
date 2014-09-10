@@ -43,7 +43,7 @@ def run_hook(name, *args):
     results = []
     f_list = hooks.get(name,[])
     for p, f in f_list:
-        if not p.is_enabled():
+        if name != 'load_wallet' and not p.is_enabled():
             continue
         try:
             r = f(*args)
