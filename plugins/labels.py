@@ -39,15 +39,14 @@ class Plugin(BasePlugin):
         return "0.2.1"
 
     def encode(self, message):
-        encrypted = electrum.bitcoin.aes_encrypt_with_iv(self.encode_password, self.iv, unicode(message))
+        encrypted = electrum.bitcoin.aes_encrypt_with_iv(self.encode_password, self.iv, message.encode('utf8'))
         encoded_message = base64.b64encode(encrypted)
         return encoded_message
 
     def decode(self, message):
-        decoded_message = electrum.bitcoin.aes_decrypt_with_iv(self.encode_password, self.iv, base64.b64decode(unicode(message)) )
+        decoded_message = electrum.bitcoin.aes_decrypt_with_iv(self.encode_password, self.iv, base64.b64decode(message)).decode('utf8')
         return decoded_message
 
-    
 
     @hook
     def init_qt(self, gui):
@@ -246,5 +245,5 @@ class Plugin(BasePlugin):
             if force or not self.wallet.labels.get(key):
                 self.wallet.labels[key] = value
         self.wallet.storage.put('labels', self.wallet.labels)
-        print_error("received labels")
+        print_error("received %d labels"%len(response))
         self.window.labelsChanged.emit()
