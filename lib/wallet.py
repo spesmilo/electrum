@@ -1373,6 +1373,7 @@ class BIP32_HD_Wallet(BIP32_Wallet):
             self.add_master_private_key(derivation, xprv, password)
         account = BIP32_Account({'xpub':xpub})
         addr = account.first_address()
+        self.add_address(addr)
         return account_id, xpub, addr
 
     def create_main_account(self, password):
@@ -1397,18 +1398,12 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         assert type(self.accounts.get(k)) == PendingAccount
         self.accounts.pop(k)
         self.save_accounts()
-        # prepare the next account
-        self.next_account = self.get_next_account(password)
-        self.storage.put('next_account', self.next_account)
 
     def create_pending_account(self, name, password):
         next_id, next_xpub, next_address = self.next_account if self.next_account else self.get_next_account_address(password)
         self.set_label(next_id, name)
         self.accounts[next_id] = PendingAccount({'pending':next_address})
         self.save_accounts()
-        # prepare the next account
-        self.next_account = self.get_next_account(password)
-        self.storage.put('next_account', self.next_account)
 
     def synchronize(self):
         # synchronize existing accounts
