@@ -75,13 +75,34 @@ class Account(object):
     def redeem_script(self, for_change, n):
         return None
 
+    def synchronize_sequence(self, wallet, for_change):
+        limit = self.gap_limit_for_change if for_change else self.gap_limit
+        while True:
+            addresses = self.get_addresses(for_change)
+            if len(addresses) < limit:
+                address = self.create_new_address(for_change)
+                wallet.add_address(address)
+                continue
+            if map( lambda a: wallet.address_is_old(a), addresses[-limit:] ) == limit*[False]:
+                break
+            else:
+                address = self.create_new_address(for_change)
+                wallet.add_address(address)
+
+    def synchronize(self, wallet):
+        self.synchronize_sequence(wallet, False)
+        self.synchronize_sequence(wallet, True)
+
 
 class PendingAccount(Account):
     def __init__(self, v):
         self.pending_address = v['pending']
 
+    def synchronize(self, wallet):
+        return
+
     def get_addresses(self, is_change):
-        return [self.pending_address] 
+        return [] if is_change else [self.pending_address]
 
     def has_change(self):
         return False
@@ -95,9 +116,15 @@ class PendingAccount(Account):
     def get_master_pubkeys(self):
         return []
 
+    def get_type(self):
+        return _('pending')
+
 class ImportedAccount(Account):
     def __init__(self, d):
         self.keypairs = d['imported']
+
+    def synchronize(self, wallet):
+        return
 
     def get_addresses(self, for_change):
         return [] if for_change else sorted(self.keypairs.keys())
@@ -148,6 +175,8 @@ class ImportedAccount(Account):
 
 class OldAccount(Account):
     """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
+    gap_limit = 5
+    gap_limit_for_change = 3
 
     def __init__(self, v):
         Account.__init__(self, v)
@@ -245,6 +274,8 @@ class OldAccount(Account):
 
 
 class BIP32_Account(Account):
+    gap_limit = 20
+    gap_limit_for_change = 3
 
     def __init__(self, v):
         Account.__init__(self, v)

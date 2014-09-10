@@ -114,8 +114,7 @@ class StatusBarButton(QPushButton):
 default_column_widths = { "history":[40,140,350,140], "contacts":[350,330], "receive": [370,200,130] }
 
 class ElectrumWindow(QMainWindow):
-
-
+    labelsChanged = pyqtSignal()
 
     def __init__(self, config, network, gui_object):
         QMainWindow.__init__(self)
@@ -133,8 +132,6 @@ class ElectrumWindow(QMainWindow):
         self.decimal_point = config.get('decimal_point', 5)
         self.num_zeros     = int(config.get('num_zeros',0))
         self.invoices      = {}
-
-        set_language(config.get('language'))
 
         self.completions = QStringListModel()
 
@@ -173,6 +170,7 @@ class ElectrumWindow(QMainWindow):
         self.connect(self, QtCore.SIGNAL('transaction_signal'), lambda: self.notify_transactions() )
         self.connect(self, QtCore.SIGNAL('payment_request_ok'), self.payment_request_ok)
         self.connect(self, QtCore.SIGNAL('payment_request_error'), self.payment_request_error)
+        self.labelsChanged.connect(self.update_tabs)
 
         self.history_list.setFocus(True)
 
@@ -226,6 +224,7 @@ class ElectrumWindow(QMainWindow):
         self.seed_menu.setEnabled(self.wallet.has_seed())
         self.mpk_menu.setEnabled(self.wallet.is_deterministic())
         self.import_menu.setEnabled(self.wallet.can_import())
+        self.export_menu.setEnabled(self.wallet.can_export())
 
         self.update_lock_icon()
         self.update_buttons_on_seed()
@@ -340,7 +339,7 @@ class ElectrumWindow(QMainWindow):
         self.private_keys_menu = wallet_menu.addMenu(_("&Private keys"))
         self.private_keys_menu.addAction(_("&Sweep"), self.sweep_key_dialog)
         self.import_menu = self.private_keys_menu.addAction(_("&Import"), self.do_import_privkey)
-        self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
+        self.export_menu = self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
         wallet_menu.addAction(_("&Export History"), self.export_history_dialog)
 
         tools_menu = menubar.addMenu(_("&Tools"))
@@ -509,12 +508,15 @@ class ElectrumWindow(QMainWindow):
     def update_wallet(self):
         self.update_status()
         if self.wallet.up_to_date or not self.network or not self.network.is_connected():
-            self.update_history_tab()
-            self.update_receive_tab()
-            self.update_address_tab()
-            self.update_contacts_tab()
-            self.update_completions()
-            self.update_invoices_tab()
+            self.update_tabs()
+
+    def update_tabs(self):
+        self.update_history_tab()
+        self.update_receive_tab()
+        self.update_address_tab()
+        self.update_contacts_tab()
+        self.update_completions()
+        self.update_invoices_tab()
 
 
     def create_history_tab(self):
@@ -1450,8 +1452,9 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Request payment"), lambda: self.receive_at(addr))
             menu.addAction(_("Edit label"), lambda: self.edit_label(True))
             menu.addAction(_("Public keys"), lambda: self.show_public_keys(addr))
-            if not self.wallet.is_watching_only():
+            if self.wallet.can_export():
                 menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
+            if not self.wallet.is_watching_only():
                 menu.addAction(_("Sign/verify message"), lambda: self.sign_verify_message(addr))
                 menu.addAction(_("Encrypt/decrypt message"), lambda: self.encrypt_message(addr))
             if self.wallet.is_imported(addr):
@@ -2278,7 +2281,7 @@ class ElectrumWindow(QMainWindow):
         vbox.addLayout(h)
 
         private_keys = {}
-        addresses = self.wallet.addresses(True, False)
+        addresses = self.wallet.addresses(True)
         done = False
         def privkeys_thread():
             for addr in addresses:
@@ -2556,7 +2559,7 @@ class ElectrumWindow(QMainWindow):
             value = nz.value()
             if self.num_zeros != value:
                 self.num_zeros = value
-                self.config.set_key('num_zeros', nz, True)
+                self.config.set_key('num_zeros', value, True)
                 self.update_history_tab()
                 self.update_address_tab()
         nz.valueChanged.connect(on_nz)

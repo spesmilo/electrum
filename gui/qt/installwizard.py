@@ -127,25 +127,21 @@ class InstallWizard(QDialog):
         text = ' '.join(text.split())
         return text
 
-    def is_any(self, seed_e):
-        text = self.get_seed_text(seed_e)
+    def is_any(self, text):
         return Wallet.is_seed(text) or Wallet.is_old_mpk(text) or Wallet.is_xpub(text) or Wallet.is_xprv(text) or Wallet.is_address(text) or Wallet.is_private_key(text)
 
-    def is_mpk(self, seed_e):
-        text = self.get_seed_text(seed_e)
+    def is_mpk(self, text):
         return Wallet.is_xpub(text) or Wallet.is_old_mpk(text)
 
-    def is_xpub(self, seed_e):
-        text = self.get_seed_text(seed_e)
-        return Wallet.is_xpub(text)
-
-    def enter_seed_dialog(self, msg, sid):
+    def enter_seed_dialog(self, msg, sid, func=None):
+        if func is None:
+            func = self.is_any
         vbox, seed_e = seed_dialog.enter_seed_box(msg, sid)
         vbox.addStretch(1)
         hbox, button = ok_cancel_buttons2(self, _('Next'))
         vbox.addLayout(hbox)
         button.setEnabled(False)
-        seed_e.textChanged.connect(lambda: button.setEnabled(self.is_any(seed_e)))
+        seed_e.textChanged.connect(lambda: button.setEnabled(func(self.get_seed_text(seed_e))))
         self.set_layout(vbox)
         if not self.exec_():
             return
@@ -167,7 +163,7 @@ class InstallWizard(QDialog):
         hbox, button = ok_cancel_buttons2(self, _('Next'))
         vbox.addLayout(hbox)
         button.setEnabled(False)
-        f = lambda: button.setEnabled( map(lambda e: self.is_xpub(e), entries) == [True]*len(entries))
+        f = lambda: button.setEnabled( map(lambda e: Wallet.is_xpub(self.get_seed_text(e)), entries) == [True]*len(entries))
         for e in entries:
             e.textChanged.connect(f)
         self.set_layout(vbox)
@@ -190,7 +186,7 @@ class InstallWizard(QDialog):
         vbox.addLayout(hbox)
         button.setEnabled(False)
 
-        f = lambda: button.setEnabled( map(lambda e: self.is_any(e), entries) == [True]*len(entries))
+        f = lambda: button.setEnabled( map(lambda e: self.is_any(self.get_seed_text(e)), entries) == [True]*len(entries))
         for e in entries:
             e.textChanged.connect(f)
 

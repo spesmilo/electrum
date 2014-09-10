@@ -27,7 +27,7 @@ import pbkdf2
 
 from util import print_error
 from bitcoin import is_old_seed, is_new_seed
-
+import version
 
 class Mnemonic(object):
     # Seed derivation follows BIP39
@@ -89,11 +89,13 @@ class Mnemonic(object):
         i = self.mnemonic_decode(seed)
         return i % custom_entropy == 0
 
-    def make_seed(self, num_bits=128, custom_entropy=1):
+    def make_seed(self, num_bits=128, prefix=version.SEED_BIP44, custom_entropy=1):
         n = int(math.ceil(math.log(custom_entropy,2)))
+        # bits of entropy used by the prefix
+        k = len(prefix)*4
         # we add at least 16 bits
-        n_added = max(16, 8 + num_bits - n)
-        print_error("make_seed: adding %d bits"%n_added)
+        n_added = max(16, k + num_bits - n)
+        print_error("make_seed", prefix, "adding %d bits"%n_added)
         my_entropy = ecdsa.util.randrange( pow(2, n_added) )
         nonce = 0
         while True:
@@ -103,8 +105,7 @@ class Mnemonic(object):
             assert i == self.mnemonic_decode(seed)
             if is_old_seed(seed):
                 continue
-            # this removes 8 bits of entropy
-            if is_new_seed(seed):
+            if is_new_seed(seed, prefix):
                 break
         print_error('%d words'%len(seed.split()))
         return seed

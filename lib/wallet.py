@@ -166,8 +166,6 @@ class Abstract_Wallet(object):
 
         self.fee_per_kb            = int(storage.get('fee_per_kb', 10000))
 
-        self.next_addresses = storage.get('next_addresses',{})
-
         # This attribute is set when wallet.start_threads is called.
         self.synchronizer = None
 
@@ -305,7 +303,7 @@ class Abstract_Wallet(object):
         self.save_accounts()
 
         if self.synchronizer:
-            self.synchronizer.subscribe_to_addresses([address])
+            self.synchronizer.add(address)
         return address
 
     def delete_imported_key(self, addr):
@@ -333,15 +331,10 @@ class Abstract_Wallet(object):
         run_hook('set_label', name, text, changed)
         return changed
 
-    def addresses(self, include_change = True, _next=True):
+    def addresses(self, include_change = True):
         o = []
         for a in self.accounts.keys():
             o += self.get_account_addresses(a, include_change)
-
-        if _next:
-            for addr in self.next_addresses.values():
-                if addr not in o:
-                    o += [addr]
         return o
 
     def is_mine(self, address):
@@ -360,11 +353,6 @@ class Abstract_Wallet(object):
                 for addr in addresses:
                     if address == addr:
                         return account, (for_change, addresses.index(addr))
-
-        for k,v in self.next_addresses.items():
-            if v == address:
-                return k, (0,0)
-
         raise Exception("Address not found", address)
 
     def get_private_key(self, address, password):
@@ -759,12 +747,16 @@ class Abstract_Wallet(object):
 
         # if change is above dust threshold, add a change output.
         change_amount = total - ( amount + fee )
-        if change_amount > DUST_THRESHOLD:
+        if fixed_fee is not None and change_amount > 0:
+            # Insert the change output at a random position in the outputs
+            posn = random.randint(0, len(tx.outputs))
+            tx.outputs[posn:posn] = [( 'address', change_addr,  change_amount)]
+        elif change_amount > DUST_THRESHOLD:
             # Insert the change output at a random position in the outputs
             posn = random.randint(0, len(tx.outputs))
             tx.outputs[posn:posn] = [( 'address', change_addr,  change_amount)]
             # recompute fee including change output
-            fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx)
+            fee = self.estimated_fee(tx)
             # remove change output
             tx.outputs.pop(posn)
             # if change is still above dust threshold, re-add change output.
@@ -1005,6 +997,9 @@ class Abstract_Wallet(object):
     def can_import(self):
         return not self.is_watching_only()
 
+    def can_export(self):
+        return not self.is_watching_only()
+
     def is_used(self, address):
         h = self.history.get(address,[])
         c, u = self.get_addr_balance(address)
@@ -1154,37 +1149,19 @@ class Deterministic_Wallet(Abstract_Wallet):
         if account is None:
             account = self.default_account()
         address = account.create_new_address(for_change)
-        self.history[address] = []
+        self.add_address(address)
+        return address
+
+    def add_address(self, address):
+        if address not in self.history:
+            self.history[address] = []
         if self.synchronizer:
             self.synchronizer.add(address)
         self.save_accounts()
-        return address
-
-    def synchronize_sequence(self, account, for_change):
-        limit = self.gap_limit_for_change if for_change else self.gap_limit
-        while True:
-            addresses = account.get_addresses(for_change)
-            if len(addresses) < limit:
-                self.create_new_address(account, for_change)
-                continue
-            if map( lambda a: self.address_is_old(a), addresses[-limit:] ) == limit*[False]:
-                break
-            else:
-                self.create_new_address(account, for_change)
-
-    def check_pending_accounts(self):
-        pass
-
-    def synchronize_account(self, account):
-        self.synchronize_sequence(account, 0)
-        self.synchronize_sequence(account, 1)
 
     def synchronize(self):
-        self.check_pending_accounts()
         for account in self.accounts.values():
-            if type(account) in [ImportedAccount, PendingAccount]:
-                continue
-            self.synchronize_account(account)
+            account.synchronize(self)
 
     def restore(self, callback):
         from i18n import _
@@ -1351,68 +1328,27 @@ class BIP32_Simple_Wallet(BIP32_Wallet):
 
 class BIP32_HD_Wallet(BIP32_Wallet):
     # wallet that can create accounts
-
-    def create_main_account(self, password):
-        # First check the password is valid (this raises if it isn't).
-        if not self.is_watching_only():
-            self.check_password(password)
-        self.create_account('Main account', password)
+    def __init__(self, storage):
+        self.next_account = storage.get('next_account', None)
+        BIP32_Wallet.__init__(self, storage)
 
     def can_create_accounts(self):
         return self.root_name in self.master_private_keys.keys()
 
-    def create_account(self, name, password):
-        account_id = "%d"%self.num_accounts()
-        account = self.make_account(account_id, password)
-        self.add_account(account_id, account)
-        if name:
-            self.set_label(account_id, name)
-        # add address of the next account
-        _, _ = self.next_account_address(password)
+    def addresses(self, b):
+        l = BIP32_Wallet.addresses(self, b)
+        if self.next_account:
+            next_address = self.next_account[2]
+            if next_address not in l:
+                l.append(next_address)
+        return l
 
-    def account_is_pending(self, k):
-        return type(self.accounts.get(k)) == PendingAccount
-
-    def delete_pending_account(self, k):
-        assert self.account_is_pending(k)
-        self.accounts.pop(k)
-        self.save_accounts()
-
-    def create_pending_account(self, name, password):
-        account_id, addr = self.next_account_address(password)
-        self.set_label(account_id, name)
-        self.accounts[account_id] = PendingAccount({'pending':addr})
-        self.save_accounts()
-
-    def check_pending_accounts(self):
-        for account_id, addr in self.next_addresses.items():
-            if self.address_is_old(addr):
-                print_error( "creating account", account_id )
-                xpub = self.master_public_keys[account_id]
-                account = BIP32_Account({'xpub':xpub})
-                self.add_account(account_id, account)
-                self.next_addresses.pop(account_id)
-
-    def next_account_address(self, password):
-        account_id = '%d'%self.num_accounts()
-        addr = self.next_addresses.get(account_id)
-        if not addr:
-            account = self.make_account(account_id, password)
-            addr = account.first_address()
-            self.next_addresses[account_id] = addr
-            self.storage.put('next_addresses', self.next_addresses)
-        return account_id, addr
-
-    def make_account(self, account_id, password):
-        """Creates and saves the master keys, but does not save the account"""
-        derivation = self.root_name + "%d'"%int(account_id)
-        xpub, xprv = self.derive_xkeys(self.root_name, derivation, password)
-        self.add_master_public_key(derivation, xpub)
-        if xprv:
-            self.add_master_private_key(derivation, xprv, password)
-
-        account = BIP32_Account({'xpub':xpub})
-        return account
+    def get_address_index(self, address):
+        if self.next_account:
+            next_id, next_xpub, next_address = self.next_account
+            if address == next_address:
+                return next_id, (0,0)
+        return BIP32_Wallet.get_address_index(self, address)
 
     def num_accounts(self):
         keys = []
@@ -1427,6 +1363,73 @@ class BIP32_HD_Wallet(BIP32_Wallet):
                 break
             i += 1
         return i
+
+    def get_next_account(self, password):
+        account_id = '%d'%self.num_accounts()
+        derivation = self.root_name + "%d'"%int(account_id)
+        xpub, xprv = self.derive_xkeys(self.root_name, derivation, password)
+        self.add_master_public_key(derivation, xpub)
+        if xprv:
+            self.add_master_private_key(derivation, xprv, password)
+        account = BIP32_Account({'xpub':xpub})
+        addr = account.first_address()
+        self.add_address(addr)
+        return account_id, xpub, addr
+
+    def create_main_account(self, password):
+        # First check the password is valid (this raises if it isn't).
+        self.check_password(password)
+        assert self.num_accounts() == 0
+        self.create_account('Main account', password)
+
+    def create_account(self, name, password):
+        account_id, xpub, addr = self.get_next_account(password)
+        account = BIP32_Account({'xpub':xpub})
+        self.add_account(account_id, account)
+        self.set_label(account_id, name)
+        # add address of the next account
+        self.next_account = self.get_next_account(password)
+        self.storage.put('next_account', self.next_account)
+
+    def account_is_pending(self, k):
+        return type(self.accounts.get(k)) == PendingAccount
+
+    def delete_pending_account(self, k):
+        assert type(self.accounts.get(k)) == PendingAccount
+        self.accounts.pop(k)
+        self.save_accounts()
+
+    def create_pending_account(self, name, password):
+        next_id, next_xpub, next_address = self.next_account if self.next_account else self.get_next_account_address(password)
+        self.set_label(next_id, name)
+        self.accounts[next_id] = PendingAccount({'pending':next_address})
+        self.save_accounts()
+
+    def synchronize(self):
+        # synchronize existing accounts
+        BIP32_Wallet.synchronize(self)
+
+        if self.next_account is None:
+            try:
+                self.next_account = self.get_next_account(None)
+                self.storage.put('next_account', self.next_account)
+            except:
+                pass
+
+        # check pending account
+        if self.next_account is not None:
+            next_id, next_xpub, next_address = self.next_account
+            if self.address_is_old(next_address):
+                print_error("creating account", next_id)
+                self.add_account(next_id, BIP32_Account({'xpub':next_xpub}))
+                # here the user should get a notification
+                self.next_account = None
+                self.storage.put('next_account', self.next_account)
+            elif self.history.get(next_address, []):
+                if next_id not in self.accounts:
+                    print_error("create pending account", next_id)
+                    self.accounts[next_id] = PendingAccount({'pending':next_address})
+                    self.save_accounts()
 
 
 
