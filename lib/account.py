@@ -102,7 +102,7 @@ class PendingAccount(Account):
         return
 
     def get_addresses(self, is_change):
-        return [self.pending_address] 
+        return [] if is_change else [self.pending_address]
 
     def has_change(self):
         return False
