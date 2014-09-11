@@ -221,7 +221,8 @@ class Plugin(BasePlugin):
         connection = httplib.HTTPConnection(self.target_host)
         connection.request("GET", ("/api/wallets/%s/labels.json?auth_token=%s" % (self.wallet_id, self.auth_token())),"", {'Content-Type': 'application/json'})
         response = connection.getresponse()
-        if response.reason == httplib.responses[httplib.NOT_FOUND]:
+        if response.status != 200:
+            print_error("Cannot retrieve labels:", response.status, response.reason)
             return
         response = json.loads(response.read())
         if "error" in response:
