@@ -1610,7 +1610,7 @@ class Wallet(object):
 
         seed_version = storage.get('seed_version')
         if not seed_version:
-            seed_version = OLD_SEED_VERSION if len(storage.get('master_public_key')) == 128 else NEW_SEED_VERSION
+            seed_version = OLD_SEED_VERSION if len(storage.get('master_public_key','')) == 128 else NEW_SEED_VERSION
 
         if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:
             msg = "This wallet seed is not supported anymore."
