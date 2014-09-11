@@ -158,27 +158,21 @@ class Plugin(BasePlugin):
 
         check_for_api_key(self.auth_token())
 
+        self.window.labelsChanged.connect(self.done_processing)
+
         if d.exec_():
           return True
         else:
           return False
 
+    def done_processing(self):
+        QMessageBox.information(None, _("Labels synchronised"), _("Your labels have been synchronised."))
 
     def full_push(self):
-        if self.do_full_push():
-            QMessageBox.information(None, _("Labels uploaded"), _("Your labels have been uploaded."))
+        threading.Thread(target=self.do_full_push).start()
 
     def full_pull(self):
-        try:
-            self.do_full_pull(True)
-        except BaseException as e:
-            QMessageBox.information(None, _("Error"), str(e))
-            return
-        QMessageBox.information(None, _("Labels synchronized"), _("Your labels have been synchronized."))
-        self.window.update_history_tab()
-        self.window.update_completions()
-        self.window.update_receive_tab()
-        self.window.update_contacts_tab()
+        threading.Thread(target=self.do_full_pull, args=([True])).start()
 
     def do_full_push(self):
         try:
@@ -202,20 +196,23 @@ class Plugin(BasePlugin):
 
             response = connection.getresponse()
             if response.reason == httplib.responses[httplib.NOT_FOUND]:
+                print_error('404 error' %  e)
                 return
             try:
                 response = json.loads(response.read())
             except ValueError as e:
+                print_error('Error loading labelsync response: %s' %  e)
                 return False
 
             if "error" in response:
-                QMessageBox.warning(None, _("Error"),_("Could not sync labels: %s" % response["error"]))
+                print_error('Error loading labelsync response.')
                 return False
 
-            return True
         except socket.gaierror as e:
             print_error('Error connecting to service: %s ' %  e)
             return False
+
+        self.window.labelsChanged.emit()
 
     def do_full_pull(self, force = False):
         connection = httplib.HTTPConnection(self.target_host)
