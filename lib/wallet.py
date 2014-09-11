@@ -1604,8 +1604,25 @@ class Wallet(object):
     type when passed a WalletStorage instance."""
 
     def __new__(self, storage):
-        config = storage.config
 
+        if not storage.file_exists:
+            return NewWallet(storage)
+
+        seed_version = storage.get('seed_version')
+        if not seed_version:
+            seed_version = OLD_SEED_VERSION if len(storage.get('master_public_key')) == 128 else NEW_SEED_VERSION
+
+        if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:
+            msg = "This wallet seed is not supported anymore."
+            if seed_version in [5, 7]:
+                msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
+            print msg
+            sys.exit(1)
+
+        if seed_version == OLD_SEED_VERSION:
+            return OldWallet(storage)
+
+        config = storage.config
         run_hook('add_wallet_types', wallet_types)
         wallet_type = storage.get('wallet_type')
         if wallet_type:
@@ -1614,24 +1631,8 @@ class Wallet(object):
                     return WalletClass(storage)
             else:
                 raise BaseException('unknown wallet type', wallet_type)
-
-        if not storage.file_exists:
-            seed_version = NEW_SEED_VERSION
         else:
-            seed_version = storage.get('seed_version')
-            if not seed_version:
-                seed_version = OLD_SEED_VERSION if len(storage.get('master_public_key')) == 128 else NEW_SEED_VERSION
-
-        if seed_version == OLD_SEED_VERSION:
-            return OldWallet(storage)
-        elif seed_version == NEW_SEED_VERSION:
             return NewWallet(storage)
-        else:
-            msg = "This wallet seed is not supported."
-            if seed_version in [5, 7]:
-                msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
-            print msg
-            sys.exit(1)
 
     @classmethod
     def is_seed(self, seed):
