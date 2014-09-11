@@ -719,7 +719,7 @@ class Abstract_Wallet(object):
             coins = self.get_unspent_coins(domain)
 
         amount = sum( map(lambda x:x[2], outputs) )
-        total = 0
+        total = fee = 0
         inputs = []
         tx = Transaction(inputs, outputs)
         for item in coins:
