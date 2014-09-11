@@ -206,7 +206,8 @@ class ElectrumWindow(QMainWindow):
 
         self.wallet = wallet
         self.update_wallet_format()
-
+        # address used to create a dummy transaction and estimate transaction fee
+        self.dummy_address = self.wallet.addresses(False)[0]
         self.invoices = self.wallet.storage.get('invoices', {})
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
@@ -926,7 +927,8 @@ class ElectrumWindow(QMainWindow):
             sendable = self.get_sendable_balance()
             inputs = self.get_coins()
             for i in inputs: self.wallet.add_input_info(i)
-            output = ('address', self.payto_e.payto_address, sendable) if self.payto_e.payto_address else ('op_return', 'dummy_tx', sendable)
+            addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
+            output = ('address', addr, sendable)
             dummy_tx = Transaction(inputs, [output])
             fee = self.wallet.estimated_fee(dummy_tx)
             self.amount_e.setAmount(sendable-fee)
@@ -944,7 +946,8 @@ class ElectrumWindow(QMainWindow):
                 self.not_enough_funds = False
             else:
                 if not outputs:
-                    outputs = [('op_return', 'dummy_tx', amount)]
+                    addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
+                    outputs = [('address', addr, amount)]
                 tx = self.wallet.make_unsigned_transaction(outputs, fee, coins = self.get_coins())
                 self.not_enough_funds = (tx is None)
                 if not is_fee:
