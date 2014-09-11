@@ -1080,7 +1080,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         if self.seed:
             raise Exception("a seed exists")
 
-        self.seed_version, self.seed = self.prepare_seed(seed)
+        self.seed_version, self.seed = self.format_seed(seed)
         if password:
             self.seed = pw_encode( self.seed, password)
             self.use_encryption = True
@@ -1301,8 +1301,8 @@ class BIP32_Wallet(Deterministic_Wallet):
         lang = self.storage.config.get('language')
         return Mnemonic(lang).make_seed()
 
-    def prepare_seed(self, seed):
-        return NEW_SEED_VERSION, Mnemonic.prepare_seed(seed)
+    def format_seed(self, seed):
+        return NEW_SEED_VERSION, ' '.join(seed.split())
 
 
 class BIP32_Simple_Wallet(BIP32_Wallet):
@@ -1515,7 +1515,7 @@ class OldWallet(Deterministic_Wallet):
         seed = random_seed(128)
         return ' '.join(old_mnemonic.mn_encode(seed))
 
-    def prepare_seed(self, seed):
+    def format_seed(self, seed):
         import old_mnemonic
         # see if seed was entered as hex
         seed = seed.strip()

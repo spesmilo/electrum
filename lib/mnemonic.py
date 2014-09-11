@@ -29,20 +29,25 @@ from util import print_error
 from bitcoin import is_old_seed, is_new_seed
 import version
 
+
+filenames = {
+    'en':'english.txt',
+    'es':'spanish.txt',
+    'ja':'japanese.txt',
+    'pt':'portuguese.txt',
+}
+
+def remove_accents(input_str):
+    nkfd_form = unicodedata.normalize('NFKD', unicode(input_str))
+    return u''.join([c for c in nkfd_form if not unicodedata.combining(c)])
+
+
 class Mnemonic(object):
     # Seed derivation follows BIP39
     # Mnemonic phrase uses a hash based checksum, instead of a wordlist-dependent checksum
 
-    def __init__(self, lang=None):
-        if lang is None:
-            filename = 'english.txt'
-        elif lang[0:2] == 'pt':
-            filename = 'portuguese.txt'
-        elif lang[0:2] == 'ja':
-            filename = 'japanese.txt'
-        else:
-            filename = 'english.txt'
-
+    def __init__(self, lang='en'):
+        filename = filenames.get(lang[0:2], 'english.txt')
         path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
         s = open(path,'r').read().strip()
         s = unicodedata.normalize('NFKD', s.decode('utf8'))
@@ -63,7 +68,10 @@ class Mnemonic(object):
 
     @classmethod
     def prepare_seed(self, seed):
-        return unicodedata.normalize('NFKD', unicode(seed.strip()))
+        # remove accents to tolerate typos
+        seed = unicode(remove_accents(seed.strip()))
+        seed = unicodedata.normalize('NFKD', seed)
+        return seed
 
     def mnemonic_encode(self, i):
         n = len(self.wordlist)
@@ -105,7 +113,7 @@ class Mnemonic(object):
             assert i == self.mnemonic_decode(seed)
             if is_old_seed(seed):
                 continue
-            if is_new_seed(seed, prefix):
+            if is_new_seed(self.prepare_seed(seed), prefix):
                 break
         print_error('%d words'%len(seed.split()))
         return seed
