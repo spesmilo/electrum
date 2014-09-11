@@ -7,15 +7,16 @@ from time import sleep
 from base64 import b64encode, b64decode
 
 import electrum_ltc as electrum
-from electrum_ltc_gui.qt.password_dialog import make_password_dialog, run_password_dialog
-from electrum_ltc_gui.qt.util import ok_cancel_buttons, EnterButton
 from electrum_ltc.account import BIP32_Account
 from electrum_ltc.bitcoin import EncodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.transaction import deserialize
 from electrum_ltc.wallet import NewWallet
+from electrum_ltc.util import print_error
 
+from electrum_ltc_gui.qt.password_dialog import make_password_dialog, run_password_dialog
+from electrum_ltc_gui.qt.util import ok_cancel_buttons, EnterButton
 
 try:
     from trezorlib.client import types
@@ -32,7 +33,7 @@ def log(msg):
     stderr.flush()
 
 def give_error(message):
-    QMessageBox.warning(QDialog(), _('Warning'), _(message), _('OK'))
+    print_error(message)
     raise Exception(message)
 
 class Plugin(BasePlugin):
@@ -132,9 +133,9 @@ class Plugin(BasePlugin):
         layout.addWidget(change_label_button,3,1)
 
         if d.exec_():
-          return True
+            return True
         else:
-          return False
+            return False
 
 
 class TrezorWallet(NewWallet):
@@ -351,7 +352,7 @@ class TrezorWallet(NewWallet):
     def check_proper_device(self):
         self.get_client().ping('t')
         if not self.device_checked:
-            address = self.addresses(False, False)[0]
+            address = self.addresses(False)[0]
             address_id = self.address_id(address)
             n = self.get_client().expand_path(address_id)
             device_address = self.get_client().get_address('Litecoin', n)
