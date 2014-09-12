@@ -69,6 +69,8 @@ class Mnemonic(object):
     def prepare_seed(self, seed):
         # normalize
         seed = unicodedata.normalize('NFKD', unicode(seed))
+        # lower
+        seed = seed.lower()
         # remove accents and whitespaces
         seed = u''.join([c for c in seed if not unicodedata.combining(c) and not c in string.whitespace])
         return seed

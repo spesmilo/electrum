@@ -200,10 +200,12 @@ class ElectrumWindow(QMainWindow):
         else:
             self.account_selector.hide()
 
+    def close_wallet(self):
+        self.wallet.stop_threads()
+        run_hook('close_wallet')
 
     def load_wallet(self, wallet):
         import electrum_ltc as electrum
-
         self.wallet = wallet
         self.update_wallet_format()
         # address used to create a dummy transaction and estimate transaction fee
@@ -257,12 +259,11 @@ class ElectrumWindow(QMainWindow):
             self.show_message("file not found "+ filename)
             return
 
-        self.wallet.stop_threads()
-
-        # create new wallet
+        # close current wallet
+        self.close_wallet()
+        # load new wallet
         wallet = Wallet(storage)
         wallet.start_threads(self.network)
-
         self.load_wallet(wallet)
 
 
@@ -1842,7 +1843,7 @@ class ElectrumWindow(QMainWindow):
         i = 0
         for key, value in mpk_dict.items():
             main_layout.addWidget(QLabel(key), i, 0)
-            mpk_text = QTextEdit()
+            mpk_text = QRTextEdit()
             mpk_text.setReadOnly(True)
             mpk_text.setMaximumHeight(170)
             mpk_text.setText(value)

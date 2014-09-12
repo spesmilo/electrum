@@ -220,6 +220,6 @@ class ElectrumGui:
         event = QtCore.QEvent(QtCore.QEvent.Clipboard)
         self.app.sendEvent(self.app.clipboard(), event)
 
-        wallet.stop_threads()
+        w.close_wallet()
 
 
