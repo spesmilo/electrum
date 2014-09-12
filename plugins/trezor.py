@@ -82,6 +82,8 @@ class Plugin(BasePlugin):
     @hook
     def load_wallet(self, wallet):
         self.wallet = wallet
+        if not self.wallet.check_proper_device():
+            QMessageBox.information(None, _('Error'), _("This wallet does not match your Trezor device"), _('OK'))
 
     @hook
     def installwizard_restore(self, wizard, storage):
