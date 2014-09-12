@@ -200,10 +200,12 @@ class ElectrumWindow(QMainWindow):
         else:
             self.account_selector.hide()
 
+    def close_wallet(self):
+        self.wallet.stop_threads()
+        run_hook('close_wallet')
 
     def load_wallet(self, wallet):
         import electrum
-
         self.wallet = wallet
         self.update_wallet_format()
         # address used to create a dummy transaction and estimate transaction fee
@@ -257,12 +259,11 @@ class ElectrumWindow(QMainWindow):
             self.show_message("file not found "+ filename)
             return
 
-        self.wallet.stop_threads()
-
-        # create new wallet
+        # close current wallet
+        self.close_wallet()
+        # load new wallet
         wallet = Wallet(storage)
         wallet.start_threads(self.network)
-
         self.load_wallet(wallet)
 
 
