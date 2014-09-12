@@ -1,7 +1,7 @@
 ELECTRUM_VERSION = "2.0"    # version of the client package
 PROTOCOL_VERSION = '0.9'    # protocol version requested
-NEW_SEED_VERSION = 8        # bip32 wallets
-OLD_SEED_VERSION = 4        # old electrum deterministic generation
+NEW_SEED_VERSION = 9        # electrum versions >= 2.0
+OLD_SEED_VERSION = 4        # electrum versions < 2.0
 
 
 # The hash of the mnemonic seed must begin with this

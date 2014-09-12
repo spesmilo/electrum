@@ -21,6 +21,7 @@ import hmac
 import math
 import hashlib
 import unicodedata
+import string
 
 import ecdsa
 import pbkdf2
@@ -29,20 +30,22 @@ from util import print_error
 from bitcoin import is_old_seed, is_new_seed
 import version
 
+
+filenames = {
+    'en':'english.txt',
+    'es':'spanish.txt',
+    'ja':'japanese.txt',
+    'pt':'portuguese.txt',
+}
+
+
+
 class Mnemonic(object):
-    # Seed derivation follows BIP39
+    # Seed derivation no longer follows BIP39
     # Mnemonic phrase uses a hash based checksum, instead of a wordlist-dependent checksum
 
-    def __init__(self, lang=None):
-        if lang is None:
-            filename = 'english.txt'
-        elif lang[0:2] == 'pt':
-            filename = 'portuguese.txt'
-        elif lang[0:2] == 'ja':
-            filename = 'japanese.txt'
-        else:
-            filename = 'english.txt'
-
+    def __init__(self, lang='en'):
+        filename = filenames.get(lang[0:2], 'english.txt')
         path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
         s = open(path,'r').read().strip()
         s = unicodedata.normalize('NFKD', s.decode('utf8'))
@@ -59,11 +62,16 @@ class Mnemonic(object):
     @classmethod
     def mnemonic_to_seed(self, mnemonic, passphrase):
         PBKDF2_ROUNDS = 2048
+        mnemonic = self.prepare_seed(mnemonic)
         return pbkdf2.PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
 
     @classmethod
     def prepare_seed(self, seed):
-        return unicodedata.normalize('NFKD', unicode(seed.strip()))
+        # normalize
+        seed = unicodedata.normalize('NFKD', unicode(seed))
+        # remove accents and whitespaces
+        seed = u''.join([c for c in seed if not unicodedata.combining(c) and not c in string.whitespace])
+        return seed
 
     def mnemonic_encode(self, i):
         n = len(self.wordlist)
