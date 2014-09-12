@@ -1844,7 +1844,7 @@ class ElectrumWindow(QMainWindow):
         i = 0
         for key, value in mpk_dict.items():
             main_layout.addWidget(QLabel(key), i, 0)
-            mpk_text = QTextEdit()
+            mpk_text = QRTextEdit()
             mpk_text.setReadOnly(True)
             mpk_text.setMaximumHeight(170)
             mpk_text.setText(value)
