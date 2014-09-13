@@ -1605,34 +1605,33 @@ class Wallet(object):
 
     def __new__(self, storage):
 
-        if not storage.file_exists:
-            return NewWallet(storage)
-
-        seed_version = storage.get('seed_version')
-        if not seed_version:
-            seed_version = OLD_SEED_VERSION if len(storage.get('master_public_key','')) == 128 else NEW_SEED_VERSION
-
-        if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:
-            msg = "This wallet seed is not supported anymore."
-            if seed_version in [5, 7, 8]:
-                msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
-            print msg
-            sys.exit(1)
-
-        if seed_version == OLD_SEED_VERSION:
-            return OldWallet(storage)
-
-        config = storage.config
         run_hook('add_wallet_types', wallet_types)
         wallet_type = storage.get('wallet_type')
         if wallet_type:
-            for cat, t, name, WalletClass in wallet_types:
+            for cat, t, name, c in wallet_types:
                 if t == wallet_type:
-                    return WalletClass(storage)
+                    WalletClass = c
+                    break
             else:
                 raise BaseException('unknown wallet type', wallet_type)
         else:
-            return NewWallet(storage)
+            seed_version = storage.get('seed_version')
+            if not seed_version:
+                seed_version = OLD_SEED_VERSION if len(storage.get('master_public_key','')) == 128 else NEW_SEED_VERSION
+
+            if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:
+                msg = "This wallet seed is not supported anymore."
+                if seed_version in [5, 7, 8]:
+                    msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
+                print msg
+                sys.exit(1)
+
+            if seed_version == OLD_SEED_VERSION:
+                WalletClass = OldWallet
+            else:
+                WalletClass = NewWallet
+
+        return WalletClass(storage)
 
     @classmethod
     def is_seed(self, seed):
