@@ -110,8 +110,8 @@ class InstallWizard(QDialog):
         return action, wallet_type
 
 
-    def verify_seed(self, seed, sid):
-        r = self.enter_seed_dialog(MSG_VERIFY_SEED, sid)
+    def verify_seed(self, seed, sid, func=None):
+        r = self.enter_seed_dialog(MSG_VERIFY_SEED, sid, func)
         if not r:
             return
 

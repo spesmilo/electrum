@@ -719,7 +719,7 @@ class Abstract_Wallet(object):
             coins = self.get_unspent_coins(domain)
 
         amount = sum( map(lambda x:x[2], outputs) )
-        total = 0
+        total = fee = 0
         inputs = []
         tx = Transaction(inputs, outputs)
         for item in coins:
@@ -1080,7 +1080,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         if self.seed:
             raise Exception("a seed exists")
 
-        self.seed_version, self.seed = self.prepare_seed(seed)
+        self.seed_version, self.seed = self.format_seed(seed)
         if password:
             self.seed = pw_encode( self.seed, password)
             self.use_encryption = True
@@ -1301,8 +1301,8 @@ class BIP32_Wallet(Deterministic_Wallet):
         lang = self.storage.config.get('language')
         return Mnemonic(lang).make_seed()
 
-    def prepare_seed(self, seed):
-        return NEW_SEED_VERSION, Mnemonic.prepare_seed(seed)
+    def format_seed(self, seed):
+        return NEW_SEED_VERSION, ' '.join(seed.split())
 
 
 class BIP32_Simple_Wallet(BIP32_Wallet):
@@ -1515,7 +1515,7 @@ class OldWallet(Deterministic_Wallet):
         seed = random_seed(128)
         return ' '.join(old_mnemonic.mn_encode(seed))
 
-    def prepare_seed(self, seed):
+    def format_seed(self, seed):
         import old_mnemonic
         # see if seed was entered as hex
         seed = seed.strip()
@@ -1604,8 +1604,25 @@ class Wallet(object):
     type when passed a WalletStorage instance."""
 
     def __new__(self, storage):
-        config = storage.config
 
+        if not storage.file_exists:
+            return NewWallet(storage)
+
+        seed_version = storage.get('seed_version')
+        if not seed_version:
+            seed_version = OLD_SEED_VERSION if len(storage.get('master_public_key','')) == 128 else NEW_SEED_VERSION
+
+        if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:
+            msg = "This wallet seed is not supported anymore."
+            if seed_version in [5, 7, 8]:
+                msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
+            print msg
+            sys.exit(1)
+
+        if seed_version == OLD_SEED_VERSION:
+            return OldWallet(storage)
+
+        config = storage.config
         run_hook('add_wallet_types', wallet_types)
         wallet_type = storage.get('wallet_type')
         if wallet_type:
@@ -1614,24 +1631,8 @@ class Wallet(object):
                     return WalletClass(storage)
             else:
                 raise BaseException('unknown wallet type', wallet_type)
-
-        if not storage.file_exists:
-            seed_version = NEW_SEED_VERSION
         else:
-            seed_version = storage.get('seed_version')
-            if not seed_version:
-                seed_version = OLD_SEED_VERSION if len(storage.get('master_public_key')) == 128 else NEW_SEED_VERSION
-
-        if seed_version == OLD_SEED_VERSION:
-            return OldWallet(storage)
-        elif seed_version == NEW_SEED_VERSION:
             return NewWallet(storage)
-        else:
-            msg = "This wallet seed is not supported."
-            if seed_version in [5, 7]:
-                msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
-            print msg
-            sys.exit(1)
 
     @classmethod
     def is_seed(self, seed):
