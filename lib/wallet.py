@@ -698,8 +698,10 @@ class Abstract_Wallet(object):
 
     def estimated_fee(self, tx):
         estimated_size = len(tx.serialize(-1))/2
-        #print_error('estimated_size', estimated_size)
-        return int(self.fee_per_kb*estimated_size/1024.)
+        fee = int(self.fee_per_kb*estimated_size/1024.)
+        if fee < MIN_RELAY_TX_FEE: # and tx.requires_fee(self.verifier):
+            fee = MIN_RELAY_TX_FEE
+        return fee
 
     def make_unsigned_transaction(self, outputs, fixed_fee=None, change_addr=None, domain=None, coins=None ):
         # check outputs
