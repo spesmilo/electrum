@@ -1335,7 +1335,7 @@ class BIP32_HD_Wallet(BIP32_Wallet):
     def can_create_accounts(self):
         return self.root_name in self.master_private_keys.keys()
 
-    def addresses(self, b):
+    def addresses(self, b=True):
         l = BIP32_Wallet.addresses(self, b)
         if self.next_account:
             next_address = self.next_account[2]
