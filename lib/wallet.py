@@ -1613,7 +1613,7 @@ class Wallet(object):
 
         if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:
             msg = "This wallet seed is not supported anymore."
-            if seed_version in [5, 7, 8]:
+            if seed_version in [5, 7, 8, 9]:
                 msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
             print msg
             sys.exit(1)
