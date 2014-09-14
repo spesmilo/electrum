@@ -1091,7 +1091,7 @@ class ElectrumWindow(QMainWindow):
             self.show_message(str(e))
             return
 
-        if tx.requires_fee(self.wallet.verifier) and tx.get_fee() < MIN_RELAY_TX_FEE:
+        if tx.get_fee() < MIN_RELAY_TX_FEE and tx.requires_fee(self.wallet.verifier):
             QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
             return
 
@@ -2460,7 +2460,7 @@ class ElectrumWindow(QMainWindow):
         keys_e.setTabChangesFocus(True)
         vbox.addWidget(keys_e)
 
-        h, address_e = address_field(self.wallet.addresses())
+        h, address_e = address_field(self.wallet.addresses(False))
         vbox.addLayout(h)
 
         vbox.addStretch(1)

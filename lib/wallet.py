@@ -698,8 +698,10 @@ class Abstract_Wallet(object):
 
     def estimated_fee(self, tx):
         estimated_size = len(tx.serialize(-1))/2
-        #print_error('estimated_size', estimated_size)
-        return int(self.fee_per_kb*estimated_size/1024.)
+        fee = int(self.fee_per_kb*estimated_size/1024.)
+        if fee < MIN_RELAY_TX_FEE: # and tx.requires_fee(self.verifier):
+            fee = MIN_RELAY_TX_FEE
+        return fee
 
     def make_unsigned_transaction(self, outputs, fixed_fee=None, change_addr=None, domain=None, coins=None ):
         # check outputs
@@ -1335,7 +1337,7 @@ class BIP32_HD_Wallet(BIP32_Wallet):
     def can_create_accounts(self):
         return self.root_name in self.master_private_keys.keys()
 
-    def addresses(self, b):
+    def addresses(self, b=True):
         l = BIP32_Wallet.addresses(self, b)
         if self.next_account:
             next_address = self.next_account[2]
@@ -1605,6 +1607,17 @@ class Wallet(object):
 
     def __new__(self, storage):
 
+        seed_version = storage.get('seed_version')
+        if not seed_version:
+            seed_version = OLD_SEED_VERSION if len(storage.get('master_public_key','')) == 128 else NEW_SEED_VERSION
+
+        if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:
+            msg = "This wallet seed is not supported anymore."
+            if seed_version in [5, 7, 8, 9]:
+                msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
+            print msg
+            sys.exit(1)
+
         run_hook('add_wallet_types', wallet_types)
         wallet_type = storage.get('wallet_type')
         if wallet_type:
@@ -1615,17 +1628,6 @@ class Wallet(object):
             else:
                 raise BaseException('unknown wallet type', wallet_type)
         else:
-            seed_version = storage.get('seed_version')
-            if not seed_version:
-                seed_version = OLD_SEED_VERSION if len(storage.get('master_public_key','')) == 128 else NEW_SEED_VERSION
-
-            if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:
-                msg = "This wallet seed is not supported anymore."
-                if seed_version in [5, 7, 8]:
-                    msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
-                print msg
-                sys.exit(1)
-
             if seed_version == OLD_SEED_VERSION:
                 WalletClass = OldWallet
             else:
