@@ -80,7 +80,7 @@ def aes_decrypt_no_strip(key, iv, data):
     return decr
 
 def aes_decrypt_with_iv(key, iv, data):
-    aes_decrypt_no_strip(key, iv, data)
+    decr = aes_decrypt_no_strip(key, iv, data)
     decr = strip_PKCS7_padding(decr)
     return decr
 

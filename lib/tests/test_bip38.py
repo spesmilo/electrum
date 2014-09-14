@@ -1,7 +1,7 @@
 import unittest
 from lib.bip38 import bip38_decrypt
 
-class TestUtil(unittest.TestCase):
+class TestBip38(unittest.TestCase):
 
     def test_no_ec_mult_no_comp_1(self):
         passphrase = 'TestingOneTwoThree'
