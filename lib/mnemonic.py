@@ -101,7 +101,7 @@ class Mnemonic(object):
 
     def __init__(self, lang='en'):
         filename = filenames.get(lang[0:2], 'english.txt')
-        path = os.path.join(util.appdata_dir(), 'wordlist', filename)
+        path = os.path.join(util.data_dir(), 'wordlist', filename)
         s = open(path,'r').read().strip()
         s = unicodedata.normalize('NFKD', s.decode('utf8'))
         lines = s.split('\n')
