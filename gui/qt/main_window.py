@@ -1414,10 +1414,8 @@ class ElectrumWindow(QMainWindow):
 
     def create_account_menu(self, position, k, item):
         menu = QMenu()
-        if item.isExpanded():
-            menu.addAction(_("Minimize"), lambda: self.account_set_expanded(item, k, False))
-        else:
-            menu.addAction(_("Maximize"), lambda: self.account_set_expanded(item, k, True))
+        exp = item.isExpanded()
+        menu.addAction(_("Minimize") if exp else _("Maximize"), lambda: self.account_set_expanded(item, k, not exp))
         menu.addAction(_("Rename"), lambda: self.edit_account_label(k))
         if self.wallet.seed_version > 4:
             menu.addAction(_("View details"), lambda: self.show_account_details(k))
