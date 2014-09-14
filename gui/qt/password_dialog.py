@@ -20,6 +20,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 from electrum.i18n import _
 from util import *
+import re
 
 
 
@@ -60,7 +61,9 @@ def make_password_dialog(self, wallet, msg, new_pass=True):
         grid.addWidget(self.pw, 0, 1)
 
     grid.addWidget(QLabel(_('New Password') if new_pass else _('Password')), 1, 0)
+    self.password_help = HelpButton(_('Password must be at least 6 characters') + '\n\n' + _('It should contain a number, an uppercase alphabet and a special character'))
     grid.addWidget(self.new_pw, 1, 1)
+    grid.addWidget(self.password_help,1,4)
 
     grid.addWidget(QLabel(_('Confirm Password')), 2, 0)
     grid.addWidget(self.conf_pw, 2, 1)
@@ -84,12 +87,6 @@ def run_password_dialog(self, wallet, parent):
     new_password = unicode(self.new_pw.text())
     new_password2 = unicode(self.conf_pw.text())
 
-    #Check the length
-    if len(new_password) < 6 :
-        QMessageBox.warning(parent, _('Error'), _('Password id too short'), _('OK'))
-        # Retry
-        return run_password_dialog(self, wallet, parent)
-
     if new_password != new_password2:
         QMessageBox.warning(parent, _('Error'), _('Passwords do not match'), _('OK'))
         # Retry
@@ -97,6 +94,26 @@ def run_password_dialog(self, wallet, parent):
 
     if not new_password:
         new_password = None
+    else:
+        #Check for password strength if user chooses to enter a password
+        #Check the length
+        if len(new_password) < 6 :
+            QMessageBox.warning(parent, _('Error'), _('Password is too short. It must be at least 6 characters') + '\n\n' + _('Click help beside the password button for more information'), _('OK'))
+            # Retry
+            return run_password_dialog(self, wallet, parent)
+        #Check for uppercase characters
+        if new_password.islower() or new_password.isnumeric():
+            QMessageBox.warning(parent, _('Error'), _('Password must contain at least one Upper case alphabet') + '\n\n' + _('Click help beside the password button for more information'), _('OK'))
+            # Retry
+            return run_password_dialog(self, wallet, parent)
+        #Check for special characters
+        if (re.match('^[a-zA-Z0-9]*$',new_password)):
+            QMessageBox.warning(parent, _('Error'), _('Password must contain at least one special character') + '\n\n' + _('Click help beside the password button for more information'), _('OK'))
+            # Retry
+            return run_password_dialog(self, wallet, parent)
+
+
+
 
     return True, password, new_password
 
