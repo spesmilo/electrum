@@ -448,6 +448,7 @@ class TrezorQtGuiMixin(object):
         d = QDialog(None)
         d.setModal(1)
         d.setWindowTitle(_("Enter PIN"))
+        d.setWindowFlags(d.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)
         matrix = PinMatrixWidget()
 
         vbox = QVBoxLayout()
