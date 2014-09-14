@@ -84,6 +84,12 @@ def run_password_dialog(self, wallet, parent):
     new_password = unicode(self.new_pw.text())
     new_password2 = unicode(self.conf_pw.text())
 
+    #Check the length
+    if len(new_password) < 6 :
+        QMessageBox.warning(parent, _('Error'), _('Password id too short'), _('OK'))
+        # Retry
+        return run_password_dialog(self, wallet, parent)
+
     if new_password != new_password2:
         QMessageBox.warning(parent, _('Error'), _('Passwords do not match'), _('OK'))
         # Retry
