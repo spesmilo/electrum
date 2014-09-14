@@ -1428,6 +1428,7 @@ class ElectrumWindow(QMainWindow):
     def delete_pending_account(self, k):
         self.wallet.delete_pending_account(k)
         self.update_address_tab()
+        self.update_account_selector()
 
     def create_receive_menu(self, position):
         # fixme: this function apparently has a side effect.
@@ -1829,6 +1830,7 @@ class ElectrumWindow(QMainWindow):
 
         self.wallet.create_pending_account(name, password)
         self.update_address_tab()
+        self.update_account_selector()
         self.tabs.setCurrentIndex(3)
 
 
