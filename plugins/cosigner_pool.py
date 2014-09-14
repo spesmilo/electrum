@@ -99,7 +99,7 @@ class Plugin(BasePlugin):
 
     def enable(self):
         self.set_enabled(True)
-        self.init()
+        self.init_qt()
         if self.win.wallet:
             self.load_wallet(self.win.wallet)
         return True
