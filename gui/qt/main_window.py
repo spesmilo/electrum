@@ -1226,6 +1226,8 @@ class ElectrumWindow(QMainWindow):
         self.payto_e.setText(pr.domain)
         self.amount_e.setText(self.format_amount(pr.get_amount()))
         self.message_e.setText(pr.get_memo())
+        # signal to set fee
+        self.amount_e.textEdited.emit("")
 
     def payment_request_error(self):
         self.do_clear()
