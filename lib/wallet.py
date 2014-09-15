@@ -39,8 +39,6 @@ import bitcoin
 from synchronizer import WalletSynchronizer
 from mnemonic import Mnemonic
 
-COINBASE_MATURITY = 100
-DUST_THRESHOLD = 5430
 
 
 # internal ID for imported account
@@ -163,8 +161,7 @@ class Abstract_Wallet(object):
         self.addressbook           = storage.get('contacts', [])
 
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
-
-        self.fee_per_kb            = int(storage.get('fee_per_kb', 10000))
+        self.fee_per_kb            = int(storage.get('fee_per_kb', RECOMMENDED_FEE))
 
         # This attribute is set when wallet.start_threads is called.
         self.synchronizer = None
