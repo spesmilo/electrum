@@ -76,9 +76,7 @@ def theme_dirs_from_prefix(prefix):
 
 def load_theme_paths():
     theme_paths = {}
-    prefixes = (util.local_data_dir(), util.appdata_dir())
-    for prefix in prefixes:
-        theme_paths.update(theme_dirs_from_prefix(prefix))
+    theme_paths.update(theme_dirs_from_prefix(util.data_dir()))
     return theme_paths
 
 

@@ -32,6 +32,7 @@ if (len(sys.argv) > 1 and (sys.argv[1] == "sdist")) or (platform.system() != 'Wi
         if os.path.exists('locale/%s/LC_MESSAGES/electrum.mo' % lang):
             data_files.append((os.path.join(usr_share, 'locale/%s/LC_MESSAGES' % lang), ['locale/%s/LC_MESSAGES/electrum.mo' % lang]))
 
+
 appdata_dir = util.appdata_dir()
 if not os.access(appdata_dir, os.W_OK):
     appdata_dir = os.path.join(usr_share, "electrum-ltc")
@@ -51,6 +52,9 @@ data_files += [
         "data/dark/style.css"
     ])
 ]
+
+for lang in os.listdir('data/wordlist'):
+    data_files.append((os.path.join(appdata_dir, 'wordlist'), ['data/wordlist/%s' % lang]))
 
 # replace tlslite because of https://github.com/trevp/tlslite/issues/15
 os.system("pip install http://download.electrum.org/tlslite-0.4.5.tar.gz")
@@ -92,7 +96,6 @@ setup(
         'electrum_ltc.verifier',
         'electrum_ltc.version',
         'electrum_ltc.wallet',
-        'electrum_ltc.wallet_bitkey',
         'electrum_ltc.x509',
         'electrum_ltc_gui.gtk',
         'electrum_ltc_gui.qt.__init__',

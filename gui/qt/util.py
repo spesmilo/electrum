@@ -210,9 +210,9 @@ class MyTreeWidget(QTreeWidget):
     def __init__(self, parent):
         QTreeWidget.__init__(self, parent)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.connect(self, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.itemactivated)
+        self.itemActivated.connect(self.on_activated)
 
-    def itemactivated(self, item):
+    def on_activated(self, item):
         if not item: return
         for i in range(0,self.viewport().height()/5):
             if self.itemAt(QPoint(0,i*5)) == item:
