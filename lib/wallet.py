@@ -693,6 +693,10 @@ class Abstract_Wallet(object):
 
         return default_label
 
+    def get_tx_fee(self, tx):
+        # this method can be overloaded
+        return tx.get_fee()
+
     def estimated_fee(self, tx):
         estimated_size = len(tx.serialize(-1))/2
         fee = int(self.fee_per_kb*estimated_size/1000.)

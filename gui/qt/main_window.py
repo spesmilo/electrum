@@ -952,7 +952,7 @@ class ElectrumWindow(QMainWindow):
                 tx = self.wallet.make_unsigned_transaction(outputs, fee, coins = self.get_coins())
                 self.not_enough_funds = (tx is None)
                 if not is_fee:
-                    fee = tx.get_fee() if tx else None
+                    fee = self.wallet.get_tx_fee(tx) if tx else None
                     self.fee_e.setAmount(fee)
 
         self.payto_e.textChanged.connect(lambda:text_edited(False))
