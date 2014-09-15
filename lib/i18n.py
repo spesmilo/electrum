@@ -25,6 +25,7 @@ else:
 
 language = gettext.translation('electrum', LOCALE_DIR, fallback = True)
 
+
 def _(x):
     global language
     return language.ugettext(x)
