@@ -21,6 +21,7 @@ from PyQt4.QtCore import *
 from electrum.i18n import _
 from util import *
 import re
+import passwordmeter
 
 
 
@@ -103,49 +104,26 @@ def run_password_dialog(self, wallet, parent):
 
     return True, password, new_password
 
-def check_password_strength(password):
-
-    '''
-    Check the strength of the password entered by the user and return back the same
-    :param password: password entered by user in New Password
-    :return: password strength Weak or Medium or Strong
-    '''
-
-    password_strength = {-1:"Empty",0:"Too short",1:"Weak",2:"Medium",3:"Medium",4:"Strong",5:"Strong"}
-    score = -1
-
-    if len(password) == 0:
-        return password_strength[score]
-    elif len(password) < 6:
-        score = score + 1
-        return password_strength[score]
-    else:
-        score += 1
-
-    if re.search(r'[A-Z]', password):
-        score += 1
-
-    if re.search(r'[a-z]', password):
-        score += 1
-
-    if re.search(r'[0-9]', password):
-        score += 1
-
-    if not re.match("^[a-zA-Z0-9]*$",password):
-        score += 1
-
-    return password_strength[score]
 
 def update_password_strength(pw_strength_label,password):
 
     '''
-    call the function check_password_strength and update the label pw_strength interactively as the user is typing the password
+    call the passwordmeter module and update the label pw_strength interactively as the user is typing the password
     :param pw_strength_label: the label pw_strength
     :param password: password entered in New Password text box
     :return: None
     '''
-    colors = {"Empty":"Red","Too short":"Red","Weak":"Red","Medium":"Blue","Strong":"Green"}
-    strength = check_password_strength(password)
+    colors = {"Empty":"Red","Weak":"Red","Medium":"Blue","Strong":"Green"}
+    if len(password) == 0:
+        strength = "Empty"
+    else:
+        entropy_value = passwordmeter.test(str(password))[0]
+        if 0 <= entropy_value <= 0.33 :
+            strength = "Weak"
+        elif 0.33 < entropy_value <= 0.66 :
+            strength = "Medium"
+        else:
+            strength = "Strong"
     pw_strength_label.setText("Password Strength:<font color=" + colors[strength] + ">" + strength + "</font>")
 
 
