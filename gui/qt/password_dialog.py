@@ -31,6 +31,8 @@ def make_password_dialog(self, wallet, msg, new_pass=True):
     self.new_pw.setEchoMode(2)
     self.conf_pw = QLineEdit()
     self.conf_pw.setEchoMode(2)
+    #Password Strength Label
+    self.pw_strength = QLabel("Password Strength:<font color=""red""> Empty </font> ")
     
     vbox = QVBoxLayout()
     label = QLabel(msg)
@@ -62,9 +64,15 @@ def make_password_dialog(self, wallet, msg, new_pass=True):
     grid.addWidget(QLabel(_('New Password') if new_pass else _('Password')), 1, 0)
     grid.addWidget(self.new_pw, 1, 1)
 
+    #add Password Strength Label to grid
+    grid.addWidget(self.pw_strength, 1, 2)
+
     grid.addWidget(QLabel(_('Confirm Password')), 2, 0)
     grid.addWidget(self.conf_pw, 2, 1)
     vbox.addLayout(grid)
+
+    #Add an event handler to update password strength interactively
+    self.connect(self.new_pw, SIGNAL("textChanged(QString)"), lambda: update_password_strength(self.pw_strength,self.new_pw.text()))
 
     vbox.addStretch(1)
     vbox.addLayout(ok_cancel_buttons(self))
@@ -93,6 +101,59 @@ def run_password_dialog(self, wallet, parent):
         new_password = None
 
     return True, password, new_password
+
+
+def check_password_strength(password):
+
+    '''
+    Check the strength of the password entered by the user and return back the same
+    A higher weightage is given to the length
+    :param password: password entered by user in New Password
+    :return: password strength Weak or Medium or Strong
+    '''
+
+    entropy = 0
+
+    if len(password) == 0:
+        return "Empty"
+
+    for character in str(password):
+        if character.islower():
+            entropy += 1
+        elif character.isupper():
+            entropy += 1.5
+        elif character.isdigit():
+            entropy += 1.5
+        else:
+            entropy += 1.5
+
+    #Discouraging the use of same characters
+    distinct = ''.join(set(str(password)))
+    if len(distinct) < 5 :
+        entropy = 0
+
+    if entropy < 15:
+        strength = "Weak"
+    elif 15 <= entropy < 20:
+        strength = "Medium"
+    else:
+        strength = "Strong"
+
+    return strength
+
+
+def update_password_strength(pw_strength_label,password):
+
+    '''
+    call the passwordmeter module and update the label pw_strength interactively as the user is typing the password
+    :param pw_strength_label: the label pw_strength
+    :param password: password entered in New Password text box
+    :return: None
+    '''
+    colors = {"Empty":"Red","Weak":"Red","Medium":"Blue","Strong":"Green"}
+    strength = check_password_strength(password)
+    pw_strength_label.setText("Password Strength:<font color=" + colors[strength] + ">" + strength + "</font>")
+
 
 
 
