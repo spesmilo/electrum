@@ -32,6 +32,8 @@ def make_password_dialog(self, wallet, msg, new_pass=True):
     self.new_pw.setEchoMode(2)
     self.conf_pw = QLineEdit()
     self.conf_pw.setEchoMode(2)
+    #Password Strength Label
+    self.pw_strength = QLabel("Password Strength:<font color=""red""> Empty </font> ")
     
     vbox = QVBoxLayout()
     label = QLabel(msg)
@@ -61,13 +63,17 @@ def make_password_dialog(self, wallet, msg, new_pass=True):
         grid.addWidget(self.pw, 0, 1)
 
     grid.addWidget(QLabel(_('New Password') if new_pass else _('Password')), 1, 0)
-    self.password_help = HelpButton(_('Password must be at least 6 characters') + '\n\n' + _('It should contain a number, an uppercase alphabet and a special character'))
     grid.addWidget(self.new_pw, 1, 1)
-    grid.addWidget(self.password_help,1,4)
+
+    #add Password Strength Label to grid
+    grid.addWidget(self.pw_strength, 1, 2)
 
     grid.addWidget(QLabel(_('Confirm Password')), 2, 0)
     grid.addWidget(self.conf_pw, 2, 1)
     vbox.addLayout(grid)
+
+    #Add an event handler to update password strength interactively
+    self.connect(self.new_pw, SIGNAL("textChanged(QString)"), lambda: update_password_strength(self.pw_strength,self.new_pw.text()))
 
     vbox.addStretch(1)
     vbox.addLayout(ok_cancel_buttons(self))
@@ -94,28 +100,54 @@ def run_password_dialog(self, wallet, parent):
 
     if not new_password:
         new_password = None
-    else:
-        #Check for password strength if user chooses to enter a password
-        #Check the length
-        if len(new_password) < 6 :
-            QMessageBox.warning(parent, _('Error'), _('Password is too short. It must be at least 6 characters') + '\n\n' + _('Click help beside the password button for more information'), _('OK'))
-            # Retry
-            return run_password_dialog(self, wallet, parent)
-        #Check for uppercase characters
-        if new_password.islower() or new_password.isnumeric():
-            QMessageBox.warning(parent, _('Error'), _('Password must contain at least one Upper case alphabet') + '\n\n' + _('Click help beside the password button for more information'), _('OK'))
-            # Retry
-            return run_password_dialog(self, wallet, parent)
-        #Check for special characters
-        if (re.match('^[a-zA-Z0-9]*$',new_password)):
-            QMessageBox.warning(parent, _('Error'), _('Password must contain at least one special character') + '\n\n' + _('Click help beside the password button for more information'), _('OK'))
-            # Retry
-            return run_password_dialog(self, wallet, parent)
-
-
-
 
     return True, password, new_password
+
+def check_password_strength(password):
+
+    '''
+    Check the strength of the password entered by the user and return back the same
+    :param password: password entered by user in New Password
+    :return: password strength Weak or Medium or Strong
+    '''
+
+    password_strength = {-1:"Empty",0:"Too short",1:"Weak",2:"Medium",3:"Medium",4:"Strong",5:"Strong"}
+    score = -1
+
+    if len(password) == 0:
+        return password_strength[score]
+    elif len(password) < 6:
+        score = score + 1
+        return password_strength[score]
+    else:
+        score += 1
+
+    if re.search(r'[A-Z]', password):
+        score += 1
+
+    if re.search(r'[a-z]', password):
+        score += 1
+
+    if re.search(r'[0-9]', password):
+        score += 1
+
+    if not re.match("^[a-zA-Z0-9]*$",password):
+        score += 1
+
+    return password_strength[score]
+
+def update_password_strength(pw_strength_label,password):
+
+    '''
+    call the function check_password_strength and update the label pw_strength interactively as the user is typing the password
+    :param pw_strength_label: the label pw_strength
+    :param password: password entered in New Password text box
+    :return: None
+    '''
+    colors = {"Empty":"Red","Too short":"Red","Weak":"Red","Medium":"Blue","Strong":"Green"}
+    strength = check_password_strength(password)
+    pw_strength_label.setText("Password Strength:<font color=" + colors[strength] + ">" + strength + "</font>")
+
 
 
 
