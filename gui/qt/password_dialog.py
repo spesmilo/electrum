@@ -20,8 +20,6 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 from electrum.i18n import _
 from util import *
-import re
-import passwordmeter
 
 
 
@@ -105,6 +103,45 @@ def run_password_dialog(self, wallet, parent):
     return True, password, new_password
 
 
+def check_password_strength(password):
+
+    '''
+    Check the strength of the password entered by the user and return back the same
+    A higher weightage is given to the length
+    :param password: password entered by user in New Password
+    :return: password strength Weak or Medium or Strong
+    '''
+
+    entropy = 0
+
+    if len(password) == 0:
+        return "Empty"
+
+    for character in str(password):
+        if character.islower():
+            entropy += 1
+        elif character.isupper():
+            entropy += 1.5
+        elif character.isdigit():
+            entropy += 1.5
+        else:
+            entropy += 1.5
+
+    #Discouraging the use of same characters
+    distinct = ''.join(set(str(password)))
+    if len(distinct) < 5 :
+        entropy = 0
+
+    if entropy < 15:
+        strength = "Weak"
+    elif 15 <= entropy < 20:
+        strength = "Medium"
+    else:
+        strength = "Strong"
+
+    return strength
+
+
 def update_password_strength(pw_strength_label,password):
 
     '''
@@ -114,16 +151,7 @@ def update_password_strength(pw_strength_label,password):
     :return: None
     '''
     colors = {"Empty":"Red","Weak":"Red","Medium":"Blue","Strong":"Green"}
-    if len(password) == 0:
-        strength = "Empty"
-    else:
-        entropy_value = passwordmeter.test(str(password))[0]
-        if 0 <= entropy_value <= 0.33 :
-            strength = "Weak"
-        elif 0.33 < entropy_value <= 0.66 :
-            strength = "Medium"
-        else:
-            strength = "Strong"
+    strength = check_password_strength(password)
     pw_strength_label.setText("Password Strength:<font color=" + colors[strength] + ">" + strength + "</font>")
 
 
