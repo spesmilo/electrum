@@ -950,7 +950,7 @@ class ElectrumWindow(QMainWindow):
                 tx = self.wallet.make_unsigned_transaction(outputs, fee, coins = self.get_coins())
                 self.not_enough_funds = (tx is None)
                 if not is_fee:
-                    fee = tx.get_fee() if tx else None
+                    fee = self.wallet.get_tx_fee(tx) if tx else None
                     self.fee_e.setAmount(fee)
 
         self.payto_e.textChanged.connect(lambda:text_edited(False))
@@ -1224,6 +1224,8 @@ class ElectrumWindow(QMainWindow):
         self.payto_e.setText(pr.domain)
         self.amount_e.setText(self.format_amount(pr.get_amount()))
         self.message_e.setText(pr.get_memo())
+        # signal to set fee
+        self.amount_e.textEdited.emit("")
 
     def payment_request_error(self):
         self.do_clear()
@@ -2568,7 +2570,8 @@ class ElectrumWindow(QMainWindow):
         widgets.append((nz_label, nz, nz_help))
 
         fee_label = QLabel(_('Transaction fee per kb') + ':')
-        fee_help = HelpButton(_('Fee per kilobyte of transaction.') + '\n' + _('Recommended value') + ': ' + self.format_amount(10000) + ' ' + self.base_unit())
+        fee_help = HelpButton(_('Fee per kilobyte of transaction.') + '\n' \
+                              + _('Recommended value') + ': ' + self.format_amount(bitcoin.RECOMMENDED_FEE) + ' ' + self.base_unit())
         fee_e = BTCAmountEdit(self.get_decimal_point)
         fee_e.setAmount(self.wallet.fee_per_kb)
         if not self.config.is_modifiable('fee_per_kb'):

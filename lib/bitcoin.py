@@ -38,9 +38,11 @@ except ImportError:
 
 ################################## transactions
 
-MIN_RELAY_TX_FEE = 100000
+DUST_THRESHOLD = 0
 DUST_SOFT_LIMIT = 100000
-
+MIN_RELAY_TX_FEE = 100000
+RECOMMENDED_FEE = 100000
+COINBASE_MATURITY = 100
 
 # AES encryption
 EncodeAES = lambda secret, s: base64.b64encode(aes.encryptData(secret,s))

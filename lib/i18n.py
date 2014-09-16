@@ -26,6 +26,7 @@ else:
 
 language = gettext.translation('electrum', LOCALE_DIR, fallback = True)
 
+
 def _(x):
     global language
     dic = [('Bitcoin', 'Litecoin'), ('bitcoin', 'litecoin'), (u'比特币', u'莱特币')]

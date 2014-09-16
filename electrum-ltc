@@ -428,6 +428,7 @@ if __name__ == '__main__':
 
     if cmd.name == 'check_seed':
         args.append(long(options.entropy))
+        args.append(options.language)
 
 
     # run the command
