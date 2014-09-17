@@ -21,6 +21,7 @@ from PyQt4.QtCore import *
 from electrum.i18n import _
 from util import *
 import re
+import math
 
 
 
@@ -32,8 +33,6 @@ def make_password_dialog(self, wallet, msg, new_pass=True):
     self.new_pw.setEchoMode(2)
     self.conf_pw = QLineEdit()
     self.conf_pw.setEchoMode(2)
-    #Password Strength Label
-    self.pw_strength = QLabel("Password Strength:<font color=""red""> Empty </font> ")
     
     vbox = QVBoxLayout()
     label = QLabel(msg)
@@ -65,15 +64,15 @@ def make_password_dialog(self, wallet, msg, new_pass=True):
     grid.addWidget(QLabel(_('New Password') if new_pass else _('Password')), 1, 0)
     grid.addWidget(self.new_pw, 1, 1)
 
-    #add Password Strength Label to grid
-    grid.addWidget(self.pw_strength, 1, 2)
-
     grid.addWidget(QLabel(_('Confirm Password')), 2, 0)
     grid.addWidget(self.conf_pw, 2, 1)
     vbox.addLayout(grid)
 
-    #Add an event handler to update password strength interactively
-    self.connect(self.new_pw, SIGNAL("textChanged(QString)"), lambda: update_password_strength(self.pw_strength,self.new_pw.text()))
+    #Password Strength Label
+    self.pw_strength = QLabel()
+    grid.addWidget(self.pw_strength, 3, 0, 1, 2)
+    self.new_pw.textChanged.connect(lambda: update_password_strength(self.pw_strength, self.new_pw.text()))
+    update_password_strength(self.pw_strength, self.new_pw.text())
 
     vbox.addStretch(1)
     vbox.addLayout(ok_cancel_buttons(self))
@@ -110,31 +109,17 @@ def check_password_strength(password):
     :param password: password entered by user in New Password
     :return: password strength Weak or Medium or Strong
     '''
+    password = unicode(password)
+    if not password:
+        return "Empty"
+    n = math.log(len(set(password)))
+    num = re.search("[0-9]", password) is not None and re.match("^[0-9]*$", password) is None
+    caps = password != password.upper() and password != password.lower()
+    extra = re.match("^[a-zA-Z0-9]*$", password) is None
+    score = len(password)*( n + caps + num + extra)/20
+    password_strength = {0:"Weak",1:"Medium",2:"Strong",3:"Very Strong"}
+    return password_strength[min(3, int(score))]
 
-    password_strength = {-1:"Empty",0:"Too short",1:"Weak",2:"Medium",3:"Medium",4:"Strong",5:"Strong"}
-    score = -1
-
-    if len(password) == 0:
-        return password_strength[score]
-    elif len(password) < 6:
-        score = score + 1
-        return password_strength[score]
-    else:
-        score += 1
-
-    if re.search(r'[A-Z]', password):
-        score += 1
-
-    if re.search(r'[a-z]', password):
-        score += 1
-
-    if re.search(r'[0-9]', password):
-        score += 1
-
-    if not re.match("^[a-zA-Z0-9]*$",password):
-        score += 1
-
-    return password_strength[score]
 
 def update_password_strength(pw_strength_label,password):
 
@@ -144,9 +129,9 @@ def update_password_strength(pw_strength_label,password):
     :param password: password entered in New Password text box
     :return: None
     '''
-    colors = {"Empty":"Red","Too short":"Red","Weak":"Red","Medium":"Blue","Strong":"Green"}
+    colors = {"Empty":"Red","Too short":"Red","Weak":"Red","Medium":"Blue","Strong":"Green", "Very Strong":"Green"}
     strength = check_password_strength(password)
-    pw_strength_label.setText("Password Strength:<font color=" + colors[strength] + ">" + strength + "</font>")
+    pw_strength_label.setText(_("Password Strength")+ ": "+"<font color=" + colors[strength] + ">" + strength + "</font>")
 
 
 
