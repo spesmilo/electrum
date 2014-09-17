@@ -751,6 +751,7 @@ class ElectrumWindow(QMainWindow):
     def receive_list_delete(self, item):
         addr = str(item.text(0))
         self.receive_requests.pop(addr)
+        self.wallet.storage.put('receive_requests', self.receive_requests)
         self.update_receive_tab()
         self.clear_receive_tab()
 
