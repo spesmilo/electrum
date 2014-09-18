@@ -749,6 +749,7 @@ class ElectrumWindow(QMainWindow):
     def receive_list_delete(self, item):
         addr = str(item.text(0))
         self.receive_requests.pop(addr)
+        self.wallet.storage.put('receive_requests', self.receive_requests)
         self.update_receive_tab()
         self.clear_receive_tab()
 
@@ -2693,6 +2694,7 @@ class ElectrumWindow(QMainWindow):
 
     def run_network_dialog(self):
         if not self.network:
+            QMessageBox.warning(self, _('Offline'), _('You are using Electrum in offline mode.\nRestart Electrum if you want to get connected.'), _('OK'))
             return
         NetworkDialog(self.wallet.network, self.config, self).do_exec()
 

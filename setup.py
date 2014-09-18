@@ -62,7 +62,17 @@ os.system("pip install http://download.electrum.org/tlslite-0.4.5.tar.gz")
 setup(
     name="Electrum-LTC",
     version=version.ELECTRUM_VERSION,
-    install_requires=['slowaes', 'ecdsa>=0.9', 'pbkdf2', 'requests', 'pyasn1', 'pyasn1-modules', 'qrcode', 'ltc_scrypt'],
+    install_requires=[
+        'slowaes',
+        'ecdsa>=0.9',
+        'pbkdf2',
+        'requests',
+        'pyasn1',
+        'pyasn1-modules',
+        'qrcode',
+        'SocksiPy-branch',
+        'ltc_scrypt',
+    ],
     package_dir={
         'electrum_ltc': 'lib',
         'electrum_ltc_gui': 'gui',
