@@ -174,7 +174,6 @@ if __name__ == '__main__':
     set_verbosity(config_options.get('verbose'))
 
     config = SimpleConfig(config_options)
-    init_plugins(config)
 
     if len(args) == 0:
         url = None
@@ -186,6 +185,7 @@ if __name__ == '__main__':
         cmd = args[0]
 
     if cmd == 'gui':
+        init_plugins(config)
         gui_name = config.get('gui', 'classic')
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'
