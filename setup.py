@@ -96,7 +96,6 @@ setup(
         'electrum.paymentrequest_pb2',
         'electrum.plugins',
         'electrum.simple_config',
-        'electrum.socks',
         'electrum.synchronizer',
         'electrum.transaction',
         'electrum.util',
