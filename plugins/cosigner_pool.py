@@ -174,6 +174,8 @@ class Plugin(BasePlugin):
                 return
         else:
             password = None
+            if not self.win.question(_("An encrypted transaction was retrieved from cosigning pool.\nDo you want to open it now?")):
+                return
 
         message = self.listener.message
         key = self.listener.keyname

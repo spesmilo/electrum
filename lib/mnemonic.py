@@ -30,7 +30,7 @@ import util
 from util import print_error
 from bitcoin import is_old_seed, is_new_seed
 import version
-
+import i18n
 
 # http://www.asahi-net.or.jp/~ax2s-kmtn/ref/unicode/e_asia.html
 CJK_INTERVALS = [
@@ -100,7 +100,9 @@ class Mnemonic(object):
     # Mnemonic phrase uses a hash based checksum, instead of a wordlist-dependent checksum
 
     def __init__(self, lang=None):
-        if lang is None: lang='en'
+        if lang in [None, '']:
+            lang = i18n.language.info().get('language')
+        print_error('language', lang)
         filename = filenames.get(lang[0:2], 'english.txt')
         path = os.path.join(util.data_dir(), 'wordlist', filename)
         s = open(path,'r').read().strip()

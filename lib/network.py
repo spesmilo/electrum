@@ -385,6 +385,13 @@ class Network(threading.Thread):
                         print_error('network: retrying connections')
                         self.disconnected_servers = set([])
                         self.disconnected_time = time.time()
+
+                if not self.interface.is_connected:
+                    if time.time() - self.disconnected_time > DISCONNECTED_RETRY_INTERVAL:
+                        print_error("forcing reconnection")
+                        self.queue.put((self.interface, None))
+                        self.disconnected_time = time.time()
+
                 continue
             
             if response is not None:
