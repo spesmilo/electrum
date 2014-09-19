@@ -27,8 +27,10 @@ from electrum import DEFAULT_SERVERS, DEFAULT_PORTS
 
 from util import *
 
-protocol_names = ['TCP', 'HTTP', 'SSL', 'HTTPS']
-protocol_letters = 'thsg'
+#protocol_names = ['TCP', 'HTTP', 'SSL', 'HTTPS']
+#protocol_letters = 'thsg'
+protocol_names = ['TCP', 'SSL']
+protocol_letters = 'ts'
 
 class NetworkDialog(QDialog):
     def __init__(self, network, config, parent):
