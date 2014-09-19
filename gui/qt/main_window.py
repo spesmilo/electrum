@@ -933,7 +933,7 @@ class ElectrumWindow(QMainWindow):
             output = ('address', addr, sendable)
             dummy_tx = Transaction(inputs, [output])
             fee = self.wallet.estimated_fee(dummy_tx)
-            self.amount_e.setAmount(sendable-fee)
+            self.amount_e.setAmount(max(0,sendable-fee))
             self.amount_e.textEdited.emit("")
             self.fee_e.setAmount(fee)
 
