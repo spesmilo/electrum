@@ -303,12 +303,6 @@ class BTChipWallet(NewWallet):
 
         return b64encode(chr(27 + 4 + (signature[0] & 0x01)) + r + s) 
 
-    def choose_tx_inputs( self, amount, fixed_fee, num_outputs, domain = None, coins = None ):
-        # Overloaded to get the fee, as BTChip recomputes the change amount
-        inputs, total, fee = super(BTChipWallet, self).choose_tx_inputs(amount, fixed_fee, num_outputs, domain, coins)
-        self.lastFee = fee
-        return inputs, total, fee
-
     def sign_transaction(self, tx, keypairs, password):
         if tx.error or tx.is_complete():
             return        
@@ -368,7 +362,7 @@ class BTChipWallet(NewWallet):
                 self.get_client().startUntrustedTransaction(firstTransaction, inputIndex, 
                 trustedInputs, redeemScripts[inputIndex])
                 outputData = self.get_client().finalizeInput(output, format_satoshis(outputAmount), 
-                format_satoshis(self.lastFee), changePath)
+                format_satoshis(self.get_tx_fee(tx)), changePath)
                 if firstTransaction:
                     transactionOutput = outputData['outputData']
                 if outputData['confirmationNeeded']:                
