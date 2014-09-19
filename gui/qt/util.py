@@ -6,6 +6,15 @@ import time
 import traceback
 import sys
 import threading
+import platform
+
+if platform.system() == 'Windows':
+    MONOSPACE_FONT = 'Lucida Console'
+elif platform.system() == 'Darwin':
+    MONOSPACE_FONT = 'Monaco'
+else:
+    MONOSPACE_FONT = 'monospace'
+
 
 class WaitingDialog(QThread):
     def __init__(self, parent, message, run_task, on_complete=None):

@@ -56,8 +56,6 @@ data_files += [
 for lang in os.listdir('data/wordlist'):
     data_files.append((os.path.join(appdata_dir, 'wordlist'), ['data/wordlist/%s' % lang]))
 
-# replace tlslite because of https://github.com/trevp/tlslite/issues/15
-os.system("pip install http://download.electrum.org/tlslite-0.4.5.tar.gz")
 
 setup(
     name="Electrum-LTC",
@@ -72,6 +70,7 @@ setup(
         'qrcode',
         'SocksiPy-branch',
         'ltc_scrypt',
+        'tlslite'
     ],
     package_dir={
         'electrum_ltc': 'lib',
@@ -99,7 +98,6 @@ setup(
         'electrum_ltc.plugins',
         'electrum_ltc.scrypt',
         'electrum_ltc.simple_config',
-        'electrum_ltc.socks',
         'electrum_ltc.synchronizer',
         'electrum_ltc.transaction',
         'electrum_ltc.util',

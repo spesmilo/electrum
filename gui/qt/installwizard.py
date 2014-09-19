@@ -37,30 +37,23 @@ class InstallWizard(QDialog):
         self.setMaximumSize(575, 400)
         self.setWindowTitle('Electrum')
         self.connect(self, QtCore.SIGNAL('accept'), self.accept)
-
         self.stack = QStackedLayout()
         self.setLayout(self.stack)
-
 
     def set_layout(self, layout):
         w = QWidget()
         w.setLayout(layout)
-        self.stack.setCurrentIndex(self.stack.addWidget(w))
-
+        self.stack.addWidget(w)
+        self.stack.setCurrentWidget(w)
 
     def restore_or_create(self):
-
         vbox = QVBoxLayout()
-
         main_label = QLabel(_("Electrum could not find an existing wallet."))
         vbox.addWidget(main_label)
-
         grid = QGridLayout()
         grid.setSpacing(5)
-
         gb1 = QGroupBox(_("What do you want to do?"))
         vbox.addWidget(gb1)
-
         b1 = QRadioButton(gb1)
         b1.setText(_("Create new wallet"))
         b1.setChecked(True)
@@ -349,7 +342,7 @@ class InstallWizard(QDialog):
                 wallet_type = '2fa'
 
             if action == 'create':
-                self.storage.put('wallet_type', wallet_type)
+                self.storage.put('wallet_type', wallet_type, False)
 
         if action is None:
             return

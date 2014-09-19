@@ -72,7 +72,6 @@ def make_password_dialog(self, wallet, msg, new_pass=True):
     self.pw_strength = QLabel()
     grid.addWidget(self.pw_strength, 3, 0, 1, 2)
     self.new_pw.textChanged.connect(lambda: update_password_strength(self.pw_strength, self.new_pw.text()))
-    update_password_strength(self.pw_strength, self.new_pw.text())
 
     vbox.addStretch(1)
     vbox.addLayout(ok_cancel_buttons(self))
@@ -110,8 +109,6 @@ def check_password_strength(password):
     :return: password strength Weak or Medium or Strong
     '''
     password = unicode(password)
-    if not password:
-        return "Empty"
     n = math.log(len(set(password)))
     num = re.search("[0-9]", password) is not None and re.match("^[0-9]*$", password) is None
     caps = password != password.upper() and password != password.lower()
@@ -129,10 +126,13 @@ def update_password_strength(pw_strength_label,password):
     :param password: password entered in New Password text box
     :return: None
     '''
-    colors = {"Empty":"Red","Too short":"Red","Weak":"Red","Medium":"Blue","Strong":"Green", "Very Strong":"Green"}
-    strength = check_password_strength(password)
-    pw_strength_label.setText(_("Password Strength")+ ": "+"<font color=" + colors[strength] + ">" + strength + "</font>")
-
+    if password:
+        colors = {"Weak":"Red","Medium":"Blue","Strong":"Green", "Very Strong":"Green"}
+        strength = check_password_strength(password)
+        label = _("Password Strength")+ ": "+"<font color=" + colors[strength] + ">" + strength + "</font>"
+    else:
+        label = ""
+    pw_strength_label.setText(label)
 
 
 

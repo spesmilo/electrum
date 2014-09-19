@@ -17,8 +17,10 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import time, thread, sys, socket, os
-import urllib2,json
+import time, sys, socket, os
+import threading
+import urllib2
+import json
 import Queue
 import sqlite3
 
@@ -61,6 +63,19 @@ def check_create_table(conn):
     print "num rows", num
 
 
+def row_to_dict(x):
+    return {
+        'id':x[0],
+        'address':x[1],
+        'amount':x[2],
+        'confirmations':x[3],
+        'received_at':x[4],
+        'expires_at':x[5],
+        'paid':x[6],
+        'processed':x[7]
+    }
+
+
 
 # this process detects when addresses have received payments
 def on_wallet_update():
@@ -96,7 +111,6 @@ def do_stop(password):
 
 def process_request(amount, confirmations, expires_in, password):
     global num
-
     if password != my_password:
         return "wrong password"
 
@@ -116,69 +130,52 @@ def process_request(amount, confirmations, expires_in, password):
 
 
 
-def server_thread(conn):
-    from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
-    server = SimpleJSONRPCServer(( my_host, my_port))
-    server.register_function(process_request, 'request')
-    server.register_function(do_stop, 'stop')
-    server.serve_forever()
-    
+def do_dump(password):
+    if password != my_password:
+        return "wrong password"
+
+    conn = sqlite3.connect(database);
+    cur = conn.cursor()
+    # read pending requests from table
+    cur.execute("SELECT oid, * FROM electrum_payments;")
+    data = cur.fetchall()
+    return map(row_to_dict, data)
 
 
+def getrequest(oid, password):
+    oid = int(oid)
+    conn = sqlite3.connect(database);
+    cur = conn.cursor()
+    # read pending requests from table
+    cur.execute("SELECT oid, * FROM electrum_payments WHERE oid=%d;"%(oid))
+    data = cur.fetchone()
+    return row_to_dict(data)
 
 
 def send_command(cmd, params):
     import jsonrpclib
     server = jsonrpclib.Server('http://%s:%d'%(my_host, my_port))
     try:
-        if cmd == 'request':
-            out = server.request(*params)
-        elif cmd == 'stop':
-            out = server.stop(*params)
-        else:
-            out = "unknown command"
+        f = getattr(server, cmd)
+    except socket.error:
+        print "Server not running"
+        return 1
+        
+    try:
+        out = f(*params)
     except socket.error:
         print "Server not running"
         return 1
 
-    print out
+    print json.dumps(out, indent=4)
     return 0
 
 
-if __name__ == '__main__':
 
-    if len(sys.argv) > 1:
-        cmd = sys.argv[1]
-        params = sys.argv[2:] + [my_password]
-        ret = send_command(cmd, params)
-        sys.exit(ret)
-
+def db_thread():
     conn = sqlite3.connect(database);
     # create table if needed
     check_create_table(conn)
-
-    # init network
-    network = electrum.NetworkProxy(False)
-    network.start()
-    while network.is_connecting():
-        time.sleep(0.1)
-
-    # create watching_only wallet
-    config = electrum.SimpleConfig({'wallet_path':wallet_path})
-    storage = electrum.WalletStorage(config)
-    if not storage.file_exists:
-        print "creating wallet file"
-        wallet = electrum.wallet.Wallet.from_xpub(xpub, storage)
-    else:
-        wallet = electrum.wallet.Wallet(storage)
-
-    wallet.synchronize = lambda: None # prevent address creation by the wallet
-    wallet.start_threads(network)
-    network.register_callback('updated', on_wallet_update)
-    
-    out_queue = Queue.Queue()
-    thread.start_new_thread(server_thread, (conn,))
-
     while not stopping:
         cur = conn.cursor()
 
@@ -230,6 +227,8 @@ if __name__ == '__main__':
             data_json = { 'address':address, 'password':cb_password, 'paid':paid }
             data_json = json.dumps(data_json)
             url = received_url if paid else expired_url
+            if not url:
+                continue
             req = urllib2.Request(url, data_json, headers)
             try:
                 response_stream = urllib2.urlopen(req)
@@ -244,5 +243,59 @@ if __name__ == '__main__':
         conn.commit()
 
     conn.close()
-    print "Done"
+    print "database closed"
+
+
+
+if __name__ == '__main__':
+
+    if len(sys.argv) > 1:
+        cmd = sys.argv[1]
+        params = sys.argv[2:] + [my_password]
+        ret = send_command(cmd, params)
+        sys.exit(ret)
+
+    # start network
+    c = electrum.SimpleConfig({'wallet_path':wallet_path})
+    daemon_socket = electrum.daemon.get_daemon(c,True)
+    network = electrum.NetworkProxy(daemon_socket,config)
+    network.start()
+
+    # wait until connected
+    while network.is_connecting():
+        time.sleep(0.1)
+
+    if not network.is_connected():
+        print_msg("daemon is not connected")
+        sys.exit(1)
+
+    # create watching_only wallet
+    storage = electrum.WalletStorage(c)
+    if not storage.file_exists:
+        print "creating wallet file"
+        wallet = electrum.wallet.Wallet.from_xpub(xpub, storage)
+    else:
+        wallet = electrum.wallet.Wallet(storage)
+
+    wallet.synchronize = lambda: None # prevent address creation by the wallet
+    wallet.start_threads(network)
+    network.register_callback('updated', on_wallet_update)
+
+
+    threading.Thread(target=db_thread, args=()).start()
+    
+    out_queue = Queue.Queue()
+    # server thread
+    from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
+    server = SimpleJSONRPCServer(( my_host, my_port))
+    server.register_function(process_request, 'request')
+    server.register_function(do_dump, 'dump')
+    server.register_function(getrequest, 'getrequest')
+    server.register_function(do_stop, 'stop')
+    server.socket.settimeout(1)
+    while not stopping:
+        try:
+            server.handle_request()
+        except socket.timeout:
+            continue
 
