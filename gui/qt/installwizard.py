@@ -349,7 +349,7 @@ class InstallWizard(QDialog):
                 wallet_type = '2fa'
 
             if action == 'create':
-                self.storage.put('wallet_type', wallet_type)
+                self.storage.put('wallet_type', wallet_type, False)
 
         if action is None:
             return
