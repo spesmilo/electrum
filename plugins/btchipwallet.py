@@ -33,14 +33,6 @@ try:
 except ImportError:
     BTCHIP = False
 
-def log(msg):
-    stderr.write("%s\n" % msg)
-    stderr.flush()
-
-def give_error(message):
-    QMessageBox.warning(QDialog(), _('Warning'), _(message), _('OK'))
-    raise Exception(message)
-
 class Plugin(BasePlugin):
 
     def fullname(self):
@@ -53,6 +45,7 @@ class Plugin(BasePlugin):
         BasePlugin.__init__(self, gui, name)
         self._is_available = self._init()
         self.wallet = None
+        self.signing = False
         electrum.wallet.wallet_types.append(('hardware', 'btchip', _("BTChip wallet"), BTChipWallet))
 
 
@@ -104,7 +97,6 @@ class Plugin(BasePlugin):
         except Exception as e:
             tx.error = str(e)
 
-
 class BTChipWallet(NewWallet):
     wallet_type = 'btchip'
 
@@ -114,6 +106,15 @@ class BTChipWallet(NewWallet):
         self.client = None
         self.mpk = None
         self.device_checked = False
+
+    def give_error(self, message, clear_client = False):
+        if not self.signing:
+            QMessageBox.warning(QDialog(), _('Warning'), _(message), _('OK'))
+        else:
+            self.signing = False
+        if clear_client:
+            self.client.bad = True
+        raise Exception(message)                
 
     def get_action(self):
         if not self.accounts:
@@ -133,7 +134,7 @@ class BTChipWallet(NewWallet):
 
     def get_client(self, noPin=False):
         if not BTCHIP:
-            give_error('please install github.com/btchip/btchip-python')
+            self.give_error('please install github.com/btchip/btchip-python')
 
         aborted = False
         if not self.client or self.client.bad:
@@ -238,7 +239,7 @@ class BTChipWallet(NewWallet):
                 childnum = 0x80000000 | int(lastChild[0])        
             xpub = "0488B21E".decode('hex') + chr(depth) + self.i4b(fingerprint) + self.i4b(childnum) + str(nodeData['chainCode']) + str(publicKey)
         except Exception, e:
-            give_error(e)
+            self.give_error(e, True)
         finally:
             waitDialog.emit(SIGNAL('dongle_done'))
 
@@ -257,13 +258,13 @@ class BTChipWallet(NewWallet):
         pass
 
     def decrypt_message(self, pubkey, message, password):
-        give_error("Not supported")
+        self.give_error("Not supported")
 
     def sign_message(self, address, message, password):
         use2FA = False
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
         if not self.check_proper_device():
-            give_error('Wrong device or password')        
+            self.give_error('Wrong device or password')        
         address_path = self.address_id(address)
         waitDialog.start("Signing Message ...")
         try:
@@ -280,7 +281,7 @@ class BTChipWallet(NewWallet):
                 self.get_client(True)
             signature = self.get_client().signMessageSign(pin)
         except Exception, e:
-            give_error(e)
+            self.give_error(e, True)
         finally:
             if waitDialog.waiting:
                 waitDialog.emit(SIGNAL('dongle_done'))
@@ -305,7 +306,8 @@ class BTChipWallet(NewWallet):
 
     def sign_transaction(self, tx, keypairs, password):
         if tx.error or tx.is_complete():
-            return        
+            return
+        self.signing = True        
         inputs = []
         inputsPaths = []
         pubKeys = []
@@ -322,7 +324,7 @@ class BTChipWallet(NewWallet):
         # Fetch inputs of the transaction to sign
         for txinput in tx.inputs:
             if ('is_coinbase' in txinput and txinput['is_coinbase']):
-                give_error("Coinbase not supported")     # should never happen
+                self.give_error("Coinbase not supported")     # should never happen
             inputs.append([ self.transactions[txinput['prevout_hash']].raw, 
                              txinput['prevout_n'] ])        
             address = txinput['address']
@@ -331,7 +333,7 @@ class BTChipWallet(NewWallet):
 
         # Recognize outputs - only one output and one change is authorized
         if len(tx.outputs) > 2: # should never happen
-            give_error("Transaction with more than 2 outputs not supported")
+            self.give_error("Transaction with more than 2 outputs not supported")
         for type, address, amount in tx.outputs:        
             assert type == 'address'
             if self.is_change(address):
@@ -339,13 +341,13 @@ class BTChipWallet(NewWallet):
                 changeAmount = amount
             else:
                 if output <> None: # should never happen
-                    give_error("Multiple outputs with no change not supported")
+                    self.give_error("Multiple outputs with no change not supported")
                 output = address
                 outputAmount = amount
 
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
         if not self.check_proper_device():
-            give_error('Wrong device or password')
+            self.give_error('Wrong device or password')
 
         waitDialog.start("Signing Transaction ...")
         try:
@@ -385,7 +387,7 @@ class BTChipWallet(NewWallet):
                     inputIndex = inputIndex + 1
                 firstTransaction = False
         except Exception, e:
-            give_error(e)
+            self.give_error(e, True)
         finally:
             if waitDialog.waiting:
                 waitDialog.emit(SIGNAL('dongle_done'))
@@ -401,6 +403,7 @@ class BTChipWallet(NewWallet):
         updatedTransaction = hexlify(updatedTransaction)
         tx.update(updatedTransaction)
         self.client.bad = use2FA
+        self.signing = False
 
     def check_proper_device(self):
         pubKey = DecodeBase58Check(self.master_public_keys["x/0'"])[45:]
@@ -409,7 +412,7 @@ class BTChipWallet(NewWallet):
             try:
                 nodeData = self.get_client().getWalletPublicKey("44'/0'/0'")
             except Exception, e:
-                give_error(e)
+                self.give_error(e, True)
             finally:
                 waitDialog.emit(SIGNAL('dongle_done'))
             pubKeyDevice = compress_public_key(nodeData['publicKey'])
@@ -423,8 +426,12 @@ class BTChipWallet(NewWallet):
 
     def password_dialog(self, msg=None):
         if not msg:
-            msg = _("Disconnect your BTChip, read the unique second factor PIN, reconnect it and enter the unique second factor PIN")
-
+            msg = _("Do not enter your device PIN here !\r\n\r\n" \
+                    "Your BTChip wants to talk to you and tell you a unique second factor code.\r\n" \
+                    "For this to work, please open a text editor (on a different computer / device if you believe this computer is compromised) and put your cursor into it, unplug your BTChip and plug it back in.\r\n" \
+                    "It should show itself to your computer as a keyboard and output the second factor along with a summary of the transaction it it signing into the text-editor.\r\n\r\n" \
+                    "Check that summary and then enter the second factor code here.\r\n" \
+                    "Before clicking OK, re-plug the device once more (unplug it and plug it again if you read the second factor code on the same computer)")
         d = QDialog()
         d.setModal(1)
         d.setLayout( make_password_dialog(d, None, msg, False) )
