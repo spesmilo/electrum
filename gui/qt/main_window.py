@@ -2144,7 +2144,12 @@ class ElectrumWindow(QMainWindow):
 
 
     def read_tx_from_qrcode(self):
-        data = run_hook('scan_qr_hook')
+        from electrum import qrscanner
+        try:
+            data = qrscanner.scan_qr(self.config)
+        except BaseException, e:
+            QMessageBox.warning(self, _('Error'), _(e), _('OK'))
+            return
         if not data:
             return
         # transactions are binary, but qrcode seems to return utf8...

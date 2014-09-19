@@ -8,7 +8,7 @@ except ImportError:
 
 def scan_qr(config):
     if not zbar:
-        return
+        raise BaseException("The zbar package is not available.\nOn Linux, try 'sudo apt-get install python-zbar'")
     device = config.get("video_device", "default")
     if device == 'default':
         device = ''
