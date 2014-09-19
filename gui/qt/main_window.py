@@ -49,18 +49,10 @@ from qrtextedit import QRTextEdit
 
 from decimal import Decimal
 
-import platform
 import httplib
 import socket
 import webbrowser
 import csv
-
-if platform.system() == 'Windows':
-    MONOSPACE_FONT = 'Lucida Console'
-elif platform.system() == 'Darwin':
-    MONOSPACE_FONT = 'Monaco'
-else:
-    MONOSPACE_FONT = 'monospace'
 
 
 
@@ -77,7 +69,7 @@ import re
 
 from util import MyTreeWidget, HelpButton, EnterButton, line_dialog, text_dialog, ok_cancel_buttons, close_button, WaitingDialog
 from util import filename_field, ok_cancel_buttons2, address_field
-
+from util import MONOSPACE_FONT
 
 def format_status(x):
     if x == PR_UNPAID:
@@ -188,6 +180,7 @@ class ElectrumWindow(QMainWindow):
         self.wallet = None
         self.payment_request = None
         self.qr_window = None
+        self.not_enough_funds = False
 
     def update_account_selector(self):
         # account selector
@@ -933,7 +926,7 @@ class ElectrumWindow(QMainWindow):
             output = ('address', addr, sendable)
             dummy_tx = Transaction(inputs, [output])
             fee = self.wallet.estimated_fee(dummy_tx)
-            self.amount_e.setAmount(sendable-fee)
+            self.amount_e.setAmount(max(0,sendable-fee))
             self.amount_e.textEdited.emit("")
             self.fee_e.setAmount(fee)
 
@@ -2144,7 +2137,12 @@ class ElectrumWindow(QMainWindow):
 
 
     def read_tx_from_qrcode(self):
-        data = run_hook('scan_qr_hook')
+        from electrum import qrscanner
+        try:
+            data = qrscanner.scan_qr(self.config)
+        except BaseException, e:
+            QMessageBox.warning(self, _('Error'), _(e), _('OK'))
+            return
         if not data:
             return
         # transactions are binary, but qrcode seems to return utf8...
