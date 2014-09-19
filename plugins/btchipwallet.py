@@ -27,6 +27,7 @@ try:
     from btchip.btchipUtils import compress_public_key,format_transaction, get_regular_input_script
     from btchip.bitcoinTransaction import bitcoinTransaction
     from btchip.btchipPersoWizard import StartBTChipPersoDialog
+    from btchip.btchipFirmwareWizard import checkFirmware, updateFirmware
     from btchip.btchipException import BTChipException
     BTCHIP = True
     BTCHIP_DEBUG = False
@@ -143,12 +144,16 @@ class BTChipWallet(NewWallet):
                 d.setWaitImpl(DongleWaitQT(d))
                 self.client = btchip(d)
                 firmware = self.client.getFirmwareVersion()['version'].split(".")
-                if int(firmware[0]) <> 1 or int(firmware[1]) <> 4:
-                    aborted = True
-                    raise Exception("Unsupported firmware version")
-                if int(firmware[2]) < 9:
-                    aborted = True
-                    raise Exception("Please update your firmware - 1.4.9 or higher is necessary")
+                if (not checkFirmware(firmware)) or (int(firmware[0]) <> 1) or (int(firmware[1]) <> 4) or (int(firmware[2]) < 9):                    
+                    d.close()
+                    try:
+                        updateFirmware()
+                    except Exception, e:
+                        aborted = True
+                        raise e
+                    d = getDongle(BTCHIP_DEBUG)
+                    d.setWaitImpl(DongleWaitQT(d))
+                    self.client = btchip(d)                    
                 try:
                     self.client.getOperationMode()
                 except BTChipException, e:
@@ -194,7 +199,7 @@ class BTChipWallet(NewWallet):
                     pass                
                 self.client = None                                
                 if not aborted:
-                    raise Exception("Could not connect to your BTChip dongle. Please verify access permissions or PIN")
+                    raise Exception("Could not connect to your BTChip dongle. Please verify access permissions, PIN, or unplug the dongle and plug it again")
                 else:
                     raise e
             self.client.bad = False
