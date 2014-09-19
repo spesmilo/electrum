@@ -49,18 +49,10 @@ from qrtextedit import QRTextEdit
 
 from decimal import Decimal
 
-import platform
 import httplib
 import socket
 import webbrowser
 import csv
-
-if platform.system() == 'Windows':
-    MONOSPACE_FONT = 'Lucida Console'
-elif platform.system() == 'Darwin':
-    MONOSPACE_FONT = 'Monaco'
-else:
-    MONOSPACE_FONT = 'monospace'
 
 
 
@@ -77,7 +69,7 @@ import re
 
 from util import MyTreeWidget, HelpButton, EnterButton, line_dialog, text_dialog, ok_cancel_buttons, close_button, WaitingDialog
 from util import filename_field, ok_cancel_buttons2, address_field
-
+from util import MONOSPACE_FONT
 
 def format_status(x):
     if x == PR_UNPAID:
