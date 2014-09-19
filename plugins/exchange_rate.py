@@ -472,10 +472,10 @@ class Plugin(BasePlugin):
         if not self.resp_hist:
             return
 
-        self.gui.main_window.is_edit = True
-        self.gui.main_window.history_list.setColumnCount(6)
-        self.gui.main_window.history_list.setHeaderLabels( [ '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
-        root = self.gui.main_window.history_list.invisibleRootItem()
+        self.win.is_edit = True
+        self.win.history_list.setColumnCount(6)
+        self.win.history_list.setHeaderLabels( [ '', _('Date'), _('Description') , _('Amount'), _('Balance'), _('Fiat Amount')] )
+        root = self.win.history_list.invisibleRootItem()
         childcount = root.childCount()
         for i in range(childcount):
             item = root.child(i)
@@ -516,11 +516,11 @@ class Plugin(BasePlugin):
             if Decimal(str(tx_info['value'])) < 0:
                 item.setForeground(5, QBrush(QColor("#BC1E1E")))
 
-        for i, width in enumerate(self.gui.main_window.column_widths['history']):
-            self.gui.main_window.history_list.setColumnWidth(i, width)
-        self.gui.main_window.history_list.setColumnWidth(4, 140)
-        self.gui.main_window.history_list.setColumnWidth(5, 120)
-        self.gui.main_window.is_edit = False
+        for i, width in enumerate(self.win.column_widths['history']):
+            self.win.history_list.setColumnWidth(i, width)
+        self.win.history_list.setColumnWidth(4, 140)
+        self.win.history_list.setColumnWidth(5, 120)
+        self.win.is_edit = False
 
 
     def settings_widget(self, window):
@@ -585,10 +585,10 @@ class Plugin(BasePlugin):
                 self.request_history_rates()
             else:
                 self.config.set_key('history_rates', 'unchecked')
-                self.gui.main_window.history_list.setHeaderLabels( [ '', _('Date'), _('Description') , _('Amount'), _('Balance')] )
-                self.gui.main_window.history_list.setColumnCount(5)
-                for i,width in enumerate(self.gui.main_window.column_widths['history']):
-                    self.gui.main_window.history_list.setColumnWidth(i, width)
+                self.win.history_list.setHeaderLabels( [ '', _('Date'), _('Description') , _('Amount'), _('Balance')] )
+                self.win.history_list.setColumnCount(5)
+                for i,width in enumerate(self.win.column_widths['history']):
+                    self.win.history_list.setColumnWidth(i, width)
 
         def set_hist_check(hist_checkbox):
             cur_exchange = self.config.get('use_exchange', "Blockchain")
