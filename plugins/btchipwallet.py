@@ -27,7 +27,7 @@ try:
     from btchip.btchipUtils import compress_public_key,format_transaction, get_regular_input_script
     from btchip.bitcoinTransaction import bitcoinTransaction
     from btchip.btchipPersoWizard import StartBTChipPersoDialog
-    from btchip.btchipFirmwareWizard import updateFirmware
+    from btchip.btchipFirmwareWizard import checkFirmware, updateFirmware
     from btchip.btchipException import BTChipException
     BTCHIP = True
     BTCHIP_DEBUG = False
@@ -143,7 +143,7 @@ class BTChipWallet(NewWallet):
                 d.setWaitImpl(DongleWaitQT(d))
                 self.client = btchip(d)
                 firmware = self.client.getFirmwareVersion()['version'].split(".")
-                if int(firmware[0]) <> 1 or int(firmware[1]) <> 4 or int(firmware[2]) < 9:                    
+                if (not checkFirmware(firmware)) or (int(firmware[0]) <> 1) or (int(firmware[1]) <> 4) or (int(firmware[2]) < 9):                    
                     d.close()
                     try:
                         updateFirmware()
