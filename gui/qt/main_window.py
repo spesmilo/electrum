@@ -188,6 +188,7 @@ class ElectrumWindow(QMainWindow):
         self.wallet = None
         self.payment_request = None
         self.qr_window = None
+        self.not_enough_funds = False
 
     def update_account_selector(self):
         # account selector
