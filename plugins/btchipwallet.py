@@ -45,8 +45,7 @@ class Plugin(BasePlugin):
     def __init__(self, gui, name):
         BasePlugin.__init__(self, gui, name)
         self._is_available = self._init()
-        self.wallet = None
-        self.signing = False
+        self.wallet = None        
         electrum.wallet.wallet_types.append(('hardware', 'btchip', _("BTChip wallet"), BTChipWallet))
 
 
@@ -107,6 +106,7 @@ class BTChipWallet(NewWallet):
         self.client = None
         self.mpk = None
         self.device_checked = False
+        self.signing = False
 
     def give_error(self, message, clear_client = False):
         if not self.signing:
