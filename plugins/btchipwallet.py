@@ -219,6 +219,9 @@ class BTChipWallet(NewWallet):
         xpub = self.get_public_key(derivation)
         return xpub, None
 
+    def get_private_key(self, address, password):
+        return []
+
     def get_public_key(self, bip32_path):
         # S-L-O-W - we don't handle the fingerprint directly, so compute it manually from the previous node        
         # This only happens once so it's bearable
