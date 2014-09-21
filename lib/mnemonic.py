@@ -102,6 +102,8 @@ class Mnemonic(object):
     def __init__(self, lang=None):
         if lang in [None, '']:
             lang = i18n.language.info().get('language')
+        if lang in [None, '']:
+            lang = 'en'
         print_error('language', lang)
         filename = filenames.get(lang[0:2], 'english.txt')
         path = os.path.join(util.data_dir(), 'wordlist', filename)
