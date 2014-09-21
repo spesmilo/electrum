@@ -95,6 +95,7 @@ setup(
         'electrum.paymentrequest',
         'electrum.paymentrequest_pb2',
         'electrum.plugins',
+        'electrum.qrscanner',
         'electrum.simple_config',
         'electrum.synchronizer',
         'electrum.transaction',
