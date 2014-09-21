@@ -113,8 +113,9 @@ class BTChipWallet(NewWallet):
             QMessageBox.warning(QDialog(), _('Warning'), _(message), _('OK'))
         else:
             self.signing = False
-        if clear_client:
+        if clear_client and self.client is not None:
             self.client.bad = True
+            self.device_checked = False
         raise Exception(message)                
 
     def get_action(self):
@@ -254,9 +255,15 @@ class BTChipWallet(NewWallet):
         return EncodeBase58Check(xpub)
 
     def get_master_public_key(self):
-        if not self.mpk:
-            self.mpk = self.get_public_key("44'/0'")
-        return self.mpk
+        try:
+            if not self.mpk:
+                self.get_client() # prompt for the PIN if necessary
+                if not self.check_proper_device():
+                    self.give_error('Wrong device or password')        
+                self.mpk = self.get_public_key("44'/0'")
+            return self.mpk
+        except Exception, e:
+            self.give_error(e, True)        
 
     def i4b(self, x):
         return pack('>I', x)
@@ -286,6 +293,7 @@ class BTChipWallet(NewWallet):
                     raise Exception('Aborted by user')
                 pin = pin.encode()
                 self.client.bad = True
+                self.device_checked = False
                 self.get_client(True)
             signature = self.get_client().signMessageSign(pin)
         except Exception, e:
@@ -384,6 +392,7 @@ class BTChipWallet(NewWallet):
                         raise Exception('Aborted by user')
                     pin = pin.encode()
                     self.client.bad = True
+                    self.device_checked = False
                     self.get_client(True)
                     waitDialog.start("Signing ...")
                 else:
