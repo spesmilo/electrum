@@ -516,6 +516,7 @@ class ElectrumWindow(QMainWindow):
 
     def create_history_tab(self):
         self.history_list = l = MyTreeWidget(self)
+        self.history_list.setSortingEnabled(True)
         l.setColumnCount(5)
         for i,width in enumerate(self.column_widths['history']):
             l.setColumnWidth(i, width)
@@ -1359,6 +1360,7 @@ class ElectrumWindow(QMainWindow):
         l.itemDoubleClicked.connect(lambda a, b: self.address_label_clicked(a,b,l,0,1))
         l.itemChanged.connect(lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.contacts_list = l
+        self.contacts_list.setSortingEnabled(True)
         return w
 
 
