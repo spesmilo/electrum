@@ -1957,17 +1957,13 @@ class ElectrumWindow(QMainWindow):
             if confirmations:
                 if timestamp is not None:
                     try:
-                        time_string = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:]
                         datenums.append(md.date2num(datetime.datetime.fromtimestamp(timestamp)))
                     except [RuntimeError, TypeError, NameError] as reason:
-                        time_string = "unknown"
                         unknown_trans=unknown_trans+1
                         pass
                 else:
-                    time_string = "unknown"
                     unknown_trans=unknown_trans+1
             else:
-                time_string = "pending"
                 pending_trans=pending_trans+1
 
             if value is not None:
