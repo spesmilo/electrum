@@ -96,6 +96,7 @@ setup(
         'electrum_ltc.paymentrequest',
         'electrum_ltc.paymentrequest_pb2',
         'electrum_ltc.plugins',
+        'electrum_ltc.qrscanner',
         'electrum_ltc.scrypt',
         'electrum_ltc.simple_config',
         'electrum_ltc.synchronizer',
