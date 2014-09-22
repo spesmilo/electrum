@@ -71,6 +71,9 @@ from util import MyTreeWidget, HelpButton, EnterButton, line_dialog, text_dialog
 from util import filename_field, ok_cancel_buttons2, address_field
 from util import MONOSPACE_FONT
 
+import matplotlib.pyplot as plt
+import matplotlib.dates as md
+
 def format_status(x):
     if x == PR_UNPAID:
         return _('Unpaid')
@@ -1942,6 +1945,58 @@ class ElectrumWindow(QMainWindow):
         d.setLayout(vbox)
         d.exec_()
 
+# Function to called to plot balance history
+    def do_plot(self,wallet):
+        history = wallet.get_tx_history()
+        balance_Val=[]
+        datenums=[]
+        unknown_trans=0
+        pending_trans=0
+        for item in history:
+            tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
+            if confirmations:
+                if timestamp is not None:
+                    try:
+                        datenums.append(md.date2num(datetime.datetime.fromtimestamp(timestamp)))
+                    except [RuntimeError, TypeError, NameError] as reason:
+                        unknown_trans=unknown_trans+1
+                        pass
+                else:
+                    unknown_trans=unknown_trans+1
+            else:
+                pending_trans=pending_trans+1
+
+            if value is not None:
+                value_string = format_satoshis(value, True)
+            else:
+                value_string = '--'
+
+            if fee is not None:
+                fee_string = format_satoshis(fee, True)
+            else:
+                fee_string = '0'
+
+            if tx_hash:
+                label, is_default_label = wallet.get_label(tx_hash)
+                label = label.encode('utf-8')
+            else:
+                label = ""
+
+            balance_string = format_satoshis(balance, False)
+            balance_Val.append(float((format_satoshis(balance,False)))*1000.0)
+
+
+        plt.subplots_adjust(bottom=0.2)
+        plt.xticks( rotation=25 )
+        ax=plt.gca()
+        plt.ylabel('mBTC')
+        plt.xlabel('Dates')
+        xfmt = md.DateFormatter('%Y-%m-%d')
+        ax.xaxis.set_major_formatter(xfmt)
+        plt.plot(datenums,balance_Val,marker='o',linestyle='-',color='blue',label='Balance')
+        plt.legend(loc='upper left')
+        plt.annotate('unknown transaction = %d \n pending transactions = %d' %(unknown_trans,pending_trans),xy=(0.7,0.05),xycoords='axes fraction',size=12)
+        plt.show()
 
     @protected
     def do_sign(self, address, message, signature, password):
@@ -2382,6 +2437,11 @@ class ElectrumWindow(QMainWindow):
 
         h, b = ok_cancel_buttons2(d, _('Export'))
         vbox.addLayout(h)
+        
+        b = QPushButton(_("Preview plot"))
+        b.clicked.connect(lambda: self.do_plot(self.wallet))
+        hbox.addWidget(b)
+        
         if not d.exec_():
             return
 
