@@ -84,7 +84,6 @@ class Plugin(BasePlugin):
 
             balance_string = format_satoshis(balance, False)
             balance_Val.append(float((format_satoshis(balance,False)))*1000.0)
-            print "fee",fee_string
             fee_val.append(float(fee_string))
             value_val.append(float(value_string)*1000.0)
 
@@ -101,7 +100,6 @@ class Plugin(BasePlugin):
         test11="Unknown transactions =  "+str(unknown_trans)+" Pending transactions =  "+str(pending_trans)+" ."
         box1 = TextArea(" Test : Number of pending transactions", textprops=dict(color="k"))
         box1.set_text(test11)
-        print test11
 
 
 
