@@ -133,6 +133,8 @@ setup(
         'electrum_plugins.labels',
         'electrum_plugins.trezor',
         'electrum_plugins.virtualkeyboard',
+        'electrum_plugins.plot',
+
     ],
     description="Lightweight Bitcoin Wallet",
     author="Thomas Voegtlin",
