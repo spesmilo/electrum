@@ -2382,6 +2382,10 @@ class ElectrumWindow(QMainWindow):
 
         h, b = ok_cancel_buttons2(d, _('Export'))
         vbox.addLayout(h)
+        
+        run_hook('export_history_dialog', self,hbox)
+        self.update()
+        
         if not d.exec_():
             return
 
