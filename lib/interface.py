@@ -23,6 +23,10 @@ import socks
 import socket
 import ssl
 
+import requests
+ca_path = requests.certs.where()
+print ca_path
+
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from util import print_error, print_msg
 from simple_config import SimpleConfig
@@ -34,7 +38,6 @@ proxy_modes = ['socks4', 'socks5', 'http']
 
 
 import util
-
 
 
 
@@ -169,11 +172,9 @@ class TcpInterface(threading.Thread):
                 s = self.get_simple_socket()
                 if s is None:
                     return
-
                 # try with CA first
                 try:
-                    ca_certs = os.path.join(self.config.path, 'ca', 'ca-bundle.crt')
-                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv3, cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_certs, do_handshake_on_connect=True)
+                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv3, cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path, do_handshake_on_connect=True)
                 except ssl.SSLError, e:
                     s = None
                 if s and self.check_host_name(s.getpeercert(), self.host):
@@ -242,7 +243,7 @@ class TcpInterface(threading.Thread):
                         return
                     print_error("wrong certificate", self.host)
                 return
-            except Exception:
+            except BaseException:
                 print_error("wrap_socket failed", self.host)
                 traceback.print_exc(file=sys.stderr)
                 return
