@@ -25,7 +25,6 @@ import ssl
 
 import requests
 ca_path = requests.certs.where()
-print ca_path
 
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from util import print_error, print_msg
