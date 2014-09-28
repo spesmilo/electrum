@@ -7,11 +7,17 @@ import datetime
 from electrum.util import format_satoshis
 
 
-import matplotlib.pyplot as plt
-import matplotlib.dates as md
+try:
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as md
+    from matplotlib.patches import Ellipse
+    from matplotlib.offsetbox import AnchoredOffsetbox, TextArea, DrawingArea, HPacker
+    flag_matlib=True
+except:
+    flag_matlib=False
 
-from matplotlib.patches import Ellipse
-from matplotlib.offsetbox import AnchoredOffsetbox, TextArea, DrawingArea, HPacker
+
+
 
 
 class Plugin(BasePlugin):
@@ -22,6 +28,21 @@ class Plugin(BasePlugin):
 
     def description(self):
         return '%s\n%s' % (_("Ability to plot transaction history in graphical mode."), _("Warning: Requires matplotlib library."))
+
+    def is_available(self):
+        if flag_matlib:
+            return True
+        else:
+            return False
+
+
+
+    def is_enabled(self):
+        if not self.is_available():
+            return False
+        else:
+            return True
+
 
     @hook
     def init_qt(self, gui):
@@ -58,6 +79,8 @@ class Plugin(BasePlugin):
                 if timestamp is not None:
                     try:
                         datenums.append(md.date2num(datetime.datetime.fromtimestamp(timestamp)))
+                        balance_string = format_satoshis(balance, False)
+                        balance_Val.append(float((format_satoshis(balance,False)))*1000.0)
                     except [RuntimeError, TypeError, NameError] as reason:
                         unknown_trans=unknown_trans+1
                         pass
@@ -68,11 +91,13 @@ class Plugin(BasePlugin):
 
             if value is not None:
                 value_string = format_satoshis(value, True)
+                value_val.append(float(value_string)*1000.0)
             else:
                 value_string = '--'
 
             if fee is not None:
                 fee_string = format_satoshis(fee, True)
+                fee_val.append(float(fee_string))
             else:
                 fee_string = '0'
 
@@ -81,14 +106,6 @@ class Plugin(BasePlugin):
                 label = label.encode('utf-8')
             else:
                 label = ""
-
-            balance_string = format_satoshis(balance, False)
-            balance_Val.append(float((format_satoshis(balance,False)))*1000.0)
-            fee_val.append(float(fee_string))
-            value_val.append(float(value_string)*1000.0)
-
-
-
 
 
         f, axarr = plt.subplots(2, sharex=True)
@@ -100,7 +117,6 @@ class Plugin(BasePlugin):
         test11="Unknown transactions =  "+str(unknown_trans)+" Pending transactions =  "+str(pending_trans)+" ."
         box1 = TextArea(" Test : Number of pending transactions", textprops=dict(color="k"))
         box1.set_text(test11)
-
 
 
         box = HPacker(children=[box1],
