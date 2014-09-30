@@ -328,7 +328,10 @@ class InstallWizard(QDialog):
         if action == 'new':
             action, wallet_type = self.restore_or_create()
             if wallet_type == 'multisig':
-                wallet_type = self.choice(_("Multi Signature Wallet"), 'Select wallet type', [('2of2', _("2 of 2")),('2of3',_("2 of 3"))])
+                subtypes = [('2of2', _("2 of 2")),('2of3',_("2 of 3"))]
+                if action == 'restore':
+                    subtypes += map(lambda x:(x[1],x[2]), filter(lambda x:x[0]=='multisig_recovery', electrum.wallet.wallet_types))
+                wallet_type = self.choice(_("Multi Signature Wallet"), 'Select wallet type', subtypes)
                 if not wallet_type:
                     return
             elif wallet_type == 'hardware':
