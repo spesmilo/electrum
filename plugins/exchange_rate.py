@@ -662,6 +662,7 @@ class Plugin(BasePlugin):
             if exchange_rate is not None:
                 btc_amount = fiat_amount/exchange_rate
                 self.btc_e.setAmount(int(btc_amount*Decimal(100000000)))
+                self.btc_e.textEdited.emit("")
         self.fiat_e.textEdited.connect(fiat_changed)
         def btc_changed():
             btc_amount = self.btc_e.get_amount()
@@ -670,7 +671,9 @@ class Plugin(BasePlugin):
                 return
             fiat_amount = self.exchanger.exchange(Decimal(btc_amount)/Decimal(100000000), self.fiat_unit())
             if fiat_amount is not None:
+                pos = self.fiat_e.cursorPosition()
                 self.fiat_e.setText("%.2f"%fiat_amount)
+                self.fiat_e.setCursorPosition(pos)
         self.btc_e.textEdited.connect(btc_changed)
         self.btc_e.frozen.connect(lambda: self.fiat_e.setFrozen(self.btc_e.isReadOnly()))
         self.win.send_grid.addWidget(self.fiat_e, 4, 3, Qt.AlignHCenter)
