@@ -45,7 +45,7 @@ from electrum import Imported_Wallet
 from amountedit import AmountEdit, BTCAmountEdit, MyLineEdit
 from network_dialog import NetworkDialog
 from qrcodewidget import QRCodeWidget, QRDialog
-from qrtextedit import QRTextEdit
+from qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 
 from decimal import Decimal
 
@@ -1847,8 +1847,7 @@ class ElectrumWindow(QMainWindow):
         i = 0
         for key, value in mpk_dict.items():
             main_layout.addWidget(QLabel(key), i, 0)
-            mpk_text = QRTextEdit(text=value)
-            mpk_text.setReadOnly(True)
+            mpk_text = ShowQRTextEdit(text=value)
             mpk_text.setMaximumHeight(170)
             # mpk_text.setText(value)
             main_layout.addWidget(mpk_text, i + 1, 0)
@@ -1911,13 +1910,13 @@ class ElectrumWindow(QMainWindow):
             return
 
         d = QDialog(self)
+        d.setWindowTitle(_('Public Key'))
         d.setMinimumSize(600, 200)
         d.setModal(1)
         vbox = QVBoxLayout()
         vbox.addWidget( QLabel(_("Address") + ': ' + address))
         vbox.addWidget( QLabel(_("Public key") + ':'))
-        keys = QRTextEdit()
-        keys.setReadOnly(True)
+        keys = ShowQRTextEdit()
         keys.setText('\n'.join(pubkey_list))
         vbox.addWidget(keys)
         vbox.addLayout(close_button(d))
@@ -1935,13 +1934,13 @@ class ElectrumWindow(QMainWindow):
             return
 
         d = QDialog(self)
+        d.setWindowTitle(_('Private Key'))
         d.setMinimumSize(600, 200)
         d.setModal(1)
         vbox = QVBoxLayout()
         vbox.addWidget( QLabel(_("Address") + ': ' + address))
         vbox.addWidget( QLabel(_("Private key") + ':'))
-        keys = QRTextEdit()
-        keys.setReadOnly(True)
+        keys = ShowQRTextEdit()
         keys.setText('\n'.join(pk_list))
         vbox.addWidget(keys)
         vbox.addLayout(close_button(d))
@@ -2151,18 +2150,20 @@ class ElectrumWindow(QMainWindow):
                 QMessageBox.warning(self, _('Error'), _(e), _('OK'))
                 return
         try:
-            data = qrscanner.scan_qr()
+            data = qrscanner.scan_qr(self.config)
         except BaseException, e:
             QMessageBox.warning(self, _('Error'), _(e), _('OK'))
             return
         if not data:
             return
+        # if the user scanned a bitcoin URI
+        if data.startswith("bitcoin:"):
+            self.pay_from_URI(data)
+            return
+        # else if the user scanned an offline signed tx
         # transactions are binary, but qrcode seems to return utf8...
         z = data.decode('utf8')
-        s = ''
-        for b in z:
-            s += chr(ord(b))
-        data = s.encode('hex')
+        data = ''.join(chr(ord(b)) for b in z).encode('hex')
         tx = self.tx_from_text(data)
         if not tx:
             return
