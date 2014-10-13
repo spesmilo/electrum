@@ -517,6 +517,7 @@ class ElectrumWindow(QMainWindow):
 
     def create_history_tab(self):
         self.history_list = l = MyTreeWidget(self)
+        self.history_list.setSortingEnabled(True)
         l.setColumnCount(5)
         for i,width in enumerate(self.column_widths['history']):
             l.setColumnWidth(i, width)
@@ -1363,6 +1364,7 @@ class ElectrumWindow(QMainWindow):
         l.itemDoubleClicked.connect(lambda a, b: self.address_label_clicked(a,b,l,0,1))
         l.itemChanged.connect(lambda a,b: self.address_label_changed(a,b,l,0,1))
         self.contacts_list = l
+        self.contacts_list.setSortingEnabled(True)
         return w
 
 
@@ -2142,14 +2144,14 @@ class ElectrumWindow(QMainWindow):
 
     def read_tx_from_qrcode(self):
         from electrum import qrscanner
-        if qrscanner.qr_proc is None:
+        if qrscanner.proc is None:
             try:
-                qrscanner.init(self.win.config)
+                qrscanner.init(self.config)
             except Exception, e:
                 QMessageBox.warning(self, _('Error'), _(e), _('OK'))
                 return
         try:
-            data = qrscanner.scan_qr(self.win.config)
+            data = qrscanner.scan_qr()
         except BaseException, e:
             QMessageBox.warning(self, _('Error'), _(e), _('OK'))
             return
