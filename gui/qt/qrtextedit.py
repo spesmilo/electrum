@@ -3,9 +3,14 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 class QRTextEdit(QPlainTextEdit):
-
-    def __init__(self, text=None):
-        QPlainTextEdit.__init__(self, text)
+    def __init__(self, text=None, win=None):
+        super(QRTextEdit, self).__init__(text)
+        self.win = win
+        if win:
+            assert hasattr(win,"config"), "You must pass a window with access to the config to QRTextEdit constructor."
+            self.setReadOnly(0)
+        else:
+            self.setReadOnly(1)
         self.button = QToolButton(self)
         self.button.setIcon(QIcon(":icons/qrcode.png"))
         self.button.setStyleSheet("QToolButton { border: none; padding: 0px; }")
@@ -37,13 +42,21 @@ class QRTextEdit(QPlainTextEdit):
             s = unicode(self.toPlainText())
         QRDialog(s).exec_()
 
+
     def qr_input(self):
         from electrum import qrscanner
+        if qrscanner.proc is None:
+            try:
+                qrscanner.init(self.win.config)
+            except Exception, e:
+                QMessageBox.warning(self, _('Error'), _(e), _('OK'))
+                return
         try:
             data = qrscanner.scan_qr(self.win.config)
         except BaseException, e:
-            QMessageBox.warning(self.win, _('Error'), _(e), _('OK'))
+            QMessageBox.warning(self, _('Error'), _(e), _('OK'))
             return
         if type(data) != str:
             return
         self.setText(data)
+        return data

@@ -40,18 +40,18 @@ class SeedDialog(QDialog):
 
 def icon_filename(sid):
     if sid == 'cold':
-        return ":icons/cold_seed.png" 
+        return ":icons/cold_seed.png"
     elif sid == 'hot':
-        return ":icons/hot_seed.png" 
+        return ":icons/hot_seed.png"
     else:
-        return ":icons/seed.png" 
-    
+        return ":icons/seed.png"
+
 
 
 
 def show_seed_box(seed, sid=None):
 
-    save_msg = _("Please save these %d words on paper (order is important).")%len(seed.split()) + " " 
+    save_msg = _("Please save these %d words on paper (order is important).")%len(seed.split()) + " "
     qr_msg = _("Your seed is also displayed as QR code, in case you want to transfer it to a mobile phone.") + "<p>"
     warning_msg = "<b>"+_("WARNING")+":</b> " + _("Never disclose your seed. Never type it on a website.") + "</b><p>"
 
@@ -60,19 +60,20 @@ def show_seed_box(seed, sid=None):
         msg2 = save_msg + " " \
                + _("This seed will allow you to recover your wallet in case of computer failure.") + "<br/>" \
                + warning_msg
-        
+
     elif sid == 'cold':
         msg =  _("Your cold storage seed is")
         msg2 = save_msg + " " \
                + _("This seed will be permanently deleted from your wallet file. Make sure you have saved it before you press 'next'") + " " \
-            
+
     elif sid == 'hot':
         msg =  _("Your hot seed is")
         msg2 = save_msg + " " \
                + _("If you ever need to recover your wallet from seed, you will need both this seed and your cold seed.") + " " \
 
     label1 = QLabel(msg+ ":")
-    seed_text = QRTextEdit(seed)
+    # Read only QRTextEdit. Allows showing the QRcode version of the seed.
+    seed_text = QRTextEdit(text=seed)
     seed_text.setReadOnly(True)
     seed_text.setMaximumHeight(130)
 
@@ -80,7 +81,6 @@ def show_seed_box(seed, sid=None):
     label2.setWordWrap(True)
 
     logo = QLabel()
-
     logo.setPixmap(QPixmap(icon_filename(sid)).scaledToWidth(56))
     logo.setMaximumWidth(60)
 
@@ -92,12 +92,11 @@ def show_seed_box(seed, sid=None):
     vbox.addLayout(grid)
     vbox.addWidget(label2)
     vbox.addStretch(1)
-    
+
     return vbox
 
 
-def enter_seed_box(msg, sid=None):
-
+def enter_seed_box(msg, window, sid=None):
     vbox = QVBoxLayout()
     logo = QLabel()
     logo.setPixmap(QPixmap(icon_filename(sid)).scaledToWidth(56))
@@ -106,7 +105,8 @@ def enter_seed_box(msg, sid=None):
     label = QLabel(msg)
     label.setWordWrap(True)
 
-    seed_e = QRTextEdit()
+    # QRTextEdit where seed should be filled in. Can be done via QRscanner.
+    seed_e = QRTextEdit(win=window)
     seed_e.setMaximumHeight(100)
     seed_e.setTabChangesFocus(True)
 
