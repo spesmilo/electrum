@@ -1429,6 +1429,7 @@ class ElectrumWindow(QMainWindow):
         self.wallet.delete_pending_account(k)
         self.update_address_tab()
         self.update_account_selector()
+        self.new_account_menu.setEnabled(self.wallet.can_create_accounts())
 
     def create_receive_menu(self, position):
         # fixme: this function apparently has a side effect.
@@ -1831,6 +1832,7 @@ class ElectrumWindow(QMainWindow):
         self.wallet.create_pending_account(name, password)
         self.update_address_tab()
         self.update_account_selector()
+        self.new_account_menu.setEnabled(False) # only 1 pending account allowed
         self.tabs.setCurrentIndex(3)
 
 
@@ -1845,13 +1847,18 @@ class ElectrumWindow(QMainWindow):
         main_layout = QGridLayout()
         mpk_dict = self.wallet.get_master_public_keys()
         i = 0
-        for key, value in mpk_dict.items():
-            main_layout.addWidget(QLabel(key), i, 0)
-            mpk_text = ShowQRTextEdit(text=value)
-            mpk_text.setMaximumHeight(170)
-            # mpk_text.setText(value)
-            main_layout.addWidget(mpk_text, i + 1, 0)
-            i += 2
+        for account_name, master_key in mpk_dict.items():
+            main_layout.addWidget(QLabel(account_name), i, 0)
+            if master_key:
+                mpk_text = ShowQRTextEdit(text=master_key)
+                mpk_text.setMaximumHeight(170)
+                main_layout.addWidget(mpk_text, i + 1, 0)
+                i += 2
+            else:
+                no_text = QLineEdit(text=_("Master Public Key is not available (yet)"))
+                no_text.setReadOnly(1)
+                main_layout.addWidget(no_text, i + 1, 0)
+                i += 2
 
         vbox = QVBoxLayout()
         vbox.addLayout(main_layout)

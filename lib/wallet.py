@@ -1336,7 +1336,9 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         BIP32_Wallet.__init__(self, storage)
 
     def can_create_accounts(self):
-        return self.root_name in self.master_private_keys.keys()
+        has_pending = any(self.account_is_pending(acc) for acc in self.accounts)
+        has_root_name = self.root_name in self.master_private_keys.keys()
+        return has_root_name and not has_pending
 
     def addresses(self, b=True):
         l = BIP32_Wallet.addresses(self, b)
