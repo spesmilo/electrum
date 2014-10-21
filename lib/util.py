@@ -182,7 +182,7 @@ def parse_URI(uri):
     valid_address = bitcoin.is_address(address)
 
     pq = urlparse.parse_qs(u.query)
-    
+
     for k, v in pq.items():
         if len(v)!=1:
             raise Exception('Duplicate Key', k)
@@ -202,7 +202,7 @@ def parse_URI(uri):
         label = pq['label'][0]
     if 'r' in pq:
         request_url = pq['r'][0]
-        
+
     if request_url != '':
         return address, amount, label, message, request_url
 
@@ -225,7 +225,7 @@ __builtin__.raw_input = raw_input
 
 def parse_json(message):
     n = message.find('\n')
-    if n==-1: 
+    if n==-1:
         return None, message
     try:
         j = json.loads( message[0:n] )
@@ -352,4 +352,3 @@ class QueuePipe:
     def send_all(self, requests):
         for request in requests:
             self.send(request)
-

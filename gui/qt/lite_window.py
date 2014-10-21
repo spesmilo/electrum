@@ -88,7 +88,7 @@ class TransactionWindow(QDialog):
         label = unicode(self.label_edit.text())
         self.parent.wallet.labels[self.tx_id] = label
 
-        super(TransactionWindow, self).accept() 
+        super(TransactionWindow, self).accept()
 
     def __init__(self, transaction_id, parent):
         super(TransactionWindow, self).__init__()
@@ -210,7 +210,7 @@ class MiniWindow(QDialog):
         self.receiving = receiving_widget.ReceivingWidget(self)
         self.receiving.setObjectName("receiving")
 
-        # Add to the right side 
+        # Add to the right side
         self.receiving_box = QGroupBox(_("Select a receiving address"))
         extra_layout = QGridLayout()
 
@@ -250,7 +250,7 @@ class MiniWindow(QDialog):
         self.show_history(show_hist)
         show_hist = self.config.get("gui_show_receiving",False)
         self.toggle_receiving_layout(show_hist)
-        
+
         self.setWindowIcon(QIcon(":icons/electrum.png"))
         self.setWindowTitle("Electrum")
         self.setWindowFlags(Qt.Window|Qt.MSWindowsFixedSizeDialogHint)
@@ -384,7 +384,7 @@ class MiniWindow(QDialog):
                 self.balance_label.show_balance()
 
     def create_quote_text(self, btc_balance):
-        """Return a string copy of the amount fiat currency the 
+        """Return a string copy of the amount fiat currency the
         user has in bitcoins."""
         from electrum.plugins import run_hook
         r = {}
@@ -443,7 +443,7 @@ class MiniWindow(QDialog):
 
     def update_completions(self, completions):
         self.address_completions.setStringList(completions)
- 
+
 
     def update_history(self, tx_history):
 
@@ -499,7 +499,7 @@ class BalanceLabel(QLabel):
                 position = event.globalPos()
                 menu = self.parent.context_menu()
                 menu.exec_(position)
-                
+
 
     def set_balance_text(self, amount, unit, quote_text):
         """Set the amount of bitcoins in the gui."""
@@ -560,7 +560,7 @@ class PasswordDialog(QDialog):
         main_layout.addLayout(grid)
 
         main_layout.addLayout(ok_cancel_buttons(self))
-        self.setLayout(main_layout) 
+        self.setLayout(main_layout)
 
     def run(self):
         if not self.exec_():
@@ -599,10 +599,10 @@ class ReceivePopup(QDialog):
         self.show()
 
 class MiniActuator:
-    """Initialize the definitions relating to themes and 
+    """Initialize the definitions relating to themes and
     sending/receiving bitcoins."""
-    
-    
+
+
     def __init__(self, main_window):
         """Retrieve the gui theme used in previous session."""
         self.g = main_window
@@ -624,7 +624,7 @@ class MiniActuator:
     def theme_names(self):
         """Sort themes."""
         return sorted(self.themes.keys())
-    
+
     def selected_theme(self):
         """Select theme."""
         return self.theme_name
@@ -634,14 +634,14 @@ class MiniActuator:
         self.theme_name = theme_name
         self.g.config.set_key('litegui_theme',theme_name)
         self.load_theme()
-   
+
     def set_configured_exchange(self, set_exchange):
         use_exchange = self.g.config.get('use_exchange')
         if use_exchange is not None:
             set_exchange(use_exchange)
-    
+
     def set_configured_currency(self, set_quote_currency):
-        """Set the inital fiat currency conversion country (USD/EUR/GBP) in 
+        """Set the inital fiat currency conversion country (USD/EUR/GBP) in
         the GUI to what it was set to in the wallet."""
         currency = self.g.config.get('currency')
         # currency can be none when Electrum is used for the first
@@ -694,7 +694,7 @@ class MiniActuator:
         dest_address = self.fetch_destination(address)
 
         if dest_address is None or not is_valid(dest_address):
-            QMessageBox.warning(parent_window, _('Error'), 
+            QMessageBox.warning(parent_window, _('Error'),
                 _('Invalid Bitcoin Address') + ':\n' + address, _('OK'))
             return False
 
@@ -726,7 +726,7 @@ class MiniActuator:
             h = self.g.wallet.send_tx(tx)
 
             self.waiting_dialog(lambda: False if self.g.wallet.tx_event.isSet() else _("Sending transaction, please wait..."))
-              
+
             status, message = self.g.wallet.receive_tx(h, tx)
 
             if not status:
@@ -737,7 +737,7 @@ class MiniActuator:
                 print "Dumped error tx to", dumpf.name
                 QMessageBox.warning(parent_window, _('Error'), message, _('OK'))
                 return False
-          
+
             TransactionWindow(message, self)
         else:
             filename = 'unsigned_tx_%s' % (time.mktime(time.gmtime()))
@@ -760,10 +760,10 @@ class MiniActuator:
         # label or alias, with address in brackets
         match2 = re.match("(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>",
                           recipient)
-        
+
         if match1:
             dest_address = \
-                self.g.wallet.get_alias(recipient, True, 
+                self.g.wallet.get_alias(recipient, True,
                                       self.show_message, self.question)
             return dest_address
         elif match2:
@@ -772,7 +772,7 @@ class MiniActuator:
             return recipient
 
 
-        
+
 
 
 class MiniDriver(QObject):
@@ -872,4 +872,3 @@ if __name__ == "__main__":
         app.setStyleSheet(style_file.read())
     mini = MiniWindow()
     sys.exit(app.exec_())
-

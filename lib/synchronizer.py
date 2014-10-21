@@ -166,11 +166,11 @@ class WalletSynchronizer(threading.Thread):
                     rs = requested_histories.pop(addr)
                     if self.wallet.get_status(hist) != rs:
                         raise Exception("error: status mismatch: %s"%addr)
-                
+
                     # store received history
                     self.wallet.receive_history_callback(addr, hist)
 
-                    # request transactions that we don't have 
+                    # request transactions that we don't have
                     for tx_hash, tx_height in hist:
                         if self.wallet.transactions.get(tx_hash) is None:
                             if (tx_hash, tx_height) not in requested_tx and (tx_hash, tx_height) not in missing_tx:
@@ -192,6 +192,5 @@ class WalletSynchronizer(threading.Thread):
             if self.was_updated and not requested_tx:
                 self.network.trigger_callback('updated')
                 # Updated gets called too many times from other places as well; if we use that signal we get the notification three times
-                self.network.trigger_callback("new_transaction") 
+                self.network.trigger_callback("new_transaction")
                 self.was_updated = False
-

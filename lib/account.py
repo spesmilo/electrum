@@ -224,7 +224,7 @@ class OldAccount(Account):
         pk = number_to_string( secexp, generator_secp256k1.order() )
         compressed = False
         return SecretToASecret( pk, compressed )
-        
+
 
     def get_private_key(self, sequence, wallet, password):
         seed = wallet.get_seed(password)
@@ -417,7 +417,3 @@ class BIP32_Account_2of3(BIP32_Account_2of2):
 
     def get_type(self):
         return _('Multisig 2 of 3')
-
-
-
-

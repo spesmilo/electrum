@@ -97,7 +97,7 @@ class InstallWizard(QDialog):
 
         if not self.exec_():
             return None, None
-        
+
         action = 'create' if b1.isChecked() else 'restore'
         wallet_type = self.wallet_types[group2.checkedId()][0]
         return action, wallet_type
@@ -184,7 +184,7 @@ class InstallWizard(QDialog):
 
         self.set_layout(vbox)
         if not self.exec_():
-            return 
+            return
         return map(lambda e: self.get_seed_text(e), entries)
 
 
@@ -211,7 +211,7 @@ class InstallWizard(QDialog):
         # skip this if config already exists
         if self.config.get('server') is not None:
             return
-        
+
         grid = QGridLayout()
         grid.setSpacing(5)
 
@@ -245,14 +245,14 @@ class InstallWizard(QDialog):
         self.set_layout(vbox)
         if not self.exec_():
             return
-        
+
         if b2.isChecked():
             return NetworkDialog(self.network, self.config, None).do_exec()
         else:
             self.config.set_key('auto_cycle', True, True)
             return
 
-        
+
     def show_message(self, msg, icon=None):
         vbox = QVBoxLayout()
         self.set_layout(vbox)
@@ -263,7 +263,7 @@ class InstallWizard(QDialog):
         vbox.addWidget(QLabel(msg))
         vbox.addStretch(1)
         vbox.addLayout(close_button(self, _('Next')))
-        if not self.exec_(): 
+        if not self.exec_():
             return None
 
 
@@ -302,7 +302,7 @@ class InstallWizard(QDialog):
         vbox.addWidget(label)
         vbox.addStretch(1)
         vbox.addLayout(ok_cancel_buttons(self, yes_label, no_label))
-        if not self.exec_(): 
+        if not self.exec_():
             return None
         return True
 
@@ -400,7 +400,7 @@ class InstallWizard(QDialog):
 
             else:
                 f = run_hook('get_wizard_action', self, wallet, action)
-                if not f: 
+                if not f:
                     raise BaseException('unknown wizard action', action)
                 r = f(wallet, self)
                 if not r:
@@ -461,7 +461,7 @@ class InstallWizard(QDialog):
 
             elif t in ['2of2']:
                 r = self.multi_seed_dialog(1)
-                if not r: 
+                if not r:
                     return
                 text1, text2 = r
                 wallet = Wallet_2of2(self.storage)
@@ -491,7 +491,7 @@ class InstallWizard(QDialog):
 
             elif t in ['2of3']:
                 r = self.multi_seed_dialog(2)
-                if not r: 
+                if not r:
                     return
                 text1, text2, text3 = r
                 wallet = Wallet_2of3(self.storage)
@@ -536,5 +536,5 @@ class InstallWizard(QDialog):
 
             # create first keys offline
             self.waiting_dialog(wallet.synchronize)
-                
+
             return wallet

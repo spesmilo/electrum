@@ -81,16 +81,16 @@ class X509(tlslite.X509):
                    'DNS': set(),
                    'SRV': set(),
                    'URI': set(),
-                   'XMPPAddr': set(), 
+                   'XMPPAddr': set(),
                    'OU': None,}
-  
+
         # Extract the CommonName(s) from the cert.
         for rdnss in self.subject:
             for rdns in rdnss:
                 for name in rdns:
                     oid = name.getComponentByName('type')
                     value = name.getComponentByName('value')
-  
+
                     if oid == COMMON_NAME:
                         value = decoder.decode(value, asn1Spec=DirectoryString())[0]
                         value = decode_str(value.getComponent())
@@ -106,7 +106,7 @@ class X509(tlslite.X509):
             oid = extension.getComponentByName('extnID')
             if oid != SUBJECT_ALT_NAME:
                 continue
-  
+
             value = decoder.decode(extension.getComponentByName('extnValue'),
                                asn1Spec=OctetString())[0]
             sa_names = decoder.decode(value, asn1Spec=SubjectAltName())[0]
@@ -120,10 +120,10 @@ class X509(tlslite.X509):
                         results['URI'].add(value[5:])
                 elif name_type == 'otherName':
                     name = name.getComponent()
-  
+
                     oid = name.getComponentByName('type-id')
                     value = name.getComponentByName('value')
-  
+
                     if oid == XMPP_ADDR:
                         value = decoder.decode(value, asn1Spec=UTF8String())[0]
                         results['XMPPAddr'].add(decode_str(value))

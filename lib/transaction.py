@@ -60,7 +60,7 @@ class BCDataStream(object):
 
     def seek_file(self, position):
         self.read_cursor = position
-        
+
     def close_file(self):
         self.input.close()
 
@@ -319,7 +319,7 @@ def x_to_xpub(x_pubkey):
         xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
         return xpub
 
-        
+
 
 def parse_xpub(x_pubkey):
     if x_pubkey[0:2] == 'ff':
@@ -439,7 +439,7 @@ def get_address_from_output_script(bytes):
 
 
 
-    
+
 
 def parse_input(vds):
     d = {}
@@ -506,7 +506,7 @@ class Transaction:
         self.outputs = outputs
         self.locktime = locktime
         self.raw = None
-        
+
     @classmethod
     def deserialize(klass, raw):
         self = klass([],[])
@@ -520,7 +520,7 @@ class Transaction:
         self.outputs = map(lambda x: (x['type'], x['address'], x['value']), d['outputs'])
         self.locktime = d['lockTime']
 
-    @classmethod 
+    @classmethod
     def sweep(klass, privkeys, network, to_address, fee):
         inputs = []
         for privkey in privkeys:
@@ -555,14 +555,14 @@ class Transaction:
         if num is None: num = n
         # supports only "2 of 2", and "2 of 3" transactions
         assert num <= n and n in [2,3]
-    
+
         if num==2:
             s = '52'
         elif num == 3:
             s = '53'
         else:
             raise
-    
+
         for k in public_keys:
             s += op_push(len(k)/2)
             s += k
@@ -811,7 +811,7 @@ class Transaction:
     def has_address(self, addr):
         found = False
         for txin in self.inputs:
-            if addr == txin.get('address'): 
+            if addr == txin.get('address'):
                 found = True
                 break
         if addr in self.get_output_addresses():
@@ -843,7 +843,7 @@ class Transaction:
                 is_partial = True
 
         if not is_send: is_partial = False
-                    
+
         for addr, value in self.get_outputs():
             v_out += value
             if addr in addresses:
@@ -899,7 +899,4 @@ class Transaction:
             sum += i["value"] * age
         priority = sum / size
         print_error(priority, threshold)
-        return priority < threshold 
-
-
-
+        return priority < threshold
