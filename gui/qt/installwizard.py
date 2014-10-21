@@ -128,7 +128,7 @@ class InstallWizard(QDialog):
     def enter_seed_dialog(self, msg, sid, func=None):
         if func is None:
             func = self.is_any
-        vbox, seed_e = seed_dialog.enter_seed_box(msg, sid)
+        vbox, seed_e = seed_dialog.enter_seed_box(msg, self, sid)
         vbox.addStretch(1)
         hbox, button = ok_cancel_buttons2(self, _('Next'))
         vbox.addLayout(hbox)
