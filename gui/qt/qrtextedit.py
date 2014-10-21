@@ -41,8 +41,8 @@ class ShowQRTextEdit(QRTextEdit):
 
 
 class ScanQRTextEdit(QRTextEdit):
-    def __init__(self, win):
-        super(ScanQRTextEdit,self).__init__()
+    def __init__(self, win, text=""):
+        super(ScanQRTextEdit,self).__init__(text)
         self.setReadOnly(0)
         self.win = win
         assert win, "You must pass a window with access to the config to ScanQRTextEdit constructor."
