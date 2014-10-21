@@ -160,7 +160,7 @@ class ElectrumGui:
             import installwizard
             wizard = installwizard.InstallWizard(self.config, self.network, storage)
             wallet = wizard.run(action)
-            if not wallet: 
+            if not wallet:
                 return
         else:
             wallet.start_threads(self.network)
@@ -203,7 +203,7 @@ class ElectrumGui:
         s.start()
 
         self.windows.append(w)
-        if url: 
+        if url:
             self.set_url(url)
 
         w.app = self.app
@@ -221,5 +221,3 @@ class ElectrumGui:
         self.app.sendEvent(self.app.clipboard(), event)
 
         w.close_wallet()
-
-

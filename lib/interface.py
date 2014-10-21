@@ -252,7 +252,7 @@ class TcpInterface(threading.Thread):
                 os.rename(temporary_path, cert_path)
 
         return s
-        
+
 
     def send_request(self, request, queue=None):
         _id = request.get('id')
@@ -273,7 +273,7 @@ class TcpInterface(threading.Thread):
 
     def parse_proxy_options(self, s):
         if type(s) == type({}): return s  # fixme: type should be fixed
-        if type(s) != type(""): return None  
+        if type(s) != type(""): return None
         if s.lower() == 'none': return None
         proxy = { "mode":"socks5", "host":"localhost" }
         args = s.split(':')
@@ -355,7 +355,7 @@ class HttpInterface(TcpInterface):
     def send_request(self, request, queue=None):
         import urllib2, json, time, cookielib
         print_error( "send_http", messages )
-        
+
         if self.proxy:
             socks.setdefaultproxy(self.proxy_mode, self.proxy["host"], int(self.proxy["port"]) )
             socks.wrapmodule(urllib2)
@@ -380,9 +380,9 @@ class HttpInterface(TcpInterface):
             data_json = json.dumps(data)
         else:
             # poll with GET
-            data_json = None 
+            data_json = None
 
-            
+
         headers = {'content-type': 'application/json'}
         if self.session_id:
             headers['cookie'] = 'SESSION=%s'%self.session_id
@@ -399,17 +399,17 @@ class HttpInterface(TcpInterface):
 
         response = response_stream.read()
         self.bytes_received += len(response)
-        if response: 
+        if response:
             response = json.loads( response )
             if type(response) is not type([]):
                 self.process_response(response)
             else:
                 for item in response:
                     self.process_response(item)
-        if response: 
+        if response:
             self.poll_interval = 1
         else:
-            if self.poll_interval < 15: 
+            if self.poll_interval < 15:
                 self.poll_interval += 1
         #print self.poll_interval, response
         self.rtime = time.time() - t1
@@ -454,7 +454,7 @@ class HttpInterface(TcpInterface):
             except Exception:
                 traceback.print_exc(file=sys.stdout)
                 break
-            
+
         self.is_connected = False
 
 

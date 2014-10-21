@@ -36,7 +36,7 @@ class QRCodeWidget(QWidget):
             self.qr = None
 
         self.update()
- 
+
 
     def paintEvent(self, e):
         if not self.data:
@@ -83,7 +83,7 @@ class QRCodeWidget(QWidget):
                     qp.setPen(white)
                 qp.drawRect(left+c*boxsize, top+r*boxsize, boxsize, boxsize)
         qp.end()
-        
+
 
 
 class QRDialog(QDialog):
@@ -132,4 +132,3 @@ class QRDialog(QDialog):
 
         vbox.addLayout(hbox)
         d.setLayout(vbox)
-

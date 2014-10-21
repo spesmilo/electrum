@@ -30,7 +30,7 @@ class VersionGetter(threading.Thread):
     def __init__(self, label):
         threading.Thread.__init__(self)
         self.label = label
-        
+
     def run(self):
         try:
             con = httplib.HTTPConnection('electrum.org', 80, timeout=5)
@@ -39,7 +39,7 @@ class VersionGetter(threading.Thread):
         except socket.error as msg:
             print_error("Could not retrieve version information")
             return
-            
+
         if res.status == 200:
             latest_version = res.read()
             latest_version = latest_version.replace("\n","")
@@ -88,7 +88,7 @@ class UpdateLabel(QLabel):
         self.config.set_key("last_seen_version", "9.9.9", True)
         QMessageBox.information(self, _("Preference saved"), _("No more notifications about version updates will be shown."))
         self.dialog.done(0)
-  
+
     def open_website(self):
         webbrowser.open("http://electrum.org/download.html")
         self.dialog.done(0)
@@ -100,7 +100,7 @@ class UpdateLabel(QLabel):
 
         main_layout = QGridLayout()
         main_layout.addWidget(QLabel(_("A new version of Electrum is available:")+" " + self.latest_version), 0,0,1,3)
-        
+
         ignore_version = QPushButton(_("Ignore this version"))
         ignore_version.clicked.connect(self.ignore_this_version)
 
@@ -117,7 +117,5 @@ class UpdateLabel(QLabel):
         dialog.setLayout(main_layout)
 
         self.dialog = dialog
-        
+
         if not dialog.exec_(): return
-
-
