@@ -3,14 +3,13 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 class QRTextEdit(QPlainTextEdit):
-
+    """Abstract class for QR-code related TextEdits. Do not use directly."""
     def __init__(self, text=None):
-        QPlainTextEdit.__init__(self, text)
+        super(QRTextEdit, self).__init__(text)
         self.button = QToolButton(self)
         self.button.setIcon(QIcon(":icons/qrcode.png"))
         self.button.setStyleSheet("QToolButton { border: none; padding: 0px; }")
         self.button.setVisible(True)
-        self.button.clicked.connect(lambda: self.qr_show() if self.isReadOnly() else self.qr_input())
         self.setText = self.setPlainText
 
     def resizeEvent(self, e):
@@ -21,13 +20,11 @@ class QRTextEdit(QPlainTextEdit):
                          (self.rect().bottom() - frameWidth - sz.height()))
         return o
 
-    def contextMenuEvent(self, e):
-        m = self.createStandardContextMenu()
-        if self.isReadOnly():
-            m.addAction(_("Show as QR code"), self.qr_show)
-        else:
-            m.addAction(_("Read QR code"), self.qr_input)
-        m.exec_(e.globalPos())
+class ShowQRTextEdit(QRTextEdit):
+    def __init__(self, text=None):
+        super(ShowQRTextEdit, self).__init__(text)
+        self.setReadOnly(1)
+        self.button.clicked.connect(self.qr_show)
 
     def qr_show(self):
         from qrcodewidget import QRDialog
@@ -37,13 +34,42 @@ class QRTextEdit(QPlainTextEdit):
             s = unicode(self.toPlainText())
         QRDialog(s).exec_()
 
+    def contextMenuEvent(self, e):
+        m = self.createStandardContextMenu()
+        m.addAction(_("Show as QR code"), self.qr_show)
+        m.exec_(e.globalPos())
+
+
+class ScanQRTextEdit(QRTextEdit):
+    def __init__(self, win, text=""):
+        super(ScanQRTextEdit,self).__init__(text)
+        self.setReadOnly(0)
+        self.win = win
+        assert win, "You must pass a window with access to the config to ScanQRTextEdit constructor."
+        if win:
+            assert hasattr(win,"config"), "You must pass a window with access to the config to ScanQRTextEdit constructor."
+        self.button.clicked.connect(self.qr_input)
+
+
     def qr_input(self):
         from electrum import qrscanner
+        if qrscanner.proc is None:
+            try:
+                qrscanner.init(self.win.config)
+            except Exception, e:
+                QMessageBox.warning(self, _('Error'), _(e), _('OK'))
+                return
         try:
             data = qrscanner.scan_qr(self.win.config)
         except BaseException, e:
-            QMessageBox.warning(self.win, _('Error'), _(e), _('OK'))
+            QMessageBox.warning(self, _('Error'), _(e), _('OK'))
             return
         if type(data) != str:
             return
         self.setText(data)
+        return data
+
+    def contextMenuEvent(self, e):
+        m = self.createStandardContextMenu()
+        m.addAction(_("Read QR code"), self.qr_input)
+        m.exec_(e.globalPos())
