@@ -40,18 +40,18 @@ class SeedDialog(QDialog):
 
 def icon_filename(sid):
     if sid == 'cold':
-        return ":icons/cold_seed.png" 
+        return ":icons/cold_seed.png"
     elif sid == 'hot':
-        return ":icons/hot_seed.png" 
+        return ":icons/hot_seed.png"
     else:
-        return ":icons/seed.png" 
-    
+        return ":icons/seed.png"
+
 
 
 
 def show_seed_box(seed, sid=None):
 
-    save_msg = _("Please save these %d words on paper (order is important).")%len(seed.split()) + " " 
+    save_msg = _("Please save these %d words on paper (order is important).")%len(seed.split()) + " "
     qr_msg = _("Your seed is also displayed as QR code, in case you want to transfer it to a mobile phone.") + "<p>"
     warning_msg = "<b>"+_("WARNING")+":</b> " + _("Never disclose your seed. Never type it on a website.") + "</b><p>"
 
@@ -60,12 +60,12 @@ def show_seed_box(seed, sid=None):
         msg2 = save_msg + " " \
                + _("This seed will allow you to recover your wallet in case of computer failure.") + "<br/>" \
                + warning_msg
-        
+
     elif sid == 'cold':
         msg =  _("Your cold storage seed is")
         msg2 = save_msg + " " \
                + _("This seed will be permanently deleted from your wallet file. Make sure you have saved it before you press 'next'") + " " \
-            
+
     elif sid == 'hot':
         msg =  _("Your hot seed is")
         msg2 = save_msg + " " \
@@ -92,7 +92,7 @@ def show_seed_box(seed, sid=None):
     vbox.addLayout(grid)
     vbox.addWidget(label2)
     vbox.addStretch(1)
-    
+
     return vbox
 
 

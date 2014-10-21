@@ -45,7 +45,7 @@ class TxDialog(QDialog):
         tx_dict = tx.as_dict()
         self.parent = parent
         self.wallet = parent.wallet
-            
+
         QDialog.__init__(self)
         self.setMinimumWidth(600)
         self.setWindowTitle(_("Transaction"))
@@ -102,7 +102,7 @@ class TxDialog(QDialog):
         buttons.insertWidget(1,b)
 
         run_hook('transaction_dialog', self)
-        
+
         self.update()
 
 
@@ -175,9 +175,9 @@ class TxDialog(QDialog):
         if not self.wallet.up_to_date:
             return
 
-        if is_relevant:    
+        if is_relevant:
             if is_mine:
-                if fee is not None: 
+                if fee is not None:
                     self.amount_label.setText(_("Amount sent:")+' %s'% self.parent.format_amount(v-fee) + ' ' + self.parent.base_unit())
                     self.fee_label.setText(_("Transaction fee")+': %s'% self.parent.format_amount(fee) + ' ' + self.parent.base_unit())
                 else:
@@ -219,11 +219,7 @@ class TxDialog(QDialog):
         o_text.setMaximumHeight(100)
         vbox.addWidget(o_text)
 
-        
+
 
     def show_message(self, msg):
         QMessageBox.information(self, _('Message'), msg, _('OK'))
-
-
-
-

@@ -122,7 +122,7 @@ class PayToEdit(QRTextEdit):
             except:
                 self.errors.append((i, line.strip()))
                 continue
-                
+
             outputs.append((type, to_address, amount))
             total += amount
 
@@ -189,7 +189,7 @@ class PayToEdit(QRTextEdit):
         tc.movePosition(QTextCursor.EndOfWord)
         tc.insertText(completion.right(extra))
         self.setTextCursor(tc)
- 
+
 
     def textUnderCursor(self):
         tc = self.textCursor()
@@ -235,4 +235,3 @@ class PayToEdit(QRTextEdit):
         cr = self.cursorRect()
         cr.setWidth(self.c.popup().sizeHintForColumn(0) + self.c.popup().verticalScrollBar().sizeHint().width())
         self.c.complete(cr)
-

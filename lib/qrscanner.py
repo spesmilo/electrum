@@ -26,7 +26,7 @@ def scan_qr(config):
             if str(r.type) != 'QRCODE':
                 continue
             return r.data
-        
+
 
 def _find_system_cameras():
     device_root = "/sys/class/video4linux"

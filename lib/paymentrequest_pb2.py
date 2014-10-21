@@ -301,37 +301,37 @@ DESCRIPTOR.message_types_by_name['PaymentACK'] = _PAYMENTACK
 class Output(message.Message):
   __metaclass__ = reflection.GeneratedProtocolMessageType
   DESCRIPTOR = _OUTPUT
-  
+
   # @@protoc_insertion_point(class_scope:payments.Output)
 
 class PaymentDetails(message.Message):
   __metaclass__ = reflection.GeneratedProtocolMessageType
   DESCRIPTOR = _PAYMENTDETAILS
-  
+
   # @@protoc_insertion_point(class_scope:payments.PaymentDetails)
 
 class PaymentRequest(message.Message):
   __metaclass__ = reflection.GeneratedProtocolMessageType
   DESCRIPTOR = _PAYMENTREQUEST
-  
+
   # @@protoc_insertion_point(class_scope:payments.PaymentRequest)
 
 class X509Certificates(message.Message):
   __metaclass__ = reflection.GeneratedProtocolMessageType
   DESCRIPTOR = _X509CERTIFICATES
-  
+
   # @@protoc_insertion_point(class_scope:payments.X509Certificates)
 
 class Payment(message.Message):
   __metaclass__ = reflection.GeneratedProtocolMessageType
   DESCRIPTOR = _PAYMENT
-  
+
   # @@protoc_insertion_point(class_scope:payments.Payment)
 
 class PaymentACK(message.Message):
   __metaclass__ = reflection.GeneratedProtocolMessageType
   DESCRIPTOR = _PAYMENTACK
-  
+
   # @@protoc_insertion_point(class_scope:payments.PaymentACK)
 
 # @@protoc_insertion_point(module_scope)

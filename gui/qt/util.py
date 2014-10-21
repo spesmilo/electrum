@@ -182,7 +182,7 @@ def filename_field(parent, config, defaultname, select_msg):
     b2.setText(_("json"))
     vbox.addWidget(b1)
     vbox.addWidget(b2)
-        
+
     hbox = QHBoxLayout()
 
     directory = config.get('io_dir', unicode(os.path.expanduser('~')))

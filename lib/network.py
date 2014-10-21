@@ -46,7 +46,7 @@ def parse_servers(result):
                 elif re.match("p\d*", v):
                     pruning_level = v[1:]
                 if pruning_level == '': pruning_level = '0'
-        try: 
+        try:
             is_recent = float(version)>=float(PROTOCOL_VERSION)
         except Exception:
             is_recent = False
@@ -65,7 +65,7 @@ def filter_protocol(servers, p):
         if p in protocols:
             l.append( ':'.join([k, protocols[p], p]) )
     return l
-    
+
 
 def pick_random_server(p='s'):
     return random.choice( filter_protocol(DEFAULT_SERVERS,p) )
@@ -115,7 +115,7 @@ class Network(threading.Thread):
             os.mkdir(dir_path)
 
         # address subscriptions and cached results
-        self.addresses = {} 
+        self.addresses = {}
         self.connection_status = 'connecting'
         self.requests_queue = Queue.Queue()
 
@@ -169,10 +169,10 @@ class Network(threading.Thread):
                 continue
             else:
                 choice_list.append(s)
-        
-        if not choice_list: 
+
+        if not choice_list:
             return
-        
+
         server = random.choice( choice_list )
         return server
 
@@ -187,7 +187,7 @@ class Network(threading.Thread):
 
     def get_servers(self):
         if self.irc_servers:
-            out = self.irc_servers  
+            out = self.irc_servers
         else:
             out = DEFAULT_SERVERS
             for s in self.recent_servers:
@@ -213,7 +213,7 @@ class Network(threading.Thread):
         self.interface = self.start_interface(self.default_server)
         for i in range(self.num_server):
             self.start_random_interface()
-            
+
     def start(self, response_queue):
         self.running = True
         self.response_queue = response_queue
@@ -269,7 +269,7 @@ class Network(threading.Thread):
 
 
     def stop_interface(self):
-        self.interface.stop() 
+        self.interface.stop()
 
 
     def set_server(self, server):
@@ -293,7 +293,7 @@ class Network(threading.Thread):
             self.switch_to_interface( self.interfaces[server] )
         else:
             self.interface = self.start_interface(server)
-        
+
 
     def add_recent_server(self, i):
         # list is ordered
@@ -366,7 +366,7 @@ class Network(threading.Thread):
         if method == 'blockchain.address.subscribe':
             addr = params[0]
             if addr in self.addresses:
-                self.response_queue.put({'id':_id, 'result':self.addresses[addr]}) 
+                self.response_queue.put({'id':_id, 'result':self.addresses[addr]})
                 return
 
         self.interface.send_request(request)
@@ -393,7 +393,7 @@ class Network(threading.Thread):
                         self.disconnected_time = time.time()
 
                 continue
-            
+
             if response is not None:
                 self.process_response(i, response)
                 continue
@@ -484,5 +484,3 @@ class Network(threading.Thread):
 
     def get_local_height(self):
         return self.blockchain.height()
-
-
