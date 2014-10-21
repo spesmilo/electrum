@@ -6,6 +6,15 @@ import time
 import traceback
 import sys
 import threading
+import platform
+
+if platform.system() == 'Windows':
+    MONOSPACE_FONT = 'Lucida Console'
+elif platform.system() == 'Darwin':
+    MONOSPACE_FONT = 'Monaco'
+else:
+    MONOSPACE_FONT = 'monospace'
+
 
 class WaitingDialog(QThread):
     def __init__(self, parent, message, run_task, on_complete=None):
@@ -85,28 +94,28 @@ class HelpButton(QPushButton):
 
 
 
-def close_button(dialog, label=_("Close") ):
+def close_button(dialog, label=None):
     hbox = QHBoxLayout()
     hbox.addStretch(1)
-    b = QPushButton(label)
+    b = QPushButton(label or _("Close"))
     hbox.addWidget(b)
     b.clicked.connect(dialog.close)
     b.setDefault(True)
     return hbox
 
-def ok_cancel_buttons2(dialog, ok_label=_("OK"), cancel_label=_('Cancel')):
+def ok_cancel_buttons2(dialog, ok_label=None, cancel_label=None):
     hbox = QHBoxLayout()
     hbox.addStretch(1)
-    b = QPushButton(cancel_label)
+    b = QPushButton(cancel_label or _('Cancel'))
     hbox.addWidget(b)
     b.clicked.connect(dialog.reject)
-    b = QPushButton(ok_label)
+    b = QPushButton(ok_label or _("OK"))
     hbox.addWidget(b)
     b.clicked.connect(dialog.accept)
     b.setDefault(True)
     return hbox, b
 
-def ok_cancel_buttons(dialog, ok_label=_("OK"), cancel_label=_('Cancel')):
+def ok_cancel_buttons(dialog, ok_label=None, cancel_label=None):
     hbox, b = ok_cancel_buttons2(dialog, ok_label, cancel_label)
     return hbox
 
@@ -210,9 +219,9 @@ class MyTreeWidget(QTreeWidget):
     def __init__(self, parent):
         QTreeWidget.__init__(self, parent)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.connect(self, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.itemactivated)
+        self.itemActivated.connect(self.on_activated)
 
-    def itemactivated(self, item):
+    def on_activated(self, item):
         if not item: return
         for i in range(0,self.viewport().height()/5):
             if self.itemAt(QPoint(0,i*5)) == item:

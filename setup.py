@@ -32,6 +32,7 @@ if (len(sys.argv) > 1 and (sys.argv[1] == "sdist")) or (platform.system() != 'Wi
         if os.path.exists('locale/%s/LC_MESSAGES/electrum.mo' % lang):
             data_files.append((os.path.join(usr_share, 'locale/%s/LC_MESSAGES' % lang), ['locale/%s/LC_MESSAGES/electrum.mo' % lang]))
 
+
 appdata_dir = util.appdata_dir()
 if not os.access(appdata_dir, os.W_OK):
     appdata_dir = os.path.join(usr_share, "electrum")
@@ -52,13 +53,25 @@ data_files += [
     ])
 ]
 
-# replace tlslite because of https://github.com/trevp/tlslite/issues/15
-os.system("pip install http://download.electrum.org/tlslite-0.4.5.tar.gz")
+for lang in os.listdir('data/wordlist'):
+    data_files.append((os.path.join(appdata_dir, 'wordlist'), ['data/wordlist/%s' % lang]))
+
 
 setup(
     name="Electrum",
     version=version.ELECTRUM_VERSION,
-    install_requires=['slowaes', 'ecdsa>=0.9', 'pbkdf2', 'requests', 'pyasn1', 'pyasn1-modules', 'qrcode', 'scrypt'],
+    install_requires=[
+        'slowaes',
+        'ecdsa>=0.9',
+        'pbkdf2',
+        'requests',
+        'pyasn1',
+        'pyasn1-modules',
+        'qrcode',
+        'scrypt',
+        'SocksiPy-branch',
+        'tlslite'
+    ],
     package_dir={
         'electrum': 'lib',
         'electrum_gui': 'gui',
@@ -79,18 +92,18 @@ setup(
         'electrum.msqr',
         'electrum.network',
         'electrum.network_proxy',
+        'electrum.old_mnemonic',
         'electrum.paymentrequest',
         'electrum.paymentrequest_pb2',
         'electrum.plugins',
+        'electrum.qrscanner',
         'electrum.simple_config',
-        'electrum.socks',
         'electrum.synchronizer',
         'electrum.transaction',
         'electrum.util',
         'electrum.verifier',
         'electrum.version',
         'electrum.wallet',
-        'electrum.wallet_bitkey',
         'electrum.x509',
         'electrum_gui.gtk',
         'electrum_gui.qt.__init__',
@@ -113,12 +126,13 @@ setup(
         'electrum_gui.qt.version_getter',
         'electrum_gui.stdio',
         'electrum_gui.text',
-        'electrum_plugins.aliases',
+        'electrum_plugins.btchipwallet',
         'electrum_plugins.coinbase_buyback',
+        'electrum_plugins.cosigner_pool',
         'electrum_plugins.exchange_rate',
+        'electrum_plugins.greenaddress_instant',
         'electrum_plugins.labels',
-        'electrum_plugins.pointofsale',
-        'electrum_plugins.qrscanner',
+        'electrum_plugins.trezor',
         'electrum_plugins.virtualkeyboard',
     ],
     description="Lightweight Bitcoin Wallet",

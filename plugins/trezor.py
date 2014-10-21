@@ -7,15 +7,16 @@ from time import sleep
 from base64 import b64encode, b64decode
 
 import electrum
-from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
-from electrum_gui.qt.util import ok_cancel_buttons, EnterButton
 from electrum.account import BIP32_Account
 from electrum.bitcoin import EncodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import deserialize
 from electrum.wallet import NewWallet
+from electrum.util import print_error
 
+from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
+from electrum_gui.qt.util import ok_cancel_buttons, EnterButton
 
 try:
     from trezorlib.client import types
@@ -32,7 +33,7 @@ def log(msg):
     stderr.flush()
 
 def give_error(message):
-    QMessageBox.warning(QDialog(), _('Warning'), _(message), _('OK'))
+    print_error(message)
     raise Exception(message)
 
 class Plugin(BasePlugin):
@@ -78,9 +79,31 @@ class Plugin(BasePlugin):
     def enable(self):
         return BasePlugin.enable(self)
 
+    def trezor_is_connected(self):
+        try:
+            self.wallet.get_client().ping('t')
+        except:
+            return False
+        return True
+
+    @hook
+    def init_qt(self, gui):
+        self.window = gui.main_window
+
+    @hook
+    def close_wallet(self):
+        print_error("trezor: clear session")
+        if self.wallet.client:
+            self.wallet.client.clear_session()
+
     @hook
     def load_wallet(self, wallet):
         self.wallet = wallet
+        if self.trezor_is_connected():
+            if not self.wallet.check_proper_device():
+                QMessageBox.information(self.window, _('Error'), _("This wallet does not match your Trezor device"), _('OK'))
+        else:
+            QMessageBox.information(self.window, _('Error'), _("Trezor device not detected.\nContinuing in watching-only mode."), _('OK'))
 
     @hook
     def installwizard_restore(self, wizard, storage):
@@ -132,9 +155,9 @@ class Plugin(BasePlugin):
         layout.addWidget(change_label_button,3,1)
 
         if d.exec_():
-          return True
+            return True
         else:
-          return False
+            return False
 
 
 class TrezorWallet(NewWallet):
@@ -150,6 +173,12 @@ class TrezorWallet(NewWallet):
     def get_action(self):
         if not self.accounts:
             return 'create_accounts'
+
+    def can_import(self):
+        return False
+
+    def can_export(self):
+        return False
 
     def can_create_accounts(self):
         return True
@@ -345,7 +374,7 @@ class TrezorWallet(NewWallet):
     def check_proper_device(self):
         self.get_client().ping('t')
         if not self.device_checked:
-            address = self.addresses(False, False)[0]
+            address = self.addresses(False)[0]
             address_id = self.address_id(address)
             n = self.get_client().expand_path(address_id)
             device_address = self.get_client().get_address('Bitcoin', n)
@@ -419,6 +448,7 @@ class TrezorQtGuiMixin(object):
         d = QDialog(None)
         d.setModal(1)
         d.setWindowTitle(_("Enter PIN"))
+        d.setWindowFlags(d.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)
         matrix = PinMatrixWidget()
 
         vbox = QVBoxLayout()

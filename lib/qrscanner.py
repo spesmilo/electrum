@@ -1,4 +1,5 @@
 import os
+from i18n import _
 
 try:
     import zbar
@@ -8,7 +9,7 @@ except ImportError:
 
 def scan_qr(config):
     if not zbar:
-        return
+        raise BaseException("\n".join([_("Cannot start QR scanner."),_("The zbar package is not available."),_("On Linux, try 'sudo apt-get install python-zbar'")]))
     device = config.get("video_device", "default")
     if device == 'default':
         device = ''

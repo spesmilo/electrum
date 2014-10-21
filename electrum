@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 #
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2011 thomasv@gitorious
@@ -174,7 +174,6 @@ if __name__ == '__main__':
     set_verbosity(config_options.get('verbose'))
 
     config = SimpleConfig(config_options)
-    init_plugins(config)
 
     if len(args) == 0:
         url = None
@@ -186,6 +185,7 @@ if __name__ == '__main__':
         cmd = args[0]
 
     if cmd == 'gui':
+        init_plugins(config)
         gui_name = config.get('gui', 'classic')
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'
@@ -283,7 +283,10 @@ if __name__ == '__main__':
 
         if cmd.name == 'restore':
             if options.mpk:
-                wallet = Wallet.from_mpk(options.mpk, storage)
+                if Wallet.is_old_mpk(options.mpk):
+                    wallet = Wallet.from_old_mpk(options.mpk, storage)
+                if Wallet.is_xpub(options.mpk):
+                    wallet = Wallet.from_xpub(options.mpk, storage)
             else:
                 import getpass
                 seed = getpass.getpass(prompt="seed:", stream=None) if options.concealed else raw_input("seed:")
@@ -295,7 +298,8 @@ if __name__ == '__main__':
                 wallet.create_main_account(password)
 
             if not options.offline:
-                network = Network(config)
+                s = get_daemon(config, True)
+                network = NetworkProxy(s,config)
                 network.start()
                 wallet.start_threads(network)
                 print_msg("Recovering wallet...")
@@ -424,6 +428,7 @@ if __name__ == '__main__':
 
     if cmd.name == 'check_seed':
         args.append(long(options.entropy))
+        args.append(options.language)
 
 
     # run the command

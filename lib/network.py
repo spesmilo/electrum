@@ -385,6 +385,13 @@ class Network(threading.Thread):
                         print_error('network: retrying connections')
                         self.disconnected_servers = set([])
                         self.disconnected_time = time.time()
+
+                if not self.interface.is_connected:
+                    if time.time() - self.disconnected_time > DISCONNECTED_RETRY_INTERVAL:
+                        print_error("forcing reconnection")
+                        self.queue.put((self.interface, None))
+                        self.disconnected_time = time.time()
+
                 continue
             
             if response is not None:
@@ -412,8 +419,17 @@ class Network(threading.Thread):
                 if i == self.interface:
                     self.set_status('disconnected')
 
-            if not self.interface.is_connected and self.config.get('auto_cycle'):
-                self.switch_to_random_interface()
+            if not self.interface.is_connected:
+                if self.config.get('auto_cycle'):
+                    self.switch_to_random_interface()
+                else:
+                    if self.default_server not in self.disconnected_servers:
+                        print_error("restarting main interface")
+                        if self.default_server in self.interfaces.keys():
+                            self.switch_to_interface(self.interfaces[self.default_server])
+                        else:
+                            self.interface = self.start_interface(self.default_server)
+
 
         print_error("Network: Stopping interfaces")
         for i in self.interfaces.values():

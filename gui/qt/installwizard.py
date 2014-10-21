@@ -16,7 +16,7 @@ from amountedit import AmountEdit
 import sys
 import threading
 from electrum.plugins import run_hook
-
+from electrum.mnemonic import prepare_seed
 
 MSG_ENTER_ANYTHING    = _("Please enter a wallet seed, a master public key, a list of Bitcoin addresses, or a list of private keys")
 MSG_SHOW_MPK          = _("This is your master public key")
@@ -37,30 +37,23 @@ class InstallWizard(QDialog):
         self.setMaximumSize(575, 400)
         self.setWindowTitle('Electrum')
         self.connect(self, QtCore.SIGNAL('accept'), self.accept)
-
         self.stack = QStackedLayout()
         self.setLayout(self.stack)
-
 
     def set_layout(self, layout):
         w = QWidget()
         w.setLayout(layout)
-        self.stack.setCurrentIndex(self.stack.addWidget(w))
-
+        self.stack.addWidget(w)
+        self.stack.setCurrentWidget(w)
 
     def restore_or_create(self):
-
         vbox = QVBoxLayout()
-
         main_label = QLabel(_("Electrum could not find an existing wallet."))
         vbox.addWidget(main_label)
-
         grid = QGridLayout()
         grid.setSpacing(5)
-
         gb1 = QGroupBox(_("What do you want to do?"))
         vbox.addWidget(gb1)
-
         b1 = QRadioButton(gb1)
         b1.setText(_("Create new wallet"))
         b1.setChecked(True)
@@ -110,12 +103,11 @@ class InstallWizard(QDialog):
         return action, wallet_type
 
 
-    def verify_seed(self, seed, sid):
-        r = self.enter_seed_dialog(MSG_VERIFY_SEED, sid)
+    def verify_seed(self, seed, sid, func=None):
+        r = self.enter_seed_dialog(MSG_VERIFY_SEED, sid, func)
         if not r:
             return
-
-        if r != seed:
+        if prepare_seed(r) != prepare_seed(seed):
             QMessageBox.warning(None, _('Error'), _('Incorrect seed'), _('OK'))
             return False
         else:
@@ -127,25 +119,21 @@ class InstallWizard(QDialog):
         text = ' '.join(text.split())
         return text
 
-    def is_any(self, seed_e):
-        text = self.get_seed_text(seed_e)
+    def is_any(self, text):
         return Wallet.is_seed(text) or Wallet.is_old_mpk(text) or Wallet.is_xpub(text) or Wallet.is_xprv(text) or Wallet.is_address(text) or Wallet.is_private_key(text)
 
-    def is_mpk(self, seed_e):
-        text = self.get_seed_text(seed_e)
+    def is_mpk(self, text):
         return Wallet.is_xpub(text) or Wallet.is_old_mpk(text)
 
-    def is_xpub(self, seed_e):
-        text = self.get_seed_text(seed_e)
-        return Wallet.is_xpub(text)
-
-    def enter_seed_dialog(self, msg, sid):
+    def enter_seed_dialog(self, msg, sid, func=None):
+        if func is None:
+            func = self.is_any
         vbox, seed_e = seed_dialog.enter_seed_box(msg, sid)
         vbox.addStretch(1)
         hbox, button = ok_cancel_buttons2(self, _('Next'))
         vbox.addLayout(hbox)
         button.setEnabled(False)
-        seed_e.textChanged.connect(lambda: button.setEnabled(self.is_any(seed_e)))
+        seed_e.textChanged.connect(lambda: button.setEnabled(func(self.get_seed_text(seed_e))))
         self.set_layout(vbox)
         if not self.exec_():
             return
@@ -167,7 +155,7 @@ class InstallWizard(QDialog):
         hbox, button = ok_cancel_buttons2(self, _('Next'))
         vbox.addLayout(hbox)
         button.setEnabled(False)
-        f = lambda: button.setEnabled( map(lambda e: self.is_xpub(e), entries) == [True]*len(entries))
+        f = lambda: button.setEnabled( map(lambda e: Wallet.is_xpub(self.get_seed_text(e)), entries) == [True]*len(entries))
         for e in entries:
             e.textChanged.connect(f)
         self.set_layout(vbox)
@@ -190,7 +178,7 @@ class InstallWizard(QDialog):
         vbox.addLayout(hbox)
         button.setEnabled(False)
 
-        f = lambda: button.setEnabled( map(lambda e: self.is_any(e), entries) == [True]*len(entries))
+        f = lambda: button.setEnabled( map(lambda e: self.is_any(self.get_seed_text(e)), entries) == [True]*len(entries))
         for e in entries:
             e.textChanged.connect(f)
 
@@ -354,7 +342,7 @@ class InstallWizard(QDialog):
                 wallet_type = '2fa'
 
             if action == 'create':
-                self.storage.put('wallet_type', wallet_type)
+                self.storage.put('wallet_type', wallet_type, False)
 
         if action is None:
             return

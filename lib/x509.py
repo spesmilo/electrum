@@ -36,6 +36,9 @@ except ImportError:
     sys.exit("Error: tlslite does not seem to be installed. Try 'sudo pip install tlslite'")
 
 
+# workaround https://github.com/trevp/tlslite/issues/15
+tlslite.utils.cryptomath.pycryptoLoaded = False
+
 
 from pyasn1.codec.der import decoder, encoder
 from pyasn1.type.univ import Any, ObjectIdentifier, OctetString
