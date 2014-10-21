@@ -216,7 +216,7 @@ class Abstract_Wallet(object):
         # inputs
         tx.add_pubkey_addresses(self.transactions)
 
-        # outputs of tx: inputs of tx2 
+        # outputs of tx: inputs of tx2
         for type, x, v in tx.outputs:
             if type == 'pubkey':
                 for tx2 in self.transactions.values():
@@ -717,8 +717,8 @@ class Abstract_Wallet(object):
         if not coins:
             if domain is None:
                 domain = self.addresses(True)
-            for i in self.frozen_addresses:
-                if i in domain: domain.remove(i)
+            # filter out frozen addresses
+            domain = [address for address in domain if not address in self.frozen_addresses]
             coins = self.get_unspent_coins(domain)
 
         amount = sum( map(lambda x:x[2], outputs) )
@@ -1336,7 +1336,9 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         BIP32_Wallet.__init__(self, storage)
 
     def can_create_accounts(self):
-        return self.root_name in self.master_private_keys.keys()
+        has_pending = any(self.account_is_pending(acc) for acc in self.accounts)
+        has_root_name = self.root_name in self.master_private_keys.keys()
+        return has_root_name and not has_pending
 
     def addresses(self, b=True):
         l = BIP32_Wallet.addresses(self, b)
@@ -1444,7 +1446,7 @@ class NewWallet(BIP32_HD_Wallet, Mnemonic):
 
 
 class Wallet_2of2(BIP32_Wallet, Mnemonic):
-    # Wallet with multisig addresses. 
+    # Wallet with multisig addresses.
     # Cannot create accounts
     root_name = "x1/"
     root_derivation = "m/44'/0'"
@@ -1590,7 +1592,7 @@ class OldWallet(Deterministic_Wallet):
 
 
 
-wallet_types = [ 
+wallet_types = [
     # category   type        description                   constructor
     ('standard', 'old',      ("Old wallet"),               OldWallet),
     ('standard', 'xpub',     ("BIP32 Import"),             BIP32_Simple_Wallet),
