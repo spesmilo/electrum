@@ -548,6 +548,11 @@ class ElectrumWindow(QMainWindow):
         menu.addAction(_("Copy ID to Clipboard"), lambda: self.app.clipboard().setText(tx_hash))
         menu.addAction(_("Details"), lambda: self.show_transaction(self.wallet.transactions.get(tx_hash)))
         menu.addAction(_("Edit description"), lambda: self.tx_label_clicked(item,2))
+        amount = float(item.text(3))
+        if amount < 0:
+            menu.addAction(_("New Contact"), lambda: self.new_contact_dialog(address=item.text(2)))
+        else:
+            menu.addAction(_("Label Address"), lambda: self.new_contact_dialog(address=item.text(2)))
         menu.addAction(_("View on block explorer"), lambda: webbrowser.open(block_explorer + tx_hash))
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
@@ -581,7 +586,6 @@ class ElectrumWindow(QMainWindow):
             item.setForeground(2, QBrush(QColor('gray')))
         self.is_edit=False
 
-
     def edit_label(self, is_recv):
         l = self.address_list if is_recv else self.contacts_list
         item = l.currentItem()
@@ -596,8 +600,8 @@ class ElectrumWindow(QMainWindow):
             is_editable = item.data(0, 32).toBool()
             if not is_editable:
                 return
-            addr = unicode( item.text(column_addr) )
-            label = unicode( item.text(column_label) )
+            # addr = unicode( item.text(column_addr) )
+            # label = unicode( item.text(column_label) )
             item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
             l.editItem( item, column )
             item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
@@ -1766,7 +1770,7 @@ class ElectrumWindow(QMainWindow):
         self.update_lock_icon()
 
 
-    def new_contact_dialog(self):
+    def new_contact_dialog(self, address=""):
 
         d = QDialog(self)
         d.setWindowTitle(_("New Contact"))
@@ -1774,21 +1778,28 @@ class ElectrumWindow(QMainWindow):
         vbox.addWidget(QLabel(_('New Contact')+':'))
 
         grid = QGridLayout()
-        line1 = QLineEdit()
-        line2 = QLineEdit()
+        address_e = ScanQRTextEdit(self)
+        address_e.setText(address)
+        address_e.setMaximumHeight(25)
+        # address_e = QLineEdit(text=address)
+        name_e = QLineEdit()
         grid.addWidget(QLabel(_("Address")), 1, 0)
-        grid.addWidget(line1, 1, 1)
+        grid.addWidget(address_e, 1, 1)
         grid.addWidget(QLabel(_("Name")), 2, 0)
-        grid.addWidget(line2, 2, 1)
+        grid.addWidget(name_e, 2, 1)
 
         vbox.addLayout(grid)
         vbox.addLayout(ok_cancel_buttons(d))
 
+        if address:     # widget must be visible before you can set focus
+            name_e.setFocus()
+
+
         if not d.exec_():
             return
 
-        address = str(line1.text())
-        label = unicode(line2.text())
+        address = str(address_e.text())
+        label = unicode(name_e.text())
 
         if not is_valid(address):
             QMessageBox.warning(self, _('Error'), _('Invalid Address'), _('OK'))
@@ -1846,19 +1857,27 @@ class ElectrumWindow(QMainWindow):
 
         main_layout = QGridLayout()
         mpk_dict = self.wallet.get_master_public_keys()
-        i = 0
-        for account_name, master_key in mpk_dict.items():
-            main_layout.addWidget(QLabel(account_name), i, 0)
-            if master_key:
-                mpk_text = ShowQRTextEdit(text=master_key)
-                mpk_text.setMaximumHeight(170)
-                main_layout.addWidget(mpk_text, i + 1, 0)
-                i += 2
-            else:
-                no_text = QLineEdit(text=_("Master Public Key is not available (yet)"))
-                no_text.setReadOnly(1)
-                main_layout.addWidget(no_text, i + 1, 0)
-                i += 2
+        # filter out the empty keys (PendingAccount)
+        mpk_dict = {acc:mpk for acc,mpk in mpk_dict.items() if mpk}
+
+        main_layout.addWidget(QLabel(_("Select Account")), 0, 0)
+
+        combobox = QComboBox()
+        for name in mpk_dict:
+            combobox.addItem(name)
+        combobox.setCurrentIndex(0)
+        main_layout.addWidget(combobox, 1, 0)
+
+        account = unicode(combobox.currentText())
+        mpk_text = ShowQRTextEdit(text=mpk_dict[account])
+        mpk_text.setMaximumHeight(170)
+        main_layout.addWidget(mpk_text, 2, 0)
+
+        def show_mpk(account):
+            mpk = mpk_dict.get(unicode(account), "")
+            mpk_text.setText(mpk)
+
+        combobox.currentIndexChanged[str].connect(lambda acc: show_mpk(acc))
 
         vbox = QVBoxLayout()
         vbox.addLayout(main_layout)
@@ -2637,6 +2656,8 @@ class ElectrumWindow(QMainWindow):
         block_explorers = ['Blockchain.info', 'Blockr.io', 'Insight.is', "Blocktrail.com"]
         block_ex_label = QLabel(_('Online Block Explorer') + ':')
         block_ex_combo = QComboBox()
+        # for be, icon in zip(block_explorers, block_explorer_icons):
+        #     block_ex_combo.addItem(QIcon(":icons/"+icon), be)
         block_ex_combo.addItems(block_explorers)
         block_ex_combo.setCurrentIndex(block_explorers.index(self.config.get('block_explorer', 'Blockchain.info')))
         block_ex_help = HelpButton(_('Choose which online block explorer to use for functions that open a web browser'))
