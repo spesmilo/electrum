@@ -17,7 +17,10 @@ if sys.version_info[:3] < (2, 6, 0):
 
 usr_share = util.usr_share_dir()
 if not os.access(usr_share, os.W_OK):
-    sys.exit("Error: cannot write to %s.\nIf you do not have root permissions, you may install Electrum a virtualenv.\nAlso, please note that you can run Electrum without installing it on your system."%usr_share)
+    try:
+        os.mkdir(usr_share)
+    except:
+        sys.exit("Error: cannot write to %s.\nIf you do not have root permissions, you may install Electrum in a virtualenv.\nAlso, please note that you can run Electrum without installing it on your system."%usr_share)
 
 data_files = []
 if (len(sys.argv) > 1 and (sys.argv[1] == "sdist")) or (platform.system() != 'Windows' and platform.system() != 'Darwin'):
