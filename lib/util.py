@@ -62,13 +62,15 @@ def data_dir():
     else:
         return appdata_dir()
 
+def usr_share_dir():
+    return os.path.join(sys.prefix, "share")
 
 def appdata_dir():
     """Find the path to the application data directory; add an electrum folder and return path."""
     if platform.system() == "Windows":
         return os.path.join(os.environ["APPDATA"], "Electrum")
     elif platform.system() == "Linux":
-        return os.path.join(sys.prefix, "share", "electrum")
+        return os.path.join(usr_share_dir(), "electrum")
     elif (platform.system() == "Darwin" or
           platform.system() == "DragonFly" or
           platform.system() == "OpenBSD" or

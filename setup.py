@@ -10,14 +10,14 @@ import imp
 
 
 version = imp.load_source('version', 'lib/version.py')
-util = imp.load_source('version', 'lib/util.py')
+util = imp.load_source('util', 'lib/util.py')
 
 if sys.version_info[:3] < (2, 6, 0):
     sys.exit("Error: Electrum requires Python version >= 2.6.0...")
 
-usr_share = '/usr/share'
+usr_share = util.usr_share_dir()
 if not os.access(usr_share, os.W_OK):
-    usr_share = os.getenv("XDG_DATA_HOME", os.path.join(os.getenv("HOME"), ".local", "share"))
+    sys.exit("Error: cannot write to %s.\nIf you do not have root permissions, you may install Electrum a virtualenv.\nAlso, please note that you can run Electrum without installing it on your system."%usr_share)
 
 data_files = []
 if (len(sys.argv) > 1 and (sys.argv[1] == "sdist")) or (platform.system() != 'Windows' and platform.system() != 'Darwin'):
@@ -32,10 +32,7 @@ if (len(sys.argv) > 1 and (sys.argv[1] == "sdist")) or (platform.system() != 'Wi
         if os.path.exists('locale/%s/LC_MESSAGES/electrum.mo' % lang):
             data_files.append((os.path.join(usr_share, 'locale/%s/LC_MESSAGES' % lang), ['locale/%s/LC_MESSAGES/electrum.mo' % lang]))
 
-
-appdata_dir = util.appdata_dir()
-if not os.access(appdata_dir, os.W_OK):
-    appdata_dir = os.path.join(usr_share, "electrum")
+appdata_dir = os.path.join(usr_share, "electrum")
 
 data_files += [
     (appdata_dir, ["data/README"]),
