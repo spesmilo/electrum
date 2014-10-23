@@ -37,6 +37,7 @@ from electrum import transaction
 from electrum.plugins import run_hook
 
 from util import MyTreeWidget
+from util import MONOSPACE_FONT
 
 class TxDialog(QDialog):
 
@@ -203,9 +204,10 @@ class TxDialog(QDialog):
                 return 'coinbase'
             else:
                 _hash = x.get('prevout_hash')
-                return _hash[0:16] + '...' + _hash[-8:] + ":%d"%x.get('prevout_n') + u'\t' + "%s"%x.get('address')
+                return _hash[0:8] + '...' + _hash[-8:] + ":%d"%x.get('prevout_n') + u'\t' + "%s"%x.get('address')
         lines = map(format_input, self.tx.inputs )
         i_text = QTextEdit()
+        i_text.setFont(QFont(MONOSPACE_FONT))
         i_text.setText('\n'.join(lines))
         i_text.setReadOnly(True)
         i_text.setMaximumHeight(100)
@@ -214,6 +216,7 @@ class TxDialog(QDialog):
         vbox.addWidget(QLabel(_("Outputs")))
         lines = map(lambda x: x[0] + u'\t\t' + self.parent.format_amount(x[1]) if x[1] else x[0], self.tx.get_outputs())
         o_text = QTextEdit()
+        o_text.setFont(QFont(MONOSPACE_FONT))
         o_text.setText('\n'.join(lines))
         o_text.setReadOnly(True)
         o_text.setMaximumHeight(100)
