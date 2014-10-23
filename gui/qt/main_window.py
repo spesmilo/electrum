@@ -1081,8 +1081,6 @@ class ElectrumWindow(QMainWindow):
             tx = self.wallet.make_unsigned_transaction(outputs, fee, None, coins = coins)
             if not tx:
                 raise BaseException(_("Insufficient funds"))
-            else:
-                tx.error = None
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             self.show_message(str(e))
@@ -1116,32 +1114,21 @@ class ElectrumWindow(QMainWindow):
             if self.wallet.is_watching_only():
                 return tx
             keypairs = {}
-            try:
-                self.wallet.add_keypairs(tx, keypairs, password)
-                self.wallet.sign_transaction(tx, keypairs, password)
-            except Exception as e:
-                traceback.print_exc(file=sys.stdout)
-                tx.error = str(e)
+            self.wallet.add_keypairs(tx, keypairs, password)
+            self.wallet.sign_transaction(tx, keypairs, password)
             return tx
 
         def sign_done(tx):
-            if tx.error:
-                self.show_message(tx.error)
-                self.send_button.setDisabled(False)
-                return
             if label:
                 self.wallet.set_label(tx.hash(), label)
-
             if not tx.is_complete() or self.config.get('show_before_broadcast'):
                 self.show_transaction(tx)
                 self.do_clear()
-                self.send_button.setDisabled(False)
                 return
-
             self.broadcast_transaction(tx)
 
         # keep a reference to WaitingDialog or the gui might crash
-        self.waiting_dialog = WaitingDialog(self, 'Signing..', sign_thread, sign_done)
+        self.waiting_dialog = WaitingDialog(self, 'Signing..', sign_thread, sign_done, lambda: self.send_button.setDisabled(False))
         self.waiting_dialog.start()
 
 

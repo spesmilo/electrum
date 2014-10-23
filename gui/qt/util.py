@@ -17,7 +17,7 @@ else:
 
 
 class WaitingDialog(QThread):
-    def __init__(self, parent, message, run_task, on_complete=None):
+    def __init__(self, parent, message, run_task, on_success=None, on_complete=None):
         QThread.__init__(self)
         self.parent = parent
         self.d = QDialog(parent)
@@ -26,6 +26,7 @@ class WaitingDialog(QThread):
         vbox = QVBoxLayout(self.d)
         vbox.addWidget(l)
         self.run_task = run_task
+        self.on_success = on_success
         self.on_complete = on_complete
         self.d.connect(self.d, SIGNAL('done'), self.close)
         self.d.show()
@@ -43,14 +44,14 @@ class WaitingDialog(QThread):
         self.d.accept()
         if self.error:
             QMessageBox.warning(self.parent, _('Error'), self.error, _('OK'))
-            return
+        else:
+            if self.on_success:
+                if type(self.result) is not tuple:
+                    self.result = (self.result,)
+                self.on_success(*self.result)
 
         if self.on_complete:
-            if type(self.result) is tuple:
-                self.on_complete(*self.result)
-            else:
-                self.on_complete(self.result)
-
+            self.on_complete()
 
 
 class Timer(QThread):
