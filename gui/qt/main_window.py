@@ -1833,8 +1833,6 @@ class ElectrumWindow(QMainWindow):
 
         # only show the combobox in case multiple accounts are available
         if len(mpk_dict) > 1:
-            main_layout.addWidget(QLabel(_("Select Account")), 0, 0)
-
             combobox = QComboBox()
             for name in mpk_dict:
                 combobox.addItem(name)
