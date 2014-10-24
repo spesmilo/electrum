@@ -23,7 +23,7 @@ from electrum.i18n import _
 from electrum import mnemonic
 from qrcodewidget import QRCodeWidget, QRDialog
 from util import close_button
-from qrtextedit import QRTextEdit
+from qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 
 class SeedDialog(QDialog):
     def __init__(self, parent, seed, imported_keys):
@@ -72,15 +72,13 @@ def show_seed_box(seed, sid=None):
                + _("If you ever need to recover your wallet from seed, you will need both this seed and your cold seed.") + " " \
 
     label1 = QLabel(msg+ ":")
-    seed_text = QRTextEdit(seed)
-    seed_text.setReadOnly(True)
+    seed_text = ShowQRTextEdit(text=seed)
     seed_text.setMaximumHeight(130)
 
     label2 = QLabel(msg2)
     label2.setWordWrap(True)
 
     logo = QLabel()
-
     logo.setPixmap(QPixmap(icon_filename(sid)).scaledToWidth(56))
     logo.setMaximumWidth(60)
 
@@ -96,8 +94,7 @@ def show_seed_box(seed, sid=None):
     return vbox
 
 
-def enter_seed_box(msg, sid=None):
-
+def enter_seed_box(msg, window, sid=None):
     vbox = QVBoxLayout()
     logo = QLabel()
     logo.setPixmap(QPixmap(icon_filename(sid)).scaledToWidth(56))
@@ -106,7 +103,7 @@ def enter_seed_box(msg, sid=None):
     label = QLabel(msg)
     label.setWordWrap(True)
 
-    seed_e = QRTextEdit()
+    seed_e = ScanQRTextEdit(win=window)
     seed_e.setMaximumHeight(100)
     seed_e.setTabChangesFocus(True)
 
