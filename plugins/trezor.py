@@ -119,6 +119,7 @@ class Plugin(BasePlugin):
 
     @hook
     def send_tx(self, tx):
+        tx.error = None
         try:
             self.wallet.sign_transaction(tx, None, None)
         except Exception as e:
