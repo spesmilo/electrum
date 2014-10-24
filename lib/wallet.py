@@ -1403,7 +1403,7 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         self.save_accounts()
 
     def create_pending_account(self, name, password):
-        next_id, next_xpub, next_address = self.next_account if self.next_account else self.get_next_account_address(password)
+        next_id, next_xpub, next_address = self.next_account if self.next_account else self.get_next_account(password)
         self.set_label(next_id, name)
         self.accounts[next_id] = PendingAccount({'pending':next_address})
         self.save_accounts()
