@@ -2144,12 +2144,6 @@ class ElectrumWindow(QMainWindow):
 
     def read_tx_from_qrcode(self):
         from electrum import qrscanner
-        if qrscanner.proc is None:
-            try:
-                qrscanner.init(self.config)
-            except Exception, e:
-                QMessageBox.warning(self, _('Error'), _(e), _('OK'))
-                return
         try:
             data = qrscanner.scan_qr(self.config)
         except BaseException, e:

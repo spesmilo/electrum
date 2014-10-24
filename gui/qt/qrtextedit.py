@@ -53,17 +53,11 @@ class ScanQRTextEdit(QRTextEdit):
 
     def qr_input(self):
         from electrum import qrscanner
-        if qrscanner.proc is None:
-            try:
-                qrscanner.init(self.win.config)
-            except Exception, e:
-                QMessageBox.warning(self, _('Error'), _(e), _('OK'))
-                return
         try:
             data = qrscanner.scan_qr(self.win.config)
         except BaseException, e:
             QMessageBox.warning(self, _('Error'), _(e), _('OK'))
-            return
+            return ""
         if type(data) != str:
             return
         self.setText(data)

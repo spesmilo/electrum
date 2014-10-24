@@ -8,21 +8,18 @@ except ImportError:
 
 proc = None
 
-def init(config):
-    if not zbar:
-        raise BaseException("\n".join([_("Cannot start QR scanner."),_("The zbar package is not available."),_("On Linux, try 'sudo apt-get install python-zbar'")]))
-    device = config.get("video_device", "default")
-    if device == 'default':
-        device = ''
-    global proc
-    proc = zbar.Processor()
-    proc.init(video_device=device)
 
-def scan_qr(self):
+def scan_qr(config):
+    global proc
     if not zbar:
         raise BaseException("\n".join([_("Cannot start QR scanner."),_("The zbar package is not available."),_("On Linux, try 'sudo apt-get install python-zbar'")]))
     if proc is None:
-        raise BaseException("Start proc first")
+        device = config.get("video_device", "default")
+        if device == 'default':
+            device = ''
+        proc = zbar.Processor()
+        proc.init(video_device=device)
+
     proc.visible = True
     while True:
         try:
