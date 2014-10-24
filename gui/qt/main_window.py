@@ -45,7 +45,7 @@ from electrum import Imported_Wallet
 from amountedit import AmountEdit, BTCAmountEdit, MyLineEdit
 from network_dialog import NetworkDialog
 from qrcodewidget import QRCodeWidget, QRDialog
-from qrtextedit import QRTextEdit
+from qrtextedit import ScanQRTextEdit, ShowQRTextEdit
 
 from decimal import Decimal
 
@@ -1828,15 +1828,36 @@ class ElectrumWindow(QMainWindow):
 
         main_layout = QGridLayout()
         mpk_dict = self.wallet.get_master_public_keys()
-        i = 0
-        for key, value in mpk_dict.items():
-            main_layout.addWidget(QLabel(key), i, 0)
-            mpk_text = QRTextEdit()
-            mpk_text.setReadOnly(True)
+        # filter out the empty keys (PendingAccount)
+        mpk_dict = {acc:mpk for acc,mpk in mpk_dict.items() if mpk}
+
+        # only show the combobox in case multiple accounts are available
+        if len(mpk_dict) > 1:
+            main_layout.addWidget(QLabel(_("Select Account")), 0, 0)
+
+            combobox = QComboBox()
+            for name in mpk_dict:
+                combobox.addItem(name)
+            combobox.setCurrentIndex(0)
+            main_layout.addWidget(combobox, 1, 0)
+
+            account = unicode(combobox.currentText())
+            mpk_text = ShowQRTextEdit(text=mpk_dict[account])
             mpk_text.setMaximumHeight(170)
-            mpk_text.setText(value)
-            main_layout.addWidget(mpk_text, i + 1, 0)
-            i += 2
+            mpk_text.selectAll()    # for easy copying
+            main_layout.addWidget(mpk_text, 2, 0)
+
+            def show_mpk(account):
+                mpk = mpk_dict.get(unicode(account), "")
+                mpk_text.setText(mpk)
+
+            combobox.currentIndexChanged[str].connect(lambda acc: show_mpk(acc))
+        elif len(mpk_dict) == 1:
+            mpk = mpk_dict.values()[0]
+            mpk_text = ShowQRTextEdit(text=mpk)
+            mpk_text.setMaximumHeight(170)
+            mpk_text.selectAll()    # for easy copying
+            main_layout.addWidget(mpk_text, 2, 0)
 
         vbox = QVBoxLayout()
         vbox.addLayout(main_layout)
@@ -1844,7 +1865,6 @@ class ElectrumWindow(QMainWindow):
 
         dialog.setLayout(vbox)
         dialog.exec_()
-
 
     @protected
     def show_seed_dialog(self, password):
@@ -1900,9 +1920,7 @@ class ElectrumWindow(QMainWindow):
         vbox = QVBoxLayout()
         vbox.addWidget( QLabel(_("Address") + ': ' + address))
         vbox.addWidget( QLabel(_("Public key") + ':'))
-        keys = QRTextEdit()
-        keys.setReadOnly(True)
-        keys.setText('\n'.join(pubkey_list))
+        keys = ShowQRTextEdit(text='\n'.join(pubkey_list))
         vbox.addWidget(keys)
         vbox.addLayout(close_button(d))
         d.setLayout(vbox)
@@ -1924,9 +1942,7 @@ class ElectrumWindow(QMainWindow):
         vbox = QVBoxLayout()
         vbox.addWidget( QLabel(_("Address") + ': ' + address))
         vbox.addWidget( QLabel(_("Private key") + ':'))
-        keys = QRTextEdit()
-        keys.setReadOnly(True)
-        keys.setText('\n'.join(pk_list))
+        keys = ShowQRTextEdit(text='\n'.join(pk_list))
         vbox.addWidget(keys)
         vbox.addLayout(close_button(d))
         d.setLayout(vbox)
@@ -2128,6 +2144,12 @@ class ElectrumWindow(QMainWindow):
 
     def read_tx_from_qrcode(self):
         from electrum import qrscanner
+        if qrscanner.proc is None:
+            try:
+                qrscanner.init(self.config)
+            except Exception, e:
+                QMessageBox.warning(self, _('Error'), _(e), _('OK'))
+                return
         try:
             data = qrscanner.scan_qr(self.config)
         except BaseException, e:
@@ -2135,12 +2157,14 @@ class ElectrumWindow(QMainWindow):
             return
         if not data:
             return
+        # if the user scanned a bitcoin URI
+        if data.startswith("bitcoin:"):
+            self.pay_from_URI(data)
+            return
+        # else if the user scanned an offline signed tx
         # transactions are binary, but qrcode seems to return utf8...
         z = data.decode('utf8')
-        s = ''
-        for b in z:
-            s += chr(ord(b))
-        data = s.encode('hex')
+        data = ''.join(chr(ord(b)) for b in z).encode('hex')
         tx = self.tx_from_text(data)
         if not tx:
             return

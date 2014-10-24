@@ -137,7 +137,7 @@ def line_dialog(parent, title, label, ok_label, default=None):
         return unicode(txt.text())
 
 def text_dialog(parent, title, label, ok_label, default=None):
-    from qrtextedit import QRTextEdit
+    from qrtextedit import ScanQRTextEdit
     dialog = QDialog(parent)
     dialog.setMinimumWidth(500)
     dialog.setWindowTitle(title)
@@ -145,7 +145,7 @@ def text_dialog(parent, title, label, ok_label, default=None):
     l = QVBoxLayout()
     dialog.setLayout(l)
     l.addWidget(QLabel(label))
-    txt = QRTextEdit()
+    txt = ScanQRTextEdit(parent)
     if default:
         txt.setText(default)
     l.addWidget(txt)
