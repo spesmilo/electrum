@@ -274,8 +274,10 @@ class TrezorWallet(NewWallet):
         return str(b64_msg_sig)
 
     def sign_transaction(self, tx, keypairs, password):
-        if tx.error or tx.is_complete():
+        if tx.is_complete():
             return
+        if tx.error:
+            raise BaseException(tx.error)
 
         if not self.check_proper_device():
             give_error('Wrong device or password')

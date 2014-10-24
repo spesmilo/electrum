@@ -35,7 +35,7 @@ class WaitingDialog(QThread):
         self.error = None
         try:
             self.result = self.run_task()
-        except Exception as e:
+        except BaseException as e:
             traceback.print_exc(file=sys.stdout)
             self.error = str(e)
         self.d.emit(SIGNAL('done'))
