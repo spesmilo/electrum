@@ -17,7 +17,7 @@ else:
 
 
 class WaitingDialog(QThread):
-    def __init__(self, parent, message, run_task, on_complete=None):
+    def __init__(self, parent, message, run_task, on_success=None, on_complete=None):
         QThread.__init__(self)
         self.parent = parent
         self.d = QDialog(parent)
@@ -26,6 +26,7 @@ class WaitingDialog(QThread):
         vbox = QVBoxLayout(self.d)
         vbox.addWidget(l)
         self.run_task = run_task
+        self.on_success = on_success
         self.on_complete = on_complete
         self.d.connect(self.d, SIGNAL('done'), self.close)
         self.d.show()
@@ -34,7 +35,7 @@ class WaitingDialog(QThread):
         self.error = None
         try:
             self.result = self.run_task()
-        except Exception as e:
+        except BaseException as e:
             traceback.print_exc(file=sys.stdout)
             self.error = str(e)
         self.d.emit(SIGNAL('done'))
@@ -43,14 +44,14 @@ class WaitingDialog(QThread):
         self.d.accept()
         if self.error:
             QMessageBox.warning(self.parent, _('Error'), self.error, _('OK'))
-            return
+        else:
+            if self.on_success:
+                if type(self.result) is not tuple:
+                    self.result = (self.result,)
+                self.on_success(*self.result)
 
         if self.on_complete:
-            if type(self.result) is tuple:
-                self.on_complete(*self.result)
-            else:
-                self.on_complete(self.result)
-
+            self.on_complete()
 
 
 class Timer(QThread):
@@ -136,7 +137,7 @@ def line_dialog(parent, title, label, ok_label, default=None):
         return unicode(txt.text())
 
 def text_dialog(parent, title, label, ok_label, default=None):
-    from qrtextedit import QRTextEdit
+    from qrtextedit import ScanQRTextEdit
     dialog = QDialog(parent)
     dialog.setMinimumWidth(500)
     dialog.setWindowTitle(title)
@@ -144,7 +145,7 @@ def text_dialog(parent, title, label, ok_label, default=None):
     l = QVBoxLayout()
     dialog.setLayout(l)
     l.addWidget(QLabel(label))
-    txt = QRTextEdit()
+    txt = ScanQRTextEdit(parent)
     if default:
         txt.setText(default)
     l.addWidget(txt)
@@ -182,7 +183,7 @@ def filename_field(parent, config, defaultname, select_msg):
     b2.setText(_("json"))
     vbox.addWidget(b1)
     vbox.addWidget(b2)
-        
+
     hbox = QHBoxLayout()
 
     directory = config.get('io_dir', unicode(os.path.expanduser('~')))

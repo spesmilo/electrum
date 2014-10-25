@@ -37,6 +37,7 @@ from electrum_ltc import transaction
 from electrum_ltc.plugins import run_hook
 
 from util import MyTreeWidget
+from util import MONOSPACE_FONT
 
 class TxDialog(QDialog):
 
@@ -45,7 +46,7 @@ class TxDialog(QDialog):
         tx_dict = tx.as_dict()
         self.parent = parent
         self.wallet = parent.wallet
-            
+
         QDialog.__init__(self)
         self.setMinimumWidth(600)
         self.setWindowTitle(_("Transaction"))
@@ -102,7 +103,7 @@ class TxDialog(QDialog):
         buttons.insertWidget(1,b)
 
         run_hook('transaction_dialog', self)
-        
+
         self.update()
 
 
@@ -175,9 +176,9 @@ class TxDialog(QDialog):
         if not self.wallet.up_to_date:
             return
 
-        if is_relevant:    
+        if is_relevant:
             if is_mine:
-                if fee is not None: 
+                if fee is not None:
                     self.amount_label.setText(_("Amount sent:")+' %s'% self.parent.format_amount(v-fee) + ' ' + self.parent.base_unit())
                     self.fee_label.setText(_("Transaction fee")+': %s'% self.parent.format_amount(fee) + ' ' + self.parent.base_unit())
                 else:
@@ -203,9 +204,10 @@ class TxDialog(QDialog):
                 return 'coinbase'
             else:
                 _hash = x.get('prevout_hash')
-                return _hash[0:16] + '...' + _hash[-8:] + ":%d"%x.get('prevout_n') + u'\t' + "%s"%x.get('address')
+                return _hash[0:8] + '...' + _hash[-8:] + ":%d"%x.get('prevout_n') + u'\t' + "%s"%x.get('address')
         lines = map(format_input, self.tx.inputs )
         i_text = QTextEdit()
+        i_text.setFont(QFont(MONOSPACE_FONT))
         i_text.setText('\n'.join(lines))
         i_text.setReadOnly(True)
         i_text.setMaximumHeight(100)
@@ -214,16 +216,13 @@ class TxDialog(QDialog):
         vbox.addWidget(QLabel(_("Outputs")))
         lines = map(lambda x: x[0] + u'\t\t' + self.parent.format_amount(x[1]) if x[1] else x[0], self.tx.get_outputs())
         o_text = QTextEdit()
+        o_text.setFont(QFont(MONOSPACE_FONT))
         o_text.setText('\n'.join(lines))
         o_text.setReadOnly(True)
         o_text.setMaximumHeight(100)
         vbox.addWidget(o_text)
 
-        
+
 
     def show_message(self, msg):
         QMessageBox.information(self, _('Message'), msg, _('OK'))
-
-
-
-

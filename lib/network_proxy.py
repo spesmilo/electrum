@@ -89,7 +89,7 @@ class NetworkProxy(threading.Thread):
         print_error("NetworkProxy: terminating")
 
     def process(self, response):
-        if self.debug: 
+        if self.debug:
             print_error("<--", response)
 
         if response.get('method') == 'network.status':
@@ -125,7 +125,7 @@ class NetworkProxy(threading.Thread):
                     print_error( "received unexpected notification", method, params)
                     return
 
-        
+
         r = {'method':method, 'params':params, 'result':result, 'id':msg_id, 'error':error}
         callback(r)
 
@@ -141,7 +141,7 @@ class NetworkProxy(threading.Thread):
                 sub.append(message)
         if sub:
             with self.lock:
-                if self.subscriptions.get(callback) is None: 
+                if self.subscriptions.get(callback) is None:
                     self.subscriptions[callback] = []
                 for message in sub:
                     if message not in self.subscriptions[callback]:
@@ -151,12 +151,12 @@ class NetworkProxy(threading.Thread):
             requests = []
             ids = []
             for m in messages:
-                method, params = m 
+                method, params = m
                 request = { 'id':self.message_id, 'method':method, 'params':params }
                 self.unanswered_requests[self.message_id] = method, params, callback
                 ids.append(self.message_id)
                 requests.append(request)
-                if self.debug: 
+                if self.debug:
                     print_error("-->", request)
                 self.message_id += 1
 
@@ -230,4 +230,3 @@ class NetworkProxy(threading.Thread):
             callbacks = self.callbacks.get(event,[])[:]
         if callbacks:
             [callback() for callback in callbacks]
-

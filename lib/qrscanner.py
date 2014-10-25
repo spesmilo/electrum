@@ -6,27 +6,33 @@ try:
 except ImportError:
     zbar = None
 
+proc = None
+
 
 def scan_qr(config):
+    global proc
     if not zbar:
         raise BaseException("\n".join([_("Cannot start QR scanner."),_("The zbar package is not available."),_("On Linux, try 'sudo apt-get install python-zbar'")]))
-    device = config.get("video_device", "default")
-    if device == 'default':
-        device = ''
-    proc = zbar.Processor()
-    proc.init(video_device=device)
+    if proc is None:
+        device = config.get("video_device", "default")
+        if device == 'default':
+            device = ''
+        proc = zbar.Processor()
+        proc.init(video_device=device)
+
     proc.visible = True
     while True:
         try:
             proc.process_one()
         except Exception:
             # User closed the preview window
-            return {}
+            return ""
         for r in proc.results:
             if str(r.type) != 'QRCODE':
                 continue
+            # hiding the preview window stops the camera
+            proc.visible = False
             return r.data
-        
 
 def _find_system_cameras():
     device_root = "/sys/class/video4linux"

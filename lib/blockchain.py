@@ -42,7 +42,7 @@ class Blockchain(threading.Thread):
         self.set_local_height()
         self.queue = Queue.Queue()
 
-    
+
     def height(self):
         return self.local_height
 
@@ -74,7 +74,7 @@ class Blockchain(threading.Thread):
 
             i, header = result
             if not header: continue
-            
+
             height = header.get('block_height')
 
             if height <= self.local_height:
@@ -89,10 +89,10 @@ class Blockchain(threading.Thread):
                 chain = self.get_chain( i, header )
 
                 # skip that server if the result is not consistent
-                if not chain: 
+                if not chain:
                     print_error('e')
                     continue
-                
+
                 # verify the chain
                 if self.verify_chain( chain ):
                     print_error("height:", height, i.server)
@@ -107,13 +107,13 @@ class Blockchain(threading.Thread):
             self.network.new_blockchain_height(height, i)
 
 
-                    
-            
+
+
     def verify_chain(self, chain):
 
         first_header = chain[0]
         prev_header = self.read_header(first_header.get('block_height') -1)
-        
+
         for header in chain:
 
             height = header.get('block_height')
@@ -139,7 +139,7 @@ class Blockchain(threading.Thread):
         height = index*2016
         num = len(data)/80
 
-        if index == 0:  
+        if index == 0:
             previous_hash = ("0"*64)
         else:
             prev_header = self.read_header(index*2016-1)
@@ -163,7 +163,7 @@ class Blockchain(threading.Thread):
         self.save_chunk(index, data)
         print_error("validated chunk %d"%height)
 
-        
+
 
     def header_to_string(self, res):
         s = int_to_hex(res.get('version'),4) \
@@ -199,7 +199,7 @@ class Blockchain(threading.Thread):
         filename = self.path()
         if os.path.exists(filename):
             return
-        
+
         try:
             import urllib, socket
             socket.setdefaulttimeout(30)
@@ -247,7 +247,7 @@ class Blockchain(threading.Thread):
             f.close()
             if len(h) == 80:
                 h = self.header_from_string(h)
-                return h 
+                return h
 
 
     def get_target(self, index, chain=None):
@@ -267,13 +267,13 @@ class Blockchain(threading.Thread):
             for h in chain:
                 if h.get('block_height') == index*2016-1:
                     last = h
- 
+
         nActualTimespan = last.get('timestamp') - first.get('timestamp')
         nTargetTimespan = 84*60*60
         nActualTimespan = max(nActualTimespan, nTargetTimespan/4)
         nActualTimespan = min(nActualTimespan, nTargetTimespan*4)
 
-        bits = last.get('bits') 
+        bits = last.get('bits')
         # convert to bignum
         MM = 256*256*256
         a = bits%MM
@@ -283,7 +283,7 @@ class Blockchain(threading.Thread):
 
         # new target
         new_target = min( max_target, (target * nActualTimespan)/nTargetTimespan )
-        
+
         # convert it to bits
         c = ("%064X"%new_target)[2:]
         i = 31
@@ -292,7 +292,7 @@ class Blockchain(threading.Thread):
             i -= 1
 
         c = int('0x'+c[0:6],16)
-        if c >= 0x800000: 
+        if c >= 0x800000:
             c /= 256
             i += 1
 
@@ -370,4 +370,3 @@ class Blockchain(threading.Thread):
                     return False
 
         return True
-

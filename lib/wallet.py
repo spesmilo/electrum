@@ -216,7 +216,7 @@ class Abstract_Wallet(object):
         # inputs
         tx.add_pubkey_addresses(self.transactions)
 
-        # outputs of tx: inputs of tx2 
+        # outputs of tx: inputs of tx2
         for type, x, v in tx.outputs:
             if type == 'pubkey':
                 for tx2 in self.transactions.values():
@@ -1403,7 +1403,7 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         self.save_accounts()
 
     def create_pending_account(self, name, password):
-        next_id, next_xpub, next_address = self.next_account if self.next_account else self.get_next_account_address(password)
+        next_id, next_xpub, next_address = self.next_account if self.next_account else self.get_next_account(password)
         self.set_label(next_id, name)
         self.accounts[next_id] = PendingAccount({'pending':next_address})
         self.save_accounts()
@@ -1444,7 +1444,7 @@ class NewWallet(BIP32_HD_Wallet, Mnemonic):
 
 
 class Wallet_2of2(BIP32_Wallet, Mnemonic):
-    # Wallet with multisig addresses. 
+    # Wallet with multisig addresses.
     # Cannot create accounts
     root_name = "x1/"
     root_derivation = "m/44'/2'"
@@ -1590,7 +1590,7 @@ class OldWallet(Deterministic_Wallet):
 
 
 
-wallet_types = [ 
+wallet_types = [
     # category   type        description                   constructor
     ('standard', 'old',      ("Old wallet"),               OldWallet),
     ('standard', 'xpub',     ("BIP32 Import"),             BIP32_Simple_Wallet),

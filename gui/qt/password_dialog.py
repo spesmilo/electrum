@@ -33,7 +33,7 @@ def make_password_dialog(self, wallet, msg, new_pass=True):
     self.new_pw.setEchoMode(2)
     self.conf_pw = QLineEdit()
     self.conf_pw.setEchoMode(2)
-    
+
     vbox = QVBoxLayout()
     label = QLabel(msg)
     label.setWordWrap(True)
@@ -56,7 +56,7 @@ def make_password_dialog(self, wallet, msg, new_pass=True):
     grid.setSpacing(8)
     grid.setColumnMinimumWidth(0, 250)
     grid.setColumnStretch(1,1)
-    
+
     if wallet and wallet.use_encryption:
         grid.addWidget(QLabel(_('Password')), 0, 0)
         grid.addWidget(self.pw, 0, 1)
@@ -79,7 +79,7 @@ def make_password_dialog(self, wallet, msg, new_pass=True):
 
 
 def run_password_dialog(self, wallet, parent):
-        
+
     if wallet and wallet.is_watching_only():
         QMessageBox.information(parent, _('Error'), _('This is a watching-only wallet'), _('OK'))
         return False, None, None
@@ -173,7 +173,3 @@ class PasswordDialog(QDialog):
             QMessageBox.information(self.parent, _('Success'), _('Password was updated successfully'), _('OK'))
         else:
             QMessageBox.information(self.parent, _('Success'), _('This wallet is not encrypted'), _('OK'))
-
-
-
-

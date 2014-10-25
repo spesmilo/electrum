@@ -14,13 +14,12 @@ class HistoryWidget(QTreeWidget):
 
     def append(self, address, amount, date):
         if address is None:
-          address = _("Unknown")
-        if amount is None: 
-          amount = _("Unknown")
+            address = _("Unknown")
+        if amount is None:
+            amount = _("Unknown")
         if date is None:
-          date = _("Unknown")
+            date = _("Unknown")
         item = QTreeWidgetItem([amount, address, date])
         if float(amount) < 0:
-          item.setForeground(0, QBrush(QColor("#BC1E1E")))
+            item.setForeground(0, QBrush(QColor("#BC1E1E")))
         self.insertTopLevelItem(0, item)
-

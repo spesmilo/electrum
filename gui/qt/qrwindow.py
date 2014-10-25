@@ -51,7 +51,7 @@ class QR_Window(QWidget):
         self.setFocusPolicy(QtCore.Qt.NoFocus)
 
         main_box = QHBoxLayout()
-        
+
         self.qrw = QRCodeWidget()
         main_box.addWidget(self.qrw, 1)
 
@@ -84,7 +84,3 @@ class QR_Window(QWidget):
         label_text = "<span style='font-size: 21pt'>%s</span>" % message if message else ""
         self.label_label.setText(label_text)
         self.qrw.setData(url)
-
-
-
-

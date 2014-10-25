@@ -22,7 +22,7 @@ class ReceivingWidget(QTreeWidget):
         self.editing = False
 
     def update_label(self, item, column):
-      if self.editing: 
+      if self.editing:
           return
       else:
           address = str(item.text(0))
@@ -32,7 +32,7 @@ class ReceivingWidget(QTreeWidget):
     def copy_address(self):
         address = self.currentItem().text(0)
         qApp.clipboard().setText(address)
-        
+
 
     def update_list(self):
         return

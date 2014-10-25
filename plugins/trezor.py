@@ -119,8 +119,9 @@ class Plugin(BasePlugin):
 
     @hook
     def send_tx(self, tx):
+        tx.error = None
         try:
-            self.wallet.sign_transaction(tx, None, None)
+            self.wallet.trezor_sign(tx)
         except Exception as e:
             tx.error = str(e)
 
@@ -273,9 +274,13 @@ class TrezorWallet(NewWallet):
         return str(b64_msg_sig)
 
     def sign_transaction(self, tx, keypairs, password):
-        if tx.error or tx.is_complete():
-            return
+        # the tx is signed by trezor_sign, in the GUI thread
+        if tx.error:
+            raise BaseException(tx.error)
 
+    def trezor_sign(self, tx):
+        if tx.is_complete():
+            return
         if not self.check_proper_device():
             give_error('Wrong device or password')
 

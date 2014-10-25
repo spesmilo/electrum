@@ -92,6 +92,7 @@ class Plugin(BasePlugin):
 
     @hook
     def send_tx(self, tx):
+        tx.error = None
         try:
             self.wallet.sign_transaction(tx, None, None)
         except Exception as e:
@@ -321,8 +322,10 @@ class BTChipWallet(NewWallet):
         return b64encode(chr(27 + 4 + (signature[0] & 0x01)) + r + s) 
 
     def sign_transaction(self, tx, keypairs, password):
-        if tx.error or tx.is_complete():
+        if tx.is_complete():
             return
+        if tx.error:
+            raise BaseException(tx.error)
         self.signing = True        
         inputs = []
         inputsPaths = []

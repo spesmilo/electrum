@@ -35,7 +35,7 @@ class Console(QtGui.QPlainTextEdit):
 
     def set_json(self, b):
         self.is_json = b
-    
+
     def run_script(self, filename):
         with open(filename) as f:
             script = f.read()
@@ -106,7 +106,7 @@ class Console(QtGui.QPlainTextEdit):
 
         self.moveCursor(QtGui.QTextCursor.End)
         self.completions_visible = True
-        
+
 
     def hide_completions(self):
         if not self.completions_visible:
@@ -146,7 +146,7 @@ class Console(QtGui.QPlainTextEdit):
     def addToHistory(self, command):
         if command.find("importprivkey") > -1:
             return
-        
+
         if command and (not self.history or self.history[-1] != command):
             self.history.append(command)
         self.history_index = len(self.history)
@@ -177,7 +177,7 @@ class Console(QtGui.QPlainTextEdit):
     def register_command(self, c, func):
         methods = { c: func}
         self.updateNamespace(methods)
-        
+
 
     def runCommand(self):
         command = self.getCommand()
@@ -232,7 +232,7 @@ class Console(QtGui.QPlainTextEdit):
             sys.stdout = tmp_stdout
         self.newPrompt()
         self.set_json(False)
-                    
+
 
     def keyPressEvent(self, event):
         if event.key() == QtCore.Qt.Key_Tab:
@@ -280,7 +280,7 @@ class Console(QtGui.QPlainTextEdit):
             obj = self.namespace.get(path[0])
             prefix = path[0] + '.'
             ns = dir(obj)
-            
+
 
         completions = []
         for x in ns:
@@ -289,7 +289,7 @@ class Console(QtGui.QPlainTextEdit):
             if xx.startswith(lastword):
                 completions.append(xx)
         completions.sort()
-                
+
         if not completions:
             self.hide_completions()
         elif len(completions) == 1:
