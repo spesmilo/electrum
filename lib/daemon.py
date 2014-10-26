@@ -36,7 +36,7 @@ DAEMON_PORT=8001
 def do_start_daemon(config):
     import subprocess
     logfile = open(os.path.join(config.path, 'daemon.log'),'w')
-    p = subprocess.Popen(["python",__file__], stderr=logfile, stdout=logfile, close_fds=True)
+    p = subprocess.Popen(["python", __file__, config.path], stderr=logfile, stdout=logfile, close_fds=True)
     print_stderr("starting daemon (PID %d)"%p.pid)
 
 
@@ -216,7 +216,11 @@ def daemon_loop(server):
 
 if __name__ == '__main__':
     import simple_config, util
-    config = simple_config.SimpleConfig()
+    _config = {}
+    if len(sys.argv) > 1:
+        _config['electrum_path'] = sys.argv[1]
+        _config['portable'] = True
+    config = simple_config.SimpleConfig(_config)
     util.set_verbosity(True)
     server = NetworkServer(config)
     server.start()
