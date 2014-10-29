@@ -35,8 +35,11 @@ DAEMON_PORT=8001
 
 def do_start_daemon(config):
     import subprocess
+    args = ["python", __file__, config.path]
     logfile = open(os.path.join(config.path, 'daemon.log'),'w')
-    p = subprocess.Popen(["python", __file__, config.path], stderr=logfile, stdout=logfile, close_fds=True)
+    if config.get('portable', False):
+        args.append('--portable')
+    p = subprocess.Popen(args, stderr=logfile, stdout=logfile, close_fds=True)
     print_stderr("starting daemon (PID %d)"%p.pid)
 
 
@@ -219,6 +222,7 @@ if __name__ == '__main__':
     _config = {}
     if len(sys.argv) > 1:
         _config['electrum_path'] = sys.argv[1]
+    if len(sys.argv) > 2 and sys.argv[2] == '--portable':
         _config['portable'] = True
     config = simple_config.SimpleConfig(_config)
     util.set_verbosity(True)
