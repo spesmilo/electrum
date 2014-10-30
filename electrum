@@ -370,10 +370,10 @@ if __name__ == '__main__':
         password = None
 
     # add missing arguments, do type conversions
-    if cmd.name == 'importprivkey':
+    if (cmd.name == 'importprivkey' and len(args)==1)\
+       or (cmd.name == 'signtxwithkey' and len(args)==2):
         # See if they specificed a key on the cmd line, if not prompt
-        if len(args) == 1:
-            args.append(prompt_password('Enter PrivateKey (will not echo):', False))
+        args.append(prompt_password('Enter PrivateKey (will not echo):', False))
 
     elif cmd.name == 'createmultisig':
         args = [cmd, int(args[1]), json.loads(args[2])]
