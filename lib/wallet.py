@@ -674,6 +674,16 @@ class Abstract_Wallet(object):
                         break
                 else:
                     default_label = '(internal)'
+                    if len(self.accounts) > 1:
+                        # find input account and output account
+                        i_addr = tx.inputs[0]["address"]
+                        i_acc,_ = self.get_address_index(i_addr)
+                        for o_addr in tx.get_output_addresses():
+                            o_acc,_ = self.get_address_index(o_addr)
+                            if o_acc != i_acc:
+                                default_label = '(internal: %s --> %s)'%(self.get_account_name(i_acc),self.get_account_name(o_acc))
+                                break
+
             else:
                 for o_addr in tx.get_output_addresses():
                     if self.is_mine(o_addr) and not self.is_change(o_addr):
