@@ -466,9 +466,7 @@ def parse_output(vds, i):
     d = {}
     d['value'] = vds.read_int64()
     scriptPubKey = vds.read_bytes(vds.read_compact_size())
-    type, address = get_address_from_output_script(scriptPubKey)
-    d['type'] = type
-    d['address'] = address
+    d['type'], d['address'] = get_address_from_output_script(scriptPubKey)
     d['scriptPubKey'] = scriptPubKey.encode('hex')
     d['prevout_n'] = i
     return d
@@ -481,13 +479,9 @@ def deserialize(raw):
     start = vds.read_cursor
     d['version'] = vds.read_int32()
     n_vin = vds.read_compact_size()
-    d['inputs'] = []
-    for i in xrange(n_vin):
-        d['inputs'].append(parse_input(vds))
+    d['inputs'] = list(parse_input(vds) for i in xrange(n_vin))
     n_vout = vds.read_compact_size()
-    d['outputs'] = []
-    for i in xrange(n_vout):
-        d['outputs'].append(parse_output(vds, i))
+    d['outputs'] = list(parse_output(vds,i) for i in xrange(n_vin))
     d['lockTime'] = vds.read_uint32()
     return d
 
@@ -553,8 +547,8 @@ class Transaction:
     def multisig_script(klass, public_keys, num=None):
         n = len(public_keys)
         if num is None: num = n
-        # supports only "2 of 2", and "2 of 3" transactions
-        assert num <= n and n in [2,3]
+
+        assert num <= n and n in [2,3] , 'Only "2 of 2", and "2 of 3" transactions are supported'
 
         if num==2:
             s = '52'
