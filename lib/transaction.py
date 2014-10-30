@@ -513,7 +513,7 @@ class Transaction:
         d = deserialize(raw)
         self.raw = raw
         self.inputs = d['inputs']
-        self.outputs = map(lambda x: (x['type'], x['address'], x['value']), d['outputs'])
+        self.outputs = list( (o['type'], o['address'], o['value']) for o in d['outputs'])
         self.locktime = d['lockTime']
 
     @classmethod
@@ -539,7 +539,7 @@ class Transaction:
         if not inputs:
             return
 
-        total = sum( map(lambda x:int(x.get('value')), inputs) ) - fee
+        total = sum( inp.get('value') for inp in inputs ) - fee
         outputs = [('address', to_address, total)]
         self = klass(inputs, outputs)
         self.sign({ pubkey:privkey })
@@ -615,37 +615,30 @@ class Transaction:
             num_sig = txin['num_sig']
             address = txin['address']
 
-            x_signatures = txin['signatures']
-            signatures = filter(lambda x: x is not None, x_signatures)
-            is_complete = len(signatures) == num_sig
+            x_signatures = txin['signatures']           # a list with signatures or None if sig is missing
+            signatures = filter(None, x_signatures)     # remove None signatures
+            is_complete = len(signatures) == num_sig    # alternative: use all(x_signatures)
 
             if for_sig in [-1, None]:
                 # if we have enough signatures, we use the actual pubkeys
                 # use extended pubkeys (with bip32 derivation)
-                sig_list = []
                 if for_sig == -1:
                     # we assume that signature will be 0x48 bytes long
                     pubkeys = txin['pubkeys']
-                    sig_list = [ "00"* 0x48 ] * num_sig
+                    sig_list = [ '00'* 0x48 ] * num_sig
                 elif is_complete:
                     pubkeys = txin['pubkeys']
-                    for signature in signatures:
-                        sig_list.append(signature + '01')
+                    sig_list = (sig + '01' for sig in signatures)
                 else:
                     pubkeys = txin['x_pubkeys']
-                    for signature in x_signatures:
-                        sig_list.append((signature + '01') if signature is not None else NO_SIGNATURE)
-
-                sig_list = ''.join( map( lambda x: push_script(x), sig_list))
-                if not p2sh:
-                    script = sig_list
-                    script += push_script(pubkeys[0])
-                else:
-                    script = '00'                                    # op_0
-                    script += sig_list
+                    sig_list = (sig + '01' if sig else NO_SIGNATURE for sig in signatures)
+                script = ''.join(push_script(x) for x in sig_list)
+                if p2sh:
+                    script = '00' + script            # op_0
                     redeem_script = self.multisig_script(pubkeys,2)
                     script += push_script(redeem_script)
-
+                else:
+                    script += push_script(pubkeys[0])
             elif for_sig==i:
                 script = txin['redeemScript'] if p2sh else self.pay_script('address', address)
             else:
@@ -657,9 +650,9 @@ class Transaction:
 
         s += var_int( len(outputs) )                                 # number of outputs
         for output in outputs:
-            type, addr, amount = output
+            type_, addr, amount = output
             s += int_to_hex( amount, 8)                              # amount
-            script = self.pay_script(type, addr)
+            script = self.pay_script(type_, addr)
             s += var_int( len(script)/2 )                           #  script length
             s += script                                             #  script
         s += int_to_hex(0,4)                                        #  lock time
@@ -688,10 +681,10 @@ class Transaction:
         self.raw = None
 
     def input_value(self):
-        return sum([x['value'] for x in self.inputs])
+        return sum(x['value'] for x in self.inputs)
 
     def output_value(self):
-        return sum([ x[2] for x in self.outputs])
+        return sum(x[2] for x in self.outputs)
 
     def get_fee(self):
         return self.input_value() - self.output_value()
@@ -702,7 +695,7 @@ class Transaction:
         for txin in self.inputs:
             if txin.get('is_coinbase'):
                 continue
-            signatures = filter(lambda x: x is not None, txin['signatures'])
+            signatures = filter(None, txin['signatures'])
             s += len(signatures)
             r += txin['num_sig']
         return s, r
@@ -719,7 +712,7 @@ class Transaction:
         addr_list = set()
         for txin in self.inputs:
             x_signatures = txin['signatures']
-            signatures = filter(lambda x: x is not None, x_signatures)
+            signatures = filter(None, x_signatures)
 
             if len(signatures) == txin['num_sig']:
                 # input is complete
@@ -749,7 +742,7 @@ class Transaction:
         for i, txin in enumerate(self.inputs):
 
             # continue if this txin is complete
-            signatures = filter(lambda x: x is not None, txin['signatures'])
+            signatures = filter(None, txin['signatures'])
             num = txin['num_sig']
             if len(signatures) == num:
                 continue
@@ -785,12 +778,12 @@ class Transaction:
     def get_outputs(self):
         """convert pubkeys to addresses"""
         o = []
-        for type, x, v in self.outputs:
-            if type == 'address':
+        for type_, x, v in self.outputs:
+            if type_ == 'address':
                 addr = x
-            elif type == 'pubkey':
+            elif type_ == 'pubkey':
                 addr = public_key_to_bc_address(x.decode('hex'))
-            elif type == 'op_return':
+            elif type_ == 'op_return':
                 try:
                     addr = 'OP_RETURN: "' + x.decode('utf8') + '"'
                 except:
@@ -801,7 +794,7 @@ class Transaction:
         return o
 
     def get_output_addresses(self):
-        return map(lambda x:x[0], self.get_outputs())
+        return list(addr for addr, value in self.get_outputs())
 
 
     def has_address(self, addr):
@@ -885,14 +878,13 @@ class Transaction:
         if size >= 10000:
             return True
 
-        for o in self.get_outputs():
-            value = o[1]
+        for addr, value in self.get_outputs():
             if value < 1000000:
                 return True
-        sum = 0
+        total = 0
         for i in self.inputs:
             age = verifier.get_confirmations(i["prevout_hash"])[0]
-            sum += i["value"] * age
-        priority = sum / size
+            total += i["value"] * age
+        priority = total / size
         print_error(priority, threshold)
         return priority < threshold
