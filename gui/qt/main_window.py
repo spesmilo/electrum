@@ -1113,9 +1113,7 @@ class ElectrumWindow(QMainWindow):
         def sign_thread():
             if self.wallet.is_watching_only():
                 return tx
-            keypairs = {}
-            self.wallet.add_keypairs(tx, keypairs, password)
-            self.wallet.sign_transaction(tx, keypairs, password)
+            self.wallet.sign_transaction(tx, password)
             return tx
 
         def sign_done(tx):
@@ -2179,7 +2177,7 @@ class ElectrumWindow(QMainWindow):
     @protected
     def sign_raw_transaction(self, tx, password):
         try:
-            self.wallet.signrawtransaction(tx, [], password)
+            self.wallet.sign_transaction(tx, password)
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             QMessageBox.warning(self, _("Error"), str(e))

@@ -322,7 +322,9 @@ def x_to_xpub(x_pubkey):
 
 
 def parse_xpub(x_pubkey):
-    if x_pubkey[0:2] == 'ff':
+    if x_pubkey[0:2] in ['02','03','04']:
+        pubkey = x_pubkey
+    elif x_pubkey[0:2] == 'ff':
         from account import BIP32_Account
         xpub, s = BIP32_Account.parse_xpubkey(x_pubkey)
         pubkey = BIP32_Account.derive_pubkey_from_xpub(xpub, s[0], s[1])
@@ -331,7 +333,7 @@ def parse_xpub(x_pubkey):
         mpk, s = OldAccount.parse_xpubkey(x_pubkey)
         pubkey = OldAccount.get_pubkey_from_mpk(mpk.decode('hex'), s[0], s[1])
     else:
-        pubkey = x_pubkey
+        raise BaseException("Cannnot parse pubkey")
     return pubkey
 
 
@@ -595,8 +597,8 @@ class Transaction:
     def serialize(self, for_sig=None):
         # for_sig:
         #   -1   : do not sign, estimate length
-        #   i>=0 : sign input i
-        #   None : add all signatures
+        #   i>=0 : serialized tx for signing input i
+        #   None : add all known signatures
 
         inputs = self.inputs
         outputs = self.outputs

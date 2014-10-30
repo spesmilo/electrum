@@ -97,7 +97,8 @@ register_command('restore',              0, 0, True,  True,  False, 'Restore a w
 register_command('setconfig',            2, 2, False, False, False, 'Set a configuration variable', 'setconfig <name> <value>')
 register_command('setlabel',             2,-1, False, True,  False, 'Assign a label to an item', 'setlabel <tx_hash> <label>')
 register_command('sendrawtransaction',   1, 1, True,  False, False, 'Broadcasts a transaction to the network.', 'sendrawtransaction <tx in hexadecimal>')
-register_command('signrawtransaction',   1, 3, False, True,  True,  'Sign a serailized transaction','signrawtransaction <tx in hexadecimal>')
+register_command('signtxwithkey',        1, 3, False, False, False, 'Sign a serialized transaction with a key','signtxwithkey <tx> <key>')
+register_command('signtxwithwallet',     1, 3, False, True,  True,  'Sign a serialized transaction with a wallet','signtxwithwallet <tx>')
 register_command('signmessage',          2,-1, False, True,  True,  'Sign a message with a key', signmessage_syntax)
 register_command('unfreeze',             1, 1, False, True,  False, 'Unfreeze the funds at one of your wallet\'s address', 'unfreeze <address>')
 register_command('validateaddress',      1, 1, False, False, False, 'Check that the address is valid', 'validateaddress <address>')
@@ -164,9 +165,15 @@ class Commands:
         tx = Transaction(inputs, outputs)
         return tx
 
-    def signrawtransaction(self, raw_tx, private_keys):
+    def signtxwithkey(self, raw_tx, sec):
         tx = Transaction.deserialize(raw_tx)
-        self.wallet.signrawtransaction(tx, private_keys, self.password)
+        pubkey = bitcoin.public_key_from_private_key(sec)
+        tx.sign({ pubkey:sec })
+        return tx
+
+    def signtxwithwallet(self, raw_tx):
+        tx = Transaction.deserialize(raw_tx)
+        self.wallet.sign_transaction(tx, self.password)
         return tx
 
     def decoderawtransaction(self, raw):

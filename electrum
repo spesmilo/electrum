@@ -375,9 +375,6 @@ if __name__ == '__main__':
         if len(args) == 1:
             args.append(prompt_password('Enter PrivateKey (will not echo):', False))
 
-    elif cmd.name == 'signrawtransaction':
-        args = [cmd, args[1], json.loads(args[2]) if len(args) > 2 else [] ]
-
     elif cmd.name == 'createmultisig':
         args = [cmd, int(args[1]), json.loads(args[2])]
 

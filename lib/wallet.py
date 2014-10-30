@@ -362,45 +362,6 @@ class Abstract_Wallet(object):
         account_id, sequence = self.get_address_index(address)
         return self.accounts[account_id].get_pubkeys(*sequence)
 
-    def add_keypairs(self, tx, keypairs, password):
-
-        if self.is_watching_only():
-            return
-        self.check_password(password)
-
-        addr_list, xpub_list = tx.inputs_to_sign()
-        for addr in addr_list:
-            if self.is_mine(addr):
-                private_keys = self.get_private_key(addr, password)
-                for sec in private_keys:
-                    pubkey = public_key_from_private_key(sec)
-                    keypairs[ pubkey ] = sec
-
-        for xpub, sequence in xpub_list:
-            # look for account that can sign
-            for k, account in self.accounts.items():
-                if xpub in account.get_master_pubkeys():
-                    break
-            else:
-                continue
-            pk = account.get_private_key(sequence, self, password)
-            for sec in pk:
-                pubkey = public_key_from_private_key(sec)
-                keypairs[pubkey] = sec
-
-    def signrawtransaction(self, tx, private_keys, password):
-        # check that the password is correct. This will raise if it's not.
-        self.check_password(password)
-        # build a list of public/private keys
-        keypairs = {}
-        # add private keys from parameter
-        for sec in private_keys:
-            pubkey = public_key_from_private_key(sec)
-            keypairs[ pubkey ] = sec
-        # add private_keys
-        self.add_keypairs(tx, keypairs, password)
-        # sign the transaction
-        self.sign_transaction(tx, keypairs, password)
 
     def sign_message(self, address, message, password):
         keys = self.get_private_key(address, password)
@@ -777,10 +738,7 @@ class Abstract_Wallet(object):
 
     def mktx(self, outputs, password, fee=None, change_addr=None, domain= None, coins = None ):
         tx = self.make_unsigned_transaction(outputs, fee, change_addr, domain, coins)
-        keypairs = {}
-        self.add_keypairs(tx, keypairs, password)
-        if keypairs:
-            self.sign_transaction(tx, keypairs, password)
+        self.sign_transaction(tx, password)
         return tx
 
     def add_input_info(self, txin):
@@ -803,8 +761,40 @@ class Abstract_Wallet(object):
             txin['redeemPubkey'] = account.get_pubkey(*sequence)
             txin['num_sig'] = 1
 
-    def sign_transaction(self, tx, keypairs, password):
-        tx.sign(keypairs)
+    def sign_transaction(self, tx, password):
+        if self.is_watching_only():
+            return
+        # check that the password is correct. This will raise if it's not.
+        self.check_password(password)
+
+
+        keypairs = {}
+
+        # tx.inputs_to_sign() : return list of addresses or derivations
+        # this list should be enriched by add_keypairs
+        addr_list, xpub_list = tx.inputs_to_sign()
+        for addr in addr_list:
+            if self.is_mine(addr):
+                private_keys = self.get_private_key(addr, password)
+                for sec in private_keys:
+                    pubkey = public_key_from_private_key(sec)
+                    keypairs[ pubkey ] = sec
+
+        for xpub, sequence in xpub_list:
+            # look for account that can sign
+            for k, account in self.accounts.items():
+                if xpub in account.get_master_pubkeys():
+                    break
+            else:
+                continue
+            pk = account.get_private_key(sequence, self, password)
+            for sec in pk:
+                pubkey = public_key_from_private_key(sec)
+                keypairs[pubkey] = sec
+
+        if keypairs:
+            tx.sign(keypairs)
+
         run_hook('sign_transaction', tx, password)
 
     def sendtx(self, tx):
