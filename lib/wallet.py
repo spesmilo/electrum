@@ -766,35 +766,15 @@ class Abstract_Wallet(object):
             return
         # check that the password is correct. This will raise if it's not.
         self.check_password(password)
-
-
         keypairs = {}
-
-        # tx.inputs_to_sign() : return list of addresses or derivations
-        # this list should be enriched by add_keypairs
-        addr_list, xpub_list = tx.inputs_to_sign()
-        for addr in addr_list:
-            if self.is_mine(addr):
-                private_keys = self.get_private_key(addr, password)
-                for sec in private_keys:
-                    pubkey = public_key_from_private_key(sec)
-                    keypairs[ pubkey ] = sec
-
-        for xpub, sequence in xpub_list:
-            # look for account that can sign
-            for k, account in self.accounts.items():
-                if xpub in account.get_master_pubkeys():
-                    break
-            else:
-                continue
-            pk = account.get_private_key(sequence, self, password)
-            for sec in pk:
-                pubkey = public_key_from_private_key(sec)
-                keypairs[pubkey] = sec
-
+        x_pubkeys = tx.inputs_to_sign()
+        for x in x_pubkeys:
+            sec = self.get_private_key_from_xpubkey(x, password)
+            print "sec", sec
+            if sec:
+                keypairs[ x ] = sec
         if keypairs:
             tx.sign(keypairs)
-
         run_hook('sign_transaction', tx, password)
 
     def sendtx(self, tx):
@@ -1013,7 +993,59 @@ class Abstract_Wallet(object):
         return age > age_limit
 
     def can_sign(self, tx):
-        pass
+        if self.is_watching_only():
+            return False
+        if tx.is_complete():
+            return False
+        for x in tx.inputs_to_sign():
+            if self.can_sign_xpubkey(x):
+                return True
+        return False
+
+
+    def get_private_key_from_xpubkey(self, x_pubkey, password):
+        if x_pubkey[0:2] in ['02','03','04']:
+            addr = bitcoin.public_key_to_bc_address(x_pubkey.decode('hex'))
+            if self.is_mine(addr):
+                return self.get_private_key(addr, password)[0]
+        elif x_pubkey[0:2] == 'ff':
+            xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
+            for k, account in self.accounts.items():
+                if xpub in account.get_master_pubkeys():
+                    pk = account.get_private_key(sequence, self, password)
+                    return pk[0]
+        elif x_pubkey[0:2] == 'fe':
+            xpub, sequence = OldAccount.parse_xpubkey(x_pubkey)
+            for k, account in self.accounts.items():
+                if xpub in account.get_master_pubkeys():
+                    pk = account.get_private_key(sequence, self, password)
+                    return pk[0]
+        elif x_pubkey[0:2] == 'fd':
+            addrtype = ord(x_pubkey[2:4].decode('hex'))
+            addr = hash_160_to_bc_address(x_pubkey[4:].decode('hex'), addrtype)
+            if self.is_mine(addr):
+                return self.get_private_key(addr, password)[0]
+        else:
+            raise BaseException("z")
+
+
+    def can_sign_xpubkey(self, x_pubkey):
+        if x_pubkey[0:2] in ['02','03','04']:
+            addr = bitcoin.public_key_to_bc_address(x_pubkey.decode('hex'))
+            return self.is_mine(addr)
+        elif x_pubkey[0:2] == 'ff':
+            xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
+            return xpub in [ self.master_public_keys[k] for k in self.master_private_keys.keys() ]
+        elif x_pubkey[0:2] == 'fe':
+            xpub, sequence = OldAccount.parse_xpubkey(x_pubkey)
+            return xpub == self.get_master_public_key()
+        elif x_pubkey[0:2] == 'fd':
+            addrtype = ord(x_pubkey[2:4].decode('hex'))
+            addr = hash_160_to_bc_address(x_pubkey[4:].decode('hex'), addrtype)
+            return self.is_mine(addr)
+        else:
+            raise BaseException("z")
+
 
     def is_watching_only(self):
         False
@@ -1254,21 +1286,6 @@ class BIP32_Wallet(Deterministic_Wallet):
         root_xprv = pw_decode(x, password)
         xprv, xpub = bip32_private_derivation(root_xprv, root, derivation)
         return xpub, xprv
-
-    def can_sign(self, tx):
-        if self.is_watching_only():
-            return False
-        if tx.is_complete():
-            return False
-        addr_list, xpub_list = tx.inputs_to_sign()
-        for addr in addr_list:
-            if self.is_mine(addr):
-                return True
-        mpk = [ self.master_public_keys[k] for k in self.master_private_keys.keys() ]
-        for xpub, sequence in xpub_list:
-            if xpub in mpk:
-                return True
-        return False
 
     def create_master_keys(self, password):
         seed = self.get_seed(password)
@@ -1564,19 +1581,6 @@ class OldWallet(Deterministic_Wallet):
         s = self.get_seed(password)
         return ' '.join(old_mnemonic.mn_encode(s))
 
-    def can_sign(self, tx):
-        if self.is_watching_only():
-            return False
-        if tx.is_complete():
-            return False
-        addr_list, xpub_list = tx.inputs_to_sign()
-        for addr in addr_list:
-            if self.is_mine(addr):
-                return True
-        for xpub, sequence in xpub_list:
-            if xpub == self.get_master_public_key():
-                return True
-        return False
 
 
 

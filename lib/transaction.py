@@ -332,9 +332,16 @@ def parse_xpub(x_pubkey):
         from account import OldAccount
         mpk, s = OldAccount.parse_xpubkey(x_pubkey)
         pubkey = OldAccount.get_pubkey_from_mpk(mpk.decode('hex'), s[0], s[1])
+    elif x_pubkey[0:2] == 'fd':
+        addrtype = ord(x_pubkey[2:4].decode('hex'))
+        hash160 = x_pubkey[4:].decode('hex')
+        pubkey = None
+        address = hash_160_to_bc_address(hash160, addrtype)
     else:
         raise BaseException("Cannnot parse pubkey")
-    return pubkey
+    if pubkey:
+        address = public_key_to_bc_address(pubkey.decode('hex'))
+    return pubkey, address
 
 
 def parse_scriptSig(d, bytes):
@@ -365,7 +372,7 @@ def parse_scriptSig(d, bytes):
         x_pubkey = decoded[1][1].encode('hex')
         try:
             signatures = parse_sig([sig])
-            pubkey = parse_xpub(x_pubkey)
+            pubkey, address = parse_xpub(x_pubkey)
         except:
             import traceback
             traceback.print_exc(file=sys.stdout)
@@ -375,7 +382,7 @@ def parse_scriptSig(d, bytes):
         d['x_pubkeys'] = [x_pubkey]
         d['num_sig'] = 1
         d['pubkeys'] = [pubkey]
-        d['address'] = public_key_to_bc_address(pubkey.decode('hex'))
+        d['address'] = address
         return
 
     # p2sh transaction, 2 of n
@@ -639,7 +646,11 @@ class Transaction:
                 sig_list = ''.join( map( lambda x: push_script(x), sig_list))
                 if not p2sh:
                     script = sig_list
-                    script += push_script(pubkeys[0])
+                    x_pubkey = pubkeys[0]
+                    if x_pubkey is None:
+                        addrtype, h160 = bc_address_to_hash_160(txin['address'])
+                        x_pubkey = 'fd' + (chr(addrtype) + h160).encode('hex')
+                    script += push_script(x_pubkey)
                 else:
                     script = '00'                                    # op_0
                     script += sig_list
@@ -673,16 +684,6 @@ class Transaction:
     def hash(self):
         return Hash(self.raw.decode('hex') )[::-1].encode('hex')
 
-    def add_signature(self, i, pubkey, sig):
-        print_error("adding signature for", pubkey)
-        txin = self.inputs[i]
-        pubkeys = txin['pubkeys']
-        ii = pubkeys.index(pubkey)
-        txin['signatures'][ii] = sig
-        txin['x_pubkeys'][ii] = pubkey
-        self.inputs[i] = txin
-        self.raw = self.serialize()
-
     def add_input(self, input):
         self.inputs.append(input)
         self.raw = None
@@ -707,66 +708,56 @@ class Transaction:
             r += txin['num_sig']
         return s, r
 
-
     def is_complete(self):
         s, r = self.signature_count()
         return r == s
 
-
     def inputs_to_sign(self):
-        from account import BIP32_Account, OldAccount
-        xpub_list = []
-        addr_list = set()
+        out = set()
         for txin in self.inputs:
             x_signatures = txin['signatures']
             signatures = filter(lambda x: x is not None, x_signatures)
-
             if len(signatures) == txin['num_sig']:
                 # input is complete
                 continue
-
             for k, x_pubkey in enumerate(txin['x_pubkeys']):
-
                 if x_signatures[k] is not None:
                     # this pubkey already signed
                     continue
-
-                if x_pubkey[0:2] == 'ff':
-                    xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
-                    xpub_list.append((xpub,sequence))
-                elif x_pubkey[0:2] == 'fe':
-                    xpub, sequence = OldAccount.parse_xpubkey(x_pubkey)
-                    xpub_list.append((xpub,sequence))
-                else:
-                    addr_list.add(txin['address'])
-
-        return addr_list, xpub_list
-
+                out.add(x_pubkey)
+        return out
 
     def sign(self, keypairs):
         print_error("tx.sign(), keypairs:", keypairs)
-
         for i, txin in enumerate(self.inputs):
-
-            # continue if this txin is complete
             signatures = filter(lambda x: x is not None, txin['signatures'])
             num = txin['num_sig']
             if len(signatures) == num:
+                # continue if this txin is complete
                 continue
 
-            redeem_pubkeys = txin['pubkeys']
-            for_sig = Hash(self.tx_for_sig(i).decode('hex'))
-            for pubkey in redeem_pubkeys:
-                if pubkey in keypairs.keys():
+            for x_pubkey in txin['x_pubkeys']:
+                if x_pubkey in keypairs.keys():
+                    print_error("adding signature for", x_pubkey)
+                    # add pubkey to txin
+                    txin = self.inputs[i]
+                    x_pubkeys = txin['x_pubkeys']
+                    ii = x_pubkeys.index(x_pubkey)
+                    sec = keypairs[x_pubkey]
+                    pubkey = public_key_from_private_key(sec)
+                    txin['x_pubkeys'][ii] = pubkey
+                    txin['pubkeys'][ii] = pubkey
+                    self.inputs[i] = txin
                     # add signature
-                    sec = keypairs[pubkey]
+                    for_sig = Hash(self.tx_for_sig(i).decode('hex'))
                     pkey = regenerate_key(sec)
                     secexp = pkey.secret
                     private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
                     public_key = private_key.get_verifying_key()
                     sig = private_key.sign_digest_deterministic( for_sig, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der )
                     assert public_key.verify_digest( sig, for_sig, sigdecode = ecdsa.util.sigdecode_der)
-                    self.add_signature(i, pubkey, sig.encode('hex'))
+                    txin['signatures'][ii] = sig.encode('hex')
+                    self.inputs[i] = txin
 
         print_error("is_complete", self.is_complete())
         self.raw = self.serialize()
