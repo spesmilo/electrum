@@ -410,7 +410,7 @@ def parse_scriptSig(d, bytes):
         return
 
     d['x_pubkeys'] = x_pubkeys
-    pubkeys = map(parse_xpub, x_pubkeys)
+    pubkeys = map(lambda x: parse_xpub(x)[0], x_pubkeys)
     d['pubkeys'] = pubkeys
     redeemScript = Transaction.multisig_script(pubkeys,2)
     d['redeemScript'] = redeemScript
