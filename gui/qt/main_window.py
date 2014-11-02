@@ -1111,9 +1111,7 @@ class ElectrumWindow(QMainWindow):
         def sign_thread():
             if self.wallet.is_watching_only():
                 return tx
-            keypairs = {}
-            self.wallet.add_keypairs(tx, keypairs, password)
-            self.wallet.sign_transaction(tx, keypairs, password)
+            self.wallet.sign_transaction(tx, password)
             return tx
 
         def sign_done(tx):
@@ -1913,6 +1911,7 @@ class ElectrumWindow(QMainWindow):
         d = QDialog(self)
         d.setMinimumSize(600, 200)
         d.setModal(1)
+        d.setWindowTitle(_("Public key"))
         vbox = QVBoxLayout()
         vbox.addWidget( QLabel(_("Address") + ': ' + address))
         vbox.addWidget( QLabel(_("Public key") + ':'))
@@ -1935,6 +1934,7 @@ class ElectrumWindow(QMainWindow):
         d = QDialog(self)
         d.setMinimumSize(600, 200)
         d.setModal(1)
+        d.setWindowTitle(_("Private key"))
         vbox = QVBoxLayout()
         vbox.addWidget( QLabel(_("Address") + ': ' + address))
         vbox.addWidget( QLabel(_("Private key") + ':'))
@@ -2177,7 +2177,7 @@ class ElectrumWindow(QMainWindow):
     @protected
     def sign_raw_transaction(self, tx, password):
         try:
-            self.wallet.signrawtransaction(tx, [], password)
+            self.wallet.sign_transaction(tx, password)
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             QMessageBox.warning(self, _("Error"), str(e))
@@ -2386,6 +2386,10 @@ class ElectrumWindow(QMainWindow):
 
         h, b = ok_cancel_buttons2(d, _('Export'))
         vbox.addLayout(h)
+        
+        run_hook('export_history_dialog', self,hbox)
+        self.update()
+        
         if not d.exec_():
             return
 

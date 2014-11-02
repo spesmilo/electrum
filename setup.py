@@ -134,6 +134,8 @@ setup(
         'electrum_ltc_plugins.labels',
         'electrum_ltc_plugins.trezor',
         'electrum_ltc_plugins.virtualkeyboard',
+        'electrum_ltc_plugins.plot',
+
     ],
     description="Lightweight Litecoin Wallet",
     author="Thomas Voegtlin",

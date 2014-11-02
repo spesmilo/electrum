@@ -273,7 +273,7 @@ class TrezorWallet(NewWallet):
         b64_msg_sig = b64encode(msg_sig.signature)
         return str(b64_msg_sig)
 
-    def sign_transaction(self, tx, keypairs, password):
+    def sign_transaction(self, tx, password):
         # the tx is signed by trezor_sign, in the GUI thread
         if tx.error:
             raise BaseException(tx.error)
