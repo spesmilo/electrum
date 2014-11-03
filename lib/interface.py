@@ -23,6 +23,9 @@ import socks
 import socket
 import ssl
 
+import requests
+ca_path = requests.certs.where()
+
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from util import print_error, print_msg
 from simple_config import SimpleConfig
@@ -34,16 +37,6 @@ proxy_modes = ['socks4', 'socks5', 'http']
 
 
 import util
-
-
-def cert_verify_hostname(s):
-    # hostname verification (disabled)
-    from backports.ssl_match_hostname import match_hostname, CertificateError
-    try:
-        match_hostname(s.getpeercert(True), host)
-        print_error("hostname matches", host)
-    except CertificateError, ce:
-        print_error("hostname did not match", host)
 
 
 
@@ -64,15 +57,12 @@ class TcpInterface(threading.Thread):
         self.daemon = True
         self.config = config if config is not None else SimpleConfig()
         self.lock = threading.Lock()
-
         self.is_connected = False
         self.debug = False # dump network messages. can be changed at runtime using the console
         self.message_id = 0
         self.unanswered_requests = {}
-
         # are we waiting for a pong?
         self.is_ping = False
-
         # parse server
         self.server = server
         self.host, self.port, self.protocol = self.server.split(':')
@@ -81,6 +71,12 @@ class TcpInterface(threading.Thread):
         self.proxy = self.parse_proxy_options(self.config.get('proxy'))
         if self.proxy:
             self.proxy_mode = proxy_modes.index(self.proxy["mode"]) + 1
+            socks.setdefaultproxy(self.proxy_mode, self.proxy["host"], int(self.proxy["port"]))
+            socket.socket = socks.socksocket
+            # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
+            def getaddrinfo(*args):
+                return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
+            socket.getaddrinfo = getaddrinfo
 
 
     def process_response(self, response):
@@ -91,10 +87,6 @@ class TcpInterface(threading.Thread):
         error = response.get('error')
         result = response.get('result')
 
-        if error:
-            print_error("received error:", response)
-            return
-        
         if msg_id is not None:
             with self.lock:
                 method, params, _id, queue = self.unanswered_requests.pop(msg_id)
@@ -123,48 +115,78 @@ class TcpInterface(threading.Thread):
             self.is_ping = False
             return
 
-        queue.put((self, {'method':method, 'params':params, 'result':result, 'id':_id}))
+        if error:
+            queue.put((self, {'method':method, 'params':params, 'error':error, 'id':_id}))
+        else:
+            queue.put((self, {'method':method, 'params':params, 'result':result, 'id':_id}))
 
 
-    def start_tcp(self):
+    def check_host_name(self, peercert, name):
+        """Simple certificate/host name checker.  Returns True if the
+        certificate matches, False otherwise.  Does not support
+        wildcards."""
+        # Check that the peer has supplied a certificate.
+        # None/{} is not acceptable.
+        if not peercert:
+            return False
+        if peercert.has_key("subjectAltName"):
+            for typ, val in peercert["subjectAltName"]:
+                if typ == "DNS" and val == name:
+                    return True
+        else:
+            # Only check the subject DN if there is no subject alternative
+            # name.
+            cn = None
+            for attr, val in peercert["subject"]:
+                # Use most-specific (last) commonName attribute.
+                if attr == "commonName":
+                    cn = val
+            if cn is not None:
+                return cn == name
+        return False
 
-        if self.proxy is not None:
-            socks.setdefaultproxy(self.proxy_mode, self.proxy["host"], int(self.proxy["port"]))
-            socket.socket = socks.socksocket
-            # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
-            def getaddrinfo(*args):
-                return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
-            socket.getaddrinfo = getaddrinfo
 
+    def get_simple_socket(self):
+        try:
+            l = socket.getaddrinfo(self.host, self.port, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        except socket.gaierror:
+            print_error("error: cannot resolve", self.host)
+            return
+        for res in l:
+            try:
+                s = socket.socket(res[0], socket.SOCK_STREAM)
+                s.connect(res[4])
+                return s
+            except:
+                continue
+        else:
+            print_error("failed to connect", self.host, self.port)
+
+
+    def get_socket(self):
         if self.use_ssl:
             cert_path = os.path.join( self.config.path, 'certs', self.host)
             if not os.path.exists(cert_path):
                 is_new = True
+                s = self.get_simple_socket()
+                if s is None:
+                    return
+                # try with CA first
+                try:
+                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23, cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path, do_handshake_on_connect=True)
+                except ssl.SSLError, e:
+                    s = None
+                if s and self.check_host_name(s.getpeercert(), self.host):
+                    print_error("SSL certificate signed by CA:", self.host)
+                    return s
+
                 # get server certificate.
                 # Do not use ssl.get_server_certificate because it does not work with proxy
+                s = self.get_simple_socket()
                 try:
-                    l = socket.getaddrinfo(self.host, self.port, socket.AF_UNSPEC, socket.SOCK_STREAM)
-                except socket.gaierror:
-                    print_error("error: cannot resolve", self.host)
-                    return
-
-                for res in l:
-                    try:
-                        s = socket.socket( res[0], socket.SOCK_STREAM )
-                        s.connect(res[4])
-                    except:
-                        s = None
-                        continue
-
-                    try:
-                        s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv3, cert_reqs=ssl.CERT_NONE, ca_certs=None)
-                    except ssl.SSLError, e:
-                        print_error("SSL error retrieving SSL certificate:", self.host, e)
-                        s = None
-
-                    break
-
-                if s is None:
+                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23, cert_reqs=ssl.CERT_NONE, ca_certs=None)
+                except ssl.SSLError, e:
+                    print_error("SSL error retrieving SSL certificate:", self.host, e)
                     return
 
                 dercert = s.getpeercert(True)
@@ -175,35 +197,20 @@ class TcpInterface(threading.Thread):
                 temporary_path = cert_path + '.temp'
                 with open(temporary_path,"w") as f:
                     f.write(cert)
-
             else:
                 is_new = False
 
-        try:
-            addrinfo = socket.getaddrinfo(self.host, self.port, socket.AF_UNSPEC, socket.SOCK_STREAM)
-        except socket.gaierror:
-            print_error("error: cannot resolve", self.host)
-            return
-
-        for res in addrinfo:
-            try:
-                s = socket.socket( res[0], socket.SOCK_STREAM )
-                s.settimeout(2)
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-                s.connect(res[4])
-            except:
-                s = None
-                continue
-            break
-
+        s = self.get_simple_socket()
         if s is None:
-            print_error("failed to connect", self.host, self.port)
             return
+
+        s.settimeout(2)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
         if self.use_ssl:
             try:
                 s = ssl.wrap_socket(s,
-                                    ssl_version=ssl.PROTOCOL_SSLv3,
+                                    ssl_version=ssl.PROTOCOL_SSLv23,
                                     cert_reqs=ssl.CERT_REQUIRED,
                                     ca_certs= (temporary_path if is_new else cert_path),
                                     do_handshake_on_connect=True)
@@ -235,7 +242,7 @@ class TcpInterface(threading.Thread):
                         return
                     print_error("wrong certificate", self.host)
                 return
-            except Exception:
+            except BaseException:
                 print_error("wrap_socket failed", self.host)
                 traceback.print_exc(file=sys.stderr)
                 return
@@ -244,12 +251,8 @@ class TcpInterface(threading.Thread):
                 print_error("saving certificate for", self.host)
                 os.rename(temporary_path, cert_path)
 
-        s.settimeout(60)
-        self.s = s
-        self.is_connected = True
-        print_error("connected to", self.host, self.port)
-        self.pipe = util.SocketPipe(s)
-        
+        return s
+
 
     def send_request(self, request, queue=None):
         _id = request.get('id')
@@ -257,19 +260,20 @@ class TcpInterface(threading.Thread):
         params = request.get('params')
         with self.lock:
             try:
-                self.pipe.send({'id':self.message_id, 'method':method, 'params':params})
+                r = {'id':self.message_id, 'method':method, 'params':params}
+                self.pipe.send(r)
+                if self.debug:
+                    print_error("-->", r)
             except socket.error, e:
                 print_error("socked error:", self.server, e)
                 self.is_connected = False
                 return
             self.unanswered_requests[self.message_id] = method, params, _id, queue
             self.message_id += 1
-        if self.debug:
-            print_error("-->", request)
 
     def parse_proxy_options(self, s):
         if type(s) == type({}): return s  # fixme: type should be fixed
-        if type(s) != type(""): return None  
+        if type(s) != type(""): return None
         if s.lower() == 'none': return None
         proxy = { "mode":"socks5", "host":"localhost" }
         args = s.split(':')
@@ -297,7 +301,13 @@ class TcpInterface(threading.Thread):
         threading.Thread.start(self)
 
     def run(self):
-        self.start_tcp()
+        self.s = self.get_socket()
+        if self.s:
+            self.s.settimeout(60)
+            self.is_connected = True
+            print_error("connected to", self.host, self.port)
+            self.pipe = util.SocketPipe(self.s)
+
         self.change_status()
         if not self.is_connected:
             return
@@ -345,7 +355,7 @@ class HttpInterface(TcpInterface):
     def send_request(self, request, queue=None):
         import urllib2, json, time, cookielib
         print_error( "send_http", messages )
-        
+
         if self.proxy:
             socks.setdefaultproxy(self.proxy_mode, self.proxy["host"], int(self.proxy["port"]) )
             socks.wrapmodule(urllib2)
@@ -370,9 +380,9 @@ class HttpInterface(TcpInterface):
             data_json = json.dumps(data)
         else:
             # poll with GET
-            data_json = None 
+            data_json = None
 
-            
+
         headers = {'content-type': 'application/json'}
         if self.session_id:
             headers['cookie'] = 'SESSION=%s'%self.session_id
@@ -389,17 +399,17 @@ class HttpInterface(TcpInterface):
 
         response = response_stream.read()
         self.bytes_received += len(response)
-        if response: 
+        if response:
             response = json.loads( response )
             if type(response) is not type([]):
                 self.process_response(response)
             else:
                 for item in response:
                     self.process_response(item)
-        if response: 
+        if response:
             self.poll_interval = 1
         else:
-            if self.poll_interval < 15: 
+            if self.poll_interval < 15:
                 self.poll_interval += 1
         #print self.poll_interval, response
         self.rtime = time.time() - t1
@@ -444,7 +454,7 @@ class HttpInterface(TcpInterface):
             except Exception:
                 traceback.print_exc(file=sys.stdout)
                 break
-            
+
         self.is_connected = False
 
 

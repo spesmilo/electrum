@@ -18,7 +18,7 @@
 
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
-from qrtextedit import QRTextEdit
+from qrtextedit import ScanQRTextEdit
 
 import re
 from decimal import Decimal
@@ -30,11 +30,9 @@ RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'
 frozen_style = "QWidget { background-color:none; border:none;}"
 normal_style = "QPlainTextEdit { }"
 
-class PayToEdit(QRTextEdit):
-
+class PayToEdit(ScanQRTextEdit):
     def __init__(self, win):
-        QRTextEdit.__init__(self)
-        self.win = win
+        super(PayToEdit,self).__init__(win=win)
         self.amount_edit = win.amount_e
         self.document().contentsChanged.connect(self.update_size)
         self.heightMin = 0
@@ -42,6 +40,7 @@ class PayToEdit(QRTextEdit):
         self.c = None
         self.textChanged.connect(self.check_text)
         self.outputs = []
+        self.errors = []
         self.is_pr = False
         self.scan_f = self.win.pay_from_URI
         self.update_size()
@@ -94,6 +93,7 @@ class PayToEdit(QRTextEdit):
 
 
     def check_text(self):
+        self.errors = []
         if self.is_pr:
             return
 
@@ -114,12 +114,13 @@ class PayToEdit(QRTextEdit):
                 self.unlock_amount()
                 return
 
-        for line in lines:
+        for i, line in enumerate(lines):
             try:
                 type, to_address, amount = self.parse_address_and_amount(line)
             except:
+                self.errors.append((i, line.strip()))
                 continue
-                
+
             outputs.append((type, to_address, amount))
             total += amount
 
@@ -139,13 +140,15 @@ class PayToEdit(QRTextEdit):
             self.unlock_amount()
 
 
+    def get_errors(self):
+        return self.errors
+
     def get_outputs(self):
         if self.payto_address:
             try:
                 amount = self.amount_edit.get_amount()
             except:
                 amount = None
-
             self.outputs = [('address', self.payto_address, amount)]
 
         return self.outputs[:]
@@ -184,7 +187,7 @@ class PayToEdit(QRTextEdit):
         tc.movePosition(QTextCursor.EndOfWord)
         tc.insertText(completion.right(extra))
         self.setTextCursor(tc)
- 
+
 
     def textUnderCursor(self):
         tc = self.textCursor()
@@ -231,3 +234,9 @@ class PayToEdit(QRTextEdit):
         cr.setWidth(self.c.popup().sizeHintForColumn(0) + self.c.popup().verticalScrollBar().sizeHint().width())
         self.c.complete(cr)
 
+
+    def qr_input(self):
+        data = super(PayToEdit,self).qr_input()
+        if data.startswith("bitcoin:"):
+            self.scan_f(data)
+            # TODO: update fee

@@ -32,12 +32,6 @@ from simple_config import SimpleConfig
 from daemon import NetworkServer, DAEMON_PORT
 
 
-# policies
-SPAWN_DAEMON=0
-NEED_DAEMON=1
-NO_DAEMON=2
-USE_DAEMON_IF_AVAILABLE=3
-
 
 class NetworkProxy(threading.Thread):
 
@@ -64,6 +58,9 @@ class NetworkProxy(threading.Thread):
             self.network = Network(config)
             self.pipe = util.QueuePipe(send_queue=self.network.requests_queue)
             self.network.start(self.pipe.get_queue)
+            for key in ['status','banner','updated','servers','interfaces']:
+                value = self.network.get_status_value(key)
+                self.pipe.get_queue.put({'method':'network.status', 'params':[key, value]})
 
         # status variables
         self.status = 'connecting'
@@ -92,7 +89,7 @@ class NetworkProxy(threading.Thread):
         print_error("NetworkProxy: terminating")
 
     def process(self, response):
-        if self.debug: 
+        if self.debug:
             print_error("<--", response)
 
         if response.get('method') == 'network.status':
@@ -112,6 +109,7 @@ class NetworkProxy(threading.Thread):
 
         msg_id = response.get('id')
         result = response.get('result')
+        error = response.get('error')
         if msg_id is not None:
             with self.lock:
                 method, params, callback = self.unanswered_requests.pop(msg_id)
@@ -127,8 +125,8 @@ class NetworkProxy(threading.Thread):
                     print_error( "received unexpected notification", method, params)
                     return
 
-        
-        r = {'method':method, 'params':params, 'result':result, 'id':msg_id}
+
+        r = {'method':method, 'params':params, 'result':result, 'id':msg_id, 'error':error}
         callback(r)
 
 
@@ -143,7 +141,7 @@ class NetworkProxy(threading.Thread):
                 sub.append(message)
         if sub:
             with self.lock:
-                if self.subscriptions.get(callback) is None: 
+                if self.subscriptions.get(callback) is None:
                     self.subscriptions[callback] = []
                 for message in sub:
                     if message not in self.subscriptions[callback]:
@@ -153,12 +151,12 @@ class NetworkProxy(threading.Thread):
             requests = []
             ids = []
             for m in messages:
-                method, params = m 
+                method, params = m
                 request = { 'id':self.message_id, 'method':method, 'params':params }
                 self.unanswered_requests[self.message_id] = method, params, callback
                 ids.append(self.message_id)
                 requests.append(request)
-                if self.debug: 
+                if self.debug:
                     print_error("-->", request)
                 self.message_id += 1
 
@@ -174,11 +172,11 @@ class NetworkProxy(threading.Thread):
         while ids:
             r = queue.get(True, timeout)
             _id = r.get('id')
-            if _id in ids:
-                ids.remove(_id)
-                res[_id] = r.get('result')
-            else:
-                raise
+            ids.remove(_id)
+            if r.get('error'):
+                return BaseException(r.get('error'))
+            result = r.get('result')
+            res[_id] = r.get('result')
         out = []
         for _id in id2:
             out.append(res[_id])
@@ -232,4 +230,3 @@ class NetworkProxy(threading.Thread):
             callbacks = self.callbacks.get(event,[])[:]
         if callbacks:
             [callback() for callback in callbacks]
-

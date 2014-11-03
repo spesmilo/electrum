@@ -6,9 +6,18 @@ import time
 import traceback
 import sys
 import threading
+import platform
+
+if platform.system() == 'Windows':
+    MONOSPACE_FONT = 'Lucida Console'
+elif platform.system() == 'Darwin':
+    MONOSPACE_FONT = 'Monaco'
+else:
+    MONOSPACE_FONT = 'monospace'
+
 
 class WaitingDialog(QThread):
-    def __init__(self, parent, message, run_task, on_complete=None):
+    def __init__(self, parent, message, run_task, on_success=None, on_complete=None):
         QThread.__init__(self)
         self.parent = parent
         self.d = QDialog(parent)
@@ -17,6 +26,7 @@ class WaitingDialog(QThread):
         vbox = QVBoxLayout(self.d)
         vbox.addWidget(l)
         self.run_task = run_task
+        self.on_success = on_success
         self.on_complete = on_complete
         self.d.connect(self.d, SIGNAL('done'), self.close)
         self.d.show()
@@ -25,7 +35,7 @@ class WaitingDialog(QThread):
         self.error = None
         try:
             self.result = self.run_task()
-        except Exception as e:
+        except BaseException as e:
             traceback.print_exc(file=sys.stdout)
             self.error = str(e)
         self.d.emit(SIGNAL('done'))
@@ -34,14 +44,14 @@ class WaitingDialog(QThread):
         self.d.accept()
         if self.error:
             QMessageBox.warning(self.parent, _('Error'), self.error, _('OK'))
-            return
+        else:
+            if self.on_success:
+                if type(self.result) is not tuple:
+                    self.result = (self.result,)
+                self.on_success(*self.result)
 
         if self.on_complete:
-            if type(self.result) is tuple:
-                self.on_complete(*self.result)
-            else:
-                self.on_complete(self.result)
-
+            self.on_complete()
 
 
 class Timer(QThread):
@@ -85,29 +95,29 @@ class HelpButton(QPushButton):
 
 
 
-def close_button(dialog, label=_("Close") ):
+def close_button(dialog, label=None):
     hbox = QHBoxLayout()
     hbox.addStretch(1)
-    b = QPushButton(label)
+    b = QPushButton(label or _("Close"))
     hbox.addWidget(b)
     b.clicked.connect(dialog.close)
     b.setDefault(True)
     return hbox
 
-def ok_cancel_buttons2(dialog, ok_label=_("OK") ):
+def ok_cancel_buttons2(dialog, ok_label=None, cancel_label=None):
     hbox = QHBoxLayout()
     hbox.addStretch(1)
-    b = QPushButton(_("Cancel"))
+    b = QPushButton(cancel_label or _('Cancel'))
     hbox.addWidget(b)
     b.clicked.connect(dialog.reject)
-    b = QPushButton(ok_label)
+    b = QPushButton(ok_label or _("OK"))
     hbox.addWidget(b)
     b.clicked.connect(dialog.accept)
     b.setDefault(True)
     return hbox, b
 
-def ok_cancel_buttons(dialog, ok_label=_("OK") ):
-    hbox, b = ok_cancel_buttons2(dialog, ok_label)
+def ok_cancel_buttons(dialog, ok_label=None, cancel_label=None):
+    hbox, b = ok_cancel_buttons2(dialog, ok_label, cancel_label)
     return hbox
 
 def line_dialog(parent, title, label, ok_label, default=None):
@@ -127,7 +137,7 @@ def line_dialog(parent, title, label, ok_label, default=None):
         return unicode(txt.text())
 
 def text_dialog(parent, title, label, ok_label, default=None):
-    from qrtextedit import QRTextEdit
+    from qrtextedit import ScanQRTextEdit
     dialog = QDialog(parent)
     dialog.setMinimumWidth(500)
     dialog.setWindowTitle(title)
@@ -135,7 +145,7 @@ def text_dialog(parent, title, label, ok_label, default=None):
     l = QVBoxLayout()
     dialog.setLayout(l)
     l.addWidget(QLabel(label))
-    txt = QRTextEdit()
+    txt = ScanQRTextEdit(parent)
     if default:
         txt.setText(default)
     l.addWidget(txt)
@@ -173,7 +183,7 @@ def filename_field(parent, config, defaultname, select_msg):
     b2.setText(_("json"))
     vbox.addWidget(b1)
     vbox.addWidget(b2)
-        
+
     hbox = QHBoxLayout()
 
     directory = config.get('io_dir', unicode(os.path.expanduser('~')))
@@ -210,9 +220,9 @@ class MyTreeWidget(QTreeWidget):
     def __init__(self, parent):
         QTreeWidget.__init__(self, parent)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.connect(self, SIGNAL('itemActivated(QTreeWidgetItem*, int)'), self.itemactivated)
+        self.itemActivated.connect(self.on_activated)
 
-    def itemactivated(self, item):
+    def on_activated(self, item):
         if not item: return
         for i in range(0,self.viewport().height()/5):
             if self.itemAt(QPoint(0,i*5)) == item:

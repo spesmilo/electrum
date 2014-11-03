@@ -77,6 +77,7 @@ def load_certificates():
                 x.parse(c)
             except Exception as e:
                 util.print_error("cannot parse cert:", e)
+                continue
             ca_list[x.getFingerprint()] = x
     ca_f.close()
     util.print_error("%d certificates"%len(ca_list))
@@ -156,7 +157,7 @@ class PaymentRequest:
         paymntreq = self.data
         if not paymntreq.signature:
             self.error = "No signature"
-            return 
+            return
 
         cert = paymentrequest_pb2.X509Certificates()
         cert.ParseFromString(paymntreq.pki_data)
@@ -198,7 +199,7 @@ class PaymentRequest:
                 prefixBytes = bytearray([0x30,0x31,0x30,0x0d,0x06,0x09,0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x01,0x05,0x00,0x04,0x20])
                 verify = pubkey.verify(sig, prefixBytes + hashBytes)
             else:
-                self.error = "Algorithm not supported" 
+                self.error = "Algorithm not supported"
                 util.print_error(self.error, algo.getComponentByName('algorithm'))
                 return
 
@@ -325,6 +326,9 @@ class PaymentRequest:
 
 if __name__ == "__main__":
 
+    util.set_verbosity(True)
+    load_certificates()
+
     try:
         uri = sys.argv[1]
     except:
@@ -348,4 +352,3 @@ if __name__ == "__main__":
 
     tx = "blah"
     pr.send_ack(tx, refund_addr = "1vXAXUnGitimzinpXrqDWVU4tyAAQ34RA")
-

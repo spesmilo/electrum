@@ -7,20 +7,20 @@ from blockchain import Blockchain
 DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
 DEFAULT_SERVERS = {
-    'ecdsa.org': DEFAULT_PORTS,
-    'ecdsa.net': DEFAULT_PORTS,
-    'electrum.hachre.de': DEFAULT_PORTS,
-    'electrum.novit.ro': DEFAULT_PORTS,
-    'electrum.coinwallet.me': DEFAULT_PORTS,
-    'cube.l0g.in': DEFAULT_PORTS,
-    'bitcoin.epicinet.net': DEFAULT_PORTS,
-    'h.1209k.com': DEFAULT_PORTS,
-    'electrum.electricnewyear.net': DEFAULT_PORTS,
-    'erbium.sytes.net': DEFAULT_PORTS,
-    'e2.pdmc.net':DEFAULT_PORTS,
-    'electrum.no-ip.org':{'h': '80', 's': '50002', 't': '50001', 'g': '443'},
+    'electrum.be':DEFAULT_PORTS,
+    'electrum.drollette.com':{'t':'50001', 's':'50002'},
+    'erbium1.sytes.net':{'t':'50001', 's':'50002'},
+    'ecdsa.net':{'t':'50001', 's':'110'},
+    'eco-electrum.ddns.net':{'t': '50001', 's': '50002', 'h': '80', 'g': '443'},
+    'electrum0.electricnewyear.net':{'t':'50001', 's':'50002'},
+    'kirsche.emzy.de':{'t':'50001', 's':'50002', 'h':'8081'},
+    'electrum2.hachre.de':DEFAULT_PORTS,
+    'electrum.hsmiths.com':DEFAULT_PORTS,
+    'EAST.electrum.jdubya.info':DEFAULT_PORTS,
+    'WEST.electrum.jdubya.info':DEFAULT_PORTS,
+    'electrum.no-ip.org':{'t':'50001', 's':'50002', 'h':'80', 'g':'443'},
     'electrum.thwg.org':DEFAULT_PORTS,
-    'electrum.stepkrav.pw':DEFAULT_PORTS,
+    'us.electrum.be':DEFAULT_PORTS,
 }
 
 DISCONNECTED_RETRY_INTERVAL = 60
@@ -46,7 +46,7 @@ def parse_servers(result):
                 elif re.match("p\d*", v):
                     pruning_level = v[1:]
                 if pruning_level == '': pruning_level = '0'
-        try: 
+        try:
             is_recent = float(version)>=float(PROTOCOL_VERSION)
         except Exception:
             is_recent = False
@@ -65,7 +65,7 @@ def filter_protocol(servers, p):
         if p in protocols:
             l.append( ':'.join([k, protocols[p], p]) )
     return l
-    
+
 
 def pick_random_server(p='s'):
     return random.choice( filter_protocol(DEFAULT_SERVERS,p) )
@@ -101,6 +101,7 @@ class Network(threading.Thread):
         self.disconnected_time = time.time()
 
         self.recent_servers = self.config.get('recent_servers',[]) # successful connections
+        self.pending_servers = set()
 
         self.banner = ''
         self.interface = None
@@ -114,7 +115,7 @@ class Network(threading.Thread):
             os.mkdir(dir_path)
 
         # address subscriptions and cached results
-        self.addresses = {} 
+        self.addresses = {}
         self.connection_status = 'connecting'
         self.requests_queue = Queue.Queue()
 
@@ -164,14 +165,14 @@ class Network(threading.Thread):
         choice_list = []
         l = filter_protocol(self.get_servers(), self.protocol)
         for s in l:
-            if s in self.disconnected_servers or s in self.interfaces.keys():
+            if s in self.pending_servers or s in self.disconnected_servers or s in self.interfaces.keys():
                 continue
             else:
                 choice_list.append(s)
-        
-        if not choice_list: 
+
+        if not choice_list:
             return
-        
+
         server = random.choice( choice_list )
         return server
 
@@ -186,7 +187,7 @@ class Network(threading.Thread):
 
     def get_servers(self):
         if self.irc_servers:
-            out = self.irc_servers  
+            out = self.irc_servers
         else:
             out = DEFAULT_SERVERS
             for s in self.recent_servers:
@@ -199,8 +200,7 @@ class Network(threading.Thread):
         if server in self.interfaces.keys():
             return
         i = interface.Interface(server, self.config)
-        self.interfaces[i.server] = i
-        self.notify('interfaces')
+        self.pending_servers.add(server)
         i.start(self.queue)
         return i
 
@@ -213,7 +213,7 @@ class Network(threading.Thread):
         self.interface = self.start_interface(self.default_server)
         for i in range(self.num_server):
             self.start_random_interface()
-            
+
     def start(self, response_queue):
         self.running = True
         self.response_queue = response_queue
@@ -256,8 +256,7 @@ class Network(threading.Thread):
                 self.switch_to_interface(i)
                 break
             else:
-                self.interfaces.pop(i.server)
-                self.notify('interfaces')
+                self.remove_interface(i)
 
     def switch_to_interface(self, interface):
         server = interface.server
@@ -270,7 +269,7 @@ class Network(threading.Thread):
 
 
     def stop_interface(self):
-        self.interface.stop() 
+        self.interface.stop()
 
 
     def set_server(self, server):
@@ -294,7 +293,7 @@ class Network(threading.Thread):
             self.switch_to_interface( self.interfaces[server] )
         else:
             self.interface = self.start_interface(server)
-        
+
 
     def add_recent_server(self, i):
         # list is ordered
@@ -305,6 +304,14 @@ class Network(threading.Thread):
         self.recent_servers = self.recent_servers[0:20]
         self.config.set_key('recent_servers', self.recent_servers)
 
+
+    def add_interface(self, i):
+        self.interfaces[i.server] = i
+        self.notify('interfaces')
+
+    def remove_interface(self, i):
+        self.interfaces.pop(i.server)
+        self.notify('interfaces')
 
     def new_blockchain_height(self, blockchain_height, i):
         if self.is_connected():
@@ -359,7 +366,7 @@ class Network(threading.Thread):
         if method == 'blockchain.address.subscribe':
             addr = params[0]
             if addr in self.addresses:
-                self.response_queue.put({'id':_id, 'result':self.addresses[addr]}) 
+                self.response_queue.put({'id':_id, 'result':self.addresses[addr]})
                 return
 
         self.interface.send_request(request)
@@ -371,22 +378,32 @@ class Network(threading.Thread):
                 i, response = self.queue.get(timeout=0.1)
             except Queue.Empty:
 
-                if len(self.interfaces) < self.num_server:
+                if len(self.interfaces) + len(self.pending_servers) < self.num_server:
                     self.start_random_interface()
                 if not self.interfaces:
                     if time.time() - self.disconnected_time > DISCONNECTED_RETRY_INTERVAL:
                         print_error('network: retrying connections')
                         self.disconnected_servers = set([])
                         self.disconnected_time = time.time()
+
+                if not self.interface.is_connected:
+                    if time.time() - self.disconnected_time > DISCONNECTED_RETRY_INTERVAL:
+                        print_error("forcing reconnection")
+                        self.queue.put((self.interface, None))
+                        self.disconnected_time = time.time()
+
                 continue
-            
+
             if response is not None:
                 self.process_response(i, response)
                 continue
 
             # if response is None it is a notification about the interface
+            if i.server in self.pending_servers:
+                self.pending_servers.remove(i.server)
 
             if i.is_connected:
+                self.add_interface(i)
                 self.add_recent_server(i)
                 i.send_request({'method':'blockchain.headers.subscribe','params':[]})
                 if i == self.interface:
@@ -396,16 +413,23 @@ class Network(threading.Thread):
             else:
                 self.disconnected_servers.add(i.server)
                 if i.server in self.interfaces:
-                    self.interfaces.pop(i.server)
-                    self.notify('interfaces')
+                    self.remove_interface(i)
                 if i.server in self.heights:
                     self.heights.pop(i.server)
                 if i == self.interface:
-                    #self.interface = None
                     self.set_status('disconnected')
 
-            if not self.interface.is_connected and self.config.get('auto_cycle'):
-                self.switch_to_random_interface()
+            if not self.interface.is_connected:
+                if self.config.get('auto_cycle'):
+                    self.switch_to_random_interface()
+                else:
+                    if self.default_server not in self.disconnected_servers:
+                        print_error("restarting main interface")
+                        if self.default_server in self.interfaces.keys():
+                            self.switch_to_interface(self.interfaces[self.default_server])
+                        else:
+                            self.interface = self.start_interface(self.default_server)
+
 
         print_error("Network: Stopping interfaces")
         for i in self.interfaces.values():
@@ -460,5 +484,3 @@ class Network(threading.Thread):
 
     def get_local_height(self):
         return self.blockchain.height()
-
-

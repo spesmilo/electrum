@@ -25,5 +25,6 @@
     <file>icons/network.png</file>
     <file>icons/dark_background.png</file>
     <file>icons/qrcode.png</file>
+    <file>icons/trustedcoin.png</file>
   </qresource>
 </RCC>

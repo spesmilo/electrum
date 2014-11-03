@@ -1,50 +1,8 @@
 #!/usr/bin/env python
 
-import time, electrum, Queue
-from electrum import Interface, SimpleConfig
-from electrum.network import filter_protocol, parse_servers
+import util, json
 from collections import defaultdict
 
-# 1. start interface and wait for connection
-interface = electrum.Interface('ecdsa.net:50002:s')
-interface.start(wait = True)
-if not interface.is_connected:
-    print "not connected"
-    exit()
-
-# 2. get list of peers
-q = Queue.Queue()
-interface.send([('server.peers.subscribe',[])], lambda i,x: q.put(x))
-r = q.get(timeout=10000)
-peers = parse_servers(r.get('result'))
-peers = filter_protocol(peers,'s')
-
-print "Contacting %d servers"%len(peers)
-# start interfaces
-config = SimpleConfig()
-interfaces = map ( lambda server: Interface(server, config), peers )
-results_queue = Queue.Queue()
-reached_servers = []
-for i in interfaces: i.start(q)
-
-t0 = time.time()
-while peers:
-    try:
-        i = q.get(timeout=1)
-    except:
-        if time.time() - t0 > 10:
-            print "timeout"
-            break
-        else:
-            continue
-    peers.remove(i.server)
-    if i.is_connected:
-        i.send([('blockchain.headers.subscribe',[])], lambda i,x: results_queue.put((i,x)))
-        reached_servers.append(i.server)
-    else:
-        print "Connection failed:", i.server
-
-print "%d servers could be reached"%len(reached_servers)
 
 def analyze(results):
     out = {}
@@ -56,31 +14,24 @@ def analyze(results):
         d = dd.get(merkle, defaultdict(int))
         d[utxo] += 1
         dd[merkle] = d
-
     refs = {}
     for merkle, d in dd.items():
         v = d.values()
         m = max(v)
         ref = d.keys()[v.index(m)]
         refs[merkle] = ref, m
-
     for k, v in results.items():
         height = v.get('block_height')
         merkle = v.get('merkle_root')
         utxo = v.get('utxo_root')
         ref_utxo, num = refs.get(merkle)
-
         if ref_utxo != utxo and num > 1:
             out[k] = height, merkle, utxo
-
     return out
 
 
-results = {}
-while reached_servers:
-    i, r = results_queue.get(timeout=10000)
-    results[i.server] = r.get('result')
-    reached_servers.remove(i.server)
+peers = util.get_peers()
+results = util.send_request(peers, {'method':'blockchain.headers.subscribe','params':[]})
 
 errors = analyze(results).keys()
 

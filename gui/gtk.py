@@ -26,7 +26,7 @@ from gi.repository import Gtk, Gdk, GObject, cairo
 from decimal import Decimal
 from electrum.util import print_error
 from electrum.bitcoin import is_valid
-from electrum import mnemonic, WalletStorage, Wallet
+from electrum import WalletStorage, Wallet
 
 Gdk.threads_init()
 APP_NAME = "Electrum"
@@ -164,7 +164,7 @@ def run_settings_dialog(self):
     fee_label.set_size_request(150,10)
     fee_label.show()
     fee.pack_start(fee_label,False, False, 10)
-    fee_entry.set_text( str( Decimal(self.wallet.fee) /100000000 ) )
+    fee_entry.set_text( str( Decimal(self.wallet.fee_per_kb) /100000000 ) )
     fee_entry.connect('changed', numbify, False)
     fee_entry.show()
     fee.pack_start(fee_entry,False,False, 10)
@@ -221,9 +221,10 @@ def run_network_dialog( network, parent ):
     image = Gtk.Image()
     image.set_from_stock(Gtk.STOCK_NETWORK, Gtk.IconSize.DIALOG)
     host, port, protocol, proxy_config, auto_connect = network.get_parameters()
+    server = "%s:%s:%s"%(host, port, protocol)
     if parent:
         if network.is_connected():
-            status = "Connected to %s:%d\n%d blocks"%(host, port, network.blockchain.height())
+            status = "Connected to %s\n%d blocks"%(host, network.get_local_height())
         else:
             status = "Not connected"
     else:
@@ -340,12 +341,11 @@ def run_network_dialog( network, parent ):
 
     try:
         host, port, protocol = server.split(':')
-        proxy = network.config.get('proxy')
-        auto_connect = network.config.get('auto_cycle')
-        network.set_parameters(host, port, protocol, proxy, auto_connect)
     except Exception:
         show_message("error:" + server)
         return False
+
+    network.set_parameters(host, port, protocol, proxy_config, auto_connect)
 
 
 
@@ -686,12 +686,13 @@ class ElectrumWindow:
             if not is_fee: fee = None
             if amount is None:
                 return
-            #assume two outputs - one for change
-            inputs, total, fee = self.wallet.choose_tx_inputs( amount, fee, 2 )
+            tx = self.wallet.make_unsigned_transaction([('op_return', 'dummy_tx', amount)], fee)
             if not is_fee:
-                fee_entry.set_text( str( Decimal( fee ) / 100000000 ) )
-                self.fee_box.show()
-            if inputs:
+                if tx:
+                    fee = tx.get_fee()
+                    fee_entry.set_text( str( Decimal( fee ) / 100000000 ) )
+                    self.fee_box.show()
+            if tx:
                 amount_entry.modify_text(Gtk.StateType.NORMAL, Gdk.color_parse("#000000"))
                 fee_entry.modify_text(Gtk.StateType.NORMAL, Gdk.color_parse("#000000"))
                 send_button.set_sensitive(True)
@@ -1304,7 +1305,8 @@ class ElectrumGui():
                 r = change_password_dialog(False, None)
                 password = r[2] if r else None
                 wallet.add_seed(seed, password)
-                wallet.create_accounts(password)
+                wallet.create_master_keys(password)
+                wallet.create_main_account(password)
                 wallet.synchronize()  # generate first addresses offline
 
             elif action == 'restore':
@@ -1314,7 +1316,8 @@ class ElectrumGui():
                 r = change_password_dialog(False, None)
                 password = r[2] if r else None
                 wallet.add_seed(seed, password)
-                wallet.create_accounts(password)
+                wallet.create_master_keys(password)
+                wallet.create_main_account(password)
                 
             else:
                 exit()

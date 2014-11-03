@@ -129,17 +129,20 @@ class TxVerifier(threading.Thread):
             if method == 'blockchain.transaction.get_merkle':
                 tx_hash = params[0]
                 self.verify_merkle(tx_hash, result)
-                requested_merkle.remove(tx_hash)
 
 
     def verify_merkle(self, tx_hash, result):
         tx_height = result.get('block_height')
         pos = result.get('pos')
-        self.merkle_roots[tx_hash] = self.hash_merkle_root(result['merkle'], tx_hash, pos)
+        merkle_root = self.hash_merkle_root(result['merkle'], tx_hash, pos)
         header = self.network.get_header(tx_height)
         if not header: return
-        assert header.get('merkle_root') == self.merkle_roots[tx_hash]
+        if header.get('merkle_root') != merkle_root:
+            print_error("merkle verification failed for", tx_hash)
+            return
+
         # we passed all the tests
+        self.merkle_roots[tx_hash] = merkle_root
         timestamp = header.get('timestamp')
         with self.lock:
             self.verified_tx[tx_hash] = (tx_height, timestamp, pos)

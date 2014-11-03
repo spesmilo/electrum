@@ -16,13 +16,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import sys, time, datetime, re, threading
-from electrum.i18n import _, set_language
-from electrum.util import print_error, print_msg
-from electrum.plugins import run_hook
+import sys
+import time
+import datetime
+import re
+import threading
 import os.path, json, ast, traceback
 import shutil
-
+import signal
 
 try:
     import PyQt4
@@ -33,8 +34,10 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
+from electrum.i18n import _, set_language
+from electrum.util import print_error, print_msg
+from electrum.plugins import run_hook
 from electrum import WalletStorage, Wallet
-from electrum.i18n import _
 from electrum.bitcoin import MIN_RELAY_TX_FEE
 
 try:
@@ -44,7 +47,6 @@ except Exception:
 
 from util import *
 from main_window import ElectrumWindow
-from electrum.plugins import init_plugins
 
 
 class OpenFileEventFilter(QObject):
@@ -63,6 +65,7 @@ class OpenFileEventFilter(QObject):
 class ElectrumGui:
 
     def __init__(self, config, network, app=None):
+        set_language(config.get('language'))
         self.network = network
         self.config = config
         self.windows = []
@@ -70,7 +73,6 @@ class ElectrumGui:
         if app is None:
             self.app = QApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
-        init_plugins(self)
 
 
     def build_tray_menu(self):
@@ -158,7 +160,7 @@ class ElectrumGui:
             import installwizard
             wizard = installwizard.InstallWizard(self.config, self.network, storage)
             wallet = wizard.run(action)
-            if not wallet: 
+            if not wallet:
                 return
         else:
             wallet.start_threads(self.network)
@@ -193,7 +195,7 @@ class ElectrumGui:
                 self.go_full()
 
         # plugins that need to change the GUI do it here
-        run_hook('init')
+        run_hook('init_qt', self)
 
         w.load_wallet(wallet)
 
@@ -201,13 +203,14 @@ class ElectrumGui:
         s.start()
 
         self.windows.append(w)
-        if url: 
+        if url:
             self.set_url(url)
 
         w.app = self.app
         w.connect_slots(s)
         w.update_wallet()
 
+        signal.signal(signal.SIGINT, lambda *args: self.app.quit())
         self.app.exec_()
         if self.tray:
             self.tray.hide()
@@ -217,6 +220,4 @@ class ElectrumGui:
         event = QtCore.QEvent(QtCore.QEvent.Clipboard)
         self.app.sendEvent(self.app.clipboard(), event)
 
-        wallet.stop_threads()
-
-
+        w.close_wallet()

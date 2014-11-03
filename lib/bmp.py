@@ -23,7 +23,7 @@ bmp.py - module for constructing simple BMP graphics files
 
 """
 __version__ = "0.3"
-__about =  "bmp module, version %s, written by Paul McGuire, October, 2003, updated by Margus Laak, September, 2009" % __version__ 
+__about =  "bmp module, version %s, written by Paul McGuire, October, 2003, updated by Margus Laak, September, 2009" % __version__
 
 from math import ceil, hypot
 
@@ -51,7 +51,7 @@ class Color(object):
   """class for specifying colors while drawing BitMap elements"""
   __slots__ = [ 'red', 'grn', 'blu' ]
   __shade = 32
-  
+
   def __init__( self, r=0, g=0, b=0 ):
     self.red = r
     self.grn = g
@@ -65,32 +65,32 @@ class Color(object):
 
   def __str__( self ):
     return "R:%d G:%d B:%d" % (self.red, self.grn, self.blu )
-    
+
   def __hash__( self ):
-    return ( ( long(self.blu) ) + 
-              ( long(self.grn) <<  8 ) + 
+    return ( ( long(self.blu) ) +
+              ( long(self.grn) <<  8 ) +
               ( long(self.red) << 16 ) )
-  
+
   def __eq__( self, other ):
     return (self is other) or (self.toLong == other.toLong)
 
   def lighten( self ):
-    return Color( 
-      min( self.red + Color.__shade, 255), 
-      min( self.grn + Color.__shade, 255), 
-      min( self.blu + Color.__shade, 255)  
+    return Color(
+      min( self.red + Color.__shade, 255),
+      min( self.grn + Color.__shade, 255),
+      min( self.blu + Color.__shade, 255)
       )
-  
+
   def darken( self ):
-    return Color( 
-      max( self.red - Color.__shade, 0), 
-      max( self.grn - Color.__shade, 0), 
-      max( self.blu - Color.__shade, 0)  
+    return Color(
+      max( self.red - Color.__shade, 0),
+      max( self.grn - Color.__shade, 0),
+      max( self.blu - Color.__shade, 0)
       )
-       
+
   def toLong( self ):
     return self.__hash__()
-    
+
   def fromLong( l ):
     b = l & 0xff
     l = l >> 8
@@ -120,7 +120,7 @@ Color.GRAY     = Color( 128, 128, 128 )
 
 class BitMap(object):
   """class for drawing and saving simple Windows bitmap files"""
-  
+
   LINE_SOLID  = 0
   LINE_DASHED = 1
   LINE_DOTTED = 2
@@ -128,8 +128,8 @@ class BitMap(object):
   _DASH_LEN = 12.0
   _DOT_LEN = 6.0
   _DOT_DASH_LEN = _DOT_LEN + _DASH_LEN
-  
-  def __init__( self, width, height, 
+
+  def __init__( self, width, height,
                  bkgd = Color.WHITE, frgd = Color.BLACK ):
     self.wd = int( ceil(width) )
     self.ht = int( ceil(height) )
@@ -143,18 +143,18 @@ class BitMap(object):
     tmparray = [ self.bgcolor ] * self.wd
     self.bitarray = [ tmparray[:] for i in range( self.ht ) ]
     self.currentPen = 1
-    
+
 
   def plotPoint( self, x, y ):
     if ( 0 <= x < self.wd and 0 <= y < self.ht ):
       x = int(x)
       y = int(y)
       self.bitarray[y][x] = self.currentPen
-      
+
 
   def _saveBitMapNoCompression( self ):
     line_padding = (4 - (self.wd % 4)) % 4
-    
+
     # write bitmap header
     _bitmap = "BM"
     _bitmap += longToString( 54 + self.ht*(self.wd*3 + line_padding) )   # DWORD size in bytes of the file
@@ -183,15 +183,15 @@ class BitMap(object):
 
     return _bitmap
 
-    
-    
+
+
   def saveFile( self, filename):
     _b = self._saveBitMapNoCompression( )
-    
+
     f = file(filename, 'wb')
     f.write(_b)
     f.close()
-  
+
 
 def save_qrcode(qr, filename):
     matrix = qr.get_matrix()
@@ -211,12 +211,11 @@ def save_qrcode(qr, filename):
 
     bitmap.saveFile( filename )
 
-  
-    
+
+
 if __name__ == "__main__":
-  
+
   bmp = BitMap( 10, 10 )
   bmp.plotPoint( 5, 5 )
   bmp.plotPoint( 0, 0 )
   bmp.saveFile( "test.bmp" )
-
