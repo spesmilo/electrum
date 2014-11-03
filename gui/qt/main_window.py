@@ -1243,6 +1243,7 @@ class ElectrumWindow(QMainWindow):
                 self.message_e.setText(message)
             if amount:
                 self.amount_e.setAmount(amount)
+                self.amount_e.textEdited.emit("")
             return
 
         from electrum import paymentrequest
