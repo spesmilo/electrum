@@ -1275,6 +1275,7 @@ class ElectrumWindow(QMainWindow):
         self.payto_help.set_alt(None)
         self.set_pay_from([])
         self.update_status()
+        run_hook('do_clear')
 
 
 
@@ -2813,12 +2814,10 @@ class ElectrumWindow(QMainWindow):
                 cb.clicked.connect(mk_toggle(cb,p,w))
                 grid.addWidget(HelpButton(p.description()), i, 2)
             except Exception:
-                print_msg(_("Error: cannot display plugin"), p)
+                rint_msg("Error: cannot display plugin", p)
                 traceback.print_exc(file=sys.stdout)
         grid.setRowStretch(i+1,1)
-
         vbox.addLayout(close_button(d))
-
         d.exec_()
 
 
