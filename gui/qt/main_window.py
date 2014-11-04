@@ -1789,7 +1789,7 @@ class ElectrumWindow(QMainWindow):
 
     def new_contact_dialog(self):
 
-        self.pluginsdialog = d = QDialog(self)
+        d = QDialog(self)
         d.setWindowTitle(_("New Contact"))
         vbox = QVBoxLayout(d)
         vbox.addWidget(QLabel(_('New Contact')+':'))
@@ -2762,7 +2762,7 @@ class ElectrumWindow(QMainWindow):
     def plugins_dialog(self):
         from electrum.plugins import plugins
 
-        d = QDialog(self)
+        self.pluginsdialog = d = QDialog(self)
         d.setWindowTitle(_('Electrum Plugins'))
         d.setModal(1)
 
