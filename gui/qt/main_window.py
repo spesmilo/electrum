@@ -1243,6 +1243,7 @@ class ElectrumWindow(QMainWindow):
                 self.message_e.setText(message)
             if amount:
                 self.amount_e.setAmount(amount)
+                self.amount_e.textEdited.emit("")
             return
 
         from electrum import paymentrequest
@@ -1273,7 +1274,7 @@ class ElectrumWindow(QMainWindow):
         self.payto_help.set_alt(None)
         self.set_pay_from([])
         self.update_status()
-
+        run_hook('do_clear')
 
 
     def set_addrs_frozen(self,addrs,freeze):
@@ -2722,7 +2723,7 @@ class ElectrumWindow(QMainWindow):
     def plugins_dialog(self):
         from electrum.plugins import plugins
 
-        d = QDialog(self)
+        self.pluginsdialog = d = QDialog(self)
         d.setWindowTitle(_('Electrum Plugins'))
         d.setModal(1)
 
@@ -2773,14 +2774,11 @@ class ElectrumWindow(QMainWindow):
                 cb.clicked.connect(mk_toggle(cb,p,w))
                 grid.addWidget(HelpButton(p.description()), i, 2)
             except Exception:
-                print_msg(_("Error: cannot display plugin"), p)
+                print_msg("Error: cannot display plugin", p)
                 traceback.print_exc(file=sys.stdout)
         grid.setRowStretch(i+1,1)
-
         vbox.addLayout(close_button(d))
-
         d.exec_()
-
 
     def show_account_details(self, k):
         account = self.wallet.accounts[k]

@@ -786,7 +786,6 @@ class Abstract_Wallet(object):
         x_pubkeys = tx.inputs_to_sign()
         for x in x_pubkeys:
             sec = self.get_private_key_from_xpubkey(x, password)
-            print "sec", sec
             if sec:
                 keypairs[ x ] = sec
         if keypairs:
@@ -1026,10 +1025,12 @@ class Abstract_Wallet(object):
                 return self.get_private_key(addr, password)[0]
         elif x_pubkey[0:2] == 'ff':
             xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
-            for k, account in self.accounts.items():
-                if xpub in account.get_master_pubkeys():
-                    pk = account.get_private_key(sequence, self, password)
-                    return pk[0]
+            for k, v in self.master_public_keys.items():
+                if v == xpub:
+                    xprv = self.get_master_private_key(k, password)
+                    if xprv:
+                        _, _, _, c, k = deserialize_xkey(xprv)
+                        return bip32_private_key(sequence, k, c)
         elif x_pubkey[0:2] == 'fe':
             xpub, sequence = OldAccount.parse_xpubkey(x_pubkey)
             for k, account in self.accounts.items():
