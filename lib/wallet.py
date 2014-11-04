@@ -193,8 +193,8 @@ class Abstract_Wallet(object):
             self.storage.put('wallet_type', self.wallet_type, True)
         
         self.sort_contact = storage.get('sort_sequence',[0,1])
-	self.sort_address = storage.get('sort_sequence2',[0,1])
-	self.sort_invoice = storage.get('sort_sequence3',[0,1])
+        self.sort_address = storage.get('sort_sequence2',[0,1])
+        self.sort_invoice = storage.get('sort_sequence3',[0,1])
 
 
     def load_transactions(self):
