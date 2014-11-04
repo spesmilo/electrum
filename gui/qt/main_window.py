@@ -1278,7 +1278,6 @@ class ElectrumWindow(QMainWindow):
         run_hook('do_clear')
 
 
-
     def set_addrs_frozen(self,addrs,freeze):
         for addr in addrs:
             if not addr: continue
@@ -1790,7 +1789,7 @@ class ElectrumWindow(QMainWindow):
 
     def new_contact_dialog(self):
 
-        d = QDialog(self)
+        self.pluginsdialog = d = QDialog(self)
         d.setWindowTitle(_("New Contact"))
         vbox = QVBoxLayout(d)
         vbox.addWidget(QLabel(_('New Contact')+':'))
@@ -2814,7 +2813,7 @@ class ElectrumWindow(QMainWindow):
                 cb.clicked.connect(mk_toggle(cb,p,w))
                 grid.addWidget(HelpButton(p.description()), i, 2)
             except Exception:
-                rint_msg("Error: cannot display plugin", p)
+                print_msg("Error: cannot display plugin", p)
                 traceback.print_exc(file=sys.stdout)
         grid.setRowStretch(i+1,1)
         vbox.addLayout(close_button(d))
