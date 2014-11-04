@@ -1307,13 +1307,13 @@ class ElectrumWindow(QMainWindow):
 
         return l, w
     
-    def sort_format(self,logicalIndex,index,k):
-        if index[0]!=logicalIndex:	
-            index[1]=0
-	else:
-            index[1]=(index[1]+1)%2
-	index[0]=logicalIndex
-        self.wallet.add_sort(index,k)
+	def sort_format(self,logicalIndex,index,k):
+		if index[0]!=logicalIndex:	
+			index[1]=0
+		else:
+			index[1]=(index[1]+1)%2
+		index[0]=logicalIndex
+		self.wallet.add_sort(index,k)
 
     def create_addresses_tab(self):
         l, w = self.create_list_tab([ _('Address'), _('Label'), _('Balance'), _('Tx')])
@@ -1325,7 +1325,7 @@ class ElectrumWindow(QMainWindow):
         l.itemDoubleClicked.connect(lambda a, b: self.address_label_clicked(a,b,l,0,1))
         l.itemChanged.connect(lambda a,b: self.address_label_changed(a,b,l,0,1))
         l.currentItemChanged.connect(lambda a,b: self.current_item_changed(a))
-        l.setSortingEnabled(True)
+	l.setSortingEnabled(True)
 	l.header().setSortIndicatorShown(True)
 	l.header().setClickable(True)
 	l.header().sectionClicked.connect(lambda logicalIndex:self.sort_format(logicalIndex,self.wallet.sort_address,'sort_sequence2'))
@@ -1607,9 +1607,9 @@ class ElectrumWindow(QMainWindow):
 
         l.clear()
         
-        #set initial sorting formate
-        if self.wallet.sort_address[1]==0:
-        	self.address_list.header().setSortIndicator(self.wallet.sort_address[0], QtCore.Qt.AscendingOrder)
+	#set initial sorting formate
+	if self.wallet.sort_address[1]==0:
+		self.address_list.header().setSortIndicator(self.wallet.sort_address[0], QtCore.Qt.AscendingOrder)
 	else:
 		self.address_list.header().setSortIndicator(self.wallet.sort_address[0], QtCore.Qt.DescendingOrder)
 
