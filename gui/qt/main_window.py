@@ -1307,13 +1307,13 @@ class ElectrumWindow(QMainWindow):
 
         return l, w
     
-	def sort_format(self,logicalIndex,index,k):
-		if index[0]!=logicalIndex:	
-			index[1]=0
-		else:
-			index[1]=(index[1]+1)%2
-		index[0]=logicalIndex
-		self.wallet.add_sort(index,k)
+    def sort_format(self,logicalIndex,index,k):
+        if index[0]!=logicalIndex:	
+            index[1]=0
+        else:
+            index[1]=(index[1]+1)%2
+        index[0]=logicalIndex
+        self.wallet.add_sort(index,k)
 
     def create_addresses_tab(self):
         l, w = self.create_list_tab([ _('Address'), _('Label'), _('Balance'), _('Tx')])
@@ -1325,10 +1325,10 @@ class ElectrumWindow(QMainWindow):
         l.itemDoubleClicked.connect(lambda a, b: self.address_label_clicked(a,b,l,0,1))
         l.itemChanged.connect(lambda a,b: self.address_label_changed(a,b,l,0,1))
         l.currentItemChanged.connect(lambda a,b: self.current_item_changed(a))
-	l.setSortingEnabled(True)
-	l.header().setSortIndicatorShown(True)
-	l.header().setClickable(True)
-	l.header().sectionClicked.connect(lambda logicalIndex:self.sort_format(logicalIndex,self.wallet.sort_address,'sort_sequence2'))
+        l.setSortingEnabled(True)
+        l.header().setSortIndicatorShown(True)
+        l.header().setClickable(True)
+        l.header().sectionClicked.connect(lambda logicalIndex:self.sort_format(logicalIndex,self.wallet.sort_address,'sort_sequence2'))
         self.address_list = l
         return w
 
@@ -1360,9 +1360,9 @@ class ElectrumWindow(QMainWindow):
         l.itemDoubleClicked.connect(lambda a, b: self.address_label_clicked(a,b,l,0,1))
         l.itemChanged.connect(lambda a,b: self.address_label_changed(a,b,l,0,1))
         l.setSortingEnabled(True)
-	l.header().setSortIndicatorShown(True)
-	l.header().setClickable(True)
-	l.header().sectionClicked.connect(lambda logicalIndex:self.sort_format(logicalIndex,self.wallet.sort_contact,'sort_sequence'))
+        l.header().setSortIndicatorShown(True)
+        l.header().setClickable(True)
+        l.header().sectionClicked.connect(lambda logicalIndex:self.sort_format(logicalIndex,self.wallet.sort_contact,'sort_sequence'))
         self.contacts_list = l
         return w
 
@@ -1378,9 +1378,9 @@ class ElectrumWindow(QMainWindow):
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_invoice_menu)
         l.setSortingEnabled(True)
-	l.header().setSortIndicatorShown(True)
-	l.header().setClickable(True)
-	l.header().sectionClicked.connect(lambda logicalIndex:self.sort_format(logicalIndex,self.wallet.sort_invoice,'sort_sequence3'))
+        l.header().setSortIndicatorShown(True)
+        l.header().setClickable(True)
+        l.header().sectionClicked.connect(lambda logicalIndex:self.sort_format(logicalIndex,self.wallet.sort_invoice,'sort_sequence3'))
         self.invoices_list = l
         return w
 
@@ -1391,9 +1391,9 @@ class ElectrumWindow(QMainWindow):
         
         #set initial sorting formate
         if self.wallet.sort_invoice[1]==0:
-		self.invoices_list.header().setSortIndicator(self.wallet.sort_invoice[0], QtCore.Qt.AscendingOrder)
-	else:
-		self.invoices_list.header().setSortIndicator(self.wallet.sort_invoice[0], QtCore.Qt.DescendingOrder)
+            self.invoices_list.header().setSortIndicator(self.wallet.sort_invoice[0], QtCore.Qt.AscendingOrder)
+        else:
+            self.invoices_list.header().setSortIndicator(self.wallet.sort_invoice[0], QtCore.Qt.DescendingOrder)
 		
         for key, value in sorted(invoices.items(), key=lambda x: -x[1][3]):
             domain, memo, amount, expiration_date, status, tx_hash = value
@@ -1608,10 +1608,10 @@ class ElectrumWindow(QMainWindow):
         l.clear()
         
 	#set initial sorting formate
-	if self.wallet.sort_address[1]==0:
-		self.address_list.header().setSortIndicator(self.wallet.sort_address[0], QtCore.Qt.AscendingOrder)
-	else:
-		self.address_list.header().setSortIndicator(self.wallet.sort_address[0], QtCore.Qt.DescendingOrder)
+        if self.wallet.sort_address[1]==0:
+            self.address_list.header().setSortIndicator(self.wallet.sort_address[0], QtCore.Qt.AscendingOrder)
+        else:
+            self.address_list.header().setSortIndicator(self.wallet.sort_address[0], QtCore.Qt.DescendingOrder)
 
         accounts = self.wallet.get_accounts()
         if self.current_account is None:
@@ -1676,10 +1676,10 @@ class ElectrumWindow(QMainWindow):
         l.clear()
         
         #set initial sorting formate
-	if self.wallet.sort_contact[1]==0:
-		self.contacts_list.header().setSortIndicator(self.wallet.sort_contact[0], QtCore.Qt.AscendingOrder)
-	else:
-		self.contacts_list.header().setSortIndicator(self.wallet.sort_contact[0], QtCore.Qt.DescendingOrder)
+        if self.wallet.sort_contact[1]==0:
+            self.contacts_list.header().setSortIndicator(self.wallet.sort_contact[0], QtCore.Qt.AscendingOrder)
+        else:
+            self.contacts_list.header().setSortIndicator(self.wallet.sort_contact[0], QtCore.Qt.DescendingOrder)
 
         for address in self.wallet.addressbook:
             label = self.wallet.labels.get(address,'')
