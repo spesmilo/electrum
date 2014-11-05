@@ -58,7 +58,6 @@ paytomany_syntax = "paytomany <recipient> <amount> [<recipient> <amount> ...]\n<
 signmessage_syntax = 'signmessage <address> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "'
 verifymessage_syntax = 'verifymessage <address> <signature> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "'
 
-
 #                command
 #                                              requires_network
 #                                                     requires_wallet
@@ -94,6 +93,7 @@ register_command('payto',                5, 5, True,  True,  True,  'Create and 
 register_command('paytomany',            4, 4, True,  True,  True,  'Create and broadcast a transaction.', paytomany_syntax, payto_options)
 register_command('password',             0, 0, False, True,  True,  'Change your password')
 register_command('restore',              0, 0, True,  True,  False, 'Restore a wallet', '', restore_options)
+register_command('searchcontacts',       1, 1, False, True,  False,  'Search through contacts, return matching entries', 'searchcontacts <query>')
 register_command('setconfig',            2, 2, False, False, False, 'Set a configuration variable', 'setconfig <name> <value>')
 register_command('setlabel',             2,-1, False, True,  False, 'Assign a label to an item', 'setlabel <tx_hash> <label>')
 register_command('sendrawtransaction',   1, 1, True,  False, False, 'Broadcasts a transaction to the network.', 'sendrawtransaction <tx in hexadecimal>')
@@ -349,6 +349,13 @@ class Commands:
         for addr in self.wallet.addressbook:
             c[addr] = self.wallet.labels.get(addr)
         return c
+
+    def searchcontacts(self, query):
+        results = {}
+        for addr in self.wallet.addressbook:
+            if query.lower() in self.wallet.labels.get(addr).lower():
+                results[addr] = self.wallet.labels.get(addr)
+        return results
 
     def listaddresses(self, show_all = False, show_label = False):
         out = []
