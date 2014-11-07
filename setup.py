@@ -118,6 +118,7 @@ setup(
         'electrum_gui.qt.paytoedit',
         'electrum_gui.qt.qrcodewidget',
         'electrum_gui.qt.qrtextedit',
+        'electrum_gui.qt.qrwindow',
         'electrum_gui.qt.receiving_widget',
         'electrum_gui.qt.seed_dialog',
         'electrum_gui.qt.transaction_dialog',
