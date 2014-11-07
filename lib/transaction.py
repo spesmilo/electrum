@@ -386,15 +386,13 @@ def parse_scriptSig(d, bytes):
         return
 
     # p2sh transaction, 2 of n
-    match = [ opcodes.OP_0 ]
-    while len(match) < len(decoded):
-        match.append(opcodes.OP_PUSHDATA4)
+    match = [ opcodes.OP_0 ] + [ opcodes.OP_PUSHDATA4 ] * (len(decoded) - 1)
 
     if not match_decoded(decoded, match):
         print_error("cannot find address in input script", bytes.encode('hex'))
         return
 
-    x_sig = map(lambda x:x[1].encode('hex'), decoded[1:-1])
+    x_sig = [x[1].encode('hex') for x in decoded[1:-1]]
     d['signatures'] = parse_sig(x_sig)
     d['num_sig'] = 2
 
@@ -410,7 +408,7 @@ def parse_scriptSig(d, bytes):
         return
 
     d['x_pubkeys'] = x_pubkeys
-    pubkeys = map(lambda x: parse_xpub(x)[0], x_pubkeys)
+    pubkeys = [parse_xpub(x)[0] for x in x_pubkeys]     # xpub, addr = parse_xpub()
     d['pubkeys'] = pubkeys
     redeemScript = Transaction.multisig_script(pubkeys,2)
     d['redeemScript'] = redeemScript
@@ -495,7 +493,9 @@ def deserialize(raw):
     return d
 
 
-push_script = lambda x: op_push(len(x)/2) + x
+def push_script(x):
+    return op_push(len(x)/2) + x
+
 
 class Transaction:
 
@@ -520,7 +520,7 @@ class Transaction:
         d = deserialize(raw)
         self.raw = raw
         self.inputs = d['inputs']
-        self.outputs = map(lambda x: (x['type'], x['address'], x['value']), d['outputs'])
+        self.outputs = [(x['type'], x['address'], x['value']) for x in d['outputs']]
         self.locktime = d['lockTime']
 
     @classmethod
@@ -546,7 +546,7 @@ class Transaction:
         if not inputs:
             return
 
-        total = sum( map(lambda x:int(x.get('value')), inputs) ) - fee
+        total = sum(i.get('value') for i in inputs) - fee
         outputs = [('address', to_address, total)]
         self = klass(inputs, outputs)
         self.sign({ pubkey:privkey })
@@ -567,8 +567,7 @@ class Transaction:
             raise
 
         for k in public_keys:
-            s += op_push(len(k)/2)
-            s += k
+            s += op_push(len(k)/2) + k
         if n==2:
             s += '52'
         elif n==3:
@@ -612,8 +611,7 @@ class Transaction:
 
         s  = int_to_hex(1,4)                                         # version
         s += var_int( len(inputs) )                                  # number of inputs
-        for i in range(len(inputs)):
-            txin = inputs[i]
+        for i, txin in enumerate(inputs):
 
             s += txin['prevout_hash'].decode('hex')[::-1].encode('hex')   # prev hash
             s += int_to_hex(txin['prevout_n'],4)                          # prev index
@@ -623,37 +621,31 @@ class Transaction:
             address = txin['address']
 
             x_signatures = txin['signatures']
-            signatures = filter(lambda x: x is not None, x_signatures)
+            signatures = filter(None, x_signatures)
             is_complete = len(signatures) == num_sig
 
             if for_sig in [-1, None]:
                 # if we have enough signatures, we use the actual pubkeys
                 # use extended pubkeys (with bip32 derivation)
-                sig_list = []
                 if for_sig == -1:
                     # we assume that signature will be 0x48 bytes long
                     pubkeys = txin['pubkeys']
-                    sig_list = [ "00"* 0x48 ] * num_sig
+                    sig_list = [ "00" * 0x48 ] * num_sig
                 elif is_complete:
                     pubkeys = txin['pubkeys']
-                    for signature in signatures:
-                        sig_list.append(signature + '01')
+                    sig_list = ((sig + '01') for sig in signatures)
                 else:
                     pubkeys = txin['x_pubkeys']
-                    for signature in x_signatures:
-                        sig_list.append((signature + '01') if signature is not None else NO_SIGNATURE)
-
-                sig_list = ''.join( map( lambda x: push_script(x), sig_list))
+                    sig_list = ((sig + '01') if sig else NO_SIGNATURE for sig in x_signatures)
+                script = ''.join(push_script(x) for x in sig_list)
                 if not p2sh:
-                    script = sig_list
                     x_pubkey = pubkeys[0]
                     if x_pubkey is None:
                         addrtype, h160 = bc_address_to_hash_160(txin['address'])
                         x_pubkey = 'fd' + (chr(addrtype) + h160).encode('hex')
                     script += push_script(x_pubkey)
                 else:
-                    script = '00'                                    # op_0
-                    script += sig_list
+                    script = '00' + script          # put op_0 in front of script
                     redeem_script = self.multisig_script(pubkeys,2)
                     script += push_script(redeem_script)
 
@@ -689,10 +681,10 @@ class Transaction:
         self.raw = None
 
     def input_value(self):
-        return sum([x['value'] for x in self.inputs])
+        return sum(x['value'] for x in self.inputs)
 
     def output_value(self):
-        return sum([ x[2] for x in self.outputs])
+        return sum( val for tp,addr,val in self.outputs)
 
     def get_fee(self):
         return self.input_value() - self.output_value()
@@ -703,7 +695,7 @@ class Transaction:
         for txin in self.inputs:
             if txin.get('is_coinbase'):
                 continue
-            signatures = filter(lambda x: x is not None, txin['signatures'])
+            signatures = filter(None, txin['signatures'])
             s += len(signatures)
             r += txin['num_sig']
         return s, r
@@ -716,7 +708,7 @@ class Transaction:
         out = set()
         for txin in self.inputs:
             x_signatures = txin['signatures']
-            signatures = filter(lambda x: x is not None, x_signatures)
+            signatures = filter(None, x_signatures)
             if len(signatures) == txin['num_sig']:
                 # input is complete
                 continue
@@ -730,7 +722,7 @@ class Transaction:
     def sign(self, keypairs):
         print_error("tx.sign(), keypairs:", keypairs)
         for i, txin in enumerate(self.inputs):
-            signatures = filter(lambda x: x is not None, txin['signatures'])
+            signatures = filter(None, txin['signatures'])
             num = txin['num_sig']
             if len(signatures) == num:
                 # continue if this txin is complete
@@ -763,14 +755,14 @@ class Transaction:
         self.raw = self.serialize()
 
 
-    def add_pubkey_addresses(self, txlist):
-        for i in self.inputs:
-            if i.get("address") == "(pubkey)":
-                prev_tx = txlist.get(i.get('prevout_hash'))
+    def add_pubkey_addresses(self, txdict):
+        for txin in self.inputs:
+            if txin.get('address') == "(pubkey)":
+                prev_tx = txdict.get(txin.get('prevout_hash'))
                 if prev_tx:
-                    address, value = prev_tx.get_outputs()[i.get('prevout_n')]
+                    address, value = prev_tx.get_outputs()[txin.get('prevout_n')]
                     print_error("found pay-to-pubkey address:", address)
-                    i["address"] = address
+                    txin["address"] = address
 
 
     def get_outputs(self):
@@ -788,23 +780,15 @@ class Transaction:
                     addr = 'OP_RETURN: "' + x.encode('hex') + '"'
             else:
                 addr = "(None)"
-            o.append((addr,v))
+            o.append((addr,v))      # consider using yield (addr, v)
         return o
 
     def get_output_addresses(self):
-        return map(lambda x:x[0], self.get_outputs())
+        return [addr for addr, val in self.get_outputs()]
 
 
     def has_address(self, addr):
-        found = False
-        for txin in self.inputs:
-            if addr == txin.get('address'):
-                found = True
-                break
-        if addr in self.get_output_addresses():
-            found = True
-
-        return found
+        return (addr in self.get_output_addresses()) or (addr in (tx.get("address") for tx in self.inputs))
 
 
     def get_value(self, addresses, prevout_values):
@@ -871,19 +855,22 @@ class Transaction:
 
     def requires_fee(self, verifier):
         # see https://en.bitcoin.it/wiki/Transaction_fees
-        threshold = 57600000
+        #
+        # size must be smaller than 1 kbyte for free tx
         size = len(self.serialize(-1))/2
         if size >= 10000:
             return True
-
-        for o in self.get_outputs():
-            value = o[1]
+        # all outputs must be 0.01 BTC or larger for free tx
+        for addr, value in self.get_outputs():
             if value < 1000000:
                 return True
-        sum = 0
-        for i in self.inputs:
-            age = verifier.get_confirmations(i["prevout_hash"])[0]
-            sum += i["value"] * age
-        priority = sum / size
+        # priority must be large enough for free tx
+        threshold = 57600000
+        weight = 0
+        for txin in self.inputs:
+            age = verifier.get_confirmations(txin["prevout_hash"])[0]
+            weight += txin["value"] * age
+        priority = weight / size
         print_error(priority, threshold)
+
         return priority < threshold
