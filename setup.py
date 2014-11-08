@@ -12,8 +12,8 @@ import imp
 version = imp.load_source('version', 'lib/version.py')
 util = imp.load_source('util', 'lib/util.py')
 
-if sys.version_info[:3] < (2, 6, 0):
-    sys.exit("Error: Electrum requires Python version >= 2.6.0...")
+if sys.version_info[:3] < (2, 7, 0):
+    sys.exit("Error: Electrum requires Python version >= 2.7.0...")
 
 usr_share = util.usr_share_dir()
 if not os.access(usr_share, os.W_OK):
@@ -120,6 +120,7 @@ setup(
         'electrum_ltc_gui.qt.paytoedit',
         'electrum_ltc_gui.qt.qrcodewidget',
         'electrum_ltc_gui.qt.qrtextedit',
+        'electrum_ltc_gui.qt.qrwindow',
         'electrum_ltc_gui.qt.receiving_widget',
         'electrum_ltc_gui.qt.seed_dialog',
         'electrum_ltc_gui.qt.transaction_dialog',
