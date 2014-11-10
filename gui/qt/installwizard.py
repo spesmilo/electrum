@@ -142,13 +142,13 @@ class InstallWizard(QDialog):
 
     def multi_mpk_dialog(self, xpub_hot, n):
         vbox = QVBoxLayout()
-        vbox0, seed_e0 = seed_dialog.enter_seed_box(MSG_SHOW_MPK, 'hot')
+        vbox0, seed_e0 = seed_dialog.enter_seed_box(MSG_SHOW_MPK, self, 'hot')
         vbox.addLayout(vbox0)
         seed_e0.setText(xpub_hot)
         seed_e0.setReadOnly(True)
         entries = []
         for i in range(n):
-            vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_COLD_MPK, 'cold')
+            vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_COLD_MPK, self, 'cold')
             vbox.addLayout(vbox2)
             entries.append(seed_e2)
         vbox.addStretch(1)
@@ -166,11 +166,11 @@ class InstallWizard(QDialog):
 
     def multi_seed_dialog(self, n):
         vbox = QVBoxLayout()
-        vbox1, seed_e1 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, 'hot')
+        vbox1, seed_e1 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, self, 'hot')
         vbox.addLayout(vbox1)
         entries = [seed_e1]
         for i in range(n):
-            vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, 'cold')
+            vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_SEED_OR_MPK, self, 'cold')
             vbox.addLayout(vbox2)
             entries.append(seed_e2)
         vbox.addStretch(1)
