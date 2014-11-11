@@ -48,6 +48,12 @@ descriptions = [
         'available_for': ['qt'],
     },
     {
+        'name': 'email',
+        'fullname': 'Email',
+        'description': _("Send and receive payment request with an email account"),
+        'available_for': ['qt'],
+    },
+    {
         'name': 'exchange_rate',
         'fullname': _("Exchange rates"),
         'description': _("Exchange rates and currency conversion tools."),
