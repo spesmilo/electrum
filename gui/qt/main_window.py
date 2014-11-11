@@ -78,13 +78,8 @@ class StatusBarButton(QPushButton):
             apply(self.func,())
 
 
-
-# status of payment requests
-PR_UNPAID  = 0
-PR_EXPIRED = 1
-PR_SENT    = 2     # sent but not propagated
-PR_PAID    = 3     # send and propagated
-PR_ERROR   = 4     # could not parse
+from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
+from electrum.paymentrequest import PaymentRequest, InvoiceStore, get_payment_request
 
 pr_icons = {
     PR_UNPAID:":icons/unpaid.png",
@@ -113,12 +108,13 @@ class ElectrumWindow(QMainWindow):
         self.lite = None
         self.app = gui_object.app
 
+        self.invoices = InvoiceStore(self.config)
+
         self.create_status_bar()
         self.need_update = threading.Event()
 
         self.decimal_point = config.get('decimal_point', 5)
         self.num_zeros     = int(config.get('num_zeros',0))
-        self.invoices      = {}
 
         self.completions = QStringListModel()
 
@@ -203,7 +199,6 @@ class ElectrumWindow(QMainWindow):
         a = self.wallet.addresses(False)
         self.dummy_address = a[0] if a else None
 
-        self.invoices = self.wallet.storage.get('invoices', {})
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + os.path.basename(self.wallet.storage.path)
@@ -568,7 +563,8 @@ class ElectrumWindow(QMainWindow):
 
         self.receive_address_e = QLineEdit()
         self.receive_address_e.setReadOnly(True)
-        grid.addWidget(QLabel(_('Receiving address')), 0, 0)
+        self.receive_address_label = QLabel(_('Receiving address'))
+        grid.addWidget(self.receive_address_label, 0, 0)
         grid.addWidget(self.receive_address_e, 0, 1, 1, 3)
         self.receive_address_e.textChanged.connect(self.update_receive_qr)
 
@@ -1060,8 +1056,7 @@ class ElectrumWindow(QMainWindow):
             status, msg =  self.wallet.sendtx(tx)
             if not status:
                 return False, msg
-            self.invoices[pr.get_id()] = (pr.get_domain(), pr.get_memo(), pr.get_amount(), pr.get_expiration_date(), PR_PAID, tx.hash())
-            self.wallet.storage.put('invoices', self.invoices)
+            pr.set_paid(tx.hash())
             self.payment_request = None
             refund_address = self.wallet.addresses()[0]
             ack_status, ack_msg = pr.send_ack(str(tx), refund_address)
@@ -1096,15 +1091,9 @@ class ElectrumWindow(QMainWindow):
 
     def payment_request_ok(self):
         pr = self.payment_request
-        pr_id = pr.get_id()
-        if pr_id not in self.invoices:
-            self.invoices[pr_id] = (pr.get_domain(), pr.get_memo(), pr.get_amount(), pr.get_expiration_date(), PR_UNPAID, None)
-            self.wallet.storage.put('invoices', self.invoices)
-            self.update_invoices_tab()
-        else:
-            print_error('invoice already in list')
-
-        status = self.invoices[pr_id][4]
+        status = pr.get_status()
+        key = self.invoices.add(pr)
+        self.update_invoices_tab()
         if status == PR_PAID:
             self.do_clear()
             self.show_message("invoice already paid")
@@ -1113,7 +1102,6 @@ class ElectrumWindow(QMainWindow):
 
         self.payto_help.show()
         self.payto_help.set_alt(lambda: self.show_pr_details(pr))
-
         if not pr.has_expired():
             self.payto_e.setGreen()
         else:
@@ -1159,16 +1147,14 @@ class ElectrumWindow(QMainWindow):
                 self.amount_e.textEdited.emit("")
             return
 
-        from electrum import paymentrequest
-        def payment_request():
-            self.payment_request = paymentrequest.PaymentRequest(self.config)
-            self.payment_request.read(request_url)
+        def get_payment_request_thread():
+            self.payment_request = get_payment_request(request_url)
             if self.payment_request.verify():
                 self.emit(SIGNAL('payment_request_ok'))
             else:
                 self.emit(SIGNAL('payment_request_error'))
 
-        self.pr_thread = threading.Thread(target=payment_request).start()
+        self.pr_thread = threading.Thread(target=get_payment_request_thread).start()
         self.prepare_for_payment_request()
 
 
@@ -1227,15 +1213,14 @@ class ElectrumWindow(QMainWindow):
         return self.create_list_tab(l)
 
     def update_invoices_tab(self):
-        invoices = self.wallet.storage.get('invoices', {})
         l = self.invoices_list
         l.clear()
-        for key, value in sorted(invoices.items(), key=lambda x: -x[1][3]):
-            domain, memo, amount, expiration_date, status, tx_hash = value
-            if status == PR_UNPAID and expiration_date and expiration_date < time.time():
-                status = PR_EXPIRED
-            date_str = format_time(expiration_date)
-            item = QTreeWidgetItem( [ date_str, domain, memo, self.format_amount(amount, whitespaces=True), ''] )
+        for pr in self.invoices.sorted_list():
+            key = pr.get_id()
+            status = pr.get_status()
+            domain = pr.get_domain()
+            date_str = format_time(pr.get_expiration_date())
+            item = QTreeWidgetItem( [ date_str, domain, pr.memo, self.format_amount(pr.get_amount(), whitespaces=True), ''] )
             icon = QIcon(pr_icons.get(status))
             item.setIcon(4, icon)
             item.setToolTip(4, pr_tooltips.get(status,''))
@@ -1385,36 +1370,25 @@ class ElectrumWindow(QMainWindow):
         run_hook('create_contact_menu', menu, item)
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
-    def delete_invoice(self, key):
-        self.invoices.pop(key)
-        self.wallet.storage.put('invoices', self.invoices)
-        self.update_invoices_tab()
 
     def show_invoice(self, key):
-        from electrum.paymentrequest import PaymentRequest
-        domain, memo, value, expiration, status, tx_hash = self.invoices[key]
-        pr = PaymentRequest(self.config)
-        pr.read_file(key)
-        pr.domain = domain
+        pr = self.invoices.get(key)
         pr.verify()
-        self.show_pr_details(pr, tx_hash)
+        self.show_pr_details(pr)
 
-    def show_pr_details(self, pr, tx_hash=None):
-        msg = 'Domain: ' + pr.domain
-        msg += '\nStatus: ' + pr.get_status()
+    def show_pr_details(self, pr):
+        msg = 'Requestor: ' + pr.get_domain()
+        msg += '\nExpires: ' + format_time(pr.get_expiration_date())
+        msg += '\nStatus: ' + pr.get_verify_status()
         msg += '\nMemo: ' + pr.get_memo()
         msg += '\nPayment URL: ' + pr.payment_url
         msg += '\n\nOutputs:\n' + '\n'.join(map(lambda x: x[1] + ' ' + self.format_amount(x[2])+ self.base_unit(), pr.get_outputs()))
-        if tx_hash:
-            msg += '\n\nTransaction ID: ' + tx_hash
+        if pr.tx:
+            msg += '\n\nTransaction ID: ' + pr.tx
         QMessageBox.information(self, 'Invoice', msg , 'OK')
 
     def do_pay_invoice(self, key):
-        from electrum.paymentrequest import PaymentRequest
-        domain, memo, value, expiration, status, tx_hash = self.invoices[key]
-        pr = PaymentRequest(self.config)
-        pr.read_file(key)
-        pr.domain = domain
+        pr = self.invoices.get(key)
         self.payment_request = pr
         self.prepare_for_payment_request()
         if pr.verify():
@@ -1428,12 +1402,16 @@ class ElectrumWindow(QMainWindow):
         if not item:
             return
         key = str(item.data(0, 32).toString())
-        domain, memo, value, expiration, status, tx_hash = self.invoices[key]
+        pr = self.invoices.get(key)
+        status = pr.get_status()
         menu = QMenu()
         menu.addAction(_("Details"), lambda: self.show_invoice(key))
         if status == PR_UNPAID:
             menu.addAction(_("Pay Now"), lambda: self.do_pay_invoice(key))
-        menu.addAction(_("Delete"), lambda: self.delete_invoice(key))
+        def delete_invoice(key):
+            self.wallet.delete_invoice(key)
+            self.update_invoices_tab()
+        menu.addAction(_("Delete"), lambda: delete_invoice(key))
         menu.exec_(self.invoices_list.viewport().mapToGlobal(position))
 
 

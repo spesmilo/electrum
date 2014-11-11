@@ -75,6 +75,9 @@ class X509(tlslite.X509):
         self.subject = self.tbs.getComponentByName('subject')
         self.extensions = self.tbs.getComponentByName('extensions') or []
 
+    def get_common_name(self):
+        return self.extract_names()['CN']
+
     def get_issuer(self):
         results = {'CN': None, 'OU': None,}
         issuer = self.tbs.getComponentByName('issuer')

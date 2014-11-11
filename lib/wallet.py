@@ -171,7 +171,6 @@ class Abstract_Wallet(object):
         self.imported_keys = self.storage.get('imported_keys',{})
 
         self.load_accounts()
-
         self.load_transactions()
 
         # spv
@@ -221,6 +220,7 @@ class Abstract_Wallet(object):
             self.history = {}
         self.save_transactions()
 
+    # wizard action
     def get_action(self):
         pass
 
