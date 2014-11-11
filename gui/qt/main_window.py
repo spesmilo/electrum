@@ -696,6 +696,11 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.receive_address_e, 0, 1, 1, 3)
         self.receive_address_e.textChanged.connect(self.update_receive_qr)
 
+        self.copy_button = QPushButton()
+        self.copy_button.setIcon(QIcon(":icons/copy.png"))
+        self.copy_button.clicked.connect(lambda: self.app.clipboard().setText(self.receive_address_e.text()))
+        grid.addWidget(self.copy_button, 0, 4)
+
         self.receive_message_e = QLineEdit()
         grid.addWidget(QLabel(_('Message')), 1, 0)
         grid.addWidget(self.receive_message_e, 1, 1, 1, 3)
@@ -715,7 +720,7 @@ class ElectrumWindow(QMainWindow):
         grid.setRowStretch(4, 1)
 
         self.receive_qr = QRCodeWidget(fixedSize=200)
-        grid.addWidget(self.receive_qr, 0, 4, 5, 2)
+        grid.addWidget(self.receive_qr, 0, 5, 5, 2)
         self.receive_qr.mousePressEvent = lambda x: self.toggle_qr_window()
 
         grid.setRowStretch(5, 1)
