@@ -7,6 +7,7 @@
     <file>icons/clock4.png</file>
     <file>icons/clock5.png</file>
     <file>icons/confirmed.png</file>
+    <file>icons/expired.png</file>
     <file>icons/key.png</file>
     <file>icons/lock.png</file>
     <file>icons/unlock.png</file>
@@ -22,6 +23,7 @@
     <file>icons/electrum_light_icon.png</file>
     <file>icons/electrum_dark_icon.png</file>
     <file>icons/unconfirmed.png</file>
+    <file>icons/unpaid.png</file>
     <file>icons/network.png</file>
     <file>icons/dark_background.png</file>
     <file>icons/qrcode.png</file>

@@ -56,12 +56,6 @@ import csv
 
 
 
-# status of payment requests
-PR_UNPAID  = 0
-PR_EXPIRED = 1
-PR_SENT    = 2     # sent but not propagated
-PR_PAID    = 3     # send and propagated
-PR_ERROR   = 4     # could not parse
 
 
 from electrum import ELECTRUM_VERSION
@@ -71,13 +65,6 @@ from util import MyTreeWidget, HelpButton, EnterButton, line_dialog, text_dialog
 from util import filename_field, ok_cancel_buttons2, address_field
 from util import MONOSPACE_FONT
 
-def format_status(x):
-    if x == PR_UNPAID:
-        return _('Unpaid')
-    elif x == PR_PAID:
-        return _('Paid')
-    elif x == PR_EXPIRED:
-        return _('Expired')
 
 
 class StatusBarButton(QPushButton):
@@ -96,14 +83,31 @@ class StatusBarButton(QPushButton):
 
 
 
+default_column_widths = {
+    "history":[40,140,350,140],
+    "contacts":[350,330],
+    "receive": [370,200,130]
+}
+
+# status of payment requests
+PR_UNPAID  = 0
+PR_EXPIRED = 1
+PR_SENT    = 2     # sent but not propagated
+PR_PAID    = 3     # send and propagated
+PR_ERROR   = 4     # could not parse
+
+pr_icons = {
+    PR_UNPAID:":icons/unpaid.png",
+    PR_PAID:":icons/confirmed.png",
+    PR_EXPIRED:":icons/expired.png"
+}
+pr_tooltips = {
+    PR_UNPAID:_('Unpaid'),
+    PR_PAID:_('Paid'),
+    PR_EXPIRED:_('Expired')
+}
 
 
-
-
-
-
-
-default_column_widths = { "history":[40,140,350,140], "contacts":[350,330], "receive": [370,200,130] }
 
 class ElectrumWindow(QMainWindow):
     labelsChanged = pyqtSignal()
@@ -1350,13 +1354,14 @@ class ElectrumWindow(QMainWindow):
 
 
     def create_invoices_tab(self):
-        l, w = self.create_list_tab([_('Date'), _('Requestor'), _('Memo'), _('Amount'), _('Status')])
-        l.setColumnWidth(0, 150)
+        l, w = self.create_list_tab([_('Status'), _('Date'), _('Requestor'), _('Memo'), _('Amount')])
+        l.setColumnWidth(0, 60)
         l.setColumnWidth(1, 150)
-        l.setColumnWidth(3, 150)
+        l.setColumnWidth(2, 150)
+        l.setColumnWidth(4, 150)
         h = l.header()
         h.setStretchLastSection(False)
-        h.setResizeMode(2, QHeaderView.Stretch)
+        h.setResizeMode(3, QHeaderView.Stretch)
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_invoice_menu)
         self.invoices_list = l
@@ -1371,9 +1376,12 @@ class ElectrumWindow(QMainWindow):
             if status == PR_UNPAID and expiration_date and expiration_date < time.time():
                 status = PR_EXPIRED
             date_str = datetime.datetime.fromtimestamp(expiration_date).isoformat(' ')[:-3]
-            item = QTreeWidgetItem( [ date_str, domain, memo, self.format_amount(amount, whitespaces=True), format_status(status)] )
+            item = QTreeWidgetItem( [ '', date_str, domain, memo, self.format_amount(amount, whitespaces=True)] )
+            icon = QIcon(pr_icons.get(status))
+            item.setIcon(0, icon)
+            item.setToolTip(0, pr_tooltips.get(status,''))
             item.setData(0, 32, key)
-            item.setFont(1, QFont(MONOSPACE_FONT))
+            item.setFont(2, QFont(MONOSPACE_FONT))
             item.setFont(3, QFont(MONOSPACE_FONT))
             l.addTopLevelItem(item)
         l.setCurrentItem(l.topLevelItem(0))
