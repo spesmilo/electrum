@@ -185,6 +185,7 @@ class ElectrumWindow(QMainWindow):
         self.payment_request = None
         self.qr_window = None
         self.not_enough_funds = False
+        self.pluginsdialog = None
 
     def update_account_selector(self):
         # account selector
@@ -1736,7 +1737,7 @@ class ElectrumWindow(QMainWindow):
         self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), _("Network"), self.run_network_dialog )
         sb.addPermanentWidget( self.status_button )
 
-        run_hook('create_status_bar', (sb,))
+        run_hook('create_status_bar', sb)
 
         self.setStatusBar(sb)
 
