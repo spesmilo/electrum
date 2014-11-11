@@ -1134,32 +1134,30 @@ class ElectrumWindow(QMainWindow):
     def broadcast_transaction(self, tx):
 
         def broadcast_thread():
+            # non-GUI thread
             pr = self.payment_request
             if pr is None:
                 return self.wallet.sendtx(tx)
-
             if pr.has_expired():
                 self.payment_request = None
                 return False, _("Payment request has expired")
-
             status, msg =  self.wallet.sendtx(tx)
             if not status:
                 return False, msg
-
             self.invoices[pr.get_id()] = (pr.get_domain(), pr.get_memo(), pr.get_amount(), pr.get_expiration_date(), PR_PAID, tx.hash())
             self.wallet.storage.put('invoices', self.invoices)
-            self.update_invoices_tab()
             self.payment_request = None
             refund_address = self.wallet.addresses()[0]
             ack_status, ack_msg = pr.send_ack(str(tx), refund_address)
             if ack_status:
                 msg = ack_msg
-
             return status, msg
 
         def broadcast_done(status, msg):
+            # GUI thread
             if status:
                 QMessageBox.information(self, '', _('Payment sent.') + '\n' + msg, _('OK'))
+                self.update_invoices_tab()
                 self.do_clear()
             else:
                 QMessageBox.warning(self, _('Error'), msg, _('OK'))
