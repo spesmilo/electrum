@@ -36,7 +36,7 @@ DAEMON_PORT=8001
 def do_start_daemon(config):
     import subprocess
     logfile = open(os.path.join(config.path, 'daemon.log'),'w')
-    p = subprocess.Popen(["python",__file__], stderr=logfile, stdout=logfile, close_fds=True)
+    p = subprocess.Popen(["python2",__file__], stderr=logfile, stdout=logfile, close_fds=True)
     print_stderr("starting daemon (PID %d)"%p.pid)
 
 
