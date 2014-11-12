@@ -1086,7 +1086,7 @@ class ElectrumWindow(QMainWindow):
         if not r:
             return
         outputs, fee, label, coins = r
-
+        run_hook('before_send')
         try:
             tx = self.wallet.make_unsigned_transaction(outputs, fee, None, coins = coins)
             if not tx:
