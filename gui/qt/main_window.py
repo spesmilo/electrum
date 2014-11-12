@@ -56,12 +56,6 @@ import csv
 
 
 
-# status of payment requests
-PR_UNPAID  = 0
-PR_EXPIRED = 1
-PR_SENT    = 2     # sent but not propagated
-PR_PAID    = 3     # send and propagated
-PR_ERROR   = 4     # could not parse
 
 
 from electrum_ltc import ELECTRUM_VERSION
@@ -71,13 +65,6 @@ from util import MyTreeWidget, HelpButton, EnterButton, line_dialog, text_dialog
 from util import filename_field, ok_cancel_buttons2, address_field
 from util import MONOSPACE_FONT
 
-def format_status(x):
-    if x == PR_UNPAID:
-        return _('Unpaid')
-    elif x == PR_PAID:
-        return _('Paid')
-    elif x == PR_EXPIRED:
-        return _('Expired')
 
 
 class StatusBarButton(QPushButton):
@@ -96,14 +83,31 @@ class StatusBarButton(QPushButton):
 
 
 
+default_column_widths = {
+    "history":[40,140,350,140],
+    "contacts":[350,330],
+    "receive": [370,200,130]
+}
+
+# status of payment requests
+PR_UNPAID  = 0
+PR_EXPIRED = 1
+PR_SENT    = 2     # sent but not propagated
+PR_PAID    = 3     # send and propagated
+PR_ERROR   = 4     # could not parse
+
+pr_icons = {
+    PR_UNPAID:":icons/unpaid.png",
+    PR_PAID:":icons/confirmed.png",
+    PR_EXPIRED:":icons/expired.png"
+}
+pr_tooltips = {
+    PR_UNPAID:_('Unpaid'),
+    PR_PAID:_('Paid'),
+    PR_EXPIRED:_('Expired')
+}
 
 
-
-
-
-
-
-default_column_widths = { "history":[40,140,350,140], "contacts":[350,330], "receive": [370,200,130] }
 
 class ElectrumWindow(QMainWindow):
     labelsChanged = pyqtSignal()
@@ -181,6 +185,7 @@ class ElectrumWindow(QMainWindow):
         self.payment_request = None
         self.qr_window = None
         self.not_enough_funds = False
+        self.pluginsdialog = None
 
     def update_account_selector(self):
         # account selector
@@ -206,7 +211,7 @@ class ElectrumWindow(QMainWindow):
         self.invoices = self.wallet.storage.get('invoices', {})
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
-        title = 'Electrum-LTC ' + self.wallet.electrum_version + '  -  ' + self.wallet.storage.path
+        title = 'Electrum-LTC ' + self.wallet.electrum_version + '  -  ' + os.path.basename(self.wallet.storage.path)
         if self.wallet.is_watching_only(): title += ' [%s]' % (_('watching only'))
         self.setWindowTitle( title )
         self.update_wallet()
@@ -690,6 +695,11 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.receive_address_e, 0, 1, 1, 3)
         self.receive_address_e.textChanged.connect(self.update_receive_qr)
 
+        self.copy_button = QPushButton()
+        self.copy_button.setIcon(QIcon(":icons/copy.png"))
+        self.copy_button.clicked.connect(lambda: self.app.clipboard().setText(self.receive_address_e.text()))
+        grid.addWidget(self.copy_button, 0, 4)
+
         self.receive_message_e = QLineEdit()
         grid.addWidget(QLabel(_('Message')), 1, 0)
         grid.addWidget(self.receive_message_e, 1, 1, 1, 3)
@@ -709,7 +719,7 @@ class ElectrumWindow(QMainWindow):
         grid.setRowStretch(4, 1)
 
         self.receive_qr = QRCodeWidget(fixedSize=200)
-        grid.addWidget(self.receive_qr, 0, 4, 5, 2)
+        grid.addWidget(self.receive_qr, 0, 5, 5, 2)
         self.receive_qr.mousePressEvent = lambda x: self.toggle_qr_window()
 
         grid.setRowStretch(5, 1)
@@ -1132,32 +1142,30 @@ class ElectrumWindow(QMainWindow):
     def broadcast_transaction(self, tx):
 
         def broadcast_thread():
+            # non-GUI thread
             pr = self.payment_request
             if pr is None:
                 return self.wallet.sendtx(tx)
-
             if pr.has_expired():
                 self.payment_request = None
                 return False, _("Payment request has expired")
-
             status, msg =  self.wallet.sendtx(tx)
             if not status:
                 return False, msg
-
             self.invoices[pr.get_id()] = (pr.get_domain(), pr.get_memo(), pr.get_amount(), pr.get_expiration_date(), PR_PAID, tx.hash())
             self.wallet.storage.put('invoices', self.invoices)
-            self.update_invoices_tab()
             self.payment_request = None
             refund_address = self.wallet.addresses()[0]
             ack_status, ack_msg = pr.send_ack(str(tx), refund_address)
             if ack_status:
                 msg = ack_msg
-
             return status, msg
 
         def broadcast_done(status, msg):
+            # GUI thread
             if status:
                 QMessageBox.information(self, '', _('Payment sent.') + '\n' + msg, _('OK'))
+                self.update_invoices_tab()
                 self.do_clear()
             else:
                 QMessageBox.warning(self, _('Error'), msg, _('OK'))
@@ -1350,13 +1358,14 @@ class ElectrumWindow(QMainWindow):
 
 
     def create_invoices_tab(self):
-        l, w = self.create_list_tab([_('Requestor'), _('Memo'), _('Date'), _('Amount'), _('Status')])
+        l, w = self.create_list_tab([_('Date'), _('Requestor'), _('Memo'), _('Amount'), _('Status')])
         l.setColumnWidth(0, 150)
-        l.setColumnWidth(2, 150)
+        l.setColumnWidth(1, 150)
         l.setColumnWidth(3, 150)
+        l.setColumnWidth(4, 40)
         h = l.header()
         h.setStretchLastSection(False)
-        h.setResizeMode(1, QHeaderView.Stretch)
+        h.setResizeMode(2, QHeaderView.Stretch)
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_invoice_menu)
         self.invoices_list = l
@@ -1371,10 +1380,13 @@ class ElectrumWindow(QMainWindow):
             if status == PR_UNPAID and expiration_date and expiration_date < time.time():
                 status = PR_EXPIRED
             date_str = datetime.datetime.fromtimestamp(expiration_date).isoformat(' ')[:-3]
-            item = QTreeWidgetItem( [ domain, memo, date_str, self.format_amount(amount, whitespaces=True), format_status(status)] )
+            item = QTreeWidgetItem( [ date_str, domain, memo, self.format_amount(amount, whitespaces=True), ''] )
+            icon = QIcon(pr_icons.get(status))
+            item.setIcon(4, icon)
+            item.setToolTip(4, pr_tooltips.get(status,''))
             item.setData(0, 32, key)
-            item.setFont(0, QFont(MONOSPACE_FONT))
-            item.setFont(3, QFont(MONOSPACE_FONT))
+            item.setFont(1, QFont(MONOSPACE_FONT))
+            item.setFont(2, QFont(MONOSPACE_FONT))
             l.addTopLevelItem(item)
         l.setCurrentItem(l.topLevelItem(0))
 
@@ -1723,7 +1735,7 @@ class ElectrumWindow(QMainWindow):
         self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), _("Network"), self.run_network_dialog )
         sb.addPermanentWidget( self.status_button )
 
-        run_hook('create_status_bar', (sb,))
+        run_hook('create_status_bar', sb)
 
         self.setStatusBar(sb)
 
