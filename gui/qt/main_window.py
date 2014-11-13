@@ -1082,11 +1082,12 @@ class ElectrumWindow(QMainWindow):
 
 
     def do_send(self):
+        if not run_hook('before_send'):
+            return
         r = self.read_send_tab()
         if not r:
             return
         outputs, fee, label, coins = r
-        run_hook('before_send')
         try:
             tx = self.wallet.make_unsigned_transaction(outputs, fee, None, coins = coins)
             if not tx:
