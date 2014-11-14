@@ -483,10 +483,10 @@ class Abstract_Wallet(object):
         return addr_list
 
     def get_account_from_address(self, addr):
-        "Returns the account that contains this address, or None"
+        "Returns the account name that contains this address, or None"
         for acc_id in self.accounts:    # similar to get_address_index but simpler
             if addr in self.get_account_addresses(acc_id):
-                return self.accounts[acc_id]
+                return self.get_account_name(acc_id)
         return None
 
     def get_account_balance(self, account):
