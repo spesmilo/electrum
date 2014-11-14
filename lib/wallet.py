@@ -1427,7 +1427,10 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         self.save_accounts()
 
     def create_pending_account(self, name, password):
-        next_id, next_xpub, next_address = self.next_account if self.next_account else self.get_next_account(password)
+        if self.next_account is None:
+            self.next_account = self.get_next_account(password)
+            self.storage.put('next_account', self.next_account)
+        next_id, next_xpub, next_address = self.next_account
         self.set_label(next_id, name)
         self.accounts[next_id] = PendingAccount({'pending':next_address})
         self.save_accounts()
@@ -1436,12 +1439,9 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         # synchronize existing accounts
         BIP32_Wallet.synchronize(self)
 
-        if self.next_account is None:
-            try:
-                self.next_account = self.get_next_account(None)
-                self.storage.put('next_account', self.next_account)
-            except:
-                pass
+        if self.next_account is None and not self.use_encryption:
+            self.next_account = self.get_next_account(None)
+            self.storage.put('next_account', self.next_account)
 
         # check pending account
         if self.next_account is not None:
