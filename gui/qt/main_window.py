@@ -1822,7 +1822,6 @@ class ElectrumWindow(QMainWindow):
         if not r: return
 
         name = str(e.text())
-        if not name: return
 
         self.wallet.create_pending_account(name, password)
         self.update_address_tab()

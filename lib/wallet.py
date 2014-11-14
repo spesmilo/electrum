@@ -1431,7 +1431,8 @@ class BIP32_HD_Wallet(BIP32_Wallet):
             self.next_account = self.get_next_account(password)
             self.storage.put('next_account', self.next_account)
         next_id, next_xpub, next_address = self.next_account
-        self.set_label(next_id, name)
+        if name:
+            self.set_label(next_id, name)
         self.accounts[next_id] = PendingAccount({'pending':next_address})
         self.save_accounts()
 
