@@ -1628,8 +1628,7 @@ class Wallet(object):
             msg = "This wallet seed is not supported anymore."
             if seed_version in [5, 7, 8, 9]:
                 msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
-            print msg
-            sys.exit(1)
+            raise BaseException(msg)
 
         run_hook('add_wallet_types', wallet_types)
         wallet_type = storage.get('wallet_type')

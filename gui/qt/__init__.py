@@ -154,6 +154,7 @@ class ElectrumGui:
             try:
                 wallet = Wallet(storage)
             except BaseException as e:
+                traceback.print_exc(file=sys.stdout)
                 QMessageBox.warning(None, _('Warning'), str(e), _('OK'))
                 return
             action = wallet.get_action()
