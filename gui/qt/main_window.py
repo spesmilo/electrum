@@ -766,7 +766,7 @@ class ElectrumWindow(QMainWindow):
     def save_payment_request(self):
         addr = str(self.receive_address_e.text())
         amount = self.receive_amount_e.get_amount()
-        message = str(self.receive_message_e.text())
+        message = unicode(self.receive_message_e.text())
         if not message and not amount:
             QMessageBox.warning(self, _('Error'), _('No message or amount'), _('OK'))
             return
@@ -1080,11 +1080,12 @@ class ElectrumWindow(QMainWindow):
 
 
     def do_send(self):
+        if run_hook('before_send'):
+            return
         r = self.read_send_tab()
         if not r:
             return
         outputs, fee, label, coins = r
-
         try:
             tx = self.wallet.make_unsigned_transaction(outputs, fee, None, coins = coins)
             if not tx:
@@ -1819,7 +1820,6 @@ class ElectrumWindow(QMainWindow):
         if not r: return
 
         name = str(e.text())
-        if not name: return
 
         self.wallet.create_pending_account(name, password)
         self.update_address_tab()

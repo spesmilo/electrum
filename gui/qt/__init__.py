@@ -151,7 +151,11 @@ class ElectrumGui:
 
         storage = WalletStorage(self.config)
         if storage.file_exists:
-            wallet = Wallet(storage)
+            try:
+                wallet = Wallet(storage)
+            except BaseException as e:
+                QMessageBox.warning(None, _('Warning'), str(e), _('OK'))
+                return
             action = wallet.get_action()
         else:
             action = 'new'
