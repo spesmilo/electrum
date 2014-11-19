@@ -56,15 +56,29 @@ import csv
 
 
 
+# status of payment requests
+PR_UNPAID  = 0
+PR_EXPIRED = 1
+PR_SENT    = 2     # sent but not propagated
+PR_PAID    = 3     # send and propagated
+PR_ERROR   = 4     # could not parse
 
 
 from electrum import ELECTRUM_VERSION
 import re
 
 from util import MyTreeWidget, HelpButton, EnterButton, line_dialog, text_dialog, ok_cancel_buttons, close_button, WaitingDialog
-from util import filename_field, ok_cancel_buttons2, address_field
+from util import filename_field, ok_cancel_buttons2, address_field, TreeWidgetItem
+
 from util import MONOSPACE_FONT
 
+def format_status(x):
+    if x == PR_UNPAID:
+        return _('Unpaid')
+    elif x == PR_PAID:
+        return _('Paid')
+    elif x == PR_EXPIRED:
+        return _('Expired')
 
 
 class StatusBarButton(QPushButton):
@@ -83,31 +97,14 @@ class StatusBarButton(QPushButton):
 
 
 
-default_column_widths = {
-    "history":[40,140,350,140],
-    "contacts":[350,330],
-    "receive": [370,200,130]
-}
-
-# status of payment requests
-PR_UNPAID  = 0
-PR_EXPIRED = 1
-PR_SENT    = 2     # sent but not propagated
-PR_PAID    = 3     # send and propagated
-PR_ERROR   = 4     # could not parse
-
-pr_icons = {
-    PR_UNPAID:":icons/unpaid.png",
-    PR_PAID:":icons/confirmed.png",
-    PR_EXPIRED:":icons/expired.png"
-}
-pr_tooltips = {
-    PR_UNPAID:_('Unpaid'),
-    PR_PAID:_('Paid'),
-    PR_EXPIRED:_('Expired')
-}
 
 
+
+
+
+
+
+default_column_widths = { "history":[40,140,350,140], "contacts":[350,330], "receive": [370,200,130] }
 
 class ElectrumWindow(QMainWindow):
     labelsChanged = pyqtSignal()
@@ -185,7 +182,6 @@ class ElectrumWindow(QMainWindow):
         self.payment_request = None
         self.qr_window = None
         self.not_enough_funds = False
-        self.pluginsdialog = None
 
     def update_account_selector(self):
         # account selector
@@ -211,7 +207,7 @@ class ElectrumWindow(QMainWindow):
         self.invoices = self.wallet.storage.get('invoices', {})
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
-        title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + os.path.basename(self.wallet.storage.path)
+        title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + self.wallet.storage.path
         if self.wallet.is_watching_only(): title += ' [%s]' % (_('watching only'))
         self.setWindowTitle( title )
         self.update_wallet()
@@ -697,11 +693,6 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.receive_address_e, 0, 1, 1, 3)
         self.receive_address_e.textChanged.connect(self.update_receive_qr)
 
-        self.copy_button = QPushButton()
-        self.copy_button.setIcon(QIcon(":icons/copy.png"))
-        self.copy_button.clicked.connect(lambda: self.app.clipboard().setText(self.receive_address_e.text()))
-        grid.addWidget(self.copy_button, 0, 4)
-
         self.receive_message_e = QLineEdit()
         grid.addWidget(QLabel(_('Message')), 1, 0)
         grid.addWidget(self.receive_message_e, 1, 1, 1, 3)
@@ -721,7 +712,7 @@ class ElectrumWindow(QMainWindow):
         grid.setRowStretch(4, 1)
 
         self.receive_qr = QRCodeWidget(fixedSize=200)
-        grid.addWidget(self.receive_qr, 0, 5, 5, 2)
+        grid.addWidget(self.receive_qr, 0, 4, 5, 2)
         self.receive_qr.mousePressEvent = lambda x: self.toggle_qr_window()
 
         grid.setRowStretch(5, 1)
@@ -768,7 +759,7 @@ class ElectrumWindow(QMainWindow):
     def save_payment_request(self):
         addr = str(self.receive_address_e.text())
         amount = self.receive_amount_e.get_amount()
-        message = unicode(self.receive_message_e.text())
+        message = str(self.receive_message_e.text())
         if not message and not amount:
             QMessageBox.warning(self, _('Error'), _('No message or amount'), _('OK'))
             return
@@ -1082,12 +1073,11 @@ class ElectrumWindow(QMainWindow):
 
 
     def do_send(self):
-        if run_hook('before_send'):
-            return
         r = self.read_send_tab()
         if not r:
             return
         outputs, fee, label, coins = r
+
         try:
             tx = self.wallet.make_unsigned_transaction(outputs, fee, None, coins = coins)
             if not tx:
@@ -1145,30 +1135,32 @@ class ElectrumWindow(QMainWindow):
     def broadcast_transaction(self, tx):
 
         def broadcast_thread():
-            # non-GUI thread
             pr = self.payment_request
             if pr is None:
                 return self.wallet.sendtx(tx)
+
             if pr.has_expired():
                 self.payment_request = None
                 return False, _("Payment request has expired")
+
             status, msg =  self.wallet.sendtx(tx)
             if not status:
                 return False, msg
+
             self.invoices[pr.get_id()] = (pr.get_domain(), pr.get_memo(), pr.get_amount(), pr.get_expiration_date(), PR_PAID, tx.hash())
             self.wallet.storage.put('invoices', self.invoices)
+            self.update_invoices_tab()
             self.payment_request = None
             refund_address = self.wallet.addresses()[0]
             ack_status, ack_msg = pr.send_ack(str(tx), refund_address)
             if ack_status:
                 msg = ack_msg
+
             return status, msg
 
         def broadcast_done(status, msg):
-            # GUI thread
             if status:
                 QMessageBox.information(self, '', _('Payment sent.') + '\n' + msg, _('OK'))
-                self.update_invoices_tab()
                 self.do_clear()
             else:
                 QMessageBox.warning(self, _('Error'), msg, _('OK'))
@@ -1314,7 +1306,14 @@ class ElectrumWindow(QMainWindow):
         vbox.addWidget(buttons)
 
         return l, w
-
+    
+    def sort_format(self,logicalIndex,index,k):
+        if index[0]!=logicalIndex:	
+            index[1]=0
+        else:
+            index[1]=(index[1]+1)%2
+        index[0]=logicalIndex
+        self.wallet.add_sort(index,k)
 
     def create_addresses_tab(self):
         l, w = self.create_list_tab([ _('Address'), _('Label'), _('Balance'), _('Tx')])
@@ -1326,6 +1325,10 @@ class ElectrumWindow(QMainWindow):
         l.itemDoubleClicked.connect(lambda a, b: self.address_label_clicked(a,b,l,0,1))
         l.itemChanged.connect(lambda a,b: self.address_label_changed(a,b,l,0,1))
         l.currentItemChanged.connect(lambda a,b: self.current_item_changed(a))
+        l.setSortingEnabled(True)
+        l.header().setSortIndicatorShown(True)
+        l.header().setClickable(True)
+        l.header().sectionClicked.connect(lambda logicalIndex:self.sort_format(logicalIndex,self.wallet.sort_address,'sort_sequence2'))
         self.address_list = l
         return w
 
@@ -1356,21 +1359,28 @@ class ElectrumWindow(QMainWindow):
             l.setColumnWidth(i, width)
         l.itemDoubleClicked.connect(lambda a, b: self.address_label_clicked(a,b,l,0,1))
         l.itemChanged.connect(lambda a,b: self.address_label_changed(a,b,l,0,1))
+        l.setSortingEnabled(True)
+        l.header().setSortIndicatorShown(True)
+        l.header().setClickable(True)
+        l.header().sectionClicked.connect(lambda logicalIndex:self.sort_format(logicalIndex,self.wallet.sort_contact,'sort_sequence'))
         self.contacts_list = l
         return w
 
 
     def create_invoices_tab(self):
-        l, w = self.create_list_tab([_('Date'), _('Requestor'), _('Memo'), _('Amount'), _('Status')])
+        l, w = self.create_list_tab([_('Requestor'), _('Memo'), _('Date'), _('Amount'), _('Status')])
         l.setColumnWidth(0, 150)
-        l.setColumnWidth(1, 150)
+        l.setColumnWidth(2, 150)
         l.setColumnWidth(3, 150)
-        l.setColumnWidth(4, 40)
         h = l.header()
         h.setStretchLastSection(False)
-        h.setResizeMode(2, QHeaderView.Stretch)
+        h.setResizeMode(1, QHeaderView.Stretch)
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_invoice_menu)
+        l.setSortingEnabled(True)
+        l.header().setSortIndicatorShown(True)
+        l.header().setClickable(True)
+        l.header().sectionClicked.connect(lambda logicalIndex:self.sort_format(logicalIndex,self.wallet.sort_invoice,'sort_sequence3'))
         self.invoices_list = l
         return w
 
@@ -1378,18 +1388,22 @@ class ElectrumWindow(QMainWindow):
         invoices = self.wallet.storage.get('invoices', {})
         l = self.invoices_list
         l.clear()
+        
+        #set initial sorting formate
+        if self.wallet.sort_invoice[1]==0:
+            self.invoices_list.header().setSortIndicator(self.wallet.sort_invoice[0], QtCore.Qt.AscendingOrder)
+        else:
+            self.invoices_list.header().setSortIndicator(self.wallet.sort_invoice[0], QtCore.Qt.DescendingOrder)
+		
         for key, value in sorted(invoices.items(), key=lambda x: -x[1][3]):
             domain, memo, amount, expiration_date, status, tx_hash = value
             if status == PR_UNPAID and expiration_date and expiration_date < time.time():
                 status = PR_EXPIRED
             date_str = datetime.datetime.fromtimestamp(expiration_date).isoformat(' ')[:-3]
-            item = QTreeWidgetItem( [ date_str, domain, memo, self.format_amount(amount, whitespaces=True), ''] )
-            icon = QIcon(pr_icons.get(status))
-            item.setIcon(4, icon)
-            item.setToolTip(4, pr_tooltips.get(status,''))
+            item = TreeWidgetItem( [ domain, memo, date_str, self.format_amount(amount, whitespaces=True), format_status(status)] )
             item.setData(0, 32, key)
-            item.setFont(1, QFont(MONOSPACE_FONT))
-            item.setFont(2, QFont(MONOSPACE_FONT))
+            item.setFont(0, QFont(MONOSPACE_FONT))
+            item.setFont(3, QFont(MONOSPACE_FONT))
             l.addTopLevelItem(item)
         l.setCurrentItem(l.topLevelItem(0))
 
@@ -1592,6 +1606,12 @@ class ElectrumWindow(QMainWindow):
         l.insertChild = l.insertTopLevelItem
 
         l.clear()
+        
+	#set initial sorting formate
+        if self.wallet.sort_address[1]==0:
+            self.address_list.header().setSortIndicator(self.wallet.sort_address[0], QtCore.Qt.AscendingOrder)
+        else:
+            self.address_list.header().setSortIndicator(self.wallet.sort_address[0], QtCore.Qt.DescendingOrder)
 
         accounts = self.wallet.get_accounts()
         if self.current_account is None:
@@ -1605,7 +1625,7 @@ class ElectrumWindow(QMainWindow):
             if len(accounts) > 1:
                 name = self.wallet.get_account_name(k)
                 c,u = self.wallet.get_account_balance(k)
-                account_item = QTreeWidgetItem( [ name, '', self.format_amount(c+u), ''] )
+                account_item = TreeWidgetItem( [ name, '', self.format_amount(c+u), ''],False )
                 l.addTopLevelItem(account_item)
                 account_item.setExpanded(self.accounts_expanded.get(k, True))
                 account_item.setData(0, 32, k)
@@ -1616,14 +1636,14 @@ class ElectrumWindow(QMainWindow):
             for is_change in sequences:
                 if len(sequences) > 1:
                     name = _("Receiving") if not is_change else _("Change")
-                    seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
+                    seq_item = TreeWidgetItem( [ name, '', '', '', ''],False)
                     account_item.addChild(seq_item)
                     if not is_change:
                         seq_item.setExpanded(True)
                 else:
                     seq_item = account_item
 
-                used_item = QTreeWidgetItem( [ _("Used"), '', '', '', ''] )
+                used_item = TreeWidgetItem( [ _("Used"), '', '', '', ''],False)
                 used_flag = False
 
                 addr_list = account.get_addresses(is_change)
@@ -1654,11 +1674,17 @@ class ElectrumWindow(QMainWindow):
     def update_contacts_tab(self):
         l = self.contacts_list
         l.clear()
+        
+        #set initial sorting formate
+        if self.wallet.sort_contact[1]==0:
+            self.contacts_list.header().setSortIndicator(self.wallet.sort_contact[0], QtCore.Qt.AscendingOrder)
+        else:
+            self.contacts_list.header().setSortIndicator(self.wallet.sort_contact[0], QtCore.Qt.DescendingOrder)
 
         for address in self.wallet.addressbook:
             label = self.wallet.labels.get(address,'')
             n = self.wallet.get_num_tx(address)
-            item = QTreeWidgetItem( [ address, label, "%d"%n] )
+            item = TreeWidgetItem( [ address, label, "%d"%n] )
             item.setFont(0, QFont(MONOSPACE_FONT))
             # 32 = label can be edited (bool)
             item.setData(0,32, True)
@@ -1738,7 +1764,7 @@ class ElectrumWindow(QMainWindow):
         self.status_button = StatusBarButton( QIcon(":icons/status_disconnected.png"), _("Network"), self.run_network_dialog )
         sb.addPermanentWidget( self.status_button )
 
-        run_hook('create_status_bar', sb)
+        run_hook('create_status_bar', (sb,))
 
         self.setStatusBar(sb)
 
@@ -1822,6 +1848,7 @@ class ElectrumWindow(QMainWindow):
         if not r: return
 
         name = str(e.text())
+        if not name: return
 
         self.wallet.create_pending_account(name, password)
         self.update_address_tab()
@@ -2791,6 +2818,7 @@ class ElectrumWindow(QMainWindow):
         grid.setRowStretch(i+1,1)
         vbox.addLayout(close_button(d))
         d.exec_()
+
 
     def show_account_details(self, k):
         account = self.wallet.accounts[k]
