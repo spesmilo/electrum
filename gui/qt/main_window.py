@@ -1663,7 +1663,7 @@ class ElectrumWindow(QMainWindow):
                     label = self.wallet.labels.get(address,'')
                     c, u = self.wallet.get_addr_balance(address)
                     balance = self.format_amount(c + u)
-                    item = QTreeWidgetItem( [ address, label, balance, "%d"%num] )
+                    item = TreeWidgetItem( [ address, label, balance, "%d"%num] )
                     item.setFont(0, QFont(MONOSPACE_FONT))
                     item.setData(0, 32, True) # label can be edited
                     if address in self.wallet.frozen_addresses:
