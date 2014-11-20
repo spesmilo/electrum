@@ -74,21 +74,23 @@ class Plugin(BasePlugin):
 
     def add_schedule_table(self):
         self.win.send_grid.setRowStretch(8, 1)
+
         conn = sqlite3.connect('/tmp/schedule.db')
         c = conn.cursor()
-        #c.execute("DROP TABLE IF EXISTS list;")
         c.execute("CREATE TABLE IF NOT EXISTS list (n INTEGER PRIMARY KEY, timestamp INTEGER, datetime TEXT, amount INTEGER, fee INTEGER, address TEXT);")
         conn.commit()
         conn.close()
+
         self.label_request = QLabel(_('Saved Schedule'))
-        self.db = QtSql.QSqlDatabase.addDatabase("QSQLITE")
-        self.db.setDatabaseName("/tmp/schedule.db")
-        self.db.open()
-        self.model = QtSql.QSqlTableModel(self.win.send_grid, self.db)
-        self.initialize_model(self.model)
-        self.view = self.create_view(self.model)
-        self.db.close()
-        QtSql.QSqlDatabase.removeDatabase(self.db.connectionName())
+        db = QtSql.QSqlDatabase.addDatabase("QSQLITE")
+        db.setDatabaseName("/tmp/schedule.db")
+        db.open()
+        model = QtSql.QSqlTableModel(self.win.send_grid, db)
+        self.initialize_model(model)
+        self.view = self.create_view(model)
+        db.close()
+        QtSql.QSqlDatabase.removeDatabase(db.connectionName())
+
         self.win.send_grid.addWidget(self.label_request, 8, 0)
         self.win.send_grid.addWidget(self.view, 9, 0, 1, 6)
 
@@ -97,6 +99,7 @@ class Plugin(BasePlugin):
         c = conn.cursor()
         self.i = 0
         self.timer = []
+
         for row in list(c.execute('SELECT * FROM list')):
                 t = row[1] - time.time()
                 if t < 0:
@@ -104,9 +107,15 @@ class Plugin(BasePlugin):
                         c.execute('DELETE FROM list WHERE n=(?)', (row[0],))
                     else:
                         self.timer.append(QTimer())
-                        timerCallback = functools.partial(self.onTimer, row[3], row[4], row[5])
+                        timerCallback = functools.partial(self.onTimer, row[1], row[3], row[4], row[5])
                         self.timer[self.i].singleShot(60000, timerCallback)
                         self.i = self.i + 1
+                else:
+                    self.timer.append(QTimer())
+                    timerCallback = functools.partial(self.onTimer, row[1], row[3], row[4], row[5])
+                    self.timer[self.i].singleShot(int(t)*1000, timerCallback)
+                    print len(self.timer), t, self.i
+                    self.i = self.i + 1
 
         conn.commit()
         conn.close()
@@ -114,8 +123,8 @@ class Plugin(BasePlugin):
         self.view.hide()
         self.add_schedule_table()
 
-    def onTimer(self, amount, fee, addr):
-        self.do_send(amount, fee, addr)
+    def onTimer(self, n, amount, fee, addr):
+        self.do_send(n, amount, fee, addr)
 
     def read_send_tab(self):
         if self.instant_r.isChecked():
@@ -149,19 +158,22 @@ class Plugin(BasePlugin):
         c.execute("INSERT INTO list VALUES (?, ?, ?, ?, ?, ?);", (None, time_stamp, time_datetime, amount, fee, addr))
         conn.commit()
         conn.close()
+
         self.timer.append(QTimer())
-        timerCallback = functools.partial(self.onTimer, amount, fee, addr)
+        timerCallback = functools.partial(self.onTimer, time_stamp, amount, fee, addr)
         time_sec = time_stamp- time.time()
         self.timer[self.i].singleShot(int(time_sec)*1000, timerCallback)
         self.i = self.i + 1
+
         self.label_request.hide()
         self.view.hide()
         self.add_schedule_table()
 
-    def do_send(self, amount, fee, addr):
+    def do_send(self, time_stamp, amount, fee, addr):
         outputs = [('address', str(addr), amount)]
         label = ''
         coins = self.win.get_coins()
+
         try:
             tx = self.wallet.make_unsigned_transaction(outputs, fee, None, coins = coins)
             tx.error = None
@@ -184,6 +196,15 @@ class Plugin(BasePlugin):
                     return
 
         self.win.send_tx(tx, label)
+
+        conn = sqlite3.connect('/tmp/schedule.db')
+        c = conn.cursor()
+        c.execute('DELETE FROM list WHERE timestamp=(?)', (time_stamp,))
+        conn.commit()
+        conn.close()
+        self.label_request.hide()
+        self.view.hide()
+        self.add_schedule_table()
 
     def initialize_model(self, model):
         model.setTable("list")
