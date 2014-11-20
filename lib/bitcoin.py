@@ -199,11 +199,11 @@ def get_stealth_send(stealth):
             nonce = nonce + 1
             if nonce > 4294967295L: nonce = 0           # if greater than 0xffffffff then set to 0
             noncest = "%08x" % nonce                    # we need the nonce in a string
-            hashme = (noncest + ephemst).decode('hex')  # put strings together and turn them into hex strings
-            hashprefix = hash_160(hashme)[:4]           # This is bitcoin.py's RipeMD160 hash of a SHA256 hash of the data. Only first 4 bytes taken
-            if check_prefix(prefix_len, prefix, hashprefix) or firstnonce == nonce or prefix_len == 0: # If (nonce + ephemkey) ripemd160 hash first bits match prefix bits or if all 32 bit nonces don't return a success, create a new pubkey
+            hashme = ('6a2606' + noncest + ephemst).decode('hex')  # we want to hash the entire OP_RETURN output script.
+            hashprefix = Hash(hashme)[::-1][:4]               # This is bitcoin.py's double SHA256 hash of the data. Only first 4 bytes taken
+            if check_prefix(prefix_len, prefix, hashprefix) or firstnonce == nonce or prefix_len == 0: # If (nonce + ephemkey) double SHA256 hash first bits match prefix bits or if all 32 bit nonces don't return a success, create a new pubkey
                 break
-        if check_prefix(prefix_len, prefix, hashprefix) or prefix_len == 0:        # If (nonce + ephemkey) ripemd160 hash first bits match prefix bits
+        if check_prefix(prefix_len, prefix, hashprefix) or prefix_len == 0:        # If (nonce + ephemkey) double SHA256 hash first bits match prefix bits
             break
     if multi_n > 1:
         newaddr = find_stealth_address(scan_pubkey, spend_pubkeys, key, multi_m)
