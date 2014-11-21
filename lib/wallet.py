@@ -27,7 +27,7 @@ import math
 import json
 import copy
 
-from util import print_msg, print_error, NotEnoughFunds
+from util import print_msg, print_error
 
 from bitcoin import *
 from account import *
@@ -712,9 +712,8 @@ class Abstract_Wallet(object):
             fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx)
             if total >= amount + fee: break
         else:
-            raise NotEnoughFunds()
-            #print_error("Not enough funds", total, amount, fee)
-            #return None
+            print_error("Not enough funds", total, amount, fee)
+            return None
 
         # change address
         if not change_addr:
