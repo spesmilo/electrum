@@ -212,12 +212,16 @@ def parse_redeemScript(bytes):
     match = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_2, opcodes.OP_CHECKMULTISIG ]
     if match_decoded(dec, match):
         pubkeys = [ dec[1][1].encode('hex'), dec[2][1].encode('hex') ]
+        print "2 of 2 tx"
+        print pubkeys
         return 2, pubkeys
 
     # 2 of 3
     match = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_3, opcodes.OP_CHECKMULTISIG ]
     if match_decoded(dec, match):
         pubkeys = [ dec[1][1].encode('hex'), dec[2][1].encode('hex'), dec[3][1].encode('hex') ]
+        print "2 of 3 tx"
+        print pubkeys
         return 2, pubkeys
 
 
@@ -355,6 +359,7 @@ def parse_scriptSig(d, bytes):
     # payto_pubkey
     match = [ opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
+        print 'payto pubkey'
         sig = decoded[0][1].encode('hex')
         d['address'] = "(pubkey)"
         d['signatures'] = [sig]
@@ -368,6 +373,7 @@ def parse_scriptSig(d, bytes):
     # (65 bytes) onto the stack:
     match = [ opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
+        print 'non generated'
         sig = decoded[0][1].encode('hex')
         x_pubkey = decoded[1][1].encode('hex')
         try:
@@ -617,8 +623,12 @@ class Transaction:
             s += int_to_hex(txin['prevout_n'],4)                          # prev index
 
             p2sh = txin.get('redeemScript') is not None
-            num_sig = txin['num_sig']
-            address = txin['address']
+            if p2sh:
+                num_sig, address = parse_redeemScript(txin['redeemScript'])
+                parse_scriptSig(txin['redeemScript'])
+            else:
+                num_sig = txin.get('num_sig',1)
+                address = txin['address']
 
             x_signatures = txin['signatures']
             signatures = filter(None, x_signatures)

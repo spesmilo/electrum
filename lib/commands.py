@@ -161,7 +161,7 @@ class Commands:
         for i in inputs:
             i['prevout_hash'] = i['txid']
             i['prevout_n'] = i['vout']
-        outputs = map(lambda x: (x[0],int(1e8*x[1])), outputs.items())
+        outputs = ( (addr, 1e8*btcvalue) for addr,btcvalue in outputs.viewitems())
         tx = Transaction(inputs, outputs)
         return tx
 
@@ -274,6 +274,9 @@ class Commands:
         return bitcoin.verify_message(address, signature, message)
 
     def _mktx(self, outputs, fee = None, change_addr = None, domain = None):
+        # if self.wallet.is_watching_only():
+        #     raise Exception("Cannot sign transactions with watching-only wallet")
+
         for to_address, amount in outputs:
             if not is_valid(to_address):
                 raise Exception("Invalid Bitcoin address", to_address)
@@ -285,10 +288,10 @@ class Commands:
         if domain is not None:
             for addr in domain:
                 if not is_valid(addr):
-                    raise Exception("invalid Bitcoin address", addr)
+                    raise Exception("Invalid Bitcoin address", addr)
 
                 if not self.wallet.is_mine(addr):
-                    raise Exception("address not in wallet", addr)
+                    raise Exception("Address not in wallet", addr)
 
         for k, v in self.wallet.labels.items():
             if change_addr and v == change_addr:
@@ -318,11 +321,16 @@ class Commands:
 
     def payto(self, to_address, amount, fee = None, change_addr = None, domain = None):
         tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
+        if not tx:
+            raise Exception("Failed to create transaction")
         r, h = self.wallet.sendtx( tx )
         return h
 
     def paytomany(self, outputs, fee = None, change_addr = None, domain = None):
+        print outputs
         tx = self._mktx(outputs, fee, change_addr, domain)
+        if not tx:
+            raise Exception("Failed to create transaction")
         r, h = self.wallet.sendtx( tx )
         return h
 
