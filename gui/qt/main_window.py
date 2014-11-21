@@ -35,7 +35,7 @@ from electrum.plugins import run_hook
 
 import icons_rc
 
-from electrum.util import format_satoshis
+from electrum.util import format_satoshis, NotEnoughFunds
 from electrum import Transaction
 from electrum import mnemonic
 from electrum import util, bitcoin, commands, Interface, Wallet
@@ -953,10 +953,13 @@ class ElectrumWindow(QMainWindow):
                 if not outputs:
                     addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
                     outputs = [('address', addr, amount)]
-                tx = self.wallet.make_unsigned_transaction(outputs, fee, coins = self.get_coins())
-                self.not_enough_funds = (tx is None)
+                try:
+                    tx = self.wallet.make_unsigned_transaction(outputs, fee, coins = self.get_coins())
+                    self.not_enough_funds = False
+                except NotEnoughFunds:
+                    self.not_enough_funds = True
                 if not is_fee:
-                    fee = self.wallet.get_tx_fee(tx) if tx else None
+                    fee = None if self.not_enough_funds else self.wallet.get_tx_fee(tx)
                     self.fee_e.setAmount(fee)
 
         self.payto_e.textChanged.connect(lambda:text_edited(False))

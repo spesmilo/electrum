@@ -680,19 +680,22 @@ class ElectrumWindow:
         self.user_fee = False
 
         def entry_changed( entry, is_fee ):
-            self.funds_error = False
             amount = numbify(amount_entry)
             fee = numbify(fee_entry)
             if not is_fee: fee = None
             if amount is None:
                 return
-            tx = self.wallet.make_unsigned_transaction([('op_return', 'dummy_tx', amount)], fee)
-            if not is_fee:
-                if tx:
+            try:
+                tx = self.wallet.make_unsigned_transaction([('op_return', 'dummy_tx', amount)], fee)
+                self.funds_error = False
+            except NotEnoughFunds:
+                self.funds_error = True
+
+            if not self.funds_error:
+                if not is_fee:
                     fee = tx.get_fee()
                     fee_entry.set_text( str( Decimal( fee ) / 100000000 ) )
                     self.fee_box.show()
-            if tx:
                 amount_entry.modify_text(Gtk.StateType.NORMAL, Gdk.color_parse("#000000"))
                 fee_entry.modify_text(Gtk.StateType.NORMAL, Gdk.color_parse("#000000"))
                 send_button.set_sensitive(True)
@@ -700,7 +703,6 @@ class ElectrumWindow:
                 send_button.set_sensitive(False)
                 amount_entry.modify_text(Gtk.StateType.NORMAL, Gdk.color_parse("#cc0000"))
                 fee_entry.modify_text(Gtk.StateType.NORMAL, Gdk.color_parse("#cc0000"))
-                self.funds_error = True
 
         amount_entry.connect('changed', entry_changed, False)
         fee_entry.connect('changed', entry_changed, True)        
