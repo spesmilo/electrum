@@ -24,7 +24,11 @@ import unicodedata
 import string
 
 import ecdsa
-import pbkdf2
+
+try:
+    import pbkdf2
+except ImportError:
+    sys.exit("Error: python-pdkdf2 does not seem to be installed. Try 'sudo pip install pdkdf2'")
 
 import util
 from util import print_error
