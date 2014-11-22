@@ -14,10 +14,19 @@ To run Electrum from this directory, just do:
   ./electrum
 
 If you install Electrum on your system, you can run it from any
-directory:
+directory.
 
+If you have pip, you can do:
+
+  python setup.py sdist
+  sudo pip install dist/Electrum-2.0.tar.gz
+
+
+If you don't have pip, install with:
+
+  python setup.py sdist
   sudo python setup.py install
-  electrum
+
 
 
 To start Electrum from your web browser, see
