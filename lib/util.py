@@ -4,6 +4,7 @@ import shutil
 from datetime import datetime
 is_verbose = False
 
+class NotEnoughFunds(Exception): pass
 
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):

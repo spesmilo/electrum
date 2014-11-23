@@ -170,16 +170,13 @@ class ElectrumGui:
             wallet.start_threads(self.network)
 
         # init tray
-        if 1:
-            self.dark_icon = self.config.get("dark_icon", False)
-            icon = QIcon(":icons/electrum_dark_icon.png") if self.dark_icon else QIcon(':icons/electrum_light_icon.png')
-            self.tray = QSystemTrayIcon(icon, None)
-            self.tray.setToolTip('Electrum-LTC')
-            self.tray.activated.connect(self.tray_activated)
-            self.build_tray_menu()
-            self.tray.show()
-        else:
-            self.tray = None
+        self.dark_icon = self.config.get("dark_icon", False)
+        icon = QIcon(":icons/electrum_dark_icon.png") if self.dark_icon else QIcon(':icons/electrum_light_icon.png')
+        self.tray = QSystemTrayIcon(icon, None)
+        self.tray.setToolTip('Electrum-LTC')
+        self.tray.activated.connect(self.tray_activated)
+        self.build_tray_menu()
+        self.tray.show()
 
         # main window
         self.main_window = w = ElectrumWindow(self.config, self.network, self)

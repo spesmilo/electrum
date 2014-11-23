@@ -27,7 +27,7 @@ import math
 import json
 import copy
 
-from util import print_msg, print_error
+from util import print_msg, print_error, NotEnoughFunds
 
 from bitcoin import *
 from account import *
@@ -712,8 +712,9 @@ class Abstract_Wallet(object):
             fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx)
             if total >= amount + fee: break
         else:
-            print_error("Not enough funds", total, amount, fee)
-            return None
+            raise NotEnoughFunds()
+            #print_error("Not enough funds", total, amount, fee)
+            #return None
 
         # change address
         if not change_addr:
@@ -1628,8 +1629,7 @@ class Wallet(object):
             msg = "This wallet seed is not supported anymore."
             if seed_version in [5, 7, 8, 9]:
                 msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
-            print msg
-            sys.exit(1)
+            raise BaseException(msg)
 
         run_hook('add_wallet_types', wallet_types)
         wallet_type = storage.get('wallet_type')
