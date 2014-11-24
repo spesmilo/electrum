@@ -628,6 +628,13 @@ class ElectrumWindow(QMainWindow):
         run_hook('current_item_changed', a)
 
 
+    def format_time(self, timestamp):
+        try:
+            time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
+        except Exception:
+            time_str = _("error")
+        return time_str
+
 
     def update_history_tab(self):
 
@@ -636,11 +643,7 @@ class ElectrumWindow(QMainWindow):
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
             time_str = _("unknown")
             if conf > 0:
-                try:
-                    time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
-                except Exception:
-                    time_str = _("error")
-
+                time_str = self.format_time(timestamp)
             if conf == -1:
                 time_str = 'unverified'
                 icon = QIcon(":icons/unconfirmed.png")
@@ -734,13 +737,12 @@ class ElectrumWindow(QMainWindow):
         self.receive_list.itemClicked.connect(self.receive_item_changed)
         self.receive_list.setHeaderLabels( [_('Date'), _('Account'), _('Address'), _('Message'), _('Amount')] )
         self.receive_list.setSortingEnabled(True)
-        self.receive_list.setColumnWidth(0, 130)
+        self.receive_list.setColumnWidth(0, 180)
         self.receive_list.hideColumn(1)     # the update will show it if necessary
         self.receive_list.setColumnWidth(2, 340)
         h = self.receive_list.header()
         h.setStretchLastSection(False)
-        h.setResizeMode(1, QHeaderView.Stretch)
-
+        h.setResizeMode(3, QHeaderView.Stretch)
         grid.addWidget(self.receive_requests_label, 6, 0)
         grid.addWidget(self.receive_list, 7, 0, 1, 6)
         return w
@@ -750,7 +752,7 @@ class ElectrumWindow(QMainWindow):
             return
         addr = str(item.text(2))
         req = self.receive_requests[addr]
-        date, amount, message = req["date"], req["amount"], req["msg"]
+        time, amount, message = req['time'], req['amount'], req['msg']
         self.receive_address_e.setText(addr)
         self.receive_message_e.setText(message)
         self.receive_amount_e.setAmount(amount)
@@ -759,7 +761,7 @@ class ElectrumWindow(QMainWindow):
     def receive_list_delete(self, item):
         addr = str(item.text(2))
         self.receive_requests.pop(addr)
-        self.wallet.storage.put('receive_requests', self.receive_requests)
+        self.wallet.storage.put('receive_requests2', self.receive_requests)
         self.update_receive_tab()
         self.clear_receive_tab()
 
@@ -771,16 +773,16 @@ class ElectrumWindow(QMainWindow):
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
     def save_payment_request(self):
-        date = time.strftime("%c")
+        timestamp = int(time.time())
         addr = str(self.receive_address_e.text())
         amount = self.receive_amount_e.get_amount()
         message = unicode(self.receive_message_e.text())
         if not message and not amount:
             QMessageBox.warning(self, _('Error'), _('No message or amount'), _('OK'))
             return
-        self.receive_requests = self.wallet.storage.get('receive_requests',{})
-        self.receive_requests[addr] = {"date":date, "amount":amount, "msg":message}
-        self.wallet.storage.put('receive_requests', self.receive_requests)
+        self.receive_requests = self.wallet.storage.get('receive_requests2',{})
+        self.receive_requests[addr] = {'time':timestamp, 'amount':amount, 'msg':message}
+        self.wallet.storage.put('receive_requests2', self.receive_requests)
         self.update_receive_tab()
 
     def new_receive_address(self):
@@ -800,7 +802,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_amount_e.setAmount(None)
 
     def clear_receive_tab(self):
-        self.receive_requests = self.wallet.storage.get('receive_requests',{})
+        self.receive_requests = self.wallet.storage.get('receive_requests2',{})
         domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
         for addr in domain:
             if not self.wallet.history.get(addr) and addr not in self.receive_requests.keys():
@@ -834,7 +836,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_address_e.setText(addr)
 
     def update_receive_tab(self):
-        self.receive_requests = self.wallet.storage.get('receive_requests',{})
+        self.receive_requests = self.wallet.storage.get('receive_requests2',{})
 
         # hide receive tab if no receive requests available
         b = len(self.receive_requests) > 0
@@ -842,10 +844,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_requests_label.setVisible(b)
 
         # check if it is necessary to show the account
-        if len(self.wallet.get_accounts()) > 1:
-            self.receive_list.showColumn(1)
-        else:
-            self.receive_list.hideColumn(1)
+        self.receive_list.setColumnHidden(1, len(self.wallet.get_accounts()) == 1)
 
         # update the receive address if necessary
         current_address = self.receive_address_e.text()
@@ -856,18 +855,12 @@ class ElectrumWindow(QMainWindow):
         # clear the list and fill it again
         self.receive_list.clear()
         for address, req in self.receive_requests.viewitems():
-            try:
-                date, amount, message = req["date"], req["amount"], req["msg"]
-            except:
-                # REMOVE LATER - fix for current electrum 2.0 wallets
-                # deletes all requests so that you don't need to edit your wallets manually
-                print "removing old receive_requests"
-                self.wallet.storage.put('receive_requests', {})
-                return
+            timestamp, amount, message = req['time'], req['amount'], req['msg']
             # only show requests for the current account
             if address not in domain:
                 continue
-            account = self.wallet.get_account_from_address(address)
+            date = self.format_time(timestamp)
+            account = self.wallet.get_account_name(self.wallet.get_account_from_address(address))
             item = QTreeWidgetItem( [ date, account, address, message, self.format_amount(amount) if amount else ""])
             item.setFont(2, QFont(MONOSPACE_FONT))
             self.receive_list.addTopLevelItem(item)
