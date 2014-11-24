@@ -1392,7 +1392,7 @@ class ElectrumWindow(QMainWindow):
             item.setToolTip(4, pr_tooltips.get(status,''))
             item.setData(0, 32, key)
             item.setFont(1, QFont(MONOSPACE_FONT))
-            item.setFont(2, QFont(MONOSPACE_FONT))
+            item.setFont(3, QFont(MONOSPACE_FONT))
             l.addTopLevelItem(item)
         l.setCurrentItem(l.topLevelItem(0))
 
