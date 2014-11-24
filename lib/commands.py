@@ -274,9 +274,6 @@ class Commands:
         return bitcoin.verify_message(address, signature, message)
 
     def _mktx(self, outputs, fee = None, change_addr = None, domain = None):
-        # if self.wallet.is_watching_only():
-        #     raise Exception("Cannot sign transactions with watching-only wallet")
-
         for to_address, amount in outputs:
             if not is_valid(to_address):
                 raise Exception("Invalid Bitcoin address", to_address)
@@ -311,6 +308,7 @@ class Commands:
         if fee: fee = int(100000000*fee)
         return self.wallet.mktx(final_outputs, self.password, fee , change_addr, domain)
 
+
     def mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):
         tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
         return tx
@@ -320,17 +318,32 @@ class Commands:
         return tx
 
     def payto(self, to_address, amount, fee = None, change_addr = None, domain = None):
-        tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
+        try:
+            tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
+        except NotEnoughFunds:
+            print "Insufficient Funds in wallet"
         if not tx:
             raise Exception("Failed to create transaction")
+        elif not tx.is_complete():
+            if self.wallet.is_watching_only():
+                print "Watching-only wallet.",
+            print "Transaction cannot be signed. Transaction not broadcasted."
+            return
         r, h = self.wallet.sendtx( tx )
         return h
 
     def paytomany(self, outputs, fee = None, change_addr = None, domain = None):
-        print outputs
-        tx = self._mktx(outputs, fee, change_addr, domain)
+        try:
+            tx = self._mktx(outputs, fee, change_addr, domain)
+        except NotEnoughFunds:
+            print "Insufficient Funds in wallet"
         if not tx:
             raise Exception("Failed to create transaction")
+        elif not tx.is_complete():
+            if self.wallet.is_watching_only():
+                print "Watching-only wallet.",
+            print "Transaction cannot be signed. Transaction not broadcasted."
+            return
         r, h = self.wallet.sendtx( tx )
         return h
 
