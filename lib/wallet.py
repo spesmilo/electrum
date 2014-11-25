@@ -352,7 +352,10 @@ class Abstract_Wallet(object):
         if self.is_watching_only():
             return []
         account_id, sequence = self.get_address_index(address)
-        return self.accounts[account_id].get_private_key(sequence, self, password)
+        if account_id in self.accounts:
+            return self.accounts[account_id].get_private_key(sequence, self, password)
+        else:
+            return []
 
     def get_public_keys(self, address):
         account_id, sequence = self.get_address_index(address)
