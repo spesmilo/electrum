@@ -10,8 +10,5 @@ gui/qt/receiving_widget.py
 gui/qt/seed_dialog.py
 gui/qt/transaction_dialog.py
 gui/qt/version_getter.py
-plugins/aliases.py
-plugins/pointofsale.py
 plugins/labels.py
-plugins/qrscanner.py
 plugins/virtualkeyboard.py

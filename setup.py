@@ -15,16 +15,19 @@ util = imp.load_source('util', 'lib/util.py')
 if sys.version_info[:3] < (2, 7, 0):
     sys.exit("Error: Electrum requires Python version >= 2.7.0...")
 
-usr_share = util.usr_share_dir()
-if not os.access(usr_share, os.W_OK):
-    try:
-        os.mkdir(usr_share)
-    except:
-        sys.exit("Error: cannot write to %s.\nIf you do not have root permissions, you may install Electrum in a virtualenv.\nAlso, please note that you can run Electrum without installing it on your system."%usr_share)
 
-data_files = []
-if (len(sys.argv) > 1 and (sys.argv[1] == "sdist")) or (platform.system() != 'Windows' and platform.system() != 'Darwin'):
+
+if (len(sys.argv) > 1) and (sys.argv[1] == "install"): 
+    # or (platform.system() != 'Windows' and platform.system() != 'Darwin'):
     print "Including all files"
+    data_files = []
+    usr_share = util.usr_share_dir()
+    if not os.access(usr_share, os.W_OK):
+        try:
+            os.mkdir(usr_share)
+        except:
+            sys.exit("Error: cannot write to %s.\nIf you do not have root permissions, you may install Electrum in a virtualenv.\nAlso, please note that you can run Electrum without installing it on your system."%usr_share)
+
     data_files += [
         (os.path.join(usr_share, 'applications/'), ['electrum.desktop']),
         (os.path.join(usr_share, 'app-install', 'icons/'), ['icons/electrum.png'])
@@ -35,27 +38,28 @@ if (len(sys.argv) > 1 and (sys.argv[1] == "sdist")) or (platform.system() != 'Wi
         if os.path.exists('locale/%s/LC_MESSAGES/electrum.mo' % lang):
             data_files.append((os.path.join(usr_share, 'locale/%s/LC_MESSAGES' % lang), ['locale/%s/LC_MESSAGES/electrum.mo' % lang]))
 
-appdata_dir = os.path.join(usr_share, "electrum")
 
-data_files += [
-    (appdata_dir, ["data/README"]),
-    (os.path.join(appdata_dir, "cleanlook"), [
-        "data/cleanlook/name.cfg",
-        "data/cleanlook/style.css"
-    ]),
-    (os.path.join(appdata_dir, "sahara"), [
-        "data/sahara/name.cfg",
-        "data/sahara/style.css"
-    ]),
-    (os.path.join(appdata_dir, "dark"), [
-        "data/dark/name.cfg",
-        "data/dark/style.css"
-    ])
-]
+    appdata_dir = os.path.join(usr_share, "electrum")
+    data_files += [
+        (appdata_dir, ["data/README"]),
+        (os.path.join(appdata_dir, "cleanlook"), [
+            "data/cleanlook/name.cfg",
+            "data/cleanlook/style.css"
+        ]),
+        (os.path.join(appdata_dir, "sahara"), [
+            "data/sahara/name.cfg",
+            "data/sahara/style.css"
+        ]),
+        (os.path.join(appdata_dir, "dark"), [
+            "data/dark/name.cfg",
+            "data/dark/style.css"
+        ])
+    ]
 
-for lang in os.listdir('data/wordlist'):
-    data_files.append((os.path.join(appdata_dir, 'wordlist'), ['data/wordlist/%s' % lang]))
-
+    for lang in os.listdir('data/wordlist'):
+        data_files.append((os.path.join(appdata_dir, 'wordlist'), ['data/wordlist/%s' % lang]))
+else:
+    data_files = []
 
 setup(
     name="Electrum",
