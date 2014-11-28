@@ -161,7 +161,7 @@ class Commands:
         for i in inputs:
             i['prevout_hash'] = i['txid']
             i['prevout_n'] = i['vout']
-        outputs = map(lambda x: (x[0],int(1e8*x[1])), outputs.items())
+        outputs = ( (addr, 1e8*btcvalue) for addr,btcvalue in outputs.viewitems())
         tx = Transaction(inputs, outputs)
         return tx
 
@@ -285,10 +285,10 @@ class Commands:
         if domain is not None:
             for addr in domain:
                 if not is_valid(addr):
-                    raise Exception("invalid Bitcoin address", addr)
+                    raise Exception("Invalid Bitcoin address", addr)
 
                 if not self.wallet.is_mine(addr):
-                    raise Exception("address not in wallet", addr)
+                    raise Exception("Address not in wallet", addr)
 
         for k, v in self.wallet.labels.items():
             if change_addr and v == change_addr:
@@ -308,6 +308,7 @@ class Commands:
         if fee: fee = int(100000000*fee)
         return self.wallet.mktx(final_outputs, self.password, fee , change_addr, domain)
 
+
     def mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):
         tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
         return tx
@@ -317,12 +318,32 @@ class Commands:
         return tx
 
     def payto(self, to_address, amount, fee = None, change_addr = None, domain = None):
-        tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
+        try:
+            tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
+        except NotEnoughFunds:
+            print "Insufficient Funds in wallet"
+        if not tx:
+            raise Exception("Failed to create transaction")
+        elif not tx.is_complete():
+            if self.wallet.is_watching_only():
+                print "Watching-only wallet.",
+            print "Transaction cannot be signed. Transaction not broadcasted."
+            return
         r, h = self.wallet.sendtx( tx )
         return h
 
     def paytomany(self, outputs, fee = None, change_addr = None, domain = None):
-        tx = self._mktx(outputs, fee, change_addr, domain)
+        try:
+            tx = self._mktx(outputs, fee, change_addr, domain)
+        except NotEnoughFunds:
+            print "Insufficient Funds in wallet"
+        if not tx:
+            raise Exception("Failed to create transaction")
+        elif not tx.is_complete():
+            if self.wallet.is_watching_only():
+                print "Watching-only wallet.",
+            print "Transaction cannot be signed. Transaction not broadcasted."
+            return
         r, h = self.wallet.sendtx( tx )
         return h
 

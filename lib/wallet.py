@@ -755,6 +755,7 @@ class Abstract_Wallet(object):
 
     def mktx(self, outputs, password, fee=None, change_addr=None, domain= None, coins = None ):
         tx = self.make_unsigned_transaction(outputs, fee, change_addr, domain, coins)
+        print "wallet make tx",tx
         self.sign_transaction(tx, password)
         return tx
 
@@ -781,6 +782,8 @@ class Abstract_Wallet(object):
     def sign_transaction(self, tx, password):
         if self.is_watching_only():
             return
+        if not tx:
+            raise "Invalid transaction (tx is None)"
         # check that the password is correct. This will raise if it's not.
         self.check_password(password)
         keypairs = {}
