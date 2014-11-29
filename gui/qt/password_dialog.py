@@ -23,7 +23,7 @@ from util import *
 import re
 import math
 
-
+from electrum.plugins import run_hook
 
 def make_password_dialog(self, wallet, msg, new_pass=True):
 
@@ -75,6 +75,7 @@ def make_password_dialog(self, wallet, msg, new_pass=True):
 
     vbox.addStretch(1)
     vbox.addLayout(ok_cancel_buttons(self))
+    run_hook("new_password_dialog", [self.pw, self.new_pw, self.conf_pw], grid, 0, wallet and wallet.use_encryption)
     return vbox
 
 
