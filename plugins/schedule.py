@@ -14,10 +14,10 @@ import sys, traceback
 class Plugin(BasePlugin):
 
     def fullname(self):
-        return "Transaction Scheduling"
+        return "Transaction Reminder"
 
     def description(self):
-        return """Provide function to schedule a transaction"""
+        return """Provide function to schedule a transaction. When the time is up, it will automatically remind you to complete the transaction. If the transaction has expired, it will remind you when you open Electrum next time."""
 
     @hook
     def load_wallet(self, wallet):
