@@ -1,0 +1,57 @@
+{
+    "accounts": {
+        "0": {
+            "change": [
+                "02962162cf033a170ed95fd5234d8e6b6ac5b92f00f05487c93b377f440c9c321e", 
+                "0250e360f5cd2ccfa0752f47f97a3fe2b47095fe761443e15f15838353edb33958", 
+                "03f2e9ad856df5d89702b2df0e02bbad03e30c98c3c8abaa855961b80e649d87fd"
+            ], 
+            "receiving": [
+                "02ddc443d7695c0360fe9b04a104a8e2f58a1556dfd6040bc68d79e300419e798d", 
+                "0387bc0198c7560df207458402cf809eafbb83744266ff68c5659f1ce366c23619", 
+                "02c9b4ce883d9b16a9616e5889447ebc238978902fa06dfa9388ef441d7ca25f99", 
+                "029ab69964c4d682215a370ac38ac2d46036d517a94633f6eac48807c2b78626b2", 
+                "021552f38d4228778217466028d50ae25c96c01c058f88f5ae49fada79843f028d", 
+                "031880934fe11f0505e099e1d5f1b0efbddcc45b7bb62985911dc202c626b78307", 
+                "025f4de0ee2c00b68db665b95cb7119f2b9d493f9d09c45fe4bc753e7c53178e54", 
+                "03315d50e0a7ad5a3a3c17d32bdd446a6fe6992f07a15df433569ce1532ff91df9", 
+                "026e7ae6a4de2d0ba30a31e0a514ce2705f943f054f178fb6d8bcba7696e4f2e6c", 
+                "02fc1276a405db00f850e50b0115210ccc468836e58e9b5c2f95da0a5086fea6c7", 
+                "02c2d9f951d5ade05f9af72af5309fed5f175d3f4bf4f227d14281fee122925035", 
+                "03f1eea24bb5c5c6ab9955836d776564d41c4069eeadc40b0326603d2e62866f43", 
+                "02e5ba1365a8626deda7212cd5cf97b551f0d72c535ef8d56a4f2c85bbb2a9a584", 
+                "02e5ba294da2b926771433bc3eba685c705fa7f57ee12a53b019184227f1842406", 
+                "024527c1089109cab04273478b8df4de0c4bb588350ce028f24ef31b0bfee5948f", 
+                "02eeeb4ce1ac72275999216f92531120fc2b5f73b8981582e719ff9151152d2f4c", 
+                "037d4ed6c8040ee873e6242adb918c391416598b3a445569a112aeb3f2705597ee", 
+                "02016be1edfd61940aee9c165e5d5c28d0064097b6438ee8ceddd1bbbba9171022", 
+                "02c30d03855c9616fc3c9dc697a8682fb53e18e7b06f36097eb08d4697ded12452", 
+                "03f5f4d5931a6789d0763035418552efdc10918d1b14804b11504815a2020e546d"
+            ], 
+            "xpub": "xpub6CbhXUboJ2jgoDDUixDGvJZktKj8vuUaMwMdSeuPvCyVSCmbPU1uY3Ge97SfA1DmVqcNPbQAiL5Tk6Ym7CnSvRC3EoTtiSw271M4Te19G6T"
+        }
+    }, 
+    "accounts_expanded": {}, 
+    "labels": {
+        "0": "Main account"
+    }, 
+    "master_private_keys": {
+        "x/": "xprv9wgPbyc7sb3HLjPJhsZ9dYQkcDHaRf6T9QKhJeSpQrMNFXtSbSvR7fpd2pzzEpuVXTTjWQA4jfw217ArF9Zmow37WZibuoPTuos4bg7sADB", 
+        "x/0'": "xprv9ycM7y4uTfBPaj91cvgGZAd2LHteXSkiziS2eGVnMsSWZQSSqvhezExAHqxRuEZHL9yo194UF2e7BA61eDV1wykVgPGmCYdDDpxhmqWKhUm", 
+        "x/1'": "xprv9ycM7y4uTfBPfCboxvNJZKpmVudWFG8XedJqxydtvm4edPhAPj3F69apvdtLyot7CSwvqr4yrqeCoG6TMN4J7SZnhU3eGBTjaqpA3Jz1VQx"
+    }, 
+    "master_public_keys": {
+        "x/": "xpub6Afk1V91hxbaZDTmou69zgMVAF84q7pJWdFJ72rRyBtM8LDb8zEffU96t7VQyGjs5eM6c34E9WbBikmDauuwJdnsykFPSHX7trjQJEHgpoL", 
+        "x/0'": "xpub6CbhXUboJ2jgoDDUixDGvJZktKj8vuUaMwMdSeuPvCyVSCmbPU1uY3Ge97SfA1DmVqcNPbQAiL5Tk6Ym7CnSvRC3EoTtiSw271M4Te19G6T", 
+        "x/1'": "xpub6CbhXUboJ2jgsggH4wuJvTmW3wTzeirP1rESmN3WV6bdWC2JwGMVdwuJmvdt5gsjtLpcFdFvRYEKJDx5Z9RyCfczy8ib3zW2gSMSWRW4WmG"
+    }, 
+    "next_account": [
+        "1", 
+        "xpub6CbhXUboJ2jgsggH4wuJvTmW3wTzeirP1rESmN3WV6bdWC2JwGMVdwuJmvdt5gsjtLpcFdFvRYEKJDx5Z9RyCfczy8ib3zW2gSMSWRW4WmG", 
+        "17uYoA59iKcywQh5dWqS55JZtVNwyDUAjp"
+    ], 
+    "seed": "october venture add renew track twenty job jelly science mixed invite address absorb", 
+    "seed_version": 10, 
+    "use_encryption": false, 
+    "wallet_type": "standard"
+}

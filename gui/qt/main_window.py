@@ -286,7 +286,7 @@ class ElectrumWindow(QMainWindow):
     def new_wallet(self):
         import installwizard
 
-        wallet_folder = os.path.dirname(self.wallet.storage.path)
+        wallet_folder = os.path.dirname(os.path.abspath(self.wallet.storage.path))
         i = 1
         while True:
             filename = "wallet_%d"%i
