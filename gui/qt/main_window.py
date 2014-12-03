@@ -2310,6 +2310,12 @@ class ElectrumWindow(QMainWindow):
             self.show_message(_("This is a watching-only wallet"))
             return
 
+        try:
+            mnemonic = self.wallet.get_mnemonic(password)
+        except Exception:
+            QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
+            return
+            
         d = QDialog(self)
         d.setWindowTitle(_('Private keys'))
         d.setMinimumSize(850, 300)
