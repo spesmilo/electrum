@@ -24,7 +24,7 @@ import sys
 import hmac
 
 import version
-from util import print_error
+from util import print_error, InvalidPassword
 
 try:
     import ecdsa
@@ -98,7 +98,7 @@ def pw_decode(s, password):
         try:
             d = DecodeAES(secret, s).decode("utf8")
         except Exception:
-            raise Exception('Invalid password')
+            raise InvalidPassword()
         return d
     else:
         return s

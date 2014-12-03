@@ -45,7 +45,7 @@ if __builtin__.use_local_modules:
 
 from electrum import util
 from electrum import SimpleConfig, Network, Wallet, WalletStorage, NetworkProxy, Commands, known_commands, pick_random_server
-from electrum.util import print_msg, print_stderr, print_json, set_verbosity
+from electrum.util import print_msg, print_stderr, print_json, set_verbosity, InvalidPassword
 from electrum.daemon import get_daemon
 from electrum.plugins import init_plugins
 
@@ -360,7 +360,7 @@ if __name__ == '__main__':
             # check password
             try:
                 seed = wallet.get_seed(password)
-            except Exception:
+            except InvalidPassword:
                 print_msg("Error: This password does not decode this wallet.")
                 sys.exit(1)
         else:

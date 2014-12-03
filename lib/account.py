@@ -20,7 +20,7 @@ import bitcoin
 from bitcoin import *
 from i18n import _
 from transaction import Transaction, is_extended_pubkey
-from util import print_msg
+from util import print_msg, InvalidPassword
 
 
 class Account(object):
@@ -145,7 +145,8 @@ class ImportedAccount(Account):
         address = self.get_addresses(0)[i]
         pk = pw_decode(self.keypairs[address][1], password)
         # this checks the password
-        assert address == address_from_private_key(pk)
+        if address != address_from_private_key(pk):
+            raise InvalidPassword()
         return [pk]
 
     def has_change(self):
@@ -242,7 +243,7 @@ class OldAccount(Account):
         master_public_key = master_private_key.get_verifying_key().to_string()
         if master_public_key != self.mpk:
             print_error('invalid password (mpk)', self.mpk.encode('hex'), master_public_key.encode('hex'))
-            raise Exception('Invalid password')
+            raise InvalidPassword()
         return True
 
     def get_master_pubkeys(self):

@@ -1912,8 +1912,8 @@ class ElectrumWindow(QMainWindow):
 
         try:
             mnemonic = self.wallet.get_mnemonic(password)
-        except Exception:
-            QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
+        except BaseException as e:
+            QMessageBox.warning(self, _('Error'), str(e), _('OK'))
             return
         from seed_dialog import SeedDialog
         d = SeedDialog(self, mnemonic, self.wallet.has_imported_keys())
@@ -2312,10 +2312,10 @@ class ElectrumWindow(QMainWindow):
 
         try:
             mnemonic = self.wallet.get_mnemonic(password)
-        except Exception:
-            QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
+        except Exception as e:
+            QMessageBox.warning(self, _('Error'), str(e), _('OK'))
             return
-            
+
         d = QDialog(self)
         d.setWindowTitle(_('Private keys'))
         d.setMinimumSize(850, 300)

@@ -157,8 +157,8 @@ class PasswordDialog(QDialog):
 
         try:
             self.wallet.check_password(password)
-        except Exception:
-            QMessageBox.warning(self.parent, _('Error'), _('Incorrect Password'), _('OK'))
+        except BaseException as e:
+            QMessageBox.warning(self.parent, _('Error'), str(e), _('OK'))
             return False, None, None
 
         try:
