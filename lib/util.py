@@ -2,9 +2,13 @@ import os, sys, re, json
 import platform
 import shutil
 from datetime import datetime
-is_verbose = False
+from i18n import _
 
 class NotEnoughFunds(Exception): pass
+
+class InvalidPassword(Exception):
+    def __str__(self):
+        return _("Incorrect password")
 
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -14,6 +18,7 @@ class MyEncoder(json.JSONEncoder):
         return super(MyEncoder, self).default(obj)
 
 
+is_verbose = False
 def set_verbosity(b):
     global is_verbose
     is_verbose = b

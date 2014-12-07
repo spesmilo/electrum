@@ -230,7 +230,8 @@ class Abstract_Wallet(object):
             sec = pw_decode(v, password)
             pubkey = public_key_from_private_key(sec)
             address = public_key_to_bc_address(pubkey.decode('hex'))
-            assert address == k
+            if address != k:
+                raise InvalidPassword()
             self.import_key(sec, password)
             self.imported_keys.pop(k)
         self.storage.put('imported_keys', self.imported_keys)
@@ -713,8 +714,6 @@ class Abstract_Wallet(object):
             if total >= amount + fee: break
         else:
             raise NotEnoughFunds()
-            #print_error("Not enough funds", total, amount, fee)
-            #return None
 
         # change address
         if not change_addr:
@@ -1284,12 +1283,17 @@ class BIP32_Wallet(Deterministic_Wallet):
         k = self.master_private_keys.get(account)
         if not k: return
         xprv = pw_decode(k, password)
+        try:
+            deserialize_xkey(xprv)
+        except:
+            raise InvalidPassword()
         return xprv
 
     def check_password(self, password):
         xpriv = self.get_master_private_key(self.root_name, password)
         xpub = self.master_public_keys[self.root_name]
-        assert deserialize_xkey(xpriv)[3] == deserialize_xkey(xpub)[3]
+        if deserialize_xkey(xpriv)[3] != deserialize_xkey(xpub)[3]:
+            raise InvalidPassword()
 
     def add_master_public_key(self, name, xpub):
         self.master_public_keys[name] = xpub

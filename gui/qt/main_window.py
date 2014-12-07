@@ -286,7 +286,7 @@ class ElectrumWindow(QMainWindow):
     def new_wallet(self):
         import installwizard
 
-        wallet_folder = os.path.dirname(self.wallet.storage.path)
+        wallet_folder = os.path.dirname(os.path.abspath(self.wallet.storage.path))
         i = 1
         while True:
             filename = "wallet_%d"%i
@@ -1910,8 +1910,8 @@ class ElectrumWindow(QMainWindow):
 
         try:
             mnemonic = self.wallet.get_mnemonic(password)
-        except Exception:
-            QMessageBox.warning(self, _('Error'), _('Incorrect Password'), _('OK'))
+        except BaseException as e:
+            QMessageBox.warning(self, _('Error'), str(e), _('OK'))
             return
         from seed_dialog import SeedDialog
         d = SeedDialog(self, mnemonic, self.wallet.has_imported_keys())
@@ -2306,6 +2306,12 @@ class ElectrumWindow(QMainWindow):
     def export_privkeys_dialog(self, password):
         if self.wallet.is_watching_only():
             self.show_message(_("This is a watching-only wallet"))
+            return
+
+        try:
+            mnemonic = self.wallet.get_mnemonic(password)
+        except Exception as e:
+            QMessageBox.warning(self, _('Error'), str(e), _('OK'))
             return
 
         d = QDialog(self)
