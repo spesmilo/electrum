@@ -8,7 +8,7 @@ import sys
 import platform
 import imp
 
-
+i18n = imp.load_source('i18n', 'lib/i18n.py')
 version = imp.load_source('version', 'lib/version.py')
 util = imp.load_source('util', 'lib/util.py')
 
