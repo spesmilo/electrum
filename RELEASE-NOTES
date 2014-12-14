@@ -1,6 +1,6 @@
 # Release 2.0
 
- * New address derivation (BIP39 + BIP32 + BIP44).
+ * New address derivation (BIP32 + BIP44).
 
  * 8 bits of the seed phrase are used to store a version number. The
    current version number (0x01) refers to the current wallet
