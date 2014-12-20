@@ -2,7 +2,7 @@ import os, sys, re, json
 import platform
 import shutil
 from datetime import datetime
-from i18n import _
+from i18n import *
 
 class NotEnoughFunds(Exception): pass
 
