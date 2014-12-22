@@ -2,12 +2,12 @@ import os, sys, re, json
 import platform
 import shutil
 from datetime import datetime
-from i18n import _
 
 class NotEnoughFunds(Exception): pass
 
 class InvalidPassword(Exception):
     def __str__(self):
+        from i18n import _
         return _("Incorrect password")
 
 class MyEncoder(json.JSONEncoder):
