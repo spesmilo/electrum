@@ -321,7 +321,7 @@ class TrezorWallet(NewWallet):
             txinputtype.prev_index = prev_index
 
             if 'scriptSig' in txinput:
-                script_sig = txinput['scriptSig']
+                script_sig = txinput['scriptSig'].decode('hex')
                 txinputtype.script_sig = script_sig
 
             if 'sequence' in txinput:
