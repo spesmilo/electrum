@@ -452,7 +452,8 @@ def parse_input(vds):
     d = {}
     prevout_hash = hash_encode(vds.read_bytes(32))
     prevout_n = vds.read_uint32()
-    d['scriptSig'] = scriptSig = vds.read_bytes(vds.read_compact_size())
+    scriptSig = vds.read_bytes(vds.read_compact_size())
+    d['scriptSig'] = scriptSig.encode('hex')
     sequence = vds.read_uint32()
     if prevout_hash == '00'*32:
         d['is_coinbase'] = True
