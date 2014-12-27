@@ -1157,12 +1157,12 @@ class ElectrumWindow(QMainWindow):
             return tx
 
         def sign_done(tx):
-            if label:
-                self.wallet.set_label(tx.hash(), label)
             if not tx.is_complete() or self.config.get('show_before_broadcast'):
                 self.show_transaction(tx)
                 self.do_clear()
                 return
+            if label:
+                self.wallet.set_label(tx.hash(), label)
             self.broadcast_transaction(tx)
 
         # keep a reference to WaitingDialog or the gui might crash
