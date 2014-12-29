@@ -65,7 +65,7 @@ verifymessage_syntax = 'verifymessage <address> <signature> <message>\nIf you wa
 register_command('contacts',             0, 0, False, True,  False, 'Show your list of contacts')
 register_command('create',               0, 0, False, True,  False, 'Create a new wallet')
 register_command('createmultisig',       2, 2, False, True,  False, 'similar to bitcoind\'s command')
-register_command('createrawtransaction', 2, 2, False, True,  False, 'similar to bitcoind\'s command')
+register_command('createrawtransaction', 2, 2, False, True,  False, 'Create an unsigned transaction. The syntax is similar to bitcoind.')
 register_command('deseed',               0, 0, False, True,  False, 'Remove seed from wallet, creating a seedless, watching-only wallet.')
 register_command('decoderawtransaction', 1, 1, False, False, False, 'similar to bitcoind\'s command')
 register_command('getprivatekeys',       1, 1, False, True,  True,  'Get the private keys of a given address', 'getprivatekeys <bitcoin address>')
@@ -158,11 +158,20 @@ class Commands:
             return {'address':r[0] }
 
     def createrawtransaction(self, inputs, outputs):
+        coins = self.wallet.get_unspent_coins(None)
+        tx_inputs = []
         for i in inputs:
-            i['prevout_hash'] = i['txid']
-            i['prevout_n'] = i['vout']
-        outputs = map(lambda x: (x[0],int(1e8*x[1])), outputs.items())
-        tx = Transaction(inputs, outputs)
+            prevout_hash = i['txid']
+            prevout_n = i['vout']
+            for c in coins:
+                if c['prevout_hash'] == prevout_hash and c['prevout_n'] == prevout_n:
+                    self.wallet.add_input_info(c)
+                    tx_inputs.append(c)
+                    break
+            else:
+                raise BaseException('Transaction output not in wallet', prevout_hash+":%d"%prevout_n)
+        outputs = map(lambda x: ('address', x[0], int(1e8*x[1])), outputs.items())
+        tx = Transaction(tx_inputs, outputs)
         return tx
 
     def signtxwithkey(self, raw_tx, sec):

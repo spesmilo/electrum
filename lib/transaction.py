@@ -204,24 +204,6 @@ def short_hex(bytes):
 
 
 
-
-def parse_redeemScript(bytes):
-    dec = [ x for x in script_GetOp(bytes.decode('hex')) ]
-
-    # 2 of 2
-    match = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_2, opcodes.OP_CHECKMULTISIG ]
-    if match_decoded(dec, match):
-        pubkeys = [ dec[1][1].encode('hex'), dec[2][1].encode('hex') ]
-        return 2, pubkeys
-
-    # 2 of 3
-    match = [ opcodes.OP_2, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4, opcodes.OP_3, opcodes.OP_CHECKMULTISIG ]
-    if match_decoded(dec, match):
-        pubkeys = [ dec[1][1].encode('hex'), dec[2][1].encode('hex'), dec[3][1].encode('hex') ]
-        return 2, pubkeys
-
-
-
 opcodes = Enumeration("Opcodes", [
     ("OP_0", 0), ("OP_PUSHDATA1",76), "OP_PUSHDATA2", "OP_PUSHDATA4", "OP_1NEGATE", "OP_RESERVED",
     "OP_1", "OP_2", "OP_3", "OP_4", "OP_5", "OP_6", "OP_7",
@@ -581,12 +563,12 @@ class Transaction:
 
 
     @classmethod
-    def pay_script(self, type, addr):
-        if type == 'op_return':
+    def pay_script(self, output_type, addr):
+        if output_type == 'op_return':
             h = addr.encode('hex')
             return '6a' + push_script(h)
         else:
-            assert type == 'address'
+            assert output_type == 'address'
         addrtype, hash_160 = bc_address_to_hash_160(addr)
         if addrtype == 0:
             script = '76a9'                                      # op_dup, op_hash_160
@@ -600,70 +582,70 @@ class Transaction:
             raise
         return script
 
-
-    def serialize(self, for_sig=None):
+    def input_script(self, txin, i, for_sig):
         # for_sig:
         #   -1   : do not sign, estimate length
         #   i>=0 : serialized tx for signing input i
         #   None : add all known signatures
 
+        p2sh = txin.get('redeemScript') is not None
+        num_sig = txin['num_sig'] if p2sh else 1
+        address = txin['address']
+
+        x_signatures = txin['signatures']
+        signatures = filter(None, x_signatures)
+        is_complete = len(signatures) == num_sig
+
+        if for_sig in [-1, None]:
+            # if we have enough signatures, we use the actual pubkeys
+            # use extended pubkeys (with bip32 derivation)
+            if for_sig == -1:
+                # we assume that signature will be 0x48 bytes long
+                pubkeys = txin['pubkeys']
+                sig_list = [ "00" * 0x48 ] * num_sig
+            elif is_complete:
+                pubkeys = txin['pubkeys']
+                sig_list = ((sig + '01') for sig in signatures)
+            else:
+                pubkeys = txin['x_pubkeys']
+                sig_list = ((sig + '01') if sig else NO_SIGNATURE for sig in x_signatures)
+            script = ''.join(push_script(x) for x in sig_list)
+            if not p2sh:
+                x_pubkey = pubkeys[0]
+                if x_pubkey is None:
+                    addrtype, h160 = bc_address_to_hash_160(txin['address'])
+                    x_pubkey = 'fd' + (chr(addrtype) + h160).encode('hex')
+                script += push_script(x_pubkey)
+            else:
+                script = '00' + script          # put op_0 in front of script
+                redeem_script = self.multisig_script(pubkeys,2)
+                script += push_script(redeem_script)
+
+        elif for_sig==i:
+            script = txin['redeemScript'] if p2sh else self.pay_script('address', address)
+        else:
+            script = ''
+
+        return script
+
+
+    def serialize(self, for_sig=None):
         inputs = self.inputs
         outputs = self.outputs
-
         s  = int_to_hex(1,4)                                         # version
         s += var_int( len(inputs) )                                  # number of inputs
         for i, txin in enumerate(inputs):
-
             s += txin['prevout_hash'].decode('hex')[::-1].encode('hex')   # prev hash
-            s += int_to_hex(txin['prevout_n'],4)                          # prev index
-
-            p2sh = txin.get('redeemScript') is not None
-            num_sig = txin['num_sig']
-            address = txin['address']
-
-            x_signatures = txin['signatures']
-            signatures = filter(None, x_signatures)
-            is_complete = len(signatures) == num_sig
-
-            if for_sig in [-1, None]:
-                # if we have enough signatures, we use the actual pubkeys
-                # use extended pubkeys (with bip32 derivation)
-                if for_sig == -1:
-                    # we assume that signature will be 0x48 bytes long
-                    pubkeys = txin['pubkeys']
-                    sig_list = [ "00" * 0x48 ] * num_sig
-                elif is_complete:
-                    pubkeys = txin['pubkeys']
-                    sig_list = ((sig + '01') for sig in signatures)
-                else:
-                    pubkeys = txin['x_pubkeys']
-                    sig_list = ((sig + '01') if sig else NO_SIGNATURE for sig in x_signatures)
-                script = ''.join(push_script(x) for x in sig_list)
-                if not p2sh:
-                    x_pubkey = pubkeys[0]
-                    if x_pubkey is None:
-                        addrtype, h160 = bc_address_to_hash_160(txin['address'])
-                        x_pubkey = 'fd' + (chr(addrtype) + h160).encode('hex')
-                    script += push_script(x_pubkey)
-                else:
-                    script = '00' + script          # put op_0 in front of script
-                    redeem_script = self.multisig_script(pubkeys,2)
-                    script += push_script(redeem_script)
-
-            elif for_sig==i:
-                script = txin['redeemScript'] if p2sh else self.pay_script('address', address)
-            else:
-                script = ''
-
+            s += int_to_hex(txin['prevout_n'], 4)                         # prev index
+            script = self.input_script(txin, i, for_sig)
             s += var_int( len(script)/2 )                            # script length
             s += script
             s += "ffffffff"                                          # sequence
-
         s += var_int( len(outputs) )                                 # number of outputs
         for output in outputs:
-            type, addr, amount = output
+            output_type, addr, amount = output
             s += int_to_hex( amount, 8)                              # amount
-            script = self.pay_script(type, addr)
+            script = self.pay_script(output_type, addr)
             s += var_int( len(script)/2 )                           #  script length
             s += script                                             #  script
         s += int_to_hex(0,4)                                        #  lock time
@@ -696,9 +678,9 @@ class Transaction:
         for txin in self.inputs:
             if txin.get('is_coinbase'):
                 continue
-            signatures = filter(None, txin['signatures'])
+            signatures = filter(None, txin.get('signatures',[]))
             s += len(signatures)
-            r += txin['num_sig']
+            r += txin.get('num_sig',-1)
         return s, r
 
     def is_complete(self):
