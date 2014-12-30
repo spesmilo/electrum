@@ -1,6 +1,7 @@
 from electrum.plugins import BasePlugin, hook
-from electrum_gui.qt.util import WaitingDialog
+from electrum_gui.qt.util import WaitingDialog, EnterButton
 from electrum.util import print_msg
+from electrum.i18n import _
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -13,13 +14,17 @@ from io import BytesIO
 try:
     import amodem
     print_msg('Audio MODEM is enabled.')
-    amodem_available = True
 except ImportError:
+    amodem = None
     print_msg('Audio MODEM is not found.')
-    amodem_available = False
 
 
 class Plugin(BasePlugin):
+
+    def __init__(self, config, name):
+        BasePlugin.__init__(self, config, name)
+        if self.is_available():
+            self.modem_config = amodem.config.slowest()
 
     def fullname(self):
         return 'Audio MODEM'
@@ -29,9 +34,39 @@ class Plugin(BasePlugin):
                 'Requires http://github.com/romanz/amodem/')
 
     def is_available(self):
-        return amodem_available
+        return amodem is not None
 
     is_enabled = is_available
+
+    def requires_settings(self):
+        return True
+
+    def settings_widget(self, window):
+        return EnterButton(_('Settings'), self.settings_dialog)
+
+    def settings_dialog(self):
+        d = QDialog()
+        d.setWindowTitle("Settings")
+
+        layout = QGridLayout(d)
+        layout.addWidget(QLabel(_('Bit rate [kbps]: ')), 0, 0)
+
+        bitrates = list(sorted(amodem.config.bitrates.keys()))
+
+        def _index_changed(index):
+            bitrate = bitrates[index]
+            self.modem_config = amodem.config.bitrates[bitrate]
+
+        combo = QComboBox()
+        combo.addItems(map(str, bitrates))
+        combo.currentIndexChanged.connect(_index_changed)
+        layout.addWidget(combo, 0, 1)
+
+        ok_button = QPushButton(_("OK"))
+        ok_button.clicked.connect(d.accept)
+        layout.addWidget(ok_button, 1, 1)
+
+        return bool(d.exec_())
 
     @hook
     def transaction_dialog(self, dialog):
@@ -65,28 +100,27 @@ class Plugin(BasePlugin):
     def _send(self, parent, blob):
         def sender_thread():
             try:
-                modem_config = amodem.config.slowest()
-                audio_interface = amodem.audio.Interface(modem_config)
+                audio_interface = amodem.audio.Interface(self.modem_config)
                 src = BytesIO(blob)
                 dst = audio_interface.player()
-                amodem.send.main(config=modem_config, src=src, dst=dst)
+                amodem.send.main(config=self.modem_config, src=src, dst=dst)
             except Exception:
                 traceback.print_exc()
 
         print_msg('Sending:', repr(blob))
         blob = zlib.compress(blob)
-        return WaitingDialog(
-            parent=parent, message='Sending transaction to Audio MODEM...',
-            run_task=sender_thread)
+
+        kbps = self.modem_config.modem_bps / 1e3
+        msg = 'Sending to Audio MODEM ({0:.1f} kbps)...'.format(kbps)
+        return WaitingDialog(parent=parent, message=msg, run_task=sender_thread)
 
     def _recv(self, parent):
         def receiver_thread():
             try:
-                modem_config = amodem.config.slowest()
-                audio_interface = amodem.audio.Interface(modem_config)
+                audio_interface = amodem.audio.Interface(self.modem_config)
                 src = audio_interface.recorder()
                 dst = BytesIO()
-                amodem.recv.main(config=modem_config, src=src, dst=dst)
+                amodem.recv.main(config=self.modem_config, src=src, dst=dst)
                 return dst.getvalue()
             except Exception:
                 traceback.print_exc()
@@ -97,9 +131,10 @@ class Plugin(BasePlugin):
                 print_msg('Received:', repr(blob))
                 parent.setText(blob)
 
-        return WaitingDialog(
-            parent=parent, message='Receiving transaction from Audio MODEM...',
-            run_task=receiver_thread, on_success=on_success)
+        kbps = self.modem_config.modem_bps / 1e3
+        msg = 'Receiving from Audio MODEM ({0:.1f} kbps)...'.format(kbps)
+        return WaitingDialog(parent=parent, message=msg,
+                             run_task=receiver_thread, on_success=on_success)
 
 
 def add_button(parent, icon_name):
