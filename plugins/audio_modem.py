@@ -5,58 +5,18 @@ from electrum.util import print_msg
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-import subprocess
 import traceback
 import zlib
 import json
+from io import BytesIO
 
 try:
-    subprocess.check_call(['amodem-cli', '--help'])
+    import amodem
     print_msg('Audio MODEM is enabled.')
     amodem_available = True
-except subprocess.CalledProcessError:
+except ImportError:
     print_msg('Audio MODEM is not found.')
     amodem_available = False
-
-
-def send(parent, blob):
-    print_msg('Sending:', repr(blob))
-    blob = zlib.compress(blob)
-    def sender_thread():
-        try:
-            args = ['amodem-cli', 'send', '-vv']
-            p = subprocess.Popen(args, stdin=subprocess.PIPE)
-            p.stdin.write(blob)
-            p.stdin.close()
-            p.wait()
-        except Exception:
-            traceback.print_exc()
-            p.kill()
-
-    return WaitingDialog(
-        parent=parent, message='Sending transaction to Audio MODEM...',
-        run_task=sender_thread)
-
-
-def recv(parent):
-    def receiver_thread():
-        import subprocess
-        try:
-            args = ['amodem-cli', 'recv', '-vv']
-            p = subprocess.Popen(args, stdout=subprocess.PIPE)
-            return p.stdout.read()
-        except Exception:
-            traceback.print_exc()
-            p.kill()
-
-    def on_success(blob):
-        blob = zlib.decompress(blob)
-        print_msg('Received:', repr(blob))
-        parent.setText(blob)
-
-    return WaitingDialog(
-        parent=parent, message='Receiving transaction from Audio MODEM...',
-        run_task=receiver_thread, on_success=on_success)
 
 
 class Plugin(BasePlugin):
@@ -80,7 +40,7 @@ class Plugin(BasePlugin):
 
         def handler():
             blob = json.dumps(dialog.tx.as_dict())
-            self.sender = send(parent=dialog, blob=blob)
+            self.sender = self._send(parent=dialog, blob=blob)
             self.sender.start()
         b.clicked.connect(handler)
         dialog.buttons.insertWidget(1, b)
@@ -88,7 +48,7 @@ class Plugin(BasePlugin):
     @hook
     def scan_text_edit(self, parent):
         def handler():
-            self.receiver = recv(parent=parent)
+            self.receiver = self._recv(parent=parent)
             self.receiver.start()
         button = add_button(parent=parent, icon_name=':icons/microphone.png')
         button.clicked.connect(handler)
@@ -97,10 +57,49 @@ class Plugin(BasePlugin):
     def show_text_edit(self, parent):
         def handler():
             blob = str(parent.toPlainText())
-            self.sender = send(parent=parent, blob=blob)
+            self.sender = self._send(parent=parent, blob=blob)
             self.sender.start()
         button = add_button(parent=parent, icon_name=':icons/speaker.png')
         button.clicked.connect(handler)
+
+    def _send(self, parent, blob):
+        def sender_thread():
+            try:
+                modem_config = amodem.config.slowest()
+                audio_interface = amodem.audio.Interface(modem_config)
+                src = BytesIO(blob)
+                dst = audio_interface.player()
+                amodem.send.main(config=modem_config, src=src, dst=dst)
+            except Exception:
+                traceback.print_exc()
+
+        print_msg('Sending:', repr(blob))
+        blob = zlib.compress(blob)
+        return WaitingDialog(
+            parent=parent, message='Sending transaction to Audio MODEM...',
+            run_task=sender_thread)
+
+    def _recv(self, parent):
+        def receiver_thread():
+            try:
+                modem_config = amodem.config.slowest()
+                audio_interface = amodem.audio.Interface(modem_config)
+                src = audio_interface.recorder()
+                dst = BytesIO()
+                amodem.recv.main(config=modem_config, src=src, dst=dst)
+                return dst.getvalue()
+            except Exception:
+                traceback.print_exc()
+
+        def on_success(blob):
+            if blob:
+                blob = zlib.decompress(blob)
+                print_msg('Received:', repr(blob))
+                parent.setText(blob)
+
+        return WaitingDialog(
+            parent=parent, message='Receiving transaction from Audio MODEM...',
+            run_task=receiver_thread, on_success=on_success)
 
 
 def add_button(parent, icon_name):
