@@ -1296,6 +1296,8 @@ class BIP32_Wallet(Deterministic_Wallet):
             raise InvalidPassword()
 
     def add_master_public_key(self, name, xpub):
+        if xpub in self.master_public_keys.values():
+            raise BaseException('Duplicate master public key')
         self.master_public_keys[name] = xpub
         self.storage.put('master_public_keys', self.master_public_keys, True)
 
