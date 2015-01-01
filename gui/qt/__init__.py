@@ -163,7 +163,12 @@ class ElectrumGui:
         if action is not None:
             import installwizard
             wizard = installwizard.InstallWizard(self.config, self.network, storage)
-            wallet = wizard.run(action)
+            try:
+                wallet = wizard.run(action)
+            except BaseException as e:
+                traceback.print_exc(file=sys.stdout)
+                QMessageBox.information(None, _('Error'), str(e), _('OK'))
+                return
             if not wallet:
                 return
         else:
