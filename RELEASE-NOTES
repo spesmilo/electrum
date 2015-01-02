@@ -37,6 +37,9 @@
    several clients. It times out if no client uses if for more than 5
    minutes.
 
+ * More watching-only functionality: Create wallets to monitor any 
+   address of choice by entering a list of addresses in the install wizard
+
  * Wallet files are saved as JSON instead of Python.
 
  * Documentation is now hosted on a wiki: http://electrum.orain.org
