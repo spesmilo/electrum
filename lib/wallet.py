@@ -329,6 +329,9 @@ class Abstract_Wallet(object):
         run_hook('set_label', name, text, changed)
         return changed
 
+    def dumpaddresses(self, include_change = True):
+        return list(addr for acc in self.accounts for addr in self.get_account_addresses(acc, include_change))
+
     def addresses(self, include_change = True):
         return list(addr for acc in self.accounts for addr in self.get_account_addresses(acc, include_change))
 
