@@ -2341,6 +2341,9 @@ class ElectrumWindow(QMainWindow):
 
         private_keys = {}
         addresses = self.wallet.addresses(True)
+        # don't show privkey for next account
+        next_account = self.wallet.storage.get("next_account")
+        if next_account: addresses.remove(next_account[2])
         done = False
         def privkeys_thread():
             for addr in addresses:

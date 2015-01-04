@@ -211,6 +211,9 @@ class Commands:
     def dumpprivkeys(self, addresses = None):
         if addresses is None:
             addresses = self.wallet.addresses(True)
+        # don't show privkey for next account
+        next_account = self.wallet.storage.get("next_account")
+        if next_account: addresses.remove(next_account[2])
         return [self.wallet.get_private_key(address, self.password) for address in addresses]
 
     def validateaddress(self, addr):
