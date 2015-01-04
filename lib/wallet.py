@@ -1329,7 +1329,7 @@ class BIP32_Wallet(Deterministic_Wallet):
         self.add_master_public_key(name, xpub)
 
     def mnemonic_to_seed(self, seed, password):
-         return Mnemonic.mnemonic_to_seed(seed, password)
+        return Mnemonic.mnemonic_to_seed(seed, password)
 
     def make_seed(self):
         lang = self.storage.config.get('language')
@@ -1468,18 +1468,22 @@ class BIP32_HD_Wallet(BIP32_Wallet):
 
 
 
-class NewWallet(BIP32_HD_Wallet, Mnemonic):
-    # bip 44
+class NewWallet(BIP32_Wallet, Mnemonic):
+    # Standard wallet
     root_name = 'x/'
-    root_derivation = "m/44'/0'"
+    root_derivation = "m/"
     wallet_type = 'standard'
+
+    def create_main_account(self, password):
+        xpub = self.master_public_keys.get("x/")
+        account = BIP32_Account({'xpub':xpub})
+        self.add_account('0', account)
 
 
 class Wallet_2of2(BIP32_Wallet, Mnemonic):
     # Wallet with multisig addresses.
-    # Cannot create accounts
     root_name = "x1/"
-    root_derivation = "m/44'/0'"
+    root_derivation = "m/"
     wallet_type = '2of2'
 
     def can_import(self):
@@ -1633,7 +1637,7 @@ class Wallet(object):
 
         if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:
             msg = "This wallet seed is not supported anymore."
-            if seed_version in [5, 7, 8, 9]:
+            if seed_version in [5, 7, 8, 9, 10]:
                 msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
             raise BaseException(msg)
 
