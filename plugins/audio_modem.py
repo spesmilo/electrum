@@ -11,9 +11,13 @@ import zlib
 import json
 from io import BytesIO
 import sys
+import platform
 
 try:
-    import amodem
+    import amodem.audio
+    import amodem.recv
+    import amodem.send
+    import amodem.config
     print_msg('Audio MODEM is enabled.')
     amodem.log.addHandler(amodem.logging.StreamHandler(sys.stderr))
     amodem.log.setLevel(amodem.logging.INFO)
@@ -28,6 +32,9 @@ class Plugin(BasePlugin):
         BasePlugin.__init__(self, config, name)
         if self.is_available():
             self.modem_config = amodem.config.slowest()
+            self.library_name = {
+                'Linux': 'libportaudio.so'
+            }[platform.system()]
 
     def fullname(self):
         return 'Audio MODEM'
@@ -100,13 +107,19 @@ class Plugin(BasePlugin):
         button = add_button(parent=parent, icon_name=':icons/speaker.png')
         button.clicked.connect(handler)
 
+    def _audio_interface(self):
+        return amodem.audio.Interface(
+            config=self.modem_config,
+            name=self.library_name
+        )
+
     def _send(self, parent, blob):
         def sender_thread():
             try:
-                audio_interface = amodem.audio.Interface(self.modem_config)
-                src = BytesIO(blob)
-                dst = audio_interface.player()
-                amodem.send.main(config=self.modem_config, src=src, dst=dst)
+                with self._audio_interface() as interface:
+                    src = BytesIO(blob)
+                    dst = interface.player()
+                    amodem.send.main(config=self.modem_config, src=src, dst=dst)
             except Exception:
                 traceback.print_exc()
 
@@ -120,11 +133,11 @@ class Plugin(BasePlugin):
     def _recv(self, parent):
         def receiver_thread():
             try:
-                audio_interface = amodem.audio.Interface(self.modem_config)
-                src = audio_interface.recorder()
-                dst = BytesIO()
-                amodem.recv.main(config=self.modem_config, src=src, dst=dst)
-                return dst.getvalue()
+                with self._audio_interface() as interface:
+                    src = interface.recorder()
+                    dst = BytesIO()
+                    amodem.recv.main(config=self.modem_config, src=src, dst=dst)
+                    return dst.getvalue()
             except Exception:
                 traceback.print_exc()
 
