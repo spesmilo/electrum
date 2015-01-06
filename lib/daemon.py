@@ -36,8 +36,9 @@ DAEMON_PORT=8001
 def do_start_daemon(config):
     import subprocess
     logfile = open(os.path.join(config.path, 'daemon.log'),'w')
-    p = subprocess.Popen(["python2",__file__], stderr=logfile, stdout=logfile, close_fds=True)
+    p = subprocess.Popen([sys.executable,__file__], stderr=logfile, stdout=logfile, close_fds=(os.name=="posix"))
     print_stderr("starting daemon (PID %d)"%p.pid)
+
 
 
 def get_daemon(config, start_daemon=True):
@@ -47,7 +48,7 @@ def get_daemon(config, start_daemon=True):
     while True:
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect(('', daemon_port))
+            s.connect(('localhost', daemon_port))
             if not daemon_started:
                 print_stderr("Connected to daemon on port %d"%daemon_port)
             return s
@@ -190,7 +191,7 @@ def daemon_loop(server):
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     daemon_port = server.config.get('daemon_port', DAEMON_PORT)
     daemon_timeout = server.config.get('daemon_timeout', 5*60)
-    s.bind(('', daemon_port))
+    s.bind(('localhost', daemon_port))
     s.listen(5)
     s.settimeout(1)
     t = time.time()
