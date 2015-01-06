@@ -1,4 +1,5 @@
 from electrum.i18n import _
+from electrum.plugins import run_hook
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
@@ -25,6 +26,7 @@ class ShowQRTextEdit(QRTextEdit):
         super(ShowQRTextEdit, self).__init__(text)
         self.setReadOnly(1)
         self.button.clicked.connect(self.qr_show)
+        run_hook('show_text_edit', self)
 
     def qr_show(self):
         from qrcodewidget import QRDialog
@@ -49,6 +51,7 @@ class ScanQRTextEdit(QRTextEdit):
         if win:
             assert hasattr(win,"config"), "You must pass a window with access to the config to ScanQRTextEdit constructor."
         self.button.clicked.connect(self.qr_input)
+        run_hook('scan_text_edit', self)
 
 
     def qr_input(self):
