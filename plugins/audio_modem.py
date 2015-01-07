@@ -18,7 +18,7 @@ try:
     import amodem.recv
     import amodem.send
     import amodem.config
-    print_msg('Audio MODEM is enabled.')
+    print_msg('Audio MODEM is available.')
     amodem.log.addHandler(amodem.logging.StreamHandler(sys.stderr))
     amodem.log.setLevel(amodem.logging.INFO)
 except ImportError:
@@ -45,8 +45,6 @@ class Plugin(BasePlugin):
 
     def is_available(self):
         return amodem is not None
-
-    is_enabled = is_available
 
     def requires_settings(self):
         return True
