@@ -35,15 +35,6 @@ class Plugin(BasePlugin):
         else:
             return False
 
-
-
-    def is_enabled(self):
-        if not self.is_available():
-            return False
-        else:
-            return True
-
-
     @hook
     def init_qt(self, gui):
         self.win = gui.main_window
