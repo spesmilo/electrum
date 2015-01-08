@@ -10,4 +10,3 @@ Usage:
   * NSIS-based installer of Electrum is "electrum-setup.exe"
 7. Everytime you want to rebuild new version of Electrum just change the path to ZIP file in "build-electrum.sh" and re-run the script.
 
-For more information contact: slush <info@bitcoin.cz>
