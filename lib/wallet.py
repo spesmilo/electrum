@@ -683,13 +683,21 @@ class Abstract_Wallet(object):
         return fee
 
     def make_unsigned_transaction(self, outputs, fixed_fee=None, change_addr=None, domain=None, coins=None ):
+        stealth_ops = []
         # check outputs
-        for type, data, value in outputs:
+        for i, [type, data, value] in enumerate(outputs):
             if type == 'op_return':
                 assert len(data) < 41, "string too long"
                 #assert value == 0
             if type == 'address':
                 assert is_address(data), "Address " + data + " is invalid!"
+            if is_stealth_address(data):
+                newaddr, op_ret = get_stealth_send(data)
+                lst = list(outputs[i])
+                lst[1] = newaddr
+                outputs[i] = tuple(lst)
+                outputs.insert(i, ('op_return', op_ret, 0))
+                stealth_ops.append(i)
 
         # get coins
         if not coins:
@@ -730,10 +738,14 @@ class Abstract_Wallet(object):
         if fixed_fee is not None and change_amount > 0:
             # Insert the change output at a random position in the outputs
             posn = random.randint(0, len(tx.outputs))
+            if stealth_ops != []:
+                while (posn - 1) in stealth_ops: posn = random.randint(0, len(tx.outputs)) # OP_RETURN and spend out of stealth MUST be together.
             tx.outputs[posn:posn] = [( 'address', change_addr,  change_amount)]
         elif change_amount > DUST_THRESHOLD:
             # Insert the change output at a random position in the outputs
             posn = random.randint(0, len(tx.outputs))
+            if stealth_ops != []:
+                while (posn - 1) in stealth_ops: posn = random.randint(0, len(tx.outputs)) # OP_RETURN and spend out of stealth MUST be together.
             tx.outputs[posn:posn] = [( 'address', change_addr,  change_amount)]
             # recompute fee including change output
             fee = self.estimated_fee(tx)
