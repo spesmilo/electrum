@@ -101,7 +101,7 @@ register_command('signtxwithkey',        1, 3, False, False, False, 'Sign a seri
 register_command('signtxwithwallet',     1, 3, False, True,  True,  'Sign a serialized transaction with a wallet','signtxwithwallet <tx>')
 register_command('signmessage',          2,-1, False, True,  True,  'Sign a message with a key', signmessage_syntax)
 register_command('unfreeze',             1, 1, False, True,  False, 'Unfreeze the funds at one of your wallet\'s address', 'unfreeze <address>')
-register_command('validateaddress',      1, 1, False, False, False, 'Check that the address is valid', 'validateaddress <address>')
+register_command('validateaddress',      1, 1, False, True, False, 'Check that the address is valid', 'validateaddress <address>')
 register_command('verifymessage',        3,-1, False, False, False, 'Verifies a signature', verifymessage_syntax)
 
 register_command('encrypt',              2,-1, False, False, False, 'encrypt a message with pubkey','encrypt <pubkey> <message>')
@@ -218,6 +218,7 @@ class Commands:
         out = { 'isvalid':isvalid }
         if isvalid:
             out['address'] = addr
+            out['ismine'] = self.wallet.is_mine(addr)
         return out
 
     def getpubkeys(self, addr):
