@@ -749,9 +749,11 @@ def bip32_root(seed, testnet=False):
 
 
 def bip32_private_derivation(xprv, branch, sequence, testnet=False):
+    assert sequence.startswith(branch)
+    if branch == sequence:
+        return xprv, xpub_from_xprv(xprv, testnet)
     header_pub, header_priv = _get_headers(testnet)
     depth, fingerprint, child_number, c, k = deserialize_xkey(xprv)
-    assert sequence.startswith(branch)
     sequence = sequence[len(branch):]
     for n in sequence.split('/'):
         if n == '': continue

@@ -389,13 +389,7 @@ class InstallWizard(QDialog):
                 wallet.add_master_public_key("x3/", xpub3)
 
             elif action == 'create_accounts':
-                try:
-                    wallet.create_main_account(password)
-                except BaseException as e:
-                    import traceback
-                    traceback.print_exc(file=sys.stdout)
-                    QMessageBox.information(None, _('Error'), str(e), _('OK'))
-                    return
+                wallet.create_main_account(password)
                 self.waiting_dialog(wallet.synchronize)
 
             else:

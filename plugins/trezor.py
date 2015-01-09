@@ -12,7 +12,7 @@ from electrum.bitcoin import EncodeBase58Check, public_key_to_bc_address, bc_add
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import deserialize
-from electrum.wallet import NewWallet
+from electrum.wallet import BIP32_HD_Wallet
 from electrum.util import print_error
 
 from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
@@ -161,11 +161,12 @@ class Plugin(BasePlugin):
             return False
 
 
-class TrezorWallet(NewWallet):
+class TrezorWallet(BIP32_HD_Wallet):
     wallet_type = 'trezor'
+    root_derivation = "m/44'/0'"
 
     def __init__(self, storage):
-        NewWallet.__init__(self, storage)
+        BIP32_HD_Wallet.__init__(self, storage)
         self.transport = None
         self.client = None
         self.mpk = None

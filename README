@@ -19,7 +19,7 @@ directory.
 If you have pip, you can do:
 
   python setup.py sdist
-  sudo pip install dist/Electrum-2.0.tar.gz
+  sudo pip install --pre dist/Electrum-2.0.tar.gz
 
 
 If you don't have pip, install with:
