@@ -84,7 +84,7 @@ register_command('getmpk',               0, 0, False, True,  False, 'Return your
 register_command('help',                 0, 1, False, False, False, 'Prints this help')
 register_command('history',              0, 0, True,  True,  False, 'Returns the transaction history of your wallet')
 register_command('importprivkey',        1, 1, False, True,  True,  'Import a private key', 'importprivkey <privatekey>')
-register_command('ismine',               1, 1, False, True,  False, 'Return true if and only if address is in wallet', 'ismine <address'>)
+register_command('ismine',               1, 1, False, True,  False, 'Return true if and only if address is in wallet', 'ismine <address>')
 register_command('listaddresses',        2, 2, False, True,  False, 'Returns your list of addresses.', '', listaddr_options)
 register_command('listunspent',          0, 0, True,  True,  False, 'Returns the list of unspent inputs in your wallet.')
 register_command('getaddressunspent',    1, 1, True,  False, False, 'Returns the list of unspent inputs for an address.')
