@@ -1266,6 +1266,7 @@ class Deterministic_Wallet(Abstract_Wallet):
 
 class BIP32_Wallet(Deterministic_Wallet):
     # abstract class, bip32 logic
+    root_name = 'x/'
     gap_limit = 20
 
     def __init__(self, storage):
@@ -1342,7 +1343,6 @@ class BIP32_Wallet(Deterministic_Wallet):
 class BIP32_Simple_Wallet(BIP32_Wallet):
     # Wallet with a single BIP32 account, no seed
     # gap limit 20
-    root_name = 'x/'
     wallet_type = 'xpub'
 
     def create_xprv_wallet(self, xprv, password):
@@ -1470,7 +1470,6 @@ class BIP32_HD_Wallet(BIP32_Wallet):
 
 class NewWallet(BIP32_Wallet, Mnemonic):
     # Standard wallet
-    root_name = 'x/'
     root_derivation = "m/"
     wallet_type = 'standard'
 
