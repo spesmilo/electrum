@@ -73,7 +73,8 @@ setup(
         'pyasn1-modules',
         'qrcode',
         'SocksiPy-branch',
-        'tlslite'
+        'tlslite',
+        'pythondns'
     ],
     package_dir={
         'electrum': 'lib',
