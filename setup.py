@@ -74,7 +74,7 @@ setup(
         'qrcode',
         'SocksiPy-branch',
         'tlslite',
-        'pythondns'
+        'dnspython'
     ],
     package_dir={
         'electrum': 'lib',
