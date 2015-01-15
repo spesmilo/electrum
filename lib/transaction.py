@@ -757,10 +757,7 @@ class Transaction:
             elif type == 'pubkey':
                 addr = public_key_to_bc_address(x.decode('hex'))
             elif type == 'op_return':
-                try:
-                    addr = 'OP_RETURN: "' + x.decode('utf8') + '"'
-                except:
-                    addr = 'OP_RETURN: "' + x.encode('hex') + '"'
+                addr = 'OP_RETURN ' + x.encode('hex')
             else:
                 addr = "(None)"
             o.append((addr,v))      # consider using yield (addr, v)
