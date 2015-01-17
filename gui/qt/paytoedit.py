@@ -73,9 +73,15 @@ class PayToEdit(ScanQRTextEdit):
             amount = 0
         else:
             x, y = line.split(',')
-            _type = 'address'
-            address = self.parse_address(x)
-            amount = self.parse_amount(y)
+            n = re.match('^CUSTOM_OUT\s+([0-9a-fA-F]+)$', x.strip())
+            if n:
+                _type = 'custom'
+                address = n.group(1).decode('hex')
+                amount = self.parse_amount(y)
+            else:
+                _type = 'address'
+                address = self.parse_address(x)
+                amount = self.parse_amount(y)
         return _type, address, amount
 
 

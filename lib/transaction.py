@@ -424,7 +424,7 @@ def get_address_from_output_script(bytes):
     if match_decoded(decoded, match):
         return 'op_return', decoded[1][1]
 
-    return "(None)", "(None)"
+    return 'custom', bytes
 
 
 
@@ -567,19 +567,20 @@ class Transaction:
         if output_type == 'op_return':
             h = addr.encode('hex')
             return '6a' + push_script(h)
+        elif output_type == 'address':
+            addrtype, hash_160 = bc_address_to_hash_160(addr)
+            if addrtype == 0:
+                script = '76a9'                                      # op_dup, op_hash_160
+                script += push_script(hash_160.encode('hex'))
+                script += '88ac'                                     # op_equalverify, op_checksig
+            elif addrtype == 5:
+                script = 'a9'                                        # op_hash_160
+                script += push_script(hash_160.encode('hex'))
+                script += '87'                                       # op_equal
+            else:
+                raise
         else:
-            assert output_type == 'address'
-        addrtype, hash_160 = bc_address_to_hash_160(addr)
-        if addrtype == 0:
-            script = '76a9'                                      # op_dup, op_hash_160
-            script += push_script(hash_160.encode('hex'))
-            script += '88ac'                                     # op_equalverify, op_checksig
-        elif addrtype == 5:
-            script = 'a9'                                        # op_hash_160
-            script += push_script(hash_160.encode('hex'))
-            script += '87'                                       # op_equal
-        else:
-            raise
+            script = addr.encode('hex')
         return script
 
     def input_script(self, txin, i, for_sig):
@@ -759,7 +760,7 @@ class Transaction:
             elif type == 'op_return':
                 addr = 'OP_RETURN ' + x.encode('hex')
             else:
-                addr = "(None)"
+                addr = 'CUSTOM ' + x.encode('hex')
             o.append((addr,v))      # consider using yield (addr, v)
         return o
 
