@@ -424,7 +424,7 @@ def get_address_from_output_script(bytes):
     if match_decoded(decoded, match):
         return 'op_return', decoded[1][1]
 
-    return 'custom', bytes
+    return 'script', bytes
 
 
 
@@ -564,9 +564,8 @@ class Transaction:
 
     @classmethod
     def pay_script(self, output_type, addr):
-        if output_type == 'op_return':
-            h = addr.encode('hex')
-            return '6a' + push_script(h)
+        if output_type == 'script':
+            return addr.encode('hex')
         elif output_type == 'address':
             addrtype, hash_160 = bc_address_to_hash_160(addr)
             if addrtype == 0:
@@ -580,7 +579,7 @@ class Transaction:
             else:
                 raise
         else:
-            script = addr.encode('hex')
+            raise
         return script
 
     def input_script(self, txin, i, for_sig):
@@ -757,10 +756,8 @@ class Transaction:
                 addr = x
             elif type == 'pubkey':
                 addr = public_key_to_bc_address(x.decode('hex'))
-            elif type == 'op_return':
-                addr = 'OP_RETURN ' + x.encode('hex')
             else:
-                addr = 'CUSTOM ' + x.encode('hex')
+                addr = 'SCRIPT ' + x.encode('hex')
             o.append((addr,v))      # consider using yield (addr, v)
         return o
 

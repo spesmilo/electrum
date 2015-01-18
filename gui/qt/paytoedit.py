@@ -66,22 +66,16 @@ class PayToEdit(ScanQRTextEdit):
         self.setStyleSheet("QWidget { background-color:#ffcccc;}")
 
     def parse_address_and_amount(self, line):
-        m = re.match('^OP_RETURN\s+([0-9a-fA-F]+)$', line.strip())
-        if m:
-            _type = 'op_return'
-            address = m.group(1).decode('hex')
-            amount = 0
+        x, y = line.split(',')
+        n = re.match('^SCRIPT\s+([0-9a-fA-F]+)$', x.strip())
+        if n:
+            _type = 'script'
+            address = n.group(1).decode('hex')
+            amount = self.parse_amount(y)
         else:
-            x, y = line.split(',')
-            n = re.match('^CUSTOM_OUT\s+([0-9a-fA-F]+)$', x.strip())
-            if n:
-                _type = 'custom'
-                address = n.group(1).decode('hex')
-                amount = self.parse_amount(y)
-            else:
-                _type = 'address'
-                address = self.parse_address(x)
-                amount = self.parse_amount(y)
+            _type = 'address'
+            address = self.parse_address(x)
+            amount = self.parse_amount(y)
         return _type, address, amount
 
 
