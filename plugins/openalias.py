@@ -6,13 +6,17 @@ from PyQt4.QtCore import *
 
 import re
 
-import dns.name
-import dns.query
-import dns.dnssec
-import dns.message
-import dns.resolver
-import dns.rdatatype
-from dns.exception import DNSException
+try:
+    import dns.name
+    import dns.query
+    import dns.dnssec
+    import dns.message
+    import dns.resolver
+    import dns.rdatatype
+    from dns.exception import DNSException
+    OA_READY = True
+except ImportError:
+    OA_READY = False
 
 
 class Plugin(BasePlugin):
@@ -20,11 +24,14 @@ class Plugin(BasePlugin):
         return 'OpenAlias'
 
     def description(self):
-        return 'Import contacts by OpenAlias.'
+        return 'Allow for payments to OpenAlias addresses.'
+
+    def is_available(self):
+        return OA_READY
 
     def __init__(self, gui, name):
         BasePlugin.__init__(self, gui, name)
-        self._is_available = True
+        self._is_available = OA_READY
 
     @hook
     def init_qt(self, gui):
@@ -45,12 +52,17 @@ class Plugin(BasePlugin):
             return False to continue execution of the send
             return True to stop execution of the send
         '''
+
         if self.win.payto_e.is_multiline():  # only supports single line entries atm
             return False
         url = str(self.win.payto_e.toPlainText())
 
         if not '.' in url:
             return False
+        else:
+            if not OA_READY:
+                QMessageBox.warning(self.win, _('Error'), 'Could not load DNSPython libraries, please ensure they are available and/or Electrum has been built correctly', _('OK'))
+                return False
 
         data = self.resolve(url)
 
