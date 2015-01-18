@@ -196,8 +196,8 @@ class Plugin(BasePlugin):
             except DNSException:
                 err = _('Unhandled exception.')
                 continue
-            except:
-                err = _('Unknown error.')
+            except Exception,e:
+                err = _('Unexpected error: ' + str(e))
                 continue
             break
         if err:
