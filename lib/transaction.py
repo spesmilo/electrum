@@ -424,7 +424,7 @@ def get_address_from_output_script(bytes):
     if match_decoded(decoded, match):
         return 'op_return', decoded[1][1]
 
-    return "(None)", "(None)"
+    return 'script', bytes
 
 
 
@@ -564,20 +564,20 @@ class Transaction:
 
     @classmethod
     def pay_script(self, output_type, addr):
-        if output_type == 'op_return':
-            h = addr.encode('hex')
-            return '6a' + push_script(h)
-        else:
-            assert output_type == 'address'
-        addrtype, hash_160 = bc_address_to_hash_160(addr)
-        if addrtype == 0:
-            script = '76a9'                                      # op_dup, op_hash_160
-            script += push_script(hash_160.encode('hex'))
-            script += '88ac'                                     # op_equalverify, op_checksig
-        elif addrtype == 5:
-            script = 'a9'                                        # op_hash_160
-            script += push_script(hash_160.encode('hex'))
-            script += '87'                                       # op_equal
+        if output_type == 'script':
+            return addr.encode('hex')
+        elif output_type == 'address':
+            addrtype, hash_160 = bc_address_to_hash_160(addr)
+            if addrtype == 0:
+                script = '76a9'                                      # op_dup, op_hash_160
+                script += push_script(hash_160.encode('hex'))
+                script += '88ac'                                     # op_equalverify, op_checksig
+            elif addrtype == 5:
+                script = 'a9'                                        # op_hash_160
+                script += push_script(hash_160.encode('hex'))
+                script += '87'                                       # op_equal
+            else:
+                raise
         else:
             raise
         return script
@@ -756,10 +756,8 @@ class Transaction:
                 addr = x
             elif type == 'pubkey':
                 addr = public_key_to_bc_address(x.decode('hex'))
-            elif type == 'op_return':
-                addr = 'OP_RETURN ' + x.encode('hex')
             else:
-                addr = "(None)"
+                addr = 'SCRIPT ' + x.encode('hex')
             o.append((addr,v))      # consider using yield (addr, v)
         return o
 
