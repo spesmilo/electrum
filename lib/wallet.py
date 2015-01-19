@@ -685,9 +685,6 @@ class Abstract_Wallet(object):
     def make_unsigned_transaction(self, outputs, fixed_fee=None, change_addr=None, domain=None, coins=None ):
         # check outputs
         for type, data, value in outputs:
-            if type == 'op_return':
-                assert len(data) < 41, "string too long"
-                #assert value == 0
             if type == 'address':
                 assert is_address(data), "Address " + data + " is invalid!"
 

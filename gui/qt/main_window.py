@@ -1079,13 +1079,11 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(self, _('Error'), _('No outputs'), _('OK'))
             return
 
-        for type, addr, amount in outputs:
+        for _type, addr, amount in outputs:
             if addr is None:
                 QMessageBox.warning(self, _('Error'), _('Litecoin Address is None'), _('OK'))
                 return
-            if type == 'op_return':
-                continue
-            if type == 'address' and not bitcoin.is_address(addr):
+            if _type == 'address' and not bitcoin.is_address(addr):
                 QMessageBox.warning(self, _('Error'), _('Invalid Litecoin Address'), _('OK'))
                 return
             if amount is None:
