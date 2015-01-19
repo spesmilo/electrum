@@ -13,6 +13,19 @@ try:
     import dns.message
     import dns.resolver
     import dns.rdatatype
+    import dns.rdtypes.ANY.NS
+    import dns.rdtypes.ANY.CNAME
+    import dns.rdtypes.ANY.DLV
+    import dns.rdtypes.ANY.DNSKEY
+    import dns.rdtypes.ANY.DS
+    import dns.rdtypes.ANY.NSEC
+    import dns.rdtypes.ANY.NSEC3
+    import dns.rdtypes.ANY.NSEC3PARAM
+    import dns.rdtypes.ANY.RRSIG
+    import dns.rdtypes.ANY.SOA
+    import dns.rdtypes.ANY.TXT
+    import dns.rdtypes.IN.A
+    import dns.rdtypes.IN.AAAA
     from dns.exception import DNSException
     OA_READY = True
 except ImportError:
@@ -188,7 +201,10 @@ class Plugin(BasePlugin):
         err = None
         for i in range(0, retries):
             try:
-                records = dns.resolver.query(url, 'TXT')
+                resolver = dns.resolver.Resolver()
+                resolver.timeout = 15.0
+                resolver.lifetime = 15.0
+                records = resolver.query(url, 'TXT')
                 for record in records:
                     string = record.strings[0]
                     if string.startswith('oa1:' + prefix):
@@ -199,10 +215,10 @@ class Plugin(BasePlugin):
                         return (address, name)
                 QMessageBox.warning(self.win, _('Error'), _('No OpenAlias record found.'), _('OK'))
                 return 0
-            except dns.resolver.NXDOMAIN:
+            except resolver.NXDOMAIN:
                 err = _('No such domain.')
                 continue
-            except dns.resolver.Timeout:
+            except resolver.Timeout:
                 err = _('Timed out while resolving.')
                 continue
             except DNSException:
@@ -233,7 +249,7 @@ class Plugin(BasePlugin):
             sub = '.'.join(parts[i - 1:])
 
             query = dns.message.make_query(sub, dns.rdatatype.NS)
-            response = dns.query.udp(query, ns)
+            response = dns.query.udp(query, ns, 5)
 
             if response.rcode() != dns.rcode.NOERROR:
                 return 0
@@ -251,7 +267,7 @@ class Plugin(BasePlugin):
             query = dns.message.make_query(sub,
                                         dns.rdatatype.DNSKEY,
                                         want_dnssec=True)
-            response = dns.query.udp(query, ns)
+            response = dns.query.udp(query, ns, 5)
 
             if response.rcode() != 0:
                 return 0
