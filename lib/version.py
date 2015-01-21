@@ -5,5 +5,5 @@ OLD_SEED_VERSION = 4        # electrum versions < 2.0
 
 
 # The hash of the mnemonic seed must begin with this
-SEED_BIP44       = '01'      # BIP44
-SEED_2FA         = '101'     # extended seed for two-factor authentication
+SEED_PREFIX      = '01'      # BIP44
+SEED_PREFIX_2FA  = '101'     # extended seed for two-factor authentication

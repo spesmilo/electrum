@@ -150,7 +150,7 @@ hash_encode = lambda x: x[::-1].encode('hex')
 hash_decode = lambda x: x.decode('hex')[::-1]
 hmac_sha_512 = lambda x,y: hmac.new(x, y, hashlib.sha512).digest()
 
-def is_new_seed(x, prefix=version.SEED_BIP44):
+def is_new_seed(x, prefix=version.SEED_PREFIX):
     import mnemonic
     x = mnemonic.prepare_seed(x)
     s = hmac_sha_512("Seed version", x.encode('utf8')).encode('hex')
