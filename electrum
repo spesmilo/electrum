@@ -349,23 +349,19 @@ if __name__ == '__main__':
 
     # commands needing password
     if cmd.requires_password:
-        if wallet.seed == '':
-            seed = ''
-            password = None
-        elif wallet.use_encryption:
+        if wallet.use_encryption:
             password = prompt_password('Password:', False)
             if not password:
                 print_msg("Error: Password required")
                 sys.exit(1)
             # check password
             try:
-                seed = wallet.get_seed(password)
+                seed = wallet.check_password(password)
             except InvalidPassword:
                 print_msg("Error: This password does not decode this wallet.")
                 sys.exit(1)
         else:
             password = None
-            seed = wallet.get_seed(None)
     else:
         password = None
 

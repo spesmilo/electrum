@@ -2320,7 +2320,7 @@ class ElectrumWindow(QMainWindow):
             return
 
         try:
-            mnemonic = self.wallet.get_mnemonic(password)
+            self.wallet.check_password(password)
         except Exception as e:
             QMessageBox.warning(self, _('Error'), str(e), _('OK'))
             return
