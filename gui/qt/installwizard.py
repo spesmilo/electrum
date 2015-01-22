@@ -443,7 +443,8 @@ class InstallWizard(QDialog):
                 elif Wallet.is_address(text):
                     wallet = Wallet.from_address(text, self.storage)
                 elif Wallet.is_private_key(text):
-                    wallet = Wallet.from_private_key(text, self.storage)
+                    password = self.password_dialog()
+                    wallet = Wallet.from_private_key(text, password, self.storage)
                 elif Wallet.is_seed(text):
                     password = self.password_dialog()
                     wallet = Wallet.from_seed(text, self.storage)
