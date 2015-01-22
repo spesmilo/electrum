@@ -144,8 +144,11 @@ class ElectrumWindow(QMainWindow):
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
 
-        g = self.config.get("winpos-qt",[100, 100, 840, 400])
-        self.setGeometry(g[0], g[1], g[2], g[3])
+        try:
+            self.setGeometry(*self.config.get("winpos-qt"))
+        except:
+            self.setGeometry(100, 100, 840, 400)
+
         if self.config.get("is_maximized"):
             self.showMaximized()
 
