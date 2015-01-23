@@ -144,8 +144,11 @@ class ElectrumWindow(QMainWindow):
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
 
-        g = self.config.get("winpos-qt",[100, 100, 840, 400])
-        self.setGeometry(g[0], g[1], g[2], g[3])
+        try:
+            self.setGeometry(*self.config.get("winpos-qt"))
+        except:
+            self.setGeometry(100, 100, 840, 400)
+
         if self.config.get("is_maximized"):
             self.showMaximized()
 
@@ -783,18 +786,24 @@ class ElectrumWindow(QMainWindow):
         self.wallet.storage.put('receive_requests2', self.receive_requests)
         self.update_receive_tab()
 
-    def new_receive_address(self):
+    def get_receive_address(self):
         domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
         for addr in domain:
             if not self.wallet.history.get(addr) and addr not in self.receive_requests.keys():
-                break
-        else:
+                return addr
+
+    def new_receive_address(self):
+        addr = self.get_receive_address()
+        if addr is None:
             if isinstance(self.wallet, Imported_Wallet):
                 self.show_message(_('No more addresses in your wallet.'))
                 return
             if not self.question(_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?")):
                 return
             addr = self.wallet.create_new_address(self.current_account, False)
+        self.set_receive_address(addr)
+
+    def set_receive_address(self, addr):
         self.receive_address_e.setText(addr)
         self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)
@@ -848,7 +857,9 @@ class ElectrumWindow(QMainWindow):
         current_address = self.receive_address_e.text()
         domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
         if not current_address in domain:
-            self.new_receive_address()
+            addr = self.get_receive_address()
+            if addr:
+                self.set_receive_address(addr)
 
         # clear the list and fill it again
         self.receive_list.clear()
@@ -2307,7 +2318,7 @@ class ElectrumWindow(QMainWindow):
             return
 
         try:
-            mnemonic = self.wallet.get_mnemonic(password)
+            self.wallet.check_password(password)
         except Exception as e:
             QMessageBox.warning(self, _('Error'), str(e), _('OK'))
             return

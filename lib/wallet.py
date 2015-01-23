@@ -1728,10 +1728,11 @@ class Wallet(object):
         return w
 
     @classmethod
-    def from_private_key(self, text, storage):
+    def from_private_key(self, text, password, storage):
         w = Imported_Wallet(storage)
+        w.update_password(None, password)
         for x in text.split():
-            w.import_key(x, None)
+            w.import_key(x, password)
         return w
 
     @classmethod
