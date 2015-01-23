@@ -105,12 +105,12 @@ class Plugin(BasePlugin):
 
     @hook
     def load_wallet(self, wallet):
-        if self.listener is None:
-            self.listener = Listener(self)
-            self.listener.start()
         self.wallet = wallet
         if not self.is_available():
             return
+        if self.listener is None:
+            self.listener = Listener(self)
+            self.listener.start()
         mpk = self.wallet.get_master_public_keys()
         self.cosigner_list = []
         for key, xpub in mpk.items():
