@@ -1274,6 +1274,9 @@ class BIP32_Wallet(Deterministic_Wallet):
     def is_watching_only(self):
         return not bool(self.master_private_keys)
 
+    def can_import(self):
+        return False
+
     def get_master_public_key(self):
         return self.master_public_keys.get(self.root_name)
 
@@ -1481,9 +1484,6 @@ class Wallet_2of2(BIP32_Wallet, Mnemonic):
     root_name = "x1/"
     root_derivation = "m/"
     wallet_type = '2of2'
-
-    def can_import(self):
-        return False
 
     def create_main_account(self, password):
         xpub1 = self.master_public_keys.get("x1/")
