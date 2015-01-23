@@ -93,14 +93,9 @@ class Plugin(BasePlugin):
     def init_qt(self, gui):
         self.win = gui.main_window
         self.win.connect(self.win, SIGNAL('cosigner:receive'), self.on_receive)
-        if self.listener is None:
-            self.listener = Listener(self)
-            self.listener.start()
 
     def enable(self):
         self.set_enabled(True)
-        if self.win.wallet:
-            self.load_wallet(self.win.wallet)
         return True
 
     def is_available(self):
@@ -110,6 +105,9 @@ class Plugin(BasePlugin):
 
     @hook
     def load_wallet(self, wallet):
+        if self.listener is None:
+            self.listener = Listener(self)
+            self.listener.start()
         self.wallet = wallet
         if not self.is_available():
             return
