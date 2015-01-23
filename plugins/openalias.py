@@ -72,6 +72,8 @@ class Plugin(BasePlugin):
             return False
         url = str(self.win.payto_e.toPlainText())
 
+        url = url.replace('@', '.')
+
         if not '.' in url:
             return False
         else:
@@ -143,6 +145,8 @@ class Plugin(BasePlugin):
             return
 
         url = str(line1.text())
+        
+        url = url.replace('@', '.')
 
         if not '.' in url:
             QMessageBox.warning(self.win, _('Error'), _('Invalid URL'), _('OK'))
