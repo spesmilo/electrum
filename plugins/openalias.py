@@ -1,5 +1,6 @@
 from electrum_gui.qt.util import EnterButton
 from electrum.plugins import BasePlugin, hook
+from electrum.util import print_msg
 from electrum.i18n import _
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -43,6 +44,7 @@ class Plugin(BasePlugin):
         return OA_READY
 
     def __init__(self, gui, name):
+        print_msg('[OA] Initialiasing OpenAlias plugin, OA_READY is ' + str(OA_READY))
         BasePlugin.__init__(self, gui, name)
         self._is_available = OA_READY
 
@@ -82,9 +84,12 @@ class Plugin(BasePlugin):
         if not data:
             return True
 
+        (address, name) = data
+        self.win.payto_e.setText(address)
+
         if not self.validate_dnssec(url):
             msgBox = QMessageBox()
-            msgBox.setText(_('No valid DNSSEC trust chain!'))
+            msgBox.setText(_('WARNING: the address ' + address  + ' could not be validated via an additional security check, DNSSEC, and thus may not be correct.'))
             msgBox.setInformativeText(_('Do you wish to continue?'))
             msgBox.setStandardButtons(QMessageBox.Cancel | QMessageBox.Ok)
             msgBox.setDefaultButton(QMessageBox.Cancel)
@@ -92,8 +97,6 @@ class Plugin(BasePlugin):
             if reply != QMessageBox.Ok:
                 return True
 
-        (address, name) = data
-        self.win.payto_e.setText(address)
         if self.config.get('openalias_autoadd') == 'checked':
             self.win.wallet.add_contact(address, name)
         return False
@@ -150,17 +153,17 @@ class Plugin(BasePlugin):
         if not data:
             return
 
+        (address, name) = data
+
         if not self.validate_dnssec(url):
             msgBox = QMessageBox()
-            msgBox.setText("No valid DNSSEC trust chain!")
+            msgBox.setText(_('WARNING: the address ' + address  + ' could not be validated via an additional security check, DNSSEC, and thus may not be correct.'))
             msgBox.setInformativeText("Do you wish to continue?")
             msgBox.setStandardButtons(QMessageBox.Cancel | QMessageBox.Ok)
             msgBox.setDefaultButton(QMessageBox.Cancel)
             reply = msgBox.exec_()
             if reply != QMessageBox.Ok:
                 return
-
-        (address, name) = data
 
         d2 = QDialog(self.win)
         vbox2 = QVBoxLayout(d2)
@@ -196,15 +199,17 @@ class Plugin(BasePlugin):
 
     def resolve(self, url):
         '''Resolve OpenAlias address using url.'''
+        print_msg('[OA] Attempting to resolve OpenAlias data for ' + url)
+        
         prefix = 'btc'
         retries = 3
         err = None
         for i in range(0, retries):
             try:
                 resolver = dns.resolver.Resolver()
-                resolver.timeout = 15.0
-                resolver.lifetime = 15.0
-                records = resolver.query(url, 'TXT')
+                resolver.timeout = 2.0
+                resolver.lifetime = 2.0
+                records = resolver.query(url, dns.rdatatype.TXT)
                 for record in records:
                     string = record.strings[0]
                     if string.startswith('oa1:' + prefix):
@@ -215,10 +220,10 @@ class Plugin(BasePlugin):
                         return (address, name)
                 QMessageBox.warning(self.win, _('Error'), _('No OpenAlias record found.'), _('OK'))
                 return 0
-            except resolver.NXDOMAIN:
+            except dns.resolver.NXDOMAIN:
                 err = _('No such domain.')
                 continue
-            except resolver.Timeout:
+            except dns.resolver.Timeout:
                 err = _('Timed out while resolving.')
                 continue
             except DNSException:
@@ -240,48 +245,53 @@ class Plugin(BasePlugin):
             return None
 
     def validate_dnssec(self, url):
-        default = dns.resolver.get_default_resolver()
-        ns = default.nameservers[0]
-
-        parts = url.split('.')
-
-        for i in xrange(len(parts), 0, -1):
-            sub = '.'.join(parts[i - 1:])
-
-            query = dns.message.make_query(sub, dns.rdatatype.NS)
-            response = dns.query.udp(query, ns, 5)
-
-            if response.rcode() != dns.rcode.NOERROR:
-                return 0
-
-            if len(response.authority) > 0:
-                rrset = response.authority[0]
-            else:
-                rrset = response.answer[0]
-
-            rr = rrset[0]
-            if rr.rdtype == dns.rdatatype.SOA:
-                #Same server is authoritative, don't check again
-                continue
-
-            query = dns.message.make_query(sub,
-                                        dns.rdatatype.DNSKEY,
-                                        want_dnssec=True)
-            response = dns.query.udp(query, ns, 5)
-
-            if response.rcode() != 0:
-                return 0
-                # HANDLE QUERY FAILED (SERVER ERROR OR NO DNSKEY RECORD)
-
-            # answer should contain two RRSET: DNSKEY and RRSIG(DNSKEY)
-            answer = response.answer
-            if len(answer) != 2:
-                return 0
-
-            # the DNSKEY should be self signed, validate it
-            name = dns.name.from_text(sub)
-            try:
-                dns.dnssec.validate(answer[0], answer[1], {name: answer[0]})
-            except dns.dnssec.ValidationFailure:
-                return 0
+        print_msg('[OA] Checking DNSSEC trust chain for ' + url)
+        
+        try:
+            default = dns.resolver.get_default_resolver()
+            ns = default.nameservers[0]
+    
+            parts = url.split('.')
+    
+            for i in xrange(len(parts), 0, -1):
+                sub = '.'.join(parts[i - 1:])
+    
+                query = dns.message.make_query(sub, dns.rdatatype.NS)
+                response = dns.query.udp(query, ns, 1)
+    
+                if response.rcode() != dns.rcode.NOERROR:
+                    return 0
+    
+                if len(response.authority) > 0:
+                    rrset = response.authority[0]
+                else:
+                    rrset = response.answer[0]
+    
+                rr = rrset[0]
+                if rr.rdtype == dns.rdatatype.SOA:
+                    #Same server is authoritative, don't check again
+                    continue
+    
+                query = dns.message.make_query(sub,
+                                            dns.rdatatype.DNSKEY,
+                                            want_dnssec=True)
+                response = dns.query.udp(query, ns, 1)
+    
+                if response.rcode() != 0:
+                    return 0
+                    # HANDLE QUERY FAILED (SERVER ERROR OR NO DNSKEY RECORD)
+    
+                # answer should contain two RRSET: DNSKEY and RRSIG(DNSKEY)
+                answer = response.answer
+                if len(answer) != 2:
+                    return 0
+    
+                # the DNSKEY should be self signed, validate it
+                name = dns.name.from_text(sub)
+                try:
+                    dns.dnssec.validate(answer[0], answer[1], {name: answer[0]})
+                except dns.dnssec.ValidationFailure:
+                    return 0
+        except Exception,e:
+            return 0
         return 1
