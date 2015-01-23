@@ -1,3 +1,40 @@
+# Copyright (c) 2014-2015, The Monero Project
+# 
+# All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without modification, are
+# permitted provided that the following conditions are met:
+# 
+# 1. Redistributions of source code must retain the above copyright notice, this list of
+#    conditions and the following disclaimer.
+# 
+# 2. Redistributions in binary form must reproduce the above copyright notice, this list
+#    of conditions and the following disclaimer in the documentation and/or other
+#    materials provided with the distribution.
+# 
+# 3. Neither the name of the copyright holder nor the names of its contributors may be
+#    used to endorse or promote products derived from this software without specific
+#    prior written permission.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
+# THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
+# THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+# This plugin implements the OpenAlias standard. For information on the standard please
+# see: https://openalias.org
+
+# Donations for ongoing development of the standard and hosting resolvers can be sent to
+# openalias.org or donate.monero.cc
+
+# Version: 0.1
+# Todo: optionally use OA resolvers; add DNSCrypt support
+
 from electrum_gui.qt.util import EnterButton
 from electrum.plugins import BasePlugin, hook
 from electrum.util import print_msg
@@ -7,6 +44,8 @@ from PyQt4.QtCore import *
 
 import re
 
+# Import all of the rdtypes, as py2app and similar get confused with the dnspython
+# autoloader and won't include all the rdatatypes
 try:
     import dns.name
     import dns.query
@@ -72,12 +111,12 @@ class Plugin(BasePlugin):
             return False
         url = str(self.win.payto_e.toPlainText())
 
-        url = url.replace('@', '.')
+        url = url.replace('@', '.') # support email-style addresses, per the OA standard
 
         if not '.' in url:
             return False
         else:
-            if not OA_READY:
+            if not OA_READY: # handle a failed DNSPython load
                 QMessageBox.warning(self.win, _('Error'), 'Could not load DNSPython libraries, please ensure they are available and/or Electrum has been built correctly', _('OK'))
                 return False
 
@@ -219,6 +258,8 @@ class Plugin(BasePlugin):
                     if string.startswith('oa1:' + prefix):
                         address = self.find_regex(string, r'recipient_address=([A-Za-z0-9]+)')
                         name = self.find_regex(string, r'recipient_name=([^;]+)')
+                        if not name:
+                            name = address
                         if not address:
                             continue
                         return (address, name)
