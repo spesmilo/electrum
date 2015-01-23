@@ -481,6 +481,7 @@ class Plugin(BasePlugin):
             return 0
         # trustedcoin won't charge if the total inputs is lower than their fee
         price = int(self.price_per_tx.get(1))
+        assert price <= 50000
         if tx.input_value() < price:
             print_error("not charging for this tx")
             return 0
