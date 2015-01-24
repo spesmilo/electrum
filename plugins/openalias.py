@@ -113,12 +113,12 @@ class Plugin(BasePlugin):
 
         url = url.replace('@', '.') # support email-style addresses, per the OA standard
 
-        if not '.' in url:
-            return False
-        else:
+        if ('.' in url) and (not '<' in url) and (not ' ' in url):
             if not OA_READY: # handle a failed DNSPython load
                 QMessageBox.warning(self.win, _('Error'), 'Could not load DNSPython libraries, please ensure they are available and/or Electrum has been built correctly', _('OK'))
                 return False
+        else:
+            return False
 
         data = self.resolve(url)
 
@@ -126,7 +126,7 @@ class Plugin(BasePlugin):
             return True
 
         (address, name) = data
-        self.win.payto_e.setText(address)
+        self.win.payto_e.setText(url + ' <' + address + '>')
 
         if not self.validate_dnssec(url):
             msgBox = QMessageBox()
