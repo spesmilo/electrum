@@ -1,28 +1,33 @@
 # Release 2.0
 
- * New address derivation (BIP32 + BIP44).
+ * New address derivation (BIP32).
 
- * 8 bits of the seed phrase are used to store a version number. The
-   current version number (0x01) refers to the current wallet
-   structure (BIP44). The version number also serves as a checksum for
-   the seed, and it will prevent the import of seeds from incompatible
-   wallets.
+ * New seed phrase format: 8 bits of the seed phrase are used to store
+   a version number. The current version number (0x01) refers to the
+   default wallet structure. The version number also serves as a
+   checksum for the seed, and it will prevent the import of seeds from
+   incompatible wallets.
 
- * New serialization format for unsigned or partially signed
+ * Compact serialization format for unsigned or partially signed
    transactions, that includes the master public key and derivation
-   needed to sign inputs. This new format is compact enough to
-   send transactions to cold storage using QR codes
+   needed to sign inputs. This allows to send partially signed
+   transactions using QR codes
 
  * Deterministic Multisig wallets using parallel BIP32 derivations and
    P2SH addresses (2 of 2, 2 of 3).
 
- * New plugins:
+ * New plugins: 
+   - TrustedCoin: two-factor authentication using 2 of 3 multisig and
+     Google Authenticator
    - Trezor: support for the Trezor hardware wallet by SatoshiLabs
-   - Cosigner Pool: shared memory pool for partially signed transactions
+   - BTCChip: support for the BTCChip hardware wallet (aka HW1)
+   - Cosigner Pool: communication channel between cosigner wallets, to
+     send and receive partially signed transactions
+   - Audio Modem: send and receive transactions by sound
 
- * BIP70: verification of signed payment requests
-   - Verification is pure python, using tlslite.
-   - In the GUI, payment requests are in the 'Invoices' tab.
+ * Support for BIP70: payment requests
+   - Verification of the signature chain uses tlslite.
+   - In the GUI, payment requests are shown in the 'Invoices' tab.
 
  * New 'Receive' tab:
    - create and manage payment requests, with QR Codes
@@ -31,7 +36,7 @@
      window that pops up if you click on the QR code
 
  * The 'Send' tab in the Qt GUI supports transactions with multiple
-   outputs, and with OP_RETURN "message"
+   outputs, and raw hexadecimal scripts.
 
  * The GUI can use the daemon: "electrum -d". The daemon can serve
    several clients. It times out if no client uses if for more than 5

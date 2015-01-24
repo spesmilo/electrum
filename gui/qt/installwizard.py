@@ -58,7 +58,7 @@ class InstallWizard(QDialog):
         b1.setText(_("Create new wallet"))
         b1.setChecked(True)
         b2 = QRadioButton(gb1)
-        b2.setText(_("Restore an existing wallet"))
+        b2.setText(_("Restore or import a wallet"))
         group1 = QButtonGroup()
         group1.addButton(b1)
         group1.addButton(b2)
