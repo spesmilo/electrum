@@ -2507,7 +2507,7 @@ class ElectrumWindow(QMainWindow):
 
         with open(fileName, "w+") as f:
             if is_csv:
-                transaction = csv.writer(f)
+                transaction = csv.writer(f, lineterminator='\n')
                 transaction.writerow(["transaction_hash","label", "confirmations", "value", "fee", "balance", "timestamp"])
                 for line in lines:
                     transaction.writerow(line)
