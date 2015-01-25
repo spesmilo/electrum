@@ -106,10 +106,8 @@ class Plugin(BasePlugin):
         button.clicked.connect(handler)
 
     def _audio_interface(self):
-        return amodem.audio.Interface(
-            config=self.modem_config,
-            name=self.library_name
-        )
+        interface = amodem.audio.Interface(config=self.modem_config)
+        return interface.load(self.library_name)
 
     def _send(self, parent, blob):
         def sender_thread():
