@@ -203,6 +203,7 @@ class ElectrumWindow(QMainWindow):
 
     def close_wallet(self):
         self.wallet.stop_threads()
+        self.hide()
         run_hook('close_wallet')
 
     def load_wallet(self, wallet):
@@ -210,13 +211,17 @@ class ElectrumWindow(QMainWindow):
         self.wallet = wallet
         self.update_wallet_format()
         # address used to create a dummy transaction and estimate transaction fee
-        self.dummy_address = self.wallet.addresses(False)[0]
+        a = self.wallet.addresses(False)
+        self.dummy_address = a[0] if a else None
+
         self.invoices = self.wallet.storage.get('invoices', {})
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + os.path.basename(self.wallet.storage.path)
         if self.wallet.is_watching_only(): title += ' [%s]' % (_('watching only'))
         self.setWindowTitle( title )
+        self.update_history_tab()
+        self.show()
         self.update_wallet()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         self.notify_transactions()
@@ -308,6 +313,8 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.critical(None, "Error", _("File exists"))
             return
 
+        if self.wallet:
+            self.close_wallet()
         wizard = installwizard.InstallWizard(self.config, self.network, storage)
         wallet = wizard.run('new')
         if wallet:
