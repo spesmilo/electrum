@@ -36,6 +36,35 @@ if is_local:
 import __builtin__
 __builtin__.use_local_modules = is_local or is_android
 
+# pure-python dependencies need to be imported here for pyinstaller
+try:
+    import aes
+    import ecdsa
+    import socks
+    import requests
+    import six
+    import qrcode
+    import pyasn1
+    import pyasn1_modules
+    import tlslite
+    import pbkdf2
+except ImportError as e:
+    sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%e.message)
+
+# these imports must be redeclared for pyinstaller
+import pyasn1.codec
+import pyasn1.codec.der
+from pyasn1.codec.der import encoder, decoder
+from pyasn1_modules import rfc2459
+
+# test that we have the correct version of ecdsa
+try:
+    from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
+except Exception:
+    print "cannot import ecdsa.curve_secp256k1. You probably need to upgrade ecdsa.\nTry: sudo pip install --upgrade ecdsa"
+    exit()
+
+
 # load local module as electrum
 if __builtin__.use_local_modules:
     import imp

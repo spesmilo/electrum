@@ -20,21 +20,9 @@
 from datetime import datetime
 import sys
 
-try:
-    import pyasn1
-except ImportError:
-    sys.exit("Error: pyasn1 does not seem to be installed. Try 'sudo pip install pyasn1'")
-
-try:
-    import pyasn1_modules
-except ImportError:
-    sys.exit("Error: pyasn1 does not seem to be installed. Try 'sudo pip install pyasn1-modules'")
-
-try:
-    import tlslite
-except ImportError:
-    sys.exit("Error: tlslite does not seem to be installed. Try 'sudo pip install tlslite'")
-
+import pyasn1
+import pyasn1_modules
+import tlslite
 
 # workaround https://github.com/trevp/tlslite/issues/15
 tlslite.utils.cryptomath.pycryptoLoaded = False
