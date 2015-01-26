@@ -6,11 +6,11 @@ from i18n import _
 plugins = []
 
 
-def init_plugins(config):
+def init_plugins(config, local):
     import imp, pkgutil, __builtin__, os
     global plugins
 
-    if __builtin__.use_local_modules:
+    if local:
         fp, pathname, description = imp.find_module('plugins')
         plugin_names = [name for a, name, b in pkgutil.iter_modules([pathname])]
         plugin_names = filter( lambda name: os.path.exists(os.path.join(pathname,name+'.py')), plugin_names)

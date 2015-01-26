@@ -27,7 +27,8 @@ import time
 import traceback
 
 
-is_local = os.path.dirname(os.path.realpath(__file__)) == os.getcwd()
+is_bundle = getattr(sys, 'frozen', False)
+is_local = not is_bundle and os.path.dirname(os.path.realpath(__file__)) == os.getcwd()
 is_android = 'ANDROID_DATA' in os.environ
 
 if is_local:
@@ -66,7 +67,7 @@ except Exception:
 
 
 # load local module as electrum
-if __builtin__.use_local_modules:
+if is_bundle or is_local or is_android:
     import imp
     imp.load_module('electrum', *imp.find_module('lib'))
     imp.load_module('electrum_gui', *imp.find_module('gui'))
@@ -214,7 +215,7 @@ if __name__ == '__main__':
         cmd = args[0]
 
     if cmd == 'gui':
-        init_plugins(config)
+        init_plugins(config, is_bundle or is_local or is_android)
         gui_name = config.get('gui', 'classic')
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'
