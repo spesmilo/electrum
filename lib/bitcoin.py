@@ -34,7 +34,7 @@ except ImportError:
 try:
     import aes
 except ImportError:
-    sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
+    sys.exit("Error: AES does not seem to be installed. On Debian/Ubuntu try 'sudo apt-get install python-slowaes'")
 
 ################################## transactions
 

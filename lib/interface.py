@@ -19,9 +19,13 @@
 
 import random, ast, re, errno, os
 import threading, traceback, sys, time, json, Queue
-import socks
 import socket
 import ssl
+
+try:
+    import socks
+except ImportError:
+    sys.exit("Error: python-socks does not seem to be installed. Try 'sudo pip install pysocks'")
 
 import requests
 ca_path = requests.certs.where()

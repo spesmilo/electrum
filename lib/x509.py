@@ -28,7 +28,7 @@ except ImportError:
 try:
     import pyasn1_modules
 except ImportError:
-    sys.exit("Error: pyasn1 does not seem to be installed. Try 'sudo pip install pyasn1-modules'")
+    sys.exit("Error: pyasn1-modules does not seem to be installed. Try 'sudo apt-get install python-pyasn1-modules'")
 
 try:
     import tlslite

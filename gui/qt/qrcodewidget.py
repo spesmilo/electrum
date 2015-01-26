@@ -4,7 +4,12 @@ import PyQt4.QtCore as QtCore
 import PyQt4.QtGui as QtGui
 
 import os
-import qrcode
+import sys
+
+try:
+    import qrcode
+except ImportError:
+    sys.exit("Error: python-qrcode does not seem to be installed. Try 'sudo pip install qrcode'")
 
 import electrum
 from electrum import bmp
