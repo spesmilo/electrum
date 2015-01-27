@@ -26,13 +26,22 @@ import sys
 import time
 import traceback
 
+is_local = False
+is_android = False
 
-is_bundle = getattr(sys, 'frozen', False)
+if sys.platform == 'darwin':
+    is_bundle = getattr(sys, 'frozen') == "macosx_app"
+    if is_bundle:
+        sys.path.insert(0, os.getcwd() + "/lib/python2.7/packages")
+else:
+    is_bundle = getattr(sys, 'frozen', False)
+    is_local = not is_bundle and os.path.dirname(os.path.realpath(__file__)) == os.getcwd()
+    is_android = 'ANDROID_DATA' in os.environ
+    if is_local:
+        sys.path.append('packages')
+
 is_local = not is_bundle and os.path.dirname(os.path.realpath(__file__)) == os.getcwd()
 is_android = 'ANDROID_DATA' in os.environ
-
-if is_local:
-    sys.path.insert(0,'packages')
 
 import __builtin__
 __builtin__.use_local_modules = is_local or is_android
