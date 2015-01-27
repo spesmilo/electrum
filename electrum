@@ -81,11 +81,10 @@ if is_bundle or is_local or is_android:
 
 from electrum import util
 from electrum import SimpleConfig, Network, Wallet, WalletStorage, NetworkProxy, Commands, known_commands, pick_random_server
-from electrum.util import print_msg, print_stderr, print_json, set_verbosity, InvalidPassword
+from electrum.util import print_msg, print_error, print_stderr, print_json, set_verbosity, InvalidPassword
 from electrum.daemon import get_daemon
 from electrum.plugins import init_plugins
 
-#print_msg("ca_bundle", requests.utils.DEFAULT_CA_BUNDLE_PATH, os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH))
 
 # get password routine
 def prompt_password(prompt, confirm=True):
@@ -210,6 +209,7 @@ if __name__ == '__main__':
     set_verbosity(config_options.get('verbose'))
 
     config = SimpleConfig(config_options)
+    print_error("CA bundle:", requests.utils.DEFAULT_CA_BUNDLE_PATH, "found" if os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH) else "not found")
 
     if len(args) == 0:
         url = None
