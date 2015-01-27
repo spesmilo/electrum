@@ -31,7 +31,7 @@ import requests
 
 try:
     import paymentrequest_pb2
-except:
+except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto'")
 
 import bitcoin

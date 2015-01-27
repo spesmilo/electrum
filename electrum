@@ -32,7 +32,7 @@ is_local = not is_bundle and os.path.dirname(os.path.realpath(__file__)) == os.g
 is_android = 'ANDROID_DATA' in os.environ
 
 if is_local:
-    sys.path.append('packages')
+    sys.path.insert(0,'packages')
 
 import __builtin__
 __builtin__.use_local_modules = is_local or is_android
@@ -49,16 +49,22 @@ try:
     import pyasn1_modules
     import tlslite
     import pbkdf2
+    import google.protobuf
 except ImportError as e:
     sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%e.message)
 
-# these imports must be redeclared for pyinstaller
+# the following imports are for pyinstaller
 import pyasn1.codec
 import pyasn1.codec.der
 from pyasn1.codec.der import encoder, decoder
 from pyasn1_modules import rfc2459
+from google.protobuf import descriptor
+from google.protobuf import message
+from google.protobuf import reflection
+from google.protobuf import descriptor_pb2
 
-# test that we have the correct version of ecdsa
+
+# check that we have the correct version of ecdsa
 try:
     from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
 except Exception:
@@ -79,7 +85,7 @@ from electrum.util import print_msg, print_stderr, print_json, set_verbosity, In
 from electrum.daemon import get_daemon
 from electrum.plugins import init_plugins
 
-
+#print_msg("ca_bundle", requests.utils.DEFAULT_CA_BUNDLE_PATH, os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH))
 
 # get password routine
 def prompt_password(prompt, confirm=True):
