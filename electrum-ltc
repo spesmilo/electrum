@@ -26,13 +26,14 @@ import sys
 import time
 import traceback
 
-
 is_bundle = getattr(sys, 'frozen', False)
 is_local = not is_bundle and os.path.dirname(os.path.realpath(__file__)) == os.getcwd()
 is_android = 'ANDROID_DATA' in os.environ
 
 if is_local:
-    sys.path.append('packages')
+    sys.path.insert(0, 'packages')
+elif is_bundle and sys.platform=='darwin':
+    sys.path.insert(0, os.getcwd() + "/lib/python2.7/packages")
 
 import __builtin__
 __builtin__.use_local_modules = is_local or is_android
@@ -49,16 +50,22 @@ try:
     import pyasn1_modules
     import tlslite
     import pbkdf2
+    import google.protobuf
 except ImportError as e:
     sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%e.message)
 
-# these imports must be redeclared for pyinstaller
+# the following imports are for pyinstaller
 import pyasn1.codec
 import pyasn1.codec.der
 from pyasn1.codec.der import encoder, decoder
 from pyasn1_modules import rfc2459
+from google.protobuf import descriptor
+from google.protobuf import message
+from google.protobuf import reflection
+from google.protobuf import descriptor_pb2
 
-# test that we have the correct version of ecdsa
+
+# check that we have the correct version of ecdsa
 try:
     from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
 except Exception:
@@ -75,10 +82,9 @@ if is_bundle or is_local or is_android:
 
 from electrum_ltc import util
 from electrum_ltc import SimpleConfig, Network, Wallet, WalletStorage, NetworkProxy, Commands, known_commands, pick_random_server
-from electrum_ltc.util import print_msg, print_stderr, print_json, set_verbosity, InvalidPassword
+from electrum_ltc.util import print_msg, print_error, print_stderr, print_json, set_verbosity, InvalidPassword
 from electrum_ltc.daemon import get_daemon
 from electrum_ltc.plugins import init_plugins
-
 
 
 # get password routine
@@ -204,6 +210,7 @@ if __name__ == '__main__':
     set_verbosity(config_options.get('verbose'))
 
     config = SimpleConfig(config_options)
+    print_error("CA bundle:", requests.utils.DEFAULT_CA_BUNDLE_PATH, "found" if os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH) else "not found")
 
     if len(args) == 0:
         url = None
