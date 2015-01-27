@@ -93,7 +93,7 @@ class Plugin(BasePlugin):
     @hook
     def close_wallet(self):
         print_error("trezor: clear session")
-        if self.wallet.client:
+        if self.wallet and self.wallet.client:
             self.wallet.client.clear_session()
 
     @hook

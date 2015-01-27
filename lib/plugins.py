@@ -6,11 +6,11 @@ from i18n import _
 plugins = []
 
 
-def init_plugins(config):
+def init_plugins(config, local):
     import imp, pkgutil, __builtin__, os
     global plugins
 
-    if __builtin__.use_local_modules:
+    if local:
         fp, pathname, description = imp.find_module('plugins')
         plugin_names = [name for a, name, b in pkgutil.iter_modules([pathname])]
         plugin_names = filter( lambda name: os.path.exists(os.path.join(pathname,name+'.py')), plugin_names)
@@ -45,16 +45,17 @@ def run_hook(name, *args):
     for p, f in f_list:
         if name == 'load_wallet':
             p.wallet = args[0]
-        if not p.is_enabled():
-            continue
-        try:
-            r = f(*args)
-        except Exception:
-            print_error("Plugin error")
-            traceback.print_exc(file=sys.stdout)
-            r = False
-        if r:
-            results.append(r)
+        if p.is_enabled():
+            try:
+                r = f(*args)
+            except Exception:
+                print_error("Plugin error")
+                traceback.print_exc(file=sys.stdout)
+                r = False
+            if r:
+                results.append(r)
+        if name == 'close_wallet':
+            p.wallet = None
 
     if results:
         assert len(results) == 1, results
@@ -92,7 +93,11 @@ class BasePlugin:
 
     def init_qt(self, gui): pass
 
+    @hook
     def load_wallet(self, wallet): pass
+
+    @hook
+    def close_wallet(self): pass
 
     #def init(self): pass
 

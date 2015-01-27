@@ -27,18 +27,12 @@ import time
 import traceback
 import urllib2
 import urlparse
-
+import requests
 
 try:
     import paymentrequest_pb2
 except:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto'")
-
-try:
-    import requests
-except ImportError:
-    sys.exit("Error: requests does not seem to be installed. Try 'sudo pip install requests'")
-
 
 import bitcoin
 import util

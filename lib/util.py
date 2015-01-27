@@ -66,7 +66,11 @@ def data_dir():
     if __builtin__.use_local_modules:
         return local_data_dir()
     else:
-        return appdata_dir()
+        if getattr(sys, 'frozen'):
+            basedir = sys._MEIPASS
+            return os.path.join(basedir, 'data')
+        else:
+            return appdata_dir()
 
 def usr_share_dir():
     return os.path.join(sys.prefix, "share")
