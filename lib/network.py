@@ -234,11 +234,11 @@ class Network(threading.Thread):
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
         proxy_str = interface.serialize_proxy(proxy)
+        server_str = ':'.join([ host, port, protocol ])
         self.config.set_key('auto_cycle', auto_connect, True)
         self.config.set_key("proxy", proxy_str, True)
         self.config.set_key("protocol", protocol, True)
-        server = ':'.join([ host, port, protocol ])
-        self.config.set_key("server", server, True)
+        self.config.set_key("server", server_str, True)
 
         if self.proxy != proxy_str or self.protocol != protocol:
             print_error('restarting network')
@@ -256,7 +256,7 @@ class Network(threading.Thread):
                 if self.server_is_lagging():
                     self.stop_interface()
         else:
-            self.set_server(server)
+            self.set_server(server_str)
 
 
     def switch_to_random_interface(self):

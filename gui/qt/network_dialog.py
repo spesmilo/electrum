@@ -122,14 +122,15 @@ class NetworkDialog(QDialog):
                                          lambda x,y: self.server_changed(x))
         grid.addWidget(self.servers_list_widget, 1, 1, 1, 3)
 
-        if not config.is_modifiable('server'):
-            for w in [self.server_host, self.server_port, self.server_protocol, self.servers_list_widget]: w.setEnabled(False)
-
         def enable_set_server():
-            enabled = not self.autocycle_cb.isChecked()
-            self.server_host.setEnabled(enabled)
-            self.server_port.setEnabled(enabled)
-            self.servers_list_widget.setEnabled(enabled)
+            if config.is_modifiable('server'):
+                enabled = not self.autocycle_cb.isChecked()
+                self.server_host.setEnabled(enabled)
+                self.server_port.setEnabled(enabled)
+                self.servers_list_widget.setEnabled(enabled)
+            else:
+                for w in [self.autocycle_cb, self.server_host, self.server_port, self.server_protocol, self.servers_list_widget]:
+                    w.setEnabled(False)
 
         self.autocycle_cb.clicked.connect(enable_set_server)
         enable_set_server()
