@@ -39,6 +39,8 @@ proxy_modes = ['socks4', 'socks5', 'http']
 import util
 
 def serialize_proxy(p):
+    if type(p) != dict:
+        return None
     return ':'.join([p.get('mode'),p.get('host'), p.get('port')])
 
 def deserialize_proxy(s):
