@@ -1,4 +1,12 @@
-import threading, time, Queue, os, sys, shutil, random
+import threading
+import time
+import Queue
+import os
+import sys
+import random
+import traceback
+
+
 from util import user_dir, appdata_dir, print_error, print_msg
 from bitcoin import *
 import interface
@@ -360,6 +368,7 @@ class Network(threading.Thread):
                 out['result'] = f(*params)
             except BaseException as e:
                 out['error'] = str(e)
+                traceback.print_exc(file=sys.stout)
                 print_error("network error", str(e))
 
             self.response_queue.put(out)
