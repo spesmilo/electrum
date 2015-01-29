@@ -178,7 +178,7 @@ class Network(threading.Thread):
 
     def get_parameters(self):
         host, port, protocol = self.default_server.split(':')
-        proxy = self.proxy
+        proxy = interface.deserialize_proxy(self.proxy)
         auto_connect = self.config.get('auto_cycle', True)
         return host, port, protocol, proxy, auto_connect
 
@@ -225,14 +225,16 @@ class Network(threading.Thread):
         threading.Thread.start(self)
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
+        proxy_str = interface.serialize_proxy(proxy)
         self.config.set_key('auto_cycle', auto_connect, True)
-        self.config.set_key("proxy", proxy, True)
+        self.config.set_key("proxy", proxy_str, True)
         self.config.set_key("protocol", protocol, True)
         server = ':'.join([ host, port, protocol ])
         self.config.set_key("server", server, True)
 
-        if self.proxy != proxy or self.protocol != protocol:
-            self.proxy = proxy
+        if self.proxy != proxy_str or self.protocol != protocol:
+            print_error('restarting network')
+            self.proxy = proxy_str
             self.protocol = protocol
             for i in self.interfaces.values(): i.stop()
             if auto_connect:
