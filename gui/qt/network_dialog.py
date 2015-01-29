@@ -143,19 +143,18 @@ class NetworkDialog(QDialog):
         self.proxy_mode.addItems(['NONE', 'SOCKS4', 'SOCKS5', 'HTTP'])
 
         def check_for_disable(index = False):
-            if self.proxy_mode.currentText() != 'NONE':
-                self.proxy_host.setEnabled(True)
-                self.proxy_port.setEnabled(True)
+            if self.config.is_modifiable('proxy'):
+                if self.proxy_mode.currentText() != 'NONE':
+                    self.proxy_host.setEnabled(True)
+                    self.proxy_port.setEnabled(True)
+                else:
+                    self.proxy_host.setEnabled(False)
+                    self.proxy_port.setEnabled(False)
             else:
-                self.proxy_host.setEnabled(False)
-                self.proxy_port.setEnabled(False)
+                for w in [self.proxy_host, self.proxy_port, self.proxy_mode]: w.setEnabled(False)
 
         check_for_disable()
         self.proxy_mode.connect(self.proxy_mode, SIGNAL('currentIndexChanged(int)'), check_for_disable)
-
-        if not self.config.is_modifiable('proxy'):
-            for w in [self.proxy_host, self.proxy_port, self.proxy_mode]: w.setEnabled(False)
-
         self.proxy_mode.setCurrentIndex(self.proxy_mode.findText(str(proxy_config.get("mode").upper())))
         self.proxy_host.setText(proxy_config.get("host"))
         self.proxy_port.setText(proxy_config.get("port"))
