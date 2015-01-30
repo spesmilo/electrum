@@ -40,12 +40,13 @@ def hook(func):
 
 
 def run_hook(name, *args):
+    SPECIAL_HOOKS = ['add_wallet_types', 'get_wizard_action']
     results = []
     f_list = hooks.get(name,[])
     for p, f in f_list:
         if name == 'load_wallet':
             p.wallet = args[0]
-        if p.is_enabled():
+        if name in SPECIAL_HOOKS or p.is_enabled():
             try:
                 r = f(*args)
             except Exception:
