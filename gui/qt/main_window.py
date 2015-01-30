@@ -267,9 +267,31 @@ class ElectrumWindow(QMainWindow):
 
         # close current wallet
         self.close_wallet()
-        # load new wallet
-        wallet = Wallet(storage)
-        wallet.start_threads(self.network)
+
+        # read wizard action
+        try:
+            wallet = Wallet(storage)
+        except BaseException as e:
+            QMessageBox.warning(None, _('Warning'), str(e), _('OK'))
+            return
+        action = wallet.get_action()
+
+        # run wizard
+        if action is not None:
+            import installwizard
+            wizard = installwizard.InstallWizard(self.config, self.network, storage)
+            try:
+                wallet = wizard.run(action)
+            except BaseException as e:
+                traceback.print_exc(file=sys.stdout)
+                QMessageBox.information(None, _('Error'), str(e), _('OK'))
+                return
+            if not wallet:
+                return
+        else:
+            wallet.start_threads(self.network)
+
+        # load new wallet in gui
         self.load_wallet(wallet)
 
 
