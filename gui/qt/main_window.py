@@ -259,13 +259,14 @@ class ElectrumWindow(QMainWindow):
         filename = unicode( QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder) )
         if not filename:
             return
-
-        storage = WalletStorage({'wallet_path': filename})
-        if not storage.file_exists:
-            self.show_message("file not found "+ filename)
+        try:
+            storage = WalletStorage({'wallet_path': filename})
+        except Exception as e:
+            self.show_message(str(e))
             return
-
-
+        if not storage.file_exists:
+            self.show_message(_("File not found") + ' ' + filename)
+            return
         # read wizard action
         try:
             wallet = Wallet(storage)
@@ -273,15 +274,12 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(None, _('Warning'), str(e), _('OK'))
             return
         action = wallet.get_action()
-
         # ask for confirmation
         if action is not None:
             if not self.question(_("This file contains an incompletely created wallet.\nDo you want to complete its creation now?")):
                 return
-
         # close current wallet
         self.close_wallet()
-
         # run wizard
         if action is not None:
             import installwizard
@@ -296,7 +294,6 @@ class ElectrumWindow(QMainWindow):
                 return
         else:
             wallet.start_threads(self.network)
-
         # load new wallet in gui
         self.load_wallet(wallet)
 
