@@ -110,7 +110,7 @@ class SimpleConfig(object):
         out = None
         with self.lock:
             out = self.read_only_options.get(key)
-            if not out:
+            if out is None:
                 out = self.user_config.get(key, default)
         return out
 
