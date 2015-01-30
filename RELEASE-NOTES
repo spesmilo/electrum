@@ -20,9 +20,8 @@
    - TrustedCoin: two-factor authentication using 2 of 3 multisig and
      Google Authenticator
    - Trezor: support for the Trezor hardware wallet by SatoshiLabs
-   - BTCChip: support for the BTCChip hardware wallet (aka HW1)
-   - Cosigner Pool: communication channel between cosigner wallets, to
-     send and receive partially signed transactions
+   - Cosigner Pool: encrypted communication channel for multisig
+     wallets, to send and receive partially signed transactions
    - Audio Modem: send and receive transactions by sound
 
  * Support for BIP70: payment requests
@@ -46,6 +45,8 @@
    address of choice by entering a list of addresses in the install wizard
 
  * Wallet files are saved as JSON instead of Python.
+
+ * Client supports servers with SSL certificates signed by a CA.
 
  * Documentation is now hosted on a wiki: http://electrum.orain.org
 
