@@ -265,8 +265,6 @@ class ElectrumWindow(QMainWindow):
             self.show_message("file not found "+ filename)
             return
 
-        # close current wallet
-        self.close_wallet()
 
         # read wizard action
         try:
@@ -275,6 +273,14 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(None, _('Warning'), str(e), _('OK'))
             return
         action = wallet.get_action()
+
+        # ask for confirmation
+        if action is not None:
+            if not self.question(_("This file contains an incompletely created wallet.\nDo you want to complete its creation now?")):
+                return
+
+        # close current wallet
+        self.close_wallet()
 
         # run wizard
         if action is not None:
