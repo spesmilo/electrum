@@ -223,8 +223,8 @@ class Plugin(BasePlugin):
             + _("For more information, visit") + " <a href=\"https://api.trustedcoin.com/#/electrum-help\">https://api.trustedcoin.com/#/electrum-help</a>"
 
     def is_available(self):
-        if self.wallet is None:
-            return True
+        if not self.wallet:
+            return False
         if self.wallet.storage.get('wallet_type') == '2fa':
             return True
         return False
@@ -237,10 +237,6 @@ class Plugin(BasePlugin):
 
     def is_enabled(self):
         if not self.is_available():
-            return False
-        if not self.wallet:
-            return True
-        if self.wallet.storage.get('wallet_type') != '2fa':
             return False
         if self.wallet.master_private_keys.get('x2/'):
             return False

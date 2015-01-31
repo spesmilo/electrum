@@ -55,11 +55,13 @@ class Plugin(BasePlugin):
         return TREZOR
 
     def is_available(self):
-        if self.wallet is None:
-            return self._is_available
-        if self.wallet.storage.get('wallet_type') == 'trezor':
-            return True
-        return False
+        if not self._is_available:
+            return False
+        if not self.wallet:
+            return False
+        if self.wallet.storage.get('wallet_type') != 'trezor':
+            return False
+        return True
 
     def requires_settings(self):
         return self._requires_settings
@@ -70,11 +72,9 @@ class Plugin(BasePlugin):
     def is_enabled(self):
         if not self.is_available():
             return False
-
-        if not self.wallet or self.wallet.storage.get('wallet_type') == 'trezor':
-            return True
-
-        return self.wallet.storage.get('use_' + self.name) is True
+        if self.wallet.has_seed():
+            return False
+        return True
 
     def enable(self):
         return BasePlugin.enable(self)
@@ -98,9 +98,6 @@ class Plugin(BasePlugin):
 
     @hook
     def load_wallet(self, wallet):
-        self.wallet = wallet
-        if self.wallet.has_seed():
-            return
         if self.trezor_is_connected():
             if not self.wallet.check_proper_device():
                 QMessageBox.information(self.window, _('Error'), _("This wallet does not match your Trezor device"), _('OK'))

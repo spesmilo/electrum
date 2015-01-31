@@ -46,6 +46,9 @@ def run_hook(name, *args):
     for p, f in f_list:
         if name == 'load_wallet':
             p.wallet = args[0]
+        if name == 'init_qt':
+            gui = args[0]
+            p.window = gui.main_window
         if name in SPECIAL_HOOKS or p.is_enabled():
             try:
                 r = f(*args)
