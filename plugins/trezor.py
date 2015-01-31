@@ -99,22 +99,31 @@ class Plugin(BasePlugin):
     @hook
     def load_wallet(self, wallet):
         self.wallet = wallet
+        if self.wallet.has_seed():
+            return
         if self.trezor_is_connected():
             if not self.wallet.check_proper_device():
                 QMessageBox.information(self.window, _('Error'), _("This wallet does not match your Trezor device"), _('OK'))
+                self.wallet.force_watching_only = True
         else:
             QMessageBox.information(self.window, _('Error'), _("Trezor device not detected.\nContinuing in watching-only mode."), _('OK'))
+            self.wallet.force_watching_only = True
 
     @hook
     def installwizard_restore(self, wizard, storage):
         if storage.get('wallet_type') != 'trezor': 
             return
-        wallet = TrezorWallet(storage)
-        try:
-            wallet.create_main_account(None)
-        except BaseException as e:
-            QMessageBox.information(None, _('Error'), str(e), _('OK'))
+        seed = wizard.enter_seed_dialog("Enter your Trezor seed", None, func=lambda x:True)
+        if not seed:
             return
+        wallet = TrezorWallet(storage)
+        self.wallet = wallet
+        password = wizard.password_dialog()
+        wallet.add_seed(seed, password)
+        wallet.add_cosigner_seed(' '.join(seed.split()), 'x/', password)
+        wallet.create_main_account(password)
+        # disable trezor plugin
+        self.set_enabled(False)
         return wallet
 
     @hook
@@ -161,6 +170,8 @@ class Plugin(BasePlugin):
             return False
 
 
+from electrum.wallet import pw_decode, bip32_private_derivation, bip32_root
+
 class TrezorWallet(BIP32_HD_Wallet):
     wallet_type = 'trezor'
     root_derivation = "m/44'/0'"
@@ -171,6 +182,7 @@ class TrezorWallet(BIP32_HD_Wallet):
         self.client = None
         self.mpk = None
         self.device_checked = False
+        self.force_watching_only = False
 
     def get_action(self):
         if not self.accounts:
@@ -188,11 +200,8 @@ class TrezorWallet(BIP32_HD_Wallet):
     def can_change_password(self):
         return False
 
-    def has_seed(self):
-        return False
-
     def is_watching_only(self):
-        return False
+        return self.force_watching_only
 
     def get_client(self):
         if not TREZOR:
@@ -221,10 +230,23 @@ class TrezorWallet(BIP32_HD_Wallet):
     def create_main_account(self, password):
         self.create_account('Main account', None) #name, empty password
 
+    def mnemonic_to_seed(self, mnemonic, passphrase):
+        # trezor uses bip39
+        import pbkdf2, hashlib, hmac
+        PBKDF2_ROUNDS = 2048
+        mnemonic = ' '.join(mnemonic.split())
+        return pbkdf2.PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
+
     def derive_xkeys(self, root, derivation, password):
-        derivation = derivation.replace(self.root_name,"44'/0'/")
-        xpub = self.get_public_key(derivation)
-        return xpub, None
+        x = self.master_private_keys.get(root)
+        if x:
+            root_xprv = pw_decode(x, password)
+            xprv, xpub = bip32_private_derivation(root_xprv, root, derivation)
+            return xpub, xprv
+        else:
+            derivation = derivation.replace(self.root_name,"44'/0'/")
+            xpub = self.get_public_key(derivation)
+            return xpub, None
 
     def get_public_key(self, bip32_path):
         address_n = self.get_client().expand_path(bip32_path)
