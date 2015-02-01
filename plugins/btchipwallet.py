@@ -15,7 +15,7 @@ from electrum.bitcoin import EncodeBase58Check, DecodeBase58Check, public_key_to
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import deserialize
-from electrum.wallet import NewWallet
+from electrum.wallet import BIP32_HD_Wallet
 
 from electrum.util import format_satoshis
 import hashlib
@@ -52,12 +52,14 @@ class Plugin(BasePlugin):
     def _init(self):
         return BTCHIP
 
-    def is_available(self):
-        if self.wallet is None:
-            return self._is_available
-        if self.wallet.storage.get('wallet_type') == 'btchip':
-            return True
-        return False
+    def is_available(self):        
+        if not self._is_available:
+            return False
+        if not self.wallet:
+            return False
+        if self.wallet.storage.get('wallet_type') != 'btchip':
+            return False
+        return True
 
     def set_enabled(self, enabled):
         self.wallet.storage.put('use_' + self.name, enabled)
@@ -65,19 +67,30 @@ class Plugin(BasePlugin):
     def is_enabled(self):
         if not self.is_available():
             return False
-
-        if not self.wallet or self.wallet.storage.get('wallet_type') == 'btchip':
-            return True
-
-        return self.wallet.storage.get('use_' + self.name) is True
+        if self.wallet.has_seed():
+            return False
+        return True
 
     def enable(self):
         return BasePlugin.enable(self)
 
+    def btchip_is_connected(self):
+        try:
+            self.wallet.get_client().getFirmwareVersion()
+        except:
+            return False
+        return True
+
     @hook
     def load_wallet(self, wallet):
-        self.wallet = wallet
-
+        if self.btchip_is_connected():
+            if not self.wallet.check_proper_device():
+                QMessageBox.information(self.window, _('Error'), _("This wallet does not match your BTChip device"), _('OK'))
+                self.wallet.force_watching_only = True
+        else:
+            QMessageBox.information(self.window, _('Error'), _("BTChip device not detected.\nContinuing in watching-only mode."), _('OK'))
+            self.wallet.force_watching_only = True
+    
     @hook
     def installwizard_restore(self, wizard, storage):
         if storage.get('wallet_type') != 'btchip':
@@ -98,16 +111,18 @@ class Plugin(BasePlugin):
         except Exception as e:
             tx.error = str(e)
 
-class BTChipWallet(NewWallet):
+class BTChipWallet(BIP32_HD_Wallet):
     wallet_type = 'btchip'
+    root_derivation = "m/44'/0'"
 
     def __init__(self, storage):
-        NewWallet.__init__(self, storage)
+        BIP32_HD_Wallet.__init__(self, storage)
         self.transport = None
         self.client = None
         self.mpk = None
         self.device_checked = False
         self.signing = False
+        self.force_watching_only = False
 
     def give_error(self, message, clear_client = False):
         if not self.signing:
@@ -129,11 +144,8 @@ class BTChipWallet(NewWallet):
     def can_change_password(self):
         return False
 
-    def has_seed(self):
-        return False
-
     def is_watching_only(self):
-        return False
+        return self.force_watching_only
 
     def get_client(self, noPin=False):
         if not BTCHIP:
@@ -258,9 +270,6 @@ class BTChipWallet(NewWallet):
     def get_master_public_key(self):
         try:
             if not self.mpk:
-                self.get_client() # prompt for the PIN if necessary
-                if not self.check_proper_device():
-                    self.give_error('Wrong device or password')        
                 self.mpk = self.get_public_key("44'/0'")
             return self.mpk
         except Exception, e:
@@ -278,6 +287,7 @@ class BTChipWallet(NewWallet):
 
     def sign_message(self, address, message, password):
         use2FA = False
+        self.signing = True
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
         if not self.check_proper_device():
             self.give_error('Wrong device or password')        
@@ -298,11 +308,15 @@ class BTChipWallet(NewWallet):
                 self.get_client(True)
             signature = self.get_client().signMessageSign(pin)
         except Exception, e:
-            self.give_error(e, True)
+            if e.sw == 0x6a80:
+                self.give_error("Unfortunately, this message cannot be signed by BTChip. Only alphanumerical messages shorter than 140 characters are supported. Please remove any extra characters (tab, carriage return) and retry.")
+            else:                
+                self.give_error(e, True)
         finally:
             if waitDialog.waiting:
                 waitDialog.emit(SIGNAL('dongle_done'))
         self.client.bad = use2FA
+        self.signing = False
 
         # Parse the ASN.1 signature
 
