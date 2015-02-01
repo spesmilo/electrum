@@ -73,6 +73,7 @@ setup(
         'pyasn1-modules',
         'qrcode',
         'SocksiPy-branch',
+        'protobuf',
         'tlslite'
     ],
     package_dir={
