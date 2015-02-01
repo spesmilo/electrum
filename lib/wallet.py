@@ -1637,7 +1637,6 @@ class Wallet(object):
                 msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
             raise BaseException(msg)
 
-        run_hook('add_wallet_types', wallet_types)
         wallet_type = storage.get('wallet_type')
         if wallet_type:
             for cat, t, name, c in wallet_types:

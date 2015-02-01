@@ -15,4 +15,3 @@ recursive-include scripts *
 recursive-include data *
 recursive-include locale *.mo
 recursive-include docs *
-recursive-exclude plugins btchipwallet.py
