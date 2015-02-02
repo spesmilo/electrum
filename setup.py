@@ -74,6 +74,7 @@ setup(
         'qrcode',
         'SocksiPy-branch',
         'ltc_scrypt',
+        'protobuf',
         'tlslite'
     ],
     package_dir={
