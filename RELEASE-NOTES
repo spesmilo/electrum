@@ -50,6 +50,11 @@
 
  * Documentation is now hosted on a wiki: http://electrum.orain.org
 
+ * ECIES encrypt/decrypt methods, availabe in the GUI and using the
+   command line:
+      encrypt <pubkey> <message>
+      decrypt <pubkey> <message>
+
 
 
 # Release 1.9.8
