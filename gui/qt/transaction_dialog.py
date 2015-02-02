@@ -156,7 +156,7 @@ class TxDialog(QDialog):
                 self.broadcast_button.show()
         else:
             s, r = self.tx.signature_count()
-            status = _("Unsigned") if s == 0 else _('Partially signed (%d/%d)'%(s,r))
+            status = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
             time_str = None
             self.broadcast_button.hide()
             tx_hash = 'unknown'

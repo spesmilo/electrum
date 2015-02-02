@@ -1310,7 +1310,7 @@ class ElectrumWindow(QMainWindow):
         if not request_url:
             if label:
                 if self.wallet.labels.get(address) != label:
-                    if self.question(_('Save label "%s" for address %s ?'%(label,address))):
+                    if self.question(_('Save label "%(label)s" for address %(address)s ?'%{'label':label,'address':address})):
                         if address not in self.wallet.addressbook and not self.wallet.is_mine(address):
                             self.wallet.addressbook.append(address)
                             self.wallet.set_label(address, label)
