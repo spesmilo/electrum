@@ -35,7 +35,7 @@ class InstallWizard(QDialog):
         self.storage = storage
         self.setMinimumSize(575, 400)
         self.setMaximumSize(575, 400)
-        self.setWindowTitle('Electrum')
+        self.setWindowTitle('Electrum' + '  -  ' + os.path.basename(self.storage.path))
         self.connect(self, QtCore.SIGNAL('accept'), self.accept)
         self.stack = QStackedLayout()
         self.setLayout(self.stack)
