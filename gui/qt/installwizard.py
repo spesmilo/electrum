@@ -144,8 +144,6 @@ class InstallWizard(QDialog):
         vbox = QVBoxLayout()
         vbox0 = seed_dialog.show_seed_box(MSG_SHOW_MPK, xpub_hot, 'hot')
         vbox.addLayout(vbox0)
-        #seed_e0.setText(xpub_hot)
-        #seed_e0.setReadOnly(True)
         entries = []
         for i in range(n):
             vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_COLD_MPK, self, 'cold')
