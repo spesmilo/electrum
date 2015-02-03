@@ -1048,7 +1048,7 @@ class Abstract_Wallet(object):
             addr = bitcoin.public_key_to_bc_address(x_pubkey.decode('hex'))
             return self.is_mine(addr)
         elif x_pubkey[0:2] == 'ff':
-            if isinstance(self, OldWallet): return False
+            if not isinstance(self, BIP32_Wallet): return False
             xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
             return xpub in [ self.master_public_keys[k] for k in self.master_private_keys.keys() ]
         elif x_pubkey[0:2] == 'fe':
