@@ -1142,17 +1142,15 @@ class Deterministic_Wallet(Abstract_Wallet):
         if value >= self.gap_limit:
             self.gap_limit = value
             self.storage.put('gap_limit', self.gap_limit, True)
-            #self.interface.poke('synchronizer')
             return True
 
         elif value >= self.min_acceptable_gap():
             for key, account in self.accounts.items():
-                addresses = account[0]
+                addresses = account.get_addresses(False)
                 k = self.num_unused_trailing_addresses(addresses)
                 n = len(addresses) - k + value
-                addresses = addresses[0:n]
-                self.accounts[key][0] = addresses
-
+                account.receiving_pubkeys = account.receiving_pubkeys[0:n]
+                account.receiving_addresses = account.receiving_addresses[0:n]
             self.gap_limit = value
             self.storage.put('gap_limit', self.gap_limit, True)
             self.save_accounts()
