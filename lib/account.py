@@ -76,7 +76,7 @@ class Account(object):
         return None
 
     def synchronize_sequence(self, wallet, for_change):
-        limit = self.gap_limit_for_change if for_change else self.gap_limit
+        limit = wallet.gap_limit_for_change if for_change else wallet.gap_limit
         while True:
             addresses = self.get_addresses(for_change)
             if len(addresses) < limit:
@@ -175,13 +175,10 @@ class ImportedAccount(Account):
 
 class OldAccount(Account):
     """  Privatekey(type,n) = Master_private_key + H(n|S|type)  """
-    gap_limit = 5
-    gap_limit_for_change = 3
 
     def __init__(self, v):
         Account.__init__(self, v)
         self.mpk = v['mpk'].decode('hex')
-
 
     @classmethod
     def mpk_from_seed(klass, seed):
@@ -274,8 +271,6 @@ class OldAccount(Account):
 
 
 class BIP32_Account(Account):
-    gap_limit = 20
-    gap_limit_for_change = 3
 
     def __init__(self, v):
         Account.__init__(self, v)
