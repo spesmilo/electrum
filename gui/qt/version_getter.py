@@ -75,7 +75,10 @@ class UpdateLabel(QLabel):
     def compare_versions(self, version1, version2):
         def normalize(v):
             return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
-        return cmp(normalize(version1), normalize(version2))
+        try:
+            return cmp(normalize(version1), normalize(version2))
+        except:
+            return 0
 
     def ignore_this_version(self):
         self.setText("")
