@@ -1634,9 +1634,19 @@ class Wallet(object):
             seed_version = OLD_SEED_VERSION if len(storage.get('master_public_key','')) == 128 else NEW_SEED_VERSION
 
         if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:
-            msg = "This wallet seed is not supported anymore."
+            msg = "Your wallet has an unsupported seed version."
+            msg += '\n\nWallet file: %s' % os.path.abspath(storage.path)
             if seed_version in [5, 7, 8, 9, 10]:
-                msg += "\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
+                msg += "\n\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
+            if seed_version == 6:
+                # version 1.9.8 created v6 wallets when an incorrect seed was entered in the restore dialog
+                msg += '\n\nThis file was created because of a bug in version 1.9.8.'
+                if storage.get('master_public_keys') is None and storage.get('master_private_keys') is None and storage.get('imported_keys') is None:
+                    # pbkdf2 was not included with the binaries, and wallet creation aborted.
+                    msg += "\nIt does not contain any keys, and can safely be removed."
+                else:
+                    # creation was complete if electrum was run from source
+                    msg += "\nPlease open this file with Electrum 1.9.8, and move your coins to a new wallet."
             raise BaseException(msg)
 
         wallet_type = storage.get('wallet_type')
