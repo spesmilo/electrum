@@ -51,6 +51,8 @@ def strip_PKCS7_padding(s):
         raise ValueError("Invalid PKCS7 padding")
     return s[:-numpads]
 
+# backport padding fix to AES module
+aes.strip_PKCS7_padding = strip_PKCS7_padding
 
 def aes_encrypt_with_iv(key, iv, data):
     mode = aes.AESModeOfOperation.modeOfOperation["CBC"]
