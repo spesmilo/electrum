@@ -65,7 +65,7 @@ setup(
     name="Electrum",
     version=version.ELECTRUM_VERSION,
     install_requires=[
-        'slowaes',
+        'slowaes>=0.1a1',
         'ecdsa>=0.9',
         'pbkdf2',
         'requests',
