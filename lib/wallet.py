@@ -1264,12 +1264,12 @@ class Deterministic_Wallet(Abstract_Wallet):
 class BIP32_Wallet(Deterministic_Wallet):
     # abstract class, bip32 logic
     root_name = 'x/'
-    gap_limit = 20
 
     def __init__(self, storage):
         Deterministic_Wallet.__init__(self, storage)
         self.master_public_keys  = storage.get('master_public_keys', {})
         self.master_private_keys = storage.get('master_private_keys', {})
+        self.gap_limit = storage.get('gap_limit', 20)
 
     def is_watching_only(self):
         return not bool(self.master_private_keys)
@@ -1539,7 +1539,6 @@ class Wallet_2of3(Wallet_2of2):
 
 class OldWallet(Deterministic_Wallet):
     wallet_type = 'old'
-    gap_limit = 5
 
     def __init__(self, storage):
         Deterministic_Wallet.__init__(self, storage)
