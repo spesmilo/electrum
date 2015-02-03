@@ -69,8 +69,7 @@ from google.protobuf import descriptor_pb2
 try:
     from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
 except Exception:
-    print "cannot import ecdsa.curve_secp256k1. You probably need to upgrade ecdsa.\nTry: sudo pip install --upgrade ecdsa"
-    exit()
+    sys.exit("cannot import ecdsa.curve_secp256k1. You probably need to upgrade ecdsa.\nTry: sudo pip install --upgrade ecdsa")
 
 
 # load local module as electrum
