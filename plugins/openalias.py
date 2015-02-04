@@ -1,21 +1,21 @@
 # Copyright (c) 2014-2015, The Monero Project
-# 
+#
 # All rights reserved.
-# 
+#
 # Redistribution and use in source and binary forms, with or without modification, are
 # permitted provided that the following conditions are met:
-# 
+#
 # 1. Redistributions of source code must retain the above copyright notice, this list of
 #    conditions and the following disclaimer.
-# 
+#
 # 2. Redistributions in binary form must reproduce the above copyright notice, this list
 #    of conditions and the following disclaimer in the documentation and/or other
 #    materials provided with the distribution.
-# 
+#
 # 3. Neither the name of the copyright holder nor the names of its contributors may be
 #    used to endorse or promote products derived from this software without specific
 #    prior written permission.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
 # EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 # MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
@@ -99,6 +99,36 @@ class Plugin(BasePlugin):
         return EnterButton(_('Settings'), self.settings_dialog)
 
     @hook
+    def timer_actions(self):
+        if self.win.payto_e.hasFocus():
+            return
+        if self.win.payto_e.is_multiline():  # only supports single line entries atm
+            return
+        url = str(self.win.payto_e.toPlainText())
+        if url == self.win.previous_payto_e:
+            return
+        self.win.previous_payto_e = url
+        url = url.replace('@', '.')  # support email-style addresses, per the OA standard
+
+        if ('.' in url) and (not '<' in url) and (not ' ' in url):
+            if not OA_READY:  # handle a failed DNSPython load
+                QMessageBox.warning(self.win, _('Error'), 'Could not load DNSPython libraries, please ensure they are available and/or Electrum has been built correctly', _('OK'))
+                return
+        else:
+            return
+
+        data = self.resolve(url)
+
+        if not data:
+            self.win.previous_payto_e = url
+            return True
+
+        (address, name) = data
+        new_url = url + ' <' + address + '>'
+        self.win.payto_e.setText(new_url)
+        self.win.previous_payto_e = new_url
+
+    @hook
     def before_send(self):
         '''
         Change URL to address before making a send.
@@ -109,28 +139,20 @@ class Plugin(BasePlugin):
 
         if self.win.payto_e.is_multiline():  # only supports single line entries atm
             return False
-        url = str(self.win.payto_e.toPlainText())
-
-        url = url.replace('@', '.') # support email-style addresses, per the OA standard
-
-        if ('.' in url) and (not '<' in url) and (not ' ' in url):
-            if not OA_READY: # handle a failed DNSPython load
-                QMessageBox.warning(self.win, _('Error'), 'Could not load DNSPython libraries, please ensure they are available and/or Electrum has been built correctly', _('OK'))
-                return False
-        else:
+        payto_e = str(self.win.payto_e.toPlainText())
+        regex = re.compile(r'^([^\s]+) <([A-Za-z0-9]+)>')  # only do that for converted addresses
+        try:
+            (url, address) = regex.search(payto_e).groups()
+        except AttributeError:
             return False
 
-        data = self.resolve(url)
-
-        if not data:
+        if not OA_READY:  # handle a failed DNSPython load
+            QMessageBox.warning(self.win, _('Error'), 'Could not load DNSPython libraries, please ensure they are available and/or Electrum has been built correctly', _('OK'))
             return True
-
-        (address, name) = data
-        self.win.payto_e.setText(url + ' <' + address + '>')
 
         if not self.validate_dnssec(url):
             msgBox = QMessageBox()
-            msgBox.setText(_('WARNING: the address ' + address  + ' could not be validated via an additional security check, DNSSEC, and thus may not be correct.'))
+            msgBox.setText(_('WARNING: the address ' + address + ' could not be validated via an additional security check, DNSSEC, and thus may not be correct.'))
             msgBox.setInformativeText(_('Do you wish to continue?'))
             msgBox.setStandardButtons(QMessageBox.Cancel | QMessageBox.Ok)
             msgBox.setDefaultButton(QMessageBox.Cancel)
@@ -184,7 +206,7 @@ class Plugin(BasePlugin):
             return
 
         url = str(line1.text())
-        
+
         url = url.replace('@', '.')
 
         if not '.' in url:
@@ -200,7 +222,7 @@ class Plugin(BasePlugin):
 
         if not self.validate_dnssec(url):
             msgBox = QMessageBox()
-            msgBox.setText(_('WARNING: the address ' + address  + ' could not be validated via an additional security check, DNSSEC, and thus may not be correct.'))
+            msgBox.setText(_('WARNING: the address ' + address + ' could not be validated via an additional security check, DNSSEC, and thus may not be correct.'))
             msgBox.setInformativeText("Do you wish to continue?")
             msgBox.setStandardButtons(QMessageBox.Cancel | QMessageBox.Ok)
             msgBox.setDefaultButton(QMessageBox.Cancel)
@@ -243,7 +265,7 @@ class Plugin(BasePlugin):
     def resolve(self, url):
         '''Resolve OpenAlias address using url.'''
         print_msg('[OA] Attempting to resolve OpenAlias data for ' + url)
-        
+
         prefix = 'btc'
         retries = 3
         err = None
@@ -274,7 +296,7 @@ class Plugin(BasePlugin):
             except DNSException:
                 err = _('Unhandled exception.')
                 continue
-            except Exception,e:
+            except Exception, e:
                 err = _('Unexpected error: ' + str(e))
                 continue
             break
@@ -291,52 +313,52 @@ class Plugin(BasePlugin):
 
     def validate_dnssec(self, url):
         print_msg('[OA] Checking DNSSEC trust chain for ' + url)
-        
+
         try:
             default = dns.resolver.get_default_resolver()
             ns = default.nameservers[0]
-    
+
             parts = url.split('.')
-    
+
             for i in xrange(len(parts), 0, -1):
                 sub = '.'.join(parts[i - 1:])
-    
+
                 query = dns.message.make_query(sub, dns.rdatatype.NS)
                 response = dns.query.udp(query, ns, 1)
-    
+
                 if response.rcode() != dns.rcode.NOERROR:
                     return 0
-    
+
                 if len(response.authority) > 0:
                     rrset = response.authority[0]
                 else:
                     rrset = response.answer[0]
-    
+
                 rr = rrset[0]
                 if rr.rdtype == dns.rdatatype.SOA:
                     #Same server is authoritative, don't check again
                     continue
-    
+
                 query = dns.message.make_query(sub,
                                             dns.rdatatype.DNSKEY,
                                             want_dnssec=True)
                 response = dns.query.udp(query, ns, 1)
-    
+
                 if response.rcode() != 0:
                     return 0
                     # HANDLE QUERY FAILED (SERVER ERROR OR NO DNSKEY RECORD)
-    
+
                 # answer should contain two RRSET: DNSKEY and RRSIG(DNSKEY)
                 answer = response.answer
                 if len(answer) != 2:
                     return 0
-    
+
                 # the DNSKEY should be self signed, validate it
                 name = dns.name.from_text(sub)
                 try:
                     dns.dnssec.validate(answer[0], answer[1], {name: answer[0]})
                 except dns.dnssec.ValidationFailure:
                     return 0
-        except Exception,e:
+        except Exception, e:
             return 0
         return 1
