@@ -15,8 +15,7 @@ import platform
 
 try:
     import amodem.audio
-    import amodem.recv
-    import amodem.send
+    import amodem.main
     import amodem.config
     print_error('Audio MODEM is available.')
     amodem.log.addHandler(amodem.logging.StreamHandler(sys.stderr))
@@ -115,7 +114,7 @@ class Plugin(BasePlugin):
                 with self._audio_interface() as interface:
                     src = BytesIO(blob)
                     dst = interface.player()
-                    amodem.send.main(config=self.modem_config, src=src, dst=dst)
+                    amodem.main.send(config=self.modem_config, src=src, dst=dst)
             except Exception:
                 traceback.print_exc()
 
@@ -132,7 +131,7 @@ class Plugin(BasePlugin):
                 with self._audio_interface() as interface:
                     src = interface.recorder()
                     dst = BytesIO()
-                    amodem.recv.main(config=self.modem_config, src=src, dst=dst)
+                    amodem.main.recv(config=self.modem_config, src=src, dst=dst)
                     return dst.getvalue()
             except Exception:
                 traceback.print_exc()
