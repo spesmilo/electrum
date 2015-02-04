@@ -14,7 +14,7 @@ if [ -e ./env/bin/activate ]; then
 else
 	virtualenv env
 	source ./env/bin/activate
-	pip install slowaes 'ecdsa>=0.9' pbkdf2 requests pyasn1 pyasn1-modules qrcode SocksiPy-branch protobuf tlslite
+	python setup.py install
 fi
 
 export PYTHONPATH=/usr/local/lib/python2.7/site-packages:$PYTHONPATH
