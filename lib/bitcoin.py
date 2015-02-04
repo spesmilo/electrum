@@ -26,15 +26,8 @@ import hmac
 import version
 from util import print_error, InvalidPassword
 
-try:
-    import ecdsa
-except ImportError:
-    sys.exit("Error: python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'")
-
-try:
-    import aes
-except ImportError:
-    sys.exit("Error: AES does not seem to be installed. Try 'sudo pip install slowaes'")
+import ecdsa
+import aes
 
 ################################## transactions
 
@@ -58,6 +51,8 @@ def strip_PKCS7_padding(s):
         raise ValueError("Invalid PKCS7 padding")
     return s[:-numpads]
 
+# backport padding fix to AES module
+aes.strip_PKCS7_padding = strip_PKCS7_padding
 
 def aes_encrypt_with_iv(key, iv, data):
     mode = aes.AESModeOfOperation.modeOfOperation["CBC"]
@@ -401,12 +396,7 @@ def is_private_key(key):
 
 ########### end pywallet functions #######################
 
-try:
-    from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
-except Exception:
-    print "cannot import ecdsa.curve_secp256k1. You probably need to upgrade ecdsa.\nTry: sudo pip install --upgrade ecdsa"
-    exit()
-
+from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
 from ecdsa.curves import SECP256k1
 from ecdsa.ellipticcurve import Point
 from ecdsa.util import string_to_number, number_to_string

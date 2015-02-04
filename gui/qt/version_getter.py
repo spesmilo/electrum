@@ -33,7 +33,7 @@ class VersionGetter(threading.Thread):
 
     def run(self):
         try:
-            con = httplib.HTTPConnection('electrum.org', 80, timeout=5)
+            con = httplib.HTTPSConnection('electrum.org', timeout=5)
             con.request("GET", "/version")
             res = con.getresponse()
         except socket.error as msg:
@@ -75,7 +75,10 @@ class UpdateLabel(QLabel):
     def compare_versions(self, version1, version2):
         def normalize(v):
             return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
-        return cmp(normalize(version1), normalize(version2))
+        try:
+            return cmp(normalize(version1), normalize(version2))
+        except:
+            return 0
 
     def ignore_this_version(self):
         self.setText("")

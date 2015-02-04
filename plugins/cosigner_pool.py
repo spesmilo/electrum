@@ -93,14 +93,9 @@ class Plugin(BasePlugin):
     def init_qt(self, gui):
         self.win = gui.main_window
         self.win.connect(self.win, SIGNAL('cosigner:receive'), self.on_receive)
-        if self.listener is None:
-            self.listener = Listener(self)
-            self.listener.start()
 
     def enable(self):
         self.set_enabled(True)
-        if self.win.wallet:
-            self.load_wallet(self.win.wallet)
         return True
 
     def is_available(self):
@@ -113,6 +108,9 @@ class Plugin(BasePlugin):
         self.wallet = wallet
         if not self.is_available():
             return
+        if self.listener is None:
+            self.listener = Listener(self)
+            self.listener.start()
         mpk = self.wallet.get_master_public_keys()
         self.cosigner_list = []
         for key, xpub in mpk.items():

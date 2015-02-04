@@ -96,20 +96,21 @@ class PayToEdit(ScanQRTextEdit):
         self.errors = []
         if self.is_pr:
             return
-
         # filter out empty lines
         lines = filter( lambda x: x, self.lines())
         outputs = []
         total = 0
-
         self.payto_address = None
 
         if len(lines) == 1:
+            data = lines[0]
+            if data.startswith("bitcoin:"):
+                self.scan_f(data)
+                return
             try:
-                self.payto_address = self.parse_address(lines[0])
+                self.payto_address = self.parse_address(data)
             except:
                 pass
-
             if self.payto_address:
                 self.unlock_amount()
                 return

@@ -35,7 +35,7 @@ class InstallWizard(QDialog):
         self.storage = storage
         self.setMinimumSize(575, 400)
         self.setMaximumSize(575, 400)
-        self.setWindowTitle('Electrum')
+        self.setWindowTitle('Electrum' + '  -  ' + os.path.basename(self.storage.path))
         self.connect(self, QtCore.SIGNAL('accept'), self.accept)
         self.stack = QStackedLayout()
         self.setLayout(self.stack)
@@ -142,10 +142,8 @@ class InstallWizard(QDialog):
 
     def multi_mpk_dialog(self, xpub_hot, n):
         vbox = QVBoxLayout()
-        vbox0, seed_e0 = seed_dialog.enter_seed_box(MSG_SHOW_MPK, self, 'hot')
+        vbox0 = seed_dialog.show_seed_box(MSG_SHOW_MPK, xpub_hot, 'hot')
         vbox.addLayout(vbox0)
-        seed_e0.setText(xpub_hot)
-        seed_e0.setReadOnly(True)
         entries = []
         for i in range(n):
             vbox2, seed_e2 = seed_dialog.enter_seed_box(MSG_ENTER_COLD_MPK, self, 'cold')
@@ -308,7 +306,7 @@ class InstallWizard(QDialog):
 
 
     def show_seed(self, seed, sid):
-        vbox = seed_dialog.show_seed_box(seed, sid)
+        vbox = seed_dialog.show_seed_box_msg(seed, sid)
         vbox.addLayout(ok_cancel_buttons(self, _("Next")))
         self.set_layout(vbox)
         return self.exec_()

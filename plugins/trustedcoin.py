@@ -223,8 +223,8 @@ class Plugin(BasePlugin):
             + _("For more information, visit") + " <a href=\"https://api.trustedcoin.com/#/electrum-help\">https://api.trustedcoin.com/#/electrum-help</a>"
 
     def is_available(self):
-        if self.wallet is None:
-            return True
+        if not self.wallet:
+            return False
         if self.wallet.storage.get('wallet_type') == '2fa':
             return True
         return False
@@ -237,10 +237,6 @@ class Plugin(BasePlugin):
 
     def is_enabled(self):
         if not self.is_available():
-            return False
-        if not self.wallet:
-            return True
-        if self.wallet.storage.get('wallet_type') != '2fa':
             return False
         if self.wallet.master_private_keys.get('x2/'):
             return False
@@ -344,15 +340,13 @@ class Plugin(BasePlugin):
 
     @hook
     def load_wallet(self, wallet):
-        self.wallet = wallet
-        if self.is_enabled():
-            self.trustedcoin_button = StatusBarButton( QIcon(":icons/trustedcoin.png"), _("Network"), self.settings_dialog)
-            self.window.statusBar().addPermanentWidget(self.trustedcoin_button)
-            self.xpub = self.wallet.master_public_keys.get('x1/')
-            self.user_id = self.get_user_id()[1]
-            t = threading.Thread(target=self.request_billing_info)
-            t.setDaemon(True)
-            t.start()
+        self.trustedcoin_button = StatusBarButton( QIcon(":icons/trustedcoin.png"), _("Network"), self.settings_dialog)
+        self.window.statusBar().addPermanentWidget(self.trustedcoin_button)
+        self.xpub = self.wallet.master_public_keys.get('x1/')
+        self.user_id = self.get_user_id()[1]
+        t = threading.Thread(target=self.request_billing_info)
+        t.setDaemon(True)
+        t.start()
 
     @hook
     def close_wallet(self):
@@ -481,6 +475,7 @@ class Plugin(BasePlugin):
             return 0
         # trustedcoin won't charge if the total inputs is lower than their fee
         price = int(self.price_per_tx.get(1))
+        assert price <= 100000
         if tx.input_value() < price:
             print_error("not charging for this tx")
             return 0

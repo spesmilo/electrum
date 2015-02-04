@@ -122,14 +122,15 @@ class NetworkDialog(QDialog):
                                          lambda x,y: self.server_changed(x))
         grid.addWidget(self.servers_list_widget, 1, 1, 1, 3)
 
-        if not config.is_modifiable('server'):
-            for w in [self.server_host, self.server_port, self.server_protocol, self.servers_list_widget]: w.setEnabled(False)
-
         def enable_set_server():
-            enabled = not self.autocycle_cb.isChecked()
-            self.server_host.setEnabled(enabled)
-            self.server_port.setEnabled(enabled)
-            self.servers_list_widget.setEnabled(enabled)
+            if config.is_modifiable('server'):
+                enabled = not self.autocycle_cb.isChecked()
+                self.server_host.setEnabled(enabled)
+                self.server_port.setEnabled(enabled)
+                self.servers_list_widget.setEnabled(enabled)
+            else:
+                for w in [self.autocycle_cb, self.server_host, self.server_port, self.server_protocol, self.servers_list_widget]:
+                    w.setEnabled(False)
 
         self.autocycle_cb.clicked.connect(enable_set_server)
         enable_set_server()
@@ -143,19 +144,18 @@ class NetworkDialog(QDialog):
         self.proxy_mode.addItems(['NONE', 'SOCKS4', 'SOCKS5', 'HTTP'])
 
         def check_for_disable(index = False):
-            if self.proxy_mode.currentText() != 'NONE':
-                self.proxy_host.setEnabled(True)
-                self.proxy_port.setEnabled(True)
+            if self.config.is_modifiable('proxy'):
+                if self.proxy_mode.currentText() != 'NONE':
+                    self.proxy_host.setEnabled(True)
+                    self.proxy_port.setEnabled(True)
+                else:
+                    self.proxy_host.setEnabled(False)
+                    self.proxy_port.setEnabled(False)
             else:
-                self.proxy_host.setEnabled(False)
-                self.proxy_port.setEnabled(False)
+                for w in [self.proxy_host, self.proxy_port, self.proxy_mode]: w.setEnabled(False)
 
         check_for_disable()
         self.proxy_mode.connect(self.proxy_mode, SIGNAL('currentIndexChanged(int)'), check_for_disable)
-
-        if not self.config.is_modifiable('proxy'):
-            for w in [self.proxy_host, self.proxy_port, self.proxy_mode]: w.setEnabled(False)
-
         self.proxy_mode.setCurrentIndex(self.proxy_mode.findText(str(proxy_config.get("mode").upper())))
         self.proxy_host.setText(proxy_config.get("host"))
         self.proxy_port.setText(proxy_config.get("port"))

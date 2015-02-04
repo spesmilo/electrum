@@ -38,6 +38,30 @@ proxy_modes = ['socks4', 'socks5', 'http']
 
 import util
 
+def serialize_proxy(p):
+    if type(p) != dict:
+        return None
+    return ':'.join([p.get('mode'),p.get('host'), p.get('port')])
+
+def deserialize_proxy(s):
+    if type(s) != str:
+        return None
+    if s.lower() == 'none':
+        return None
+    proxy = { "mode":"socks5", "host":"localhost" }
+    args = s.split(':')
+    n = 0
+    if proxy_modes.count(args[n]) == 1:
+        proxy["mode"] = args[n]
+        n += 1
+    if len(args) > n:
+        proxy["host"] = args[n]
+        n += 1
+    if len(args) > n:
+        proxy["port"] = args[n]
+    else:
+        proxy["port"] = "8080" if proxy["mode"] == "http" else "1080"
+    return proxy
 
 
 def Interface(server, config = None):
@@ -68,7 +92,7 @@ class TcpInterface(threading.Thread):
         self.host, self.port, self.protocol = self.server.split(':')
         self.port = int(self.port)
         self.use_ssl = (self.protocol == 's')
-        self.proxy = self.parse_proxy_options(self.config.get('proxy'))
+        self.proxy = deserialize_proxy(self.config.get('proxy'))
         if self.proxy:
             self.proxy_mode = proxy_modes.index(self.proxy["mode"]) + 1
             socks.setdefaultproxy(self.proxy_mode, self.proxy["host"], int(self.proxy["port"]))
@@ -270,25 +294,6 @@ class TcpInterface(threading.Thread):
                 return
             self.unanswered_requests[self.message_id] = method, params, _id, queue
             self.message_id += 1
-
-    def parse_proxy_options(self, s):
-        if type(s) == type({}): return s  # fixme: type should be fixed
-        if type(s) != type(""): return None
-        if s.lower() == 'none': return None
-        proxy = { "mode":"socks5", "host":"localhost" }
-        args = s.split(':')
-        n = 0
-        if proxy_modes.count(args[n]) == 1:
-            proxy["mode"] = args[n]
-            n += 1
-        if len(args) > n:
-            proxy["host"] = args[n]
-            n += 1
-        if len(args) > n:
-            proxy["port"] = args[n]
-        else:
-            proxy["port"] = "8080" if proxy["mode"] == "http" else "1080"
-        return proxy
 
     def stop(self):
         if self.is_connected and self.protocol in 'st' and self.s:

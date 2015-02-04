@@ -66,7 +66,16 @@ def data_dir():
     if __builtin__.use_local_modules:
         return local_data_dir()
     else:
-        return appdata_dir()
+        is_frozen = getattr(sys, 'frozen', False)
+        if is_frozen:
+            if is_frozen == "macosx_app":
+                basedir = os.path.abspath(".")
+            else:
+                basedir = sys._MEIPASS
+
+            return os.path.join(basedir, 'data')
+        else:
+            return appdata_dir()
 
 def usr_share_dir():
     return os.path.join(sys.prefix, "share")

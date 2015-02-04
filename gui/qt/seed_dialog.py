@@ -31,7 +31,7 @@ class SeedDialog(QDialog):
         self.setModal(1)
         self.setMinimumWidth(400)
         self.setWindowTitle('Electrum' + ' - ' + _('Seed'))
-        vbox = show_seed_box(seed)
+        vbox = show_seed_box_msg(seed)
         if imported_keys:
             vbox.addWidget(QLabel("<b>"+_("WARNING")+":</b> " + _("Your wallet contains imported keys. These keys cannot be recovered from seed.") + "</b><p>"))
         vbox.addLayout(close_button(self))
@@ -47,71 +47,39 @@ def icon_filename(sid):
         return ":icons/seed.png"
 
 
-
-
-def show_seed_box(seed, sid=None):
-
-    save_msg = _("Please save these %d words on paper (order is important).")%len(seed.split()) + " "
-    qr_msg = _("Your seed is also displayed as QR code, in case you want to transfer it to a mobile phone.") + "<p>"
-    warning_msg = "<b>"+_("WARNING")+":</b> " + _("Never disclose your seed. Never type it on a website.") + "</b><p>"
-
-    if sid is None:
-        msg =  _("Your wallet generation seed is")
-        msg2 = save_msg + " " \
-               + _("This seed will allow you to recover your wallet in case of computer failure.") + "<br/>" \
-               + warning_msg
-
-    elif sid == 'cold':
-        msg =  _("Your cold storage seed is")
-        msg2 = save_msg + " " \
-               + _("This seed will be permanently deleted from your wallet file. Make sure you have saved it before you press 'next'") + " " \
-
-    elif sid == 'hot':
-        msg =  _("Your hot seed is")
-        msg2 = save_msg + " " \
-               + _("If you ever need to recover your wallet from seed, you will need both this seed and your cold seed.") + " " \
-
-    label1 = QLabel(msg+ ":")
-    seed_text = ShowQRTextEdit(text=seed)
-    seed_text.setMaximumHeight(130)
-
+def show_seed_box_msg(seedphrase, sid=None):
+    msg =  _("Your wallet generation seed is") + ":"
+    vbox = show_seed_box(msg, seedphrase, sid)
+    save_msg = _("Please save these %d words on paper (order is important).")%len(seedphrase.split()) + " "
+    msg2 = save_msg + " " \
+           + _("This seed will allow you to recover your wallet in case of computer failure.") + "<br/>" \
+           + "<b>"+_("WARNING")+":</b> " + _("Never disclose your seed. Never type it on a website.") + "</b><p>"
     label2 = QLabel(msg2)
     label2.setWordWrap(True)
-
-    logo = QLabel()
-    logo.setPixmap(QPixmap(icon_filename(sid)).scaledToWidth(56))
-    logo.setMaximumWidth(60)
-
-    grid = QGridLayout()
-    grid.addWidget(logo, 0, 0)
-    grid.addWidget(label1, 0, 1)
-    grid.addWidget(seed_text, 1, 0, 1, 2)
-    vbox = QVBoxLayout()
-    vbox.addLayout(grid)
     vbox.addWidget(label2)
     vbox.addStretch(1)
-
     return vbox
 
+def show_seed_box(msg, seed, sid):
+    vbox, seed_e = enter_seed_box(msg, None, sid=sid, text=seed)
+    return vbox
 
-def enter_seed_box(msg, window, sid=None):
+def enter_seed_box(msg, window, sid=None, text=None):
     vbox = QVBoxLayout()
     logo = QLabel()
     logo.setPixmap(QPixmap(icon_filename(sid)).scaledToWidth(56))
     logo.setMaximumWidth(60)
-
     label = QLabel(msg)
     label.setWordWrap(True)
-
-    seed_e = ScanQRTextEdit(win=window)
-    seed_e.setMaximumHeight(100)
-    seed_e.setTabChangesFocus(True)
-
+    if not text:
+        seed_e = ScanQRTextEdit(win=window)
+        seed_e.setTabChangesFocus(True)
+    else:
+        seed_e = ShowQRTextEdit(text=text)
+    seed_e.setMaximumHeight(130)
     vbox.addWidget(label)
-
     grid = QGridLayout()
     grid.addWidget(logo, 0, 0)
     grid.addWidget(seed_e, 0, 1)
-
     vbox.addLayout(grid)
     return vbox, seed_e

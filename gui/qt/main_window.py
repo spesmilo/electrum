@@ -203,6 +203,7 @@ class ElectrumWindow(QMainWindow):
 
     def close_wallet(self):
         self.wallet.stop_threads()
+        self.hide()
         run_hook('close_wallet')
 
     def load_wallet(self, wallet):
@@ -210,13 +211,17 @@ class ElectrumWindow(QMainWindow):
         self.wallet = wallet
         self.update_wallet_format()
         # address used to create a dummy transaction and estimate transaction fee
-        self.dummy_address = self.wallet.addresses(False)[0]
+        a = self.wallet.addresses(False)
+        self.dummy_address = a[0] if a else None
+
         self.invoices = self.wallet.storage.get('invoices', {})
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + os.path.basename(self.wallet.storage.path)
         if self.wallet.is_watching_only(): title += ' [%s]' % (_('watching only'))
         self.setWindowTitle( title )
+        self.update_history_tab()
+        self.show()
         self.update_wallet()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         self.notify_transactions()
@@ -254,17 +259,42 @@ class ElectrumWindow(QMainWindow):
         filename = unicode( QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder) )
         if not filename:
             return
-
-        storage = WalletStorage({'wallet_path': filename})
-        if not storage.file_exists:
-            self.show_message("file not found "+ filename)
+        try:
+            storage = WalletStorage({'wallet_path': filename})
+        except Exception as e:
+            self.show_message(str(e))
             return
-
+        if not storage.file_exists:
+            self.show_message(_("File not found") + ' ' + filename)
+            return
+        # read wizard action
+        try:
+            wallet = Wallet(storage)
+        except BaseException as e:
+            QMessageBox.warning(None, _('Warning'), str(e), _('OK'))
+            return
+        action = wallet.get_action()
+        # ask for confirmation
+        if action is not None:
+            if not self.question(_("This file contains an incompletely created wallet.\nDo you want to complete its creation now?")):
+                return
         # close current wallet
         self.close_wallet()
-        # load new wallet
-        wallet = Wallet(storage)
-        wallet.start_threads(self.network)
+        # run wizard
+        if action is not None:
+            import installwizard
+            wizard = installwizard.InstallWizard(self.config, self.network, storage)
+            try:
+                wallet = wizard.run(action)
+            except BaseException as e:
+                traceback.print_exc(file=sys.stdout)
+                QMessageBox.information(None, _('Error'), str(e), _('OK'))
+                return
+            if not wallet:
+                return
+        else:
+            wallet.start_threads(self.network)
+        # load new wallet in gui
         self.load_wallet(wallet)
 
 
@@ -308,6 +338,8 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.critical(None, "Error", _("File exists"))
             return
 
+        if self.wallet:
+            self.close_wallet()
         wizard = installwizard.InstallWizard(self.config, self.network, storage)
         wallet = wizard.run('new')
         if wallet:
@@ -371,7 +403,7 @@ class ElectrumWindow(QMainWindow):
         help_menu.addAction(_("&About"), self.show_about)
         help_menu.addAction(_("&Official website"), lambda: webbrowser.open("http://electrum.org"))
         help_menu.addSeparator()
-        help_menu.addAction(_("&Documentation"), lambda: webbrowser.open("http://electrum.org/documentation.html")).setShortcut(QKeySequence.HelpContents)
+        help_menu.addAction(_("&Documentation"), lambda: webbrowser.open("http://electrum.orain.org/")).setShortcut(QKeySequence.HelpContents)
         help_menu.addAction(_("&Report Bug"), self.show_report_bug)
 
         self.setMenuBar(menubar)
@@ -1278,7 +1310,7 @@ class ElectrumWindow(QMainWindow):
         if not request_url:
             if label:
                 if self.wallet.labels.get(address) != label:
-                    if self.question(_('Save label "%s" for address %s ?'%(label,address))):
+                    if self.question(_('Save label "%(label)s" for address %(address)s ?'%{'label':label,'address':address})):
                         if address not in self.wallet.addressbook and not self.wallet.is_mine(address):
                             self.wallet.addressbook.append(address)
                             self.wallet.set_label(address, label)
@@ -2507,7 +2539,7 @@ class ElectrumWindow(QMainWindow):
 
         with open(fileName, "w+") as f:
             if is_csv:
-                transaction = csv.writer(f)
+                transaction = csv.writer(f, lineterminator='\n')
                 transaction.writerow(["transaction_hash","label", "confirmations", "value", "fee", "balance", "timestamp"])
                 for line in lines:
                     transaction.writerow(line)

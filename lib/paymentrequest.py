@@ -27,18 +27,12 @@ import time
 import traceback
 import urllib2
 import urlparse
-
+import requests
 
 try:
     import paymentrequest_pb2
-except:
-    sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto'")
-
-try:
-    import requests
 except ImportError:
-    sys.exit("Error: requests does not seem to be installed. Try 'sudo pip install requests'")
-
+    sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto'")
 
 import bitcoin
 import util
@@ -116,7 +110,7 @@ class PaymentRequest:
 
         self.id = bitcoin.sha256(r)[0:16].encode('hex')
         filename = os.path.join(self.dir_path, self.id)
-        with open(filename,'w') as f:
+        with open(filename,'wb') as f:
             f.write(r)
 
         return self.parse(r)
@@ -131,7 +125,7 @@ class PaymentRequest:
 
     def read_file(self, key):
         filename = os.path.join(self.dir_path, key)
-        with open(filename,'r') as f:
+        with open(filename,'rb') as f:
             r = f.read()
 
         assert key == bitcoin.sha256(r)[0:16].encode('hex')
