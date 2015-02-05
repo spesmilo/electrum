@@ -1943,7 +1943,7 @@ class ElectrumWindow(QMainWindow):
             mpk_text = ShowQRTextEdit(text=mpk)
             mpk_text.setMaximumHeight(170)
             mpk_text.selectAll()    # for easy copying
-            vbox.addWidget(mpk_text, 2, 0)
+            vbox.addWidget(mpk_text)
 
         vbox.addLayout(close_button(dialog))
 
