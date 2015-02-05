@@ -577,7 +577,7 @@ class ElectrumWindow(QMainWindow):
         elif be == 'Insight.is':
             block_explorer = 'http://live.insight.is/tx/'
         elif be == "Blocktrail.com":
-            block_explorer = 'https://www.blocktrail.com/tx/'
+            block_explorer = 'https://www.blocktrail.com/BTC/tx/'
 
         if not item: return
         tx_hash = str(item.data(0, Qt.UserRole).toString())
