@@ -222,7 +222,6 @@ if __name__ == '__main__':
         cmd = args[0]
 
     if cmd == 'gui':
-        init_plugins(config, is_bundle or is_local or is_android)
         gui_name = config.get('gui', 'classic')
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'
@@ -232,6 +231,9 @@ if __name__ == '__main__':
             traceback.print_exc(file=sys.stdout)
             sys.exit()
             #sys.exit("Error: Unknown GUI: " + gui_name )
+
+        if gui_name=='qt':
+            init_plugins(config, is_bundle or is_local or is_android)
 
         # network interface
         if not options.offline:
