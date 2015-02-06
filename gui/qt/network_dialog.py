@@ -201,9 +201,12 @@ class NetworkDialog(QDialog):
     def change_server(self, host, protocol):
 
         pp = self.servers.get(host, DEFAULT_PORTS)
+        if protocol and protocol not in protocol_letters:
+                protocol = None
         if protocol:
             port = pp.get(protocol)
-            if not port: protocol = None
+            if port is None:
+                protocol = None
 
         if not protocol:
             if 's' in pp.keys():
@@ -216,15 +219,6 @@ class NetworkDialog(QDialog):
         self.server_host.setText( host )
         self.server_port.setText( port )
         self.server_protocol.setCurrentIndex(protocol_letters.index(protocol))
-
-        if not self.servers: return
-        for p in protocol_letters:
-            i = protocol_letters.index(p)
-            j = self.server_protocol.model().index(i,0)
-            #if p not in pp.keys(): # and self.interface.is_connected:
-            #    self.server_protocol.model().setData(j, QVariant(0), Qt.UserRole-1)
-            #else:
-            #    self.server_protocol.model().setData(j, QVariant(33), Qt.UserRole-1)
 
 
     def do_exec(self):
