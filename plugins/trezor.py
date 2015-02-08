@@ -131,6 +131,10 @@ class Plugin(BasePlugin):
             self.wallet.trezor_sign(tx)
         except Exception as e:
             tx.error = str(e)
+    @hook
+    def receive_menu(self, menu, addrs):
+        if not self.wallet.is_watching_only() and len(addrs) == 1:
+            menu.addAction(_("Show on TREZOR"), lambda: self.wallet.show_address(addrs[0]))
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'), self.settings_dialog)
@@ -276,6 +280,21 @@ class TrezorWallet(BIP32_HD_Wallet):
         #finally:
         #    twd.emit(SIGNAL('trezor_done'))
         #return str(decrypted_msg)
+
+    def show_address(self, address):
+        if not self.check_proper_device():
+            give_error('Wrong device or password')
+        try:
+            address_path = self.address_id(address)
+            address_n = self.get_client().expand_path(address_path)
+        except Exception, e:
+            give_error(e)
+        try:
+            self.get_client().get_address('Bitcoin', address_n, True)
+        except Exception, e:
+            give_error(e)
+        finally:
+            twd.emit(SIGNAL('trezor_done'))
 
     def sign_message(self, address, message, password):
         if not self.check_proper_device():
@@ -426,6 +445,8 @@ class TrezorQtGuiMixin(object):
             message = "Confirm transaction fee on Trezor device to continue"
         elif msg.code == 7:
             message = "Confirm message to sign on Trezor device to continue"
+        elif msg.code == 10:
+            message = "Confirm address on Trezor device to continue"
         else:
             message = "Check Trezor device to continue"
         twd.start(message)
