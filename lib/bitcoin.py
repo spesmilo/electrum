@@ -65,7 +65,7 @@ def aes_encrypt_with_iv(key, iv, data):
     (mode, length, ciph) = moo.encrypt(data, mode, key, keysize, iv)
     return ''.join(map(chr, ciph))
 
-def aes_decrypt_with_iv(key, iv, data):
+def aes_decrypt_no_strip(key, iv, data):
     mode = aes.AESModeOfOperation.modeOfOperation["CBC"]
     key = map(ord, key)
     iv = map(ord, iv)
@@ -74,10 +74,17 @@ def aes_decrypt_with_iv(key, iv, data):
     data = map(ord, data)
     moo = aes.AESModeOfOperation()
     decr = moo.decrypt(data, None, mode, key, keysize, iv)
+    return decr
+
+def aes_decrypt_with_iv(key, iv, data):
+    decr = aes_decrypt_no_strip(key, iv, data)
     decr = strip_PKCS7_padding(decr)
     return decr
 
-
+def aes_ecb_block_decrypt(key, data):
+    iv = '\x00'*len(key)
+    decr = aes_decrypt_no_strip(key, iv, data)
+    return decr
 
 def pw_encode(s, password):
     if password:

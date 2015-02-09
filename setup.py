@@ -72,6 +72,7 @@ setup(
         'pyasn1-modules',
         'pyasn1',
         'qrcode',
+        'scrypt',
         'SocksiPy-branch',
         'protobuf',
         'tlslite'

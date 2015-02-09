@@ -38,7 +38,7 @@ import icons_rc
 from electrum.util import format_satoshis, NotEnoughFunds
 from electrum import Transaction
 from electrum import mnemonic
-from electrum import util, bitcoin, commands, Interface, Wallet
+from electrum import util, bitcoin, commands, Interface, Wallet, bip38
 from electrum import SimpleConfig, Wallet, WalletStorage
 from electrum import Imported_Wallet
 
@@ -373,6 +373,7 @@ class ElectrumWindow(QMainWindow):
 
         self.private_keys_menu = wallet_menu.addMenu(_("&Private keys"))
         self.private_keys_menu.addAction(_("&Sweep"), self.sweep_key_dialog)
+        self.private_keys_menu.addAction(_("&Sweep Encrypted"), lambda: self.sweep_key_dialog(True))
         self.import_menu = self.private_keys_menu.addAction(_("&Import"), self.do_import_privkey)
         self.export_menu = self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
         wallet_menu.addAction(_("&Export History"), self.export_history_dialog)
@@ -2553,17 +2554,30 @@ class ElectrumWindow(QMainWindow):
                 f.write(json.dumps(lines, indent = 4))
 
 
-    def sweep_key_dialog(self):
+    def sweep_key_dialog(self, encrypted=False):
         d = QDialog(self)
-        d.setWindowTitle(_('Sweep private keys'))
+        if encrypted:
+            d.setWindowTitle(_('Sweep encrypted private key'))
+        else:
+            d.setWindowTitle(_('Sweep private keys'))
         d.setMinimumSize(600, 300)
 
         vbox = QVBoxLayout(d)
-        vbox.addWidget(QLabel(_("Enter private keys")))
+        if encrypted:
+            vbox.addWidget(QLabel(_("Enter encrypted private key")))
+            keys_e = QLineEdit()
+        else:
+            vbox.addWidget(QLabel(_("Enter private keys")))
+            keys_e = QTextEdit()
+            keys_e.setTabChangesFocus(True)
 
-        keys_e = QTextEdit()
-        keys_e.setTabChangesFocus(True)
         vbox.addWidget(keys_e)
+
+        if encrypted:
+            vbox.addWidget(QLabel(_("Enter password")))
+            passw_e = QLineEdit()
+            passw_e.setEchoMode(QLineEdit.Password)
+            vbox.addWidget(passw_e)
 
         h, address_e = address_field(self.wallet.addresses(False))
         vbox.addLayout(h)
@@ -2571,26 +2585,30 @@ class ElectrumWindow(QMainWindow):
         vbox.addStretch(1)
         hbox, button = ok_cancel_buttons2(d, _('Sweep'))
         vbox.addLayout(hbox)
-        button.setEnabled(False)
+        button.setEnabled(encrypted)
 
         def get_address():
             addr = str(address_e.text())
             if bitcoin.is_address(addr):
                 return addr
 
-        def get_pk():
-            pk = str(keys_e.toPlainText()).strip()
+        def get_pk(enc=False):
+            if enc:
+                pk = keys_e.text()
+                pk = bip38.bip38_decrypt(pk, passw_e.text())
+            else:
+                pk = str(keys_e.toPlainText()).strip()
             if Wallet.is_private_key(pk):
                 return pk.split()
 
-        f = lambda: button.setEnabled(get_address() is not None and get_pk() is not None)
+        f = lambda: button.setEnabled(get_address() is not None and encrypted or get_pk(encrypted) is not None)
         keys_e.textChanged.connect(f)
         address_e.textChanged.connect(f)
         if not d.exec_():
             return
 
         fee = self.wallet.fee_per_kb
-        tx = Transaction.sweep(get_pk(), self.network, get_address(), fee)
+        tx = Transaction.sweep(get_pk(encrypted), self.network, get_address(), fee)
         self.show_transaction(tx)
 
 
