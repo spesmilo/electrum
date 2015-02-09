@@ -13,5 +13,5 @@ Categories=Network;
 StartupNotify=false
 Terminal=false
 Type=Application
-MimeType=x-scheme-handler/bitcoin
+MimeType=x-scheme-handler/bitcoin;
 
