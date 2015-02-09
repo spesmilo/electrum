@@ -294,6 +294,10 @@ class ElectrumWindow(QMainWindow):
                 return
         else:
             wallet.start_threads(self.network)
+        
+        # set new wallet as last_wallet
+        self.config.set_key('last_wallet', filename)
+
         # load new wallet in gui
         self.load_wallet(wallet)
 
