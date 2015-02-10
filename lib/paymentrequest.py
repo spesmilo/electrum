@@ -190,8 +190,13 @@ class PaymentRequest:
                 verify = pubkey.hashAndVerify(sig, data)
             elif algo.getComponentByName('algorithm') == x509.ALGO_RSA_SHA256:
                 hashBytes = bytearray(hashlib.sha256(data).digest())
-                prefixBytes = bytearray([0x30,0x31,0x30,0x0d,0x06,0x09,0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x01,0x05,0x00,0x04,0x20])
-                verify = pubkey.verify(sig, prefixBytes + hashBytes)
+                verify = pubkey.verify(sig, x509.PREFIX_RSA_SHA256 + hashBytes)
+            elif algo.getComponentByName('algorithm') == x509.ALGO_RSA_SHA384:
+                hashBytes = bytearray(hashlib.sha384(data).digest())
+                verify = pubkey.verify(sig, x509.PREFIX_RSA_SHA384 + hashBytes)
+            elif algo.getComponentByName('algorithm') == x509.ALGO_RSA_SHA512:
+                hashBytes = bytearray(hashlib.sha512(data).digest())
+                verify = pubkey.verify(sig, x509.PREFIX_RSA_SHA512 + hashBytes)
             else:
                 self.error = "Algorithm not supported"
                 util.print_error(self.error, algo.getComponentByName('algorithm'))
@@ -226,8 +231,7 @@ class PaymentRequest:
 
         if paymntreq.pki_type == "x509+sha256":
             hashBytes = bytearray(hashlib.sha256(msgBytes).digest())
-            prefixBytes = bytearray([0x30,0x31,0x30,0x0d,0x06,0x09,0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x01,0x05,0x00,0x04,0x20])
-            verify = pubkey0.verify(sigBytes, prefixBytes + hashBytes)
+            verify = pubkey0.verify(sigBytes, x509.PREFIX_RSA_SHA256 + hashBytes)
         elif paymntreq.pki_type == "x509+sha1":
             verify = pubkey0.hashAndVerify(sigBytes, msgBytes)
         else:

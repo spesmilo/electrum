@@ -13,5 +13,5 @@ Categories=Network;
 StartupNotify=false
 Terminal=false
 Type=Application
-MimeType=x-scheme-handler/litecoin
+MimeType=x-scheme-handler/litecoin;
 
