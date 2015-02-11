@@ -235,7 +235,7 @@ class TrezorWallet(BIP32_HD_Wallet):
         mnemonic = ' '.join(mnemonic.split())
 
         try:
-            from Crypto.Protocol import PBKDF2
+            from Crypto.Protocol.KDF import PBKDF2
 
             def pseudorandom(self, key, msg):
                 """Pseudorandom function for pbkdf2"""
