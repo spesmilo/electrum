@@ -230,10 +230,22 @@ class TrezorWallet(BIP32_HD_Wallet):
 
     def mnemonic_to_seed(self, mnemonic, passphrase):
         # trezor uses bip39
-        import pbkdf2, hashlib, hmac
+        import hashlib, hmac
         PBKDF2_ROUNDS = 2048
         mnemonic = ' '.join(mnemonic.split())
-        return pbkdf2.PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
+
+        try:
+            from Crypto.Protocol.KDF import PBKDF2
+
+            def pseudorandom(self, key, msg):
+                """Pseudorandom function for pbkdf2"""
+                return hmac.new(key=key, msg=msg,
+                    digestmod=hashlib.sha512).digest()
+            return PBKDF2(mnemonic, 'mnemonic' + passphrase, dkLen=64, count = PBKDF2_ROUNDS, prf=pseudorandom);
+
+        except ImportError:
+            import pbkdf2
+            return pbkdf2.PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
 
     def derive_xkeys(self, root, derivation, password):
         x = self.master_private_keys.get(root)

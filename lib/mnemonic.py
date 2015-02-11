@@ -24,7 +24,6 @@ import unicodedata
 import string
 
 import ecdsa
-import pbkdf2
 
 import util
 from util import print_error
@@ -121,7 +120,17 @@ class Mnemonic(object):
     def mnemonic_to_seed(self, mnemonic, passphrase):
         PBKDF2_ROUNDS = 2048
         mnemonic = prepare_seed(mnemonic)
-        return pbkdf2.PBKDF2(mnemonic, 'electrum' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
+        print_error("Creating seed");
+        try:
+            from Crypto.Protocol.KDF import PBKDF2
+            def pseudorandom(key, msg):
+                """Pseudorandom function for pbkdf2"""
+                return hmac.new(key=key, msg=msg,
+                    digestmod=hashlib.sha512).digest()
+            return PBKDF2(mnemonic, 'electrum' + passphrase, dkLen=64, count = PBKDF2_ROUNDS, prf=pseudorandom);
+        except ImportError:
+            import pbkdf2
+            return pbkdf2.PBKDF2(mnemonic, 'electrum' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
 
     def mnemonic_encode(self, i):
         n = len(self.wordlist)
