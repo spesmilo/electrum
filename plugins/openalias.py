@@ -104,11 +104,13 @@ class Plugin(BasePlugin):
             return
         if self.win.payto_e.is_multiline():  # only supports single line entries atm
             return
+
         url = str(self.win.payto_e.toPlainText())
+        url = url.replace('@', '.')  # support email-style addresses, per the OA standard
+
         if url == self.win.previous_payto_e:
             return
         self.win.previous_payto_e = url
-        url = url.replace('@', '.')  # support email-style addresses, per the OA standard
 
         if ('.' in url) and (not '<' in url) and (not ' ' in url):
             if not OA_READY:  # handle a failed DNSPython load
