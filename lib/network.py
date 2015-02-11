@@ -368,7 +368,7 @@ class Network(threading.Thread):
                 out['result'] = f(*params)
             except BaseException as e:
                 out['error'] = str(e)
-                traceback.print_exc(file=sys.stout)
+                traceback.print_exc(file=sys.stdout)
                 print_error("network error", str(e))
 
             self.response_queue.put(out)
