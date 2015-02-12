@@ -149,7 +149,14 @@ class ElectrumGui:
 
     def main(self, url):
 
-        storage = WalletStorage(self.config)
+        last_wallet = self.config.get('last_wallet')
+        if last_wallet:
+            storage = WalletStorage({'wallet_path': last_wallet})
+            if not storage.file_exists:
+                storage = WalletStorage(self.config)
+        else:
+            storage = WalletStorage(self.config)
+            
         if storage.file_exists:
             try:
                 wallet = Wallet(storage)
