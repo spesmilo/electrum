@@ -33,7 +33,9 @@ def log(msg):
     stderr.flush()
 
 def give_error(message):
-    if QThread.currentThread() == QtCore.QCoreApplication.instance().thread():
+    current_thread = QThread.currentThread()
+    app_instance = QtCore.QCoreApplication.instance()
+    if app_instance and (current_thread == app_instance.thread()):
         QMessageBox.warning(QDialog(), _('Warning'), message, _('OK'))
     print_error(message)
     raise Exception(message)
