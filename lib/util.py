@@ -86,9 +86,10 @@ def appdata_dir():
         return os.path.join(os.environ["APPDATA"], "Electrum")
     elif platform.system() == "Linux":
         return os.path.join(usr_share_dir(), "electrum")
+    elif platform.system() == "OpenBSD":
+    	return "/usr/local/share/electrum"
     elif (platform.system() == "Darwin" or
           platform.system() == "DragonFly" or
-          platform.system() == "OpenBSD" or
           platform.system() == "FreeBSD" or
 	  platform.system() == "NetBSD"):
         return "/Library/Application Support/Electrum"
