@@ -43,42 +43,8 @@ import x509
 REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'}
 ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
 
-
-ca_list = {}
 ca_path = requests.certs.where()
-
-
-
-
-def load_certificates():
-    try:
-        ca_f = open(ca_path, 'r')
-    except Exception:
-        print "ERROR: Could not open %s"%ca_path
-        print "ca-bundle.crt file should be placed in ~/.electrum/ca/ca-bundle.crt"
-        print "Documentation on how to download or create the file here: http://curl.haxx.se/docs/caextract.html"
-        print "Payment will continue with manual verification."
-        return False
-    c = ""
-    for line in ca_f:
-        if line == "-----BEGIN CERTIFICATE-----\n":
-            c = line
-        else:
-            c += line
-        if line == "-----END CERTIFICATE-----\n":
-            x = x509.X509()
-            try:
-                x.parse(c)
-            except Exception as e:
-                util.print_error("cannot parse cert:", e)
-                continue
-            ca_list[x.getFingerprint()] = x
-    ca_f.close()
-    util.print_error("%d certificates"%len(ca_list))
-    return True
-
-load_certificates()
-
+ca_list = x509.load_certificates(ca_path)
 
 
 class PaymentRequest:
@@ -325,7 +291,6 @@ class PaymentRequest:
 if __name__ == "__main__":
 
     util.set_verbosity(True)
-    load_certificates()
 
     try:
         uri = sys.argv[1]
