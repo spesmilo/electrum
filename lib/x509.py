@@ -23,6 +23,7 @@ import sys
 import pyasn1
 import pyasn1_modules
 import tlslite
+import util
 
 # workaround https://github.com/trevp/tlslite/issues/15
 tlslite.utils.cryptomath.pycryptoLoaded = False
@@ -224,3 +225,21 @@ class X509(tlslite.X509):
 
 class X509CertChain(tlslite.X509CertChain):
     pass
+
+
+
+
+def load_certificates(ca_path):
+    ca_list = {}
+    with open(ca_path, 'r') as f:
+        s = f.read()
+    bList = tlslite.utils.pem.dePemList(s, "CERTIFICATE")
+    for b in bList:
+        x = X509()
+        try:
+            x.parseBinary(b)
+        except Exception as e:
+            util.print_error("cannot parse cert:", e)
+            continue
+        ca_list[x.getFingerprint()] = x
+    return ca_list

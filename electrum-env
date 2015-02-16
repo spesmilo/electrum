@@ -17,8 +17,8 @@ else
 	python setup.py install
 fi
 
-export PYTHONPATH=/usr/local/lib/python2.7/site-packages:$PYTHONPATH
+export PYTHONPATH="/usr/local/lib/python2.7/site-packages:$PYTHONPATH"
 
-./electrum-ltc
+./electrum-ltc "$@"
 
 deactivate
