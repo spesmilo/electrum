@@ -116,7 +116,7 @@ def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespa
     while len(digits) < decimal_point + 1:
         digits.insert(0,'0')
     digits.insert(-decimal_point,'.')
-    s = ''.join(digits).rstrip('0')
+    s = "{0:,}".format(float(''.join(digits).rstrip('0')))
     if sign:
         s = '-' + s
     elif is_diff:
