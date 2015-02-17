@@ -147,7 +147,7 @@ setup(
     ],
     description="Lightweight Bitcoin Wallet",
     author="Thomas Voegtlin",
-    author_email="thomasv1@gmx.de",
+    author_email="thomasv@electrum.org",
     license="GNU GPLv3",
     url="https://electrum.org",
     long_description="""Lightweight Bitcoin Wallet"""
