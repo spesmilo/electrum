@@ -495,7 +495,6 @@ class Plugin(BasePlugin):
 
     @hook
     def load_wallet(self, wallet):
-        self.wallet = wallet
         tx_list = {}
         for item in self.wallet.get_tx_history(self.wallet.storage.get("current_account", None)):
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
@@ -554,6 +553,8 @@ class Plugin(BasePlugin):
         if self.config.get('history_rates') != "checked":
             return
         if not self.resp_hist:
+            return
+        if not self.wallet:
             return
 
         self.win.is_edit = True
