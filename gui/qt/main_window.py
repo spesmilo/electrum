@@ -296,6 +296,8 @@ class ElectrumWindow(QMainWindow):
             wallet.start_threads(self.network)
         # load new wallet in gui
         self.load_wallet(wallet)
+        # save path
+        self.config.set_key('default_wallet_path', filename)
 
 
 
@@ -577,7 +579,7 @@ class ElectrumWindow(QMainWindow):
         elif be == 'Insight.is':
             block_explorer = 'http://live.insight.is/tx/'
         elif be == "Blocktrail.com":
-            block_explorer = 'https://www.blocktrail.com/tx/'
+            block_explorer = 'https://www.blocktrail.com/BTC/tx/'
 
         if not item: return
         tx_hash = str(item.data(0, Qt.UserRole).toString())
@@ -1907,39 +1909,44 @@ class ElectrumWindow(QMainWindow):
         dialog.setModal(1)
         dialog.setWindowTitle(_("Master Public Keys"))
 
-        main_layout = QGridLayout()
         mpk_dict = self.wallet.get_master_public_keys()
-        # filter out the empty keys (PendingAccount)
-        mpk_dict = {acc:mpk for acc,mpk in mpk_dict.items() if mpk}
-
+        vbox = QVBoxLayout()
         # only show the combobox in case multiple accounts are available
         if len(mpk_dict) > 1:
-            combobox = QComboBox()
-            for name in mpk_dict:
-                combobox.addItem(name)
-            combobox.setCurrentIndex(0)
-            main_layout.addWidget(combobox, 1, 0)
+            gb = QGroupBox(_("Master Public Keys"))
+            vbox.addWidget(gb)
+            group = QButtonGroup()
+            first_button = None
+            for name in sorted(mpk_dict.keys()):
+                b = QRadioButton(gb)
+                b.setText(name)
+                group.addButton(b)
+                vbox.addWidget(b)
+                if not first_button:
+                    first_button = b
 
-            account = unicode(combobox.currentText())
-            mpk_text = ShowQRTextEdit(text=mpk_dict[account])
+            mpk_text = ShowQRTextEdit()
             mpk_text.setMaximumHeight(170)
-            mpk_text.selectAll()    # for easy copying
-            main_layout.addWidget(mpk_text, 2, 0)
+            vbox.addWidget(mpk_text)
 
-            def show_mpk(account):
-                mpk = mpk_dict.get(unicode(account), "")
+            def show_mpk(b):
+                name = str(b.text())
+                mpk = mpk_dict.get(name, "")
                 mpk_text.setText(mpk)
+                mpk_text.selectAll()    # for easy copying
 
-            combobox.currentIndexChanged[str].connect(lambda acc: show_mpk(acc))
+            group.buttonReleased.connect(show_mpk)
+            first_button.setChecked(True)
+            show_mpk(first_button)
+
+            #combobox.currentIndexChanged[str].connect(lambda acc: show_mpk(acc))
         elif len(mpk_dict) == 1:
             mpk = mpk_dict.values()[0]
             mpk_text = ShowQRTextEdit(text=mpk)
             mpk_text.setMaximumHeight(170)
             mpk_text.selectAll()    # for easy copying
-            main_layout.addWidget(mpk_text, 2, 0)
+            vbox.addWidget(mpk_text)
 
-        vbox = QVBoxLayout()
-        vbox.addLayout(main_layout)
         vbox.addLayout(close_button(dialog))
 
         dialog.setLayout(vbox)

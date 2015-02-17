@@ -23,6 +23,7 @@ import sys
 import pyasn1
 import pyasn1_modules
 import tlslite
+import util
 
 # workaround https://github.com/trevp/tlslite/issues/15
 tlslite.utils.cryptomath.pycryptoLoaded = False
@@ -41,8 +42,18 @@ from pyasn1_modules.rfc2459 import id_at_organizationalUnitName as OU_NAME
 from pyasn1_modules.rfc2459 import id_ce_basicConstraints, BasicConstraints
 XMPP_ADDR = ObjectIdentifier('1.3.6.1.5.5.7.8.5')
 SRV_NAME = ObjectIdentifier('1.3.6.1.5.5.7.8.7')
+
+# algo OIDs
 ALGO_RSA_SHA1 = ObjectIdentifier('1.2.840.113549.1.1.5')
 ALGO_RSA_SHA256 = ObjectIdentifier('1.2.840.113549.1.1.11')
+ALGO_RSA_SHA384 = ObjectIdentifier('1.2.840.113549.1.1.12')
+ALGO_RSA_SHA512 = ObjectIdentifier('1.2.840.113549.1.1.13')
+
+# prefixes, see http://stackoverflow.com/questions/3713774/c-sharp-how-to-calculate-asn-1-der-encoding-of-a-particular-hash-algorithm
+PREFIX_RSA_SHA256 = bytearray([0x30,0x31,0x30,0x0d,0x06,0x09,0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x01,0x05,0x00,0x04,0x20])
+PREFIX_RSA_SHA384 = bytearray([0x30,0x41,0x30,0x0d,0x06,0x09,0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x02,0x05,0x00,0x04,0x30])
+PREFIX_RSA_SHA512 = bytearray([0x30,0x51,0x30,0x0d,0x06,0x09,0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x03,0x05,0x00,0x04,0x40])
+
 
 class CertificateError(Exception):
     pass
@@ -214,3 +225,21 @@ class X509(tlslite.X509):
 
 class X509CertChain(tlslite.X509CertChain):
     pass
+
+
+
+
+def load_certificates(ca_path):
+    ca_list = {}
+    with open(ca_path, 'r') as f:
+        s = f.read()
+    bList = tlslite.utils.pem.dePemList(s, "CERTIFICATE")
+    for b in bList:
+        x = X509()
+        try:
+            x.parseBinary(b)
+        except Exception as e:
+            util.print_error("cannot parse cert:", e)
+            continue
+        ca_list[x.getFingerprint()] = x
+    return ca_list

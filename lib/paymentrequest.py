@@ -43,42 +43,8 @@ import x509
 REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'}
 ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
 
-
-ca_list = {}
 ca_path = requests.certs.where()
-
-
-
-
-def load_certificates():
-    try:
-        ca_f = open(ca_path, 'r')
-    except Exception:
-        print "ERROR: Could not open %s"%ca_path
-        print "ca-bundle.crt file should be placed in ~/.electrum/ca/ca-bundle.crt"
-        print "Documentation on how to download or create the file here: http://curl.haxx.se/docs/caextract.html"
-        print "Payment will continue with manual verification."
-        return False
-    c = ""
-    for line in ca_f:
-        if line == "-----BEGIN CERTIFICATE-----\n":
-            c = line
-        else:
-            c += line
-        if line == "-----END CERTIFICATE-----\n":
-            x = x509.X509()
-            try:
-                x.parse(c)
-            except Exception as e:
-                util.print_error("cannot parse cert:", e)
-                continue
-            ca_list[x.getFingerprint()] = x
-    ca_f.close()
-    util.print_error("%d certificates"%len(ca_list))
-    return True
-
-load_certificates()
-
+ca_list = x509.load_certificates(ca_path)
 
 
 class PaymentRequest:
@@ -190,8 +156,13 @@ class PaymentRequest:
                 verify = pubkey.hashAndVerify(sig, data)
             elif algo.getComponentByName('algorithm') == x509.ALGO_RSA_SHA256:
                 hashBytes = bytearray(hashlib.sha256(data).digest())
-                prefixBytes = bytearray([0x30,0x31,0x30,0x0d,0x06,0x09,0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x01,0x05,0x00,0x04,0x20])
-                verify = pubkey.verify(sig, prefixBytes + hashBytes)
+                verify = pubkey.verify(sig, x509.PREFIX_RSA_SHA256 + hashBytes)
+            elif algo.getComponentByName('algorithm') == x509.ALGO_RSA_SHA384:
+                hashBytes = bytearray(hashlib.sha384(data).digest())
+                verify = pubkey.verify(sig, x509.PREFIX_RSA_SHA384 + hashBytes)
+            elif algo.getComponentByName('algorithm') == x509.ALGO_RSA_SHA512:
+                hashBytes = bytearray(hashlib.sha512(data).digest())
+                verify = pubkey.verify(sig, x509.PREFIX_RSA_SHA512 + hashBytes)
             else:
                 self.error = "Algorithm not supported"
                 util.print_error(self.error, algo.getComponentByName('algorithm'))
@@ -226,8 +197,7 @@ class PaymentRequest:
 
         if paymntreq.pki_type == "x509+sha256":
             hashBytes = bytearray(hashlib.sha256(msgBytes).digest())
-            prefixBytes = bytearray([0x30,0x31,0x30,0x0d,0x06,0x09,0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x01,0x05,0x00,0x04,0x20])
-            verify = pubkey0.verify(sigBytes, prefixBytes + hashBytes)
+            verify = pubkey0.verify(sigBytes, x509.PREFIX_RSA_SHA256 + hashBytes)
         elif paymntreq.pki_type == "x509+sha1":
             verify = pubkey0.hashAndVerify(sigBytes, msgBytes)
         else:
@@ -321,7 +291,6 @@ class PaymentRequest:
 if __name__ == "__main__":
 
     util.set_verbosity(True)
-    load_certificates()
 
     try:
         uri = sys.argv[1]

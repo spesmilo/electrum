@@ -67,7 +67,7 @@ class WalletStorage(object):
 
         # path in config file
         path = config.get('default_wallet_path')
-        if path:
+        if path and os.path.exists(path):
             return path
 
         # default path
@@ -1494,7 +1494,7 @@ class Wallet_2of2(BIP32_Wallet, Mnemonic):
     def get_master_public_keys(self):
         xpub1 = self.master_public_keys.get("x1/")
         xpub2 = self.master_public_keys.get("x2/")
-        return {'x1':xpub1, 'x2':xpub2}
+        return { 'Self':xpub1, 'Cosigner':xpub2 }
 
     def get_action(self):
         xpub1 = self.master_public_keys.get("x1/")

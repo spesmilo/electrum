@@ -40,7 +40,7 @@ def hook(func):
 
 
 def run_hook(name, *args):
-    SPECIAL_HOOKS = ['get_wizard_action']
+    SPECIAL_HOOKS = ['get_wizard_action','installwizard_restore']
     results = []
     f_list = hooks.get(name,[])
     for p, f in f_list:
@@ -71,6 +71,7 @@ class BasePlugin:
     def __init__(self, config, name):
         self.name = name
         self.config = config
+        self.wallet = None
         # add self to hooks
         for k in dir(self):
             if k in hook_names:

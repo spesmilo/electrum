@@ -96,6 +96,7 @@ class Plugin(BasePlugin):
         print_error("trezor: clear session")
         if self.wallet and self.wallet.client:
             self.wallet.client.clear_session()
+            self.wallet.client.transport.close()
 
     @hook
     def load_wallet(self, wallet):
@@ -131,6 +132,10 @@ class Plugin(BasePlugin):
             self.wallet.trezor_sign(tx)
         except Exception as e:
             tx.error = str(e)
+    @hook
+    def receive_menu(self, menu, addrs):
+        if not self.wallet.is_watching_only() and self.wallet.atleast_version(1, 3) and len(addrs) == 1:
+            menu.addAction(_("Show on TREZOR"), lambda: self.wallet.show_address(addrs[0]))
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'), self.settings_dialog)
@@ -212,14 +217,21 @@ class TrezorWallet(BIP32_HD_Wallet):
             except:
                 give_error('Could not connect to your Trezor. Please verify the cable is connected and that no other app is using it.')
             self.client = QtGuiTrezorClient(self.transport)
-	    if (self.client.features.major_version == 1 and self.client.features.minor_version < 2) or (self.client.features.major_version == 1 and self.client.features.minor_version == 2 and self.client.features.patch_version < 1):
-		give_error('Outdated Trezor firmware. Please update the firmware from https://www.mytrezor.com') 
             self.client.set_tx_api(self)
             #self.client.clear_session()# TODO Doesn't work with firmware 1.1, returns proto.Failure
             self.client.bad = False
             self.device_checked = False
             self.proper_device = False
+            if not self.atleast_version(1, 2, 1):
+                give_error('Outdated Trezor firmware. Please update the firmware from https://www.mytrezor.com')
         return self.client
+
+    def compare_version(self, major, minor=0, patch=0):
+        features = self.get_client().features
+        return cmp([features.major_version, features.minor_version, features.patch_version], [major, minor, patch])
+
+    def atleast_version(self, major, minor=0, patch=0):
+        return self.compare_version(major, minor, patch) >= 0
 
     def address_id(self, address):
         account_id, (change, address_index) = self.get_address_index(address)
@@ -276,6 +288,21 @@ class TrezorWallet(BIP32_HD_Wallet):
         #finally:
         #    twd.emit(SIGNAL('trezor_done'))
         #return str(decrypted_msg)
+
+    def show_address(self, address):
+        if not self.check_proper_device():
+            give_error('Wrong device or password')
+        try:
+            address_path = self.address_id(address)
+            address_n = self.get_client().expand_path(address_path)
+        except Exception, e:
+            give_error(e)
+        try:
+            self.get_client().get_address('Bitcoin', address_n, True)
+        except Exception, e:
+            give_error(e)
+        finally:
+            twd.emit(SIGNAL('trezor_done'))
 
     def sign_message(self, address, message, password):
         if not self.check_proper_device():
@@ -426,6 +453,8 @@ class TrezorQtGuiMixin(object):
             message = "Confirm transaction fee on Trezor device to continue"
         elif msg.code == 7:
             message = "Confirm message to sign on Trezor device to continue"
+        elif msg.code == 10:
+            message = "Confirm address on Trezor device to continue"
         else:
             message = "Check Trezor device to continue"
         twd.start(message)
