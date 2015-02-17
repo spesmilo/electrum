@@ -9,6 +9,7 @@ import threading
 import time
 import re
 from decimal import Decimal
+from ssl import SSLError
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.i18n import _
 from electrum_ltc_gui.qt.util import *
@@ -20,12 +21,10 @@ EXCHANGES = ["Bit2C",
              "Bitfinex",
              "BTC-e",
              "BTCChina",
-             "Crypto-Trade",
-             "ExMoney",
              "GoCoin",
+             "HitBTC",
              "Kraken",
-             "OKCoin",
-             "Vault of Satoshi"]
+             "OKCoin"]
 
 EXCH_SUPPORT_HIST = [("BitcoinVenezuela", "ARS"),
                      ("BitcoinVenezuela", "EUR"),
@@ -105,12 +104,10 @@ class Exchanger(threading.Thread):
             "Bitfinex": self.update_bf,
             "BTC-e": self.update_be,
             "BTCChina": self.update_CNY,
-            "Crypto-Trade": self.update_ct,
-            "ExMoney": self.update_em,
             "GoCoin": self.update_gc,
+            "HitBTC": self.update_hb,
             "Kraken": self.update_kk,
             "OKCoin": self.update_ok,
-            "Vault of Satoshi": self.update_vs,
         }
         try:
             update_rates[self.use_exchange]()
@@ -203,39 +200,6 @@ class Exchanger(threading.Thread):
             pass
         self.parent.set_currencies(quote_currencies)
 
-    def update_ct(self):
-        quote_currencies = {"EUR": 0.0, "USD": 0.0}
-        for cur in quote_currencies:
-            try:
-                quote_currencies[cur] = self.get_json('www.crypto-trade.com', "/api/1/ticker/ltc_" + cur.lower())["data"]["last"]
-            except SSLError:
-                print("SSL Error when accesing Crypto-Trade")
-                return
-            except Exception:
-                return
-        with self.lock:
-            self.quote_currencies = quote_currencies
-        self.parent.set_currencies(quote_currencies)
-
-    def update_em(self):
-        try:
-            jsonresp = self.get_json('api.exmoney.com', "/api_v2/pairs")
-        except SSLError:
-            print("SSL Error when accesing ExMoney")
-            return
-        except Exception:
-            return
-        quote_currencies = {}
-        try:
-            for r in jsonresp["data"]:
-                if r["name"].startswith("LTC_"):
-                    quote_currencies[r["name"][-3:]] = Decimal(r["last"])
-            with self.lock:
-                self.quote_currencies = quote_currencies
-        except KeyError:
-            pass
-        self.parent.set_currencies(quote_currencies)
-
     def update_gc(self):
         try:
             jsonresp = self.get_json('x.g0cn.com', "/prices")
@@ -252,6 +216,20 @@ class Exchanger(threading.Thread):
                 self.quote_currencies = quote_currencies
         except KeyError:
             pass
+        self.parent.set_currencies(quote_currencies)
+
+    def update_hb(self):
+        quote_currencies = {"EUR": 0.0, "USD": 0.0}
+        for cur in quote_currencies:
+            try:
+                quote_currencies[cur] = self.get_json('api.hitbtc.com', "/api/1/public/LTC" + cur + "/ticker")["last"]
+            except SSLError:
+                print("SSL Error when accesing HitBTC")
+                return
+            except Exception:
+                return
+        with self.lock:
+            self.quote_currencies = quote_currencies
         self.parent.set_currencies(quote_currencies)
 
     def update_kk(self):
@@ -287,20 +265,6 @@ class Exchanger(threading.Thread):
                 self.quote_currencies = quote_currencies
         except KeyError:
             print ("KeyError")
-        self.parent.set_currencies(quote_currencies)
-
-    def update_vs(self):
-        quote_currencies = {"CAD": 0.0, "USD": 0.0}
-        for cur in quote_currencies:
-            try:
-                quote_currencies[cur] = self.get_json('api.vaultofsatoshi.com', "/public/ticker?order_currency=LTC&payment_currency=" + cur)["data"]["closing_price"]["value"]
-            except SSLError:
-                print("SSL Error when accesing Vault of Satoshi")
-                return
-            except Exception:
-                return
-        with self.lock:
-            self.quote_currencies = quote_currencies
         self.parent.set_currencies(quote_currencies)
 
 
