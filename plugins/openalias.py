@@ -37,7 +37,7 @@
 
 from electrum_gui.qt.util import EnterButton
 from electrum.plugins import BasePlugin, hook
-from electrum.util import print_msg
+from electrum.util import print_error
 from electrum.i18n import _
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -77,13 +77,13 @@ class Plugin(BasePlugin):
         return 'OpenAlias'
 
     def description(self):
-        return 'Allow for payments to OpenAlias addresses.'
+        return 'Allow for payments to OpenAlias addresses.\nRequires dnspython'
 
     def is_available(self):
         return OA_READY
 
     def __init__(self, gui, name):
-        print_msg('[OA] Initialiasing OpenAlias plugin, OA_READY is ' + str(OA_READY))
+        print_error('[OA] Initialiasing OpenAlias plugin, OA_READY is ' + str(OA_READY))
         BasePlugin.__init__(self, gui, name)
         self._is_available = OA_READY
 
@@ -266,7 +266,7 @@ class Plugin(BasePlugin):
 
     def resolve(self, url):
         '''Resolve OpenAlias address using url.'''
-        print_msg('[OA] Attempting to resolve OpenAlias data for ' + url)
+        print_error('[OA] Attempting to resolve OpenAlias data for ' + url)
 
         prefix = 'btc'
         retries = 3
@@ -314,7 +314,7 @@ class Plugin(BasePlugin):
             return None
 
     def validate_dnssec(self, url):
-        print_msg('[OA] Checking DNSSEC trust chain for ' + url)
+        print_error('[OA] Checking DNSSEC trust chain for ' + url)
 
         try:
             default = dns.resolver.get_default_resolver()
