@@ -12,6 +12,4 @@ include app.fil
 include icons.qrc
 recursive-include icons *
 recursive-include scripts *
-recursive-include data *
-recursive-include locale *.mo
 recursive-include docs *
