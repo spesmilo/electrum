@@ -203,7 +203,6 @@ class ElectrumWindow(QMainWindow):
 
     def close_wallet(self):
         self.wallet.stop_threads()
-        self.hide()
         run_hook('close_wallet')
 
     def load_wallet(self, wallet):
@@ -221,7 +220,6 @@ class ElectrumWindow(QMainWindow):
         if self.wallet.is_watching_only(): title += ' [%s]' % (_('watching only'))
         self.setWindowTitle( title )
         self.update_history_tab()
-        self.show()
         self.update_wallet()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         self.notify_transactions()
@@ -280,6 +278,7 @@ class ElectrumWindow(QMainWindow):
                 return
         # close current wallet
         self.close_wallet()
+        self.hide()
         # run wizard
         if action is not None:
             import installwizard
@@ -296,6 +295,7 @@ class ElectrumWindow(QMainWindow):
             wallet.start_threads(self.network)
         # load new wallet in gui
         self.load_wallet(wallet)
+        self.show()
         # save path
         self.config.set_key('default_wallet_path', filename)
 
