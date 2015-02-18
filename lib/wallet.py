@@ -67,7 +67,7 @@ class WalletStorage(object):
 
         # path in config file
         path = config.get('default_wallet_path')
-        if path:
+        if path and os.path.exists(path):
             return path
 
         # default path

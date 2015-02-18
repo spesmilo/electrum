@@ -296,6 +296,8 @@ class ElectrumWindow(QMainWindow):
             wallet.start_threads(self.network)
         # load new wallet in gui
         self.load_wallet(wallet)
+        # save path
+        self.config.set_key('default_wallet_path', filename)
 
 
 
