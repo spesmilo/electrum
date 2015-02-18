@@ -23,6 +23,7 @@
    - Cosigner Pool: encrypted communication channel for multisig
      wallets, to send and receive partially signed transactions
    - Audio Modem: send and receive transactions by sound
+   - OpenAlias: pay to openalias addresses
 
  * Support for BIP70: payment requests
    - Verification of the signature chain uses tlslite.
