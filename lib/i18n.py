@@ -18,11 +18,7 @@
 
 import gettext, os
 
-if os.path.exists('./locale'):
-    LOCALE_DIR = './locale'
-else:
-    LOCALE_DIR = '/usr/share/locale'
-
+LOCALE_DIR = os.path.join(os.path.dirname(__file__), 'locale')
 language = gettext.translation('electrum', LOCALE_DIR, fallback = True)
 
 
