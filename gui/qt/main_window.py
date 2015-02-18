@@ -340,11 +340,11 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.critical(None, "Error", _("File exists"))
             return
 
-        if self.wallet:
-            self.close_wallet()
         wizard = installwizard.InstallWizard(self.config, self.network, storage)
         wallet = wizard.run('new')
         if wallet:
+            if self.wallet:
+                self.close_wallet()
             self.load_wallet(wallet)
 
 
