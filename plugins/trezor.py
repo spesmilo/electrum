@@ -2,8 +2,6 @@ from PyQt4.Qt import QMessageBox, QDialog, QVBoxLayout, QLabel, QThread, SIGNAL,
 import PyQt4.QtCore as QtCore
 from binascii import unhexlify
 from struct import pack
-from sys import stderr
-from time import sleep
 from base64 import b64encode, b64decode
 
 import electrum
@@ -27,14 +25,6 @@ try:
     TREZOR = True
 except ImportError:
     TREZOR = False
-
-def log(msg):
-    stderr.write("%s\n" % msg)
-    stderr.flush()
-
-def give_error(message):
-    print_error(message)
-    raise Exception(message)
 
 class Plugin(BasePlugin):
 
@@ -187,6 +177,10 @@ class TrezorWallet(BIP32_HD_Wallet):
         self.device_checked = False
         self.force_watching_only = False
 
+    def give_error(self, message):
+        QMessageBox.warning(QDialog(), _('Warning'), _(message), _('OK'))
+        raise Exception(message)
+
     def get_action(self):
         if not self.accounts:
             return 'create_accounts'
@@ -208,22 +202,21 @@ class TrezorWallet(BIP32_HD_Wallet):
 
     def get_client(self):
         if not TREZOR:
-            give_error('please install github.com/trezor/python-trezor')
+            self.give_error('please install github.com/trezor/python-trezor')
 
         if not self.client or self.client.bad:
             try:
                 d = HidTransport.enumerate()[0]
                 self.transport = HidTransport(d)
             except:
-                give_error('Could not connect to your Trezor. Please verify the cable is connected and that no other app is using it.')
+                self.give_error('Could not connect to your Trezor. Please verify the cable is connected and that no other app is using it.')
             self.client = QtGuiTrezorClient(self.transport)
             self.client.set_tx_api(self)
-            #self.client.clear_session()# TODO Doesn't work with firmware 1.1, returns proto.Failure
             self.client.bad = False
             self.device_checked = False
             self.proper_device = False
             if not self.atleast_version(1, 2, 1):
-                give_error('Outdated Trezor firmware. Please update the firmware from https://www.mytrezor.com')
+                self.give_error('Outdated Trezor firmware. Please update the firmware from https://www.mytrezor.com')
         return self.client
 
     def compare_version(self, major, minor=0, patch=0):
@@ -284,38 +277,38 @@ class TrezorWallet(BIP32_HD_Wallet):
         #try:
         #    decrypted_msg = self.get_client().decrypt_message(address_n, b64decode(message))
         #except Exception, e:
-        #    give_error(e)
+        #    self.give_error(e)
         #finally:
         #    twd.emit(SIGNAL('trezor_done'))
         #return str(decrypted_msg)
 
     def show_address(self, address):
         if not self.check_proper_device():
-            give_error('Wrong device or password')
+            self.give_error('Wrong device or password')
         try:
             address_path = self.address_id(address)
             address_n = self.get_client().expand_path(address_path)
         except Exception, e:
-            give_error(e)
+            self.give_error(e)
         try:
             self.get_client().get_address('Bitcoin', address_n, True)
         except Exception, e:
-            give_error(e)
+            self.give_error(e)
         finally:
             twd.emit(SIGNAL('trezor_done'))
 
     def sign_message(self, address, message, password):
         if not self.check_proper_device():
-            give_error('Wrong device or password')
+            self.give_error('Wrong device or password')
         try:
             address_path = self.address_id(address)
             address_n = self.get_client().expand_path(address_path)
         except Exception, e:
-            give_error(e)
+            self.give_error(e)
         try:
             msg_sig = self.get_client().sign_message('Bitcoin', address_n, message)
         except Exception, e:
-            give_error(e)
+            self.give_error(e)
         finally:
             twd.emit(SIGNAL('trezor_done'))
         b64_msg_sig = b64encode(msg_sig.signature)
@@ -330,14 +323,14 @@ class TrezorWallet(BIP32_HD_Wallet):
         if tx.is_complete():
             return
         if not self.check_proper_device():
-            give_error('Wrong device or password')
+            self.give_error('Wrong device or password')
 
         inputs = self.tx_inputs(tx)
         outputs = self.tx_outputs(tx)
         try:
             signed_tx = self.get_client().sign_tx('Bitcoin', inputs, outputs)[1]
         except Exception, e:
-            give_error(e)
+            self.give_error(e)
         finally:
             twd.emit(SIGNAL('trezor_done'))
         values = [i['value'] for i in tx.inputs]
@@ -486,7 +479,6 @@ class TrezorQtGuiMixin(object):
 
     def callback_WordRequest(self, msg):
         #TODO
-        log("Enter one word of mnemonic: ")
         word = raw_input()
         return proto.WordAck(word=word)
 
