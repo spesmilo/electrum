@@ -25,7 +25,6 @@ except ImportError as e:
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _, set_language
 from electrum.util import user_dir
-from electrum.util import appdata_dir
 from electrum.util import format_satoshis
 from electrum_gui.qt import ElectrumGui
 
