@@ -26,7 +26,6 @@ import string
 import ecdsa
 import pbkdf2
 
-import util
 from util import print_error
 from bitcoin import is_old_seed, is_new_seed
 import version
@@ -104,7 +103,7 @@ class Mnemonic(object):
             lang = i18n.language.info().get('language', 'en')
         print_error('language', lang)
         filename = filenames.get(lang[0:2], 'english.txt')
-        path = os.path.join(util.data_dir(), 'wordlist', filename)
+        path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
         s = open(path,'r').read().strip()
         s = unicodedata.normalize('NFKD', s.decode('utf8'))
         lines = s.split('\n')

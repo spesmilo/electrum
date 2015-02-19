@@ -7,7 +7,7 @@ import random
 import traceback
 
 
-from util import user_dir, appdata_dir, print_error, print_msg
+from util import user_dir, print_error, print_msg
 from bitcoin import *
 import interface
 from blockchain import Blockchain

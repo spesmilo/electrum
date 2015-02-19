@@ -18,7 +18,7 @@
 
 
 import threading, time, Queue, os, sys, shutil
-from util import user_dir, appdata_dir, print_error, print_msg
+from util import user_dir, print_error, print_msg
 from bitcoin import *
 
 try:

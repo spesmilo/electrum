@@ -61,39 +61,6 @@ def user_dir():
         return
 
 
-def data_dir():
-    import __builtin__
-    if __builtin__.use_local_modules:
-        return local_data_dir()
-    else:
-        is_frozen = getattr(sys, 'frozen', False)
-        if is_frozen:
-            if is_frozen == "macosx_app":
-                basedir = os.path.abspath(".")
-            else:
-                basedir = sys._MEIPASS
-
-            return os.path.join(basedir, 'data')
-        else:
-            return appdata_dir()
-
-def usr_share_dir():
-    return os.path.join(sys.prefix, "share")
-
-def appdata_dir():
-    """Find the path to the application data directory; add an electrum folder and return path."""
-    if platform.system() == "Windows":
-        return os.path.join(os.environ["APPDATA"], "Electrum-LTC")
-    elif platform.system() == "Linux":
-        return os.path.join(usr_share_dir(), "electrum-ltc")
-    elif (platform.system() == "Darwin" or
-          platform.system() == "DragonFly" or
-          platform.system() == "OpenBSD" or
-          platform.system() == "FreeBSD" or
-	  platform.system() == "NetBSD"):
-        return "/Library/Application Support/Electrum-LTC"
-    else:
-        raise Exception("Unknown system")
 
 
 def get_resource_path(*args):
