@@ -6,7 +6,7 @@ a = Analysis(['electrum', 'gui/qt/main_window.py', 'gui/qt/lite_window.py', 'gui
               'lib/bitcoin.py'
               ],
              hiddenimports=["lib","gui"],
-             pathex=['lib:gui:plugins'],
+             pathex=['lib','gui','plugins','packages'],
              hookspath=None)
 
 ##### include mydir in distribution #######
@@ -29,11 +29,8 @@ def extra_datas(mydir):
 
 # append dirs
 
-# Theme data
-a.datas += extra_datas('data')
-
-# Localization
-a.datas += extra_datas('locale')
+# cacert.pem
+a.datas += [ ('requests/cacert.pem', 'packages/requests/cacert.pem', 'DATA') ]
 
 # Py folders that are needed because of the magic import finding
 a.datas += extra_datas('gui')
