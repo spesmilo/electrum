@@ -63,18 +63,6 @@ def user_dir():
 
 
 
-def get_resource_path(*args):
-    return os.path.join(".", *args)
-
-
-def local_data_dir():
-    """Return path to the data folder."""
-    assert sys.argv
-    prefix_path = os.path.dirname(sys.argv[0])
-    local_data = os.path.join(prefix_path, "data")
-    return local_data
-
-
 def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespaces=False):
     from decimal import Decimal
     s = Decimal(x)
