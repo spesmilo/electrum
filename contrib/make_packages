@@ -27,6 +27,8 @@ if __name__ == '__main__':
         'dns',
         'six',
     ]
+    # don't use /usr/lib
+    sys.path = ['/usr/local/lib/python2.7/dist-packages']
     for module in deps:
         f, pathname, descr = imp.find_module(module)
         target = 'packages/' + module + descr[0]
@@ -38,6 +40,11 @@ if __name__ == '__main__':
         command = "cp -r %s %s"%(pathname, target)
         print command
         os.system(command)
+
+    # fix google/__init__.py needed by pyinstaller
+    n = 'packages/google/__init__.py'
+    if not os.path.exists(n):
+        os.system("echo blah>%s"%n)
 
     # os.system("python mki18n.py")
     os.system("pyrcc4 icons.qrc -o gui/qt/icons_rc.py")
