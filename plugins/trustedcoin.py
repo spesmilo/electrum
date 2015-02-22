@@ -214,6 +214,7 @@ class Plugin(BasePlugin):
         electrum.wallet.wallet_types.append(('twofactor', '2fa', _("Wallet with two-factor authentication"), Wallet_2fa))
         self.seed_func = lambda x: bitcoin.is_new_seed(x, SEED_PREFIX)
         self.billing_info = None
+        self.is_billing = False
 
     def fullname(self):
         return 'Two Factor Authentication'
@@ -332,7 +333,6 @@ class Plugin(BasePlugin):
     @hook
     def init_qt(self, gui):
         self.window = gui.main_window
-        self.is_billing = False
 
     @hook
     def do_clear(self):
