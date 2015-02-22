@@ -12,9 +12,39 @@ if __name__ == '__main__':
     imp.load_module('electrum_ltc', *imp.find_module('../lib'))
     from electrum_ltc.version import ELECTRUM_VERSION as version
 
-    if not ( os.path.exists('packages')):
-        print "The packages directory is missing."
-        sys.exit()
+    # copy dependencies into 'packages' directory
+    deps = [
+        'aes',
+        'ecdsa',
+        'pbkdf2',
+        'requests',
+        'pyasn1',
+        'pyasn1_modules',
+        'qrcode',
+        'socks',
+        'google/protobuf',
+        'tlslite',
+        'dns',
+        'six',
+    ]
+    # don't use /usr/lib
+    sys.path = ['/usr/local/lib/python2.7/dist-packages']
+    for module in deps:
+        f, pathname, descr = imp.find_module(module)
+        target = 'packages/' + module + descr[0]
+        if os.path.exists(target):
+            continue
+        d = os.path.dirname(target)
+        if d and not (os.path.exists(d)):
+            os.makedirs(d)
+        command = "cp -r %s %s"%(pathname, target)
+        print command
+        os.system(command)
+
+    # fix google/__init__.py needed by pyinstaller
+    n = 'packages/google/__init__.py'
+    if not os.path.exists(n):
+        os.system("echo blah>%s"%n)
 
     # os.system("python mki18n.py")
     os.system("pyrcc4 icons.qrc -o gui/qt/icons_rc.py")

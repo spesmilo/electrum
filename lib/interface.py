@@ -266,8 +266,10 @@ class TcpInterface(threading.Thread):
                         return
                     print_error("wrong certificate", self.host)
                 return
-            except BaseException:
-                print_error("wrap_socket failed", self.host)
+            except BaseException, e:
+                print_error(self.host, e)
+                if e.errno == 104:
+                    return
                 traceback.print_exc(file=sys.stderr)
                 return
 

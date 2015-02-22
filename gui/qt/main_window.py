@@ -276,8 +276,6 @@ class ElectrumWindow(QMainWindow):
         if action is not None:
             if not self.question(_("This file contains an incompletely created wallet.\nDo you want to complete its creation now?")):
                 return
-        # close current wallet
-        self.close_wallet()
         self.hide()
         # run wizard
         if action is not None:
@@ -290,9 +288,12 @@ class ElectrumWindow(QMainWindow):
                 QMessageBox.information(None, _('Error'), str(e), _('OK'))
                 return
             if not wallet:
+                self.show()
                 return
         else:
             wallet.start_threads(self.network)
+        # close current wallet
+        self.close_wallet()
         # load new wallet in gui
         self.load_wallet(wallet)
         self.show()
@@ -341,11 +342,11 @@ class ElectrumWindow(QMainWindow):
             return
 
         self.hide()
-        if self.wallet:
-            self.close_wallet()
         wizard = installwizard.InstallWizard(self.config, self.network, storage)
         wallet = wizard.run('new')
         if wallet:
+            if self.wallet:
+                self.close_wallet()
             self.load_wallet(wallet)
         self.show()
 

@@ -1,0 +1,1 @@
+cat lib/commands.py|grep register_command|sed "s/register_command(\(.*\))/\1/" |sed "s/'//g"| awk -F, '{print "|-\n|" $1 "|| " $7 "|| " $8 "|| " $4 "|| " $5 "|| " $6 }'

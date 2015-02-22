@@ -13,7 +13,6 @@ except ImportError:
     sys.exit(0)
 
 from decimal import Decimal as D
-from electrum_ltc.util import get_resource_path as rsrc
 from electrum_ltc.bitcoin import is_valid
 from electrum_ltc.i18n import _
 import decimal
@@ -867,9 +866,3 @@ class MiniDriver(QObject):
         self.window.update_history(tx_history)
 
 
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    with open(rsrc("style.css")) as style_file:
-        app.setStyleSheet(style_file.read())
-    mini = MiniWindow()
-    sys.exit(app.exec_())
