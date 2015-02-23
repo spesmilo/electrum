@@ -44,7 +44,7 @@ if __name__ == '__main__':
     # fix google/__init__.py needed by pyinstaller
     n = 'packages/google/__init__.py'
     if not os.path.exists(n):
-        os.system("echo blah>%s"%n)
+        os.system("echo \# do not remove>%s"%n)
 
     # os.system("python mki18n.py")
     os.system("pyrcc4 icons.qrc -o gui/qt/icons_rc.py")
