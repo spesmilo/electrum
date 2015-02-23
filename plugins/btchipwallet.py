@@ -158,7 +158,7 @@ class BTChipWallet(BIP32_HD_Wallet):
                 d.setWaitImpl(DongleWaitQT(d))
                 self.client = btchip(d)
                 firmware = self.client.getFirmwareVersion()['version'].split(".")
-                if (not checkFirmware(firmware)) or (int(firmware[0]) <> 1) or (int(firmware[1]) <> 4) or (int(firmware[2]) < 9):                    
+                if not checkFirmware(firmware):                    
                     d.close()
                     try:
                         updateFirmware()
@@ -307,11 +307,13 @@ class BTChipWallet(BIP32_HD_Wallet):
                 self.device_checked = False
                 self.get_client(True)
             signature = self.get_client().signMessageSign(pin)
-        except Exception, e:
+        except BTChipException, e:
             if e.sw == 0x6a80:
                 self.give_error("Unfortunately, this message cannot be signed by BTChip. Only alphanumerical messages shorter than 140 characters are supported. Please remove any extra characters (tab, carriage return) and retry.")
             else:                
-                self.give_error(e, True)
+                self.give_error(e, True)            
+        except Exception, e:
+            self.give_error(e, True)
         finally:
             if waitDialog.waiting:
                 waitDialog.emit(SIGNAL('dongle_done'))
