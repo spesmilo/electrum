@@ -27,12 +27,13 @@ import sys
 import time
 import traceback
 
+script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
-is_local = not is_bundle and os.path.dirname(os.path.realpath(__file__)) == os.getcwd()
+is_local = not is_bundle and script_dir == os.getcwd()
 is_android = 'ANDROID_DATA' in os.environ
 
-if is_local:
-    sys.path.insert(0, 'packages')
+if is_local or is_android:
+    sys.path.insert(0, os.path.join(script_dir, 'packages'))
 elif is_bundle and sys.platform=='darwin':
     sys.path.insert(0, os.getcwd() + "/lib/python2.7/packages")
 

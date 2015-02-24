@@ -22,7 +22,7 @@
 from __future__ import absolute_import
 import android
 
-from electrum import SimpleConfig, Wallet, WalletStorage, format_satoshis, mnemonic_encode, mnemonic_decode
+from electrum import SimpleConfig, Wallet, WalletStorage, format_satoshis
 from electrum.bitcoin import is_valid
 from electrum import util
 from decimal import Decimal
@@ -98,7 +98,6 @@ def select_from_contacts():
         return 'newcontact'
 
     result = response.get('item')
-    print result
     if result is not None:
         addr = wallet.addressbook[result]
         return addr
@@ -124,9 +123,7 @@ def select_from_addresses():
 
 def protocol_name(p):
     if p == 't': return 'TCP'
-    if p == 'h': return 'HTTP'
     if p == 's': return 'SSL'
-    if p == 'g': return 'HTTPS'
 
 
 def protocol_dialog(host, protocol, z):
@@ -134,7 +131,7 @@ def protocol_dialog(host, protocol, z):
     if z:
         protocols = z.keys()
     else:
-        protocols = 'thsg'
+        protocols = 'ts'
     l = []
     current = protocols.index(protocol)
     for p in protocols:
@@ -147,8 +144,10 @@ def protocol_dialog(host, protocol, z):
     selected_item = droid.dialogGetSelectedItems().result
     droid.dialogDismiss()
 
-    if not response: return
-    if not selected_item: return
+    if not response:
+        return
+    if not selected_item:
+        return
     if response.get('which') == 'positive':
         return protocols[selected_item[0]]
 
@@ -211,7 +210,8 @@ def make_layout(s, scrollable = False):
 
 
 def main_layout():
-    return make_layout("""
+    h = get_history_layout(15)
+    l = make_layout("""
         <TextView android:id="@+id/balanceTextView" 
                 android:layout_width="match_parent"
                 android:text=""
@@ -229,8 +229,8 @@ def main_layout():
                 android:textAppearance="?android:attr/textAppearanceLarge" 
                 android:gravity="center_vertical|center_horizontal|center">
         </TextView>
-
-        %s """%get_history_layout(15),True)
+        %s """%h,True)
+    return l
 
 
 
@@ -350,7 +350,7 @@ def get_history_values(n):
 
         conf_str = 'v' if conf else 'o'
         label, is_default_label = wallet.get_label(tx_hash)
-        values.append((conf_str, '  ' + time_str, '  ' + format_satoshis(value,True), '  ' + label ))
+        values.append((conf_str, '  ' + time_str, '  ' + format_satoshis(value,True), '  ' ))
 
     return values
 
@@ -616,15 +616,18 @@ def payto_loop():
                 code = droid.scanBarcode()
                 r = code.result
                 if r:
-                    data = r['extras']['SCAN_RESULT']
+                    data = str(r['extras']['SCAN_RESULT'])
                     if data:
                         if re.match('^bitcoin:', data):
                             payto, amount, label, _, _ = util.parse_URI(data)
-                            droid.fullSetProperty("recipient", "text",payto)
+                            amount = str(amount/100000000)
+                            droid.fullSetProperty("recipient", "text", payto)
                             droid.fullSetProperty("amount", "text", amount)
                             droid.fullSetProperty("label", "text", label)
-                        else:
+                        elif bitcoin.is_address(data):
                             droid.fullSetProperty("recipient", "text", data)
+                        else:
+                            modal_dialog('Error','cannot parse QR code\n'+data)
 
                     
         elif event["name"] in menu_commands:
@@ -717,13 +720,12 @@ def show_seed():
         password = None
     
     try:
-        seed = wallet.get_seed(password)
+        seed = wallet.get_mnemonic(password)
     except Exception:
         modal_dialog('error','incorrect password')
         return
 
-    modal_dialog('Your seed is',seed)
-    modal_dialog('Mnemonic code:', ' '.join(mnemonic_encode(seed)) )
+    modal_dialog('Your seed is', seed)
 
 def change_password_dialog():
     if wallet.use_encryption:
@@ -733,7 +735,7 @@ def change_password_dialog():
         password = None
 
     try:
-        wallet.get_seed(password)
+        wallet.check_password(password)
     except Exception:
         modal_dialog('error','incorrect password')
         return
@@ -760,8 +762,8 @@ def settings_loop():
 
 
     def set_listview():
-        host, port, p = network.default_server.split(':')
-        fee = str( Decimal( wallet.fee)/100000000 )
+        host, port, p, proxy_config, auto_connect = network.get_parameters()
+        fee = str( Decimal( wallet.fee_per_kb)/100000000 )
         is_encrypted = 'yes' if wallet.use_encryption else 'no'
         protocol = protocol_name(p)
         droid.fullShow(settings_layout)
@@ -783,7 +785,7 @@ def settings_loop():
 
         if name == "itemclick":
             pos = event["data"]["position"]
-            host, port, protocol = network.default_server.split(':')
+            host, port, protocol, proxy_config, auto_connect = network.get_parameters()
             network_changed = False
 
             if pos == "0": #server
@@ -796,9 +798,10 @@ def settings_loop():
             elif pos == "1": #protocol
                 if host in servers:
                     protocol = protocol_dialog(host, protocol, servers[host])
-                    z = servers[host]
-                    port = z[protocol]
-                    network_changed = True
+                    if protocol:
+                        z = servers[host]
+                        port = z[protocol]
+                        network_changed = True
 
             elif pos == "2": #port
                 a_port = modal_input('Port number', 'If you use a public server, this field is set automatically when you set the protocol', port, "number")
@@ -807,7 +810,8 @@ def settings_loop():
                     network_changed = True
 
             elif pos == "3": #fee
-                fee = modal_input('Transaction fee', 'The fee will be this amount multiplied by the number of inputs in your transaction. ', str( Decimal( wallet.fee)/100000000 ), "numberDecimal")
+                fee = modal_input('Transaction fee', 'The fee will be this amount multiplied by the number of inputs in your transaction. ',
+                                  str(Decimal(wallet.fee_per_kb)/100000000 ), "numberDecimal")
                 if fee:
                     try:
                         fee = int( 100000000 * Decimal(fee) )
@@ -861,17 +865,15 @@ def add_menu(s):
         #droid.addOptionsMenuItem("Delete","deletecontact",None,"")
 
 
-def make_bitmap(addr):
+def make_bitmap(data):
     # fixme: this is highly inefficient
     droid.dialogCreateSpinnerProgress("please wait")
     droid.dialogShow()
     try:
-        import pyqrnative, bmp
-        qr = pyqrnative.QRCode(4, pyqrnative.QRErrorCorrectLevel.L)
-        qr.addData(addr)
-        qr.make()
-        k = qr.getModuleCount()
-        assert k == 33
+        import qrcode
+        from electrum import bmp
+        qr = qrcode.QRCode()
+        qr.add_data(data)
         bmp.save_qrcode(qr,"/sdcard/sl4a/qrcode.bmp")
     finally:
         droid.dialogDismiss()
@@ -975,7 +977,7 @@ class ElectrumGui:
 
 
     def seed_dialog(self):
-        if modal_question("Enter your seed","Input method",'QR Code', 'mnemonic'):
+        if modal_question("Enter your seed", "Input method", 'QR Code', 'mnemonic'):
             code = droid.scanBarcode()
             r = code.result
             if r:
@@ -984,11 +986,6 @@ class ElectrumGui:
                 return
         else:
             m = modal_input('Mnemonic','please enter your code')
-            try:
-                seed = mnemonic_decode(m.split(' '))
-            except Exception:
-                modal_dialog('error: could not decode this seed')
-                return
 
         return str(seed)
 
@@ -998,8 +995,7 @@ class ElectrumGui:
 
         
     def show_seed(self):
-        modal_dialog('Your seed is:', wallet.seed)
-        modal_dialog('Mnemonic code:', ' '.join(mnemonic_encode(wallet.seed)) )
+        modal_dialog('Your seed is:', wallet.get_mnemonic(None))
 
 
     def password_dialog(self):

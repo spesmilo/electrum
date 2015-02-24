@@ -3,9 +3,10 @@ import sys
 import hashlib
 import os
 
-from versions import version, version_win, version_mac, template_path, dl_path
+from versions import version, version_win, version_mac
+from versions import download_template, download_page
 
-with open(template_path) as f:
+with open(download_template) as f:
     string = f.read()
 
 _tgz = "Electrum-%s.tar.gz" % version
@@ -38,6 +39,20 @@ string = string.replace("##md5_win##", md5_win)
 string = string.replace("##md5_win_setup##", md5_win_setup)
 string = string.replace("##md5_win_portable##", md5_win_portable)
 
-with open(dl_path,'w') as f:
+with open(download_page,'w') as f:
     f.write(string)
 
+
+# android
+
+from versions import android_template, android_page
+with open(android_template) as f:
+    string = f.read()
+
+e4a_name = "e4a-%s.zip"%version
+e4a_zipname = e4a_name.replace(".","")
+string = string.replace("##VERSION##",version)
+string = string.replace("##ZIPNAME##",e4a_zipname)
+
+with open(android_page,'w') as f:
+    f.write(string)
