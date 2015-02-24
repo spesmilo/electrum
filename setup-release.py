@@ -37,10 +37,10 @@ if sys.platform == 'darwin':
         app=[mainscript],
         options=dict(py2app=dict(argv_emulation=True,
                                  includes=['PyQt4.QtCore', 'PyQt4.QtGui', 'PyQt4.QtWebKit', 'PyQt4.QtNetwork', 'sip'],
-                                 packages=['lib', 'gui', 'plugins', 'packages'],
+                                 packages=['lib', 'gui', 'plugins'],
                                  iconfile='electrum.icns',
                                  plist=plist,
-                                 resources=["data", "icons"])),
+                                 resources=["icons"])),
     )
 elif sys.platform == 'win32':
     extra_options = dict(
@@ -66,7 +66,6 @@ if sys.platform == 'darwin':
     os.remove(mainscript)
     resource = "dist/" + name + ".app/Contents/Resources/"
 
-    dir_util.copy_tree("locale", resource + "locale/")
     # Try to locate qt_menu
     # Let's try the port version first!
     if os.path.isfile("/opt/local/lib/Resources/qt_menu.nib"):

@@ -253,7 +253,10 @@ class Abstract_Wallet(object):
             elif v.get('xpub'):
                 self.accounts[k] = BIP32_Account(v)
             elif v.get('pending'):
-                self.accounts[k] = PendingAccount(v)
+                try:
+                    self.accounts[k] = PendingAccount(v)
+                except:
+                    pass
             else:
                 print_error("cannot load account", v)
 
@@ -717,7 +720,7 @@ class Abstract_Wallet(object):
             # send change to one of the accounts involved in the tx
             address = inputs[0].get('address')
             account, _ = self.get_address_index(address)
-            if not self.use_change or account == IMPORTED_ACCOUNT:
+            if not self.use_change or not self.accounts[account].has_change():
                 change_addr = address
             else:
                 change_addr = self.accounts[account].get_addresses(1)[-self.gap_limit_for_change]
@@ -1363,7 +1366,7 @@ class BIP32_Simple_Wallet(BIP32_Wallet):
 class BIP32_HD_Wallet(BIP32_Wallet):
     # wallet that can create accounts
     def __init__(self, storage):
-        self.next_account = storage.get('next_account', None)
+        self.next_account = storage.get('next_account2', None)
         BIP32_Wallet.__init__(self, storage)
 
     def can_create_accounts(self):
@@ -1372,14 +1375,14 @@ class BIP32_HD_Wallet(BIP32_Wallet):
     def addresses(self, b=True):
         l = BIP32_Wallet.addresses(self, b)
         if self.next_account:
-            next_address = self.next_account[2]
+            _, _, _, next_address = self.next_account
             if next_address not in l:
                 l.append(next_address)
         return l
 
     def get_address_index(self, address):
         if self.next_account:
-            next_id, next_xpub, next_address = self.next_account
+            next_id, next_xpub, next_pubkey, next_address = self.next_account
             if address == next_address:
                 return next_id, (0,0)
         return BIP32_Wallet.get_address_index(self, address)
@@ -1406,9 +1409,9 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         if xprv:
             self.add_master_private_key(derivation, xprv, password)
         account = BIP32_Account({'xpub':xpub})
-        addr = account.first_address()
+        addr, pubkey = account.first_address()
         self.add_address(addr)
-        return account_id, xpub, addr
+        return account_id, xpub, pubkey, addr
 
     def create_main_account(self, password):
         # First check the password is valid (this raises if it isn't).
@@ -1417,13 +1420,13 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         self.create_account('Main account', password)
 
     def create_account(self, name, password):
-        account_id, xpub, addr = self.get_next_account(password)
+        account_id, xpub, _, _ = self.get_next_account(password)
         account = BIP32_Account({'xpub':xpub})
         self.add_account(account_id, account)
         self.set_label(account_id, name)
         # add address of the next account
         self.next_account = self.get_next_account(password)
-        self.storage.put('next_account', self.next_account)
+        self.storage.put('next_account2', self.next_account)
 
     def account_is_pending(self, k):
         return type(self.accounts.get(k)) == PendingAccount
@@ -1436,11 +1439,11 @@ class BIP32_HD_Wallet(BIP32_Wallet):
     def create_pending_account(self, name, password):
         if self.next_account is None:
             self.next_account = self.get_next_account(password)
-            self.storage.put('next_account', self.next_account)
-        next_id, next_xpub, next_address = self.next_account
+            self.storage.put('next_account2', self.next_account)
+        next_id, next_xpub, next_pubkey, next_address = self.next_account
         if name:
             self.set_label(next_id, name)
-        self.accounts[next_id] = PendingAccount({'pending':next_address})
+        self.accounts[next_id] = PendingAccount({'pending':True, 'address':next_address, 'pubkey':next_pubkey})
         self.save_accounts()
 
     def synchronize(self):
@@ -1449,21 +1452,21 @@ class BIP32_HD_Wallet(BIP32_Wallet):
 
         if self.next_account is None and not self.use_encryption:
             self.next_account = self.get_next_account(None)
-            self.storage.put('next_account', self.next_account)
+            self.storage.put('next_account2', self.next_account)
 
         # check pending account
         if self.next_account is not None:
-            next_id, next_xpub, next_address = self.next_account
+            next_id, next_xpub, next_pubkey, next_address = self.next_account
             if self.address_is_old(next_address):
                 print_error("creating account", next_id)
                 self.add_account(next_id, BIP32_Account({'xpub':next_xpub}))
                 # here the user should get a notification
                 self.next_account = None
-                self.storage.put('next_account', self.next_account)
+                self.storage.put('next_account2', self.next_account)
             elif self.history.get(next_address, []):
                 if next_id not in self.accounts:
                     print_error("create pending account", next_id)
-                    self.accounts[next_id] = PendingAccount({'pending':next_address})
+                    self.accounts[next_id] = PendingAccount({'pending':True, 'address':next_address, 'pubkey':next_pubkey})
                     self.save_accounts()
 
 

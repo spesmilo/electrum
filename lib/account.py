@@ -96,7 +96,9 @@ class Account(object):
 
 class PendingAccount(Account):
     def __init__(self, v):
-        self.pending_address = v['pending']
+        self.pending_address = v['address']
+        self.change_pubkeys = []
+        self.receiving_pubkeys = [ v['pubkey'] ]
 
     def synchronize(self, wallet):
         return
@@ -108,7 +110,7 @@ class PendingAccount(Account):
         return False
 
     def dump(self):
-        return {'pending':self.pending_address }
+        return {'pending':True, 'address':self.pending_address, 'pubkey':self.receiving_pubkeys[0] }
 
     def get_name(self, k):
         return _('Pending account')
@@ -118,6 +120,9 @@ class PendingAccount(Account):
 
     def get_type(self):
         return _('pending')
+
+    def get_xpubkeys(self, for_change, n):
+        return self.get_pubkeys(for_change, n)
 
 class ImportedAccount(Account):
     def __init__(self, d):
@@ -285,8 +290,8 @@ class BIP32_Account(Account):
 
     def first_address(self):
         pubkeys = self.derive_pubkeys(0, 0)
-        address = self.pubkeys_to_address(pubkeys)
-        return address
+        addr = self.pubkeys_to_address(pubkeys)
+        return addr, pubkeys
 
     def get_master_pubkeys(self):
         return [self.xpub]
