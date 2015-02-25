@@ -29,7 +29,6 @@ from decimal import Decimal
 import datetime, re
 
 
-
 def modal_dialog(title, msg = None):
     droid.dialogCreateAlert(title,msg)
     droid.dialogSetPositiveButtonText('OK')
@@ -283,12 +282,12 @@ payto_layout = make_layout("""
         <TextView android:id="@+id/labelTextView" 
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" 
-                android:text="Description:"
+                android:text="Message:"
                 android:textAppearance="?android:attr/textAppearanceLarge" 
                 android:gravity="left">
         </TextView>
 
-        <EditText android:id="@+id/label"
+        <EditText android:id="@+id/message"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" 
                 android:tag="Tag Me" android:inputType="text">
@@ -322,7 +321,6 @@ settings_layout = make_layout(""" <ListView
            android:layout_height="wrap_content" />""")
 
 
-
 def get_history_values(n):
     values = []
     h = wallet.get_tx_history()
@@ -337,10 +335,10 @@ def get_history_values(n):
                 time_str = str( dt.date() )
         except Exception:
             time_str = 'pending'
-
         conf_str = 'v' if conf else 'o'
         label, is_default_label = wallet.get_label(tx_hash)
-        values.append((conf_str, '  ' + time_str, '  ' + format_satoshis(value,True), '  ' ))
+        label = label.replace('<','').replace('>','')
+        values.append((conf_str, '  ' + time_str, '  ' + format_satoshis(value,True), '  ' + label))
 
     return values
 
@@ -447,14 +445,14 @@ def pay_to(recipient, amount, label):
     droid.dialogShow()
 
     try:
-        tx = wallet.mktx( [('address', recipient, amount)], password)
+        tx = wallet.mktx([('address', recipient, amount)], password)
     except Exception as e:
         modal_dialog('error', e.message)
         droid.dialogDismiss()
         return
 
-    if label: 
-        wallet.labels[tx.hash()] = label
+    if label:
+        wallet.set_label(tx.hash(), label)
 
     droid.dialogDismiss()
 
@@ -579,7 +577,7 @@ def payto_loop():
 
                 droid.fullQuery()
                 recipient = droid.fullQueryDetail("recipient").result.get('text')
-                label  = droid.fullQueryDetail("label").result.get('text')
+                message = droid.fullQueryDetail("message").result.get('text')
                 amount = droid.fullQueryDetail('amount').result.get('text')
 
                 if not is_address(recipient):
@@ -592,13 +590,13 @@ def payto_loop():
                     modal_dialog('Error','Invalid amount')
                     continue
 
-                result = pay_to(recipient, amount, label)
+                result = pay_to(recipient, amount, message)
                 if result:
                     out = 'main'
 
             elif id=="buttonContacts":
                 addr = select_from_contacts()
-                droid.fullSetProperty("recipient","text",addr)
+                droid.fullSetProperty("recipient", "text", addr)
 
             elif id=="buttonQR":
                 code = droid.scanBarcode()
@@ -606,12 +604,14 @@ def payto_loop():
                 if r:
                     data = str(r['extras']['SCAN_RESULT']).strip()
                     if data:
+                        print "data", data
                         if re.match('^bitcoin:', data):
-                            payto, amount, label, _, _ = util.parse_URI(data)
-                            amount = str(amount/100000000)
+                            payto, amount, label, message, _ = util.parse_URI(data)
+                            if amount:
+                                amount = str(amount/100000000)
                             droid.fullSetProperty("recipient", "text", payto)
                             droid.fullSetProperty("amount", "text", amount)
-                            droid.fullSetProperty("label", "text", label)
+                            droid.fullSetProperty("message", "text", message)
                         elif is_address(data):
                             droid.fullSetProperty("recipient", "text", data)
                         else:
