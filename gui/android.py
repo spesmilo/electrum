@@ -104,11 +104,8 @@ def protocol_name(p):
 
 
 def protocol_dialog(host, protocol, z):
-    droid.dialogCreateAlert('Protocol',host)
-    if z:
-        protocols = z.keys()
-    else:
-        protocols = 'ts'
+    droid.dialogCreateAlert('Protocol', host)
+    protocols = filter(lambda x: x in "ts", z.keys())
     l = []
     current = protocols.index(protocol)
     for p in protocols:
