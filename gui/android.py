@@ -907,31 +907,43 @@ class ElectrumGui:
         storage = WalletStorage(config)
         if not storage.file_exists:
             action = self.restore_or_create()
-            if not action: exit()
+            if not action:
+                exit()
 
-            wallet = Wallet(storage)
+            password  = droid.dialogGetPassword('Choose a password').result
+            if password:
+                password2  = droid.dialogGetPassword('Confirm password').result
+                if password != password2:
+                    modal_dialog('Error','passwords do not match')
+                    exit()
+
             if action == 'create':
-                wallet.init_seed(None)
-                self.show_seed()
-                wallet.save_seed(None)
-                wallet.synchronize()  # generate first addresses offline
-                
+                wallet = Wallet(storage)
+                seed = wallet.make_seed()
+                modal_dialog('Your seed is:', seed)
             elif action == 'restore':
                 seed = self.seed_dialog()
                 if not seed:
                     exit()
-                wallet.init_seed(str(seed))
-                wallet.save_seed(None)
+                if not Wallet.is_seed(seed):
+                    exit()
+                wallet = Wallet.from_seed(seed, storage)
             else:
                 exit()
 
+            msg = "Creating wallet" if action == 'create' else "Restoring wallet"
+            droid.dialogCreateSpinnerProgress("Electrum", msg)
+            droid.dialogShow()
+            wallet.add_seed(seed, password)
+            wallet.create_master_keys(password)
+            wallet.create_main_account(password)
             wallet.start_threads(network)
-
             if action == 'restore':
-                if not self.restore_wallet():
-                    exit()
-
-            self.password_dialog()
+                wallet.restore(lambda x: None)
+            else:
+                wallet.synchronize()
+            droid.dialogDismiss()
+            droid.vibrate()
 
         else:
             wallet = Wallet(storage)
@@ -978,7 +990,6 @@ class ElectrumGui:
         if not response: return
         if response.get('which') == 'negative':
             return
-
         return 'restore' if response.get('which') == 'neutral' else 'create'
 
 
@@ -992,39 +1003,6 @@ class ElectrumGui:
                 return
         else:
             m = modal_input('Mnemonic','please enter your code')
-
         return str(seed)
 
-
-    def network_dialog(self):
-        return True
-
-        
-    def show_seed(self):
-        modal_dialog('Your seed is:', wallet.get_mnemonic(None))
-
-
-    def password_dialog(self):
-        change_password_dialog()
-
-
-    def restore_wallet(self):
-
-        msg = "recovering wallet..."
-        droid.dialogCreateSpinnerProgress("Electrum", msg)
-        droid.dialogShow()
-
-        wallet.restore(lambda x: None)
-
-        droid.dialogDismiss()
-        droid.vibrate()
-
-        if wallet.is_found():
-            wallet.fill_addressbook()
-            modal_dialog("recovery successful")
-        else:
-            if not modal_question("no transactions found for this seed","do you want to keep this wallet?"):
-                return False
-
-        return True
 
