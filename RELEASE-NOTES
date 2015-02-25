@@ -1,37 +1,48 @@
 # Release 2.0
 
- * New address derivation (BIP32).
+ * Before you upgrade, make sure you have saved your wallet seed on
+   paper.
 
- * New seed phrase format: 8 bits of the seed phrase are used to store
-   a version number. The current version number (0x01) refers to the
-   default wallet structure. The version number also serves as a
-   checksum for the seed, and it will prevent the import of seeds from
-   incompatible wallets.
+ * Documentation is now hosted on a wiki: http://electrum.orain.org
 
- * Compact serialization format for unsigned or partially signed
-   transactions, that includes the master public key and derivation
-   needed to sign inputs. This allows to send partially signed
-   transactions using QR codes
+ * New seed derivation method (not compatible with BIP39). The seed
+   phrase includes a version number, that refers to the wallet
+   structure. The version number also serves as a checksum, and it
+   will prevent the import of seeds from incompatible wallets. Old
+   Electrum seeds are still supported.
 
- * Deterministic Multisig wallets using parallel BIP32 derivations and
+ * New address derivation (BIP32). Standard wallets are single account
+   and use a gap limit of 20.
+
+ * Support for Multisig wallets using parallel BIP32 derivations and
    P2SH addresses (2 of 2, 2 of 3).
 
- * New plugins: 
-   - TrustedCoin: two-factor authentication using 2 of 3 multisig and
-     Google Authenticator
-   - Trezor: support for the Trezor hardware wallet by SatoshiLabs
-   - Cosigner Pool: encrypted communication channel for multisig
-     wallets, to send and receive partially signed transactions
-   - Audio Modem: send and receive transactions by sound
-   - OpenAlias: pay to openalias addresses
+ * Compact serialization format for unsigned or partially signed
+   transactions, that includes the BIP32 master public key and
+   derivation needed to sign inputs. Serialized transactions can be
+   sent to cosigners or to cold storage using QR codes.
 
- * Support for BIP70: payment requests
-   - Verification of the signature chain uses tlslite.
+ * Support for BIP70 payment requests:
+   - Verification of the chain of signatures uses tlslite.
    - In the GUI, payment requests are shown in the 'Invoices' tab.
 
- * New 'Receive' tab:
+ * Two-factor authentication plugin using TrustedCoin's cosigning
+   service. It uses 2 of 3 multisig wallets and Google
+   Authenticator. These wallets can be deterministically restored from
+   seed without Trustedcoin's server.
+
+ * Support for hardware wallets: Trezor (Satoshilabs) and Btchip (Ledger).
+
+ * Cosigner Pool plugin: encrypted communication channel for multisig
+   wallets, to send and receive partially signed transactions.
+
+ * Audio Modem plugin : send and receive transactions by sound
+
+ * OpenAlias plugin: send bitcoins to aliases verified using DNSSEC
+
+ * New 'Receive' tab in the GUI:
    - create and manage payment requests, with QR Codes
-   - the former Receive tab was renamed to 'Addresses'
+   - the former 'Receive' tab was renamed to 'Addresses'
    - the former Point of Sale plugin is replaced by a resizeable
      window that pops up if you click on the QR code
 
@@ -45,11 +56,13 @@
  * More watching-only functionality: Create wallets to monitor any 
    address of choice by entering a list of addresses in the install wizard
 
- * Wallet files are saved as JSON instead of Python.
+ * New file format: Wallets files are saved as JSON. Note that new
+   wallet files cannot be read by older versions of Electrum. Old
+   wallet files will be converted to the new format; this operation
+   may take some time, because public keys will be derived for each
+   address of your wallet.
 
- * Client supports servers with SSL certificates signed by a CA.
-
- * Documentation is now hosted on a wiki: http://electrum.orain.org
+ * The SSL certificate of Electrum servers can be signed by a CA.
 
  * ECIES encrypt/decrypt methods, availabe in the GUI and using the
    command line:
