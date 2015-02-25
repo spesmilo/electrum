@@ -2,6 +2,8 @@ import os, sys, re, json
 import platform
 import shutil
 from datetime import datetime
+import urlparse
+import urllib
 
 class NotEnoughFunds(Exception): pass
 
@@ -139,7 +141,6 @@ def age(from_date, since_date = None, target_tz=None, include_seconds=False):
 #urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
 def parse_URI(uri):
-    import urlparse
     import bitcoin
     from decimal import Decimal
 
@@ -185,6 +186,19 @@ def parse_URI(uri):
     assert bitcoin.is_address(address)
 
     return address, amount, label, message, request_url
+
+
+def create_URI(addr, amount, message):
+    import bitcoin
+    if not bitcoin.is_address(addr):
+        return ""
+    query = []
+    if amount:
+        query.append('amount=%s'%format_satoshis(amount))
+    if message:
+        query.append('message=%s'%urllib.quote(message))
+    p = urlparse.ParseResult(scheme='bitcoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
+    return urlparse.urlunparse(p)
 
 
 # Python bug (http://bugs.python.org/issue1927) causes raw_input

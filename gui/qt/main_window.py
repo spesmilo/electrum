@@ -797,7 +797,6 @@ class ElectrumWindow(QMainWindow):
         self.receive_message_e.setText(message)
         self.receive_amount_e.setAmount(amount)
 
-
     def receive_list_delete(self, item):
         addr = str(item.text(2))
         self.receive_requests.pop(addr)
@@ -807,8 +806,12 @@ class ElectrumWindow(QMainWindow):
 
     def receive_list_menu(self, position):
         item = self.receive_list.itemAt(position)
+        addr = str(item.text(2))
+        req = self.receive_requests[addr]
+        time, amount, message = req['time'], req['amount'], req['msg']
+        URI = util.create_URI(addr, amount, message)
         menu = QMenu()
-        menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(str(item.text(2))))
+        menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(str(URI)))
         menu.addAction(_("Delete"), lambda: self.receive_list_delete(item))
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
@@ -914,26 +917,15 @@ class ElectrumWindow(QMainWindow):
             self.receive_list.addTopLevelItem(item)
 
 
-
     def update_receive_qr(self):
-        import urlparse, urllib
         addr = str(self.receive_address_e.text())
         amount = self.receive_amount_e.get_amount()
         message = unicode(self.receive_message_e.text()).encode('utf8')
         self.save_request_button.setEnabled((amount is not None) or (message != ""))
-        if addr:
-            query = []
-            if amount:
-                query.append('amount=%s'%format_satoshis(amount))
-            if message:
-                query.append('message=%s'%urllib.quote(message))
-            p = urlparse.ParseResult(scheme='bitcoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
-            url = urlparse.urlunparse(p)
-        else:
-            url = ""
-        self.receive_qr.setData(url)
+        uri = util.create_URI(addr, amount, message)
+        self.receive_qr.setData(uri)
         if self.qr_window:
-            self.qr_window.set_content(addr, amount, message, url)
+            self.qr_window.set_content(addr, amount, message, uri)
 
 
     def create_send_tab(self):
