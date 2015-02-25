@@ -174,7 +174,7 @@ def parse_URI(uri):
         else:
             amount = Decimal(am) * 100000000
     if 'message' in pq:
-        message = pq['message'][0]
+        message = pq['message'][0].decode('utf8')
     if 'label' in pq:
         label = pq['label'][0]
     if 'r' in pq:
