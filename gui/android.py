@@ -478,7 +478,7 @@ def make_new_contact():
     code = droid.scanBarcode()
     r = code.result
     if r:
-        data = r['extras']['SCAN_RESULT']
+        data = str(r['extras']['SCAN_RESULT']).strip()
         if data:
             if re.match('^bitcoin:', data):
                 address, _, _, _, _ = util.parse_URI(data)
