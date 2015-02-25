@@ -69,15 +69,9 @@ def modal_question(q, msg, pos_text = 'OK', neg_text = 'Cancel'):
     return result.get('which') == 'positive'
 
 def edit_label(addr):
-    v = modal_input('Edit label',None,wallet.labels.get(addr))
+    v = modal_input('Edit label', None, wallet.labels.get(addr))
     if v is not None:
-        if v:
-            wallet.labels[addr] = v
-        else:
-            if addr in wallet.labels.keys():
-                wallet.labels.pop(addr)
-        wallet.update_tx_history()
-        wallet.save()
+        wallet.set_label(addr, v)
         droid.fullSetProperty("labelTextView", "text", v)
 
 def select_from_contacts():
@@ -102,23 +96,6 @@ def select_from_contacts():
         addr = wallet.addressbook[result]
         return addr
 
-
-def select_from_addresses():
-    droid.dialogCreateAlert("Addresses:")
-    l = []
-    addresses = wallet.addresses()
-    for i in range(len(addresses)):
-        addr = addresses[i]
-        label = wallet.labels.get(addr,addr)
-        l.append( label )
-    droid.dialogSetItems(l)
-    droid.dialogShow()
-    response = droid.dialogGetResponse()
-    result = response.result.get('item')
-    droid.dialogDismiss()
-    if result is not None:
-        addr = addresses[result]
-        return addr
 
 
 def protocol_name(p):
@@ -234,34 +211,50 @@ def main_layout():
 
 
 
-def qr_layout(addr):
-    return make_layout("""
-
-     <TextView android:id="@+id/addrTextView" 
-                android:layout_width="match_parent"
-                android:layout_height="50" 
-                android:text="%s"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
-                android:gravity="center_vertical|center_horizontal|center">
-     </TextView>
-
-     <ImageView
-        android:id="@+id/qrView"
-        android:gravity="center"
+def qr_layout(addr, amount, message):
+    addr_view= """
+     <TextView android:id="@+id/addrTextView"
+    android:layout_width="match_parent"
+    android:layout_height="50"
+    android:text="%s"
+    android:textAppearance="?android:attr/textAppearanceLarge"
+    android:gravity="center_vertical|center_horizontal|center">
+    </TextView>"""%addr
+    if amount:
+        amount_view = """
+        <TextView android:id="@+id/amountTextView"
         android:layout_width="match_parent"
-        android:layout_height="350"
-        android:antialias="false"
-        android:src="file:///sdcard/sl4a/qrcode.bmp" /> 
+        android:layout_height="50"
+        android:text="Amount: %s"
+        android:textAppearance="?android:attr/textAppearanceLarge"
+        android:gravity="center_vertical|center_horizontal|center">
+        </TextView>"""%format_satoshis(amount)
+    else:
+        amount_view = ""
+    if message:
+        message_view = """
+        <TextView android:id="@+id/messageTextView"
+        android:layout_width="match_parent"
+        android:layout_height="50"
+        android:text="Message: %s"
+        android:textAppearance="?android:attr/textAppearanceLarge"
+        android:gravity="center_vertical|center_horizontal|center">
+        </TextView>"""%message
+    else:
+        message_view = ""
 
-     <TextView android:id="@+id/labelTextView" 
-                android:layout_width="match_parent"
-                android:layout_height="50" 
-                android:text="%s"
-                android:textAppearance="?android:attr/textAppearanceLarge" 
-                android:gravity="center_vertical|center_horizontal|center">
-     </TextView>
-
-     """%(addr,wallet.labels.get(addr,'')), True)
+    return make_layout("""
+    %s
+    %s
+    %s
+    <ImageView
+    android:id="@+id/qrView"
+    android:gravity="center"
+    android:layout_width="match_parent"
+    android:layout_height="350"
+    android:antialias="false"
+    android:src="file:///sdcard/sl4a/qrcode.bmp" />
+    """%(addr_view, amount_view, message_view), True)
 
 payto_layout = make_layout("""
 
@@ -557,15 +550,13 @@ def main_loop():
 
             elif out == "receive":
                 global receive_addr
-                receive_addr = select_from_addresses()
-                if receive_addr:
-                    amount = modal_input('Amount', 'Amount you want receive. ', '', "numberDecimal")
-                    if amount:
-                        receive_addr = 'bitcoin:%s?amount=%s'%(receive_addr, amount)
-
-                if not receive_addr:
+                domain = wallet.addresses(include_change = False)
+                for addr in domain:
+                    if not wallet.history.get(addr):
+                        receive_addr = addr
+                        break
+                else:
                     out = None
-
 
     return out
                     
@@ -645,24 +636,43 @@ def payto_loop():
 
 
 receive_addr = ''
+receive_amount = None
+receive_message = None
+
 contact_addr = ''
 recipient = ''
 
 def receive_loop():
+    global receive_addr, receive_amount, receive_message
+    print "receive loop"
+    receive_URI = util.create_URI(receive_addr, receive_amount, receive_message)
+    make_bitmap(receive_URI)
+    droid.fullShow(qr_layout(receive_addr, receive_amount, receive_message))
     out = None
     while out is None:
         event = droid.eventWait().result
-        print "got event", event
-        if event["name"]=="key":
+        if not event:
+            continue
+
+        elif event["name"]=="key":
             if event["data"]["key"] == '4':
                 out = 'main'
 
         elif event["name"]=="clipboard":
-            droid.setClipboard(receive_addr)
-            modal_dialog('Address copied to clipboard',receive_addr)
+            droid.setClipboard(receive_URI)
+            modal_dialog('URI copied to clipboard', receive_URI)
 
-        elif event["name"]=="edit":
-            edit_label(receive_addr)
+        elif event["name"]=="amount":
+            amount = modal_input('Amount', 'Amount you want receive (in BTC). ', format_satoshis(receive_amount) if receive_amount else None, "numberDecimal")
+            if amount is not None:
+                receive_amount = 100000000 * Decimal(amount) if amount else None
+                out = 'receive'
+
+        elif event["name"]=="message":
+            message = modal_input('Message', 'Message in your request', receive_message)
+            if message is not None:
+                receive_message = str(message)
+                out = 'receive'
 
     return out
 
@@ -857,7 +867,8 @@ def add_menu(s):
         droid.addOptionsMenuItem("Settings","settings",None,"")
     elif s == 'receive':
         droid.addOptionsMenuItem("Copy","clipboard",None,"")
-        droid.addOptionsMenuItem("Label","edit",None,"")
+        droid.addOptionsMenuItem("Amount","amount",None,"")
+        droid.addOptionsMenuItem("Message","message",None,"")
     elif s == 'contacts':
         droid.addOptionsMenuItem("Copy","clipboard",None,"")
         droid.addOptionsMenuItem("Label","edit",None,"")
@@ -943,13 +954,11 @@ class ElectrumGui:
                 s = payto_loop()
 
             elif s == 'receive':
-                make_bitmap(receive_addr)
-                droid.fullShow(qr_layout(receive_addr))
                 s = receive_loop()
 
             elif s == 'contacts':
                 make_bitmap(contact_addr)
-                droid.fullShow(qr_layout(contact_addr))
+                droid.fullShow(qr_layout(contact_addr, None, None))
                 s = contacts_loop()
 
             elif s == 'settings':
