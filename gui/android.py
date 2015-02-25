@@ -668,7 +668,7 @@ def receive_loop():
         elif event["name"]=="message":
             message = modal_input('Message', 'Message in your request', receive_message)
             if message is not None:
-                receive_message = str(message)
+                receive_message = unicode(message)
                 out = 'receive'
 
     return out
