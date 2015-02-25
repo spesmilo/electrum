@@ -23,7 +23,7 @@ from __future__ import absolute_import
 import android
 
 from electrum import SimpleConfig, Wallet, WalletStorage, format_satoshis
-from electrum.bitcoin import is_valid
+from electrum.bitcoin import is_address
 from electrum import util
 from decimal import Decimal
 import datetime, re
@@ -445,7 +445,7 @@ def update_layout():
 
 
 
-def pay_to(recipient, amount, fee, label):
+def pay_to(recipient, amount, label):
 
     if wallet.use_encryption:
         password  = droid.dialogGetPassword('Password').result
@@ -457,7 +457,7 @@ def pay_to(recipient, amount, fee, label):
     droid.dialogShow()
 
     try:
-        tx = wallet.mktx( [(recipient, amount)], password, fee)
+        tx = wallet.mktx( [('address', recipient, amount)], password)
     except Exception as e:
         modal_dialog('error', e.message)
         droid.dialogDismiss()
@@ -489,7 +489,7 @@ def make_new_contact():
         if data:
             if re.match('^bitcoin:', data):
                 address, _, _, _, _ = util.parse_URI(data)
-            elif is_valid(data):
+            elif is_address(data):
                 address = data
             else:
                 address = None
@@ -594,7 +594,7 @@ def payto_loop():
                 label  = droid.fullQueryDetail("label").result.get('text')
                 amount = droid.fullQueryDetail('amount').result.get('text')
 
-                if not is_valid(recipient):
+                if not is_address(recipient):
                     modal_dialog('Error','Invalid Bitcoin address')
                     continue
 
@@ -604,7 +604,7 @@ def payto_loop():
                     modal_dialog('Error','Invalid amount')
                     continue
 
-                result = pay_to(recipient, amount, wallet.fee, label)
+                result = pay_to(recipient, amount, label)
                 if result:
                     out = 'main'
 
@@ -616,7 +616,7 @@ def payto_loop():
                 code = droid.scanBarcode()
                 r = code.result
                 if r:
-                    data = str(r['extras']['SCAN_RESULT'])
+                    data = str(r['extras']['SCAN_RESULT']).strip()
                     if data:
                         if re.match('^bitcoin:', data):
                             payto, amount, label, _, _ = util.parse_URI(data)
@@ -624,7 +624,7 @@ def payto_loop():
                             droid.fullSetProperty("recipient", "text", payto)
                             droid.fullSetProperty("amount", "text", amount)
                             droid.fullSetProperty("label", "text", label)
-                        elif bitcoin.is_address(data):
+                        elif is_address(data):
                             droid.fullSetProperty("recipient", "text", data)
                         else:
                             modal_dialog('Error','cannot parse QR code\n'+data)
