@@ -34,6 +34,7 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 
 from electrum import transaction
+from electrum.bitcoin import base_encode
 from electrum.plugins import run_hook
 
 from util import MyTreeWidget
@@ -108,9 +109,8 @@ class TxDialog(QDialog):
 
 
     def show_qr(self):
-        import base64
         text = self.tx.raw.decode('hex')
-        text = base64.b64encode(text)
+        text = base_encode(text, base=43)
         try:
             self.parent.show_qrcode(text, 'Transaction')
         except Exception as e:
