@@ -7,19 +7,20 @@ if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.realpath(__file__)))
     os.chdir('..')
 
-    imp.load_module('electrum_ltc', *imp.find_module('../lib'))
-    from electrum_ltc.version import ELECTRUM_VERSION as version
+    v = imp.load_source('version', 'lib/version.py')
+    version = v.ELECTRUM_VERSION
 
     if not ( os.path.exists('packages')):
         print "The packages directory is missing."
         sys.exit()
 
-
     os.system('rm -rf dist/el4a-%s'%version)
     os.mkdir('dist/el4a-%s'%version)
     shutil.copyfile("electrum-ltc",'dist/el4a-%s/el4a.py'%version)
-    shutil.copytree("packages",'dist/el4a-%s/packages'%version)
-    shutil.copytree("lib",'dist/el4a-%s/lib'%version)
+    shutil.copytree("packages",'dist/el4a-%s/packages'%version, ignore=shutil.ignore_patterns('*.pyc'))
+    shutil.copytree("lib",'dist/el4a-%s/lib'%version, ignore=shutil.ignore_patterns('*.pyc'))
+    # dns is not used by android app
+    os.system('rm -rf dist/el4a-%s/packages/dns')
     os.mkdir('dist/el4a-%s/gui'%version)
     for n in ['android.py']:
         shutil.copy("gui/%s"%n,'dist/el4a-%s/gui'%version)
@@ -27,13 +28,12 @@ if __name__ == '__main__':
 
     os.chdir("dist")
     # create the zip file
-    os.system( "zip -r el4a-%s.zip el4a-%s"%(version, version) )
+    os.system( "zip -qr el4a-%s.zip el4a-%s"%(version, version) )
     os.system( "rm -rf el4a-%s"%(version) )
 
     # change filename because some 3G carriers do not allow users to download a zip file...
     e4a_name = "el4a-%s.zip"%version
     e4a_name2 = e4a_name.replace(".","")
-    os.system( "mv %s %s"%(e4a_name, e4a_name2) )
-    print "dist/%s                "%e4a_name2
-
+    os.system("mv %s %s"%(e4a_name, e4a_name2))
+    print "dist/%s"%e4a_name2
 

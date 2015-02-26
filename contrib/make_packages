@@ -37,9 +37,10 @@ if __name__ == '__main__':
         d = os.path.dirname(target)
         if d and not (os.path.exists(d)):
             os.makedirs(d)
-        command = "cp -r %s %s"%(pathname, target)
-        print command
-        os.system(command)
+        if descr[0]:
+            shutil.copy(pathname, target)
+        else:
+            shutil.copytree(pathname, target, ignore=shutil.ignore_patterns('*.pyc'))
 
     # fix google/__init__.py needed by pyinstaller
     n = 'packages/google/__init__.py'

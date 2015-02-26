@@ -2,6 +2,8 @@ import os, sys, re, json
 import platform
 import shutil
 from datetime import datetime
+import urlparse
+import urllib
 
 class NotEnoughFunds(Exception): pass
 
@@ -139,7 +141,6 @@ def age(from_date, since_date = None, target_tz=None, include_seconds=False):
 #urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
 def parse_URI(uri):
-    import urlparse
     import bitcoin
     from decimal import Decimal
 
@@ -151,9 +152,13 @@ def parse_URI(uri):
     assert u.scheme == 'litecoin'
 
     address = u.path
-    valid_address = bitcoin.is_address(address)
 
-    pq = urlparse.parse_qs(u.query)
+    # python for android fails to parse query
+    if address.find('?') > 0:
+        address, query = u.path.split('?')
+        pq = urlparse.parse_qs(query)
+    else:
+        pq = urlparse.parse_qs(u.query)
 
     for k, v in pq.items():
         if len(v)!=1:
@@ -169,7 +174,7 @@ def parse_URI(uri):
         else:
             amount = Decimal(am) * 100000000
     if 'message' in pq:
-        message = pq['message'][0]
+        message = pq['message'][0].decode('utf8')
     if 'label' in pq:
         label = pq['label'][0]
     if 'r' in pq:
@@ -178,9 +183,24 @@ def parse_URI(uri):
     if request_url != '':
         return address, amount, label, message, request_url
 
-    assert valid_address
+    assert bitcoin.is_address(address)
 
     return address, amount, label, message, request_url
+
+
+def create_URI(addr, amount, message):
+    import bitcoin
+    if not bitcoin.is_address(addr):
+        return ""
+    query = []
+    if amount:
+        query.append('amount=%s'%format_satoshis(amount))
+    if message:
+        if type(message) == unicode:
+            message = message.encode('utf8')
+        query.append('message=%s'%urllib.quote(message))
+    p = urlparse.ParseResult(scheme='litecoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
+    return urlparse.urlunparse(p)
 
 
 # Python bug (http://bugs.python.org/issue1927) causes raw_input

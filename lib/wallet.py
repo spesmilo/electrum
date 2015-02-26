@@ -1230,7 +1230,9 @@ class Deterministic_Wallet(Abstract_Wallet):
             wait_for_wallet()
         else:
             self.synchronize()
-        self.fill_addressbook()
+
+        # disable this because it crashes android
+        #self.fill_addressbook()
 
 
     def is_beyond_limit(self, address, account, is_change):

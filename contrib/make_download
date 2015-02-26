@@ -3,25 +3,26 @@ import sys
 import hashlib
 import os
 
-from versions import version, version_win, version_mac, template_path, dl_path
+from versions import version, version_win, version_mac
+from versions import download_template, download_page
 
-with open(template_path) as f:
+with open(download_template) as f:
     string = f.read()
 
-_tgz = "Electrum-%s.tar.gz" % version
-_zip = "Electrum-%s.zip" % version
+_tgz = "Electrum-LTC-%s.tar.gz" % version
+_zip = "Electrum-LTC-%s.zip" % version
 
-_mac = "electrum-%s.dmg" % version_mac
-_win = "electrum-%s.exe" % version_win
-_win_setup = "electrum-%s-setup.exe" % version_win
-_win_portable = "electrum-%s-portable.exe" % version_win
+_mac = "electrum-ltc-%s.dmg" % version_mac
+_win = "electrum-ltc-%s.exe" % version_win
+_win_setup = "electrum-ltc-%s-setup.exe" % version_win
+_win_portable = "electrum-ltc-%s-portable.exe" % version_win
 
 md5_tgz = hashlib.md5(file('dist/'+_tgz, 'r').read()).digest().encode('hex')
 md5_zip = hashlib.md5(file('dist/'+_zip, 'r').read()).digest().encode('hex')
 
 for n in [_win, _win_portable, _win_setup, _mac]:
     if not os.path.exists("binaries/%s" % n):
-        os.system("wget http://download.electrum.org/download/%s -O binaries/%s" % (n, n))
+        os.system("wget http://download.electrum-ltc.org/download/%s -O binaries/%s" % (n, n))
 
 md5_mac = hashlib.md5(file('binaries/'+_mac, 'r').read()).digest().encode('hex')
 md5_win = hashlib.md5(file('binaries/'+_win, 'r').read()).digest().encode('hex')
@@ -38,6 +39,20 @@ string = string.replace("##md5_win##", md5_win)
 string = string.replace("##md5_win_setup##", md5_win_setup)
 string = string.replace("##md5_win_portable##", md5_win_portable)
 
-with open(dl_path,'w') as f:
+with open(download_page,'w') as f:
     f.write(string)
 
+
+# android
+
+from versions import android_template, android_page
+with open(android_template) as f:
+    string = f.read()
+
+e4a_name = "el4a-%s.zip"%version
+e4a_zipname = e4a_name.replace(".","")
+string = string.replace("##VERSION##",version)
+string = string.replace("##ZIPNAME##",e4a_zipname)
+
+with open(android_page,'w') as f:
+    f.write(string)

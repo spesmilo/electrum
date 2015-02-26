@@ -98,10 +98,19 @@ class Network(threading.Thread):
         self.interfaces = {}
         self.queue = Queue.Queue()
         self.protocol = self.config.get('protocol','s')
+        # sanitize protocol
+        if self.protocol not in 'sght': self.protocol = 's'
         self.running = False
 
         # Server for addresses and transactions
         self.default_server = self.config.get('server')
+        # Sanitize default server
+        try:
+            host, port, protocol = self.default_server.split(':')
+            assert protocol == self.protocol
+            int(port)
+        except:
+            self.default_server = None
         if not self.default_server:
             self.default_server = pick_random_server(self.protocol)
 
