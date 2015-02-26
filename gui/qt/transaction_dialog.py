@@ -108,7 +108,9 @@ class TxDialog(QDialog):
 
 
     def show_qr(self):
+        import base64
         text = self.tx.raw.decode('hex')
+        text = base64.b64encode(text)
         try:
             self.parent.show_qrcode(text, 'Transaction')
         except Exception as e:
