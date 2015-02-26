@@ -916,6 +916,9 @@ class ElectrumGui:
                 if password != password2:
                     modal_dialog('Error','passwords do not match')
                     exit()
+            else:
+                # set to None if it's an empty string
+                password = None
 
             if action == 'create':
                 wallet = Wallet(storage)
@@ -1002,7 +1005,7 @@ class ElectrumGui:
             else:
                 return
         else:
-            m = modal_input('Mnemonic','please enter your code')
+            seed = modal_input('Mnemonic', 'please enter your code')
         return str(seed)
 
 
