@@ -149,6 +149,9 @@ class ElectrumGui:
 
     def main(self, url):
 
+        if self.config.get('wallet_path') is None and self.config.get('gui_last_wallet'):
+            self.config.read_only_options['wallet_path'] = self.config.get('gui_last_wallet')
+
         storage = WalletStorage(self.config)
         if storage.file_exists:
             try:

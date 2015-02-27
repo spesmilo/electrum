@@ -109,7 +109,7 @@ def arg_parser():
     parser = optparse.OptionParser(usage=usage, add_help_option=False)
     parser.add_option("-h", "--help", action="callback", callback=print_help_cb, help="show this help text")
     parser.add_option("-g", "--gui", dest="gui", help="User interface: qt, lite, gtk, text or stdio")
-    parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path (default: electrum.dat)")
+    parser.add_option("-w", "--wallet", dest="wallet_path", help="wallet path")
     parser.add_option("-o", "--offline", action="store_true", dest="offline", default=False, help="remain offline")
     parser.add_option("-d", "--daemon", action="store_true", dest="daemon", default=False, help="use daemon")
     parser.add_option("-C", "--concealed", action="store_true", dest="concealed", default=False, help="don't echo seed to console when restoring")

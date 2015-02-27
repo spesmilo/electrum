@@ -298,7 +298,7 @@ class ElectrumWindow(QMainWindow):
         self.load_wallet(wallet)
         self.show()
         # save path
-        self.config.set_key('default_wallet_path', filename)
+        self.config.set_key('gui_last_wallet', filename)
 
 
 
