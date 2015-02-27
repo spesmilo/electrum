@@ -2238,7 +2238,8 @@ class ElectrumWindow(QMainWindow):
             return
         # else if the user scanned an offline signed tx
         # transactions are binary, but qrcode seems to return utf8...
-        z = data.decode('utf8')
+        data = data.decode('utf8')
+        z = bitcoin.base_decode(data, length=None, base=43)
         data = ''.join(chr(ord(b)) for b in z).encode('hex')
         tx = self.tx_from_text(data)
         if not tx:
