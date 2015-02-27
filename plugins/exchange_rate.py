@@ -9,6 +9,8 @@ import threading
 import time
 import re
 from decimal import Decimal
+from ssl import SSLError
+
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
 from electrum_gui.qt.util import *
