@@ -1008,29 +1008,9 @@ class ElectrumWindow(QMainWindow):
 
         self.amount_e.shortcut.connect(on_shortcut)
 
-        def text_edited(is_fee):
-            outputs = self.payto_e.get_outputs()
-            amount = self.amount_e.get_amount()
-            fee = self.fee_e.get_amount() if is_fee else None
-            if amount is None:
-                self.fee_e.setAmount(None)
-                self.not_enough_funds = False
-            else:
-                if not outputs:
-                    addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
-                    outputs = [('address', addr, amount)]
-                try:
-                    tx = self.wallet.make_unsigned_transaction(outputs, fee, coins = self.get_coins())
-                    self.not_enough_funds = False
-                except NotEnoughFunds:
-                    self.not_enough_funds = True
-                if not is_fee:
-                    fee = None if self.not_enough_funds else self.wallet.get_tx_fee(tx)
-                    self.fee_e.setAmount(fee)
-
-        self.payto_e.textChanged.connect(lambda:text_edited(False))
-        self.amount_e.textEdited.connect(lambda:text_edited(False))
-        self.fee_e.textEdited.connect(lambda:text_edited(True))
+        self.payto_e.textChanged.connect(lambda: self.update_fee(False))
+        self.amount_e.textEdited.connect(lambda: self.update_fee(False))
+        self.fee_e.textEdited.connect(lambda: self.update_fee(True))
 
         def entry_changed():
             if not self.not_enough_funds:
@@ -1052,6 +1032,26 @@ class ElectrumWindow(QMainWindow):
 
         run_hook('create_send_tab', grid)
         return w
+
+    def update_fee(self, is_fee):
+        outputs = self.payto_e.get_outputs()
+        amount = self.amount_e.get_amount()
+        fee = self.fee_e.get_amount() if is_fee else None
+        if amount is None:
+            self.fee_e.setAmount(None)
+            self.not_enough_funds = False
+        else:
+            if not outputs:
+                addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
+                outputs = [('address', addr, amount)]
+            try:
+                tx = self.wallet.make_unsigned_transaction(outputs, fee, coins = self.get_coins())
+                self.not_enough_funds = False
+            except NotEnoughFunds:
+                self.not_enough_funds = True
+            if not is_fee:
+                fee = None if self.not_enough_funds else self.wallet.get_tx_fee(tx)
+                self.fee_e.setAmount(fee)
 
     def update_fee_edit(self):
         b = self.config.get('can_edit_fees', False)
