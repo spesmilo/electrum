@@ -20,25 +20,26 @@
  * Compact serialization format for unsigned or partially signed
    transactions, that includes the BIP32 master public key and
    derivation needed to sign inputs. Serialized transactions can be
-   sent to cosigners or to cold storage using QR codes.
+   sent to cosigners or to cold storage using QR codes (using Andreas
+   Schildbach's base 43 idea).
 
  * Support for BIP70 payment requests:
    - Verification of the chain of signatures uses tlslite.
    - In the GUI, payment requests are shown in the 'Invoices' tab.
 
- * Two-factor authentication plugin using TrustedCoin's cosigning
-   service. It uses "2 of 3" multisig wallets and Google
-   Authenticator. These wallets can be deterministically restored from
-   seed without Trustedcoin's server.
-
  * Support for hardware wallets: Trezor (Satoshilabs) and Btchip (Ledger).
+
+ * Two-factor authentication service by TrustedCoin. This service uses
+   "2 of 3" multisig wallets and Google Authenticator. Wallets
+   protected by two-factor authentication can be deterministically
+   restored from seed, without Trustedcoin's server.
 
  * Cosigner Pool plugin: encrypted communication channel for multisig
    wallets, to send and receive partially signed transactions.
 
- * Audio Modem plugin : send and receive transactions by sound
+ * Audio Modem plugin : send and receive transactions by sound.
 
- * OpenAlias plugin: send bitcoins to aliases verified using DNSSEC
+ * OpenAlias plugin: send bitcoins to aliases verified using DNSSEC.
 
  * New 'Receive' tab in the GUI:
    - create and manage payment requests, with QR Codes
@@ -66,8 +67,8 @@
 
  * The SSL certificate of Electrum servers can be signed by a CA.
 
- * ECIES encrypt/decrypt methods, availabe in the GUI and using the
-   command line:
+ * new ECIES encrypt/decrypt methods, availabe in the GUI and using
+   the command line:
       encrypt <pubkey> <message>
       decrypt <pubkey> <message>
 
