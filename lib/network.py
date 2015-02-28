@@ -119,7 +119,7 @@ class Network(threading.Thread):
 
         self.banner = ''
         self.interface = None
-        self.proxy = self.config.get('proxy')
+        self.proxy = interface.deserialize_proxy(self.config.get('proxy'))
         self.heights = {}
         self.merkle_roots = {}
         self.utxo_roots = {}
@@ -192,9 +192,8 @@ class Network(threading.Thread):
 
     def get_parameters(self):
         host, port, protocol = self.default_server.split(':')
-        proxy = interface.deserialize_proxy(self.proxy)
         auto_connect = self.config.get('auto_cycle', True)
-        return host, port, protocol, proxy, auto_connect
+        return host, port, protocol, self.proxy, auto_connect
 
     def get_interfaces(self):
         return self.interfaces.keys()
@@ -245,9 +244,9 @@ class Network(threading.Thread):
         self.config.set_key("proxy", proxy_str, True)
         self.config.set_key("server", server_str, True)
 
-        if self.proxy != proxy_str or self.protocol != protocol:
+        if self.proxy != proxy or self.protocol != protocol:
             print_error('restarting network')
-            self.proxy = proxy_str
+            self.proxy = proxy
             self.protocol = protocol
             for i in self.interfaces.values(): i.stop()
             if auto_connect:
