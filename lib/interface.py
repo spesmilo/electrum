@@ -181,10 +181,10 @@ class TcpInterface(threading.Thread):
                 s = socket.socket(res[0], socket.SOCK_STREAM)
                 s.connect(res[4])
                 return s
-            except:
+            except BaseException as e:
                 continue
         else:
-            print_error("failed to connect", self.host, self.port)
+            print_error("failed to connect", self.host, self.port, str(e))
 
 
     def get_socket(self):
