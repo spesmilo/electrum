@@ -1,9 +1,9 @@
 from PyQt4.QtGui import *
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
+import random
 
 class Plugin(BasePlugin):
-
 
     def fullname(self):
         return 'Virtual Keyboard'
@@ -24,17 +24,16 @@ class Plugin(BasePlugin):
         vkb_button.clicked.connect(lambda: self.toggle_vkb(grid, pw))
         grid.addWidget(vkb_button, pos, 2)
         self.kb_pos = 2
-
+        self.vkb = None
 
     def toggle_vkb(self, grid, pw):
-        if self.vkb: grid.removeItem(self.vkb)
+        if self.vkb:
+            grid.removeItem(self.vkb)
         self.vkb = self.virtual_keyboard(self.vkb_index, pw)
         grid.addLayout(self.vkb, self.kb_pos, 0, 1, 3)
         self.vkb_index += 1
 
-
     def virtual_keyboard(self, i, pw):
-        import random
         i = i%3
         if i == 0:
             chars = 'abcdefghijklmnopqrstuvwxyz '
@@ -53,7 +52,7 @@ class Plugin(BasePlugin):
                     break
 
         def add_target(t):
-            return lambda: pw.setText(str( pw.text() ) + t)
+            return lambda: pw.setText(str(pw.text()) + t)
             
         vbox = QVBoxLayout()
         grid = QGridLayout()
@@ -62,7 +61,7 @@ class Plugin(BasePlugin):
             l_button = QPushButton(chars[s[i]])
             l_button.setFixedWidth(25)
             l_button.setFixedHeight(25)
-            l_button.clicked.connect(add_target(chars[s[i]]) )
+            l_button.clicked.connect(add_target(chars[s[i]]))
             grid.addWidget(l_button, i/6, i%6)
 
         vbox.addLayout(grid)
