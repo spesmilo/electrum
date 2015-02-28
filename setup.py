@@ -36,7 +36,6 @@ setup(
         'pyasn1-modules',
         'pyasn1',
         'qrcode',
-        'SocksiPy-branch',
         'protobuf',
         'tlslite',
         'dnspython',
