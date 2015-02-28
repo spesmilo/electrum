@@ -149,10 +149,17 @@ class ElectrumGui:
 
     def main(self, url):
 
-        if self.config.get('wallet_path') is None and self.config.get('gui_last_wallet'):
-            self.config.read_only_options['wallet_path'] = self.config.get('gui_last_wallet')
+        last_wallet = self.config.get('gui_last_wallet')
+        if last_wallet is not None and self.config.get('wallet_path') is None:
+            if os.path.exists(last_wallet):
+                self.config.read_only_options['wallet_path'] = last_wallet
+        try:
+            storage = WalletStorage(self.config)
+        except BaseException as e:
+            QMessageBox.warning(None, _('Warning'), str(e), _('OK'))
+            self.config.set_key('gui_last_wallet', None)
+            return
 
-        storage = WalletStorage(self.config)
         if storage.file_exists:
             try:
                 wallet = Wallet(storage)
