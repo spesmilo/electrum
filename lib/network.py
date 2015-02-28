@@ -138,7 +138,7 @@ class Network(threading.Thread):
 
 
     def get_server_height(self):
-        return self.heights.get(self.default_server,0)
+        return self.heights.get(self.default_server, 0)
 
     def server_is_lagging(self):
         h = self.get_server_height()
@@ -285,6 +285,7 @@ class Network(threading.Thread):
         self.default_server = server
         self.send_subscriptions()
         self.set_status('connected')
+        self.notify('updated')
 
 
     def stop_interface(self):
