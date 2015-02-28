@@ -30,14 +30,14 @@
  * Support for hardware wallets: Trezor (Satoshilabs) and Btchip (Ledger).
 
  * Two-factor authentication service by TrustedCoin. This service uses
-   "2 of 3" multisig wallets and Google Authenticator. Wallets
-   protected by two-factor authentication can be deterministically
-   restored from seed, without Trustedcoin's server.
+   "2 of 3" multisig wallets and Google Authenticator. Note that
+   wallets protected by this service can be deterministically restored
+   from seed, without Trustedcoin's server.
 
  * Cosigner Pool plugin: encrypted communication channel for multisig
    wallets, to send and receive partially signed transactions.
 
- * Audio Modem plugin : send and receive transactions by sound.
+ * Audio Modem plugin: send and receive transactions by sound.
 
  * OpenAlias plugin: send bitcoins to aliases verified using DNSSEC.
 
@@ -65,9 +65,9 @@
    may take some time, because public keys will be derived for each
    address of your wallet.
 
- * The SSL certificate of Electrum servers can be signed by a CA.
+ * The client accepts servers with a CA-signed SSL certificate.
 
- * new ECIES encrypt/decrypt methods, availabe in the GUI and using
+ * ECIES encrypt/decrypt methods, availabe in the GUI and using
    the command line:
       encrypt <pubkey> <message>
       decrypt <pubkey> <message>
