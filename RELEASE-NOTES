@@ -72,6 +72,10 @@
       encrypt <pubkey> <message>
       decrypt <pubkey> <message>
 
+ * The Android GUI has received various updates and it is much more
+   stable. Another script was added to Android, called Authenticator,
+   that works completely offline: it reads an unsigned transaction
+   shown as QR code, signs it and shows the result as a QR code.
 
 
 # Release 1.9.8
