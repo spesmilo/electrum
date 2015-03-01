@@ -14,17 +14,18 @@ if __name__ == '__main__':
         print "The packages directory is missing."
         sys.exit()
 
-    os.system('rm -rf dist/e4a-%s'%version)
-    os.mkdir('dist/e4a-%s'%version)
-    shutil.copyfile("electrum",'dist/e4a-%s/e4a.py'%version)
+    target = 'dist/e4a-%s'%version
+    os.system('rm -rf %s'%target)
+    os.mkdir(target)
+    shutil.copyfile('electrum', target + '/e4a.py')
+    shutil.copyfile('scripts/authenticator.py', target + '/authenticator.py')
     shutil.copytree("packages",'dist/e4a-%s/packages'%version, ignore=shutil.ignore_patterns('*.pyc'))
     shutil.copytree("lib",'dist/e4a-%s/lib'%version, ignore=shutil.ignore_patterns('*.pyc'))
     # dns is not used by android app
-    os.system('rm -rf dist/e4a-%s/packages/dns')
-    os.mkdir('dist/e4a-%s/gui'%version)
-    for n in ['android.py']:
-        shutil.copy("gui/%s"%n,'dist/e4a-%s/gui'%version)
-    open('dist/e4a-%s/gui/__init__.py'%version,'w').close()
+    os.system('rm -rf %s/packages/dns'%target)
+    os.mkdir(target + '/gui')
+    shutil.copyfile('gui/android.py', target + '/gui/android.py')
+    open(target + '/gui/__init__.py','w').close()
 
     os.chdir("dist")
     # create the zip file
