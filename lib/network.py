@@ -245,6 +245,9 @@ class Network(threading.Thread):
         self.config.set_key('auto_cycle', auto_connect, True)
         self.config.set_key("proxy", proxy_str, True)
         self.config.set_key("server", server_str, True)
+        # abort if changes were not allowed by config
+        if self.config.get('server') != server_str or self.config.get('proxy') != proxy:
+            return
 
         if self.proxy != proxy or self.protocol != protocol:
             print_error('restarting network')

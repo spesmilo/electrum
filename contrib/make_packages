@@ -17,7 +17,7 @@ if __name__ == '__main__':
         'aes',
         'ecdsa',
         'pbkdf2',
-        'requests',
+        'requests', # note: requests-2.5.1 is needed to build with pyinstaller
         'pyasn1',
         'pyasn1_modules',
         'qrcode',

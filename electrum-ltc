@@ -44,7 +44,6 @@ __builtin__.use_local_modules = is_local or is_android
 try:
     import aes
     import ecdsa
-    import socks
     import requests
     import six
     import qrcode
