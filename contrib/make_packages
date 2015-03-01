@@ -21,7 +21,6 @@ if __name__ == '__main__':
         'pyasn1',
         'pyasn1_modules',
         'qrcode',
-        'socks',
         'google/protobuf',
         'tlslite',
         'dns',

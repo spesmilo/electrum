@@ -1453,9 +1453,11 @@ class BIP32_HD_Wallet(BIP32_Wallet):
         BIP32_Wallet.synchronize(self)
 
         if self.next_account is None and not self.use_encryption:
-            self.next_account = self.get_next_account(None)
-            self.storage.put('next_account2', self.next_account)
-
+            try:
+                self.next_account = self.get_next_account(None)
+                self.storage.put('next_account2', self.next_account)
+            except:
+                print_error('cannot get next account')
         # check pending account
         if self.next_account is not None:
             next_id, next_xpub, next_pubkey, next_address = self.next_account

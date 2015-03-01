@@ -97,23 +97,20 @@ class Network(threading.Thread):
         self.blockchain = Blockchain(self.config, self)
         self.interfaces = {}
         self.queue = Queue.Queue()
-        self.protocol = self.config.get('protocol','s')
-        # sanitize protocol
-        if self.protocol not in 'sght': self.protocol = 's'
         self.running = False
-
         # Server for addresses and transactions
         self.default_server = self.config.get('server')
         # Sanitize default server
         try:
             host, port, protocol = self.default_server.split(':')
-            assert protocol == self.protocol
+            assert protocol in 'st'
             int(port)
         except:
             self.default_server = None
         if not self.default_server:
-            self.default_server = pick_random_server(self.protocol)
+            self.default_server = pick_random_server('s')
 
+        self.protocol = self.default_server.split(':')[2]
         self.irc_servers = {} # returned by interface (list from irc)
 
         self.disconnected_servers = set([])
@@ -124,7 +121,7 @@ class Network(threading.Thread):
 
         self.banner = ''
         self.interface = None
-        self.proxy = self.config.get('proxy')
+        self.proxy = interface.deserialize_proxy(self.config.get('proxy'))
         self.heights = {}
         self.merkle_roots = {}
         self.utxo_roots = {}
@@ -140,7 +137,7 @@ class Network(threading.Thread):
 
 
     def get_server_height(self):
-        return self.heights.get(self.default_server,0)
+        return self.heights.get(self.default_server, 0)
 
     def server_is_lagging(self):
         h = self.get_server_height()
@@ -197,9 +194,8 @@ class Network(threading.Thread):
 
     def get_parameters(self):
         host, port, protocol = self.default_server.split(':')
-        proxy = interface.deserialize_proxy(self.proxy)
         auto_connect = self.config.get('auto_cycle', True)
-        return host, port, protocol, proxy, auto_connect
+        return host, port, protocol, self.proxy, auto_connect
 
     def get_interfaces(self):
         return self.interfaces.keys()
@@ -248,12 +244,11 @@ class Network(threading.Thread):
         server_str = ':'.join([ host, port, protocol ])
         self.config.set_key('auto_cycle', auto_connect, True)
         self.config.set_key("proxy", proxy_str, True)
-        self.config.set_key("protocol", protocol, True)
         self.config.set_key("server", server_str, True)
 
-        if self.proxy != proxy_str or self.protocol != protocol:
+        if self.proxy != proxy or self.protocol != protocol:
             print_error('restarting network')
-            self.proxy = proxy_str
+            self.proxy = proxy
             self.protocol = protocol
             for i in self.interfaces.values(): i.stop()
             if auto_connect:
@@ -287,6 +282,7 @@ class Network(threading.Thread):
         self.default_server = server
         self.send_subscriptions()
         self.set_status('connected')
+        self.notify('updated')
 
 
     def stop_interface(self):

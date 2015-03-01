@@ -10,6 +10,7 @@ import time
 import re
 from decimal import Decimal
 from ssl import SSLError
+
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.i18n import _
 from electrum_ltc_gui.qt.util import *
@@ -615,12 +616,13 @@ class Plugin(BasePlugin):
                 fiat_amount = Decimal(str(self.fiat_e.text()))
             except:
                 self.btc_e.setText("")
+                self.win.fee_e.setText("")
                 return
             exchange_rate = self.exchanger.exchange(Decimal("1.0"), self.fiat_unit())
             if exchange_rate is not None:
                 btc_amount = fiat_amount/exchange_rate
                 self.btc_e.setAmount(int(btc_amount*Decimal(100000000)))
-                self.btc_e.textEdited.emit("")
+                self.win.update_fee(False)
         self.fiat_e.textEdited.connect(fiat_changed)
         def btc_changed():
             btc_amount = self.btc_e.get_amount()
