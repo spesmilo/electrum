@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import sys
+import re
 import hashlib
 import os
 
@@ -9,35 +10,32 @@ from versions import download_template, download_page
 with open(download_template) as f:
     string = f.read()
 
-_tgz = "Electrum-%s.tar.gz" % version
-_zip = "Electrum-%s.zip" % version
-
-_mac = "electrum-%s.dmg" % version_mac
-_win = "electrum-%s.exe" % version_win
-_win_setup = "electrum-%s-setup.exe" % version_win
-_win_portable = "electrum-%s-portable.exe" % version_win
-
-md5_tgz = hashlib.md5(file('dist/'+_tgz, 'r').read()).digest().encode('hex')
-md5_zip = hashlib.md5(file('dist/'+_zip, 'r').read()).digest().encode('hex')
-
-for n in [_win, _win_portable, _win_setup, _mac]:
-    if not os.path.exists("binaries/%s" % n):
-        os.system("wget http://download.electrum.org/download/%s -O binaries/%s" % (n, n))
-
-md5_mac = hashlib.md5(file('binaries/'+_mac, 'r').read()).digest().encode('hex')
-md5_win = hashlib.md5(file('binaries/'+_win, 'r').read()).digest().encode('hex')
-md5_win_setup = hashlib.md5(file('binaries/'+_win_setup, 'r').read()).digest().encode('hex')
-md5_win_portable = hashlib.md5(file('binaries/'+_win_portable, 'r').read()).digest().encode('hex')
-
 string = string.replace("##VERSION##", version)
 string = string.replace("##VERSION_WIN##", version_win)
 string = string.replace("##VERSION_MAC##", version_mac)
-string = string.replace("##md5_tgz##", md5_tgz)
-string = string.replace("##md5_zip##", md5_zip)
-string = string.replace("##md5_mac##", md5_mac)
-string = string.replace("##md5_win##", md5_win)
-string = string.replace("##md5_win_setup##", md5_win_setup)
-string = string.replace("##md5_win_portable##", md5_win_portable)
+
+files = {
+    'tgz': "Electrum-%s.tar.gz" % version,
+    'zip': "Electrum-%s.zip" % version,
+    'mac': "electrum-%s.dmg" % version_mac,
+    'win': "electrum-%s.exe" % version_win,
+    'win_setup': "electrum-%s-setup.exe" % version_win,
+    'win_portable': "electrum-%s-portable.exe" % version_win,
+}
+
+for k, n in files.items():
+    path = "binaries/%s"%n
+    link = "https://download.electrum.org/%s"%n
+    if not os.path.exists(path):
+        os.system("wget -q %s -O %s" % (link, path))
+    if os.path.getsize(path):
+        md5 = hashlib.md5(file(path,'r').read()).digest().encode('hex')
+        string = string.replace("##link_%s##"%k, link)
+        string = string.replace("##md5_%s##"%k, md5)
+    else:
+        os.unlink(path)
+        string = re.sub("<div id=\"%s\">(.*?)</div>"%k, '', string, flags=re.DOTALL + re.MULTILINE)
+
 
 with open(download_page,'w') as f:
     f.write(string)
