@@ -245,7 +245,7 @@ class ElectrumWindow(QMainWindow):
     def update_wallet_format(self):
         # convert old-format imported keys
         if self.wallet.imported_keys:
-            password = self.password_dialog(_("Please enter your password in order to update imported keys"))
+            password = self.password_dialog(_("Please enter your password in order to update imported keys")) if self.wallet.use_encryption else None
             try:
                 self.wallet.convert_imported_keys(password)
             except:
