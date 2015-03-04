@@ -28,6 +28,7 @@ from util import print_error, InvalidPassword
 
 import ecdsa
 import aes
+import groestlcoin_hash
 
 ################################## transactions
 
@@ -235,9 +236,9 @@ def public_key_to_bc_address(public_key):
     h160 = hash_160(public_key)
     return hash_160_to_bc_address(h160)
 
-def hash_160_to_bc_address(h160, addrtype = 0):
+def hash_160_to_bc_address(h160, addrtype = 36):
     vh160 = chr(addrtype) + h160
-    h = Hash(vh160)
+    h = groestlcoin_hash.getHash(vh160, len(vh160))
     addr = vh160 + h[0:4]
     return base_encode(addr, base=58)
 
@@ -303,7 +304,7 @@ def base_decode(v, length, base):
 
 
 def EncodeBase58Check(vchIn):
-    hash = Hash(vchIn)
+    hash = groestlcoin_hash.getHash(vchIn, len(vchIn))
     return base_encode(vchIn + hash[0:4], base=58)
 
 
@@ -311,7 +312,7 @@ def DecodeBase58Check(psz):
     vchRet = base_decode(psz, None, base=58)
     key = vchRet[0:-4]
     csum = vchRet[-4:]
-    hash = Hash(key)
+    hash = groestlcoin_hash.getHash(key, len(key))
     cs32 = hash[0:4]
     if cs32 != csum:
         return None
@@ -323,12 +324,12 @@ def PrivKeyToSecret(privkey):
     return privkey[9:9+32]
 
 
-def SecretToASecret(secret, compressed=False, addrtype=0):
+def SecretToASecret(secret, compressed=False, addrtype=36):
     vchIn = chr((addrtype+128)&255) + secret
     if compressed: vchIn += '\01'
     return EncodeBase58Check(vchIn)
 
-def ASecretToSecret(key, addrtype=0):
+def ASecretToSecret(key, addrtype=36):
     vch = DecodeBase58Check(key)
     if vch and vch[0] == chr((addrtype+128)&255):
         return vch[1:]
@@ -407,7 +408,7 @@ from ecdsa.util import string_to_number, number_to_string
 def msg_magic(message):
     varint = var_int(len(message))
     encoded_varint = "".join([chr(int(varint[i:i+2], 16)) for i in xrange(0, len(varint), 2)])
-    return "\x18Bitcoin Signed Message:\n" + encoded_varint + message
+    return "\x18Groestlcoin Signed Message:\n" + encoded_varint + message
 
 
 def verify_message(address, signature, message):

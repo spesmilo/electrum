@@ -39,6 +39,10 @@ setup(
         'protobuf',
         'tlslite',
         'dnspython',
+        'groestlcoin_hash'
+    ],
+    dependency_links=[
+        'git+https://github.com/groestlcoin/groestlcoin-hash-python#egg=groestlcoin_hash'
     ],
     package_dir={
         'electrum': 'lib',
