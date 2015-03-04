@@ -26,7 +26,7 @@ if platform.system() == 'Linux':
 
 
 setup(
-    name="Electrum",
+    name="Electrum-GRS",
     version=version.ELECTRUM_VERSION,
     install_requires=[
         'slowaes>=0.1a1',
@@ -45,17 +45,17 @@ setup(
         'git+https://github.com/groestlcoin/groestlcoin-hash-python#egg=groestlcoin_hash'
     ],
     package_dir={
-        'electrum': 'lib',
-        'electrum_gui': 'gui',
-        'electrum_plugins': 'plugins',
+        'electrum_grs': 'lib',
+        'electrum_grs_gui': 'gui',
+        'electrum_grs_plugins': 'plugins',
     },
-    packages=['electrum','electrum_gui','electrum_gui.qt','electrum_plugins'],
+    packages=['electrum_grs','electrum_grs_gui','electrum_grs_gui.qt','electrum_grs_plugins'],
     package_data={
-        'electrum': [
+        'electrum_grs': [
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrum.mo',
         ],
-        'electrum_gui': [
+        'electrum_grs_gui': [
             "qt/themes/cleanlook/name.cfg",
             "qt/themes/cleanlook/style.css",
             "qt/themes/sahara/name.cfg",
@@ -66,10 +66,10 @@ setup(
     },
     scripts=['electrum'],
     data_files=data_files,
-    description="Lightweight Bitcoin Wallet",
+    description="Lightweight Groestlcoin Wallet",
     author="Thomas Voegtlin",
     author_email="thomasv@electrum.org",
     license="GNU GPLv3",
     url="https://electrum.org",
-    long_description="""Lightweight Bitcoin Wallet"""
+    long_description="""Lightweight Groestlcoin Wallet"""
 )

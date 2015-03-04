@@ -1,12 +1,12 @@
-import time, electrum, Queue
-from electrum import Interface, SimpleConfig
-from electrum.network import filter_protocol, parse_servers
+import time, electrum_grs, Queue
+from electrum_grs import Interface, SimpleConfig
+from electrum_grs.network import filter_protocol, parse_servers
 
 # electrum.util.set_verbosity(1)
 
 def get_peers():
     # 1. start interface and wait for connection
-    interface = electrum.Interface('ecdsa.net:110:s')
+    interface = electrum_grs.Interface('ecdsa.net:110:s')
     q = Queue.Queue()
     interface.start(q)
     i, r = q.get()

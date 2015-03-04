@@ -18,7 +18,7 @@
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-from electrum.i18n import _
+from electrum_grs.i18n import _
 from util import *
 import re
 import math

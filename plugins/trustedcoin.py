@@ -29,20 +29,20 @@ from urllib import quote
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-import electrum
-from electrum import bitcoin
-from electrum.bitcoin import *
-from electrum.mnemonic import Mnemonic
-from electrum import version
-from electrum.wallet import Wallet_2of3
-from electrum.i18n import _
-from electrum.plugins import BasePlugin, run_hook, hook
+import electrum_grs
+from electrum_grs import bitcoin
+from electrum_grs.bitcoin import *
+from electrum_grs.mnemonic import Mnemonic
+from electrum_grs import version
+from electrum_grs.wallet import Wallet_2of3
+from electrum_grs.i18n import _
+from electrum_grs.plugins import BasePlugin, run_hook, hook
 
-from electrum_gui.qt.util import text_dialog, EnterButton, WaitingDialog
-from electrum_gui.qt.qrcodewidget import QRCodeWidget
-from electrum_gui.qt import ok_cancel_buttons, ok_cancel_buttons2, close_button
-from electrum_gui.qt.amountedit import AmountEdit
-from electrum_gui.qt.main_window import StatusBarButton
+from electrum_grs_gui.qt.util import text_dialog, EnterButton, WaitingDialog
+from electrum_grs_gui.qt.qrcodewidget import QRCodeWidget
+from electrum_grs_gui.qt import ok_cancel_buttons, ok_cancel_buttons2, close_button
+from electrum_grs_gui.qt.amountedit import AmountEdit
+from electrum_grs_gui.qt.main_window import StatusBarButton
 
 from decimal import Decimal
 
@@ -211,7 +211,7 @@ class Plugin(BasePlugin):
 
     def __init__(self, x, y):
         BasePlugin.__init__(self, x, y)
-        electrum.wallet.wallet_types.append(('twofactor', '2fa', _("Wallet with two-factor authentication"), Wallet_2fa))
+        electrum_grs.wallet.wallet_types.append(('twofactor', '2fa', _("Wallet with two-factor authentication"), Wallet_2fa))
         self.seed_func = lambda x: bitcoin.is_new_seed(x, SEED_PREFIX)
         self.billing_info = None
         self.is_billing = False
@@ -431,7 +431,7 @@ class Plugin(BasePlugin):
 
 
     def need_server(self, tx):
-        from electrum.account import BIP32_Account
+        from electrum_grs.account import BIP32_Account
         # Detect if the server is needed
         long_id, short_id = self.get_user_id()
         xpub3 = self.wallet.master_public_keys['x3/']

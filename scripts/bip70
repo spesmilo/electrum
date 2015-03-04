@@ -4,10 +4,10 @@ import tlslite
 import time
 import hashlib
 
-from electrum import paymentrequest_pb2 as pb2
-from electrum.transaction import Transaction
-from electrum import bitcoin
-from electrum import x509
+from electrum_grs import paymentrequest_pb2 as pb2
+from electrum_grs.transaction import Transaction
+from electrum_grs import bitcoin
+from electrum_grs import x509
 
 
 chain_file = 'mychain.pem'

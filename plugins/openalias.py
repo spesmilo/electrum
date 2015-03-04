@@ -15,10 +15,10 @@
 # Version: 0.1
 # Todo: optionally use OA resolvers; add DNSCrypt support
 
-from electrum_gui.qt.util import EnterButton
-from electrum.plugins import BasePlugin, hook
-from electrum.util import print_error
-from electrum.i18n import _
+from electrum_grs_gui.qt.util import EnterButton
+from electrum_grs.plugins import BasePlugin, hook
+from electrum_grs.util import print_error
+from electrum_grs.i18n import _
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 

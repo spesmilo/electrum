@@ -6,17 +6,17 @@ from sys import stderr
 from time import sleep
 from base64 import b64encode, b64decode
 
-import electrum
-from electrum.account import BIP32_Account
-from electrum.bitcoin import EncodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
-from electrum.i18n import _
-from electrum.plugins import BasePlugin, hook
-from electrum.transaction import deserialize
-from electrum.wallet import BIP32_HD_Wallet
-from electrum.util import print_error
+import electrum_grs
+from electrum_grs.account import BIP32_Account
+from electrum_grs.bitcoin import EncodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
+from electrum_grs.i18n import _
+from electrum_grs.plugins import BasePlugin, hook
+from electrum_grs.transaction import deserialize
+from electrum_grs.wallet import BIP32_HD_Wallet
+from electrum_grs.util import print_error
 
-from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
-from electrum_gui.qt.util import ok_cancel_buttons, EnterButton
+from electrum_grs_gui.qt.password_dialog import make_password_dialog, run_password_dialog
+from electrum_grs_gui.qt.util import ok_cancel_buttons, EnterButton
 
 try:
     from trezorlib.client import types
@@ -50,7 +50,7 @@ class Plugin(BasePlugin):
         self._requires_settings = True
         self.wallet = None
         if self._is_available:
-            electrum.wallet.wallet_types.append(('hardware', 'trezor', _("Trezor wallet"), TrezorWallet))
+            electrum_grs.wallet.wallet_types.append(('hardware', 'trezor', _("Trezor wallet"), TrezorWallet))
 
     def _init(self):
         return TREZOR
@@ -173,7 +173,7 @@ class Plugin(BasePlugin):
             return False
 
 
-from electrum.wallet import pw_decode, bip32_private_derivation, bip32_root
+from electrum_grs.wallet import pw_decode, bip32_private_derivation, bip32_root
 
 class TrezorWallet(BIP32_HD_Wallet):
     wallet_type = 'trezor'

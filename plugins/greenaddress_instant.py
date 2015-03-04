@@ -23,12 +23,12 @@ import sys
 
 from PyQt4.QtGui import QMessageBox, QApplication, QPushButton
 
-from electrum.account import BIP32_Account
-from electrum import bitcoin, util
-from electrum import transaction
-from electrum.plugins import BasePlugin, hook
-from electrum.i18n import _
-from electrum.bitcoin import regenerate_key
+from electrum_grs.account import BIP32_Account
+from electrum_grs import bitcoin, util
+from electrum_grs import transaction
+from electrum_grs.plugins import BasePlugin, hook
+from electrum_grs.i18n import _
+from electrum_grs.bitcoin import regenerate_key
 
 
 description = _("Allows validating if your transactions have instant confirmations by GreenAddress")

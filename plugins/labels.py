@@ -1,4 +1,4 @@
-from electrum.util import print_error
+from electrum_grs.util import print_error
 
 import httplib, urllib
 import socket
@@ -18,11 +18,11 @@ import PyQt4.QtGui as QtGui
 import aes
 import base64
 
-import electrum
-from electrum.plugins import BasePlugin, hook
-from electrum.i18n import _
+import electrum_grs
+from electrum_grs.plugins import BasePlugin, hook
+from electrum_grs.i18n import _
 
-from electrum_gui.qt import HelpButton, EnterButton
+from electrum_grs_gui.qt import HelpButton, EnterButton
 
 class Plugin(BasePlugin):
 
@@ -39,12 +39,12 @@ class Plugin(BasePlugin):
         return "0.2.1"
 
     def encode(self, message):
-        encrypted = electrum.bitcoin.aes_encrypt_with_iv(self.encode_password, self.iv, message.encode('utf8'))
+        encrypted = electrum_grs.bitcoin.aes_encrypt_with_iv(self.encode_password, self.iv, message.encode('utf8'))
         encoded_message = base64.b64encode(encrypted)
         return encoded_message
 
     def decode(self, message):
-        decoded_message = electrum.bitcoin.aes_decrypt_with_iv(self.encode_password, self.iv, base64.b64decode(message)).decode('utf8')
+        decoded_message = electrum_grs.bitcoin.aes_decrypt_with_iv(self.encode_password, self.iv, base64.b64decode(message)).decode('utf8')
         return decoded_message
 
 

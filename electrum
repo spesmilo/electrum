@@ -76,15 +76,15 @@ except Exception:
 # load local module as electrum
 if is_bundle or is_local or is_android:
     import imp
-    imp.load_module('electrum', *imp.find_module('lib'))
-    imp.load_module('electrum_gui', *imp.find_module('gui'))
+    imp.load_module('electrum_grs', *imp.find_module('lib'))
+    imp.load_module('electrum_grs_gui', *imp.find_module('gui'))
 
 
-from electrum import util
-from electrum import SimpleConfig, Network, Wallet, WalletStorage, NetworkProxy, Commands, known_commands, pick_random_server
-from electrum.util import print_msg, print_error, print_stderr, print_json, set_verbosity, InvalidPassword
-from electrum.daemon import get_daemon
-from electrum.plugins import init_plugins
+from electrum_grs import util
+from electrum_grs import SimpleConfig, Network, Wallet, WalletStorage, NetworkProxy, Commands, known_commands, pick_random_server
+from electrum_grs.util import print_msg, print_error, print_stderr, print_json, set_verbosity, InvalidPassword
+from electrum_grs.daemon import get_daemon
+from electrum_grs.plugins import init_plugins
 
 
 # get password routine
@@ -227,7 +227,7 @@ if __name__ == '__main__':
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'
         try:
-            gui = __import__('electrum_gui.' + gui_name, fromlist=['electrum_gui'])
+            gui = __import__('electrum_grs_gui.' + gui_name, fromlist=['electrum_grs_gui'])
         except ImportError:
             traceback.print_exc(file=sys.stdout)
             sys.exit()
