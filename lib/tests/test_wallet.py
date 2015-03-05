@@ -30,6 +30,9 @@ class FakeSynchronizer(object):
     def add(self, address):
         self.store.append(address)
 
+class FakeNetwork(object):
+    def get_local_height():
+        return 10000
 
 class WalletTestCase(unittest.TestCase):
 
@@ -93,7 +96,6 @@ class TestWalletStorage(WalletTestCase):
             contents = f.read()
         self.assertEqual(some_dict, json.loads(contents))
 
-
 class TestNewWallet(WalletTestCase):
 
     seed_text = "travel nowhere air position hill peace suffer parent beautiful rise blood power home crumble teach"
@@ -108,6 +110,7 @@ class TestNewWallet(WalletTestCase):
         super(TestNewWallet, self).setUp()
         self.storage = WalletStorage(self.fake_config)
         self.wallet = NewWallet(self.storage)
+        self.wallet.network = FakeNetwork()
         # This cannot be constructed by electrum at random, it should be safe
         # from eventual collisions.
         self.wallet.add_seed(self.seed_text, self.password)
@@ -152,3 +155,16 @@ class TestNewWallet(WalletTestCase):
         new_password = "secret2"
         self.wallet.update_password(self.password, new_password)
         self.wallet.get_seed(new_password)
+
+    def test_transaction_with_server_fee(self):
+      outputs = [('address', '1MQaPKJTVZt7vKNtdXZBUiv4smtf5yZ9Ao', 90000)]
+      self.wallet.server_fee = 10000
+      self.wallet.server_fee_addr = '1MYwrbuXqHyyvk8pTRNTH7b92DHsv9BSmz'
+      coins = [{'coinbase': '', 'height': 1, 'value': 100000}]
+      self.wallet.add_input_info = lambda x: x #Skip this as we do not have an account for the address
+      tx = self.wallet.make_unsigned_transaction(outputs, fixed_fee=0, coins=coins, change_addr=self.import_key_address)
+      self.assertIn(('address', self.wallet.server_fee_addr, self.wallet.server_fee), tx.outputs)
+
+if __name__ == '__main__':
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestNewWallet)
+    unittest.TextTestRunner(verbosity=2).run(suite)
