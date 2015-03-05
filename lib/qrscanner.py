@@ -17,8 +17,11 @@ def scan_qr(config):
         device = config.get("video_device", "default")
         if device == 'default':
             device = ''
-        proc = zbar.Processor()
-        proc.init(video_device=device)
+        _proc = zbar.Processor()
+        _proc.init(video_device=device)
+        # set global only if init did not raise an exception
+        proc = _proc
+
 
     proc.visible = True
     while True:
