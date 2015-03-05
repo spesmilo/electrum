@@ -96,6 +96,7 @@ class TestWalletStorage(WalletTestCase):
             contents = f.read()
         self.assertEqual(some_dict, json.loads(contents))
 
+
 class TestNewWallet(WalletTestCase):
 
     seed_text = "travel nowhere air position hill peace suffer parent beautiful rise blood power home crumble teach"
@@ -165,6 +166,10 @@ class TestNewWallet(WalletTestCase):
       tx = self.wallet.make_unsigned_transaction(outputs, fixed_fee=0, coins=coins, change_addr=self.import_key_address)
       self.assertIn(('address', self.wallet.server_fee_addr, self.wallet.server_fee), tx.outputs)
 
-if __name__ == '__main__':
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestNewWallet)
-    unittest.TextTestRunner(verbosity=2).run(suite)
+
+    def test_parse_banner(self):
+        banner = 'If you like to donate to this server, please send your BTC to 1NzEFKU9DEpJgEmqAc8U9LGgCEEdYu29wP, thanks!'
+        expected = '1NzEFKU9DEpJgEmqAc8U9LGgCEEdYu29wP'
+        actual = self.wallet.parse_banner(banner)
+        self.assertEqual(actual, expected)
+

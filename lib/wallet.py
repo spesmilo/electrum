@@ -22,6 +22,7 @@ import hashlib
 import ast
 import threading
 import random
+import re
 import time
 import math
 import json
@@ -687,7 +688,28 @@ class Abstract_Wallet(object):
             fee = MIN_RELAY_TX_FEE
         return fee
 
-    def make_unsigned_transaction(self, outputs, fixed_fee=None, change_addr=None, domain=None, coins=None):
+    def set_server_fee(self, fee):
+        self.server_fee = fee
+        self.storage.put('server_fee', self.server_fee, True)
+
+
+    def parse_server_addr_from_banner(self, banner):
+        addr = self.parse_banner(banner)
+        self.server_fee_addr = addr
+
+    def parse_banner(self, banner):
+        pattern = '[13][a-km-zA-HJ-NP-Z0-9]{26,33}'
+        match = re.search(pattern, banner)
+        if not match:
+            return None
+        # first matching address
+        addr = match.group(0)
+        if not is_address(addr):
+            return None
+        return addr
+
+
+    def make_unsigned_transaction(self, outputs, fixed_fee=None, change_addr=None, domain=None, coins=None ):
         # check outputs
         for type, data, value in outputs:
             if type == 'address':
@@ -760,7 +782,7 @@ class Abstract_Wallet(object):
         run_hook('make_unsigned_transaction', tx)
         return tx
 
-    def mktx(self, outputs, password, fee=None, change_addr=None, domain= None, coins = None):
+    def mktx(self, outputs, password, fee=None, change_addr=None, domain= None, coins = None ):
         tx = self.make_unsigned_transaction(outputs, fee, change_addr, domain, coins)
         self.sign_transaction(tx, password)
         return tx

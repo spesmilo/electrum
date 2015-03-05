@@ -164,8 +164,13 @@ class ElectrumWindow(QMainWindow):
         for i in range(tabs.count()):
             QShortcut(QKeySequence("Alt+" + str(i + 1)), self, lambda i=i: tabs.setCurrentIndex(i))
 
+        def notify_banner():
+            self.console.showMessage(self.network.banner)
+            if self.wallet:
+                self.wallet.parse_server_addr_from_banner(self.network.banner)
+
         self.connect(self, QtCore.SIGNAL('update_status'), self.update_status)
-        self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.network.banner) )
+        self.connect(self, QtCore.SIGNAL('banner_signal'), notify_banner)
         self.connect(self, QtCore.SIGNAL('transaction_signal'), lambda: self.notify_transactions() )
         self.connect(self, QtCore.SIGNAL('payment_request_ok'), self.payment_request_ok)
         self.connect(self, QtCore.SIGNAL('payment_request_error'), self.payment_request_error)
@@ -239,6 +244,8 @@ class ElectrumWindow(QMainWindow):
 
         self.clear_receive_tab()
         self.update_receive_tab()
+        if self.network.banner:
+            self.wallet.parse_server_addr_from_banner(self.network.banner)
         run_hook('load_wallet', wallet)
 
 
