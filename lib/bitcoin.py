@@ -141,6 +141,10 @@ def Hash(x):
     if type(x) is unicode: x=x.encode('utf-8')
     return sha256(sha256(x))
 
+def groestlHash(x):
+    if type(x) is unicode: x=x.encode('utf-8')
+    return groestlcoin_hash.getHash(x, len(x))
+
 
 hash_encode = lambda x: x[::-1].encode('hex')
 hash_decode = lambda x: x.decode('hex')[::-1]
@@ -238,7 +242,7 @@ def public_key_to_bc_address(public_key):
 
 def hash_160_to_bc_address(h160, addrtype = 36):
     vh160 = chr(addrtype) + h160
-    h = groestlcoin_hash.getHash(vh160, len(vh160))
+    h = groestlHash(vh160)
     addr = vh160 + h[0:4]
     return base_encode(addr, base=58)
 
@@ -304,7 +308,7 @@ def base_decode(v, length, base):
 
 
 def EncodeBase58Check(vchIn):
-    hash = groestlcoin_hash.getHash(vchIn, len(vchIn))
+    hash = groestlHash(vchIn)
     return base_encode(vchIn + hash[0:4], base=58)
 
 
@@ -312,7 +316,7 @@ def DecodeBase58Check(psz):
     vchRet = base_decode(psz, None, base=58)
     key = vchRet[0:-4]
     csum = vchRet[-4:]
-    hash = groestlcoin_hash.getHash(key, len(key))
+    hash = groestlHash(key)
     cs32 = hash[0:4]
     if cs32 != csum:
         return None
