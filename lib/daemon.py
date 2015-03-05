@@ -30,7 +30,7 @@ from network import Network
 from util import print_error, print_stderr, parse_json
 from simple_config import SimpleConfig
 
-DAEMON_PORT=8001
+DAEMON_SOCKET = 'daemon.sock'
 
 
 def do_start_daemon(config):
@@ -43,14 +43,14 @@ def do_start_daemon(config):
 
 def get_daemon(config, start_daemon=True):
     import socket
-    daemon_port = config.get('daemon_port', DAEMON_PORT)
+    daemon_socket = os.path.join(config.path, DAEMON_SOCKET)
     daemon_started = False
     while True:
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect(('localhost', daemon_port))
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s.connect(daemon_socket)
             if not daemon_started:
-                print_stderr("Connected to daemon on port %d"%daemon_port)
+                print_stderr("Connected to daemon on", daemon_socket)
             return s
         except socket.error:
             if not start_daemon:
@@ -187,11 +187,13 @@ class NetworkServer(threading.Thread):
 
 
 def daemon_loop(server):
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    daemon_port = server.config.get('daemon_port', DAEMON_PORT)
+    daemon_socket = os.path.join(server.config.path, DAEMON_SOCKET)
+    if os.path.exists(daemon_socket):
+        os.remove(daemon_socket)
     daemon_timeout = server.config.get('daemon_timeout', 5*60)
-    s.bind(('localhost', daemon_port))
+    s.bind(daemon_socket)
     s.listen(5)
     s.settimeout(1)
     t = time.time()
