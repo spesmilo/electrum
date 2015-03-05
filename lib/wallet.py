@@ -1357,6 +1357,8 @@ class BIP32_Simple_Wallet(BIP32_Wallet):
         self.add_master_private_key(self.root_name, xprv, password)
         self.add_master_public_key(self.root_name, xpub)
         self.add_account('0', account)
+        self.use_encryption = (password != None)
+        self.storage.put('use_encryption', self.use_encryption,True)
 
     def create_xpub_wallet(self, xpub):
         account = BIP32_Account({'xpub':xpub})
