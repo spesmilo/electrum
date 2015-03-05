@@ -162,6 +162,7 @@ class Abstract_Wallet(object):
 
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
         self.fee_per_kb            = int(storage.get('fee_per_kb', RECOMMENDED_FEE))
+        self.server_fee            = int(storage.get('server_fee', 0))
 
         # This attribute is set when wallet.start_threads is called.
         self.synchronizer = None

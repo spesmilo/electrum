@@ -2685,6 +2685,18 @@ class ElectrumWindow(QMainWindow):
         fee_e.editingFinished.connect(on_fee)
         widgets.append((fee_label, fee_e, fee_help))
 
+        server_fee_label = QLabel(_('Server fee per transaction') + ':')
+        server_fee_help = HelpButton(_('Server donation per transaction.'))
+        server_fee_e = BTCAmountEdit(self.get_decimal_point)
+        server_fee_e.setAmount(self.wallet.server_fee)
+        if not self.config.is_modifiable('server_fee'):
+            for w in [server_fee_e, server_fee_label]: w.setEnabled(False)
+        def on_server_fee():
+            server_fee = server_fee_e.get_amount()
+            self.wallet.set_server_fee(server_fee)
+        server_fee_e.editingFinished.connect(on_server_fee)
+        widgets.append((server_fee_label, server_fee_e, server_fee_help))
+
         units = ['BTC', 'mBTC', 'bits']
         unit_label = QLabel(_('Base unit') + ':')
         unit_combo = QComboBox()
