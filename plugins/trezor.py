@@ -5,6 +5,7 @@ from struct import pack
 from sys import stderr
 from time import sleep
 from base64 import b64encode, b64decode
+import unicodedata
 
 import electrum_ltc as electrum
 from electrum_ltc.account import BIP32_Account
@@ -15,7 +16,6 @@ from electrum_ltc.transaction import deserialize
 from electrum_ltc.wallet import BIP32_HD_Wallet
 from electrum_ltc.util import print_error
 
-from electrum_ltc_gui.qt.password_dialog import make_password_dialog, run_password_dialog
 from electrum_ltc_gui.qt.util import ok_cancel_buttons, EnterButton
 
 try:
@@ -35,6 +35,21 @@ def log(msg):
 def give_error(message):
     print_error(message)
     raise Exception(message)
+
+
+def trezor_passphrase_dialog(msg):
+    from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
+    d = QDialog()
+    d.setModal(1)
+    d.setLayout(make_password_dialog(d, None, msg, False))
+    confirmed, p, passphrase = run_password_dialog(d, None, None)
+    if not confirmed:
+        return None
+    if passphrase is None:
+        passphrase = '' # Even blank string is valid Trezor passphrase
+    passphrase = unicodedata.normalize('NFKD', unicode(passphrase))
+    return passphrase
+
 
 class Plugin(BasePlugin):
 
@@ -117,9 +132,13 @@ class Plugin(BasePlugin):
             return
         wallet = TrezorWallet(storage)
         self.wallet = wallet
+        passphrase = trezor_passphrase_dialog(_("Please enter your Trezor passphrase.") + '\n' + _("Press OK if you do not use one."))
+        if passphrase is None:
+            QMessageBox.critical(None, _('Error'), _("Password request canceled"), _('OK'))
+            return
         password = wizard.password_dialog()
         wallet.add_seed(seed, password)
-        wallet.add_cosigner_seed(' '.join(seed.split()), 'x/', password)
+        wallet.add_cosigner_seed(seed, 'x/', password, passphrase)
         wallet.create_main_account(password)
         # disable trezor plugin
         self.set_enabled(False)
@@ -244,7 +263,8 @@ class TrezorWallet(BIP32_HD_Wallet):
         # trezor uses bip39
         import pbkdf2, hashlib, hmac
         PBKDF2_ROUNDS = 2048
-        mnemonic = ' '.join(mnemonic.split())
+        mnemonic = unicodedata.normalize('NFKD', ' '.join(mnemonic.split()))
+        passphrase = unicodedata.normalize('NFKD', passphrase)
         return pbkdf2.PBKDF2(mnemonic, 'mnemonic' + passphrase, iterations = PBKDF2_ROUNDS, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
 
     def derive_xkeys(self, root, derivation, password):
@@ -475,13 +495,12 @@ class TrezorQtGuiMixin(object):
             return proto.Cancel()
         return proto.PinMatrixAck(pin=pin)
 
-    def callback_PassphraseRequest(self, msg):
-        confirmed, p, passphrase = self.password_dialog()
-        if not confirmed:
+    def callback_PassphraseRequest(self, req):
+        msg = _("Please enter your Trezor passphrase.")
+        passphrase = trezor_passphrase_dialog(msg)
+        if passphrase is None:
             QMessageBox.critical(None, _('Error'), _("Password request canceled"), _('OK'))
             return proto.Cancel()
-        if passphrase is None:
-            passphrase='' # Even blank string is valid Trezor passphrase
         return proto.PassphraseAck(passphrase=passphrase)
 
     def callback_WordRequest(self, msg):
@@ -489,15 +508,6 @@ class TrezorQtGuiMixin(object):
         log("Enter one word of mnemonic: ")
         word = raw_input()
         return proto.WordAck(word=word)
-
-    def password_dialog(self, msg=None):
-        if not msg:
-            msg = _("Please enter your Trezor password")
-
-        d = QDialog()
-        d.setModal(1)
-        d.setLayout( make_password_dialog(d, None, msg, False) )
-        return run_password_dialog(d, None, None)
 
     def pin_dialog(self, msg):
         d = QDialog(None)

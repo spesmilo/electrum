@@ -1321,9 +1321,9 @@ class BIP32_Wallet(Deterministic_Wallet):
         seed = self.get_seed(password)
         self.add_cosigner_seed(seed, self.root_name, password)
 
-    def add_cosigner_seed(self, seed, name, password):
+    def add_cosigner_seed(self, seed, name, password, passphrase=''):
         # we don't store the seed, only the master xpriv
-        xprv, xpub = bip32_root(self.mnemonic_to_seed(seed,''))
+        xprv, xpub = bip32_root(self.mnemonic_to_seed(seed, passphrase))
         xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
         self.add_master_public_key(name, xpub)
         self.add_master_private_key(name, xprv, password)

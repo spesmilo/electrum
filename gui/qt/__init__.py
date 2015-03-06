@@ -173,6 +173,7 @@ class ElectrumGui:
         if action is not None:
             import installwizard
             wizard = installwizard.InstallWizard(self.config, self.network, storage)
+            wizard.show()
             try:
                 wallet = wizard.run(action)
             except BaseException as e:
