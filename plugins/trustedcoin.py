@@ -47,8 +47,8 @@ from electrum_ltc_gui.qt.main_window import StatusBarButton
 from decimal import Decimal
 
 # signing_xpub is hardcoded so that the wallet can be restored from seed, without TrustedCoin's server
-signing_xpub = "xpub661MyMwAqRbcGnMkaTx2594P9EDuiEqMq25PM2aeG6UmwzaohgA6uDmNsvSUV8ubqwA3Wpste1hg69XHgjUuCD5HLcEp2QPzyV1HMrPppsL"
-billing_xpub = "xpub6DTBdtBB8qUmH5c77v8qVGVoYk7WjJNpGvutqjLasNG1mbux6KsojaLrYf2sRhXAVU4NaFuHhbD9SvVPRt1MB1MaMooRuhHcAZH1yhQ1qDU"
+signing_xpub = "Ltub2SSUS19CirucX9dhAwx1w1AcE2YUU2MVxJHNB7KkdbKUgNDcMgeqisFpEnxW9YJrS9Zd6xGSV3M4CEtQbdaM38rhdk8Gh6A3TymdGT6mJ4r"
+billing_xpub = "Ltub2ZtJ6XPD2GnmXSt3iQ8qM8c2dYS5V5txQD7sfp5hEs6iVyYkkLNYZDqHuXYu66vR5gTxAPHqYcrXZ1rWLn6o1w8zewgtaP3ef43MtJzUDTo"
 
 SEED_PREFIX = version.SEED_PREFIX_2FA
 
@@ -256,7 +256,7 @@ class Plugin(BasePlugin):
     def make_xpub(self, xpub, s):
         _, _, _, c, cK = deserialize_xkey(xpub)
         cK2, c2 = bitcoin._CKD_pub(cK, c, s)
-        xpub2 = ("0488B21E" + "00" + "00000000" + "00000000").decode("hex") + c2 + cK2
+        xpub2 = ("019DA462" + "00" + "00000000" + "00000000").decode("hex") + c2 + cK2
         return EncodeBase58Check(xpub2)
 
     def make_billing_address(self, num):

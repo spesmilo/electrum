@@ -51,21 +51,21 @@ class Test_bitcoin(unittest.TestCase):
     def test_bip32(self):
         # see https://en.bitcoin.it/wiki/BIP_0032_TestVectors
         xpub, xprv = self._do_test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000", testnet=False)
-        assert xpub == "xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy"
-        assert xprv == "xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76"
+        assert xpub == "Ltub2dSSz9YcDJpFxJ331ypEC1VHQTk8CHdiiVEsiqFVQwH7fAbxnFwEf1wfyQmhxqRjAU2YVwgGPnWBAEoFtAgKJrJeqKNrFTTJzbNbDMUZjYL"
+        assert xprv == "Ltpv7CG7PN84yAHJLRLCmNKr7Rf4xu3w8354dy8r3rVCUkVX4oQtTLtoeQqQj3yd9Y9xeB5xkrcvtm6NdWyKqytn7q4pWzBZkH6BGmF86hsLPtJ"
 
         xpub, xprv = self._do_test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","m/0/2147483647'/1/2147483646'/2", testnet=False)
-        assert xpub == "xpub6FnCn6nSzZAw5Tw7cgR9bi15UV96gLZhjDstkXXxvCLsUXBGXPdSnLFbdpq8p9HmGsApME5hQTZ3emM2rnY5agb9rXpVGyy3bdW6EEgAtqt"
-        assert xprv == "xprvA2nrNbFZABcdryreWet9Ea4LvTJcGsqrMzxHx98MMrotbir7yrKCEXw7nadnHM8Dq38EGfSh6dqA9QWTyefMLEcBYJUuekgW4BYPJcr9E7j"
+        assert xpub == "Ltub2cDKEjzUszUwKqD4DAR9Ta7JZHTfS85qrW5sacH5HhBaCtp5BQ8Bbyk2zhMAUYh1s5aPwMUFFVCRkri9mgdXRcNa9fhwwfj668GS8jig9Sj"
+        assert xprv == "Ltpv7B2ydxZwdqwyhxWDxYvmNzH67imUMsXBmyyqudWnMWPycXczrV5kbNdmkMAoA4mQk9hWMB6DFiXp8udYNmeKyLyXVsS5xhjXraAHN6qF1PS"
 
     def test_bip32_testnet(self):
         xpub, xprv = self._do_test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000", testnet=True)
-        assert xpub == "tpubDHNy3kAG39ThyiwwsgoKY4iRenXDRtce8qdCFJZXPMCJg5dsCUHayp84raLTpvyiNA9sXPob5rgqkKvkN8S7MMyXbnEhGJMW64Cf4vFAoaF"
-        assert xprv == "tprv8kgvuL81tmn36Fv9z38j8f4K5m1HGZRjZY2QxnXDy5PuqbP6a5TzoKWCgTcGHBu66W3TgSbAu2yX6sPza5FkHmy564Sh6gmCPUNeUt4yj2x"
+        assert xpub == "ttub4iNCzaWah84FUoDUuprcpYoztSizaGtcp1EkHLF9hD5sQgjenThtvLgiK9XLPknGnUnCsgr4jCbXE5UScpRTk1yC5E9QwRiizwYEMTD5WmZ"
+        assert xprv == "ttpv9HBsPo63SyXHrvWefDNEjxynSt2oW2KxjV8icMUrm2JGpKYaTYfTujaT4njFaTWWGBqd8bnjEBBihMeWaddvYzjMktx8SFMbH7QmEqDEKag"
 
         xpub, xprv = self._do_test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","m/0/2147483647'/1/2147483646'/2", testnet=True)
-        assert xpub == "tpubDG9qJLc8hq8PMG7y4sQEodLSocEkfj4mGrUC75b7G76mDoqybcUXvmvRsruvLeF14mhixobZwZP6LwqeFePKU83Sv8ZnxWdHBb6VzE6zbvC"
-        assert xprv == "tprv8jTo9vZtZTSiTo6BBDjeQDgLEaipWPsrhYsQpZYoqqJNPKbCyDewkHJZhkoSHiWYCUf1Gm4TFzQxcG4D6s1J9Hsn4whDK7QYyHHokJeUuac"
+        assert xpub == "ttub4h95FAxTMoivrLPW71TY67S23GSXp7Ljx25k97GjZxzKxQwmBbtqsJV5LS6nuU3ZV6L4K6e3auHmphPLWLNfrn37PaUWddzW6US5Gsv5T8x"
+        assert xprv == "ttpv9FxjePXv7fByETgfrPyA1XbobhkLjrn5sVyiU8WSdnCjN3kgrgrQrhNp65vRaz7xNATAivG1b8dACkJj7RPUQWe4jnCeefzwrvKvW92SgA6"
 
     def _do_test_bip32(self, seed, sequence, testnet):
         xprv, xpub = bip32_root(seed.decode('hex'), testnet)
@@ -122,16 +122,16 @@ class Test_bitcoin(unittest.TestCase):
     def test_xpub_from_xprv(self):
         """We can derive the xpub key from a xprv."""
         # Taken from test vectors in https://en.bitcoin.it/wiki/BIP_0032_TestVectors
-        xpub = "xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy"
-        xprv = "xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76"
+        xpub = "Ltub2dSSz9YcDJpFxJ331ypEC1VHQTk8CHdiiVEsiqFVQwH7fAbxnFwEf1wfyQmhxqRjAU2YVwgGPnWBAEoFtAgKJrJeqKNrFTTJzbNbDMUZjYL"
+        xprv = "Ltpv7CG7PN84yAHJLRLCmNKr7Rf4xu3w8354dy8r3rVCUkVX4oQtTLtoeQqQj3yd9Y9xeB5xkrcvtm6NdWyKqytn7q4pWzBZkH6BGmF86hsLPtJ"
 
         result = xpub_from_xprv(xprv)
         self.assertEqual(result, xpub)
 
     def test_xpub_from_xprv_testnet(self):
         """We can derive the xpub key from a xprv using testnet headers."""
-        xpub = "tpubDHNy3kAG39ThyiwwsgoKY4iRenXDRtce8qdCFJZXPMCJg5dsCUHayp84raLTpvyiNA9sXPob5rgqkKvkN8S7MMyXbnEhGJMW64Cf4vFAoaF"
-        xprv = "tprv8kgvuL81tmn36Fv9z38j8f4K5m1HGZRjZY2QxnXDy5PuqbP6a5TzoKWCgTcGHBu66W3TgSbAu2yX6sPza5FkHmy564Sh6gmCPUNeUt4yj2x"
+        xpub = "ttub4iNCzaWah84FUoDUuprcpYoztSizaGtcp1EkHLF9hD5sQgjenThtvLgiK9XLPknGnUnCsgr4jCbXE5UScpRTk1yC5E9QwRiizwYEMTD5WmZ"
+        xprv = "ttpv9HBsPo63SyXHrvWefDNEjxynSt2oW2KxjV8icMUrm2JGpKYaTYfTujaT4njFaTWWGBqd8bnjEBBihMeWaddvYzjMktx8SFMbH7QmEqDEKag"
         result = xpub_from_xprv(xprv, testnet=True)
         self.assertEqual(result, xpub)
 

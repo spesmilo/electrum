@@ -259,7 +259,7 @@ class BTChipWallet(BIP32_HD_Wallet):
                 childnum = int(lastChild[0])
             else:
                 childnum = 0x80000000 | int(lastChild[0])        
-            xpub = "0488B21E".decode('hex') + chr(depth) + self.i4b(fingerprint) + self.i4b(childnum) + str(nodeData['chainCode']) + str(publicKey)
+            xpub = "019DA462".decode('hex') + chr(depth) + self.i4b(fingerprint) + self.i4b(childnum) + str(nodeData['chainCode']) + str(publicKey)
         except Exception, e:
             self.give_error(e, True)
         finally:
