@@ -190,7 +190,7 @@ class NetworkProxy(threading.Thread):
         return self.interfaces
 
     def get_header(self, height):
-        return self.synchronous_get([('network.get_header',[height])])[0]
+        return self.synchronous_get([('network.get_header', [height])], timeout=0.1)[0]
 
     def get_local_height(self):
         return self.blockchain_height
@@ -208,10 +208,10 @@ class NetworkProxy(threading.Thread):
         return self.unanswered_requests == {}
 
     def get_parameters(self):
-        return self.synchronous_get([('network.get_parameters',[])])[0]
+        return self.synchronous_get([('network.get_parameters', [])], timeout=0.1)[0]
 
     def set_parameters(self, *args):
-        return self.synchronous_get([('network.set_parameters',args)])[0]
+        return self.synchronous_get([('network.set_parameters', args)], timeout=0.1)[0]
 
     def stop(self):
         self.running = False

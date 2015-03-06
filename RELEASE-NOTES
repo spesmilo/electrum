@@ -1,3 +1,20 @@
+# Release 2.0.1 - bugfixes
+
+ * Fix critical bug in Trezor address derivation: passphrases were not
+   NFKD normalized. Trezor users who created a wallet protected by a
+   passphrase containing utf-8 characters with diacritics are
+   affected. These users will have to open their wallet with version
+   2.0 and to move their funds to a new wallet.
+
+ * Use a file socket for the daemon (fixes network dialog issues)
+
+ * Fix crash caused by QR scanner icon when zbar not installed.
+
+ * Fix CosignerPool plugin
+
+ * Label Sync plugin: Fix label sharing between multisig wallets
+
+
 # Release 2.0
 
  * Before you upgrade, make sure you have saved your wallet seed on
