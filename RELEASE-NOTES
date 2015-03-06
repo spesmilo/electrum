@@ -8,7 +8,11 @@
 
  * Use a file socket for the daemon (fixes network dialog issues)
 
- * Fix crashes caused by QR scanner icon when zbar not installed.
+ * Fix crash caused by QR scanner icon when zbar not installed.
+
+ * Fix CosignerPool plugin
+
+ * Label Sync plugin: Fix label sharing between multisig wallets
 
 
 # Release 2.0
