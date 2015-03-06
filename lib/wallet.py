@@ -1477,7 +1477,7 @@ class BIP32_HD_Wallet(BIP32_Wallet):
 
 class NewWallet(BIP32_Wallet, Mnemonic):
     # Standard wallet
-    root_derivation = "m/"
+    root_derivation = "m/44'/17'"
     wallet_type = 'standard'
 
     def create_main_account(self, password):
@@ -1489,7 +1489,7 @@ class NewWallet(BIP32_Wallet, Mnemonic):
 class Wallet_2of2(BIP32_Wallet, Mnemonic):
     # Wallet with multisig addresses.
     root_name = "x1/"
-    root_derivation = "m/"
+    root_derivation = "m/44'/17'"
     wallet_type = '2of2'
 
     def create_main_account(self, password):
