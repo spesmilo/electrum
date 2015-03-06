@@ -111,14 +111,12 @@ class Plugin(BasePlugin):
         if self.listener is None:
             self.listener = Listener(self)
             self.listener.start()
-        mpk = self.wallet.get_master_public_keys()
         self.cosigner_list = []
-        for key, xpub in mpk.items():
-            keyname = key + '/' # fixme
+        for key, xpub in self.wallet.master_public_keys.items():
             K = bitcoin.deserialize_xkey(xpub)[-1].encode('hex')
             _hash = bitcoin.Hash(K).encode('hex')
-            if self.wallet.master_private_keys.get(keyname):
-                self.listener.set_key(keyname, _hash)
+            if self.wallet.master_private_keys.get(key):
+                self.listener.set_key(key, _hash)
             else:
                 self.cosigner_list.append((xpub, K, _hash))
 
