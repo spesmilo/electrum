@@ -63,7 +63,7 @@ class Plugin(BasePlugin):
     @hook
     def load_wallet(self, wallet):
         self.wallet = wallet
-        mpk = self.wallet.get_master_public_key()
+        mpk = ''.join(sorted(self.wallet.master_public_keys.values()))
         self.encode_password = hashlib.sha1(mpk).digest().encode('hex')[:32]
         self.iv = hashlib.sha256(self.encode_password).digest()[:16]
         self.wallet_id = hashlib.sha256(mpk).digest().encode('hex')
