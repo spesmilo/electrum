@@ -112,7 +112,6 @@ class Network(threading.Thread):
         self.irc_servers = {} # returned by interface (list from irc)
 
         self.disconnected_servers = set([])
-        self.disconnected_time = time.time()
 
         self.recent_servers = self.config.get('recent_servers',[]) # successful connections
         self.pending_servers = set()
@@ -388,29 +387,30 @@ class Network(threading.Thread):
                 self.response_queue.put({'id':_id, 'result':self.addresses[addr]})
                 return
 
-        self.interface.send_request(request)
-
+        try:
+            self.interface.send_request(request)
+        except:
+            # put it back in the queue
+            print_error("warning: interface not ready for", request)
+            self.requests_queue.put(request)
+            time.sleep(0.1)
 
     def run(self):
+        disconnected_time = time.time()
         while self.is_running():
             try:
                 i, response = self.queue.get(timeout=0.1)
             except Queue.Empty:
-
                 if len(self.interfaces) + len(self.pending_servers) < self.num_server:
                     self.start_random_interface()
+                if not self.interface.is_connected and self.default_server not in self.disconnected_servers:
+                    print_error("forcing reconnection")
+                    self.queue.put((self.interface, None))
                 if not self.interfaces:
-                    if time.time() - self.disconnected_time > DISCONNECTED_RETRY_INTERVAL:
+                    if time.time() - disconnected_time > DISCONNECTED_RETRY_INTERVAL:
                         print_error('network: retrying connections')
                         self.disconnected_servers = set([])
-                        self.disconnected_time = time.time()
-
-                if not self.interface.is_connected:
-                    if time.time() - self.disconnected_time > DISCONNECTED_RETRY_INTERVAL:
-                        print_error("forcing reconnection")
-                        self.queue.put((self.interface, None))
-                        self.disconnected_time = time.time()
-
+                        disconnected_time = time.time()
                 continue
 
             if response is not None:
@@ -430,25 +430,23 @@ class Network(threading.Thread):
                     self.send_subscriptions()
                     self.set_status('connected')
             else:
-                self.disconnected_servers.add(i.server)
                 if i.server in self.interfaces:
                     self.remove_interface(i)
                 if i.server in self.heights:
                     self.heights.pop(i.server)
                 if i == self.interface:
                     self.set_status('disconnected')
-
-            if not self.interface.is_connected:
-                if self.config.get('auto_cycle'):
-                    self.switch_to_random_interface()
-                else:
-                    if self.default_server not in self.disconnected_servers:
-                        print_error("restarting main interface")
-                        if self.default_server in self.interfaces.keys():
-                            self.switch_to_interface(self.interfaces[self.default_server])
-                        else:
-                            self.interface = self.start_interface(self.default_server)
-
+                    if self.config.get('auto_cycle'):
+                        self.switch_to_random_interface()
+                    else:
+                        if self.default_server not in self.disconnected_servers:
+                            print_error("restarting main interface")
+                            if self.default_server in self.interfaces.keys():
+                                self.switch_to_interface(self.interfaces[self.default_server])
+                            else:
+                                self.interface = self.start_interface(self.default_server)
+                # add it at the end
+                self.disconnected_servers.add(i.server)
 
         print_error("Network: Stopping interfaces")
         for i in self.interfaces.values():
