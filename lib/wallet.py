@@ -1142,6 +1142,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         return self.get_seed(password)
 
     def change_gap_limit(self, value):
+        assert isinstance(value, int), 'gap limit must be of type int, not of %s'%type(value)
         if value >= self.gap_limit:
             self.gap_limit = value
             self.storage.put('gap_limit', self.gap_limit, True)
