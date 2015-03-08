@@ -45,6 +45,7 @@ class InstallWizard(QDialog):
         w.setLayout(layout)
         self.stack.addWidget(w)
         self.stack.setCurrentWidget(w)
+        self.show()
 
     def restore_or_create(self):
         vbox = QVBoxLayout()
