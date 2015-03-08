@@ -310,10 +310,10 @@ class TcpInterface(threading.Thread):
     def run(self):
         self.s = self.get_socket()
         if self.s:
-            self.s.settimeout(60)
+            self.pipe = util.SocketPipe(self.s)
+            self.s.settimeout(2)
             self.is_connected = True
             print_error("connected to", self.host, self.port)
-            self.pipe = util.SocketPipe(self.s)
 
         self.change_status()
         if not self.is_connected:

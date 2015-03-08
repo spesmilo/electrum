@@ -516,7 +516,7 @@ class Transaction:
                 item['prevout_hash'] = item['tx_hash']
                 item['prevout_n'] = item['tx_pos']
                 item['pubkeys'] = [pubkey]
-                item['x_pubkeys'] = [None]
+                item['x_pubkeys'] = [pubkey]
                 item['signatures'] = [None]
                 item['num_sig'] = 1
             inputs += u
