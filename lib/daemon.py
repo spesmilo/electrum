@@ -60,6 +60,9 @@ def get_daemon(config, start_daemon=True):
                 daemon_started = True
             else:
                 time.sleep(0.1)
+        except:
+            # do not use daemon if AF_UNIX is not available (windows)
+            return False
 
 
 
