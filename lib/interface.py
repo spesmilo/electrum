@@ -96,6 +96,7 @@ class TcpInterface(threading.Thread):
         if self.proxy:
             self.proxy_mode = proxy_modes.index(self.proxy["mode"]) + 1
             socks.setdefaultproxy(self.proxy_mode, self.proxy["host"], int(self.proxy["port"]))
+            # fixme: side effect, client needs restart in order to get out of proxy mode
             socket.socket = socks.socksocket
             # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
             def getaddrinfo(*args):
@@ -310,10 +311,10 @@ class TcpInterface(threading.Thread):
     def run(self):
         self.s = self.get_socket()
         if self.s:
-            self.s.settimeout(60)
+            self.pipe = util.SocketPipe(self.s)
+            self.s.settimeout(2)
             self.is_connected = True
             print_error("connected to", self.host, self.port)
-            self.pipe = util.SocketPipe(self.s)
 
         self.change_status()
         if not self.is_connected:

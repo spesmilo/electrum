@@ -45,6 +45,7 @@ class InstallWizard(QDialog):
         w.setLayout(layout)
         self.stack.addWidget(w)
         self.stack.setCurrentWidget(w)
+        self.show()
 
     def restore_or_create(self):
         vbox = QVBoxLayout()
@@ -58,7 +59,7 @@ class InstallWizard(QDialog):
         b1.setText(_("Create new wallet"))
         b1.setChecked(True)
         b2 = QRadioButton(gb1)
-        b2.setText(_("Restore or import a wallet"))
+        b2.setText(_("Restore a wallet or import keys"))
         group1 = QButtonGroup()
         group1.addButton(b1)
         group1.addButton(b2)
