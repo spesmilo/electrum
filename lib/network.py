@@ -290,9 +290,12 @@ class Network(threading.Thread):
 
         if self.proxy != proxy or self.protocol != protocol:
             print_error('restarting network')
+            for i in self.interfaces.values():
+                i.stop()
+                self.interfaces.pop(i.server)
             self.set_proxy(proxy)
             self.protocol = protocol
-            for i in self.interfaces.values(): i.stop()
+            self.disconnected_servers = set([])
             if auto_connect:
                 #self.interface = None
                 return
@@ -445,14 +448,22 @@ class Network(threading.Thread):
             except Queue.Empty:
                 if len(self.interfaces) + len(self.pending_servers) < self.num_server:
                     self.start_random_interface()
-                if not self.interface.is_connected and self.default_server not in self.disconnected_servers:
-                    print_error("forcing reconnection")
-                    self.queue.put((self.interface, None))
                 if not self.interfaces:
                     if time.time() - disconnected_time > DISCONNECTED_RETRY_INTERVAL:
                         print_error('network: retrying connections')
                         self.disconnected_servers = set([])
                         disconnected_time = time.time()
+                if not self.interface.is_connected:
+                    if self.config.get('auto_cycle'):
+                        if self.interfaces:
+                            self.switch_to_random_interface()
+                    else:
+                        if self.default_server in self.interfaces.keys():
+                            self.switch_to_interface(self.interfaces[self.default_server])
+                        else:
+                            if self.default_server not in self.disconnected_servers and self.default_server not in self.pending_servers:
+                                print_error("forcing reconnection")
+                                self.interface = self.start_interface(self.default_server)
                 continue
 
             if response is not None:
@@ -478,16 +489,6 @@ class Network(threading.Thread):
                     self.heights.pop(i.server)
                 if i == self.interface:
                     self.set_status('disconnected')
-                    if self.config.get('auto_cycle'):
-                        self.switch_to_random_interface()
-                    else:
-                        if self.default_server not in self.disconnected_servers:
-                            print_error("restarting main interface")
-                            if self.default_server in self.interfaces.keys():
-                                self.switch_to_interface(self.interfaces[self.default_server])
-                            else:
-                                self.interface = self.start_interface(self.default_server)
-                # add it at the end
                 self.disconnected_servers.add(i.server)
 
         print_error("Network: Stopping interfaces")
