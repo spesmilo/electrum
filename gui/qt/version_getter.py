@@ -33,7 +33,8 @@ class VersionGetter(threading.Thread):
 
     def run(self):
         try:
-            con = httplib.HTTPSConnection('electrum.org', timeout=5)
+            # No domain for electrum-grs
+            con = httplib.HTTPSConnection('',timeout=5)#electrum.org', timeout=5)
             con.request("GET", "/version")
             res = con.getresponse()
         except socket.error as msg:
