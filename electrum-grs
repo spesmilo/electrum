@@ -216,7 +216,7 @@ if __name__ == '__main__':
     if len(args) == 0:
         url = None
         cmd = 'gui'
-    elif len(args) == 1 and re.match('^bitcoin:', args[0]):
+    elif len(args) == 1 and re.match('^groestlcoin:', args[0]):
         url = args[0]
         cmd = 'gui'
     else:

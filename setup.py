@@ -20,8 +20,8 @@ data_files = []
 if platform.system() == 'Linux':
     usr_share = os.path.join(sys.prefix, "share")
     data_files += [
-        (os.path.join(usr_share, 'applications/'), ['electrum.desktop']),
-        (os.path.join(usr_share, 'app-install', 'icons/'), ['icons/electrum.png'])
+        (os.path.join(usr_share, 'applications/'), ['electrum-grs.desktop']),
+        (os.path.join(usr_share, 'app-install', 'icons/'), ['icons/electrum-grs.png'])
     ]
 
 
@@ -64,7 +64,7 @@ setup(
             "qt/themes/dark/style.css",
         ]
     },
-    scripts=['electrum'],
+    scripts=['electrum-grs'],
     data_files=data_files,
     description="Lightweight Groestlcoin Wallet",
     author="Thomas Voegtlin",
