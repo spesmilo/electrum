@@ -6,6 +6,8 @@ import sys
 import random
 import traceback
 
+import socks
+import socket
 
 from util import user_dir, print_error, print_msg
 from bitcoin import *
@@ -80,6 +82,32 @@ def pick_random_server(p='s'):
 
 from simple_config import SimpleConfig
 
+proxy_modes = ['socks4', 'socks5', 'http']
+
+def serialize_proxy(p):
+    if type(p) != dict:
+        return None
+    return ':'.join([p.get('mode'),p.get('host'), p.get('port')])
+
+def deserialize_proxy(s):
+    if type(s) != str:
+        return None
+    if s.lower() == 'none':
+        return None
+    proxy = { "mode":"socks5", "host":"localhost" }
+    args = s.split(':')
+    n = 0
+    if proxy_modes.count(args[n]) == 1:
+        proxy["mode"] = args[n]
+        n += 1
+    if len(args) > n:
+        proxy["host"] = args[n]
+        n += 1
+    if len(args) > n:
+        proxy["port"] = args[n]
+    else:
+        proxy["port"] = "8080" if proxy["mode"] == "http" else "1080"
+    return proxy
 
 
 class Network(threading.Thread):
@@ -118,7 +146,6 @@ class Network(threading.Thread):
 
         self.banner = ''
         self.interface = None
-        self.proxy = interface.deserialize_proxy(self.config.get('proxy'))
         self.heights = {}
         self.merkle_roots = {}
         self.utxo_roots = {}
@@ -131,6 +158,8 @@ class Network(threading.Thread):
         self.addresses = {}
         self.connection_status = 'connecting'
         self.requests_queue = Queue.Queue()
+
+        self.set_proxy(deserialize_proxy(self.config.get('proxy')))
 
 
     def get_server_height(self):
@@ -236,8 +265,21 @@ class Network(threading.Thread):
         self.blockchain.start()
         threading.Thread.start(self)
 
+    def set_proxy(self, proxy):
+        self.proxy = proxy
+        if proxy:
+            proxy_mode = proxy_modes.index(proxy["mode"]) + 1
+            socks.setdefaultproxy(proxy_mode, proxy["host"], int(proxy["port"]))
+            socket.socket = socks.socksocket
+            # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
+            def getaddrinfo(*args):
+                return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
+            socket.getaddrinfo = getaddrinfo
+        else:
+            reload(socket)
+
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
-        proxy_str = interface.serialize_proxy(proxy)
+        proxy_str = serialize_proxy(proxy)
         server_str = ':'.join([ host, port, protocol ])
         self.config.set_key('auto_cycle', auto_connect, True)
         self.config.set_key("proxy", proxy_str, True)
@@ -248,7 +290,7 @@ class Network(threading.Thread):
 
         if self.proxy != proxy or self.protocol != protocol:
             print_error('restarting network')
-            self.proxy = proxy
+            self.set_proxy(proxy)
             self.protocol = protocol
             for i in self.interfaces.values(): i.stop()
             if auto_connect:

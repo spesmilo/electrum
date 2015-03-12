@@ -19,7 +19,6 @@
 
 import random, ast, re, errno, os
 import threading, traceback, sys, time, json, Queue
-import socks
 import socket
 import ssl
 
@@ -31,37 +30,10 @@ from util import print_error, print_msg
 from simple_config import SimpleConfig
 
 import x509
-
-DEFAULT_TIMEOUT = 5
-proxy_modes = ['socks4', 'socks5', 'http']
-
-
 import util
 
-def serialize_proxy(p):
-    if type(p) != dict:
-        return None
-    return ':'.join([p.get('mode'),p.get('host'), p.get('port')])
+DEFAULT_TIMEOUT = 5
 
-def deserialize_proxy(s):
-    if type(s) != str:
-        return None
-    if s.lower() == 'none':
-        return None
-    proxy = { "mode":"socks5", "host":"localhost" }
-    args = s.split(':')
-    n = 0
-    if proxy_modes.count(args[n]) == 1:
-        proxy["mode"] = args[n]
-        n += 1
-    if len(args) > n:
-        proxy["host"] = args[n]
-        n += 1
-    if len(args) > n:
-        proxy["port"] = args[n]
-    else:
-        proxy["port"] = "8080" if proxy["mode"] == "http" else "1080"
-    return proxy
 
 
 def Interface(server, config = None):
@@ -90,17 +62,6 @@ class TcpInterface(threading.Thread):
         self.host, self.port, self.protocol = self.server.split(':')
         self.port = int(self.port)
         self.use_ssl = (self.protocol == 's')
-        self.proxy = deserialize_proxy(self.config.get('proxy'))
-        if self.proxy:
-            self.proxy_mode = proxy_modes.index(self.proxy["mode"]) + 1
-            socks.setdefaultproxy(self.proxy_mode, self.proxy["host"], int(self.proxy["port"]))
-            # fixme: side effect, client needs restart in order to get out of proxy mode
-            socket.socket = socks.socksocket
-            # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
-            def getaddrinfo(*args):
-                return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
-            socket.getaddrinfo = getaddrinfo
-
 
     def process_response(self, response):
         if self.debug:
