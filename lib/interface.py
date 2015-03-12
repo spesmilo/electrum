@@ -69,8 +69,6 @@ def Interface(server, config = None):
     port = int(port)
     if protocol in 'st':
         return TcpInterface(server, config)
-    elif protocol in 'hg':
-        return HttpInterface(server, config)
     else:
         raise Exception('Unknown protocol: %s'%protocol)
 
@@ -347,123 +345,6 @@ class TcpInterface(threading.Thread):
     def change_status(self):
         # print_error( "change status", self.server, self.is_connected)
         self.response_queue.put((self, None))
-
-
-
-class HttpInterface(TcpInterface):
-
-    def run(self):
-        self.start_http()
-        if self.is_connected:
-            self.send_request({'method':'server.version', 'params':[ELECTRUM_VERSION, PROTOCOL_VERSION]})
-            self.change_status()
-            self.run_http()
-        self.change_status()
-
-    def send_request(self, request, queue=None):
-        import urllib2, json, time, cookielib
-        print_error( "send_http", messages )
-
-        if self.proxy:
-            socks.setdefaultproxy(self.proxy_mode, self.proxy["host"], int(self.proxy["port"]) )
-            socks.wrapmodule(urllib2)
-
-        cj = cookielib.CookieJar()
-        opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
-        urllib2.install_opener(opener)
-
-        t1 = time.time()
-
-        data = []
-        ids = []
-        for m in messages:
-            method, params = m
-            if type(params) != type([]): params = [params]
-            data.append( { 'method':method, 'id':self.message_id, 'params':params } )
-            self.unanswered_requests[self.message_id] = method, params, callback
-            ids.append(self.message_id)
-            self.message_id += 1
-
-        if data:
-            data_json = json.dumps(data)
-        else:
-            # poll with GET
-            data_json = None
-
-
-        headers = {'content-type': 'application/json'}
-        if self.session_id:
-            headers['cookie'] = 'SESSION=%s'%self.session_id
-
-        try:
-            req = urllib2.Request(self.connection_msg, data_json, headers)
-            response_stream = urllib2.urlopen(req, timeout=DEFAULT_TIMEOUT)
-        except Exception:
-            return
-
-        for index, cookie in enumerate(cj):
-            if cookie.name=='SESSION':
-                self.session_id = cookie.value
-
-        response = response_stream.read()
-        self.bytes_received += len(response)
-        if response:
-            response = json.loads( response )
-            if type(response) is not type([]):
-                self.process_response(response)
-            else:
-                for item in response:
-                    self.process_response(item)
-        if response:
-            self.poll_interval = 1
-        else:
-            if self.poll_interval < 15:
-                self.poll_interval += 1
-        #print self.poll_interval, response
-        self.rtime = time.time() - t1
-        self.is_connected = True
-        return ids
-
-    def poll(self):
-        self.send([], None)
-
-    def start_http(self):
-        self.rtime = 0
-        self.bytes_received = 0
-        self.poll_interval = 1
-
-        self.session_id = None
-        self.is_connected = True
-        self.connection_msg = ('https' if self.use_ssl else 'http') + '://%s:%d'%( self.host, self.port )
-        try:
-            self.poll()
-        except Exception:
-            print_error("http init session failed")
-            self.is_connected = False
-            return
-
-        if self.session_id:
-            print_error('http session:',self.session_id)
-            self.is_connected = True
-        else:
-            self.is_connected = False
-
-    def run_http(self):
-        self.is_connected = True
-        while self.is_connected:
-            try:
-                if self.session_id:
-                    self.poll()
-                time.sleep(self.poll_interval)
-            except socket.gaierror:
-                break
-            except socket.error:
-                break
-            except Exception:
-                traceback.print_exc(file=sys.stdout)
-                break
-
-        self.is_connected = False
 
 
 
