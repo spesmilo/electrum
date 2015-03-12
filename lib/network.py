@@ -9,7 +9,7 @@ import traceback
 import socks
 import socket
 
-from util import user_dir, print_error, print_msg
+import util
 from bitcoin import *
 import interface
 from blockchain import Blockchain
@@ -166,9 +166,11 @@ class Network(threading.Thread):
         self.addresses = {}
         self.connection_status = 'connecting'
         self.requests_queue = Queue.Queue()
-
         self.set_proxy(deserialize_proxy(self.config.get('proxy')))
 
+
+    def print_error(self, *msg):
+        util.print_error("[network]", *msg)
 
     def get_server_height(self):
         return self.heights.get(self.default_server, 0)
@@ -176,7 +178,7 @@ class Network(threading.Thread):
     def server_is_lagging(self):
         h = self.get_server_height()
         if not h:
-            print_error('no height for main interface')
+            self.print_error('no height for main interface')
             return False
         lag = self.get_local_height() - self.get_server_height()
         return lag > 1
@@ -297,7 +299,7 @@ class Network(threading.Thread):
             return
 
         if self.proxy != proxy or self.protocol != protocol:
-            print_error('restarting network')
+            self.print_error('restarting network')
             for i in self.interfaces.values():
                 i.stop()
                 self.interfaces.pop(i.server)
@@ -329,7 +331,7 @@ class Network(threading.Thread):
 
     def switch_to_interface(self, interface):
         server = interface.server
-        print_error("switching to", server)
+        self.print_error("switching to", server)
         self.interface = interface
         self.config.set_key('server', server, False)
         self.default_server = server
@@ -386,7 +388,7 @@ class Network(threading.Thread):
     def new_blockchain_height(self, blockchain_height, i):
         if self.is_connected():
             if self.server_is_lagging():
-                print_error( "Server is lagging", blockchain_height, self.get_server_height())
+                self.print_error("Server is lagging", blockchain_height, self.get_server_height())
                 if self.config.get('auto_cycle'):
                     self.set_server(i.server)
         self.notify('updated')
@@ -429,7 +431,7 @@ class Network(threading.Thread):
             except BaseException as e:
                 out['error'] = str(e)
                 traceback.print_exc(file=sys.stdout)
-                print_error("network error", str(e))
+                self.print_error("network error", str(e))
 
             self.response_queue.put(out)
             return
@@ -444,7 +446,7 @@ class Network(threading.Thread):
             self.interface.send_request(request)
         except:
             # put it back in the queue
-            print_error("warning: interface not ready for", request)
+            self.print_error("warning: interface not ready for", request)
             self.requests_queue.put(request)
             time.sleep(0.1)
 
@@ -458,7 +460,7 @@ class Network(threading.Thread):
                     self.start_random_interface()
                 if not self.interfaces:
                     if time.time() - disconnected_time > DISCONNECTED_RETRY_INTERVAL:
-                        print_error('network: retrying connections')
+                        self.print_error('network: retrying connections')
                         self.disconnected_servers = set([])
                         disconnected_time = time.time()
                 if not self.interface.is_connected:
@@ -470,7 +472,7 @@ class Network(threading.Thread):
                             self.switch_to_interface(self.interfaces[self.default_server])
                         else:
                             if self.default_server not in self.disconnected_servers and self.default_server not in self.pending_servers:
-                                print_error("forcing reconnection")
+                                self.print_error("forcing reconnection")
                                 self.interface = self.start_interface(self.default_server)
                 continue
 
@@ -487,7 +489,7 @@ class Network(threading.Thread):
                 self.add_recent_server(i)
                 i.send_request({'method':'blockchain.headers.subscribe','params':[]})
                 if i == self.interface:
-                    print_error('sending subscriptions to', self.interface.server)
+                    self.print_error('sending subscriptions to', self.interface.server)
                     self.send_subscriptions()
                     self.set_status('connected')
             else:
@@ -499,7 +501,7 @@ class Network(threading.Thread):
                     self.set_status('disconnected')
                 self.disconnected_servers.add(i.server)
 
-        print_error("Network: Stopping interfaces")
+        self.print_error("stopping interfaces")
         for i in self.interfaces.values():
             i.stop()
 
@@ -519,7 +521,7 @@ class Network(threading.Thread):
 
         if i == self.interface:
             if self.server_is_lagging() and self.config.get('auto_cycle'):
-                print_error( "Server lagging, stopping interface")
+                self.print_error("Server lagging, stopping interface")
                 self.stop_interface()
             self.notify('updated')
 
@@ -539,7 +541,7 @@ class Network(threading.Thread):
         self.response_queue.put(r)
 
     def stop(self):
-        print_error("stopping network")
+        self.print_error("stopping network")
         with self.lock:
             self.running = False
 

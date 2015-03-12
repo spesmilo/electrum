@@ -26,7 +26,7 @@ import requests
 ca_path = requests.certs.where()
 
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
-from util import print_error, print_msg
+import util
 from simple_config import SimpleConfig
 
 import x509
@@ -63,9 +63,12 @@ class TcpInterface(threading.Thread):
         self.port = int(self.port)
         self.use_ssl = (self.protocol == 's')
 
+    def print_error(self, *msg):
+        util.print_error("[%s]"%self.host, *msg)
+
     def process_response(self, response):
         if self.debug:
-            print_error("<--", response)
+            self.print_error("<--", response)
 
         msg_id = response.get('id')
         error = response.get('error')
@@ -134,7 +137,7 @@ class TcpInterface(threading.Thread):
         try:
             l = socket.getaddrinfo(self.host, self.port, socket.AF_UNSPEC, socket.SOCK_STREAM)
         except socket.gaierror:
-            print_error("error: cannot resolve", self.host)
+            self.print_error("cannot resolve hostname")
             return
         for res in l:
             try:
@@ -144,7 +147,7 @@ class TcpInterface(threading.Thread):
             except BaseException as e:
                 continue
         else:
-            print_error("failed to connect", self.host, self.port, str(e))
+            self.print_error("failed to connect", str(e))
 
 
     def get_socket(self):
@@ -161,7 +164,7 @@ class TcpInterface(threading.Thread):
                 except ssl.SSLError, e:
                     s = None
                 if s and self.check_host_name(s.getpeercert(), self.host):
-                    print_error("SSL certificate signed by CA:", self.host)
+                    self.print_error("SSL certificate signed by CA")
                     return s
 
                 # get server certificate.
@@ -170,7 +173,7 @@ class TcpInterface(threading.Thread):
                 try:
                     s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23, cert_reqs=ssl.CERT_NONE, ca_certs=None)
                 except ssl.SSLError, e:
-                    print_error("SSL error retrieving SSL certificate:", self.host, e)
+                    self.print_error("SSL error retrieving SSL certificate:", e)
                     return
 
                 dercert = s.getpeercert(True)
@@ -199,7 +202,7 @@ class TcpInterface(threading.Thread):
                                     ca_certs= (temporary_path if is_new else cert_path),
                                     do_handshake_on_connect=True)
             except ssl.SSLError, e:
-                print_error("SSL error:", self.host, e)
+                self.print_error("SSL error:", e)
                 if e.errno != 1:
                     return
                 if is_new:
@@ -216,25 +219,25 @@ class TcpInterface(threading.Thread):
                         x.slow_parse()
                     except:
                         traceback.print_exc(file=sys.stderr)
-                        print_error("wrong certificate", self.host)
+                        self.print_error("wrong certificate")
                         return
                     try:
                         x.check_date()
                     except:
-                        print_error("certificate has expired:", cert_path)
+                        self.print_error("certificate has expired:", cert_path)
                         os.unlink(cert_path)
                         return
-                    print_error("wrong certificate", self.host)
+                    self.print_error("wrong certificate")
                 return
             except BaseException, e:
-                print_error(self.host, e)
+                self.print_error(e)
                 if e.errno == 104:
                     return
                 traceback.print_exc(file=sys.stderr)
                 return
 
             if is_new:
-                print_error("saving certificate for", self.host)
+                self.print_error("saving certificate")
                 os.rename(temporary_path, cert_path)
 
         return s
@@ -249,9 +252,9 @@ class TcpInterface(threading.Thread):
                 r = {'id':self.message_id, 'method':method, 'params':params}
                 self.pipe.send(r)
                 if self.debug:
-                    print_error("-->", r)
+                    self.print_error("-->", r)
             except socket.error, e:
-                print_error("socked error:", self.server, e)
+                self.print_error("socked error:", e)
                 self.is_connected = False
                 return
             self.unanswered_requests[self.message_id] = method, params, _id, queue
@@ -262,6 +265,7 @@ class TcpInterface(threading.Thread):
             self.s.shutdown(socket.SHUT_RDWR)
             self.s.close()
         self.is_connected = False
+        self.print_error("stopped")
 
     def start(self, response_queue):
         self.response_queue = response_queue
@@ -273,35 +277,50 @@ class TcpInterface(threading.Thread):
             self.pipe = util.SocketPipe(self.s)
             self.s.settimeout(2)
             self.is_connected = True
-            print_error("connected to", self.host, self.port)
+            self.print_error("connected")
 
         self.change_status()
         if not self.is_connected:
             return
 
-        t = 0
+        # ping timer
+        ping_time = 0
+        # request timer
+        request_time = False
         while self.is_connected:
             # ping the server with server.version
-            if time.time() - t > 60:
+            if time.time() - ping_time > 60:
                 if self.is_ping:
-                    print_error("ping timeout", self.server)
+                    self.print_error("ping timeout")
                     self.is_connected = False
                     break
                 else:
                     self.send_request({'method':'server.version', 'params':[ELECTRUM_VERSION, PROTOCOL_VERSION]})
                     self.is_ping = True
-                    t = time.time()
+                    ping_time = time.time()
             try:
                 response = self.pipe.get()
             except util.timeout:
+                if self.unanswered_requests:
+                    if request_time is False:
+                        request_time = time.time()
+                        self.print_error("setting timer")
+                    else:
+                        if time.time() - request_time > 10:
+                            self.print_error("request timeout", len(self.unanswered_requests))
+                            self.is_connected = False
+                            break
                 continue
             if response is None:
                 self.is_connected = False
                 break
+            if request_time is not False:
+                self.print_error("stopping timer")
+                request_time = False
             self.process_response(response)
 
         self.change_status()
-        print_error("closing connection:", self.server)
+
 
     def change_status(self):
         # print_error( "change status", self.server, self.is_connected)
@@ -329,7 +348,7 @@ def check_cert(host, cert):
 
     m = "host: %s\n"%host
     m += "has_expired: %s\n"% expired
-    print_msg(m)
+    util.print_msg(m)
 
 
 def test_certificates():
