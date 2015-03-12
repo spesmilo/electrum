@@ -21,7 +21,7 @@ import threading, time, Queue, os, sys, shutil
 from util import user_dir, print_error
 from bitcoin import *
 
-USE_DIFF_RETARGET = False
+USE_DIFF_RETARGET = True
 
 class Blockchain(threading.Thread):
 
@@ -157,6 +157,7 @@ class Blockchain(threading.Thread):
                 bits, target = self.get_target(height)
                 assert bits == header.get('bits')
                 assert int('0x'+_hash,16) < target
+            if USE_DIFF_RETARGET:
                 self.save_header(header, height)
 
             previous_header = header
