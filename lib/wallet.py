@@ -191,6 +191,10 @@ class Abstract_Wallet(object):
         # save wallet type the first time
         if self.storage.get('wallet_type') is None:
             self.storage.put('wallet_type', self.wallet_type, True)
+        self.sort_contact = storage.get('sort_sequence',[0,1])
+        self.sort_address = storage.get('sort_sequence2',[0,1])
+        self.sort_invoice = storage.get('sort_sequence3',[0,1])
+
 
 
     def load_transactions(self):
@@ -387,6 +391,9 @@ class Abstract_Wallet(object):
         self.storage.put('contacts', self.addressbook, True)
         if label:
             self.set_label(address, label)
+
+    def add_sort(self,sort_list,k): 
+        self.storage.put(k, sort_list, True)
 
     def delete_contact(self, addr):
         if addr in self.addressbook:

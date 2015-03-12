@@ -62,7 +62,7 @@ from electrum import ELECTRUM_VERSION
 import re
 
 from util import MyTreeWidget, HelpButton, EnterButton, line_dialog, text_dialog, ok_cancel_buttons, close_button, WaitingDialog
-from util import filename_field, ok_cancel_buttons2, address_field
+from util import filename_field, ok_cancel_buttons2, address_field, TreeWidgetItem
 from util import MONOSPACE_FONT
 
 
@@ -1383,6 +1383,14 @@ class ElectrumWindow(QMainWindow):
 
         return l, w
 
+    def sort_format(self,logicalIndex,index,k):
+        if index[0]!=logicalIndex:	
+            index[1]=0
+        else:
+            index[1]=(index[1]+1)%2
+        index[0]=logicalIndex
+        self.wallet.add_sort(index,k)
+
 
     def create_addresses_tab(self):
         l, w = self.create_list_tab([ _('Address'), _('Label'), _('Balance'), _('Tx')])
@@ -1394,6 +1402,10 @@ class ElectrumWindow(QMainWindow):
         l.itemDoubleClicked.connect(lambda a, b: self.address_label_clicked(a,b,l,0,1))
         l.itemChanged.connect(lambda a,b: self.address_label_changed(a,b,l,0,1))
         l.currentItemChanged.connect(lambda a,b: self.current_item_changed(a))
+        l.setSortingEnabled(True)
+        l.header().setSortIndicatorShown(True)
+        l.header().setClickable(True)
+        l.header().sectionClicked.connect(lambda logicalIndex:self.sort_format(logicalIndex,self.wallet.sort_address,'sort_sequence2'))
         self.address_list = l
         return w
 
@@ -1424,6 +1436,10 @@ class ElectrumWindow(QMainWindow):
             l.setColumnWidth(i, width)
         l.itemDoubleClicked.connect(lambda a, b: self.address_label_clicked(a,b,l,0,1))
         l.itemChanged.connect(lambda a,b: self.address_label_changed(a,b,l,0,1))
+        l.setSortingEnabled(True)
+        l.header().setSortIndicatorShown(True)
+        l.header().setClickable(True)
+        l.header().sectionClicked.connect(lambda logicalIndex:self.sort_format(logicalIndex,self.wallet.sort_contact,'sort_sequence'))
         self.contacts_list = l
         return w
 
@@ -1439,6 +1455,10 @@ class ElectrumWindow(QMainWindow):
         h.setResizeMode(2, QHeaderView.Stretch)
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_invoice_menu)
+        l.setSortingEnabled(True)
+        l.header().setSortIndicatorShown(True)
+        l.header().setClickable(True)
+        l.header().sectionClicked.connect(lambda logicalIndex:self.sort_format(logicalIndex,self.wallet.sort_invoice,'sort_sequence3'))
         self.invoices_list = l
         return w
 
@@ -1446,12 +1466,18 @@ class ElectrumWindow(QMainWindow):
         invoices = self.wallet.storage.get('invoices', {})
         l = self.invoices_list
         l.clear()
+        #set initial sorting formate
+        if self.wallet.sort_invoice[1]==0:
+            self.invoices_list.header().setSortIndicator(self.wallet.sort_invoice[0], QtCore.Qt.AscendingOrder)
+        else:
+            self.invoices_list.header().setSortIndicator(self.wallet.sort_invoice[0], QtCore.Qt.DescendingOrder)
+
         for key, value in sorted(invoices.items(), key=lambda x: -x[1][3]):
             domain, memo, amount, expiration_date, status, tx_hash = value
             if status == PR_UNPAID and expiration_date and expiration_date < time.time():
                 status = PR_EXPIRED
             date_str = datetime.datetime.fromtimestamp(expiration_date).isoformat(' ')[:-3]
-            item = QTreeWidgetItem( [ date_str, domain, memo, self.format_amount(amount, whitespaces=True), ''] )
+            item = TreeWidgetItem( [ domain, memo, date_str, self.format_amount(amount, whitespaces=True), format_status(status)] )
             icon = QIcon(pr_icons.get(status))
             item.setIcon(4, icon)
             item.setToolTip(4, pr_tooltips.get(status,''))
@@ -1660,6 +1686,11 @@ class ElectrumWindow(QMainWindow):
         l.insertChild = l.insertTopLevelItem
 
         l.clear()
+        #set initial sorting formate
+        if self.wallet.sort_address[1]==0:
+            self.address_list.header().setSortIndicator(self.wallet.sort_address[0], QtCore.Qt.AscendingOrder)
+        else:
+            self.address_list.header().setSortIndicator(self.wallet.sort_address[0], QtCore.Qt.DescendingOrder)
 
         accounts = self.wallet.get_accounts()
         if self.current_account is None:
@@ -1673,7 +1704,7 @@ class ElectrumWindow(QMainWindow):
             if len(accounts) > 1:
                 name = self.wallet.get_account_name(k)
                 c,u = self.wallet.get_account_balance(k)
-                account_item = QTreeWidgetItem( [ name, '', self.format_amount(c+u), ''] )
+                account_item = TreeWidgetItem( [ name, '', self.format_amount(c+u), ''],False )
                 l.addTopLevelItem(account_item)
                 account_item.setExpanded(self.accounts_expanded.get(k, True))
                 account_item.setData(0, 32, k)
@@ -1684,14 +1715,14 @@ class ElectrumWindow(QMainWindow):
             for is_change in sequences:
                 if len(sequences) > 1:
                     name = _("Receiving") if not is_change else _("Change")
-                    seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
+                    seq_item = TreeWidgetItem( [ name, '', '', '', ''],False)
                     account_item.addChild(seq_item)
                     if not is_change:
                         seq_item.setExpanded(True)
                 else:
                     seq_item = account_item
 
-                used_item = QTreeWidgetItem( [ _("Used"), '', '', '', ''] )
+                used_item = TreeWidgetItem( [ _("Used"), '', '', '', ''],False)
                 used_flag = False
 
                 addr_list = account.get_addresses(is_change)
@@ -1700,7 +1731,7 @@ class ElectrumWindow(QMainWindow):
                     label = self.wallet.labels.get(address,'')
                     c, u = self.wallet.get_addr_balance(address)
                     balance = self.format_amount(c + u)
-                    item = QTreeWidgetItem( [ address, label, balance, "%d"%num] )
+                    item = TreeWidgetItem( [ address, label, balance, "%d"%num] )
                     item.setFont(0, QFont(MONOSPACE_FONT))
                     item.setData(0, 32, True) # label can be edited
                     if address in self.wallet.frozen_addresses:
@@ -1722,11 +1753,16 @@ class ElectrumWindow(QMainWindow):
     def update_contacts_tab(self):
         l = self.contacts_list
         l.clear()
+        #set initial sorting formate
+        if self.wallet.sort_contact[1]==0:
+            self.contacts_list.header().setSortIndicator(self.wallet.sort_contact[0], QtCore.Qt.AscendingOrder)
+        else:
+            self.contacts_list.header().setSortIndicator(self.wallet.sort_contact[0], QtCore.Qt.DescendingOrder)
 
         for address in self.wallet.addressbook:
             label = self.wallet.labels.get(address,'')
             n = self.wallet.get_num_tx(address)
-            item = QTreeWidgetItem( [ address, label, "%d"%n] )
+            item = TreeWidgetItem( [ address, label, "%d"%n] )
             item.setFont(0, QFont(MONOSPACE_FONT))
             # 32 = label can be edited (bool)
             item.setData(0,32, True)
