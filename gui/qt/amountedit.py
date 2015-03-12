@@ -73,11 +73,11 @@ class BTCAmountEdit(AmountEdit):
         p = self.decimal_point()
         assert p in [2, 5, 8]
         if p == 8:
-            return 'BTC'
+            return 'GRS'
         if p == 5:
-            return 'mBTC'
+            return 'mGRS'
         if p == 2:
-            return 'bits'
+            return 'uGRS'
         raise Exception('Unknown base unit')
 
     def get_amount(self):
