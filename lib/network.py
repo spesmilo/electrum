@@ -73,7 +73,8 @@ def filter_protocol(servers, p):
     l = []
     for k, protocols in servers.items():
         if p in protocols:
-            l.append( ':'.join([k, protocols[p], p]) )
+            s = serialize_server(k, protocols[p], p)
+            l.append(s)
     return l
 
 
@@ -109,6 +110,15 @@ def deserialize_proxy(s):
         proxy["port"] = "8080" if proxy["mode"] == "http" else "1080"
     return proxy
 
+def deserialize_server(server_str):
+    host, port, protocol = str(server_str).split(':')
+    assert protocol in 'st'
+    int(port)
+    return host, port, protocol
+
+def serialize_server(host, port, protocol):
+    return str(':'.join([host, port, protocol]))
+
 
 class Network(threading.Thread):
 
@@ -128,15 +138,13 @@ class Network(threading.Thread):
         self.default_server = self.config.get('server')
         # Sanitize default server
         try:
-            host, port, protocol = self.default_server.split(':')
-            assert protocol in 'st'
-            int(port)
+            deserialize_server(self.default_server)
         except:
             self.default_server = None
         if not self.default_server:
             self.default_server = pick_random_server('s')
 
-        self.protocol = self.default_server.split(':')[2]
+        self.protocol = deserialize_server(self.default_server)[2]
         self.irc_servers = {} # returned by interface (list from irc)
 
         self.disconnected_servers = set([])
@@ -219,7 +227,7 @@ class Network(threading.Thread):
         return server
 
     def get_parameters(self):
-        host, port, protocol = self.default_server.split(':')
+        host, port, protocol = deserialize_server(self.default_server)
         auto_connect = self.config.get('auto_cycle', True)
         return host, port, protocol, self.proxy, auto_connect
 
@@ -232,7 +240,7 @@ class Network(threading.Thread):
         else:
             out = DEFAULT_SERVERS
             for s in self.recent_servers:
-                host, port, protocol = s.split(':')
+                host, port, protocol = deserialize_server(s)
                 if host not in out:
                     out[host] = { protocol:port }
         return out
@@ -280,7 +288,7 @@ class Network(threading.Thread):
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
         proxy_str = serialize_proxy(proxy)
-        server_str = ':'.join([ host, port, protocol ])
+        server_str = serialize_server(host, port, protocol)
         self.config.set_key('auto_cycle', auto_connect, True)
         self.config.set_key("proxy", proxy_str, True)
         self.config.set_key("server", server_str, True)
@@ -338,7 +346,7 @@ class Network(threading.Thread):
         if self.default_server == server and self.interface.is_connected:
             return
 
-        if self.protocol != server.split(':')[2]:
+        if self.protocol != deserialize_server(server)[2]:
             return
 
         # stop the interface in order to terminate subscriptions
