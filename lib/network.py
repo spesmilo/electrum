@@ -282,11 +282,11 @@ class Network(threading.Thread):
             socks.setdefaultproxy(proxy_mode, proxy["host"], int(proxy["port"]))
             socket.socket = socks.socksocket
             # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
-            def getaddrinfo(*args):
-                return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
-            socket.getaddrinfo = getaddrinfo
+            socket.getaddrinfo = lambda *args: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
         else:
-            reload(socket)
+            socket.socket = socket._socketobject
+            socket.getaddrinfo = socket._socket.getaddrinfo
+
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
         proxy_str = serialize_proxy(proxy)
