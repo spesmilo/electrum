@@ -120,20 +120,18 @@ def serialize_server(host, port, protocol):
     return str(':'.join([host, port, protocol]))
 
 
-class Network(threading.Thread):
+class Network(util.DaemonThread):
 
     def __init__(self, config=None):
         if config is None:
             config = {}  # Do not use mutables as default values!
-        threading.Thread.__init__(self)
-        self.daemon = True
+        util.DaemonThread.__init__(self)
         self.config = SimpleConfig(config) if type(config) == type({}) else config
         self.lock = threading.Lock()
         self.num_server = 8 if not self.config.get('oneserver') else 0
         self.blockchain = Blockchain(self.config, self)
         self.interfaces = {}
         self.queue = Queue.Queue()
-        self.running = False
         # Server for addresses and transactions
         self.default_server = self.config.get('server')
         # Sanitize default server
@@ -270,10 +268,9 @@ class Network(threading.Thread):
         self.response_queue = response_queue
         self.start_interfaces()
         t = threading.Thread(target=self.process_requests_thread)
-        t.daemon = True
         t.start()
         self.blockchain.start()
-        threading.Thread.start(self)
+        util.DaemonThread.start(self)
 
     def set_proxy(self, proxy):
         self.proxy = proxy
@@ -539,15 +536,6 @@ class Network(threading.Thread):
         result = r.get('result')
         self.addresses[addr] = result
         self.response_queue.put(r)
-
-    def stop(self):
-        self.print_error("stopping network")
-        with self.lock:
-            self.running = False
-
-    def is_running(self):
-        with self.lock:
-            return self.running
 
     def get_header(self, tx_height):
         return self.blockchain.read_header(tx_height)

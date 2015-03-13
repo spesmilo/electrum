@@ -134,9 +134,8 @@ class WalletStorage(object):
 
     def write(self):
         s = json.dumps(self.data, indent=4, sort_keys=True)
-        f = open(self.path,"w")
-        f.write(s)
-        f.close()
+        with open(self.path,"w") as f:
+            f.write(s)
         if 'ANDROID_DATA' not in os.environ:
             import stat
             os.chmod(self.path,stat.S_IREAD | stat.S_IWRITE)

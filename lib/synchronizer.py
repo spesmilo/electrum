@@ -22,30 +22,21 @@ import time
 import Queue
 
 import bitcoin
+import util
 from util import print_error
 from transaction import Transaction
 
 
-class WalletSynchronizer(threading.Thread):
+class WalletSynchronizer(util.DaemonThread):
 
     def __init__(self, wallet, network):
-        threading.Thread.__init__(self)
-        self.daemon = True
+        util.DaemonThread.__init__(self)
         self.wallet = wallet
         self.network = network
         self.was_updated = True
-        self.running = False
         self.lock = threading.Lock()
         self.queue = Queue.Queue()
         self.address_queue = Queue.Queue()
-
-    def stop(self):
-        with self.lock:
-            self.running = False
-
-    def is_running(self):
-        with self.lock:
-            return self.running
 
     def add(self, address):
         self.address_queue.put(address)
@@ -57,8 +48,6 @@ class WalletSynchronizer(threading.Thread):
         self.network.send(messages, self.queue.put)
 
     def run(self):
-        with self.lock:
-            self.running = True
         while self.is_running():
             while not self.network.is_connected():
                 time.sleep(0.1)
