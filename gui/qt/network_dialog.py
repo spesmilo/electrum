@@ -47,7 +47,7 @@ class NetworkDialog(QDialog):
         self.servers = network.get_servers()
         host, port, protocol, proxy_config, auto_connect = network.get_parameters()
         if not proxy_config:
-            proxy_config = { "mode":"none", "host":"localhost", "port":"8080"}
+            proxy_config = { "mode":"none", "host":"localhost", "port":"9050"}
 
         if parent:
             n = len(network.get_interfaces())
