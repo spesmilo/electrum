@@ -251,6 +251,9 @@ class ElectrumWindow(QMainWindow):
             except Exception as e:
                 traceback.print_exc(file=sys.stdout)
                 self.show_message(str(e))
+        # call synchronize to regenerate addresses in case we are offline
+        if self.wallet.get_master_public_keys() and self.wallet.addresses() == []:
+            self.wallet.synchronize()
 
 
     def open_wallet(self):

@@ -1203,8 +1203,9 @@ class Deterministic_Wallet(Abstract_Wallet):
         self.save_accounts()
 
     def synchronize(self):
-        for account in self.accounts.values():
-            account.synchronize(self)
+        with self.lock:
+            for account in self.accounts.values():
+                account.synchronize(self)
 
     def restore(self, callback):
         from i18n import _
