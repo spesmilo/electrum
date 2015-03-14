@@ -37,8 +37,8 @@ from electrum import transaction
 from electrum.bitcoin import base_encode
 from electrum.plugins import run_hook
 
-from util import MyTreeWidget
-from util import MONOSPACE_FONT
+from util import *
+
 
 class TxDialog(QDialog):
 
@@ -74,37 +74,28 @@ class TxDialog(QDialog):
 
         vbox.addStretch(1)
 
-        self.buttons = buttons = QHBoxLayout()
-        vbox.addLayout( buttons )
-
-        buttons.addStretch(1)
-
         self.sign_button = b = QPushButton(_("Sign"))
         b.clicked.connect(self.sign)
-        buttons.addWidget(b)
 
         self.broadcast_button = b = QPushButton(_("Broadcast"))
         b.clicked.connect(lambda: self.parent.broadcast_transaction(self.tx))
-
         b.hide()
-        buttons.addWidget(b)
 
         self.save_button = b = QPushButton(_("Save"))
         b.clicked.connect(self.save)
-        buttons.addWidget(b)
 
-        cancelButton = QPushButton(_("Close"))
-        cancelButton.clicked.connect(lambda: self.done(0))
-        buttons.addWidget(cancelButton)
-        cancelButton.setDefault(True)
+        self.cancel_button = b = QPushButton(_("Close"))
+        b.clicked.connect(lambda: self.done(0))
+        b.setDefault(True)
 
-        b = QPushButton()
+        self.qr_button = b = QPushButton()
         b.setIcon(QIcon(":icons/qrcode.png"))
         b.clicked.connect(self.show_qr)
-        buttons.insertWidget(1,b)
 
+        self.buttons = [self.qr_button, self.sign_button, self.broadcast_button, self.save_button, self.cancel_button]
         run_hook('transaction_dialog', self)
 
+        vbox.addLayout(Buttons(*self.buttons))
         self.update()
 
 
