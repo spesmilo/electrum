@@ -164,8 +164,13 @@ class ElectrumWindow(QMainWindow):
         for i in range(tabs.count()):
             QShortcut(QKeySequence("Alt+" + str(i + 1)), self, lambda i=i: tabs.setCurrentIndex(i))
 
+        def notify_banner():
+            self.console.showMessage(self.network.banner)
+            if self.wallet:
+                self.wallet.parse_server_addr_from_banner(self.network.banner)
+
         self.connect(self, QtCore.SIGNAL('update_status'), self.update_status)
-        self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.network.banner) )
+        self.connect(self, QtCore.SIGNAL('banner_signal'), notify_banner)
         self.connect(self, QtCore.SIGNAL('transaction_signal'), lambda: self.notify_transactions() )
         self.connect(self, QtCore.SIGNAL('payment_request_ok'), self.payment_request_ok)
         self.connect(self, QtCore.SIGNAL('payment_request_error'), self.payment_request_error)
@@ -239,6 +244,8 @@ class ElectrumWindow(QMainWindow):
 
         self.clear_receive_tab()
         self.update_receive_tab()
+        if self.network.banner:
+            self.wallet.parse_server_addr_from_banner(self.network.banner)
         run_hook('load_wallet', wallet)
 
 
@@ -2689,6 +2696,18 @@ class ElectrumWindow(QMainWindow):
             self.wallet.set_fee(fee)
         fee_e.editingFinished.connect(on_fee)
         widgets.append((fee_label, fee_e, fee_help))
+
+        server_fee_label = QLabel(_('Server fee per transaction') + ':')
+        server_fee_help = HelpButton(_('Server donation per transaction.'))
+        server_fee_e = BTCAmountEdit(self.get_decimal_point)
+        server_fee_e.setAmount(self.wallet.server_fee)
+        if not self.config.is_modifiable('server_fee'):
+            for w in [server_fee_e, server_fee_label]: w.setEnabled(False)
+        def on_server_fee():
+            server_fee = server_fee_e.get_amount()
+            self.wallet.set_server_fee(server_fee)
+        server_fee_e.editingFinished.connect(on_server_fee)
+        widgets.append((server_fee_label, server_fee_e, server_fee_help))
 
         units = ['BTC', 'mBTC', 'bits']
         unit_label = QLabel(_('Base unit') + ':')
