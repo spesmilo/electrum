@@ -421,7 +421,7 @@ class ElectrumWindow(QMainWindow):
 
     def show_report_bug(self):
         QMessageBox.information(self, "Electrum-GRS - " + _("Reporting Bugs"),
-            _("Please report any bugs as issues on github:")+" <a href=\"https://github.com/spesmilo/electrum/issues\">https://github.com/spesmilo/electrum/issues</a>")
+            _("Please report any bugs as issues on github:")+" <a href=\"https://github.com/groestlcoin/electrum/issues\">https://github.com/groestlcoin/electrum/issues</a>")
 
 
     def notify_transactions(self):
