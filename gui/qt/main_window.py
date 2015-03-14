@@ -248,8 +248,9 @@ class ElectrumWindow(QMainWindow):
             password = self.password_dialog(_("Please enter your password in order to update imported keys")) if self.wallet.use_encryption else None
             try:
                 self.wallet.convert_imported_keys(password)
-            except:
-                self.show_message("error")
+            except Exception as e:
+                traceback.print_exc(file=sys.stdout)
+                self.show_message(str(e))
 
 
     def open_wallet(self):
@@ -281,6 +282,7 @@ class ElectrumWindow(QMainWindow):
         if action is not None:
             import installwizard
             wizard = installwizard.InstallWizard(self.config, self.network, storage)
+            wizard.show()
             try:
                 wallet = wizard.run(action)
             except BaseException as e:

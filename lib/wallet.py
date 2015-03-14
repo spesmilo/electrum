@@ -1142,6 +1142,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         return self.get_seed(password)
 
     def change_gap_limit(self, value):
+        assert isinstance(value, int), 'gap limit must be of type int, not of %s'%type(value)
         if value >= self.gap_limit:
             self.gap_limit = value
             self.storage.put('gap_limit', self.gap_limit, True)
@@ -1321,9 +1322,9 @@ class BIP32_Wallet(Deterministic_Wallet):
         seed = self.get_seed(password)
         self.add_cosigner_seed(seed, self.root_name, password)
 
-    def add_cosigner_seed(self, seed, name, password):
+    def add_cosigner_seed(self, seed, name, password, passphrase=''):
         # we don't store the seed, only the master xpriv
-        xprv, xpub = bip32_root(self.mnemonic_to_seed(seed,''))
+        xprv, xpub = bip32_root(self.mnemonic_to_seed(seed, passphrase))
         xprv, xpub = bip32_private_derivation(xprv, "m/", self.root_derivation)
         self.add_master_public_key(name, xpub)
         self.add_master_private_key(name, xprv, password)
@@ -1357,6 +1358,8 @@ class BIP32_Simple_Wallet(BIP32_Wallet):
         self.add_master_private_key(self.root_name, xprv, password)
         self.add_master_public_key(self.root_name, xpub)
         self.add_account('0', account)
+        self.use_encryption = (password != None)
+        self.storage.put('use_encryption', self.use_encryption,True)
 
     def create_xpub_wallet(self, xpub):
         account = BIP32_Account({'xpub':xpub})
