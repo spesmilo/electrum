@@ -440,7 +440,8 @@ class Plugin(BasePlugin):
             self.exchanger = Exchanger(self)
             self.exchanger.start()
             self.gui.exchanger = self.exchanger #
-            self.add_fiat_edit()
+            self.add_send_edit()
+            self.add_receive_edit()
             self.win.update_status()
 
     def close(self):
@@ -735,33 +736,42 @@ class Plugin(BasePlugin):
     def fiat_unit(self):
         return self.config.get("currency", "EUR")
 
-    def add_fiat_edit(self):
-        self.fiat_e = AmountEdit(self.fiat_unit)
-        self.btc_e = self.win.amount_e
-        grid = self.btc_e.parent()
+    def add_send_edit(self):
+        fiat_e = AmountEdit(self.fiat_unit)
+        btc_e = self.win.amount_e
+        fee_e = self.win.fee_e
+        self.connect_fields(btc_e, fiat_e, fee_e)
+        self.win.send_grid.addWidget(fiat_e, 4, 3, Qt.AlignHCenter)
+        btc_e.frozen.connect(lambda: fiat_e.setFrozen(btc_e.isReadOnly()))
+
+    def add_receive_edit(self):
+        fiat_e = AmountEdit(self.fiat_unit)
+        btc_e = self.win.receive_amount_e
+        self.connect_fields(btc_e, fiat_e, None)
+        self.win.receive_grid.addWidget(fiat_e, 2, 3, Qt.AlignHCenter)
+
+    def connect_fields(self, btc_e, fiat_e, fee_e):
         def fiat_changed():
             try:
-                fiat_amount = Decimal(str(self.fiat_e.text()))
+                fiat_amount = Decimal(str(fiat_e.text()))
             except:
-                self.btc_e.setText("")
-                self.win.fee_e.setText("")
+                btc_e.setText("")
+                if fee_e: fee_e.setText("")
                 return
             exchange_rate = self.exchanger.exchange(Decimal("1.0"), self.fiat_unit())
             if exchange_rate is not None:
                 btc_amount = fiat_amount/exchange_rate
-                self.btc_e.setAmount(int(btc_amount*Decimal(100000000)))
-                self.win.update_fee(False)
-        self.fiat_e.textEdited.connect(fiat_changed)
+                btc_e.setAmount(int(btc_amount*Decimal(100000000)))
+                if fee_e: self.win.update_fee(False)
+        fiat_e.textEdited.connect(fiat_changed)
         def btc_changed():
-            btc_amount = self.btc_e.get_amount()
+            btc_amount = btc_e.get_amount()
             if btc_amount is None:
-                self.fiat_e.setText("")
+                fiat_e.setText("")
                 return
             fiat_amount = self.exchanger.exchange(Decimal(btc_amount)/Decimal(100000000), self.fiat_unit())
             if fiat_amount is not None:
-                pos = self.fiat_e.cursorPosition()
-                self.fiat_e.setText("%.2f"%fiat_amount)
-                self.fiat_e.setCursorPosition(pos)
-        self.btc_e.textEdited.connect(btc_changed)
-        self.btc_e.frozen.connect(lambda: self.fiat_e.setFrozen(self.btc_e.isReadOnly()))
-        self.win.send_grid.addWidget(self.fiat_e, 4, 3, Qt.AlignHCenter)
+                pos = fiat_e.cursorPosition()
+                fiat_e.setText("%.2f"%fiat_amount)
+                fiat_e.setCursorPosition(pos)
+        btc_e.textEdited.connect(btc_changed)
