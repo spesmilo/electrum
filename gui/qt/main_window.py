@@ -734,7 +734,6 @@ class ElectrumWindow(QMainWindow):
         w = QWidget()
         grid = QGridLayout(w)
         grid.setColumnMinimumWidth(3, 300)
-        grid.setColumnStretch(5, 1)
 
         self.receive_address_e = QLineEdit()
         self.receive_address_e.setReadOnly(True)
@@ -744,8 +743,8 @@ class ElectrumWindow(QMainWindow):
 
         self.copy_button = QPushButton()
         self.copy_button.setIcon(QIcon(":icons/copy.png"))
+        self.copy_button.setToolTip(_("Copy to clibboard"))
         self.copy_button.clicked.connect(lambda: self.app.clipboard().setText(self.receive_address_e.text()))
-        grid.addWidget(self.copy_button, 0, 4)
 
         self.receive_message_e = QLineEdit()
         grid.addWidget(QLabel(_('Message')), 1, 0)
@@ -764,13 +763,20 @@ class ElectrumWindow(QMainWindow):
         clear_button = QPushButton(_('New'))
         clear_button.clicked.connect(self.new_receive_address)
         grid.addWidget(clear_button, 3, 2)
-        grid.setRowStretch(4, 1)
 
         self.receive_qr = QRCodeWidget(fixedSize=200)
         grid.addWidget(self.receive_qr, 0, 5, 5, 2)
-        self.receive_qr.mousePressEvent = lambda x: self.toggle_qr_window()
 
-        grid.setRowStretch(5, 1)
+        self.zoom_button = QPushButton()
+        self.zoom_button.setIcon(QIcon(":icons/zoom.png"))
+        self.zoom_button.setToolTip(_("Large Invoice Window"))
+        self.zoom_button.clicked.connect(lambda x: self.toggle_qr_window())
+
+        grid.addWidget(self.copy_button, 5, 5)
+        grid.addWidget(self.zoom_button, 5, 6)
+
+        grid.setColumnStretch(4, 1)
+        grid.setRowStretch(6, 1)
 
         self.receive_requests_label = QLabel(_('Saved Requests'))
         self.receive_list = MyTreeWidget(self)
@@ -785,8 +791,8 @@ class ElectrumWindow(QMainWindow):
         h = self.receive_list.header()
         h.setStretchLastSection(False)
         h.setResizeMode(3, QHeaderView.Stretch)
-        grid.addWidget(self.receive_requests_label, 6, 0)
-        grid.addWidget(self.receive_list, 7, 0, 1, 6)
+        grid.addWidget(self.receive_requests_label, 7, 0)
+        grid.addWidget(self.receive_list, 8, 0, 1, 7)
         return w
 
     def receive_item_changed(self, item):
