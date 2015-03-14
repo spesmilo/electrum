@@ -38,7 +38,7 @@ def give_error(message):
 
 
 def trezor_passphrase_dialog(msg):
-    from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
+    from electrum_grs_gui.qt.password_dialog import make_password_dialog, run_password_dialog
     d = QDialog()
     d.setModal(1)
     d.setLayout(make_password_dialog(d, None, msg, False))
