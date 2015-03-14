@@ -17,10 +17,11 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import threading, time, Queue, os, sys, shutil
+import threading
+import Queue
+
 
 import util
-from util import user_dir, print_error
 from bitcoin import *
 
 
