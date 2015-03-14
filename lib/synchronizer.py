@@ -23,7 +23,6 @@ import Queue
 
 import bitcoin
 import util
-from util import print_error
 from transaction import Transaction
 
 
@@ -34,7 +33,6 @@ class WalletSynchronizer(util.DaemonThread):
         self.wallet = wallet
         self.network = network
         self.was_updated = True
-        self.lock = threading.Lock()
         self.queue = Queue.Queue()
         self.address_queue = Queue.Queue()
 
@@ -70,7 +68,7 @@ class WalletSynchronizer(util.DaemonThread):
                     missing_tx.append( (tx_hash, tx_height) )
 
         if missing_tx:
-            print_error("missing tx", missing_tx)
+            self.print_error("missing tx", missing_tx)
 
         # subscriptions
         self.subscribe_to_addresses(self.wallet.addresses(True))
@@ -124,7 +122,7 @@ class WalletSynchronizer(util.DaemonThread):
             result = r.get('result')
             error = r.get('error')
             if error:
-                print_error("error", r)
+                self.print_error("error", r)
                 continue
 
             if method == 'blockchain.address.subscribe':
@@ -136,7 +134,7 @@ class WalletSynchronizer(util.DaemonThread):
 
             elif method == 'blockchain.address.get_history':
                 addr = params[0]
-                print_error("receiving history", addr, result)
+                self.print_error("receiving history", addr, result)
                 if result == ['*']:
                     assert requested_histories.pop(addr) == '*'
                     self.wallet.receive_history_callback(addr, result)
@@ -175,10 +173,10 @@ class WalletSynchronizer(util.DaemonThread):
                 self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
                 self.was_updated = True
                 requested_tx.remove( (tx_hash, tx_height) )
-                print_error("received tx:", tx_hash, len(tx.raw))
+                self.print_error("received tx:", tx_hash, len(tx.raw))
 
             else:
-                print_error("Error: Unknown message:" + method + ", " + repr(params) + ", " + repr(result) )
+                self.print_error("Error: Unknown message:" + method + ", " + repr(params) + ", " + repr(result) )
 
             if self.was_updated and not requested_tx:
                 self.network.trigger_callback('updated')
