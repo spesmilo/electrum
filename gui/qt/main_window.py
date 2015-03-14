@@ -744,7 +744,7 @@ class ElectrumWindow(QMainWindow):
         self.copy_button = QPushButton()
         self.copy_button.setIcon(QIcon(":icons/copy.png"))
         self.copy_button.setToolTip(_("Copy to clibboard"))
-        self.copy_button.clicked.connect(lambda: self.app.clipboard().setText(self.receive_address_e.text()))
+        self.copy_button.clicked.connect(lambda: self.app.clipboard().setText(self.get_receive_URI()))
 
         self.receive_message_e = QLineEdit()
         grid.addWidget(QLabel(_('Message')), 1, 0)
@@ -811,6 +811,13 @@ class ElectrumWindow(QMainWindow):
         self.wallet.storage.put('receive_requests2', self.receive_requests)
         self.update_receive_tab()
         self.clear_receive_tab()
+
+    def get_receive_URI(self):
+        addr = str(self.receive_address_e.text())
+        amount = self.receive_amount_e.get_amount()
+        message = unicode(self.receive_message_e.text())
+        URI = util.create_URI(addr, amount, message)
+        return URI
 
     def receive_list_menu(self, position):
         item = self.receive_list.itemAt(position)
