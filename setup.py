@@ -17,7 +17,7 @@ if sys.version_info[:3] < (2, 7, 0):
 
 
 data_files = []
-if platform.system() == 'Linux':
+if platform.system() == 'Linux' or platform.system() == 'FreeBSD':
     usr_share = os.path.join(sys.prefix, "share")
     data_files += [
         (os.path.join(usr_share, 'applications/'), ['electrum.desktop']),
