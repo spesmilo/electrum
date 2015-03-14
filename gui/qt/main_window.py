@@ -901,6 +901,7 @@ class ElectrumWindow(QMainWindow):
             return
         self.tabs.setCurrentIndex(2)
         self.receive_address_e.setText(addr)
+        self.new_request_button.setEnabled(True)
 
     def update_receive_tab(self):
         self.receive_requests = self.wallet.storage.get('receive_requests2',{})
