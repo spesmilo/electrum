@@ -225,6 +225,7 @@ class Plugin(BasePlugin):
         if "error" in response:
             raise BaseException(_("Could not sync labels: %s" % response["error"]))
 
+        result = {}
         for label in response:
             try:
                 key = self.decode(label["external_id"])
@@ -240,8 +241,14 @@ class Plugin(BasePlugin):
             except:
                 print_error('error: no json', key)
                 continue
-            if force or not self.wallet.labels.get(key):
-                self.wallet.labels[key] = value
-        self.wallet.storage.put('labels', self.wallet.labels)
+            result[key] = value
+
+        wallet = self.wallet
+        if not wallet:
+            return
+        for key, value in result.items():
+            if force or not wallet.labels.get(key):
+                wallet.labels[key] = value
+        wallet.storage.put('labels', wallet.labels)
         print_error("received %d labels"%len(response))
         self.window.labelsChanged.emit()
