@@ -61,10 +61,7 @@ import csv
 from electrum import ELECTRUM_VERSION
 import re
 
-from util import MyTreeWidget, HelpButton, EnterButton, line_dialog, text_dialog, ok_cancel_buttons, close_button, WaitingDialog
-from util import filename_field, ok_cancel_buttons2, address_field
-from util import MONOSPACE_FONT
-
+from util import *
 
 
 class StatusBarButton(QPushButton):
@@ -1849,7 +1846,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(line2, 2, 1)
 
         vbox.addLayout(grid)
-        vbox.addLayout(ok_cancel_buttons(d))
+        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
 
         if not d.exec_():
             return
@@ -1873,11 +1870,9 @@ class ElectrumWindow(QMainWindow):
 
     @protected
     def new_account_dialog(self, password):
-
         dialog = QDialog(self)
         dialog.setModal(1)
         dialog.setWindowTitle(_("New Account"))
-
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(_('Account name')+':'))
         e = QLineEdit()
@@ -1887,20 +1882,16 @@ class ElectrumWindow(QMainWindow):
         l = QLabel(msg)
         l.setWordWrap(True)
         vbox.addWidget(l)
-
-        vbox.addLayout(ok_cancel_buttons(dialog))
+        vbox.addLayout(Buttons(CancelButton(dialog), OkButton(dialog)))
         dialog.setLayout(vbox)
         r = dialog.exec_()
-        if not r: return
-
+        if not r:
+            return
         name = str(e.text())
-
         self.wallet.create_pending_account(name, password)
         self.update_address_tab()
         self.update_account_selector()
         self.tabs.setCurrentIndex(3)
-
-
 
 
     def show_master_public_keys(self):
@@ -1933,22 +1924,17 @@ class ElectrumWindow(QMainWindow):
                 name = str(b.text())
                 mpk = mpk_dict.get(name, "")
                 mpk_text.setText(mpk)
-                mpk_text.selectAll()    # for easy copying
 
             group.buttonReleased.connect(show_mpk)
             first_button.setChecked(True)
             show_mpk(first_button)
-
-            #combobox.currentIndexChanged[str].connect(lambda acc: show_mpk(acc))
         elif len(mpk_dict) == 1:
             mpk = mpk_dict.values()[0]
             mpk_text = ShowQRTextEdit(text=mpk)
             mpk_text.setMaximumHeight(170)
-            mpk_text.selectAll()    # for easy copying
             vbox.addWidget(mpk_text)
 
-        vbox.addLayout(close_button(dialog))
-
+        vbox.addLayout(Buttons(CopyButton(mpk_text, self.app), CloseButton(dialog)))
         dialog.setLayout(vbox)
         dialog.exec_()
 
@@ -2009,7 +1995,7 @@ class ElectrumWindow(QMainWindow):
         vbox.addWidget( QLabel(_("Public key") + ':'))
         keys = ShowQRTextEdit(text='\n'.join(pubkey_list))
         vbox.addWidget(keys)
-        vbox.addLayout(close_button(d))
+        vbox.addLayout(Buttons(CopyButton(keys, self.app), CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
 
@@ -2032,7 +2018,7 @@ class ElectrumWindow(QMainWindow):
         vbox.addWidget( QLabel(_("Private key") + ':'))
         keys = ShowQRTextEdit(text='\n'.join(pk_list))
         vbox.addWidget(keys)
-        vbox.addLayout(close_button(d))
+        vbox.addLayout(Buttons(CopyButton(keys, self.app), CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
 
@@ -2187,7 +2173,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(pw, 1, 1)
         vbox.addLayout(grid)
 
-        vbox.addLayout(ok_cancel_buttons(d))
+        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         d.setLayout(vbox)
 
         run_hook('password_dialog', pw, grid, 1)
@@ -2384,9 +2370,9 @@ class ElectrumWindow(QMainWindow):
         hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
         vbox.addLayout(hbox)
 
-        h, b = ok_cancel_buttons2(d, _('Export'))
+        b = OkButton(d, _('Export'))
         b.setEnabled(False)
-        vbox.addLayout(h)
+        vbox.addLayout(Buttons(CancelButton(d), b))
 
         private_keys = {}
         addresses = self.wallet.addresses(True)
@@ -2469,40 +2455,30 @@ class ElectrumWindow(QMainWindow):
 
 
     def export_history_dialog(self):
-
         d = QDialog(self)
         d.setWindowTitle(_('Export History'))
         d.setMinimumSize(400, 200)
         vbox = QVBoxLayout(d)
-
         defaultname = os.path.expanduser('~/electrum-history.csv')
         select_msg = _('Select file to export your wallet transactions to')
-
         hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
         vbox.addLayout(hbox)
-
         vbox.addStretch(1)
-
-        h, b = ok_cancel_buttons2(d, _('Export'))
-        vbox.addLayout(h)
-
-        run_hook('export_history_dialog', self,hbox)
+        hbox = Buttons(CancelButton(d), OkButton(d, _('Export')))
+        vbox.addLayout(hbox)
+        run_hook('export_history_dialog', self, hbox)
         self.update()
-
         if not d.exec_():
             return
-
         filename = filename_e.text()
         if not filename:
             return
-
         try:
             self.do_export_history(self.wallet, filename, csv_button.isChecked())
         except (IOError, os.error), reason:
             export_error_label = _("Electrum was unable to produce a transaction export.")
             QMessageBox.critical(self, _("Unable to export history"), export_error_label + "\n" + str(reason))
             return
-
         QMessageBox.information(self,_("History exported"), _("Your wallet history has been successfully exported."))
 
 
@@ -2572,8 +2548,8 @@ class ElectrumWindow(QMainWindow):
         vbox.addLayout(h)
 
         vbox.addStretch(1)
-        hbox, button = ok_cancel_buttons2(d, _('Sweep'))
-        vbox.addLayout(hbox)
+        button = OkButton(d, _('Sweep'))
+        vbox.addLayout(Buttons(CancelButton(d), button))
         button.setEnabled(False)
 
         def get_address():
@@ -2787,7 +2763,7 @@ class ElectrumWindow(QMainWindow):
 
         vbox.addLayout(grid)
         vbox.addStretch(1)
-        vbox.addLayout(close_button(d))
+        vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
 
         # run the dialog
@@ -2873,7 +2849,7 @@ class ElectrumWindow(QMainWindow):
                 print_msg("Error: cannot display plugin", p)
                 traceback.print_exc(file=sys.stdout)
         grid.setRowStretch(i+1,1)
-        vbox.addLayout(close_button(d))
+        vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
     def show_account_details(self, k):
@@ -2898,9 +2874,7 @@ class ElectrumWindow(QMainWindow):
         text.setReadOnly(True)
         text.setMaximumHeight(170)
         vbox.addWidget(text)
-
         mpk_text = '\n'.join( account.get_master_pubkeys() )
         text.setText(mpk_text)
-
-        vbox.addLayout(close_button(d))
+        vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()

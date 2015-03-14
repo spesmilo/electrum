@@ -16,7 +16,7 @@ from electrum.transaction import deserialize
 from electrum.wallet import BIP32_HD_Wallet
 from electrum.util import print_error
 
-from electrum_gui.qt.util import ok_cancel_buttons, EnterButton
+from electrum_gui.qt.util import *
 
 try:
     from trezorlib.client import types
@@ -519,7 +519,7 @@ class TrezorQtGuiMixin(object):
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(msg))
         vbox.addWidget(matrix)
-        vbox.addLayout(ok_cancel_buttons(d))
+        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         d.setLayout(vbox)
 
         if not d.exec_(): return

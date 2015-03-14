@@ -166,7 +166,7 @@ class NetworkDialog(QDialog):
         grid.addWidget(self.proxy_port, 4, 3)
 
         # buttons
-        vbox.addLayout(ok_cancel_buttons(self))
+        vbox.addLayout(Buttons(CancelButton(self), OkButton(self)))
         self.setLayout(vbox)
 
 
