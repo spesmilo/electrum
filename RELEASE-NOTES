@@ -1,6 +1,7 @@
 # Release 2.0.3 - bugfixes and minor GUI improvements
  * Do not use daemon threads (fix #960)
  * Add a zoom button to receive tab
+ * Add exchange rate conversion to receive tab
  * Use Tor's default port number in default proxy config
 
 # Release 2.0.2 - bugfixes
