@@ -769,7 +769,7 @@ class ElectrumWindow(QMainWindow):
 
         self.zoom_button = QPushButton()
         self.zoom_button.setIcon(QIcon(":icons/zoom.png"))
-        self.zoom_button.setToolTip(_("Large Invoice Window"))
+        self.zoom_button.setToolTip(_("Show Invoice Window"))
         self.zoom_button.clicked.connect(lambda x: self.toggle_qr_window())
 
         grid.addWidget(self.copy_button, 5, 5)
