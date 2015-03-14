@@ -760,9 +760,9 @@ class ElectrumWindow(QMainWindow):
         self.save_request_button.clicked.connect(self.save_payment_request)
         grid.addWidget(self.save_request_button, 3, 1)
 
-        clear_button = QPushButton(_('New'))
-        clear_button.clicked.connect(self.new_receive_address)
-        grid.addWidget(clear_button, 3, 2)
+        self.new_request_button = QPushButton(_('New'))
+        self.new_request_button.clicked.connect(self.new_receive_address)
+        grid.addWidget(self.new_request_button, 3, 2)
 
         self.receive_qr = QRCodeWidget(fixedSize=200)
         grid.addWidget(self.receive_qr, 0, 5, 5, 2)
@@ -804,6 +804,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_address_e.setText(addr)
         self.receive_message_e.setText(message)
         self.receive_amount_e.setAmount(amount)
+        self.new_request_button.setEnabled(True)
 
     def receive_list_delete(self, item):
         addr = str(item.text(2))
@@ -842,6 +843,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_requests[addr] = {'time':timestamp, 'amount':amount, 'msg':message}
         self.wallet.storage.put('receive_requests2', self.receive_requests)
         self.update_receive_tab()
+        self.save_request_button.setEnabled(False)
 
     def get_receive_address(self):
         domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
@@ -859,6 +861,7 @@ class ElectrumWindow(QMainWindow):
                 return
             addr = self.wallet.create_new_address(self.current_account, False)
         self.set_receive_address(addr)
+        self.new_request_button.setEnabled(False)
 
     def set_receive_address(self, addr):
         self.receive_address_e.setText(addr)
@@ -913,10 +916,10 @@ class ElectrumWindow(QMainWindow):
         # update the receive address if necessary
         current_address = self.receive_address_e.text()
         domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
-        if not current_address in domain:
-            addr = self.get_receive_address()
-            if addr:
-                self.set_receive_address(addr)
+        addr = self.get_receive_address()
+        if not current_address in domain and addr:
+            self.set_receive_address(addr)
+        self.new_request_button.setEnabled(addr != current_address)
 
         # clear the list and fill it again
         self.receive_list.clear()
