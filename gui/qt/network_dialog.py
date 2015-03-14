@@ -172,7 +172,7 @@ class NetworkDialog(QDialog):
 
     def init_servers_list(self):
         self.servers_list_widget.clear()
-        for _host, d in self.servers.items():
+        for _host, d in sorted(self.servers.items()):
             if d.get(self.protocol):
                 pruning_level = d.get('pruning','')
                 self.servers_list_widget.addTopLevelItem(QTreeWidgetItem( [ _host, pruning_level ] ))
