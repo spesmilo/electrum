@@ -948,10 +948,10 @@ class Abstract_Wallet(object):
         return True
 
     def start_threads(self, network):
-        from verifier import TxVerifier
+        from verifier import SPV
         self.network = network
         if self.network is not None:
-            self.verifier = TxVerifier(self.network, self.storage)
+            self.verifier = SPV(self.network, self.storage)
             self.verifier.start()
             self.set_verifier(self.verifier)
             self.synchronizer = WalletSynchronizer(self, network)
