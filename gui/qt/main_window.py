@@ -239,6 +239,7 @@ class ElectrumWindow(QMainWindow):
 
         self.clear_receive_tab()
         self.update_receive_tab()
+        self.show()
         run_hook('load_wallet', wallet)
 
 
@@ -301,7 +302,6 @@ class ElectrumWindow(QMainWindow):
         self.close_wallet()
         # load new wallet in gui
         self.load_wallet(wallet)
-        self.show()
         # save path
         self.config.set_key('gui_last_wallet', filename)
 
