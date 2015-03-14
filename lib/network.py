@@ -166,10 +166,6 @@ class Network(util.DaemonThread):
         self.requests_queue = Queue.Queue()
         self.set_proxy(deserialize_proxy(self.config.get('proxy')))
 
-
-    def print_error(self, *msg):
-        util.print_error("[network]", *msg)
-
     def get_server_height(self):
         return self.heights.get(self.default_server, 0)
 
@@ -501,6 +497,8 @@ class Network(util.DaemonThread):
         self.print_error("stopping interfaces")
         for i in self.interfaces.values():
             i.stop()
+
+        self.print_error("stopped")
 
 
     def on_header(self, i, r):

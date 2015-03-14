@@ -49,8 +49,9 @@ class WalletSynchronizer(util.DaemonThread):
 
     def run(self):
         while self.is_running():
-            while not self.network.is_connected():
+            if not self.network.is_connected():
                 time.sleep(0.1)
+                continue
             self.run_interface()
 
     def run_interface(self):
@@ -183,3 +184,5 @@ class WalletSynchronizer(util.DaemonThread):
                 # Updated gets called too many times from other places as well; if we use that signal we get the notification three times
                 self.network.trigger_callback("new_transaction")
                 self.was_updated = False
+
+        self.print_error("stopped")

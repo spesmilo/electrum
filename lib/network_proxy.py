@@ -78,11 +78,10 @@ class NetworkProxy(util.DaemonThread):
             if response is None:
                 break
             self.process(response)
-
         self.trigger_callback('stop')
         if self.network:
             self.network.stop()
-        print_error("NetworkProxy: terminating")
+        self.print_error("stopped")
 
     def process(self, response):
         if self.debug:

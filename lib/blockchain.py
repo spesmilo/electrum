@@ -41,7 +41,7 @@ class Blockchain(util.DaemonThread):
     def run(self):
         self.init_headers_file()
         self.set_local_height()
-        print_error( "blocks:", self.local_height )
+        self.print_error("%d blocks"%self.local_height)
 
         while self.is_running():
             try:
@@ -76,6 +76,8 @@ class Blockchain(util.DaemonThread):
                     # todo: dismiss that server
                     continue
             self.network.new_blockchain_height(height, i)
+
+        self.print_error("stopped")
 
 
     def verify_chain(self, chain):
@@ -267,7 +269,7 @@ class Blockchain(util.DaemonThread):
         i.send_request({'method':'blockchain.block.get_header', 'params':[h]}, queue)
 
     def retrieve_request(self, queue):
-        while True:
+        while self.is_running():
             try:
                 ir = queue.get(timeout=1)
             except Queue.Empty:

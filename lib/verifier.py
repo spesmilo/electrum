@@ -97,13 +97,12 @@ class TxVerifier(util.DaemonThread):
                         if self.network.send([ ('blockchain.transaction.get_merkle',[tx_hash, tx_height]) ], self.queue.put):
                             print_error('requesting merkle', tx_hash)
                             requested_merkle.append(tx_hash)
-
             try:
                 r = self.queue.get(timeout=0.1)
             except Queue.Empty:
                 continue
-
-            if not r: continue
+            if not r:
+                continue
 
             if r.get('error'):
                 print_error('Verifier received an error:', r)
@@ -117,6 +116,8 @@ class TxVerifier(util.DaemonThread):
             if method == 'blockchain.transaction.get_merkle':
                 tx_hash = params[0]
                 self.verify_merkle(tx_hash, result)
+
+        self.print_error("stopped")
 
 
     def verify_merkle(self, tx_hash, result):
