@@ -18,27 +18,26 @@
 
 
 import threading, time, Queue, os, sys, shutil
+
+import util
 from util import user_dir, print_error
 from bitcoin import *
 
 
 
 
-class TxVerifier(threading.Thread):
+class TxVerifier(util.DaemonThread):
     """ Simple Payment Verification """
 
     def __init__(self, network, storage):
-        threading.Thread.__init__(self)
-        self.daemon = True
+        util.DaemonThread.__init__(self)
         self.storage = storage
         self.network = network
         self.transactions    = {}                                 # requested verifications (with height sent by the requestor)
         self.verified_tx     = storage.get('verified_tx3',{})      # height, timestamp of verified transactions
         self.merkle_roots    = storage.get('merkle_roots',{})      # hashed by me
         self.lock = threading.Lock()
-        self.running = False
         self.queue = Queue.Queue()
-
 
     def get_confirmations(self, tx):
         """ return the number of confirmations of a monitored transaction. """
@@ -47,11 +46,9 @@ class TxVerifier(threading.Thread):
                 height, timestamp, pos = self.verified_tx[tx]
                 conf = (self.network.get_local_height() - height + 1)
                 if conf <= 0: timestamp = None
-
             elif tx in self.transactions:
                 conf = -1
                 timestamp = None
-
             else:
                 conf = 0
                 timestamp = None
@@ -87,17 +84,8 @@ class TxVerifier(threading.Thread):
             if tx_hash not in self.transactions.keys():
                 self.transactions[tx_hash] = tx_height
 
-    def stop(self):
-        with self.lock: self.running = False
-
-    def is_running(self):
-        with self.lock: return self.running
-
     def run(self):
-        with self.lock:
-            self.running = True
         requested_merkle = []
-
         while self.is_running():
             # request missing tx
             for tx_hash, tx_height in self.transactions.items():

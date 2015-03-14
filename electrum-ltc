@@ -250,9 +250,6 @@ if __name__ == '__main__':
         if network:
             network.stop()
 
-        # we use daemon threads, their termination is enforced.
-        # this sleep command gives them time to terminate cleanly.
-        time.sleep(0.3)
         sys.exit(0)
 
     if cmd == 'daemon':
@@ -505,5 +502,4 @@ if __name__ == '__main__':
     else:
         run_command(cmd, password, args)
 
-    time.sleep(0.1)
     sys.exit(0)

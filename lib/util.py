@@ -4,6 +4,7 @@ import shutil
 from datetime import datetime
 import urlparse
 import urllib
+import threading
 
 class NotEnoughFunds(Exception): pass
 
@@ -18,6 +19,30 @@ class MyEncoder(json.JSONEncoder):
         if isinstance(obj, Transaction):
             return obj.as_dict()
         return super(MyEncoder, self).default(obj)
+
+
+class DaemonThread(threading.Thread):
+    """ daemon thread that terminates cleanly """
+
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self.parent_thread = threading.currentThread()
+        self.running = False
+        self.running_lock = threading.Lock()
+
+    def start(self):
+        with self.running_lock:
+            self.running = True
+        return threading.Thread.start(self)
+
+    def is_running(self):
+        with self.running_lock:
+            return self.running and self.parent_thread.is_alive()
+
+    def stop(self):
+        with self.running_lock:
+            self.running = False
+
 
 
 is_verbose = False

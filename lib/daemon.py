@@ -66,18 +66,17 @@ def get_daemon(config, start_daemon=True):
 
 
 
-class ClientThread(threading.Thread):
+class ClientThread(util.DaemonThread):
 
     def __init__(self, server, s):
-        threading.Thread.__init__(self)
+        util.DaemonThread.__init__(self)
         self.server = server
-        self.daemon = True
         self.client_pipe = util.SocketPipe(s)
         self.response_queue = Queue.Queue()
         self.server.add_client(self)
 
     def reading_thread(self):
-        while self.running:
+        while self.is_running():
             try:
                 request = self.client_pipe.get()
             except util.timeout:
@@ -91,9 +90,8 @@ class ClientThread(threading.Thread):
             self.server.send_request(self, request)
 
     def run(self):
-        self.running = True
         threading.Thread(target=self.reading_thread).start()
-        while self.running:
+        while self.is_running():
             try:
                 response = self.response_queue.get(timeout=0.1)
             except Queue.Empty:
@@ -109,11 +107,10 @@ class ClientThread(threading.Thread):
 
 
 
-class NetworkServer(threading.Thread):
+class NetworkServer(util.DaemonThread):
 
     def __init__(self, config):
-        threading.Thread.__init__(self)
-        self.daemon = True
+        util.DaemonThread.__init__(self)
         self.debug = False
         self.config = config
         self.network = Network(config)
@@ -127,18 +124,6 @@ class NetworkServer(threading.Thread):
         self.clients = []
         self.request_id = 0
         self.requests = {}
-
-    def is_running(self):
-        with self.lock:
-            return self.running
-
-    def stop(self):
-        with self.lock:
-            self.running = False
-
-    def start(self):
-        self.running = True
-        threading.Thread.start(self)
 
     def add_client(self, client):
         for key in ['status','banner','updated','servers','interfaces']:
