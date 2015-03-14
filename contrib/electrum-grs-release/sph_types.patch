@@ -1,0 +1,18 @@
+--- sph_types-old.h	2015-03-14 12:18:15.260699814 -0700
++++ sph_types.h	2015-03-14 12:19:33.064698153 -0700
+@@ -43,6 +43,7 @@
+  * @file     sph_types.h
+  * @author   Thomas Pornin <thomas.pornin@cryptolog.com>
+  */
++#include <stdint.h>
+ 
+ #ifndef SPH_TYPES_H__
+ #define SPH_TYPES_H__
+@@ -824,7 +825,6 @@
+  * C99 conformance).
+  */
+ 
+-#include <stdint.h>
+ 
+ #ifdef UINT32_MAX
+ typedef uint32_t sph_u32;
