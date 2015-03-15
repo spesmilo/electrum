@@ -166,13 +166,13 @@ class NetworkDialog(QDialog):
         grid.addWidget(self.proxy_port, 4, 3)
 
         # buttons
-        vbox.addLayout(ok_cancel_buttons(self))
+        vbox.addLayout(Buttons(CancelButton(self), OkButton(self)))
         self.setLayout(vbox)
 
 
     def init_servers_list(self):
         self.servers_list_widget.clear()
-        for _host, d in self.servers.items():
+        for _host, d in sorted(self.servers.items()):
             if d.get(self.protocol):
                 pruning_level = d.get('pruning','')
                 self.servers_list_widget.addTopLevelItem(QTreeWidgetItem( [ _host, pruning_level ] ))

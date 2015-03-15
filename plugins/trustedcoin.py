@@ -38,9 +38,8 @@ from electrum_ltc.wallet import Wallet_2of3
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, run_hook, hook
 
-from electrum_ltc_gui.qt.util import text_dialog, EnterButton, WaitingDialog
+from electrum_ltc_gui.qt.util import *
 from electrum_ltc_gui.qt.qrcodewidget import QRCodeWidget
-from electrum_ltc_gui.qt import ok_cancel_buttons, ok_cancel_buttons2, close_button
 from electrum_ltc_gui.qt.amountedit import AmountEdit
 from electrum_ltc_gui.qt.main_window import StatusBarButton
 
@@ -532,7 +531,7 @@ class Plugin(BasePlugin):
         grid.addWidget(QLabel(_('Code')), 1, 0)
         grid.addWidget(pw, 1, 1)
         vbox.addLayout(grid)
-        vbox.addLayout(ok_cancel_buttons(d))
+        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         if not d.exec_(): 
             return
         return pw.get_amount()
@@ -617,7 +616,7 @@ class Plugin(BasePlugin):
 
         #grid.addWidget(QLabel(_("Next Billing Address:")), i, 0)
         #grid.addWidget(QLabel(self.billing_info['billing_address']), i, 1)
-        vbox.addLayout(close_button(d))
+        vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
 
@@ -642,9 +641,9 @@ class Plugin(BasePlugin):
         email_e = QLineEdit()
         vbox.addWidget(email_e)
         vbox.addStretch()
-        hbox, accept_button = ok_cancel_buttons2(window, _('Accept'))
+        accept_button = OkButton(window, _('Accept'))
         accept_button.setEnabled(False)
-        vbox.addLayout(hbox)
+        vbox.addLayout(Buttons(CancelButton(window), accept_button))
 
         def request_TOS():
             tos = server.get_terms_of_service()
@@ -688,9 +687,9 @@ class Plugin(BasePlugin):
         hbox.addStretch(1)
         vbox.addLayout(hbox)
 
-        hbox, b = ok_cancel_buttons2(window, _('Next'))
+        b = OkButton(window, _('Next'))
         b.setEnabled(False)
-        vbox.addLayout(hbox)
+        vbox.addLayout(Buttons(CancelButton(window), b))
         pw.textChanged.connect(lambda: b.setEnabled(len(pw.text())==6))
 
         window.exec_()

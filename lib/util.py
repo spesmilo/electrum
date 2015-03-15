@@ -43,6 +43,9 @@ class DaemonThread(threading.Thread):
         with self.running_lock:
             self.running = False
 
+    def print_error(self, *msg):
+        print_error("[%s]"%self.__class__.__name__, *msg)
+
 
 
 is_verbose = False

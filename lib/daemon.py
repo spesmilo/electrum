@@ -50,7 +50,7 @@ def get_daemon(config, start_daemon=True):
             s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             s.connect(daemon_socket)
             if not daemon_started:
-                print_stderr("Connected to daemon on", daemon_socket)
+                print_stderr("Connected to daemon")
             return s
         except socket.error:
             if not start_daemon:

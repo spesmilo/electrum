@@ -61,10 +61,7 @@ import csv
 from electrum_ltc import ELECTRUM_VERSION
 import re
 
-from util import MyTreeWidget, HelpButton, EnterButton, line_dialog, text_dialog, ok_cancel_buttons, close_button, WaitingDialog
-from util import filename_field, ok_cancel_buttons2, address_field
-from util import MONOSPACE_FONT
-
+from util import *
 
 
 class StatusBarButton(QPushButton):
@@ -239,6 +236,7 @@ class ElectrumWindow(QMainWindow):
 
         self.clear_receive_tab()
         self.update_receive_tab()
+        self.show()
         run_hook('load_wallet', wallet)
 
 
@@ -301,7 +299,6 @@ class ElectrumWindow(QMainWindow):
         self.close_wallet()
         # load new wallet in gui
         self.load_wallet(wallet)
-        self.show()
         # save path
         self.config.set_key('gui_last_wallet', filename)
 
@@ -733,9 +730,8 @@ class ElectrumWindow(QMainWindow):
 
     def create_receive_tab(self):
         w = QWidget()
-        grid = QGridLayout(w)
+        self.receive_grid = grid = QGridLayout(w)
         grid.setColumnMinimumWidth(3, 300)
-        grid.setColumnStretch(5, 1)
 
         self.receive_address_e = QLineEdit()
         self.receive_address_e.setReadOnly(True)
@@ -745,8 +741,8 @@ class ElectrumWindow(QMainWindow):
 
         self.copy_button = QPushButton()
         self.copy_button.setIcon(QIcon(":icons/copy.png"))
-        self.copy_button.clicked.connect(lambda: self.app.clipboard().setText(self.receive_address_e.text()))
-        grid.addWidget(self.copy_button, 0, 4)
+        self.copy_button.setToolTip(_("Copy to clibboard"))
+        self.copy_button.clicked.connect(lambda: self.app.clipboard().setText(self.get_receive_URI()))
 
         self.receive_message_e = QLineEdit()
         grid.addWidget(QLabel(_('Message')), 1, 0)
@@ -762,16 +758,23 @@ class ElectrumWindow(QMainWindow):
         self.save_request_button.clicked.connect(self.save_payment_request)
         grid.addWidget(self.save_request_button, 3, 1)
 
-        clear_button = QPushButton(_('New'))
-        clear_button.clicked.connect(self.new_receive_address)
-        grid.addWidget(clear_button, 3, 2)
-        grid.setRowStretch(4, 1)
+        self.new_request_button = QPushButton(_('New'))
+        self.new_request_button.clicked.connect(self.new_receive_address)
+        grid.addWidget(self.new_request_button, 3, 2)
 
         self.receive_qr = QRCodeWidget(fixedSize=200)
         grid.addWidget(self.receive_qr, 0, 5, 5, 2)
-        self.receive_qr.mousePressEvent = lambda x: self.toggle_qr_window()
 
-        grid.setRowStretch(5, 1)
+        self.zoom_button = QPushButton()
+        self.zoom_button.setIcon(QIcon(":icons/zoom.png"))
+        self.zoom_button.setToolTip(_("Show Invoice Window"))
+        self.zoom_button.clicked.connect(lambda x: self.toggle_qr_window())
+
+        grid.addWidget(self.copy_button, 5, 5)
+        grid.addWidget(self.zoom_button, 5, 6)
+
+        grid.setColumnStretch(4, 1)
+        grid.setRowStretch(6, 1)
 
         self.receive_requests_label = QLabel(_('Saved Requests'))
         self.receive_list = MyTreeWidget(self)
@@ -786,8 +789,8 @@ class ElectrumWindow(QMainWindow):
         h = self.receive_list.header()
         h.setStretchLastSection(False)
         h.setResizeMode(3, QHeaderView.Stretch)
-        grid.addWidget(self.receive_requests_label, 6, 0)
-        grid.addWidget(self.receive_list, 7, 0, 1, 6)
+        grid.addWidget(self.receive_requests_label, 7, 0)
+        grid.addWidget(self.receive_list, 8, 0, 1, 7)
         return w
 
     def receive_item_changed(self, item):
@@ -799,6 +802,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_address_e.setText(addr)
         self.receive_message_e.setText(message)
         self.receive_amount_e.setAmount(amount)
+        self.new_request_button.setEnabled(True)
 
     def receive_list_delete(self, item):
         addr = str(item.text(2))
@@ -806,6 +810,13 @@ class ElectrumWindow(QMainWindow):
         self.wallet.storage.put('receive_requests2', self.receive_requests)
         self.update_receive_tab()
         self.clear_receive_tab()
+
+    def get_receive_URI(self):
+        addr = str(self.receive_address_e.text())
+        amount = self.receive_amount_e.get_amount()
+        message = unicode(self.receive_message_e.text())
+        URI = util.create_URI(addr, amount, message)
+        return URI
 
     def receive_list_menu(self, position):
         item = self.receive_list.itemAt(position)
@@ -830,6 +841,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_requests[addr] = {'time':timestamp, 'amount':amount, 'msg':message}
         self.wallet.storage.put('receive_requests2', self.receive_requests)
         self.update_receive_tab()
+        self.save_request_button.setEnabled(False)
 
     def get_receive_address(self):
         domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
@@ -847,6 +859,7 @@ class ElectrumWindow(QMainWindow):
                 return
             addr = self.wallet.create_new_address(self.current_account, False)
         self.set_receive_address(addr)
+        self.new_request_button.setEnabled(False)
 
     def set_receive_address(self, addr):
         self.receive_address_e.setText(addr)
@@ -886,6 +899,7 @@ class ElectrumWindow(QMainWindow):
             return
         self.tabs.setCurrentIndex(2)
         self.receive_address_e.setText(addr)
+        self.new_request_button.setEnabled(True)
 
     def update_receive_tab(self):
         self.receive_requests = self.wallet.storage.get('receive_requests2',{})
@@ -901,10 +915,10 @@ class ElectrumWindow(QMainWindow):
         # update the receive address if necessary
         current_address = self.receive_address_e.text()
         domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
-        if not current_address in domain:
-            addr = self.get_receive_address()
-            if addr:
-                self.set_receive_address(addr)
+        addr = self.get_receive_address()
+        if not current_address in domain and addr:
+            self.set_receive_address(addr)
+        self.new_request_button.setEnabled(addr != current_address)
 
         # clear the list and fill it again
         self.receive_list.clear()
@@ -1847,7 +1861,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(line2, 2, 1)
 
         vbox.addLayout(grid)
-        vbox.addLayout(ok_cancel_buttons(d))
+        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
 
         if not d.exec_():
             return
@@ -1871,11 +1885,9 @@ class ElectrumWindow(QMainWindow):
 
     @protected
     def new_account_dialog(self, password):
-
         dialog = QDialog(self)
         dialog.setModal(1)
         dialog.setWindowTitle(_("New Account"))
-
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(_('Account name')+':'))
         e = QLineEdit()
@@ -1885,20 +1897,16 @@ class ElectrumWindow(QMainWindow):
         l = QLabel(msg)
         l.setWordWrap(True)
         vbox.addWidget(l)
-
-        vbox.addLayout(ok_cancel_buttons(dialog))
+        vbox.addLayout(Buttons(CancelButton(dialog), OkButton(dialog)))
         dialog.setLayout(vbox)
         r = dialog.exec_()
-        if not r: return
-
+        if not r:
+            return
         name = str(e.text())
-
         self.wallet.create_pending_account(name, password)
         self.update_address_tab()
         self.update_account_selector()
         self.tabs.setCurrentIndex(3)
-
-
 
 
     def show_master_public_keys(self):
@@ -1931,22 +1939,17 @@ class ElectrumWindow(QMainWindow):
                 name = str(b.text())
                 mpk = mpk_dict.get(name, "")
                 mpk_text.setText(mpk)
-                mpk_text.selectAll()    # for easy copying
 
             group.buttonReleased.connect(show_mpk)
             first_button.setChecked(True)
             show_mpk(first_button)
-
-            #combobox.currentIndexChanged[str].connect(lambda acc: show_mpk(acc))
         elif len(mpk_dict) == 1:
             mpk = mpk_dict.values()[0]
             mpk_text = ShowQRTextEdit(text=mpk)
             mpk_text.setMaximumHeight(170)
-            mpk_text.selectAll()    # for easy copying
             vbox.addWidget(mpk_text)
 
-        vbox.addLayout(close_button(dialog))
-
+        vbox.addLayout(Buttons(CopyButton(mpk_text, self.app), CloseButton(dialog)))
         dialog.setLayout(vbox)
         dialog.exec_()
 
@@ -2007,7 +2010,7 @@ class ElectrumWindow(QMainWindow):
         vbox.addWidget( QLabel(_("Public key") + ':'))
         keys = ShowQRTextEdit(text='\n'.join(pubkey_list))
         vbox.addWidget(keys)
-        vbox.addLayout(close_button(d))
+        vbox.addLayout(Buttons(CopyButton(keys, self.app), CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
 
@@ -2030,7 +2033,7 @@ class ElectrumWindow(QMainWindow):
         vbox.addWidget( QLabel(_("Private key") + ':'))
         keys = ShowQRTextEdit(text='\n'.join(pk_list))
         vbox.addWidget(keys)
-        vbox.addLayout(close_button(d))
+        vbox.addLayout(Buttons(CopyButton(keys, self.app), CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
 
@@ -2185,7 +2188,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(pw, 1, 1)
         vbox.addLayout(grid)
 
-        vbox.addLayout(ok_cancel_buttons(d))
+        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         d.setLayout(vbox)
 
         run_hook('password_dialog', pw, grid, 1)
@@ -2382,9 +2385,9 @@ class ElectrumWindow(QMainWindow):
         hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
         vbox.addLayout(hbox)
 
-        h, b = ok_cancel_buttons2(d, _('Export'))
+        b = OkButton(d, _('Export'))
         b.setEnabled(False)
-        vbox.addLayout(h)
+        vbox.addLayout(Buttons(CancelButton(d), b))
 
         private_keys = {}
         addresses = self.wallet.addresses(True)
@@ -2467,40 +2470,30 @@ class ElectrumWindow(QMainWindow):
 
 
     def export_history_dialog(self):
-
         d = QDialog(self)
         d.setWindowTitle(_('Export History'))
         d.setMinimumSize(400, 200)
         vbox = QVBoxLayout(d)
-
         defaultname = os.path.expanduser('~/electrum-ltc-history.csv')
         select_msg = _('Select file to export your wallet transactions to')
-
         hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
         vbox.addLayout(hbox)
-
         vbox.addStretch(1)
-
-        h, b = ok_cancel_buttons2(d, _('Export'))
-        vbox.addLayout(h)
-
-        run_hook('export_history_dialog', self,hbox)
+        hbox = Buttons(CancelButton(d), OkButton(d, _('Export')))
+        vbox.addLayout(hbox)
+        run_hook('export_history_dialog', self, hbox)
         self.update()
-
         if not d.exec_():
             return
-
         filename = filename_e.text()
         if not filename:
             return
-
         try:
             self.do_export_history(self.wallet, filename, csv_button.isChecked())
         except (IOError, os.error), reason:
             export_error_label = _("Electrum was unable to produce a transaction export.")
             QMessageBox.critical(self, _("Unable to export history"), export_error_label + "\n" + str(reason))
             return
-
         QMessageBox.information(self,_("History exported"), _("Your wallet history has been successfully exported."))
 
 
@@ -2570,8 +2563,8 @@ class ElectrumWindow(QMainWindow):
         vbox.addLayout(h)
 
         vbox.addStretch(1)
-        hbox, button = ok_cancel_buttons2(d, _('Sweep'))
-        vbox.addLayout(hbox)
+        button = OkButton(d, _('Sweep'))
+        vbox.addLayout(Buttons(CancelButton(d), button))
         button.setEnabled(False)
 
         def get_address():
@@ -2785,7 +2778,7 @@ class ElectrumWindow(QMainWindow):
 
         vbox.addLayout(grid)
         vbox.addStretch(1)
-        vbox.addLayout(close_button(d))
+        vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
 
         # run the dialog
@@ -2871,7 +2864,7 @@ class ElectrumWindow(QMainWindow):
                 print_msg("Error: cannot display plugin", p)
                 traceback.print_exc(file=sys.stdout)
         grid.setRowStretch(i+1,1)
-        vbox.addLayout(close_button(d))
+        vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
     def show_account_details(self, k):
@@ -2896,9 +2889,7 @@ class ElectrumWindow(QMainWindow):
         text.setReadOnly(True)
         text.setMaximumHeight(170)
         vbox.addWidget(text)
-
         mpk_text = '\n'.join( account.get_master_pubkeys() )
         text.setText(mpk_text)
-
-        vbox.addLayout(close_button(d))
+        vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()

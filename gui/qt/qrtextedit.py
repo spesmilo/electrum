@@ -7,25 +7,38 @@ class QRTextEdit(QPlainTextEdit):
     """Abstract class for QR-code related TextEdits. Do not use directly."""
     def __init__(self, text=None):
         super(QRTextEdit, self).__init__(text)
-        self.button = QToolButton(self)
-        self.button.setIcon(QIcon(":icons/qrcode.png"))
-        self.button.setStyleSheet("QToolButton { border: none; padding: 0px; }")
-        self.button.setVisible(True)
         self.setText = self.setPlainText
+        self.buttons = []
 
     def resizeEvent(self, e):
         o = QPlainTextEdit.resizeEvent(self, e)
-        sz = self.button.sizeHint()
         frameWidth = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
-        self.button.move(self.rect().right() - frameWidth - sz.width(),
-                         (self.rect().bottom() - frameWidth - sz.height()))
+        x = self.rect().right() - frameWidth
+        y = self.rect().bottom() - frameWidth
+        for button in self.buttons:
+            sz = button.sizeHint()
+            x -= sz.width()
+            button.move(x, y - sz.height())
         return o
+
+    def add_button(self, icon_name, on_click, tooltip):
+        button = QToolButton(self)
+        button.setIcon(QIcon(icon_name))
+        button.setStyleSheet("QToolButton { border: none; padding: 0px; }")
+        button.setVisible(True)
+        button.setToolTip(tooltip)
+        button.clicked.connect(on_click)
+        self.buttons.append(button)
+        return button
+
+
+
 
 class ShowQRTextEdit(QRTextEdit):
     def __init__(self, text=None):
         super(ShowQRTextEdit, self).__init__(text)
         self.setReadOnly(1)
-        self.button.clicked.connect(self.qr_show)
+        self.add_button(":icons/qrcode.png", self.qr_show, _("Show as QR code"))
         run_hook('show_text_edit', self)
 
     def qr_show(self):
@@ -50,9 +63,8 @@ class ScanQRTextEdit(QRTextEdit):
         assert win, "You must pass a window with access to the config to ScanQRTextEdit constructor."
         if win:
             assert hasattr(win,"config"), "You must pass a window with access to the config to ScanQRTextEdit constructor."
-        self.button.clicked.connect(self.qr_input)
+        self.add_button(":icons/qrcode.png", self.qr_input, _("Read QR code"))
         run_hook('scan_text_edit', self)
-
 
     def qr_input(self):
         from electrum_ltc import qrscanner

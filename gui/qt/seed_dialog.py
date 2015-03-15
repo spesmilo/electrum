@@ -21,8 +21,9 @@ from PyQt4.QtCore import *
 import PyQt4.QtCore as QtCore
 from electrum_ltc.i18n import _
 from electrum_ltc import mnemonic
+
+from util import *
 from qrcodewidget import QRCodeWidget, QRDialog
-from util import close_button
 from qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 
 class SeedDialog(QDialog):
@@ -34,7 +35,7 @@ class SeedDialog(QDialog):
         vbox = show_seed_box_msg(seed)
         if imported_keys:
             vbox.addWidget(QLabel("<b>"+_("WARNING")+":</b> " + _("Your wallet contains imported keys. These keys cannot be recovered from seed.") + "</b><p>"))
-        vbox.addLayout(close_button(self))
+        vbox.addLayout(Buttons(CloseButton(self)))
         self.setLayout(vbox)
 
 

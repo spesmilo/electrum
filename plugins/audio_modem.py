@@ -92,8 +92,7 @@ class Plugin(BasePlugin):
         def handler():
             self.receiver = self._recv(parent=parent)
             self.receiver.start()
-        button = add_button(parent=parent, icon_name=':icons/microphone.png')
-        button.clicked.connect(handler)
+        parent.add_button(':icons/microphone.png', handler, _("Read from microphone"))
 
     @hook
     def show_text_edit(self, parent):
@@ -101,8 +100,7 @@ class Plugin(BasePlugin):
             blob = str(parent.toPlainText())
             self.sender = self._send(parent=parent, blob=blob)
             self.sender.start()
-        button = add_button(parent=parent, icon_name=':icons/speaker.png')
-        button.clicked.connect(handler)
+        parent.add_button(':icons/speaker.png', handler, _("Send to speaker"))
 
     def _audio_interface(self):
         interface = amodem.audio.Interface(config=self.modem_config)
@@ -148,21 +146,3 @@ class Plugin(BasePlugin):
                              run_task=receiver_thread, on_success=on_success)
 
 
-def add_button(parent, icon_name):
-    audio_button = QToolButton(parent)
-    audio_button.setIcon(QIcon(icon_name))
-    audio_button.setStyleSheet("QToolButton { border: none; padding: 0px; }")
-    audio_button.setVisible(True)
-
-    parent_resizeEvent = parent.resizeEvent
-
-    def resizeEvent(e):
-        result = parent_resizeEvent(e)
-        qr_button = parent.button
-        left = qr_button.geometry().left() - audio_button.sizeHint().width()
-        top = qr_button.geometry().top()
-        audio_button.move(left, top)
-        return result
-
-    parent.resizeEvent = resizeEvent
-    return audio_button

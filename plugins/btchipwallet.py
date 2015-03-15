@@ -9,7 +9,6 @@ from base64 import b64encode, b64decode
 
 import electrum_ltc as electrum
 from electrum_ltc_gui.qt.password_dialog import make_password_dialog, run_password_dialog
-from electrum_ltc_gui.qt.util import ok_cancel_buttons
 from electrum_ltc.account import BIP32_Account
 from electrum_ltc.bitcoin import EncodeBase58Check, DecodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
 from electrum_ltc.i18n import _

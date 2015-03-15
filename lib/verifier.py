@@ -17,16 +17,17 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import threading, time, Queue, os, sys, shutil
+import threading
+import Queue
+
 
 import util
-from util import user_dir, print_error
 from bitcoin import *
 
 
 
 
-class TxVerifier(util.DaemonThread):
+class SPV(util.DaemonThread):
     """ Simple Payment Verification """
 
     def __init__(self, network, storage):
@@ -95,18 +96,17 @@ class TxVerifier(util.DaemonThread):
                         continue
                     if self.merkle_roots.get(tx_hash) is None and tx_hash not in requested_merkle:
                         if self.network.send([ ('blockchain.transaction.get_merkle',[tx_hash, tx_height]) ], self.queue.put):
-                            print_error('requesting merkle', tx_hash)
+                            self.print_error('requesting merkle', tx_hash)
                             requested_merkle.append(tx_hash)
-
             try:
                 r = self.queue.get(timeout=0.1)
             except Queue.Empty:
                 continue
-
-            if not r: continue
+            if not r:
+                continue
 
             if r.get('error'):
-                print_error('Verifier received an error:', r)
+                self.print_error('Verifier received an error:', r)
                 continue
 
             # 3. handle response
@@ -118,6 +118,8 @@ class TxVerifier(util.DaemonThread):
                 tx_hash = params[0]
                 self.verify_merkle(tx_hash, result)
 
+        self.print_error("stopped")
+
 
     def verify_merkle(self, tx_hash, result):
         tx_height = result.get('block_height')
@@ -126,7 +128,7 @@ class TxVerifier(util.DaemonThread):
         header = self.network.get_header(tx_height)
         if not header: return
         if header.get('merkle_root') != merkle_root:
-            print_error("merkle verification failed for", tx_hash)
+            self.print_error("merkle verification failed for", tx_hash)
             return
 
         # we passed all the tests
@@ -134,7 +136,7 @@ class TxVerifier(util.DaemonThread):
         timestamp = header.get('timestamp')
         with self.lock:
             self.verified_tx[tx_hash] = (tx_height, timestamp, pos)
-        print_error("verified %s"%tx_hash)
+        self.print_error("verified %s"%tx_hash)
         self.storage.put('verified_tx3', self.verified_tx, True)
         self.network.trigger_callback('updated')
 
@@ -154,7 +156,7 @@ class TxVerifier(util.DaemonThread):
         for tx_hash, item in items:
             tx_height, timestamp, pos = item
             if tx_height >= height:
-                print_error("redoing", tx_hash)
+                self.print_error("redoing", tx_hash)
                 with self.lock:
                     self.verified_tx.pop(tx_hash)
                     if tx_hash in self.merkle_roots:

@@ -74,7 +74,7 @@ def make_password_dialog(self, wallet, msg, new_pass=True):
     self.new_pw.textChanged.connect(lambda: update_password_strength(self.pw_strength, self.new_pw.text()))
 
     vbox.addStretch(1)
-    vbox.addLayout(ok_cancel_buttons(self))
+    vbox.addLayout(Buttons(CancelButton(self), OkButton(self)))
     return vbox
 
 
