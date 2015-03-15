@@ -96,8 +96,8 @@ class WalletStorage(object):
         except:
             try:
                 d = ast.literal_eval(data)  #parse raw data from reading wallet file
-            except Exception:
-                raise IOError("Cannot read wallet file.")
+            except Exception as e:
+                raise IOError("Cannot read wallet file '%s'" % self.path)
             self.data = {}
             for key, value in d.items():
                 try:
