@@ -1,0 +1,86 @@
+#!/bin/bash -x
+
+export VERSION="$1"
+export BUILDTYPE="${2:-tagged}"
+
+
+die () {
+case $1 in
+ 1) echo "Build Error:" 
+   echo "Build Version: ${VERSION} and git Version: ${gitver} don't match"
+   echo "Bump version or build from master with  ./build ${VERSION} master"
+   exit 1
+   ;;
+ 2) echo "git checkout failed" 
+    echo "Didnt find TAG for ${VERSION}"
+    exit 2
+    ;;
+ 3) echo "setup.py not found in /root/repo"
+    echo "maybe your source dir was empty?"
+    exit 3
+    ;;
+ *) echo "ERROR: die called exit $1"
+    exit "$1"
+    ;;
+esac
+}
+check_ver () {
+ export gitver=$(grep "ELECTRUM_VERSION" lib/version.py |awk '{print $3}' |cut  -d"\"" -f2)
+ if [ "${VERSION}" != "${gitver}" ]
+ then
+   sed -i 's/ELECTRUM_VERSION\ \=\ \"'${gitver}'\"/ELECTRUM_VERSION\ \=\ \"'${VERSION}'\"/g' lib/version.py
+ fi
+}
+
+install_pip () {
+## install dependencies to build environment
+pip install --upgrade  --no-compile -t packages -r /root/requirements.txt
+pip install --upgrade -r /root/requirements.txt
+## groestlcoin_hash-1.0
+git clone https://github.com/groestlcoin/groestlcoin-hash-python
+cd groestlcoin-hash-python
+python setup.py install
+cp -av /usr/local/lib64/python2.7/dist-packages/groest* packages
+cd ..
+}
+
+### make release tarballs/zips
+cd /root/repo
+if [ "${BUILDTYPE}" = "master" ]
+then
+ echo "building from MASTER" 
+ git clone https://github.com/guruvan/electrum-grs
+ check_ver
+elif [ "${BUILDTYPE}" = "local" ] 
+then
+  test -f setup.py || die 3
+  echo "Building from local sources as Version ${VERSION}"
+  check_ver
+else "Building from Tagged Version: ${VERSION}"
+   git checkout v"${VERSION}" || die 2
+fi
+cp -v  /root/make_packages /root/repo/make_packages
+cp -v  /root/make_android /root/repo/make_android
+cp -v  /root/make_windows /root/repo/make_windows
+mkdir ./packages
+./make_packages
+install_pip
+mv dist /releases/source
+#pip install --upgrade  --no-compile -t packages -r /root/requirements.txt
+cp -av /root/packages ./
+mkdir dist
+./make_android
+mv dist /releases/android
+mkdir dist
+./make_windows
+cp -av dist /releases/windows
+## rm just isn't that expensive to run without fancy bash expansions
+
+rm -rf /opt/wine-electrum/drive_c/electrum-grs/Electrum-grs-"$VERSION".*
+rm -rf /opt/wine-electrum/drive_c/electrum-grs/Electrum-grs-"$VERSION"/
+rm -rf /opt/wine-electrum/drive_c/electrum-grs/Electrum-grs-"$VERSION"*
+
+cp -v /root/repo/dist/Electrum-grs-"$VERSION".zip /opt/wine-electrum/drive_c/electrum-grs/Electrum-grs-"$VERSION".zip
+cd /opt/wine-electrum/drive_c/electrum-grs
+unzip Electrum-grs-"$VERSION".zip
+cp -av /root/groestlcoin_hash.pyd /opt/wine-electrum/drive_c/electrum-grs/Electrum-grs-"$VERSION"/lib

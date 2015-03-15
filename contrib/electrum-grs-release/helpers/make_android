@@ -1,0 +1,38 @@
+#!/usr/bin/python
+
+
+if __name__ == '__main__':
+    import sys, re, shutil, os, hashlib
+    import imp
+    os.chdir(os.path.dirname(os.path.realpath(__file__)))
+
+    imp.load_module('electrum', *imp.find_module('lib'))
+    from electrum.version import ELECTRUM_VERSION as version
+
+    if not ( os.path.exists('packages')):
+        print "The packages directory is missing."
+        sys.exit()
+
+
+    os.system('rm -rf dist/e4a-%s'%version)
+    os.mkdir('dist/e4a-%s'%version)
+    shutil.copyfile("electrum-grs",'dist/e4a-%s/e4a.py'%version)
+    shutil.copytree("packages",'dist/e4a-%s/packages'%version)
+    shutil.copytree("lib",'dist/e4a-%s/lib'%version)
+    os.mkdir('dist/e4a-%s/gui'%version)
+    for n in ['android.py']:
+        shutil.copy("gui/%s"%n,'dist/e4a-%s/gui'%version)
+    open('dist/e4a-%s/gui/__init__.py'%version,'w').close()
+
+    os.chdir("dist")
+    # create the zip file
+    os.system( "zip -r e4a-%s.zip e4a-%s"%(version, version) )
+    os.system( "rm -rf e4a-%s"%(version) )
+
+    # change filename because some 3G carriers do not allow users to download a zip file...
+    e4a_name = "e4a-%s.zip"%version
+    e4a_name2 = e4a_name.replace(".","")
+    os.system( "mv %s %s"%(e4a_name, e4a_name2) )
+    print "dist/%s                "%e4a_name2
+
+

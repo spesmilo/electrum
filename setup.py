@@ -26,7 +26,7 @@ if platform.system() == 'Linux':
 
 
 setup(
-    name="Electrum-GRS",
+    name="Electrum-grs",
     version=version.ELECTRUM_VERSION,
     install_requires=[
         'slowaes>=0.1a1',

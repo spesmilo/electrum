@@ -1,0 +1,29 @@
+#!/bin/bash
+
+if [[ -z "$1" ]]; then
+	echo "Please supply version number"
+	exit
+else
+	VERSION=$1
+fi
+
+function cleanup(){
+	# Remove stale wine sockets
+	rm -rf /tmp/.wine-*
+}
+
+cleanup
+
+SOURCEDIR=/opt/wine-electrum/drive_c/electrum-grs/Electrum-grs-$VERSION
+
+
+cd $SOURCEDIR
+
+$PYTHON "C:/PyInstaller/pyinstaller.py" -y "C:/electrum-grs/deterministic.spec"
+cp /opt/wine-electrum/drive_c/electrum-grs/electrum-grs.nsi $SOURCEDIR/
+
+echo "Running c:/electrum-grs/Electrum-grs-$VERSION/electrum-grs.nsi for install"
+xvfb-run wine c:\\"Program Files (x86)"\\NSIS\\makensis.exe -V1 c:/electrum-grs/Electrum-grs-$VERSION/electrum-grs.nsi
+
+
+cleanup
