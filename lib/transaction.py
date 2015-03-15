@@ -652,7 +652,7 @@ class Transaction:
         return self.serialize(for_sig = i)
 
     def hash(self):
-        return Hash(self.raw.decode('hex') )[::-1].encode('hex')
+        return sha256(self.raw.decode('hex') )[::-1].encode('hex')
 
     def add_input(self, input):
         self.inputs.append(input)
@@ -719,7 +719,7 @@ class Transaction:
                     txin['pubkeys'][ii] = pubkey
                     self.inputs[i] = txin
                     # add signature
-                    for_sig = Hash(self.tx_for_sig(i).decode('hex'))
+                    for_sig = sha256(self.tx_for_sig(i).decode('hex'))
                     pkey = regenerate_key(sec)
                     secexp = pkey.secret
                     private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
