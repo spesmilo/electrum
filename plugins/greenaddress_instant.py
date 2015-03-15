@@ -44,6 +44,9 @@ class Plugin(BasePlugin):
     def description(self):
         return description
 
+    def is_available(self):
+        return False
+
     @hook 
     def init_qt(self, gui):
         self.win = gui.main_window

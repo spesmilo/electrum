@@ -56,6 +56,7 @@ class Plugin(BasePlugin):
         self.gui = gui
 
     def is_available(self):
+        return False
         return self._is_available
 
     def enable(self):
