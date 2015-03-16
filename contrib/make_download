@@ -28,13 +28,21 @@ for k, n in files.items():
     link = "https://download.electrum.org/%s"%n
     if not os.path.exists(path):
         os.system("wget -q %s -O %s" % (link, path))
-    if os.path.getsize(path):
-        md5 = hashlib.md5(file(path,'r').read()).digest().encode('hex')
-        string = string.replace("##link_%s##"%k, link)
-        string = string.replace("##md5_%s##"%k, md5)
-    else:
+    if not os.path.getsize(path):
         os.unlink(path)
         string = re.sub("<div id=\"%s\">(.*?)</div>"%k, '', string, flags=re.DOTALL + re.MULTILINE)
+        continue
+    sigpath = path + '.asc'
+    siglink = link + '.asc'
+    if not os.path.exists(sigpath):
+        os.system("wget -q %s -O %s" % (siglink, sigpath))
+    if not os.path.getsize(sigpath):
+        os.unlink(sigpath)
+        string = re.sub("<div id=\"%s\">(.*?)</div>"%k, '', string, flags=re.DOTALL + re.MULTILINE)
+        continue
+    if os.system("gpg --verify %s"%sigpath) != 0:
+        raise
+    string = string.replace("##link_%s##"%k, link)
 
 
 with open(download_page,'w') as f:
