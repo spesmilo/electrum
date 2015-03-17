@@ -33,8 +33,8 @@ import groestlcoin_hash
 ################################## transactions
 
 DUST_THRESHOLD = 5430
-MIN_RELAY_TX_FEE = 1000
-RECOMMENDED_FEE = 50000
+MIN_RELAY_TX_FEE = 2000000
+RECOMMENDED_FEE = 2000000
 COINBASE_MATURITY = 100
 
 # AES encryption
