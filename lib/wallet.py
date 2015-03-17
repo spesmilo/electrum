@@ -96,8 +96,8 @@ class WalletStorage(object):
         except:
             try:
                 d = ast.literal_eval(data)  #parse raw data from reading wallet file
-            except Exception:
-                raise IOError("Cannot read wallet file.")
+            except Exception as e:
+                raise IOError("Cannot read wallet file '%s'" % self.path)
             self.data = {}
             for key, value in d.items():
                 try:
@@ -134,9 +134,8 @@ class WalletStorage(object):
 
     def write(self):
         s = json.dumps(self.data, indent=4, sort_keys=True)
-        f = open(self.path,"w")
-        f.write(s)
-        f.close()
+        with open(self.path,"w") as f:
+            f.write(s)
         if 'ANDROID_DATA' not in os.environ:
             import stat
             os.chmod(self.path,stat.S_IREAD | stat.S_IWRITE)
@@ -949,10 +948,10 @@ class Abstract_Wallet(object):
         return True
 
     def start_threads(self, network):
-        from verifier import TxVerifier
+        from verifier import SPV
         self.network = network
         if self.network is not None:
-            self.verifier = TxVerifier(self.network, self.storage)
+            self.verifier = SPV(self.network, self.storage)
             self.verifier.start()
             self.set_verifier(self.verifier)
             self.synchronizer = WalletSynchronizer(self, network)
@@ -1203,8 +1202,9 @@ class Deterministic_Wallet(Abstract_Wallet):
         self.save_accounts()
 
     def synchronize(self):
-        for account in self.accounts.values():
-            account.synchronize(self)
+        with self.lock:
+            for account in self.accounts.values():
+                account.synchronize(self)
 
     def restore(self, callback):
         from i18n import _

@@ -19,15 +19,15 @@
 
 import threading, time, Queue, os, sys, shutil
 from util import user_dir, print_error
+import util
 from bitcoin import *
 
 USE_DIFF_RETARGET = True
 
-class Blockchain(threading.Thread):
+class Blockchain(util.DaemonThread):
 
     def __init__(self, config, network):
-        threading.Thread.__init__(self)
-        self.daemon = True
+        util.DaemonThread.__init__(self)
         self.config = config
         self.network = network
         self.lock = threading.Lock()
@@ -38,57 +38,37 @@ class Blockchain(threading.Thread):
         self.set_local_height()
         self.queue = Queue.Queue()
 
-
     def height(self):
         return self.local_height
-
-
-    def stop(self):
-        with self.lock: self.running = False
-
-
-    def is_running(self):
-        with self.lock: return self.running
-
 
     def run(self):
         self.init_headers_file()
         self.set_local_height()
-        print_error( "blocks:", self.local_height )
-
-        with self.lock:
-            self.running = True
+        self.print_error("%d blocks"%self.local_height)
 
         while self.is_running():
-
             try:
-                result = self.queue.get()
+                result = self.queue.get(timeout=0.1)
             except Queue.Empty:
                 continue
-
-            if not result: continue
-
+            if not result:
+                continue
             i, header = result
-            if not header: continue
-
+            if not header:
+                continue
             height = header.get('block_height')
-
             if height <= self.local_height:
                 continue
-
             if height > self.local_height + 50:
                 if not self.get_and_verify_chunks(i, header, height):
                     continue
-
             if height > self.local_height:
                 # get missing parts from interface (until it connects to my chain)
                 chain = self.get_chain( i, header )
-
                 # skip that server if the result is not consistent
                 if not chain:
                     print_error('e')
                     continue
-
                 # verify the chain
                 if self.verify_chain( chain ):
                     print_error("height:", height, i.server)
@@ -98,11 +78,9 @@ class Blockchain(threading.Thread):
                     print_error("error", i.server)
                     # todo: dismiss that server
                     continue
-
-
             self.network.new_blockchain_height(height, i)
 
-
+        self.print_error("stopped")
 
 
     def verify_chain(self, chain):
@@ -359,7 +337,7 @@ class Blockchain(threading.Thread):
         i.send_request({'method':'blockchain.block.get_header', 'params':[h]}, queue)
 
     def retrieve_request(self, queue):
-        while True:
+        while self.is_running():
             try:
                 ir = queue.get(timeout=1)
             except Queue.Empty:

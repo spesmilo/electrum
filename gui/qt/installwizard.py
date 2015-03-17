@@ -89,12 +89,10 @@ class InstallWizard(QDialog):
                 button.setChecked(True)
 
         vbox.addStretch(1)
-        hbox, button = ok_cancel_buttons2(self, _('Next'))
-        vbox.addLayout(hbox)
+        vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _('Next'))))
         self.set_layout(vbox)
         self.show()
         self.raise_()
-        button.setDefault(True)
 
         if not self.exec_():
             return None, None
@@ -131,8 +129,8 @@ class InstallWizard(QDialog):
             func = self.is_any
         vbox, seed_e = seed_dialog.enter_seed_box(msg, self, sid)
         vbox.addStretch(1)
-        hbox, button = ok_cancel_buttons2(self, _('Next'))
-        vbox.addLayout(hbox)
+        button = OkButton(self, _('Next'))
+        vbox.addLayout(Buttons(CancelButton(self), button))
         button.setEnabled(False)
         seed_e.textChanged.connect(lambda: button.setEnabled(func(self.get_seed_text(seed_e))))
         self.set_layout(vbox)
@@ -151,8 +149,8 @@ class InstallWizard(QDialog):
             vbox.addLayout(vbox2)
             entries.append(seed_e2)
         vbox.addStretch(1)
-        hbox, button = ok_cancel_buttons2(self, _('Next'))
-        vbox.addLayout(hbox)
+        button = OkButton(self, _('Next'))
+        vbox.addLayout(Buttons(CancelButton(self), button))
         button.setEnabled(False)
         f = lambda: button.setEnabled( map(lambda e: Wallet.is_xpub(self.get_seed_text(e)), entries) == [True]*len(entries))
         for e in entries:
@@ -173,14 +171,12 @@ class InstallWizard(QDialog):
             vbox.addLayout(vbox2)
             entries.append(seed_e2)
         vbox.addStretch(1)
-        hbox, button = ok_cancel_buttons2(self, _('Next'))
-        vbox.addLayout(hbox)
+        button = OkButton(self, _('Next'))
+        vbox.addLayout(Buttons(CancelButton(self), button))
         button.setEnabled(False)
-
         f = lambda: button.setEnabled( map(lambda e: self.is_any(self.get_seed_text(e)), entries) == [True]*len(entries))
         for e in entries:
             e.textChanged.connect(f)
-
         self.set_layout(vbox)
         if not self.exec_():
             return
@@ -239,7 +235,7 @@ class InstallWizard(QDialog):
         vbox.addLayout(grid)
 
         vbox.addStretch(1)
-        vbox.addLayout(ok_cancel_buttons(self, _('Next')))
+        vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _('Next'))))
 
         self.set_layout(vbox)
         if not self.exec_():
@@ -261,7 +257,7 @@ class InstallWizard(QDialog):
             vbox.addWidget(logo)
         vbox.addWidget(QLabel(msg))
         vbox.addStretch(1)
-        vbox.addLayout(close_button(self, _('Next')))
+        vbox.addLayout(Buttons(CloseButton(self, _('Next'))))
         if not self.exec_():
             return None
 
@@ -282,7 +278,7 @@ class InstallWizard(QDialog):
             if i==0:
                 button.setChecked(True)
         vbox.addStretch(1)
-        vbox.addLayout(ok_cancel_buttons(self, _("Next")))
+        vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _('Next'))))
         if not self.exec_():
             return
         wallet_type = choices[group2.checkedId()][0]
@@ -300,7 +296,7 @@ class InstallWizard(QDialog):
         label.setWordWrap(True)
         vbox.addWidget(label)
         vbox.addStretch(1)
-        vbox.addLayout(ok_cancel_buttons(self, yes_label, no_label))
+        vbox.addLayout(Buttons(CancelButton(self, no_label), OkButton(self, yes_label)))
         if not self.exec_():
             return None
         return True
@@ -308,7 +304,7 @@ class InstallWizard(QDialog):
 
     def show_seed(self, seed, sid):
         vbox = seed_dialog.show_seed_box_msg(seed, sid)
-        vbox.addLayout(ok_cancel_buttons(self, _("Next")))
+        vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _("Next"))))
         self.set_layout(vbox)
         return self.exec_()
 

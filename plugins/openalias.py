@@ -15,14 +15,14 @@
 # Version: 0.1
 # Todo: optionally use OA resolvers; add DNSCrypt support
 
-from electrum_grs_gui.qt.util import EnterButton
+from electrum_grs_gui.qt.util import *
 from electrum_grs.plugins import BasePlugin, hook
 from electrum_grs.util import print_error
 from electrum_grs.i18n import _
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-
 import re
+
 
 # Import all of the rdtypes, as py2app and similar get confused with the dnspython
 # autoloader and won't include all the rdatatypes
@@ -182,7 +182,7 @@ class Plugin(BasePlugin):
         grid.addWidget(line1, 1, 1)
 
         vbox.addLayout(grid)
-        vbox.addLayout(ok_cancel_buttons(d))
+        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
 
         if not d.exec_():
             return
@@ -224,7 +224,7 @@ class Plugin(BasePlugin):
         grid2.addWidget(QLabel(address), 4, 1)
 
         vbox2.addLayout(grid2)
-        vbox2.addLayout(ok_cancel_buttons(d2))
+        vbox2.addLayout(Buttons(CancelButton(d2), OkButton(d2)))
 
         if not d2.exec_():
             return

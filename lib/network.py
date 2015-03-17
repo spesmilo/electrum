@@ -120,20 +120,18 @@ def serialize_server(host, port, protocol):
     return str(':'.join([host, port, protocol]))
 
 
-class Network(threading.Thread):
+class Network(util.DaemonThread):
 
     def __init__(self, config=None):
         if config is None:
             config = {}  # Do not use mutables as default values!
-        threading.Thread.__init__(self)
-        self.daemon = True
+        util.DaemonThread.__init__(self)
         self.config = SimpleConfig(config) if type(config) == type({}) else config
         self.lock = threading.Lock()
         self.num_server = 8 if not self.config.get('oneserver') else 0
         self.blockchain = Blockchain(self.config, self)
         self.interfaces = {}
         self.queue = Queue.Queue()
-        self.running = False
         # Server for addresses and transactions
         self.default_server = self.config.get('server')
         # Sanitize default server
@@ -167,10 +165,6 @@ class Network(threading.Thread):
         self.connection_status = 'connecting'
         self.requests_queue = Queue.Queue()
         self.set_proxy(deserialize_proxy(self.config.get('proxy')))
-
-
-    def print_error(self, *msg):
-        util.print_error("[network]", *msg)
 
     def get_server_height(self):
         return self.heights.get(self.default_server, 0)
@@ -270,10 +264,9 @@ class Network(threading.Thread):
         self.response_queue = response_queue
         self.start_interfaces()
         t = threading.Thread(target=self.process_requests_thread)
-        t.daemon = True
         t.start()
         self.blockchain.start()
-        threading.Thread.start(self)
+        util.DaemonThread.start(self)
 
     def set_proxy(self, proxy):
         self.proxy = proxy
@@ -282,11 +275,11 @@ class Network(threading.Thread):
             socks.setdefaultproxy(proxy_mode, proxy["host"], int(proxy["port"]))
             socket.socket = socks.socksocket
             # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
-            def getaddrinfo(*args):
-                return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
-            socket.getaddrinfo = getaddrinfo
+            socket.getaddrinfo = lambda *args: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
         else:
-            reload(socket)
+            socket.socket = socket._socketobject
+            socket.getaddrinfo = socket._socket.getaddrinfo
+
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
         proxy_str = serialize_proxy(proxy)
@@ -505,6 +498,8 @@ class Network(threading.Thread):
         for i in self.interfaces.values():
             i.stop()
 
+        self.print_error("stopped")
+
 
     def on_header(self, i, r):
         result = r.get('result')
@@ -539,15 +534,6 @@ class Network(threading.Thread):
         result = r.get('result')
         self.addresses[addr] = result
         self.response_queue.put(r)
-
-    def stop(self):
-        self.print_error("stopping network")
-        with self.lock:
-            self.running = False
-
-    def is_running(self):
-        with self.lock:
-            return self.running
 
     def get_header(self, tx_height):
         return self.blockchain.read_header(tx_height)

@@ -33,13 +33,13 @@ from daemon import NetworkServer
 
 
 
-class NetworkProxy(threading.Thread):
+class NetworkProxy(util.DaemonThread):
 
     def __init__(self, socket, config=None):
 
         if config is None:
             config = {}  # Do not use mutables as default arguments!
-        threading.Thread.__init__(self)
+        util.DaemonThread.__init__(self)
         self.config = SimpleConfig(config) if type(config) == type({}) else config
         self.message_id = 0
         self.unanswered_requests = {}
@@ -48,8 +48,6 @@ class NetworkProxy(threading.Thread):
         self.lock = threading.Lock()
         self.pending_transactions_for_notifications = []
         self.callbacks = {}
-        self.running = True
-        self.daemon = True
 
         if socket:
             self.pipe = util.SocketPipe(socket)
@@ -70,8 +68,6 @@ class NetworkProxy(threading.Thread):
         self.server_height = 0
         self.interfaces = []
 
-    def is_running(self):
-        return self.running
 
     def run(self):
         while self.is_running():
@@ -82,11 +78,10 @@ class NetworkProxy(threading.Thread):
             if response is None:
                 break
             self.process(response)
-
         self.trigger_callback('stop')
         if self.network:
             self.network.stop()
-        print_error("NetworkProxy: terminating")
+        self.print_error("stopped")
 
     def process(self, response):
         if self.debug:
@@ -212,9 +207,6 @@ class NetworkProxy(threading.Thread):
 
     def set_parameters(self, *args):
         return self.synchronous_get([('network.set_parameters', args)])[0]
-
-    def stop(self):
-        self.running = False
 
     def stop_daemon(self):
         return self.send([('daemon.stop',[])], None)

@@ -93,32 +93,35 @@ class HelpButton(QPushButton):
         else:
             QMessageBox.information(self, 'Help', self.help_text, 'OK')
 
+class Buttons(QHBoxLayout):
+    def __init__(self, *buttons):
+        QHBoxLayout.__init__(self)
+        self.addStretch(1)
+        for b in buttons:
+            self.addWidget(b)
 
+class CloseButton(QPushButton):
+    def __init__(self, dialog):
+        QPushButton.__init__(self, _("Close"))
+        self.clicked.connect(dialog.close)
+        self.setDefault(True)
 
-def close_button(dialog, label=None):
-    hbox = QHBoxLayout()
-    hbox.addStretch(1)
-    b = QPushButton(label or _("Close"))
-    hbox.addWidget(b)
-    b.clicked.connect(dialog.close)
-    b.setDefault(True)
-    return hbox
+class CopyButton(QPushButton):
+    def __init__(self, text, app):
+        QPushButton.__init__(self, _("Copy"))
+        self.clicked.connect(lambda: app.clipboard().setText(str(text.toPlainText())))
 
-def ok_cancel_buttons2(dialog, ok_label=None, cancel_label=None):
-    hbox = QHBoxLayout()
-    hbox.addStretch(1)
-    b = QPushButton(cancel_label or _('Cancel'))
-    hbox.addWidget(b)
-    b.clicked.connect(dialog.reject)
-    b = QPushButton(ok_label or _("OK"))
-    hbox.addWidget(b)
-    b.clicked.connect(dialog.accept)
-    b.setDefault(True)
-    return hbox, b
+class OkButton(QPushButton):
+    def __init__(self, dialog, label=None):
+        QPushButton.__init__(self, label or _("OK"))
+        self.clicked.connect(dialog.accept)
+        self.setDefault(True)
 
-def ok_cancel_buttons(dialog, ok_label=None, cancel_label=None):
-    hbox, b = ok_cancel_buttons2(dialog, ok_label, cancel_label)
-    return hbox
+class CancelButton(QPushButton):
+    def __init__(self, dialog, label=None):
+        QPushButton.__init__(self, label or _("Cancel"))
+        self.clicked.connect(dialog.reject)
+
 
 def line_dialog(parent, title, label, ok_label, default=None):
     dialog = QDialog(parent)
@@ -132,7 +135,7 @@ def line_dialog(parent, title, label, ok_label, default=None):
     if default:
         txt.setText(default)
     l.addWidget(txt)
-    l.addLayout(ok_cancel_buttons(dialog, ok_label))
+    l.addLayout(Buttons(CancelButton(dialog), OkButton(dialog, ok_label)))
     if dialog.exec_():
         return unicode(txt.text())
 
@@ -149,7 +152,7 @@ def text_dialog(parent, title, label, ok_label, default=None):
     if default:
         txt.setText(default)
     l.addWidget(txt)
-    l.addLayout(ok_cancel_buttons(dialog, ok_label))
+    l.addLayout(Buttons(CancelButton(dialog), OkButton(dialog, ok_label)))
     if dialog.exec_():
         return unicode(txt.toPlainText())
 

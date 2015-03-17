@@ -318,7 +318,7 @@ class Commands:
             amount = int(100000000*amount)
             final_outputs.append(('address', to_address, amount))
 
-        if fee: fee = int(100000000*fee)
+        if fee is not None: fee = int(100000000*fee)
         return self.wallet.mktx(final_outputs, self.password, fee , change_addr, domain)
 
     def mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):

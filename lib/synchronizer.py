@@ -22,30 +22,19 @@ import time
 import Queue
 
 import bitcoin
-from util import print_error
+import util
 from transaction import Transaction
 
 
-class WalletSynchronizer(threading.Thread):
+class WalletSynchronizer(util.DaemonThread):
 
     def __init__(self, wallet, network):
-        threading.Thread.__init__(self)
-        self.daemon = True
+        util.DaemonThread.__init__(self)
         self.wallet = wallet
         self.network = network
         self.was_updated = True
-        self.running = False
-        self.lock = threading.Lock()
         self.queue = Queue.Queue()
         self.address_queue = Queue.Queue()
-
-    def stop(self):
-        with self.lock:
-            self.running = False
-
-    def is_running(self):
-        with self.lock:
-            return self.running
 
     def add(self, address):
         self.address_queue.put(address)
@@ -57,12 +46,12 @@ class WalletSynchronizer(threading.Thread):
         self.network.send(messages, self.queue.put)
 
     def run(self):
-        with self.lock:
-            self.running = True
         while self.is_running():
-            while not self.network.is_connected():
+            if not self.network.is_connected():
                 time.sleep(0.1)
+                continue
             self.run_interface()
+        self.print_error("stopped")
 
     def run_interface(self):
         #print_error("synchronizer: connected to", self.network.get_parameters())
@@ -79,7 +68,7 @@ class WalletSynchronizer(threading.Thread):
                     missing_tx.append( (tx_hash, tx_height) )
 
         if missing_tx:
-            print_error("missing tx", missing_tx)
+            self.print_error("missing tx", missing_tx)
 
         # subscriptions
         self.subscribe_to_addresses(self.wallet.addresses(True))
@@ -133,7 +122,7 @@ class WalletSynchronizer(threading.Thread):
             result = r.get('result')
             error = r.get('error')
             if error:
-                print_error("error", r)
+                self.print_error("error", r)
                 continue
 
             if method == 'blockchain.address.subscribe':
@@ -145,7 +134,7 @@ class WalletSynchronizer(threading.Thread):
 
             elif method == 'blockchain.address.get_history':
                 addr = params[0]
-                print_error("receiving history", addr, result)
+                self.print_error("receiving history", addr, result)
                 if result == ['*']:
                     assert requested_histories.pop(addr) == '*'
                     self.wallet.receive_history_callback(addr, result)
@@ -184,10 +173,10 @@ class WalletSynchronizer(threading.Thread):
                 self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
                 self.was_updated = True
                 requested_tx.remove( (tx_hash, tx_height) )
-                print_error("received tx:", tx_hash, len(tx.raw))
+                self.print_error("received tx:", tx_hash, len(tx.raw))
 
             else:
-                print_error("Error: Unknown message:" + method + ", " + repr(params) + ", " + repr(result) )
+                self.print_error("Error: Unknown message:" + method + ", " + repr(params) + ", " + repr(result) )
 
             if self.was_updated and not requested_tx:
                 self.network.trigger_callback('updated')
