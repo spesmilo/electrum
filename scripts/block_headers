@@ -3,7 +3,7 @@
 # A simple script that connects to a server and displays block headers
 
 import time
-import electrum
+import electrum_ltc as electrum
 
 # start network
 c = electrum.SimpleConfig()

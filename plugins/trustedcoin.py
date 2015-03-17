@@ -29,25 +29,25 @@ from urllib import quote
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-import electrum
-from electrum import bitcoin
-from electrum.bitcoin import *
-from electrum.mnemonic import Mnemonic
-from electrum import version
-from electrum.wallet import Wallet_2of3
-from electrum.i18n import _
-from electrum.plugins import BasePlugin, run_hook, hook
+import electrum_ltc as electrum
+from electrum_ltc import bitcoin
+from electrum_ltc.bitcoin import *
+from electrum_ltc.mnemonic import Mnemonic
+from electrum_ltc import version
+from electrum_ltc.wallet import Wallet_2of3
+from electrum_ltc.i18n import _
+from electrum_ltc.plugins import BasePlugin, run_hook, hook
 
-from electrum_gui.qt.util import *
-from electrum_gui.qt.qrcodewidget import QRCodeWidget
-from electrum_gui.qt.amountedit import AmountEdit
-from electrum_gui.qt.main_window import StatusBarButton
+from electrum_ltc_gui.qt.util import *
+from electrum_ltc_gui.qt.qrcodewidget import QRCodeWidget
+from electrum_ltc_gui.qt.amountedit import AmountEdit
+from electrum_ltc_gui.qt.main_window import StatusBarButton
 
 from decimal import Decimal
 
 # signing_xpub is hardcoded so that the wallet can be restored from seed, without TrustedCoin's server
-signing_xpub = "xpub661MyMwAqRbcGnMkaTx2594P9EDuiEqMq25PM2aeG6UmwzaohgA6uDmNsvSUV8ubqwA3Wpste1hg69XHgjUuCD5HLcEp2QPzyV1HMrPppsL"
-billing_xpub = "xpub6DTBdtBB8qUmH5c77v8qVGVoYk7WjJNpGvutqjLasNG1mbux6KsojaLrYf2sRhXAVU4NaFuHhbD9SvVPRt1MB1MaMooRuhHcAZH1yhQ1qDU"
+signing_xpub = "Ltub2SSUS19CirucX9dhAwx1w1AcE2YUU2MVxJHNB7KkdbKUgNDcMgeqisFpEnxW9YJrS9Zd6xGSV3M4CEtQbdaM38rhdk8Gh6A3TymdGT6mJ4r"
+billing_xpub = "Ltub2ZtJ6XPD2GnmXSt3iQ8qM8c2dYS5V5txQD7sfp5hEs6iVyYkkLNYZDqHuXYu66vR5gTxAPHqYcrXZ1rWLn6o1w8zewgtaP3ef43MtJzUDTo"
 
 SEED_PREFIX = version.SEED_PREFIX_2FA
 
@@ -167,7 +167,7 @@ class TrustedCoinCosignerClient(object):
         return self.send_request('post', relative_url, payload, headers)
 
 
-server = TrustedCoinCosignerClient(user_agent="Electrum/" + version.ELECTRUM_VERSION)
+server = TrustedCoinCosignerClient(user_agent="Electrum-LTC/" + version.ELECTRUM_VERSION)
 
 
 class Wallet_2fa(Wallet_2of3):
@@ -255,7 +255,7 @@ class Plugin(BasePlugin):
     def make_xpub(self, xpub, s):
         _, _, _, c, cK = deserialize_xkey(xpub)
         cK2, c2 = bitcoin._CKD_pub(cK, c, s)
-        xpub2 = ("0488B21E" + "00" + "00000000" + "00000000").decode("hex") + c2 + cK2
+        xpub2 = ("019DA462" + "00" + "00000000" + "00000000").decode("hex") + c2 + cK2
         return EncodeBase58Check(xpub2)
 
     def make_billing_address(self, num):
@@ -594,7 +594,7 @@ class Plugin(BasePlugin):
                     d.close()
                     if self.window.pluginsdialog:
                         self.window.pluginsdialog.close()
-                    uri = "bitcoin:" + self.billing_info['billing_address'] + "?message=TrustedCoin Prepaid Transactions&amount="+str(Decimal(v)/100000000)
+                    uri = "litecoin:" + self.billing_info['billing_address'] + "?message=TrustedCoin Prepaid Transactions&amount="+str(Decimal(v)/100000000)
                     self.is_billing = True
                     self.window.pay_from_URI(uri)
                     self.window.payto_e.setFrozen(True)

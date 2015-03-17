@@ -18,9 +18,15 @@
 
 
 import threading, time, Queue, os, sys, shutil
-from util import user_dir, print_error
+from util import user_dir, print_error, print_msg
 import util
 from bitcoin import *
+
+try:
+    from ltc_scrypt import getPoWHash
+except ImportError:
+    print_msg("Warning: ltc_scrypt not available, using fallback")
+    from scrypt import scrypt_1024_1_1_80 as getPoWHash
 
 
 class Blockchain(util.DaemonThread):
@@ -31,7 +37,7 @@ class Blockchain(util.DaemonThread):
         self.network = network
         self.lock = threading.Lock()
         self.local_height = 0
-        self.headers_url = 'http://headers.electrum.org/blockchain_headers'
+        self.headers_url = 'http://headers.electrum-ltc.org/blockchain_headers'
         self.set_local_height()
         self.queue = Queue.Queue()
 
@@ -91,7 +97,7 @@ class Blockchain(util.DaemonThread):
 
             prev_hash = self.hash_header(prev_header)
             bits, target = self.get_target(height/2016, chain)
-            _hash = self.hash_header(header)
+            _hash = self.pow_hash_header(header)
             try:
                 assert prev_hash == header.get('prev_block_hash')
                 assert bits == header.get('bits')
@@ -123,13 +129,13 @@ class Blockchain(util.DaemonThread):
             height = index*2016 + i
             raw_header = data[i*80:(i+1)*80]
             header = self.header_from_string(raw_header)
-            _hash = self.hash_header(header)
+            _hash = self.pow_hash_header(header)
             assert previous_hash == header.get('prev_block_hash')
             assert bits == header.get('bits')
             assert int('0x'+_hash,16) < target
 
             previous_header = header
-            previous_hash = _hash
+            previous_hash = self.hash_header(header)
 
         self.save_chunk(index, data)
         print_error("validated chunk %d"%height)
@@ -159,6 +165,9 @@ class Blockchain(util.DaemonThread):
 
     def hash_header(self, header):
         return rev_hex(Hash(self.header_to_string(header).decode('hex')).encode('hex'))
+
+    def pow_hash_header(self, header):
+        return rev_hex(getPoWHash(self.header_to_string(header).decode('hex')).encode('hex'))
 
     def path(self):
         return os.path.join( self.config.path, 'blockchain_headers')
@@ -222,10 +231,14 @@ class Blockchain(util.DaemonThread):
         if chain is None:
             chain = []  # Do not use mutables as default values!
 
-        max_target = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
-        if index == 0: return 0x1d00ffff, max_target
+        max_target = 0x00000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+        if index == 0: return 0x1e0ffff0, 0x00000FFFF0000000000000000000000000000000000000000000000000000000
 
-        first = self.read_header((index-1)*2016)
+        # Litecoin: go back the full period unless it's the first retarget
+        if index == 1:
+            first = self.read_header(0)
+        else:
+            first = self.read_header((index-1)*2016-1)
         last = self.read_header(index*2016-1)
         if last is None:
             for h in chain:
@@ -233,7 +246,7 @@ class Blockchain(util.DaemonThread):
                     last = h
 
         nActualTimespan = last.get('timestamp') - first.get('timestamp')
-        nTargetTimespan = 14*24*60*60
+        nTargetTimespan = 84*60*60
         nActualTimespan = max(nActualTimespan, nTargetTimespan/4)
         nActualTimespan = min(nActualTimespan, nTargetTimespan*4)
 

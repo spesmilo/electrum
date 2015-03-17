@@ -13,23 +13,23 @@ except ImportError:
     sys.exit(0)
 
 from decimal import Decimal as D
-from electrum.bitcoin import is_valid
-from electrum.i18n import _
+from electrum_ltc.bitcoin import is_valid
+from electrum_ltc.i18n import _
 import decimal
 import json
 import os.path
 import random
 import re
 import time
-from electrum.wallet import Wallet, WalletStorage
+from electrum_ltc.wallet import Wallet, WalletStorage
 import webbrowser
 import history_widget
 import receiving_widget
-from electrum import util
+from electrum_ltc import util
 import datetime
 
-from electrum.version import ELECTRUM_VERSION as electrum_version
-from electrum.util import format_satoshis, age
+from electrum_ltc.version import ELECTRUM_VERSION as electrum_version
+from electrum_ltc.util import format_satoshis, age
 
 from main_window import ElectrumWindow
 import shutil
@@ -140,7 +140,7 @@ class MiniWindow(QDialog):
 
         # Bitcoin address code
         self.address_input = QLineEdit()
-        self.address_input.setPlaceholderText(_("Enter a Bitcoin address or contact"))
+        self.address_input.setPlaceholderText(_("Enter a Litecoin address or contact"))
         self.address_input.setObjectName("address_input")
 
         self.address_input.setFocusPolicy(Qt.ClickFocus)
@@ -251,8 +251,8 @@ class MiniWindow(QDialog):
         show_hist = self.config.get("gui_show_receiving",False)
         self.toggle_receiving_layout(show_hist)
 
-        self.setWindowIcon(QIcon(":icons/electrum.png"))
-        self.setWindowTitle("Electrum")
+        self.setWindowIcon(QIcon(":icons/electrum-ltc.png"))
+        self.setWindowTitle("Electrum-LTC")
         self.setWindowFlags(Qt.Window|Qt.MSWindowsFixedSizeDialogHint)
         self.layout().setSizeConstraint(QLayout.SetFixedSize)
         self.setObjectName("main_window")
@@ -386,7 +386,7 @@ class MiniWindow(QDialog):
     def create_quote_text(self, btc_balance):
         """Return a string copy of the amount fiat currency the
         user has in bitcoins."""
-        from electrum.plugins import run_hook
+        from electrum_ltc.plugins import run_hook
         r = {}
         run_hook('get_fiat_balance_text', btc_balance, r)
         return r.get(0,'')
@@ -457,7 +457,7 @@ class MiniWindow(QDialog):
 
 
     def the_website(self):
-        webbrowser.open("http://electrum.org")
+        webbrowser.open("http://electrum-ltc.org")
 
 
     def toggle_receiving_layout(self, toggle_state):
@@ -573,7 +573,7 @@ class ReceivePopup(QDialog):
         self.close()
 
     def setup(self, address):
-        label = QLabel(_("Copied your Bitcoin address to the clipboard!"))
+        label = QLabel(_("Copied your Litecoin address to the clipboard!"))
         address_display = QLineEdit(address)
         address_display.setReadOnly(True)
         resize_line_edit_width(address_display, address)
@@ -583,7 +583,7 @@ class ReceivePopup(QDialog):
         main_layout.addWidget(address_display)
 
         self.setMouseTracking(True)
-        self.setWindowTitle("Electrum - " + _("Receive Bitcoin payment"))
+        self.setWindowTitle("Electrum - " + _("Receive Litecoin payment"))
         self.setWindowFlags(Qt.Window|Qt.FramelessWindowHint|
                             Qt.MSWindowsFixedSizeDialogHint)
         self.layout().setSizeConstraint(QLayout.SetFixedSize)
@@ -674,7 +674,7 @@ class MiniActuator:
         s.start()
         w = QDialog()
         w.resize(200, 70)
-        w.setWindowTitle('Electrum')
+        w.setWindowTitle('Electrum-LTC')
         l = QLabel(_('Sending transaction, please wait.'))
         vbox = QVBoxLayout()
         vbox.addWidget(l)
@@ -695,7 +695,7 @@ class MiniActuator:
 
         if dest_address is None or not is_valid(dest_address):
             QMessageBox.warning(parent_window, _('Error'),
-                _('Invalid Bitcoin Address') + ':\n' + address, _('OK'))
+                _('Invalid Litecoin Address') + ':\n' + address, _('OK'))
             return False
 
         amount = D(unicode(amount)) * (10*self.g.decimal_point)

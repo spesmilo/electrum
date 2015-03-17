@@ -15,17 +15,17 @@ string = string.replace("##VERSION_WIN##", version_win)
 string = string.replace("##VERSION_MAC##", version_mac)
 
 files = {
-    'tgz': "Electrum-%s.tar.gz" % version,
-    'zip': "Electrum-%s.zip" % version,
-    'mac': "electrum-%s.dmg" % version_mac,
-    'win': "electrum-%s.exe" % version_win,
-    'win_setup': "electrum-%s-setup.exe" % version_win,
-    'win_portable': "electrum-%s-portable.exe" % version_win,
+    'tgz': "Electrum-LTC-%s.tar.gz" % version,
+    'zip': "Electrum-LTC-%s.zip" % version,
+    'mac': "electrum-ltc-%s.dmg" % version_mac,
+    'win': "electrum-ltc-%s.exe" % version_win,
+    'win_setup': "electrum-ltc-%s-setup.exe" % version_win,
+    'win_portable': "electrum-ltc-%s-portable.exe" % version_win,
 }
 
 for k, n in files.items():
     path = "binaries/%s"%n
-    link = "https://download.electrum.org/%s"%n
+    link = "https://download.electrum-ltc.org/%s"%n
     if not os.path.exists(path):
         os.system("wget -q %s -O %s" % (link, path))
     if not os.path.getsize(path):
@@ -55,7 +55,7 @@ from versions import android_template, android_page
 with open(android_template) as f:
     string = f.read()
 
-e4a_name = "e4a-%s.zip"%version
+e4a_name = "el4a-%s.zip"%version
 e4a_zipname = e4a_name.replace(".","")
 string = string.replace("##VERSION##",version)
 string = string.replace("##ZIPNAME##",e4a_zipname)

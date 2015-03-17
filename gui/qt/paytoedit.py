@@ -22,7 +22,7 @@ from qrtextedit import ScanQRTextEdit
 
 import re
 from decimal import Decimal
-from electrum import bitcoin
+from electrum_ltc import bitcoin
 
 RE_ADDRESS = '[1-9A-HJ-NP-Za-km-z]{26,}'
 RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'
@@ -105,7 +105,7 @@ class PayToEdit(ScanQRTextEdit):
 
         if len(lines) == 1:
             data = lines[0]
-            if data.startswith("bitcoin:"):
+            if data.startswith("litecoin:"):
                 self.scan_f(data)
                 return
             try:
@@ -239,6 +239,6 @@ class PayToEdit(ScanQRTextEdit):
 
     def qr_input(self):
         data = super(PayToEdit,self).qr_input()
-        if data.startswith("bitcoin:"):
+        if data.startswith("litecoin:"):
             self.scan_f(data)
             # TODO: update fee

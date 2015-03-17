@@ -17,20 +17,22 @@ from blockchain import Blockchain
 DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
 DEFAULT_SERVERS = {
-    'electrum.be':DEFAULT_PORTS,
-    'electrum.drollette.com':{'t':'50001', 's':'50002'},
-    'erbium1.sytes.net':{'t':'50001', 's':'50002'},
-    'ecdsa.net':{'t':'50001', 's':'110'},
-    'eco-electrum.ddns.net':{'t': '50001', 's': '50002', 'h': '80', 'g': '443'},
-    'electrum0.electricnewyear.net':{'t':'50001', 's':'50002'},
-    'kirsche.emzy.de':{'t':'50001', 's':'50002', 'h':'8081'},
-    'electrum2.hachre.de':DEFAULT_PORTS,
-    'electrum.hsmiths.com':DEFAULT_PORTS,
-    'EAST.electrum.jdubya.info':DEFAULT_PORTS,
-    'WEST.electrum.jdubya.info':DEFAULT_PORTS,
-    'electrum.no-ip.org':{'t':'50001', 's':'50002', 'h':'80', 'g':'443'},
-    'electrum.thwg.org':DEFAULT_PORTS,
-    'us.electrum.be':DEFAULT_PORTS,
+    'cltc.mooo.com': {'t':'50003', 's':'50004', 'h':'8083', 'g':'8084'},
+    'electrum-a.cloudapp.net': DEFAULT_PORTS,
+    'electrum-ltc.bysh.me': DEFAULT_PORTS,
+    'electrum-ltc.koddos.com': DEFAULT_PORTS,
+    'electrum-ltc.thwg.org': DEFAULT_PORTS,
+    'electrum.litecoinguard.com': DEFAULT_PORTS,
+    'electrum.ltc.xurious.com': DEFAULT_PORTS,
+    'electrum.lurkmore.com': DEFAULT_PORTS,
+    'electrum.mmitech.info': DEFAULT_PORTS,
+    'electrum.snicter.com': DEFAULT_PORTS,
+    'electrum.wmpb.tc': {'t':'50001', 's':'50002', 'h':'50081', 'g':'50082'},
+    'electrum1.wemineltc.com': DEFAULT_PORTS,
+    'explorer.litecoin.net': DEFAULT_PORTS,
+    'glacialsoftware.net': DEFAULT_PORTS,
+    'ltc.electrum.in': DEFAULT_PORTS,
+    'rho.hicapacity.org': DEFAULT_PORTS,
 }
 
 DISCONNECTED_RETRY_INTERVAL = 60

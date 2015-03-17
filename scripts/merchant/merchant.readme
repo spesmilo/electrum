@@ -1,5 +1,5 @@
 merchant.py is a daemon that manages payments for a web server. It
-creates Bitcoin addresses using a master public key (so you do not
+creates Litecoin addresses using a master public key (so you do not
 leave your private keys on the server), detects when payments are
 received and notifies your web application.
 
@@ -9,7 +9,7 @@ The workflow goes like this:
    contains an amount to be paid, a number of confirmations, and an
    expiration period in hours.
 
- - the daemon answers with a Bitcoin address, where the customer needs
+ - the daemon answers with a Litecoin address, where the customer needs
    to send the coins.
 
  - later, the daemon will send a POST to the webserver, to notify that
@@ -28,7 +28,7 @@ to launch it, type:
 
 In another terminal, you may send a request from the command line (it
 will send the request to the running daemon via http). For example,
-here is a request for 0.1 bitcoins, that requires two confirmations,
+here is a request for 0.1 litecoins, that requires two confirmations,
 and expires in 120 minutes:
 
 > python merchant.py request 0.1 2 120

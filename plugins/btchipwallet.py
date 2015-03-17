@@ -7,16 +7,16 @@ from sys import stderr
 from time import sleep
 from base64 import b64encode, b64decode
 
-import electrum
-from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
-from electrum.account import BIP32_Account
-from electrum.bitcoin import EncodeBase58Check, DecodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
-from electrum.i18n import _
-from electrum.plugins import BasePlugin, hook
-from electrum.transaction import deserialize
-from electrum.wallet import BIP32_HD_Wallet
+import electrum_ltc as electrum
+from electrum_ltc_gui.qt.password_dialog import make_password_dialog, run_password_dialog
+from electrum_ltc.account import BIP32_Account
+from electrum_ltc.bitcoin import EncodeBase58Check, DecodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
+from electrum_ltc.i18n import _
+from electrum_ltc.plugins import BasePlugin, hook
+from electrum_ltc.transaction import deserialize
+from electrum_ltc.wallet import BIP32_HD_Wallet
 
-from electrum.util import format_satoshis
+from electrum_ltc.util import format_satoshis
 import hashlib
 
 try:
@@ -112,7 +112,7 @@ class Plugin(BasePlugin):
 
 class BTChipWallet(BIP32_HD_Wallet):
     wallet_type = 'btchip'
-    root_derivation = "m/44'/0'"
+    root_derivation = "m/44'/2'"
 
     def __init__(self, storage):
         BIP32_HD_Wallet.__init__(self, storage)
@@ -222,13 +222,13 @@ class BTChipWallet(BIP32_HD_Wallet):
 
     def address_id(self, address):
         account_id, (change, address_index) = self.get_address_index(address)
-        return "44'/0'/%s'/%d/%d" % (account_id, change, address_index)
+        return "44'/2'/%s'/%d/%d" % (account_id, change, address_index)
 
     def create_main_account(self, password):
         self.create_account('Main account', None) #name, empty password
 
     def derive_xkeys(self, root, derivation, password):
-        derivation = derivation.replace(self.root_name,"44'/0'/")
+        derivation = derivation.replace(self.root_name,"44'/2'/")
         xpub = self.get_public_key(derivation)
         return xpub, None
 
@@ -258,7 +258,7 @@ class BTChipWallet(BIP32_HD_Wallet):
                 childnum = int(lastChild[0])
             else:
                 childnum = 0x80000000 | int(lastChild[0])        
-            xpub = "0488B21E".decode('hex') + chr(depth) + self.i4b(fingerprint) + self.i4b(childnum) + str(nodeData['chainCode']) + str(publicKey)
+            xpub = "019DA462".decode('hex') + chr(depth) + self.i4b(fingerprint) + self.i4b(childnum) + str(nodeData['chainCode']) + str(publicKey)
         except Exception, e:
             self.give_error(e, True)
         finally:
@@ -269,7 +269,7 @@ class BTChipWallet(BIP32_HD_Wallet):
     def get_master_public_key(self):
         try:
             if not self.mpk:
-                self.mpk = self.get_public_key("44'/0'")
+                self.mpk = self.get_public_key("44'/2'")
             return self.mpk
         except Exception, e:
             self.give_error(e, True)        
@@ -445,7 +445,7 @@ class BTChipWallet(BIP32_HD_Wallet):
         if not self.device_checked:
             waitDialog.start("Checking device")
             try:
-                nodeData = self.get_client().getWalletPublicKey("44'/0'/0'")
+                nodeData = self.get_client().getWalletPublicKey("44'/2'/0'")
             except Exception, e:
                 self.give_error(e, True)
             finally:

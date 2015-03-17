@@ -78,7 +78,7 @@ class WalletStorage(object):
         new_path = os.path.join(config.path, "wallets", "default_wallet")
 
         # default path in pre 1.9 versions
-        old_path = os.path.join(config.path, "electrum.dat")
+        old_path = os.path.join(config.path, "electrum-ltc.dat")
         if os.path.exists(old_path) and not os.path.exists(new_path):
             os.rename(old_path, new_path)
 
@@ -680,7 +680,7 @@ class Abstract_Wallet(object):
     def estimated_fee(self, tx):
         estimated_size = len(tx.serialize(-1))/2
         fee = int(self.fee_per_kb*estimated_size/1000.)
-        if fee < MIN_RELAY_TX_FEE: # and tx.requires_fee(self.verifier):
+        if fee < MIN_RELAY_TX_FEE: # tx.required_fee(self.verifier):
             fee = MIN_RELAY_TX_FEE
         return fee
 
@@ -1695,7 +1695,7 @@ class Wallet(object):
     @classmethod
     def is_xpub(self, text):
         try:
-            assert text[0:4] == 'xpub'
+            assert text[0:4] == 'Ltub'
             deserialize_xkey(text)
             return True
         except:
@@ -1704,7 +1704,7 @@ class Wallet(object):
     @classmethod
     def is_xprv(self, text):
         try:
-            assert text[0:4] == 'xprv'
+            assert text[0:4] == 'Ltpv'
             deserialize_xkey(text)
             return True
         except:

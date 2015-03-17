@@ -79,13 +79,13 @@ def print_json(obj):
 
 def user_dir():
     if "HOME" in os.environ:
-        return os.path.join(os.environ["HOME"], ".electrum")
+        return os.path.join(os.environ["HOME"], ".electrum-ltc")
     elif "APPDATA" in os.environ:
-        return os.path.join(os.environ["APPDATA"], "Electrum")
+        return os.path.join(os.environ["APPDATA"], "Electrum-LTC")
     elif "LOCALAPPDATA" in os.environ:
-        return os.path.join(os.environ["LOCALAPPDATA"], "Electrum")
+        return os.path.join(os.environ["LOCALAPPDATA"], "Electrum-LTC")
     elif 'ANDROID_DATA' in os.environ:
-        return "/sdcard/electrum/"
+        return "/sdcard/electrum-ltc/"
     else:
         #raise Exception("No home directory found in environment variables.")
         return
@@ -177,7 +177,7 @@ def parse_URI(uri):
         return uri, None, None, None, None
 
     u = urlparse.urlparse(uri)
-    assert u.scheme == 'bitcoin'
+    assert u.scheme == 'litecoin'
 
     address = u.path
 
@@ -227,7 +227,7 @@ def create_URI(addr, amount, message):
         if type(message) == unicode:
             message = message.encode('utf8')
         query.append('message=%s'%urllib.quote(message))
-    p = urlparse.ParseResult(scheme='bitcoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
+    p = urlparse.ParseResult(scheme='litecoin', netloc='', path=addr, params='', query='&'.join(query), fragment='')
     return urlparse.urlunparse(p)
 
 

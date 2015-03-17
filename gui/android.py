@@ -22,9 +22,9 @@
 from __future__ import absolute_import
 import android
 
-from electrum import SimpleConfig, Wallet, WalletStorage, format_satoshis
-from electrum.bitcoin import is_address
-from electrum import util
+from electrum_ltc import SimpleConfig, Wallet, WalletStorage, format_satoshis
+from electrum_ltc.bitcoin import is_address
+from electrum_ltc import util
 from decimal import Decimal
 import datetime, re
 
@@ -138,7 +138,7 @@ def make_layout(s, scrollable = False):
 
         <TextView
           android:id="@+id/textElectrum"
-          android:text="Electrum"
+          android:text="Electrum-LTC"
           android:textSize="7pt"
           android:textColor="#ff4444ff"
           android:gravity="left"
@@ -441,7 +441,7 @@ def pay_to(recipient, amount, label):
     else:
         password = None
 
-    droid.dialogCreateSpinnerProgress("Electrum", "signing transaction...")
+    droid.dialogCreateSpinnerProgress("Electrum-LTC", "signing transaction...")
     droid.dialogShow()
 
     try:
@@ -475,7 +475,7 @@ def make_new_contact():
     if r:
         data = str(r['extras']['SCAN_RESULT']).strip()
         if data:
-            if re.match('^bitcoin:', data):
+            if re.match('^litecoin:', data):
                 address, _, _, _, _ = util.parse_URI(data)
             elif is_address(data):
                 address = data
@@ -581,7 +581,7 @@ def payto_loop():
                 amount = droid.fullQueryDetail('amount').result.get('text')
 
                 if not is_address(recipient):
-                    modal_dialog('Error','Invalid Bitcoin address')
+                    modal_dialog('Error','Invalid Litecoin address')
                     continue
 
                 try:
@@ -605,7 +605,7 @@ def payto_loop():
                     data = str(r['extras']['SCAN_RESULT']).strip()
                     if data:
                         print "data", data
-                        if re.match('^bitcoin:', data):
+                        if re.match('^litecoin:', data):
                             payto, amount, label, message, _ = util.parse_URI(data)
                             if amount:
                                 amount = str(amount/100000000)
@@ -660,7 +660,7 @@ def receive_loop():
             modal_dialog('URI copied to clipboard', receive_URI)
 
         elif event["name"]=="amount":
-            amount = modal_input('Amount', 'Amount you want to receive (in BTC). ', format_satoshis(receive_amount) if receive_amount else None, "numberDecimal")
+            amount = modal_input('Amount', 'Amount you want to receive (in LTC). ', format_satoshis(receive_amount) if receive_amount else None, "numberDecimal")
             if amount is not None:
                 receive_amount = int(100000000 * Decimal(amount)) if amount else None
                 out = 'receive'
@@ -879,7 +879,7 @@ def make_bitmap(data):
     droid.dialogShow()
     try:
         import qrcode
-        from electrum import bmp
+        from electrum_ltc import bmp
         qr = qrcode.QRCode()
         qr.add_data(data)
         bmp.save_qrcode(qr,"/sdcard/sl4a/qrcode.bmp")
@@ -935,7 +935,7 @@ class ElectrumGui:
                 exit()
 
             msg = "Creating wallet" if action == 'create' else "Restoring wallet"
-            droid.dialogCreateSpinnerProgress("Electrum", msg)
+            droid.dialogCreateSpinnerProgress("Electrum-LTC", msg)
             droid.dialogShow()
             wallet.add_seed(seed, password)
             wallet.create_master_keys(password)

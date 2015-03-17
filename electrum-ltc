@@ -76,15 +76,15 @@ except Exception:
 # load local module as electrum
 if is_bundle or is_local or is_android:
     import imp
-    imp.load_module('electrum', *imp.find_module('lib'))
-    imp.load_module('electrum_gui', *imp.find_module('gui'))
+    imp.load_module('electrum_ltc', *imp.find_module('lib'))
+    imp.load_module('electrum_ltc_gui', *imp.find_module('gui'))
 
 
-from electrum import util
-from electrum import SimpleConfig, Network, Wallet, WalletStorage, NetworkProxy, Commands, known_commands, pick_random_server
-from electrum.util import print_msg, print_error, print_stderr, print_json, set_verbosity, InvalidPassword
-from electrum.daemon import get_daemon
-from electrum.plugins import init_plugins
+from electrum_ltc import util
+from electrum_ltc import SimpleConfig, Network, Wallet, WalletStorage, NetworkProxy, Commands, known_commands, pick_random_server
+from electrum_ltc.util import print_msg, print_error, print_stderr, print_json, set_verbosity, InvalidPassword
+from electrum_ltc.daemon import get_daemon
+from electrum_ltc.plugins import init_plugins
 
 
 # get password routine
@@ -134,8 +134,8 @@ def arg_parser():
 
 def print_help(parser):
     parser.print_help()
-    print_msg("Type 'electrum help <command>' to see the help for a specific command")
-    print_msg("Type 'electrum --help' to see the list of options")
+    print_msg("Type 'electrum-ltc help <command>' to see the help for a specific command")
+    print_msg("Type 'electrum-ltc --help' to see the list of options")
     run_command(known_commands['help'])
 
 
@@ -191,7 +191,7 @@ if __name__ == '__main__':
     parser = arg_parser()
     options, args = parser.parse_args()
     if options.portable and options.wallet_path is None:
-        options.electrum_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
+        options.electrum_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum-ltc_data')
 
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
@@ -216,7 +216,7 @@ if __name__ == '__main__':
     if len(args) == 0:
         url = None
         cmd = 'gui'
-    elif len(args) == 1 and re.match('^bitcoin:', args[0]):
+    elif len(args) == 1 and re.match('^litecoin:', args[0]):
         url = args[0]
         cmd = 'gui'
     else:
@@ -227,7 +227,7 @@ if __name__ == '__main__':
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'
         try:
-            gui = __import__('electrum_gui.' + gui_name, fromlist=['electrum_gui'])
+            gui = __import__('electrum_ltc_gui.' + gui_name, fromlist=['electrum_ltc_gui'])
         except ImportError:
             traceback.print_exc(file=sys.stdout)
             sys.exit()
@@ -255,7 +255,7 @@ if __name__ == '__main__':
     if cmd == 'daemon':
         arg = args[1] if len(args)>1 else None
         if arg not in ['start', 'stop', 'status']:
-            print_msg("syntax: electrum daemon <start|status|stop>")
+            print_msg("syntax: electrum-ltc daemon <start|status|stop>")
             sys.exit(1)
         s = get_daemon(config, False)
         if arg == 'start':
@@ -368,7 +368,7 @@ if __name__ == '__main__':
 
     if cmd.name not in ['create', 'restore'] and cmd.requires_wallet and not storage.file_exists:
         print_msg("Error: Wallet file not found.")
-        print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
+        print_msg("Type 'electrum-ltc create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
 
 

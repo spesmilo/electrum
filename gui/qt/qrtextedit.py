@@ -1,5 +1,5 @@
-from electrum.i18n import _
-from electrum.plugins import run_hook
+from electrum_ltc.i18n import _
+from electrum_ltc.plugins import run_hook
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
@@ -67,7 +67,7 @@ class ScanQRTextEdit(QRTextEdit):
         run_hook('scan_text_edit', self)
 
     def qr_input(self):
-        from electrum import qrscanner
+        from electrum_ltc import qrscanner
         try:
             data = qrscanner.scan_qr(self.win.config)
         except BaseException, e:

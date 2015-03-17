@@ -4,16 +4,16 @@ import tlslite
 import time
 import hashlib
 
-from electrum import paymentrequest_pb2 as pb2
-from electrum.transaction import Transaction
-from electrum import bitcoin
-from electrum import x509
+from electrum_ltc import paymentrequest_pb2 as pb2
+from electrum_ltc.transaction import Transaction
+from electrum_ltc import bitcoin
+from electrum_ltc import x509
 
 
 chain_file = 'mychain.pem'
 cert_file = 'mycert.pem'
 amount = 1000000
-address = "18U5kpCAU4s8weFF8Ps5n8HAfpdUjDVF64"
+address = "LSh322VzYj7CCSwQJXrP49Lvt2zktLjQbz"
 memo = "blah"
 out_file = "payreq"
 

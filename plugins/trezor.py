@@ -7,16 +7,16 @@ from time import sleep
 from base64 import b64encode, b64decode
 import unicodedata
 
-import electrum
-from electrum.account import BIP32_Account
-from electrum.bitcoin import EncodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
-from electrum.i18n import _
-from electrum.plugins import BasePlugin, hook
-from electrum.transaction import deserialize
-from electrum.wallet import BIP32_HD_Wallet
-from electrum.util import print_error
+import electrum_ltc as electrum
+from electrum_ltc.account import BIP32_Account
+from electrum_ltc.bitcoin import EncodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
+from electrum_ltc.i18n import _
+from electrum_ltc.plugins import BasePlugin, hook
+from electrum_ltc.transaction import deserialize
+from electrum_ltc.wallet import BIP32_HD_Wallet
+from electrum_ltc.util import print_error
 
-from electrum_gui.qt.util import *
+from electrum_ltc_gui.qt.util import *
 
 try:
     from trezorlib.client import types
@@ -38,7 +38,7 @@ def give_error(message):
 
 
 def trezor_passphrase_dialog(msg):
-    from electrum_gui.qt.password_dialog import make_password_dialog, run_password_dialog
+    from electrum_ltc_gui.qt.password_dialog import make_password_dialog, run_password_dialog
     d = QDialog()
     d.setModal(1)
     d.setLayout(make_password_dialog(d, None, msg, False))
@@ -192,11 +192,11 @@ class Plugin(BasePlugin):
             return False
 
 
-from electrum.wallet import pw_decode, bip32_private_derivation, bip32_root
+from electrum_ltc.wallet import pw_decode, bip32_private_derivation, bip32_root
 
 class TrezorWallet(BIP32_HD_Wallet):
     wallet_type = 'trezor'
-    root_derivation = "m/44'/0'"
+    root_derivation = "m/44'/2'"
 
     def __init__(self, storage):
         BIP32_HD_Wallet.__init__(self, storage)
@@ -254,7 +254,7 @@ class TrezorWallet(BIP32_HD_Wallet):
 
     def address_id(self, address):
         account_id, (change, address_index) = self.get_address_index(address)
-        return "44'/0'/%s'/%d/%d" % (account_id, change, address_index)
+        return "44'/2'/%s'/%d/%d" % (account_id, change, address_index)
 
     def create_main_account(self, password):
         self.create_account('Main account', None) #name, empty password
@@ -274,19 +274,19 @@ class TrezorWallet(BIP32_HD_Wallet):
             xprv, xpub = bip32_private_derivation(root_xprv, root, derivation)
             return xpub, xprv
         else:
-            derivation = derivation.replace(self.root_name,"44'/0'/")
+            derivation = derivation.replace(self.root_name,"44'/2'/")
             xpub = self.get_public_key(derivation)
             return xpub, None
 
     def get_public_key(self, bip32_path):
         address_n = self.get_client().expand_path(bip32_path)
         node = self.get_client().get_public_node(address_n).node
-        xpub = "0488B21E".decode('hex') + chr(node.depth) + self.i4b(node.fingerprint) + self.i4b(node.child_num) + node.chain_code + node.public_key
+        xpub = "019DA462".decode('hex') + chr(node.depth) + self.i4b(node.fingerprint) + self.i4b(node.child_num) + node.chain_code + node.public_key
         return EncodeBase58Check(xpub)
 
     def get_master_public_key(self):
         if not self.mpk:
-            self.mpk = self.get_public_key("44'/0'")
+            self.mpk = self.get_public_key("44'/2'")
         return self.mpk
 
     def i4b(self, x):
@@ -318,7 +318,7 @@ class TrezorWallet(BIP32_HD_Wallet):
         except Exception, e:
             give_error(e)
         try:
-            self.get_client().get_address('Bitcoin', address_n, True)
+            self.get_client().get_address('Litecoin', address_n, True)
         except Exception, e:
             give_error(e)
         finally:
@@ -333,7 +333,7 @@ class TrezorWallet(BIP32_HD_Wallet):
         except Exception, e:
             give_error(e)
         try:
-            msg_sig = self.get_client().sign_message('Bitcoin', address_n, message)
+            msg_sig = self.get_client().sign_message('Litecoin', address_n, message)
         except Exception, e:
             give_error(e)
         finally:
@@ -355,7 +355,7 @@ class TrezorWallet(BIP32_HD_Wallet):
         inputs = self.tx_inputs(tx)
         outputs = self.tx_outputs(tx)
         try:
-            signed_tx = self.get_client().sign_tx('Bitcoin', inputs, outputs)[1]
+            signed_tx = self.get_client().sign_tx('Litecoin', inputs, outputs)[1]
         except Exception, e:
             give_error(e)
         finally:
@@ -414,7 +414,7 @@ class TrezorWallet(BIP32_HD_Wallet):
                 txoutputtype.address = address
             txoutputtype.amount = amount
             addrtype, hash_160 = bc_address_to_hash_160(address)
-            if addrtype == 0:
+            if addrtype == 48:
                 txoutputtype.script_type = types.PAYTOADDRESS
             elif addrtype == 5:
                 txoutputtype.script_type = types.PAYTOSCRIPTHASH
@@ -450,7 +450,7 @@ class TrezorWallet(BIP32_HD_Wallet):
             address = self.addresses(False)[0]
             address_id = self.address_id(address)
             n = self.get_client().expand_path(address_id)
-            device_address = self.get_client().get_address('Bitcoin', n)
+            device_address = self.get_client().get_address('Litecoin', n)
             self.device_checked = True
 
             if device_address != address:

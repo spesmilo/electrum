@@ -167,14 +167,14 @@ everything = 42
 
     def setUp(self):
         super(TestSystemConfig, self).setUp()
-        self.thefile = tempfile.mkstemp(suffix=".electrum.test.conf")[1]
+        self.thefile = tempfile.mkstemp(suffix=".electrum-ltc.test.conf")[1]
 
     def tearDown(self):
         super(TestSystemConfig, self).tearDown()
         os.remove(self.thefile)
 
     def test_read_system_config_file_does_not_exist(self):
-        somefile = "/foo/I/do/not/exist/electrum.conf"
+        somefile = "/foo/I/do/not/exist/electrum-ltc.conf"
         result = read_system_config(somefile)
         self.assertEqual({}, result)
 
