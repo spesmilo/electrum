@@ -475,7 +475,7 @@ def make_new_contact():
     if r:
         data = str(r['extras']['SCAN_RESULT']).strip()
         if data:
-            if re.match('^bitcoin:', data):
+            if re.match('^groestlcoin:', data):
                 address, _, _, _, _ = util.parse_URI(data)
             elif is_address(data):
                 address = data
@@ -605,7 +605,7 @@ def payto_loop():
                     data = str(r['extras']['SCAN_RESULT']).strip()
                     if data:
                         print "data", data
-                        if re.match('^bitcoin:', data):
+                        if re.match('^groestlcoin:', data):
                             payto, amount, label, message, _ = util.parse_URI(data)
                             if amount:
                                 amount = str(amount/100000000)
