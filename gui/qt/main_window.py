@@ -576,8 +576,10 @@ class ElectrumWindow(QMainWindow):
     def create_history_menu(self, position):
         self.history_list.selectedIndexes()
         item = self.history_list.currentItem()
-        be = self.config.get('block_explorer', 'MultiFaucet.tk')
-        if be == 'MultiFaucet.tk':
+        be = self.config.get('block_explorer', 'cryptoID.info')
+        if be == 'cryptoID.info':
+            block_explorer = 'https://chainz.cryptoid.info/grs/tx.dws?'
+        elif be == 'MultiFaucet.tk':
             block_explorer = 'http://www.multifaucet.tk/index.php?blockexplorer=GRS&txid='
 
         if not item: return
@@ -2712,11 +2714,11 @@ class ElectrumWindow(QMainWindow):
         unit_combo.currentIndexChanged.connect(on_unit)
         widgets.append((unit_label, unit_combo, unit_help))
 
-        block_explorers = ['MultiFaucet.tk']
+        block_explorers = ['cryptoID.info', 'MultiFaucet.tk']
         block_ex_label = QLabel(_('Online Block Explorer') + ':')
         block_ex_combo = QComboBox()
         block_ex_combo.addItems(block_explorers)
-        block_ex_combo.setCurrentIndex(block_explorers.index(self.config.get('block_explorer', 'MultiFaucet.tk')))
+        block_ex_combo.setCurrentIndex(block_explorers.index(self.config.get('block_explorer', 'cryptoID.info')))
         block_ex_help = HelpButton(_('Choose which online block explorer to use for functions that open a web browser'))
         def on_be(x):
             be_result = block_explorers[block_ex_combo.currentIndex()]
