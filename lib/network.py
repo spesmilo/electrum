@@ -142,7 +142,7 @@ class Network(threading.Thread):
         except:
             self.default_server = None
         if not self.default_server:
-            self.default_server = pick_random_server('s')
+            self.default_server = pick_random_server('t')
 
         self.protocol = deserialize_server(self.default_server)[2]
         self.irc_servers = {} # returned by interface (list from irc)
