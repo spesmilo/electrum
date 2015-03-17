@@ -685,9 +685,12 @@ class Transaction:
     def inputs_to_sign(self):
         out = set()
         for txin in self.inputs:
+            num_sig = txin.get('num_sig')
+            if num_sig is None:
+                continue
             x_signatures = txin['signatures']
             signatures = filter(None, x_signatures)
-            if len(signatures) == txin['num_sig']:
+            if len(signatures) == num_sig:
                 # input is complete
                 continue
             for k, x_pubkey in enumerate(txin['x_pubkeys']):
