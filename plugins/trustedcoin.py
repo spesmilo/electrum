@@ -211,7 +211,7 @@ class Plugin(BasePlugin):
 
     def __init__(self, x, y):
         BasePlugin.__init__(self, x, y)
-        electrum_grs.wallet.wallet_types.append(('twofactor', '2fa', _("Wallet with two-factor authentication"), Wallet_2fa))
+        #electrum_grs.wallet.wallet_types.append(('twofactor', '2fa', _("Wallet with two-factor authentication"), Wallet_2fa))
         self.seed_func = lambda x: bitcoin.is_new_seed(x, SEED_PREFIX)
         self.billing_info = None
         self.is_billing = False
@@ -224,6 +224,7 @@ class Plugin(BasePlugin):
             + _("For more information, visit") + " <a href=\"https://api.trustedcoin.com/#/electrum-help\">https://api.trustedcoin.com/#/electrum-help</a>"
 
     def is_available(self):
+        return False
         if not self.wallet:
             return False
         if self.wallet.storage.get('wallet_type') == '2fa':
