@@ -124,7 +124,7 @@ class Plugin(BasePlugin):
     def transaction_dialog(self, d):
         self.send_button = b = QPushButton(_("Send to cosigner"))
         b.clicked.connect(lambda: self.do_send(d.tx))
-        d.buttons.insertWidget(2, b)
+        d.buttons.insert(2, b)
         self.transaction_dialog_update(d)
 
     @hook
