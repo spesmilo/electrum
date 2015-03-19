@@ -22,7 +22,7 @@ MSG_ENTER_ANYTHING    = _("Please enter a wallet seed, a master public key, a li
 MSG_SHOW_MPK          = _("This is your master public key")
 MSG_ENTER_MPK         = _("Please enter your master public key")
 MSG_ENTER_COLD_MPK    = _("Please enter the master public key of your cosigner wallet")
-MSG_ENTER_SEED_OR_MPK = _("Please enter a wallet seed, or master public key")
+MSG_ENTER_SEED_OR_MPK = _("Please enter a wallet seed, BIP32 private key, or master public key")
 MSG_VERIFY_SEED       = _("Your seed is important!") + "\n" + _("To make sure that you have properly saved your seed, please retype it here.")
 
 
@@ -452,12 +452,13 @@ class InstallWizard(QDialog):
                     return
                 text1, text2 = r
                 wallet = Wallet_2of2(self.storage)
-                if Wallet.is_seed(text1) or Wallet.is_seed(text2):
+                if (Wallet.is_seed(text1) or Wallet.is_seed(text2) or
+                    Wallet.is_xprv(text1) or Wallet.is_xprv(text2)):
                     password = self.password_dialog()
                 else:
                     password = None
 
-                if Wallet.is_seed(text2) and Wallet.is_xpub(text1):
+                if (Wallet.is_seed(text2) or Wallet.is_xprv(text2)) and Wallet.is_xpub(text1):
                     c = text1
                     text1 = text2
                     text2 = c
@@ -465,6 +466,10 @@ class InstallWizard(QDialog):
                 if Wallet.is_seed(text1):
                     wallet.add_seed(text1, password)
                     wallet.create_master_keys(password)
+                elif Wallet.is_xprv(text1):
+                    xpub = bitcoin.xpub_from_xprv(text1)
+                    wallet.add_master_public_key(wallet.root_name, xpub)
+                    wallet.add_master_private_key(wallet.root_name, text1, password)
                 else:
                     wallet.add_master_public_key("x1/", text1)
 
@@ -482,17 +487,18 @@ class InstallWizard(QDialog):
                     return
                 text1, text2, text3 = r
                 wallet = Wallet_2of3(self.storage)
-                if Wallet.is_seed(text1) or Wallet.is_seed(text2) or Wallet.is_seed(text3):
+                if (Wallet.is_seed(text1) or Wallet.is_seed(text2) or Wallet.is_seed(text3) or
+                    Wallet.is_xprv(text1) or Wallet.is_xprv(text2) or Wallet.is_xprv(text3)):
                     password = self.password_dialog()
                 else:
                     password = None
 
-                if Wallet.is_xpub(text1) and Wallet.is_seed(text2):
+                if Wallet.is_xpub(text1) and (Wallet.is_seed(text2) or Wallet.is_xprv(text2)):
                     temp = text1
                     text1 = text2
                     text2 = temp
 
-                if Wallet.is_xpub(text1) and Wallet.is_seed(text3):
+                if Wallet.is_xpub(text1) and (Wallet.is_seed(text3) or Wallet.is_xprv(text3)):
                     temp = text1
                     text1 = text3
                     text3 = temp
@@ -500,16 +506,28 @@ class InstallWizard(QDialog):
                 if Wallet.is_seed(text1):
                     wallet.add_seed(text1, password)
                     wallet.create_master_keys(password)
+                elif Wallet.is_xprv(text1):
+                    xpub = bitcoin.xpub_from_xprv(text1)
+                    wallet.add_master_public_key(wallet.root_name, xpub)
+                    wallet.add_master_private_key(wallet.root_name, text1, password)
                 else:
                     wallet.add_master_public_key("x1/", text1)
 
                 if Wallet.is_seed(text2):
                     wallet.add_cosigner_seed(text2, "x2/", password)
+                elif Wallet.is_xprv(text2):
+                    xpub = bitcoin.xpub_from_xprv(text2)
+                    wallet.add_master_public_key(wallet.root_name, xpub)
+                    wallet.add_master_private_key(wallet.root_name, text2, password)
                 elif Wallet.is_xpub(text2):
                     wallet.add_master_public_key("x2/", text2)
 
                 if Wallet.is_seed(text3):
                     wallet.add_cosigner_seed(text3, "x3/", password)
+                elif Wallet.is_xprv(text3):
+                    xpub = bitcoin.xpub_from_xprv(text3)
+                    wallet.add_master_public_key(wallet.root_name, xpub)
+                    wallet.add_master_private_key(wallet.root_name, text3, password)
                 elif Wallet.is_xpub(text3):
                     wallet.add_master_public_key("x3/", text3)
 
