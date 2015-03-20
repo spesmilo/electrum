@@ -101,6 +101,7 @@ class WalletSynchronizer(util.DaemonThread):
                 if not self.wallet.is_up_to_date():
                     self.wallet.set_up_to_date(True)
                     self.was_updated = True
+                    self.wallet.save_transactions()
             else:
                 if self.wallet.is_up_to_date():
                     self.wallet.set_up_to_date(False)
@@ -127,7 +128,7 @@ class WalletSynchronizer(util.DaemonThread):
 
             if method == 'blockchain.address.subscribe':
                 addr = params[0]
-                if self.wallet.get_status(self.wallet.get_history(addr)) != result:
+                if self.wallet.get_status(self.wallet.get_address_history(addr)) != result:
                     if requested_histories.get(addr) is None:
                         self.network.send([('blockchain.address.get_history', [addr])], self.queue.put)
                         requested_histories[addr] = result
@@ -135,41 +136,43 @@ class WalletSynchronizer(util.DaemonThread):
             elif method == 'blockchain.address.get_history':
                 addr = params[0]
                 self.print_error("receiving history", addr, result)
-                if result == ['*']:
-                    assert requested_histories.pop(addr) == '*'
-                    self.wallet.receive_history_callback(addr, result)
-                else:
-                    hist = []
-                    # check that txids are unique
-                    txids = []
-                    for item in result:
-                        tx_hash = item['tx_hash']
-                        if tx_hash not in txids:
-                            txids.append(tx_hash)
-                            hist.append( (tx_hash, item['height']) )
+                hist = []
+                # check that txids are unique
+                txids = []
+                for item in result:
+                    tx_hash = item['tx_hash']
+                    if tx_hash not in txids:
+                        txids.append(tx_hash)
+                        hist.append( (tx_hash, item['height']) )
 
-                    if len(hist) != len(result):
-                        raise Exception("error: server sent history with non-unique txid", result)
+                if len(hist) != len(result):
+                    raise Exception("error: server sent history with non-unique txid", result)
 
-                    # check that the status corresponds to what was announced
-                    rs = requested_histories.pop(addr)
-                    if self.wallet.get_status(hist) != rs:
-                        raise Exception("error: status mismatch: %s"%addr)
+                # check that the status corresponds to what was announced
+                rs = requested_histories.pop(addr)
+                if self.wallet.get_status(hist) != rs:
+                    raise Exception("error: status mismatch: %s"%addr)
 
-                    # store received history
-                    self.wallet.receive_history_callback(addr, hist)
+                # store received history
+                self.wallet.receive_history_callback(addr, hist)
 
-                    # request transactions that we don't have
-                    for tx_hash, tx_height in hist:
-                        if self.wallet.transactions.get(tx_hash) is None:
-                            if (tx_hash, tx_height) not in requested_tx and (tx_hash, tx_height) not in missing_tx:
-                                missing_tx.append( (tx_hash, tx_height) )
+                # request transactions that we don't have
+                for tx_hash, tx_height in hist:
+                    if self.wallet.transactions.get(tx_hash) is None:
+                        if (tx_hash, tx_height) not in requested_tx and (tx_hash, tx_height) not in missing_tx:
+                            missing_tx.append( (tx_hash, tx_height) )
 
             elif method == 'blockchain.transaction.get':
                 tx_hash = params[0]
                 tx_height = params[1]
                 assert tx_hash == bitcoin.hash_encode(bitcoin.Hash(result.decode('hex')))
-                tx = Transaction.deserialize(result)
+                tx = Transaction(result)
+                try:
+                    tx.deserialize()
+                except Exception:
+                    self.print_msg("Warning: Cannot deserialize transactions. skipping")
+                    continue
+
                 self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
                 self.was_updated = True
                 requested_tx.remove( (tx_hash, tx_height) )

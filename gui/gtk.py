@@ -1170,7 +1170,7 @@ class ElectrumWindow:
         cursor = self.history_treeview.get_cursor()[0]
         self.history_list.clear()
 
-        for item in self.wallet.get_tx_history():
+        for item in self.wallet.get_history():
             tx_hash, conf, is_mine, value, fee, balance, timestamp = item
             if conf > 0:
                 try:
@@ -1199,7 +1199,7 @@ class ElectrumWindow:
         import datetime
         if not tx_hash: return ''
         tx = self.wallet.transactions.get(tx_hash)
-        is_relevant, is_mine, v, fee = self.wallet.get_tx_value(tx)
+        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
         conf, timestamp = self.wallet.verifier.get_confirmations(tx_hash)
 
         if timestamp:

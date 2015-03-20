@@ -482,24 +482,23 @@ class Transaction:
             self.raw = self.serialize()
         return self.raw
 
-    def __init__(self, inputs, outputs, locktime=0):
-        self.inputs = inputs
-        self.outputs = outputs
-        self.locktime = locktime
-        self.raw = None
-
-    @classmethod
-    def deserialize(klass, raw):
-        self = klass([],[])
-        self.update(raw)
-        return self
-
-    def update(self, raw):
-        d = deserialize(raw)
+    def __init__(self, raw):
         self.raw = raw
+
+    def deserialize(self):
+        d = deserialize(self.raw)
         self.inputs = d['inputs']
         self.outputs = [(x['type'], x['address'], x['value']) for x in d['outputs']]
         self.locktime = d['lockTime']
+
+    @classmethod
+    def from_io(klass, inputs, outputs, locktime=0):
+        self = klass(None)
+        self.inputs = inputs
+        self.outputs = outputs
+        self.locktime = locktime
+        #self.raw = self.serialize()
+        return self
 
     @classmethod
     def sweep(klass, privkeys, network, to_address, fee):
@@ -526,7 +525,7 @@ class Transaction:
 
         total = sum(i.get('value') for i in inputs) - fee
         outputs = [('address', to_address, total)]
-        self = klass(inputs, outputs)
+        self = klass.from_io(inputs, outputs)
         self.sign({ pubkey:privkey })
         return self
 
@@ -736,16 +735,6 @@ class Transaction:
         self.raw = self.serialize()
 
 
-    def add_pubkey_addresses(self, txdict):
-        for txin in self.inputs:
-            if txin.get('address') == "(pubkey)":
-                prev_tx = txdict.get(txin.get('prevout_hash'))
-                if prev_tx:
-                    address, value = prev_tx.get_outputs()[txin.get('prevout_n')]
-                    print_error("found pay-to-pubkey address:", address)
-                    txin["address"] = address
-
-
     def get_outputs(self):
         """convert pubkeys to addresses"""
         o = []
@@ -767,60 +756,8 @@ class Transaction:
         return (addr in self.get_output_addresses()) or (addr in (tx.get("address") for tx in self.inputs))
 
 
-    def get_value(self, addresses, prevout_values):
-        # return the balance for that tx
-        is_relevant = False
-        is_send = False
-        is_pruned = False
-        is_partial = False
-        v_in = v_out = v_out_mine = 0
-
-        for item in self.inputs:
-            addr = item.get('address')
-            if addr in addresses:
-                is_send = True
-                is_relevant = True
-                key = item['prevout_hash']  + ':%d'%item['prevout_n']
-                value = prevout_values.get( key )
-                if value is None:
-                    is_pruned = True
-                else:
-                    v_in += value
-            else:
-                is_partial = True
-
-        if not is_send: is_partial = False
-
-        for addr, value in self.get_outputs():
-            v_out += value
-            if addr in addresses:
-                v_out_mine += value
-                is_relevant = True
-
-        if is_pruned:
-            # some inputs are mine:
-            fee = None
-            if is_send:
-                v = v_out_mine - v_out
-            else:
-                # no input is mine
-                v = v_out_mine
-
-        else:
-            v = v_out_mine - v_in
-
-            if is_partial:
-                # some inputs are mine, but not all
-                fee = None
-                is_send = v < 0
-            else:
-                # all inputs are mine
-                fee = v_out - v_in
-
-        return is_relevant, is_send, v, fee
-
-
     def as_dict(self):
+        self.deserialize()
         import json
         out = {
             "hex":str(self),

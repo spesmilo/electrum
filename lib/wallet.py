@@ -28,6 +28,7 @@ import json
 import copy
 
 from util import print_msg, print_error, NotEnoughFunds
+from util import profiler
 
 from bitcoin import *
 from account import *
@@ -173,9 +174,6 @@ class Abstract_Wallet(object):
 
         self.load_transactions()
 
-        # not saved
-        self.prevout_values = {}     # my own transaction outputs
-        self.spent_outputs = []
         # spv
         self.verifier = None
         # there is a difference between wallet.up_to_date and interface.is_up_to_date()
@@ -185,42 +183,35 @@ class Abstract_Wallet(object):
         self.lock = threading.Lock()
         self.transaction_lock = threading.Lock()
         self.tx_event = threading.Event()
-        for tx_hash, tx in self.transactions.items():
-            self.update_tx_outputs(tx_hash)
 
         # save wallet type the first time
         if self.storage.get('wallet_type') is None:
             self.storage.put('wallet_type', self.wallet_type, True)
 
-
+    @profiler
     def load_transactions(self):
+        self.txi = self.storage.get('txi', {})
+        self.txo = self.storage.get('txo', {})
+        self.reverse_txo = self.storage.get('reverse_utxo', {})
+        tx_list = self.storage.get('transactions', {})
         self.transactions = {}
-        tx_list = self.storage.get('transactions',{})
-        for k, raw in tx_list.items():
-            try:
-                tx = Transaction.deserialize(raw)
-            except Exception:
-                print_msg("Warning: Cannot deserialize transactions. skipping")
-                continue
-            self.add_pubkey_addresses(tx)
-            self.transactions[k] = tx
-        for h,tx in self.transactions.items():
-            if not self.check_new_tx(h, tx):
-                print_error("removing unreferenced tx", h)
-                self.transactions.pop(h)
+        for tx_hash, raw in tx_list.items():
+            tx = Transaction(raw)
+            self.transactions[tx_hash] = tx
+            if self.txi.get(tx_hash) is None and self.txo.get(tx_hash) is None:
+                print_error("removing unreferenced tx", tx_hash)
+                self.transactions.pop(tx_hash)
 
-    def add_pubkey_addresses(self, tx):
-        # find the address corresponding to pay-to-pubkey inputs
-        h = tx.hash()
-
-        # inputs
-        tx.add_pubkey_addresses(self.transactions)
-
-        # outputs of tx: inputs of tx2
-        for type, x, v in tx.outputs:
-            if type == 'pubkey':
-                for tx2 in self.transactions.values():
-                    tx2.add_pubkey_addresses({h:tx})
+    @profiler
+    def save_transactions(self):
+        with self.transaction_lock:
+            tx = {}
+            for k,v in self.transactions.items():
+                tx[k] = str(v)
+            self.storage.put('transactions', tx)
+            self.storage.put('txi', self.txi)
+            self.storage.put('txo', self.txo)
+            self.storage.put('reverse_txo', self.reverse_txo)
 
     def get_action(self):
         pass
@@ -362,7 +353,6 @@ class Abstract_Wallet(object):
         account_id, sequence = self.get_address_index(address)
         return self.accounts[account_id].get_pubkeys(*sequence)
 
-
     def sign_message(self, address, message, password):
         keys = self.get_private_key(address, password)
         assert len(keys) == 1
@@ -396,7 +386,7 @@ class Abstract_Wallet(object):
     def fill_addressbook(self):
         # todo: optimize this
         for tx_hash, tx in self.transactions.viewitems():
-            is_relevant, is_send, _, _ = self.get_tx_value(tx)
+            _, is_send, _, _ = self.get_tx_value(tx)
             if is_send:
                 for addr in tx.get_output_addresses():
                     if not self.is_mine(addr) and addr not in self.addressbook:
@@ -405,66 +395,139 @@ class Abstract_Wallet(object):
         # self.update_tx_labels()
 
     def get_num_tx(self, address):
-        n = 0
-        for tx in self.transactions.values():
-            if address in tx.get_output_addresses(): n += 1
-        return n
+        """ return number of transactions where address is involved """
+        return len(self.history.get(address, []))
+        #n = 0
+        #for tx in self.transactions.values():
+        #    if address in tx.get_output_addresses(): n += 1
+        #return n
 
-    def get_tx_value(self, tx, account=None):
-        domain = self.get_account_addresses(account)
-        return tx.get_value(domain, self.prevout_values)
+    def get_tx_delta(self, tx_hash, address):
+        "effect of tx on address"
+        delta = 0
+        # substract the value of coins sent from address
+        d = self.txi.get(tx_hash, {}).get(address, [])
+        for n, v in d:
+            delta -= v
+        # add the value of the coins received at address
+        d = self.txo.get(tx_hash, {}).get(address, [])
+        for n, v, cb in d:
+            delta += v
+        return delta
 
-    def update_tx_outputs(self, tx_hash):
-        tx = self.transactions.get(tx_hash)
-
-        for i, (addr, value) in enumerate(tx.get_outputs()):
-            key = tx_hash+ ':%d'%i
-            self.prevout_values[key] = value
-
+    def get_wallet_delta(self, tx):
+        """ effect of tx on wallet """
+        addresses = self.addresses(True)
+        is_relevant = False
+        is_send = False
+        is_pruned = False
+        is_partial = False
+        v_in = v_out = v_out_mine = 0
         for item in tx.inputs:
-            if self.is_mine(item.get('address')):
-                key = item['prevout_hash'] + ':%d'%item['prevout_n']
-                self.spent_outputs.append(key)
+            addr = item.get('address')
+            if addr in addresses:
+                is_send = True
+                is_relevant = True
+                d = self.txo.get(item['prevout_hash'], {}).get(addr, [])
+                for n, v, cb in d:
+                    if n == item['prevout_n']:
+                        value = v
+                        break
+                else:
+                    value = None
+                if value is None:
+                    is_pruned = True
+                else:
+                    v_in += value
+            else:
+                is_partial = True
+        if not is_send:
+            is_partial = False
+        for addr, value in tx.get_outputs():
+            v_out += value
+            if addr in addresses:
+                v_out_mine += value
+                is_relevant = True
+        if is_pruned:
+            # some inputs are mine:
+            fee = None
+            if is_send:
+                v = v_out_mine - v_out
+            else:
+                # no input is mine
+                v = v_out_mine
+        else:
+            v = v_out_mine - v_in
+            if is_partial:
+                # some inputs are mine, but not all
+                fee = None
+                is_send = v < 0
+            else:
+                # all inputs are mine
+                fee = v_out - v_in
+        return is_relevant, is_send, v, fee
 
     def get_addr_balance(self, address):
-        'returns the confirmed balance and pending (unconfirmed) balance change of this bitcoin address'
-        #assert self.is_mine(address)
-        h = self.history.get(address,[])
-        if h == ['*']: return 0,0
+        "returns the confirmed balance and pending (unconfirmed) balance change of a bitcoin address"
+        h = self.history.get(address, [])
         c = u = 0
-        received_coins = []   # list of coins received at address
-        # go through all tx in history of this address and collect the coins arriving on this address
-        for tx_hash, tx_height in h:
-            tx = self.transactions.get(tx_hash)
-            if not tx: continue
-
-            for i, (addr, value) in enumerate(tx.get_outputs()):
-                if addr == address:
-                    key = tx_hash + ':%d'%i
-                    received_coins.append(key)
-        # go through all tx in history of this address again
-        for tx_hash, tx_height in h:
-            tx = self.transactions.get(tx_hash)
-            if not tx: continue
-            v = 0
-            # substract the value of coins leaving from this address
-            for item in tx.inputs:
-                addr = item.get('address')
-                if addr == address:
-                    key = item['prevout_hash']  + ':%d'%item['prevout_n']
-                    value = self.prevout_values.get( key )
-                    if key in received_coins:
-                        v -= value
-            # add the value of the coins arriving in this address
-            for i, (addr, value) in enumerate(tx.get_outputs()):
-                key = tx_hash + ':%d'%i
-                if addr == address:
-                    v += value
-
-            if tx_height:
-                c += v  # confirmed coins value
+        for tx_hash, height in h:
+            v = self.get_tx_delta(tx_hash, address)
+            if height > 0:
+                c += v
             else:
-                u += v  # unconfirmed coins value
+                u += v
+        return c, u
+
+    def get_addr_utxo(self, address):
+        h = self.history.get(address, [])
+        coins = {}
+        for tx_hash, height in h:
+            l = self.txo.get(tx_hash, {}).get(address, [])
+            for n, v, is_cb in l:
+                coins[tx_hash + ':%d'%n] = (height, v, is_cb)
+        for tx_hash, height in h:
+            l = self.txi.get(tx_hash, {}).get(address, [])
+            for txi, v in l:
+                coins.pop(txi)
+        return coins.items()
+
+    def get_unspent_coins(self, domain=None):
+        coins = []
+        if domain is None:
+            domain = self.addresses(True)
+        for addr in domain:
+            c = self.get_addr_utxo(addr)
+            for txo, v in c:
+                tx_height, value, is_cb = v
+                prevout_hash, prevout_n = txo.split(':')
+                output = {
+                    'address':addr,
+                    'value':value,
+                    'prevout_n':int(prevout_n),
+                    'prevout_hash':prevout_hash,
+                    'height':tx_height,
+                    'coinbase':is_cb
+                }
+                coins.append((tx_height, output))
+                continue
+        # sort by age
+        if coins:
+            coins = sorted(coins)
+            if coins[-1][0] != 0:
+                while coins[0][0] == 0:
+                    coins = coins[1:] + [ coins[0] ]
+        return [value for height, value in coins]
+
+    def get_addr_balance2(self, address):
+        "returns the confirmed balance and pending (unconfirmed) balance change of a bitcoin address"
+        coins = self.get_addr_utxo(address)
+        c = u = 0
+        for txo, v, height in coins:
+            if height > 0:
+                c += v
+            else:
+                u += v
         return c, u
 
     def get_account_name(self, k):
@@ -508,133 +571,170 @@ class Abstract_Wallet(object):
             uu += u
         return cc, uu
 
-    def get_unspent_coins(self, domain=None):
-        coins = []
-        if domain is None: domain = self.addresses(True)
-        for addr in domain:
-            h = self.history.get(addr, [])
-            if h == ['*']: continue
-            for tx_hash, tx_height in h:
-                tx = self.transactions.get(tx_hash)
-                if tx is None: raise Exception("Wallet not synchronized")
-                is_coinbase = tx.inputs[0].get('prevout_hash') == '0'*64
-                for i, (address, value) in enumerate(tx.get_outputs()):
-                    output = {'address':address, 'value':value, 'prevout_n':i}
-                    if address != addr: continue
-                    key = tx_hash + ":%d"%i
-                    if key in self.spent_outputs: continue
-                    output['prevout_hash'] = tx_hash
-                    output['height'] = tx_height
-                    output['coinbase'] = is_coinbase
-                    coins.append((tx_height, output))
-
-        # sort by age
-        if coins:
-            coins = sorted(coins)
-            if coins[-1][0] != 0:
-                while coins[0][0] == 0:
-                    coins = coins[1:] + [ coins[0] ]
-        return [value for height, value in coins]
-
-
-
     def set_fee(self, fee):
         if self.fee_per_kb != fee:
             self.fee_per_kb = fee
             self.storage.put('fee_per_kb', self.fee_per_kb, True)
 
-
-    def get_history(self, address):
+    def get_address_history(self, address):
         with self.lock:
-            return self.history.get(address)
+            return self.history.get(address, [])
 
     def get_status(self, h):
-        if not h: return None
-        if h == ['*']: return '*'
+        if not h:
+            return None
         status = ''
         for tx_hash, height in h:
             status += tx_hash + ':%d:' % height
         return hashlib.sha256( status ).digest().encode('hex')
 
-    def receive_tx_callback(self, tx_hash, tx, tx_height):
-
+    def add_transaction(self, tx_hash, tx, tx_height):
+        is_coinbase = tx.inputs[0].get('prevout_hash') == '0'*64
         with self.transaction_lock:
-            self.add_pubkey_addresses(tx)
-            if not self.check_new_tx(tx_hash, tx):
-                # may happen due to pruning
-                print_error("received transaction that is no longer referenced in history", tx_hash)
-                return
-            self.transactions[tx_hash] = tx
-            self.network.pending_transactions_for_notifications.append(tx)
-            self.save_transactions()
-            if self.verifier and tx_height>0:
-                self.verifier.add(tx_hash, tx_height)
-            self.update_tx_outputs(tx_hash)
+            # add inputs
+            self.txi[tx_hash] = d = {}
+            for txi in tx.inputs:
+                addr = txi.get('address')
+                if addr and self.is_mine(addr):
+                    prevout_hash = txi['prevout_hash']
+                    prevout_n = txi['prevout_n']
+                    ser = prevout_hash + ':%d'%prevout_n
+                    dd = self.txo.get(prevout_hash, {})
+                    for n, v, is_cb in dd.get(addr, []):
+                        if n == prevout_n:
+                            if d.get(addr) is None:
+                                d[addr] = []
+                            d[addr].append((ser, v))
+                            break
+                    else:
+                        self.reverse_txo[ser] = tx_hash
+                elif addr == "(pubkey)":
+                    prevout_hash = txi['prevout_hash']
+                    prevout_n = txi['prevout_n']
+                    ser = prevout_hash + ':%d'%prevout_n
+                    dd = self.txo.get(prevout_hash, {})
+                    found = False
+                    for _addr, l in dd.items():
+                        for n, v, is_cb in l:
+                            if n == prevout_n:
+                                print_error("found pay-to-pubkey address:", _addr)
+                                if d.get(_addr) is None:
+                                    d[_addr] = []
+                                d[_addr].append((ser, v))
+                                found = True
+                    if not found:
+                        self.reverse_txo[ser] = tx_hash
 
-    def save_transactions(self):
-        tx = {}
-        for k,v in self.transactions.items():
-            tx[k] = str(v)
-        self.storage.put('transactions', tx, True)
+            # add outputs
+            self.txo[tx_hash] = d = {}
+            for n, txo in enumerate(tx.outputs):
+                ser = tx_hash + ':%d'%n
+                _type, x, v = txo
+                if _type == 'address':
+                    addr = x
+                elif _type == 'pubkey': 
+                    addr = public_key_to_bc_address(x.decode('hex'))
+                else:
+                    addr = None
+                if addr and self.is_mine(addr):
+                    if d.get(addr) is None:
+                        d[addr] = []
+                    d[addr].append((n, v, is_coinbase))
+
+                next_tx = self.reverse_txo.get(ser)
+                if next_tx is not None:
+                    self.reverse_txo.pop(ser)
+                    dd = self.txi.get(next_tx, {})
+                    if dd.get(addr) is None:
+                        dd[addr] = []
+                    dd[addr].append((ser, v))
+            # save
+            self.transactions[tx_hash] = tx
+
+    def receive_tx_callback(self, tx_hash, tx, tx_height):
+        if not self.check_new_tx(tx_hash, tx):
+            # may happen due to pruning
+            print_error("received transaction that is no longer referenced in history", tx_hash)
+            return
+        self.add_transaction(tx_hash, tx, tx_height)
+        #self.network.pending_transactions_for_notifications.append(tx)
+        if self.verifier and tx_height>0:
+            self.verifier.add(tx_hash, tx_height)
+
 
     def receive_history_callback(self, addr, hist):
 
-        if not self.check_new_history(addr, hist):
-            raise Exception("error: received history for %s is not consistent with known transactions"%addr)
+        #if not self.check_new_history(addr, hist):
+        #    raise Exception("error: received history for %s is not consistent with known transactions"%addr)
 
         with self.lock:
             self.history[addr] = hist
             self.storage.put('addr_history', self.history, True)
 
-        if hist != ['*']:
-            for tx_hash, tx_height in hist:
-                if tx_height>0:
-                    # add it in case it was previously unconfirmed
-                    if self.verifier: self.verifier.add(tx_hash, tx_height)
+        for tx_hash, tx_height in hist:
+            if tx_height>0:
+                # add it in case it was previously unconfirmed
+                if self.verifier:
+                    self.verifier.add(tx_hash, tx_height)
 
-    def get_tx_history(self, account=None):
-        if not self.verifier:
-            return []
+            # if addr is new, we have to recompute txi and txo
+            # fixme: bad interaction with server hist limit?
+            tx = self.transactions.get(tx_hash)
+            if tx is not None and self.txi.get(tx_hash, {}).get(addr) is None and self.txo.get(tx_hash, {}).get(addr) is None:
+                tx.deserialize()
+                self.add_transaction(tx_hash, tx, tx_height)
 
-        with self.transaction_lock:
-            history = self.transactions.items()
-            history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
-            result = []
 
+    def get_history(self, account=None):
+        # get domain
+        domain = self.get_account_addresses(account)
+
+        hh = []
+        # 1. Get the history of each address in the domain
+        for addr in domain:
+            h = self.get_address_history(addr)
+            for tx_hash, height in h:
+                delta = self.get_tx_delta(tx_hash, addr)
+                hh.append([addr, tx_hash, height, delta])
+
+        # 2. merge 
+        # the delta of a tx on the domain is the sum of its deltas on addresses
+        merged = {}
+        for addr, tx_hash, height, delta in hh:
+            if tx_hash not in merged:
+                merged[tx_hash] = (height, delta)
+            else:
+                h, d = merged.get(tx_hash)
+                merged[tx_hash] = (h, d + delta)
+
+        # 3. create sorted list
+        history = []
+        for tx_hash, v in merged.items():
+            height, value = v
+            is_mine = 1
+            fee = 0
             balance = 0
-            for tx_hash, tx in history:
-                is_relevant, is_mine, v, fee = self.get_tx_value(tx, account)
-                if v is not None: balance += v
+            conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
+            history.append( (tx_hash, conf, value, timestamp) )
 
-            c, u = self.get_account_balance(account)
+        history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
+        return history
 
-            if balance != c+u:
-                result.append( ('', 1000, 0, c+u-balance, None, c+u-balance, None ) )
-
-            balance = c + u - balance
-            for tx_hash, tx in history:
-                is_relevant, is_mine, value, fee = self.get_tx_value(tx, account)
-                if not is_relevant:
-                    continue
-                if value is not None:
-                    balance += value
-
-                conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
-                result.append( (tx_hash, conf, is_mine, value, fee, balance, timestamp) )
-
-        return result
 
     def get_label(self, tx_hash):
         label = self.labels.get(tx_hash)
         is_default = (label == '') or (label is None)
-        if is_default: label = self.get_default_label(tx_hash)
+        if is_default:
+            label = self.get_default_label(tx_hash)
         return label, is_default
 
     def get_default_label(self, tx_hash):
+        return tx_hash
+
         tx = self.transactions.get(tx_hash)
         default_label = ''
         if tx:
-            is_relevant, is_mine, _, _ = self.get_tx_value(tx)
+            _, is_mine, _, _ = self.get_wallet_delta(tx)
             if is_mine:
                 for o_addr in tx.get_output_addresses():
                     if not self.is_mine(o_addr):
@@ -702,7 +802,7 @@ class Abstract_Wallet(object):
         amount = sum( map(lambda x:x[2], outputs) )
         total = fee = 0
         inputs = []
-        tx = Transaction(inputs, outputs)
+        tx = Transaction.from_io(inputs, outputs)
         for item in coins:
             if item.get('coinbase') and item.get('height') + COINBASE_MATURITY > self.network.get_local_height():
                 continue
@@ -860,7 +960,6 @@ class Abstract_Wallet(object):
 
         # review transactions that are in the history
         for addr, hist in self.history.items():
-            if hist == ['*']: continue
             for tx_hash, tx_height in hist:
                 if tx_height>0:
                     # add it in case it was previously unconfirmed
@@ -874,23 +973,22 @@ class Abstract_Wallet(object):
 
     def check_new_history(self, addr, hist):
         # check that all tx in hist are relevant
-        if hist != ['*']:
-            for tx_hash, height in hist:
-                tx = self.transactions.get(tx_hash)
-                if not tx: continue
-                if not tx.has_address(addr):
-                    return False
+        for tx_hash, height in hist:
+            tx = self.transactions.get(tx_hash)
+            if not tx:
+                continue
+            if not tx.has_address(addr):
+                return False
 
         # check that we are not "orphaning" a transaction
         old_hist = self.history.get(addr,[])
-        if old_hist == ['*']: return True
-
         for tx_hash, height in old_hist:
-            if tx_hash in map(lambda x:x[0], hist): continue
+            if tx_hash in map(lambda x:x[0], hist):
+                continue
             found = False
             for _addr, _hist in self.history.items():
-                if _addr == addr: continue
-                if _hist == ['*']: continue
+                if _addr == addr:
+                    continue
                 _tx_hist = map(lambda x:x[0], _hist)
                 if tx_hash in _tx_hist:
                     found = True
@@ -916,7 +1014,6 @@ class Abstract_Wallet(object):
                 print_error("sync:", ext_requests, ext_h)
                 height = None
                 for h in ext_h:
-                    if h == ['*']: continue
                     for item in h:
                         if item.get('tx_hash') == tx_hash:
                             height = item.get('height')
@@ -933,7 +1030,6 @@ class Abstract_Wallet(object):
         # 1 check that tx is referenced in addr_history.
         addresses = []
         for addr, hist in self.history.items():
-            if hist == ['*']:continue
             for txh, height in hist:
                 if txh == tx_hash:
                     addresses.append(addr)
@@ -996,8 +1092,6 @@ class Abstract_Wallet(object):
     def address_is_old(self, address, age_limit=2):
         age = -1
         h = self.history.get(address, [])
-        if h == ['*']:
-            return True
         for tx_hash, tx_height in h:
             if tx_height == 0:
                 tx_age = 0

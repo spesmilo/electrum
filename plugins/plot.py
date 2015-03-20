@@ -42,30 +42,28 @@ class Plugin(BasePlugin):
     @hook
     def export_history_dialog(self, d,hbox):
         self.wallet = d.wallet
-
-        history = self.wallet.get_tx_history()
-
+        history = self.wallet.get_history()
         if len(history) > 0:
             b = QPushButton(_("Preview plot"))
             hbox.addWidget(b)
-            b.clicked.connect(lambda: self.do_plot(self.wallet))
+            b.clicked.connect(lambda: self.do_plot(self.wallet, history))
         else:
             b = QPushButton(_("No history to plot"))
             hbox.addWidget(b)
 
 
-
-    def do_plot(self,wallet):
-        history = wallet.get_tx_history()
+    def do_plot(self, wallet, history):
         balance_Val=[]
         fee_val=[]
         value_val=[]
         datenums=[]
-        unknown_trans=0
-        pending_trans=0
-        counter_trans=0
+        unknown_trans = 0
+        pending_trans = 0
+        counter_trans = 0
+        balance = 0
         for item in history:
-            tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
+            tx_hash, confirmations, value, timestamp = item
+            balance += value
             if confirmations:
                 if timestamp is not None:
                     try:
@@ -73,24 +71,15 @@ class Plugin(BasePlugin):
                         balance_string = format_satoshis(balance, False)
                         balance_Val.append(float((format_satoshis(balance,False)))*1000.0)
                     except [RuntimeError, TypeError, NameError] as reason:
-                        unknown_trans=unknown_trans+1
+                        unknown_trans += 1
                         pass
                 else:
-                    unknown_trans=unknown_trans+1
+                    unknown_trans += 1
             else:
-                pending_trans=pending_trans+1
+                pending_trans += 1
 
-            if value is not None:
-                value_string = format_satoshis(value, True)
-                value_val.append(float(value_string)*1000.0)
-            else:
-                value_string = '--'
-
-            if fee is not None:
-                fee_string = format_satoshis(fee, True)
-                fee_val.append(float(fee_string))
-            else:
-                fee_string = '0'
+            value_string = format_satoshis(value, True)
+            value_val.append(float(value_string)*1000.0)
 
             if tx_hash:
                 label, is_default_label = wallet.get_label(tx_hash)
@@ -139,10 +128,7 @@ class Plugin(BasePlugin):
 
         xfmt = md.DateFormatter('%Y-%m-%d')
         ax.xaxis.set_major_formatter(xfmt)
-        axarr[1].plot(datenums,fee_val,marker='o',linestyle='-',color='red',label='Fee')
         axarr[1].plot(datenums,value_val,marker='o',linestyle='-',color='green',label='Value')
-
-
 
 
         axarr[1].legend(loc='upper left')

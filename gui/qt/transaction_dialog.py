@@ -134,8 +134,8 @@ class TxDialog(QDialog):
 
 
     def update(self):
-
-        is_relevant, is_mine, v, fee = self.wallet.get_tx_value(self.tx)
+        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
+        tx_hash = self.tx.hash()
         if self.wallet.can_sign(self.tx):
             self.sign_button.show()
         else:
@@ -143,7 +143,6 @@ class TxDialog(QDialog):
 
         if self.tx.is_complete():
             status = _("Signed")
-            tx_hash = self.tx.hash()
 
             if tx_hash in self.wallet.transactions.keys():
                 conf, timestamp = self.wallet.verifier.get_confirmations(tx_hash)
@@ -182,10 +181,10 @@ class TxDialog(QDialog):
         if is_relevant:
             if is_mine:
                 if fee is not None:
-                    self.amount_label.setText(_("Amount sent:")+' %s'% self.parent.format_amount(v-fee) + ' ' + self.parent.base_unit())
-                    self.fee_label.setText(_("Transaction fee")+': %s'% self.parent.format_amount(fee) + ' ' + self.parent.base_unit())
+                    self.amount_label.setText(_("Amount sent:")+' %s'% self.parent.format_amount(-v+fee) + ' ' + self.parent.base_unit())
+                    self.fee_label.setText(_("Transaction fee")+': %s'% self.parent.format_amount(-fee) + ' ' + self.parent.base_unit())
                 else:
-                    self.amount_label.setText(_("Amount sent:")+' %s'% self.parent.format_amount(v) + ' ' + self.parent.base_unit())
+                    self.amount_label.setText(_("Amount sent:")+' %s'% self.parent.format_amount(-v) + ' ' + self.parent.base_unit())
                     self.fee_label.setText(_("Transaction fee")+': '+ _("unknown"))
             else:
                 self.amount_label.setText(_("Amount received:")+' %s'% self.parent.format_amount(v) + ' ' + self.parent.base_unit())

@@ -568,7 +568,7 @@ class ElectrumWindow(QMainWindow):
         for i,width in enumerate(self.column_widths['history']):
             l.setColumnWidth(i, width)
         l.setHeaderLabels( [ '', _('Date'), _('Description') , _('Amount'), _('Balance')] )
-        l.itemDoubleClicked.connect(self.tx_label_clicked)
+        l.itemDoubleClicked.connect(self.edit_tx_label)
         l.itemChanged.connect(self.tx_label_changed)
         l.customContextMenuRequested.connect(self.create_history_menu)
         return l
@@ -593,7 +593,7 @@ class ElectrumWindow(QMainWindow):
         menu = QMenu()
         menu.addAction(_("Copy ID to Clipboard"), lambda: self.app.clipboard().setText(tx_hash))
         menu.addAction(_("Details"), lambda: self.show_transaction(self.wallet.transactions.get(tx_hash)))
-        menu.addAction(_("Edit description"), lambda: self.tx_label_clicked(item,2))
+        menu.addAction(_("Edit description"), lambda: self.edit_tx_label(item,2))
         menu.addAction(_("View on block explorer"), lambda: webbrowser.open(block_explorer + tx_hash))
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
 
@@ -603,21 +603,25 @@ class ElectrumWindow(QMainWindow):
         d = transaction_dialog.TxDialog(tx, self)
         d.exec_()
 
-    def tx_label_clicked(self, item, column):
+    def edit_tx_label(self, item, column):
         if column==2 and item.isSelected():
-            self.is_edit=True
+            text = unicode(item.text(column))
+            tx_hash = str(item.data(0, Qt.UserRole).toString())
+            self.is_edit = True
+            if text == self.wallet.get_default_label(tx_hash):
+                item.setText(column, '')
             item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
             self.history_list.editItem( item, column )
             item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
-            self.is_edit=False
+            self.is_edit = False
 
     def tx_label_changed(self, item, column):
         if self.is_edit:
             return
-        self.is_edit=True
+        self.is_edit = True
         tx_hash = str(item.data(0, Qt.UserRole).toString())
         tx = self.wallet.transactions.get(tx_hash)
-        text = unicode( item.text(2) )
+        text = unicode(item.text(2))
         self.wallet.set_label(tx_hash, text)
         if text:
             item.setForeground(2, QBrush(QColor('black')))
@@ -625,7 +629,7 @@ class ElectrumWindow(QMainWindow):
             text = self.wallet.get_default_label(tx_hash)
             item.setText(2, text)
             item.setForeground(2, QBrush(QColor('gray')))
-        self.is_edit=False
+        self.is_edit = False
 
 
     def edit_label(self, is_recv):
@@ -682,8 +686,9 @@ class ElectrumWindow(QMainWindow):
     def update_history_tab(self):
 
         self.history_list.clear()
-        for item in self.wallet.get_tx_history(self.current_account):
-            tx_hash, conf, is_mine, value, fee, balance, timestamp = item
+        balance = 0
+        for item in self.wallet.get_history(self.current_account):
+            tx_hash, conf, value, timestamp = item
             time_str = _("unknown")
             if conf > 0:
                 time_str = self.format_time(timestamp)
@@ -703,6 +708,7 @@ class ElectrumWindow(QMainWindow):
             else:
                 v_str = '--'
 
+            balance += value
             balance_str = self.format_amount(balance, whitespaces=True)
 
             if tx_hash:
@@ -721,7 +727,7 @@ class ElectrumWindow(QMainWindow):
                 item.setData(0, Qt.UserRole, tx_hash)
                 item.setToolTip(0, "%d %s\nTxId:%s" % (conf, _('Confirmations'), tx_hash) )
             if is_default_label:
-                item.setForeground(2, QBrush(QColor('grey')))
+                item.setForeground(2, QBrush(QColor('lightgrey')))
 
             item.setIcon(0, icon)
             self.history_list.insertTopLevelItem(0,item)
@@ -1020,7 +1026,7 @@ class ElectrumWindow(QMainWindow):
             for i in inputs: self.wallet.add_input_info(i)
             addr = self.payto_e.payto_address if self.payto_e.payto_address else self.dummy_address
             output = ('address', addr, sendable)
-            dummy_tx = Transaction(inputs, [output])
+            dummy_tx = Transaction.from_io(inputs, [output])
             fee = self.wallet.estimated_fee(dummy_tx)
             self.amount_e.setAmount(max(0,sendable-fee))
             self.amount_e.textEdited.emit("")
@@ -2510,10 +2516,10 @@ class ElectrumWindow(QMainWindow):
 
 
     def do_export_history(self, wallet, fileName, is_csv):
-        history = wallet.get_tx_history()
+        history = wallet.get_history()
         lines = []
         for item in history:
-            tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
+            tx_hash, confirmations, value, timestamp = item
             if confirmations:
                 if timestamp is not None:
                     try:
@@ -2531,27 +2537,21 @@ class ElectrumWindow(QMainWindow):
             else:
                 value_string = '--'
 
-            if fee is not None:
-                fee_string = format_satoshis(fee, True)
-            else:
-                fee_string = '0'
-
             if tx_hash:
                 label, is_default_label = wallet.get_label(tx_hash)
                 label = label.encode('utf-8')
             else:
                 label = ""
 
-            balance_string = format_satoshis(balance, False)
             if is_csv:
-                lines.append([tx_hash, label, confirmations, value_string, fee_string, balance_string, time_string])
+                lines.append([tx_hash, label, confirmations, value_string, time_string])
             else:
                 lines.append({'txid':tx_hash, 'date':"%16s"%time_string, 'label':label, 'value':value_string})
 
         with open(fileName, "w+") as f:
             if is_csv:
                 transaction = csv.writer(f, lineterminator='\n')
-                transaction.writerow(["transaction_hash","label", "confirmations", "value", "fee", "balance", "timestamp"])
+                transaction.writerow(["transaction_hash","label", "confirmations", "value", "timestamp"])
                 for line in lines:
                     transaction.writerow(line)
             else:
