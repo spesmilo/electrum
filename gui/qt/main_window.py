@@ -118,6 +118,7 @@ class ElectrumWindow(QMainWindow):
         self.tray = gui_object.tray
         self.go_lite = gui_object.go_lite
         self.lite = None
+        self.app = gui_object.app
 
         self.create_status_bar()
         self.need_update = threading.Event()

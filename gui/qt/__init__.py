@@ -223,7 +223,6 @@ class ElectrumGui:
         if url:
             self.set_url(url)
 
-        w.app = self.app
         w.connect_slots(s)
         w.update_wallet()
 

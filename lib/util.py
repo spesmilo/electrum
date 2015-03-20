@@ -77,6 +77,20 @@ def print_json(obj):
     sys.stdout.write(s + "\n")
     sys.stdout.flush()
 
+
+# decorator that prints execution time
+def profiler(func):
+    def do_profile(func, args):
+        n = func.func_name
+        t0 = time.time()
+        o = apply(func, args)
+        t = time.time() - t0
+        print_error("[profiler]", n, "%.4f"%t)
+        return o
+    return lambda *args: do_profile(func, args)
+
+
+
 def user_dir():
     if "HOME" in os.environ:
         return os.path.join(os.environ["HOME"], ".electrum-ltc")

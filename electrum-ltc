@@ -211,7 +211,7 @@ if __name__ == '__main__':
 
     set_verbosity(config_options.get('verbose'))
     config = SimpleConfig(config_options)
-    print_error("CA bundle:", requests.utils.DEFAULT_CA_BUNDLE_PATH, "found" if os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH) else "not found")
+    assert os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH)
 
     if len(args) == 0:
         url = None
