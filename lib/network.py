@@ -17,7 +17,8 @@ from blockchain import Blockchain
 DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
 DEFAULT_SERVERS = {
-    'e-grs.us-west-2.maza.club':DEFAULT_PORTS,
+    'electrum1.groestlcoin.org':DEFAULT_PORTS,
+    'electrum2.groestlcoin.org':DEFAULT_PORTS,
 }
 
 DISCONNECTED_RETRY_INTERVAL = 60
