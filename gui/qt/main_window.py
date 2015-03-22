@@ -739,7 +739,7 @@ class ElectrumWindow(QMainWindow):
 
         self.copy_button = QPushButton()
         self.copy_button.setIcon(QIcon(":icons/copy.png"))
-        self.copy_button.setToolTip(_("Copy to clibboard"))
+        self.copy_button.setToolTip(_("Copy to clipboard"))
         self.copy_button.clicked.connect(lambda: self.app.clipboard().setText(self.get_receive_URI()))
 
         self.receive_message_e = QLineEdit()
