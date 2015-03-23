@@ -254,7 +254,7 @@ class InstallWizard(QDialog):
             vbox.addWidget(logo)
         vbox.addWidget(QLabel(msg))
         vbox.addStretch(1)
-        vbox.addLayout(Buttons(CloseButton(self, _('Next'))))
+        vbox.addLayout(Buttons(CloseButton(self)))
         if not self.exec_():
             return None
 
