@@ -41,7 +41,7 @@ def do_start_daemon(config):
 
 
 
-def get_daemon(config, start_daemon=True):
+def get_daemon(config, start_daemon):
     import socket
     daemon_socket = os.path.join(config.path, DAEMON_SOCKET)
     daemon_started = False
@@ -49,8 +49,6 @@ def get_daemon(config, start_daemon=True):
         try:
             s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             s.connect(daemon_socket)
-            if not daemon_started:
-                print_stderr("Connected to daemon")
             return s
         except socket.error:
             if not start_daemon:
@@ -180,7 +178,7 @@ def daemon_loop(server):
     daemon_socket = os.path.join(server.config.path, DAEMON_SOCKET)
     if os.path.exists(daemon_socket):
         os.remove(daemon_socket)
-    daemon_timeout = server.config.get('daemon_timeout', 5*60)
+    daemon_timeout = server.config.get('daemon_timeout', None)
     s.bind(daemon_socket)
     s.listen(5)
     s.settimeout(1)
@@ -189,6 +187,8 @@ def daemon_loop(server):
         try:
             connection, address = s.accept()
         except socket.timeout:
+            if daemon_timeout is None:
+                continue
             if not server.clients:
                 if time.time() - t > daemon_timeout:
                     print_error("Daemon timeout")
