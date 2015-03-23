@@ -406,22 +406,29 @@ class Plugin(BasePlugin):
         except socket.error:
             self.window.show_message('Server not reachable, aborting')
             return
+        except TrustedCoinException as e:
+            if e.status_code == 409:
+                r = None
+            else:
+                raise e
 
-        otp_secret = r.get('otp_secret')
-        if not otp_secret:
-            self.window.show_message(_('Error'))
-            return
+        if r is None:
+            otp_secret = None
+        else:
+            otp_secret = r.get('otp_secret')
+            if not otp_secret:
+                self.window.show_message(_('Error'))
+                return
+            _xpub3 = r['xpubkey_cosigner']
+            _id = r['id']
+            try:
+                assert _id == self.user_id, ("user id error", _id, self.user_id)
+                assert xpub3 == _xpub3, ("xpub3 error", xpub3, _xpub3)
+            except Exception as e:
+                self.window.show_message(str(e))
+                return
 
-        _xpub3 = r['xpubkey_cosigner']
-        _id = r['id']
-        try:
-            assert _id == self.user_id, ("user id error", _id, self.user_id)
-            assert xpub3 == _xpub3, ("xpub3 error", xpub3, _xpub3)
-        except Exception as e:
-            self.window.show_message(str(e))
-            return
-            
-        if not self.setup_google_auth(self.window, _id, otp_secret):
+        if not self.setup_google_auth(self.window, self.user_id, otp_secret):
             return
 
         self.wallet.add_master_public_key('x3/', xpub3)
@@ -670,16 +677,21 @@ class Plugin(BasePlugin):
 
 
     def setup_google_auth(self, window, _id, otp_secret):
-        uri = "otpauth://totp/%s?secret=%s"%('trustedcoin.com', otp_secret)
         vbox = QVBoxLayout()
         window.set_layout(vbox)
-        vbox.addWidget(QLabel("Please scan this QR code in Google Authenticator."))
-        qrw = QRCodeWidget(uri)
-        vbox.addWidget(qrw, 1)
-        #vbox.addWidget(QLabel(data), 0, Qt.AlignHCenter)
+        if otp_secret is not None:
+            uri = "otpauth://totp/%s?secret=%s"%('trustedcoin.com', otp_secret)
+            vbox.addWidget(QLabel("Please scan this QR code in Google Authenticator."))
+            qrw = QRCodeWidget(uri)
+            vbox.addWidget(qrw, 1)
+            msg = _('Then, enter your Google Authenticator code:')
+        else:
+            label = QLabel("This wallet is already registered, but it was never authenticated. To finalize your registration, please enter your Google Authenticator Code. If you do not have this code, delete the wallet file and start a new registration")
+            label.setWordWrap(1)
+            vbox.addWidget(label)
+            msg = _('Google Authenticator code:')
 
         hbox = QHBoxLayout()
-        msg = _('Then, enter your Google Authenticator code:')
         hbox.addWidget(QLabel(msg))
         pw = AmountEdit(None, is_int = True)
         pw.setFocus(True)
@@ -692,14 +704,13 @@ class Plugin(BasePlugin):
         vbox.addLayout(Buttons(CancelButton(window), b))
         pw.textChanged.connect(lambda: b.setEnabled(len(pw.text())==6))
 
-        window.exec_()
-        otp = pw.get_amount()
-        try:
-            server.auth(_id, otp)
-        except:
-            self.window.show_message('Incorrect password, aborting')
-            return
-
-        return True
-
-
+        while True:
+            if not window.exec_():
+                return False
+            otp = pw.get_amount()
+            try:
+                server.auth(_id, otp)
+                return True
+            except:
+                QMessageBox.information(self.window, _('Message'), _('Incorrect password'), _('OK'))
+                pw.setText('')
