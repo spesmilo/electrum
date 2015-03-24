@@ -1982,17 +1982,24 @@ class ElectrumWindow(QMainWindow):
 
     def do_protect(self, func, args):
         if self.wallet.use_encryption:
-            password = self.password_dialog()
-            if not password:
-                return
+            while True:
+                password = self.password_dialog()
+                if not password:
+                    return
+                try:
+                    self.wallet.check_password(password)
+                    break
+                except Exception as e:
+                    QMessageBox.warning(self, _('Error'), str(e), _('OK'))
+                    continue
         else:
             password = None
 
         if args != (False,):
             args = (self,) + args + (password,)
         else:
-            args = (self,password)
-        apply( func, args)
+            args = (self, password)
+        apply(func, args)
 
 
     def show_public_keys(self, address):
