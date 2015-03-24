@@ -133,6 +133,7 @@ class WalletStorage(object):
                 self.write()
 
     def write(self):
+        assert not threading.currentThread().isDaemon()
         s = json.dumps(self.data, indent=4, sort_keys=True)
         with open(self.path,"w") as f:
             f.write(s)
