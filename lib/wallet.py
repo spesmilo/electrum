@@ -1503,9 +1503,7 @@ class Wallet_2of2(BIP32_Wallet, Mnemonic):
         self.add_account('0', account)
 
     def get_master_public_keys(self):
-        xpub1 = self.master_public_keys.get("x1/")
-        xpub2 = self.master_public_keys.get("x2/")
-        return { 'Self':xpub1, 'Cosigner':xpub2 }
+        return self.master_public_keys
 
     def get_action(self):
         xpub1 = self.master_public_keys.get("x1/")
@@ -1529,12 +1527,6 @@ class Wallet_2of3(Wallet_2of2):
         xpub3 = self.master_public_keys.get("x3/")
         account = BIP32_Account_2of3({'xpub':xpub1, 'xpub2':xpub2, 'xpub3':xpub3})
         self.add_account('0', account)
-
-    def get_master_public_keys(self):
-        xpub1 = self.master_public_keys.get("x1/")
-        xpub2 = self.master_public_keys.get("x2/")
-        xpub3 = self.master_public_keys.get("x3/")
-        return {'x1':xpub1, 'x2':xpub2, 'x3':xpub3}
 
     def get_action(self):
         xpub1 = self.master_public_keys.get("x1/")

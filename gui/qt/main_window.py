@@ -1926,9 +1926,12 @@ class ElectrumWindow(QMainWindow):
             vbox.addWidget(gb)
             group = QButtonGroup()
             first_button = None
-            for name in sorted(mpk_dict.keys()):
+            for key in sorted(mpk_dict.keys()):
+                is_mine = self.wallet.master_private_keys.has_key(key)
                 b = QRadioButton(gb)
-                b.setText(name)
+                name = 'Self' if is_mine else 'Cosigner'
+                b.setText(name + ' (%s)'%key)
+                b.key = key
                 group.addButton(b)
                 vbox.addWidget(b)
                 if not first_button:
@@ -1939,8 +1942,7 @@ class ElectrumWindow(QMainWindow):
             vbox.addWidget(mpk_text)
 
             def show_mpk(b):
-                name = str(b.text())
-                mpk = mpk_dict.get(name, "")
+                mpk = mpk_dict.get(b.key, "")
                 mpk_text.setText(mpk)
 
             group.buttonReleased.connect(show_mpk)
