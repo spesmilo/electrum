@@ -72,7 +72,38 @@ class EnterButton(QPushButton):
             apply(self.func,())
 
 
+class ThreadedButton(QPushButton):
+    def __init__(self, text, func, on_success=None):
+        QPushButton.__init__(self, text)
+        self.run_task = func
+        self.on_success = on_success
+        self.clicked.connect(self.do_exec)
+        self.connect(self, SIGNAL('done'), self.done)
+        self.connect(self, SIGNAL('error'), self.on_error)
 
+    def done(self):
+        if self.on_success:
+            self.on_success()
+        self.setEnabled(True)
+
+    def on_error(self):
+        QMessageBox.information(None, _("Error"), self.error)
+        self.setEnabled(True)
+
+    def do_func(self):
+        self.setEnabled(False)
+        try:
+            self.result = self.run_task()
+        except BaseException as e:
+            self.error = str(e.message)
+            self.emit(SIGNAL('error'))
+            return
+        self.emit(SIGNAL('done'))
+
+    def do_exec(self):
+        t = threading.Thread(target=self.do_func)
+        t.setDaemon(True)
+        t.start()
 
 
 class HelpButton(QPushButton):
