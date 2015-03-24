@@ -18,6 +18,7 @@ DEFAULT_PORTS = {'t':'50001', 's':'50002', 'h':'8081', 'g':'8082'}
 
 DEFAULT_SERVERS = {
     'cltc.mooo.com': {'t':'50003', 's':'50004', 'h':'8083', 'g':'8084'},
+    'electrum-ltc-2.cryptomachine.com': DEFAULT_PORTS,
     'electrum-a.cloudapp.net': DEFAULT_PORTS,
     'electrum-ltc.bysh.me': DEFAULT_PORTS,
     'electrum-ltc.koddos.com': DEFAULT_PORTS,
@@ -29,6 +30,7 @@ DEFAULT_SERVERS = {
     'electrum.snicter.com': DEFAULT_PORTS,
     'electrum.wmpb.tc': {'t':'50001', 's':'50002', 'h':'50081', 'g':'50082'},
     'electrum1.wemineltc.com': DEFAULT_PORTS,
+    'eltc.osl2.i2p.io': DEFAULT_PORTS,
     'explorer.litecoin.net': DEFAULT_PORTS,
     'glacialsoftware.net': DEFAULT_PORTS,
     'ltc.electrum.in': DEFAULT_PORTS,
