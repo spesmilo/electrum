@@ -11,7 +11,7 @@ If you install Electrum-GRS on your system, you can run it from any directory.
 
 If you have pip, you can do:
   python setup.py sdist
-  sudo pip install --pre dist/Electrum-grs-2.0.3.tar.gz
+  sudo pip install https://github.com/GroestlCoin/electrum-grs/archive/v2.0.3.tar.gz
 
 If you don't have pip, install with:
   python setup.py sdist
