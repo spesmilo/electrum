@@ -1,23 +1,10 @@
 Electrum-GRS - lightweight Groestlcoin client
 
-1. GETTING STARTED
-------------------
-To run Electrum-GRS from this directory, just do:
+How to run it on Linux:
+  sudo apt-get install python-qt4 python-pip
+  git clone https://github.com/GroestlCoin/electrum-grs.git
   ./electrum-grs
 
-If you install Electrum-GRS on your system, you can run it from any directory.
+Or:
   Install dependencies: sudo apt-get install python-qt4 python-pip
   Install Electrum:  sudo pip install https://github.com/GroestlCoin/electrum-grs/archive/v2.0.3.tar.gz
-
-2. HOW OFFICIAL PACKAGES ARE CREATED
-------------------------------------
-python mki18n.py
-pyrcc4 icons.qrc -o gui/qt/icons_rc.py
-python setup.py sdist --format=zip,gztar
-
-On Mac OS X:
-  # On port based installs
-  sudo python setup-release.py py2app
-  # On brew installs
-  ARCHFLAGS="-arch i386 -arch x86_64" sudo python setup-release.py py2app --includes sip
-  sudo hdiutil create -fs HFS+ -volname "Electrum" -srcfolder dist/Electrum.app dist/electrum-VERSION-macosx.dmg
