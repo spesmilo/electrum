@@ -269,12 +269,15 @@ class Blockchain(util.DaemonThread):
         i.send_request({'method':'blockchain.block.get_header', 'params':[h]}, queue)
 
     def retrieve_request(self, queue):
+        t = time.time()
         while self.is_running():
             try:
-                ir = queue.get(timeout=1)
+                ir = queue.get(timeout=0.1)
             except Queue.Empty:
-                self.print_error('blockchain: request timeout')
-                continue
+                if time.time() - t > 10:
+                    return
+                else:
+                    continue
             i, r = ir
             result = r['result']
             return result
@@ -291,6 +294,7 @@ class Blockchain(util.DaemonThread):
             if requested_header:
                 header = self.retrieve_request(queue)
                 if not header:
+                    self.print_error('chain request timed out, giving up')
                     return
                 chain = [ header ] + chain
                 requested_header = False
@@ -325,6 +329,8 @@ class Blockchain(util.DaemonThread):
             self.print_error( "Requesting chunk:", n )
             i.send_request({'method':'blockchain.block.get_chunk', 'params':[n]}, queue)
             r = self.retrieve_request(queue)
+            if not r:
+                return False
             try:
                 self.verify_chunk(n, r)
                 n = n + 1
