@@ -145,7 +145,7 @@ class Plugin(BasePlugin):
         self.upload = ThreadedButton("Force upload", self.push_thread, self.done_processing)
         layout.addWidget(self.upload, 2, 1)
 
-        self.download = ThreadedButton("Force download", self.pull_thread, self.done_processing)
+        self.download = ThreadedButton("Force download", lambda: self.pull_thread(True), self.done_processing)
         layout.addWidget(self.download, 2, 2)
 
         self.accept = OkButton(d, _("Done"))
@@ -167,7 +167,7 @@ class Plugin(BasePlugin):
         QMessageBox.information(None, _("Labels synchronised"), _("Your labels have been synchronised."))
 
     def do_request(self, method, is_batch=False, data=None):
-        url = 'http://' + self.target_host + "/api/wallets/%s/%s?auth_token=%s" % (self.wallet_id, 'labels/batch.json' if is_batch else 'labels.json', self.auth_token())
+        url = 'https://' + self.target_host + "/api/wallets/%s/%s?auth_token=%s" % (self.wallet_id, 'labels/batch.json' if is_batch else 'labels.json', self.auth_token())
         kwargs = {'headers': {}}
         if method == 'GET' and data:
             kwargs['params'] = data
@@ -192,9 +192,7 @@ class Plugin(BasePlugin):
                 print_error('cannot encode', repr(key), repr(value))
                 continue
             bundle["labels"][encoded_key] = encoded_value
-
-        response = self.do_request("POST", True, bundle)
-        self.window.emit(SIGNAL('labels:pushed'))
+        self.do_request("POST", True, bundle)
 
     def pull_thread(self, force = False):
         response = self.do_request("GET")
