@@ -1,11 +1,12 @@
 from electrum_ltc.util import print_error
 
-import httplib, urllib
+
 import socket
+import requests
 import threading
 import hashlib
 import json
-from urlparse import urlparse, parse_qs
+
 try:
     import PyQt4
 except Exception:
@@ -23,6 +24,7 @@ from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.i18n import _
 
 from electrum_ltc_gui.qt import HelpButton, EnterButton
+from electrum_ltc_gui.qt.util import ThreadedButton, Buttons, CancelButton, OkButton
 
 class Plugin(BasePlugin):
 
@@ -47,7 +49,6 @@ class Plugin(BasePlugin):
         decoded_message = electrum.bitcoin.aes_decrypt_with_iv(self.encode_password, self.iv, base64.b64decode(message)).decode('utf8')
         return decoded_message
 
-
     @hook
     def init_qt(self, gui):
         self.window = gui.main_window
@@ -59,6 +60,8 @@ class Plugin(BasePlugin):
             else:
                 self.set_enabled(False)
                 return False
+
+        self.window.connect(self.window, SIGNAL('labels:pulled'), self.on_pulled)
 
     @hook
     def load_wallet(self, wallet):
@@ -77,7 +80,14 @@ class Plugin(BasePlugin):
 
         if self.auth_token():
             # If there is an auth token we can try to actually start syncing
-            threading.Thread(target=self.do_full_pull).start()
+            def do_pull_thread():
+                try:
+                    self.pull_thread()
+                except:
+                    print_error("could not retrieve labels")
+            t = threading.Thread(target=do_pull_thread)
+            t.setDaemon(True)
+            t.start()
 
     def auth_token(self):
         return self.config.get("plugin_label_api_key")
@@ -93,20 +103,10 @@ class Plugin(BasePlugin):
         if self.encode_password is None:
             return
         if not changed:
-            return 
-        try:
-            bundle = {"label": {"external_id": self.encode(item), "text": self.encode(label)}}
-            params = json.dumps(bundle)
-            connection = httplib.HTTPConnection(self.target_host)
-            connection.request("POST", ("/api/wallets/%s/labels.json?auth_token=%s" % (self.wallet_id, self.auth_token())), params, {'Content-Type': 'application/json'})
-
-            response = connection.getresponse()
-            if response.reason == httplib.responses[httplib.NOT_FOUND]:
-                return
-            response = json.loads(response.read())
-        except socket.gaierror as e:
-            print_error('Error connecting to service: %s ' %  e)
-            return False
+            return
+        bundle = {"label": {"external_id": self.encode(item), "text": self.encode(label)}}
+        t = threading.Thread(target=self.do_request, args=["POST", False, bundle])
+        t.start()
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'), self.settings_dialog)
@@ -124,8 +124,11 @@ class Plugin(BasePlugin):
               self.accept.setEnabled(False)
 
         d = QDialog()
-        layout = QGridLayout(d)
-        layout.addWidget(QLabel("API Key: "),0,0)
+        vbox = QVBoxLayout(d)
+        layout = QGridLayout()
+        vbox.addLayout(layout)
+
+        layout.addWidget(QLabel("API Key: "), 0, 0)
 
         self.auth_token_edit = QLineEdit(self.auth_token())
         self.auth_token_edit.textChanged.connect(check_for_api_key)
@@ -139,99 +142,64 @@ class Plugin(BasePlugin):
         layout.addWidget(QLabel("Decryption key: "),1,0)
         layout.addWidget(HelpButton("This key can be used on the LabElectrum website to decrypt your data in case you want to review it online."),1,2)
 
-        self.upload = QPushButton("Force upload")
-        self.upload.clicked.connect(self.full_push)
-        layout.addWidget(self.upload, 2,1)
+        self.upload = ThreadedButton("Force upload", self.push_thread, self.done_processing)
+        layout.addWidget(self.upload, 2, 1)
 
-        self.download = QPushButton("Force download")
-        self.download.clicked.connect(self.full_pull)
-        layout.addWidget(self.download, 2,2)
+        self.download = ThreadedButton("Force download", lambda: self.pull_thread(True), self.done_processing)
+        layout.addWidget(self.download, 2, 2)
 
-        c = QPushButton(_("Cancel"))
-        c.clicked.connect(d.reject)
-
-        self.accept = QPushButton(_("Done"))
-        self.accept.clicked.connect(d.accept)
-
-        layout.addWidget(c,3,1)
-        layout.addWidget(self.accept,3,2)
+        self.accept = OkButton(d, _("Done"))
+        vbox.addLayout(Buttons(CancelButton(d), self.accept))
 
         check_for_api_key(self.auth_token())
 
-        self.window.labelsChanged.connect(self.done_processing)
-
         if d.exec_():
-          return True
+            return True
         else:
-          return False
+            return False
+
+    def on_pulled(self):
+        wallet = self.wallet
+        wallet.storage.put('labels', wallet.labels, True)
+        self.window.labelsChanged.emit()
 
     def done_processing(self):
         QMessageBox.information(None, _("Labels synchronised"), _("Your labels have been synchronised."))
 
-    def full_push(self):
-        threading.Thread(target=self.do_full_push).start()
-
-    def full_pull(self):
-        threading.Thread(target=self.do_full_pull, args=([True])).start()
-
-    def do_full_push(self):
-        try:
-            bundle = {"labels": {}}
-            for key, value in self.wallet.labels.iteritems():
-                try:
-                    encoded_key = self.encode(key)
-                except:
-                    print_error('cannot encode', repr(key))
-                    continue
-                try:
-                    encoded_value = self.encode(value)
-                except:
-                    print_error('cannot encode', repr(value))
-                    continue
-                bundle["labels"][encoded_key] = encoded_value
-
-            params = json.dumps(bundle)
-            connection = httplib.HTTPConnection(self.target_host)
-            connection.request("POST", ("/api/wallets/%s/labels/batch.json?auth_token=%s" % (self.wallet_id, self.auth_token())), params, {'Content-Type': 'application/json'})
-
-            response = connection.getresponse()
-            if response.reason == httplib.responses[httplib.NOT_FOUND]:
-                print_error('404 error' %  e)
-                return
-            try:
-                response = json.loads(response.read())
-            except ValueError as e:
-                print_error('Error loading labelsync response: %s' %  e)
-                return False
-
-            if "error" in response:
-                print_error('Error loading labelsync response.')
-                return False
-
-        except socket.gaierror as e:
-            print_error('Error connecting to service: %s ' %  e)
-            return False
-
-        self.window.labelsChanged.emit()
-
-    def do_full_pull(self, force = False):
-        connection = httplib.HTTPConnection(self.target_host)
-        connection.request("GET", ("/api/wallets/%s/labels.json?auth_token=%s" % (self.wallet_id, self.auth_token())),"", {'Content-Type': 'application/json'})
-        response = connection.getresponse()
-        if response.status != 200:
-            print_error("Cannot retrieve labels:", response.status, response.reason)
-            return
-        response = json.loads(response.read())
+    def do_request(self, method, is_batch=False, data=None):
+        url = 'https://' + self.target_host + "/api/wallets/%s/%s?auth_token=%s" % (self.wallet_id, 'labels/batch.json' if is_batch else 'labels.json', self.auth_token())
+        kwargs = {'headers': {}}
+        if method == 'GET' and data:
+            kwargs['params'] = data
+        elif method == 'POST' and data:
+            kwargs['data'] = json.dumps(data)
+            kwargs['headers']['Content-Type'] = 'application/json'
+        response = requests.request(method, url, **kwargs)
+        if response.status_code != 200:
+            raise BaseException(response.status_code, response.text)
+        response = response.json()
         if "error" in response:
-            raise BaseException(_("Could not sync labels: %s" % response["error"]))
+            raise BaseException(response["error"])
+        return response
 
+    def push_thread(self):
+        bundle = {"labels": {}}
+        for key, value in self.wallet.labels.iteritems():
+            try:
+                encoded_key = self.encode(key)
+                encoded_value = self.encode(value)
+            except:
+                print_error('cannot encode', repr(key), repr(value))
+                continue
+            bundle["labels"][encoded_key] = encoded_value
+        self.do_request("POST", True, bundle)
+
+    def pull_thread(self, force = False):
+        response = self.do_request("GET")
         result = {}
         for label in response:
             try:
                 key = self.decode(label["external_id"])
-            except:
-                continue
-            try:
                 value = self.decode(label["text"])
             except:
                 continue
@@ -249,6 +217,6 @@ class Plugin(BasePlugin):
         for key, value in result.items():
             if force or not wallet.labels.get(key):
                 wallet.labels[key] = value
-        wallet.storage.put('labels', wallet.labels)
+
+        self.window.emit(SIGNAL('labels:pulled'))
         print_error("received %d labels"%len(response))
-        self.window.labelsChanged.emit()

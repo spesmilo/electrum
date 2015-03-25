@@ -1924,9 +1924,12 @@ class ElectrumWindow(QMainWindow):
             vbox.addWidget(gb)
             group = QButtonGroup()
             first_button = None
-            for name in sorted(mpk_dict.keys()):
+            for key in sorted(mpk_dict.keys()):
+                is_mine = self.wallet.master_private_keys.has_key(key)
                 b = QRadioButton(gb)
-                b.setText(name)
+                name = 'Self' if is_mine else 'Cosigner'
+                b.setText(name + ' (%s)'%key)
+                b.key = key
                 group.addButton(b)
                 vbox.addWidget(b)
                 if not first_button:
@@ -1937,8 +1940,7 @@ class ElectrumWindow(QMainWindow):
             vbox.addWidget(mpk_text)
 
             def show_mpk(b):
-                name = str(b.text())
-                mpk = mpk_dict.get(name, "")
+                mpk = mpk_dict.get(b.key, "")
                 mpk_text.setText(mpk)
 
             group.buttonReleased.connect(show_mpk)
@@ -1980,17 +1982,24 @@ class ElectrumWindow(QMainWindow):
 
     def do_protect(self, func, args):
         if self.wallet.use_encryption:
-            password = self.password_dialog()
-            if not password:
-                return
+            while True:
+                password = self.password_dialog()
+                if not password:
+                    return
+                try:
+                    self.wallet.check_password(password)
+                    break
+                except Exception as e:
+                    QMessageBox.warning(self, _('Error'), str(e), _('OK'))
+                    continue
         else:
             password = None
 
         if args != (False,):
             args = (self,) + args + (password,)
         else:
-            args = (self,password)
-        apply( func, args)
+            args = (self, password)
+        apply(func, args)
 
 
     def show_public_keys(self, address):
