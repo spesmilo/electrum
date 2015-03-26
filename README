@@ -1,10 +1,12 @@
 Electrum-GRS - lightweight Groestlcoin client
 
-How to run it on Linux:
+How to run it on Linux without installation:
   sudo apt-get install python-qt4 python-pip
   git clone https://github.com/GroestlCoin/electrum-grs.git
-  ./electrum-grs
+  In the electrum-grs directory run: ./electrum-grs
 
-Or:
-  Install dependencies: sudo apt-get install python-qt4 python-pip
-  Install Electrum:  sudo pip install https://github.com/GroestlCoin/electrum-grs/archive/v2.0.3.tar.gz
+How to install it on your system:
+  sudo apt-get install python-qt4 python-pip
+  sudo pip install https://github.com/GroestlCoin/electrum-grs/archive/v2.0.3.tar.gz
+  
+Note: The QR code scanner is not supported in Windows and OSX binaries
