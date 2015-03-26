@@ -29,6 +29,8 @@ from electrum_ltc import transaction
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.i18n import _
 
+from electrum_ltc_gui.qt import transaction_dialog
+
 import sys
 import traceback
 
@@ -188,7 +190,6 @@ class Plugin(BasePlugin):
 
         self.listener.clear()
         tx = transaction.Transaction.deserialize(message)
-        self.win.show_transaction(tx)
-
-
-
+        d = transaction_dialog.TxDialog(tx, self.win)
+        d.saved = False
+        d.exec_()

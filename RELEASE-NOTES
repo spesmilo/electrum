@@ -1,3 +1,20 @@
+# Release 2.0.4 - Minor GUI improvements
+ * The password dialog will ask for password again if the user enters
+   a wrong password
+ * The Master Public Key dialog displays which keys belong to the
+   wallet, and which are cosigners
+ * The transaction dialog will ask to save unsaved transaction
+   received from cosigner pool, when user clicks on 'Close'
+ * The multisig restore dialog accepts xprv keys.
+ * The network daemon must be started explicitly before using commands
+   that require a connection
+   Example:
+     electrum daemon start
+     electrum getaddressunspent <addr>
+     electrum daemon status
+     electrum daemon stop
+   If a daemon is running, the GUI will use it.
+
 # Release 2.0.3 - bugfixes and minor GUI improvements
  * Do not use daemon threads (fix #960)
  * Add a zoom button to receive tab

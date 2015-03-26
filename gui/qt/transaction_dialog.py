@@ -47,6 +47,7 @@ class TxDialog(QDialog):
         tx_dict = tx.as_dict()
         self.parent = parent
         self.wallet = parent.wallet
+        self.saved = True
 
         QDialog.__init__(self)
         self.setMinimumWidth(600)
@@ -78,14 +79,14 @@ class TxDialog(QDialog):
         b.clicked.connect(self.sign)
 
         self.broadcast_button = b = QPushButton(_("Broadcast"))
-        b.clicked.connect(lambda: self.parent.broadcast_transaction(self.tx))
+        b.clicked.connect(self.do_broadcast)
         b.hide()
 
         self.save_button = b = QPushButton(_("Save"))
         b.clicked.connect(self.save)
 
         self.cancel_button = b = QPushButton(_("Close"))
-        b.clicked.connect(lambda: self.done(0))
+        b.clicked.connect(self.close)
         b.setDefault(True)
 
         self.qr_button = b = QPushButton()
@@ -98,6 +99,15 @@ class TxDialog(QDialog):
         vbox.addLayout(Buttons(*self.buttons))
         self.update()
 
+    def do_broadcast(self):
+        self.parent.broadcast_transaction(self.tx)
+        self.saved = True
+
+    def close(self):
+        if not self.saved:
+            if QMessageBox.question(self, _('Message'), _('This transaction is not saved. Close anyway?'), QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.No:
+                return
+        self.done(0)
 
     def show_qr(self):
         text = self.tx.raw.decode('hex')
@@ -120,7 +130,7 @@ class TxDialog(QDialog):
             with open(fileName, "w+") as f:
                 f.write(json.dumps(self.tx.as_dict(),indent=4) + '\n')
             self.show_message(_("Transaction saved successfully"))
-
+            self.saved = True
 
 
     def update(self):
