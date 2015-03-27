@@ -594,14 +594,14 @@ class Plugin(BasePlugin):
         for k, v in sorted(self.price_per_tx.items()):
             if k!=1:
                 grid.addWidget(QLabel("Price for %d prepaid transactions:"%k), i, 0)
-                grid.addWidget(QLabel(self.window.format_amount(v) + ' ' + self.window.base_unit()), i, 1)
+                grid.addWidget(QLabel("%d x "%k + self.window.format_amount(v/k) + ' ' + self.window.base_unit()), i, 1)
                 b = QPushButton(_("Buy"))
                 grid.addWidget(b, i, 2)
                 def on_buy():
                     d.close()
                     if self.window.pluginsdialog:
                         self.window.pluginsdialog.close()
-                    uri = "bitcoin:" + self.billing_info['billing_address'] + "?message=TrustedCoin Prepaid Transactions&amount="+str(Decimal(v)/100000000)
+                    uri = "bitcoin:" + self.billing_info['billing_address'] + "?message=TrustedCoin %d Prepaid Transactions&amount="%k + str(Decimal(v)/100000000)
                     self.is_billing = True
                     self.window.pay_from_URI(uri)
                     self.window.payto_e.setFrozen(True)
