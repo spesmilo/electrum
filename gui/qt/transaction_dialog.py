@@ -201,27 +201,41 @@ class TxDialog(QDialog):
             vbox.addWidget(QLabel("LockTime: %d\n" % self.tx.locktime))
 
         vbox.addWidget(QLabel(_("Inputs")))
-        def format_input(x):
-            if x.get('is_coinbase'):
-                return 'coinbase'
-            else:
-                _hash = x.get('prevout_hash')
-                return _hash[0:8] + '...' + _hash[-8:] + ":%d"%x.get('prevout_n') + u'\t' + "%s"%x.get('address')
-        lines = map(format_input, self.tx.inputs )
+
+        ext = QTextCharFormat()
+        own = QTextCharFormat()
+        own.setBackground(QBrush(QColor("lightgreen")))
+        own.setToolTip(_("Own address"))
+
         i_text = QTextEdit()
         i_text.setFont(QFont(MONOSPACE_FONT))
-        i_text.setText('\n'.join(lines))
         i_text.setReadOnly(True)
         i_text.setMaximumHeight(100)
-        vbox.addWidget(i_text)
+        cursor = i_text.textCursor()
+        for x in self.tx.inputs:
+            if x.get('is_coinbase'):
+                cursor.insertText('coinbase')
+            else:
+                _hash = x.get('prevout_hash')
+                cursor.insertText(_hash[0:8] + '...' + _hash[-8:] + ":%d"%x.get('prevout_n'), ext)
+                cursor.insertText('\t')
+                addr = x.get('address')
+                cursor.insertText(addr, own if self.wallet.is_mine(addr) else ext)
+            cursor.insertBlock()
 
+        vbox.addWidget(i_text)
         vbox.addWidget(QLabel(_("Outputs")))
-        lines = map(lambda x: x[0] + u'\t\t' + self.parent.format_amount(x[1]) if x[1] else x[0], self.tx.get_outputs())
         o_text = QTextEdit()
         o_text.setFont(QFont(MONOSPACE_FONT))
-        o_text.setText('\n'.join(lines))
         o_text.setReadOnly(True)
         o_text.setMaximumHeight(100)
+        cursor = o_text.textCursor()
+        for addr, v in self.tx.get_outputs():
+            cursor.insertText(addr, own if self.wallet.is_mine(addr) else ext)
+            if v is not None:
+                cursor.insertText('\t', ext)
+                cursor.insertText(self.parent.format_amount(v), ext)
+            cursor.insertBlock()
         vbox.addWidget(o_text)
 
 
