@@ -41,7 +41,7 @@ for k, n in files.items():
         string = re.sub("<div id=\"%s\">(.*?)</div>"%k, '', string, flags=re.DOTALL + re.MULTILINE)
         continue
     if os.system("gpg --verify %s"%sigpath) != 0:
-        raise
+        raise BaseException(sigpath)
     string = string.replace("##link_%s##"%k, link)
 
 
