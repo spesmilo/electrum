@@ -713,6 +713,8 @@ class ElectrumWindow(QMainWindow):
 
             if tx_hash:
                 label, is_default_label = self.wallet.get_label(tx_hash)
+                if is_default_label:
+                    label = ''
             else:
                 label = _('Pruned transaction outputs')
                 is_default_label = False
