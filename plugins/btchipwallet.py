@@ -20,6 +20,7 @@ from electrum_ltc.util import format_satoshis
 import hashlib
 
 try:
+    from usb.core import USBError
     from btchip.btchipComm import getDongle, DongleWait
     from btchip.btchip import btchip
     from btchip.btchipUtils import compress_public_key,format_transaction, get_regular_input_script
