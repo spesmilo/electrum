@@ -731,49 +731,6 @@ class Abstract_Wallet(object):
     def get_default_label(self, tx_hash):
         return tx_hash
 
-        tx = self.transactions.get(tx_hash)
-        default_label = ''
-        if tx:
-            _, is_mine, _, _ = self.get_wallet_delta(tx)
-            if is_mine:
-                for o_addr in tx.get_output_addresses():
-                    if not self.is_mine(o_addr):
-                        try:
-                            default_label = self.labels[o_addr]
-                        except KeyError:
-                            default_label = '>' + o_addr
-                        break
-                else:
-                    default_label = '(internal)'
-                    if len(self.accounts) > 1:
-                        # find input account and output account
-                        i_addr = tx.inputs[0]["address"]
-                        i_acc,_ = self.get_address_index(i_addr)
-                        for o_addr in tx.get_output_addresses():
-                            o_acc,_ = self.get_address_index(o_addr)
-                            if o_acc != i_acc:
-                                default_label = '(internal: %s --> %s)'%(self.get_account_name(i_acc),self.get_account_name(o_acc))
-                                break
-
-            else:
-                for o_addr in tx.get_output_addresses():
-                    if self.is_mine(o_addr) and not self.is_change(o_addr):
-                        break
-                else:
-                    for o_addr in tx.get_output_addresses():
-                        if self.is_mine(o_addr):
-                            break
-                    else:
-                        o_addr = None
-
-                if o_addr:
-                    try:
-                        default_label = self.labels[o_addr]
-                    except KeyError:
-                        default_label = '<' + o_addr
-
-        return default_label
-
     def get_tx_fee(self, tx):
         # this method can be overloaded
         return tx.get_fee()
