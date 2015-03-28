@@ -216,10 +216,15 @@ class TxDialog(QDialog):
             if x.get('is_coinbase'):
                 cursor.insertText('coinbase')
             else:
-                _hash = x.get('prevout_hash')
-                cursor.insertText(_hash[0:8] + '...' + _hash[-8:] + ":%d"%x.get('prevout_n'), ext)
+                prevout_hash = x.get('prevout_hash')
+                prevout_n = x.get('prevout_n')
+                cursor.insertText(prevout_hash[0:8] + '...' + prevout_hash[-8:] + ":%d"%prevout_n, ext)
                 cursor.insertText('\t')
                 addr = x.get('address')
+                if addr == "(pubkey)":
+                    _addr = self.wallet.find_pay_to_pubkey_address(prevout_hash, prevout_n)
+                    if _addr:
+                        addr = _addr
                 cursor.insertText(addr, own if self.wallet.is_mine(addr) else ext)
             cursor.insertBlock()
 

@@ -588,6 +588,13 @@ class Abstract_Wallet(object):
             status += tx_hash + ':%d:' % height
         return hashlib.sha256( status ).digest().encode('hex')
 
+    def find_pay_to_pubkey_address(self, prevout_hash, prevout_n):
+        dd = self.txo.get(prevout_hash, {})
+        for addr, l in dd.items():
+            for n, v, is_cb in l:
+                if n == prevout_n:
+                    return addr
+
     def add_transaction(self, tx_hash, tx, tx_height):
         is_coinbase = tx.inputs[0].get('prevout_hash') == '0'*64
         with self.transaction_lock:
@@ -595,10 +602,17 @@ class Abstract_Wallet(object):
             self.txi[tx_hash] = d = {}
             for txi in tx.inputs:
                 addr = txi.get('address')
-                if addr and self.is_mine(addr):
+                if not txi.get('is_coinbase'):
                     prevout_hash = txi['prevout_hash']
                     prevout_n = txi['prevout_n']
                     ser = prevout_hash + ':%d'%prevout_n
+                if addr == "(pubkey)":
+                    addr = self.find_pay_to_pubkey_address(prevout_hash, prevout_n)
+                    if addr:
+                        print_error("found pay-to-pubkey address:", addr)
+                    else:
+                        self.reverse_txo[ser] = tx_hash
+                if addr and self.is_mine(addr):
                     dd = self.txo.get(prevout_hash, {})
                     for n, v, is_cb in dd.get(addr, []):
                         if n == prevout_n:
@@ -607,22 +621,6 @@ class Abstract_Wallet(object):
                             d[addr].append((ser, v))
                             break
                     else:
-                        self.reverse_txo[ser] = tx_hash
-                elif addr == "(pubkey)":
-                    prevout_hash = txi['prevout_hash']
-                    prevout_n = txi['prevout_n']
-                    ser = prevout_hash + ':%d'%prevout_n
-                    dd = self.txo.get(prevout_hash, {})
-                    found = False
-                    for _addr, l in dd.items():
-                        for n, v, is_cb in l:
-                            if n == prevout_n:
-                                print_error("found pay-to-pubkey address:", _addr)
-                                if d.get(_addr) is None:
-                                    d[_addr] = []
-                                d[_addr].append((ser, v))
-                                found = True
-                    if not found:
                         self.reverse_txo[ser] = tx_hash
 
             # add outputs
