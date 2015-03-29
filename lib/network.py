@@ -240,7 +240,10 @@ class Network(util.DaemonThread):
         else:
             out = DEFAULT_SERVERS
             for s in self.recent_servers:
-                host, port, protocol = deserialize_server(s)
+                try:
+                    host, port, protocol = deserialize_server(s)
+                except:
+                    continue
                 if host not in out:
                     out[host] = { protocol:port }
         return out
