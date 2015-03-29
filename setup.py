@@ -21,7 +21,7 @@ if platform.system() == 'Linux' or platform.system() == 'FreeBSD':
     usr_share = os.path.join(sys.prefix, "share")
     data_files += [
         (os.path.join(usr_share, 'applications/'), ['electrum.desktop']),
-        (os.path.join(usr_share, 'app-install', 'icons/'), ['icons/electrum.png'])
+        (os.path.join(usr_share, 'pixmaps/'), ['icons/electrum.png'])
     ]
 
 
