@@ -53,7 +53,7 @@ class Plugin(BasePlugin):
         self.wallet = d.wallet
         self.verify_button = b = QPushButton(self.button_label)
         b.clicked.connect(lambda: self.do_verify(d.tx))
-        d.buttons.insertWidget(2, b)
+        d.buttons.insert(1, b)
         self.transaction_dialog_update(d)
 
     def get_my_addr(self, tx):
