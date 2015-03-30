@@ -2229,7 +2229,7 @@ class ElectrumWindow(QMainWindow):
 
         if is_hex:
             try:
-                return Transaction.deserialize(txt)
+                return Transaction(txt)
             except:
                 traceback.print_exc(file=sys.stdout)
                 QMessageBox.critical(None, _("Unable to parse transaction"), _("Electrum was unable to parse your transaction"))
@@ -2238,7 +2238,7 @@ class ElectrumWindow(QMainWindow):
         try:
             tx_dict = json.loads(str(txt))
             assert "hex" in tx_dict.keys()
-            tx = Transaction.deserialize(tx_dict["hex"])
+            tx = Transaction(tx_dict["hex"])
             #if tx_dict.has_key("input_info"):
             #    input_info = json.loads(tx_dict['input_info'])
             #    tx.add_input_info(input_info)
@@ -2312,7 +2312,7 @@ class ElectrumWindow(QMainWindow):
         if ok and txid:
             r = self.network.synchronous_get([ ('blockchain.transaction.get',[str(txid)]) ])[0]
             if r:
-                tx = transaction.Transaction.deserialize(r)
+                tx = transaction.Transaction(r)
                 if tx:
                     self.show_transaction(tx)
                 else:

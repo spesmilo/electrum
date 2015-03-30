@@ -176,22 +176,22 @@ class Commands:
         return tx
 
     def signtxwithkey(self, raw_tx, sec):
-        tx = Transaction.deserialize(raw_tx)
+        tx = Transaction(raw_tx)
         pubkey = bitcoin.public_key_from_private_key(sec)
         tx.sign({ pubkey:sec })
         return tx
 
     def signtxwithwallet(self, raw_tx):
-        tx = Transaction.deserialize(raw_tx)
+        tx = Transaction(raw_tx)
         self.wallet.sign_transaction(tx, self.password)
         return tx
 
     def decoderawtransaction(self, raw):
-        tx = Transaction.deserialize(raw)
+        tx = Transaction(raw)
         return {'inputs':tx.inputs, 'outputs':tx.outputs}
 
     def sendrawtransaction(self, raw):
-        tx = Transaction.deserialize(raw)
+        tx = Transaction(raw)
         return self.network.synchronous_get([('blockchain.transaction.broadcast', [str(tx)])])[0]
 
     def createmultisig(self, num, pubkeys):
@@ -403,7 +403,7 @@ class Commands:
 
         raw = self.network.synchronous_get([ ('blockchain.transaction.get',[tx_hash]) ])[0]
         if raw:
-            return Transaction.deserialize(raw)
+            return Transaction(raw)
         else:
             return "unknown transaction"
 

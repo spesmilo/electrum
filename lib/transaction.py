@@ -755,14 +755,14 @@ class Transaction:
     def has_address(self, addr):
         return (addr in self.get_output_addresses()) or (addr in (tx.get("address") for tx in self.inputs))
 
-
     def as_dict(self):
+        if self.raw is None:
+            self.raw = self.serialize()
         self.deserialize()
-        import json
         out = {
-            "hex":str(self),
-            "complete":self.is_complete()
-            }
+            'hex': self.raw,
+            'complete': self.is_complete()
+        }
         return out
 
 

@@ -189,7 +189,7 @@ class Plugin(BasePlugin):
             return
 
         self.listener.clear()
-        tx = transaction.Transaction.deserialize(message)
+        tx = transaction.Transaction(message)
         d = transaction_dialog.TxDialog(tx, self.win)
         d.saved = False
         d.exec_()
