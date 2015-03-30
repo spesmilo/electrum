@@ -702,15 +702,8 @@ class ElectrumWindow(QMainWindow):
             else:
                 icon = QIcon(":icons/confirmed.png")
 
-            if value is not None:
-                v_str = self.format_amount(value, True, whitespaces=True)
-            else:
-                v_str = _('unknown')
-
-            if balance is not None:
-                balance_str = self.format_amount(balance, whitespaces=True)
-            else:
-                balance_str = _('unknown')
+            v_str = self.format_amount(value, True, whitespaces=True)
+            balance_str = self.format_amount(balance, whitespaces=True)
 
             label, is_default_label = self.wallet.get_label(tx_hash)
             if is_default_label:

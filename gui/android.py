@@ -323,10 +323,10 @@ settings_layout = make_layout(""" <ListView
 
 def get_history_values(n):
     values = []
-    h = wallet.get_tx_history()
+    h = wallet.get_history()
     length = min(n, len(h))
     for i in range(length):
-        tx_hash, conf, is_mine, value, fee, balance, timestamp = h[-i-1]
+        tx_hash, conf, value, timestamp, balance = h[-i-1]
         try:
             dt = datetime.datetime.fromtimestamp( timestamp )
             if dt.date() == dt.today().date():
@@ -338,7 +338,7 @@ def get_history_values(n):
         conf_str = 'v' if conf else 'o'
         label, is_default_label = wallet.get_label(tx_hash)
         label = label.replace('<','').replace('>','')
-        values.append((conf_str, '  ' + time_str, '  ' + format_satoshis(value,True), '  ' + label))
+        values.append((conf_str, '  ' + time_str, '  ' + format_satoshis(value, True), '  ' + label))
 
     return values
 
