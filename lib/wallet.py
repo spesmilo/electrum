@@ -761,6 +761,12 @@ class Abstract_Wallet(object):
             else:
                 balance = None
 
+        assert balance in [None, 0]
+        #if balance not in [None, 0]:
+        #    print_error("history error")
+        #    self.clear_history()
+        #    self.update()
+
         return h2
 
 
