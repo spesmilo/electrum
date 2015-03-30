@@ -450,7 +450,7 @@ class MiniWindow(QDialog):
         self.history_list.empty()
 
         for item in tx_history[-10:]:
-            tx_hash, conf, value, timestamp = item
+            tx_hash, conf, value, timestamp, balance = item
             label = self.actuator.g.wallet.get_label(tx_hash)[0]
             v_str = self.actuator.g.format_amount(value, True)
             self.history_list.append(label, v_str, age(timestamp))

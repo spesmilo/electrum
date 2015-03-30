@@ -500,7 +500,7 @@ class Plugin(BasePlugin):
     def load_wallet(self, wallet):
         tx_list = {}
         for item in self.wallet.get_history(self.wallet.storage.get("current_account", None)):
-            tx_hash, conf, value, timestamp = item
+            tx_hash, conf, value, timestamp, balance = item
             tx_list[tx_hash] = {'value': value, 'timestamp': timestamp }
 
         self.tx_list = tx_list

@@ -686,9 +686,8 @@ class ElectrumWindow(QMainWindow):
     def update_history_tab(self):
 
         self.history_list.clear()
-        balance = 0
         for item in self.wallet.get_history(self.current_account):
-            tx_hash, conf, value, timestamp = item
+            tx_hash, conf, value, timestamp, balance = item
             time_str = _("unknown")
             if conf > 0:
                 time_str = self.format_time(timestamp)
@@ -706,18 +705,16 @@ class ElectrumWindow(QMainWindow):
             if value is not None:
                 v_str = self.format_amount(value, True, whitespaces=True)
             else:
-                v_str = '--'
+                v_str = _('unknown')
 
-            balance += value
-            balance_str = self.format_amount(balance, whitespaces=True)
-
-            if tx_hash:
-                label, is_default_label = self.wallet.get_label(tx_hash)
-                if is_default_label:
-                    label = ''
+            if balance is not None:
+                balance_str = self.format_amount(balance, whitespaces=True)
             else:
-                label = _('Pruned transaction outputs')
-                is_default_label = False
+                balance_str = _('unknown')
+
+            label, is_default_label = self.wallet.get_label(tx_hash)
+            if is_default_label:
+                label = ''
 
             item = QTreeWidgetItem( [ '', time_str, label, v_str, balance_str] )
             item.setFont(2, QFont(MONOSPACE_FONT))

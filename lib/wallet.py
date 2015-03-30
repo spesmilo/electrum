@@ -192,7 +192,7 @@ class Abstract_Wallet(object):
     def load_transactions(self):
         self.txi = self.storage.get('txi', {})
         self.txo = self.storage.get('txo', {})
-        self.reverse_txo = self.storage.get('reverse_utxo', {})
+        self.pruned_txo = self.storage.get('pruned_txo', {})
         tx_list = self.storage.get('transactions', {})
         self.transactions = {}
         for tx_hash, raw in tx_list.items():
@@ -211,7 +211,15 @@ class Abstract_Wallet(object):
             self.storage.put('transactions', tx)
             self.storage.put('txi', self.txi)
             self.storage.put('txo', self.txo)
-            self.storage.put('reverse_txo', self.reverse_txo)
+            self.storage.put('pruned_txo', self.pruned_txo)
+
+    def clear_history(self):
+        with self.transaction_lock:
+            self.txi = {}
+            self.txo = {}
+            self.pruned_txo = {}
+            self.history = {}
+        self.save_transactions()
 
     def get_action(self):
         pass
@@ -404,6 +412,9 @@ class Abstract_Wallet(object):
 
     def get_tx_delta(self, tx_hash, address):
         "effect of tx on address"
+        # pruned
+        if tx_hash in self.pruned_txo.values():
+            return None
         delta = 0
         # substract the value of coins sent from address
         d = self.txi.get(tx_hash, {}).get(address, [])
@@ -467,18 +478,6 @@ class Abstract_Wallet(object):
                 fee = v_out - v_in
         return is_relevant, is_send, v, fee
 
-    def get_addr_balance(self, address):
-        "returns the confirmed balance and pending (unconfirmed) balance change of a bitcoin address"
-        h = self.history.get(address, [])
-        c = u = 0
-        for tx_hash, height in h:
-            v = self.get_tx_delta(tx_hash, address)
-            if height > 0:
-                c += v
-            else:
-                u += v
-        return c, u
-
     def get_addr_utxo(self, address):
         h = self.history.get(address, [])
         coins = {}
@@ -491,6 +490,19 @@ class Abstract_Wallet(object):
             for txi, v in l:
                 coins.pop(txi)
         return coins.items()
+
+    def get_addr_balance(self, address):
+        "returns the confirmed balance and pending (unconfirmed) balance change of a bitcoin address"
+        coins = self.get_addr_utxo(address)
+        c = u = 0
+        for txo, v in coins:
+            tx_height, v, is_cb = v
+            if tx_height > 0:
+                c += v
+            else:
+                u += v
+        return c, u
+
 
     def get_unspent_coins(self, domain=None):
         coins = []
@@ -611,7 +623,8 @@ class Abstract_Wallet(object):
                     if addr:
                         print_error("found pay-to-pubkey address:", addr)
                     else:
-                        self.reverse_txo[ser] = tx_hash
+                        self.pruned_txo[ser] = tx_hash
+                # find value from prev output
                 if addr and self.is_mine(addr):
                     dd = self.txo.get(prevout_hash, {})
                     for n, v, is_cb in dd.get(addr, []):
@@ -621,7 +634,7 @@ class Abstract_Wallet(object):
                             d[addr].append((ser, v))
                             break
                     else:
-                        self.reverse_txo[ser] = tx_hash
+                        self.pruned_txo[ser] = tx_hash
 
             # add outputs
             self.txo[tx_hash] = d = {}
@@ -638,10 +651,10 @@ class Abstract_Wallet(object):
                     if d.get(addr) is None:
                         d[addr] = []
                     d[addr].append((n, v, is_coinbase))
-
-                next_tx = self.reverse_txo.get(ser)
+                # give v to txi that spends me
+                next_tx = self.pruned_txo.get(ser)
                 if next_tx is not None:
-                    self.reverse_txo.pop(ser)
+                    self.pruned_txo.pop(ser)
                     dd = self.txi.get(next_tx, {})
                     if dd.get(addr) is None:
                         dd[addr] = []
@@ -649,11 +662,32 @@ class Abstract_Wallet(object):
             # save
             self.transactions[tx_hash] = tx
 
+    def remove_transaction(self, tx_hash, tx_height):
+        with self.transaction_lock:
+            print_error("removing tx from history", tx_hash)
+            #tx = self.transactions.pop(tx_hash)
+            for ser, hh in self.pruned_txo.items():
+                if hh == tx_hash:
+                    self.pruned_txo.pop(ser)
+            # add tx to pruned_txo, and undo the txi addition
+            for next_tx, dd in self.txi.items():
+                for addr, l in dd.items():
+                    ll = l[:]
+                    for item in ll:
+                        ser, v = item
+                        prev_hash, prev_n = ser.split(':')
+                        if prev_hash == tx_hash:
+                            l.remove(item)
+                            self.pruned_txo[ser] = next_tx
+                    if l == []:
+                        dd.pop(addr)
+                    else:
+                        dd[addr] = l
+            self.txi.pop(tx_hash)
+            self.txo.pop(tx_hash)
+
+
     def receive_tx_callback(self, tx_hash, tx, tx_height):
-        if not self.check_new_tx(tx_hash, tx):
-            # may happen due to pruning
-            print_error("received transaction that is no longer referenced in history", tx_hash)
-            return
         self.add_transaction(tx_hash, tx, tx_height)
         #self.network.pending_transactions_for_notifications.append(tx)
         if self.verifier and tx_height>0:
@@ -662,10 +696,12 @@ class Abstract_Wallet(object):
 
     def receive_history_callback(self, addr, hist):
 
-        #if not self.check_new_history(addr, hist):
-        #    raise Exception("error: received history for %s is not consistent with known transactions"%addr)
-
         with self.lock:
+            old_hist = self.history.get(addr, [])
+            for tx_hash, height in old_hist:
+                if (tx_hash, height) not in hist:
+                    self.remove_transaction(tx_hash, height)
+
             self.history[addr] = hist
             self.storage.put('addr_history', self.history, True)
 
@@ -676,7 +712,6 @@ class Abstract_Wallet(object):
                     self.verifier.add(tx_hash, tx_height)
 
             # if addr is new, we have to recompute txi and txo
-            # fixme: bad interaction with server hist limit?
             tx = self.transactions.get(tx_hash)
             if tx is not None and self.txi.get(tx_hash, {}).get(addr) is None and self.txo.get(tx_hash, {}).get(addr) is None:
                 tx.deserialize()
@@ -707,16 +742,26 @@ class Abstract_Wallet(object):
 
         # 3. create sorted list
         history = []
+        #balance = 0
         for tx_hash, v in merged.items():
             height, value = v
-            is_mine = 1
-            fee = 0
-            balance = 0
+            #balance += value
             conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
             history.append( (tx_hash, conf, value, timestamp) )
-
         history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
-        return history
+
+        c, u = self.get_balance(domain)
+        balance = c + u
+        h2 = []
+        for item in history[::-1]:
+            tx_hash, conf, value, timestamp = item
+            h2.insert( 0, (tx_hash, conf, value, timestamp, balance))
+            if balance is not None and value is not None:
+                balance -= value
+            else:
+                balance = None
+
+        return h2
 
 
     def get_label(self, tx_hash):
@@ -924,6 +969,7 @@ class Abstract_Wallet(object):
         vr = self.verifier.transactions.keys() + self.verifier.verified_tx.keys()
         for tx_hash in self.transactions.keys():
             if tx_hash not in vr:
+                print_error("removing transaction", tx_hash)
                 self.transactions.pop(tx_hash)
 
     def check_new_history(self, addr, hist):
@@ -978,24 +1024,6 @@ class Abstract_Wallet(object):
                 else:
                     print_error("removing orphaned tx from history", tx_hash)
                     self.transactions.pop(tx_hash)
-
-        return True
-
-    def check_new_tx(self, tx_hash, tx):
-        # 1 check that tx is referenced in addr_history.
-        addresses = []
-        for addr, hist in self.history.items():
-            for txh, height in hist:
-                if txh == tx_hash:
-                    addresses.append(addr)
-
-        if not addresses:
-            return False
-
-        # 2 check that referencing addresses are in the tx
-        for addr in addresses:
-            if not tx.has_address(addr):
-                return False
 
         return True
 
