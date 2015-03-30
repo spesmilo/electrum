@@ -738,7 +738,7 @@ class Abstract_Wallet(object):
                 merged[tx_hash] = (height, delta)
             else:
                 h, d = merged.get(tx_hash)
-                merged[tx_hash] = (h, d + delta)
+                merged[tx_hash] = (h, d + delta if (d is not None and delta is not None) else None)
 
         # 3. create sorted list
         history = []
