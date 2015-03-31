@@ -82,8 +82,8 @@ class BasePlugin:
     def fullname(self):
         return self.name
 
-    def print_error(self, msg):
-        print_error("[%s]"%self.name, msg)
+    def print_error(self, *msg):
+        print_error("[%s]"%self.name, *msg)
 
     def description(self):
         return 'undefined'

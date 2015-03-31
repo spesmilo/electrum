@@ -258,7 +258,7 @@ class Plugin(BasePlugin):
             # answer should contain two RRSET: DNSKEY and RRSIG(DNSKEY)
             answer = response.answer
             if len(answer) != 2:
-                self.print_error("answer error")
+                self.print_error("answer error", answer)
                 return 0
 
             # the DNSKEY should be self signed, validate it
