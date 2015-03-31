@@ -118,6 +118,8 @@ class ElectrumGui:
                 time_str = 'pending'
 
             label, is_default_label = self.wallet.get_label(tx_hash)
+            if len(label) > 40:
+                label = label[0:37] + '...'
             self.history.append( format_str%( time_str, label, format_satoshis(value, whitespaces=True), format_satoshis(balance, whitespaces=True) ) )
 
 
