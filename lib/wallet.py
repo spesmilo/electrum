@@ -242,7 +242,7 @@ class Abstract_Wallet(object):
         for k, v in d.items():
             if self.wallet_type == 'old' and k in [0, '0']:
                 v['mpk'] = self.storage.get('master_public_key')
-                self.accounts[k] = OldAccount(v)
+                self.accounts['0'] = OldAccount(v)
             elif v.get('imported'):
                 self.accounts[k] = ImportedAccount(v)
             elif v.get('xpub3'):
