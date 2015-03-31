@@ -223,7 +223,7 @@ class ElectrumWindow(QMainWindow):
         self.notify_transactions()
         self.update_account_selector()
         # update menus
-        self.new_account_menu.setEnabled(self.wallet.can_create_accounts())
+        self.new_account_menu.setVisible(self.wallet.can_create_accounts())
         self.private_keys_menu.setEnabled(not self.wallet.is_watching_only())
         self.password_menu.setEnabled(self.wallet.can_change_password())
         self.seed_menu.setEnabled(self.wallet.has_seed())
