@@ -108,7 +108,7 @@ class Plugin(BasePlugin):
         self.win.previous_payto_e = new_url
 
         if self.config.get('openalias_autoadd') == 'checked':
-            self.win.wallet.add_contact(address, name)
+            self.win.wallet.add_contact(address, url)
 
         self.win.payto_e.setFrozen(True)
         if self.validate_dnssec(url):
