@@ -64,9 +64,9 @@ class Plugin(BasePlugin):
         return OA_READY
 
     def __init__(self, gui, name):
-        print_error('[OA] Initialiasing OpenAlias plugin, OA_READY is ' + str(OA_READY))
         BasePlugin.__init__(self, gui, name)
         self._is_available = OA_READY
+        self.print_error('OA_READY is ' + str(OA_READY))
 
     @hook
     def init_qt(self, gui):
@@ -175,7 +175,7 @@ class Plugin(BasePlugin):
 
     def resolve(self, url):
         '''Resolve OpenAlias address using url.'''
-        print_error('[OA] Attempting to resolve OpenAlias data for ' + url)
+        self.print_error('[OA] Attempting to resolve OpenAlias data for ' + url)
 
         prefix = 'btc'
         retries = 3
@@ -223,53 +223,50 @@ class Plugin(BasePlugin):
             return None
 
     def validate_dnssec(self, url):
-        print_error('[OA] Checking DNSSEC trust chain for ' + url)
+        self.print_error('Checking DNSSEC trust chain for ' + url)
+        default = dns.resolver.get_default_resolver()
+        ns = default.nameservers[0]
+        parts = url.split('.')
 
-        try:
-            default = dns.resolver.get_default_resolver()
-            ns = default.nameservers[0]
+        for i in xrange(len(parts), 0, -1):
+            sub = '.'.join(parts[i - 1:])
+            query = dns.message.make_query(sub, dns.rdatatype.NS)
+            response = dns.query.udp(query, ns, 1)
+            if response.rcode() != dns.rcode.NOERROR:
+                self.print_error("query error")
+                return 0
 
-            parts = url.split('.')
+            if len(response.authority) > 0:
+                rrset = response.authority[0]
+            else:
+                rrset = response.answer[0]
 
-            for i in xrange(len(parts), 0, -1):
-                sub = '.'.join(parts[i - 1:])
+            rr = rrset[0]
+            if rr.rdtype == dns.rdatatype.SOA:
+                #Same server is authoritative, don't check again
+                continue
 
-                query = dns.message.make_query(sub, dns.rdatatype.NS)
-                response = dns.query.udp(query, ns, 1)
+            query = dns.message.make_query(sub,
+                                           dns.rdatatype.DNSKEY,
+                                           want_dnssec=True)
+            response = dns.query.udp(query, ns, 1)
+            if response.rcode() != 0:
+                self.print_error("query error")
+                return 0
+                # HANDLE QUERY FAILED (SERVER ERROR OR NO DNSKEY RECORD)
 
-                if response.rcode() != dns.rcode.NOERROR:
-                    return 0
+            # answer should contain two RRSET: DNSKEY and RRSIG(DNSKEY)
+            answer = response.answer
+            if len(answer) != 2:
+                self.print_error("answer error")
+                return 0
 
-                if len(response.authority) > 0:
-                    rrset = response.authority[0]
-                else:
-                    rrset = response.answer[0]
+            # the DNSKEY should be self signed, validate it
+            name = dns.name.from_text(sub)
+            try:
+                dns.dnssec.validate(answer[0], answer[1], {name: answer[0]})
+            except dns.dnssec.ValidationFailure:
+                self.print_error("validation error")
+                return 0
 
-                rr = rrset[0]
-                if rr.rdtype == dns.rdatatype.SOA:
-                    #Same server is authoritative, don't check again
-                    continue
-
-                query = dns.message.make_query(sub,
-                                            dns.rdatatype.DNSKEY,
-                                            want_dnssec=True)
-                response = dns.query.udp(query, ns, 1)
-
-                if response.rcode() != 0:
-                    return 0
-                    # HANDLE QUERY FAILED (SERVER ERROR OR NO DNSKEY RECORD)
-
-                # answer should contain two RRSET: DNSKEY and RRSIG(DNSKEY)
-                answer = response.answer
-                if len(answer) != 2:
-                    return 0
-
-                # the DNSKEY should be self signed, validate it
-                name = dns.name.from_text(sub)
-                try:
-                    dns.dnssec.validate(answer[0], answer[1], {name: answer[0]})
-                except dns.dnssec.ValidationFailure:
-                    return 0
-        except Exception, e:
-            return 0
         return 1
