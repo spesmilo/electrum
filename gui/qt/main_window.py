@@ -1105,12 +1105,7 @@ class ElectrumWindow(QMainWindow):
             self.from_list.addTopLevelItem(QTreeWidgetItem( [format(item), self.format_amount(item['value']) ]))
 
     def update_completions(self):
-        l = []
-        for addr,label in self.wallet.labels.items():
-            if addr in self.wallet.addressbook:
-                l.append( label + '  <' + addr + '>')
-
-        run_hook('update_completions', l)
+        l = self.wallet.get_completions()
         self.completions.setStringList(l)
 
 

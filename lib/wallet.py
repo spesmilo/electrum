@@ -391,6 +391,17 @@ class Abstract_Wallet(object):
             self.addressbook.remove(addr)
             self.storage.put('contacts', list(self.addressbook), True)
 
+    def get_completions(self):
+        l = []
+        for x in self.addressbook:
+            if bitcoin.is_address(x):
+                label = self.labels.get(x)
+                if label:
+                    l.append( label + '  <' + x + '>')
+            else:
+                l.append(x)
+        return l
+
     def get_num_tx(self, address):
         """ return number of transactions where address is involved """
         return len(self.history.get(address, []))
