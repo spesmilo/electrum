@@ -106,10 +106,13 @@ class Plugin(BasePlugin):
             self.win.previous_payto_e = url
             return True
 
-        (address, name) = data
+        address, name = data
         new_url = url + ' <' + address + '>'
         self.win.payto_e.setText(new_url)
         self.win.previous_payto_e = new_url
+
+        if self.config.get('openalias_autoadd') == 'checked':
+            self.win.wallet.add_contact(address, name)
 
     @hook
     def before_send(self):
@@ -143,8 +146,6 @@ class Plugin(BasePlugin):
             if reply != QMessageBox.Ok:
                 return True
 
-        if self.config.get('openalias_autoadd') == 'checked':
-            self.win.wallet.add_contact(address, name)
         return False
 
     def settings_dialog(self):
