@@ -185,7 +185,7 @@ class Plugin(BasePlugin):
             try:
                 resolver = dns.resolver.Resolver()
                 resolver.timeout = 2.0
-                resolver.lifetime = 2.0
+                resolver.lifetime = 4.0
                 records = resolver.query(url, dns.rdatatype.TXT)
                 for record in records:
                     string = record.strings[0]
@@ -232,7 +232,7 @@ class Plugin(BasePlugin):
         for i in xrange(len(parts), 0, -1):
             sub = '.'.join(parts[i - 1:])
             query = dns.message.make_query(sub, dns.rdatatype.NS)
-            response = dns.query.udp(query, ns, 1)
+            response = dns.query.udp(query, ns, 3)
             if response.rcode() != dns.rcode.NOERROR:
                 self.print_error("query error")
                 return 0
@@ -250,7 +250,7 @@ class Plugin(BasePlugin):
             query = dns.message.make_query(sub,
                                            dns.rdatatype.DNSKEY,
                                            want_dnssec=True)
-            response = dns.query.udp(query, ns, 1)
+            response = dns.query.udp(query, ns, 3)
             if response.rcode() != 0:
                 self.print_error("query error")
                 return 0

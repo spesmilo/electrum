@@ -689,6 +689,9 @@ class ElectrumWindow(QMainWindow):
         for item in self.wallet.get_history(self.current_account):
             tx_hash, conf, value, timestamp, balance = item
             time_str = _("unknown")
+            if conf is None and timestamp is None:
+                continue  # skip history in offline mode
+
             if conf > 0:
                 time_str = self.format_time(timestamp)
             if conf == -1:
