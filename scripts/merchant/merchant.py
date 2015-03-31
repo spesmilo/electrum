@@ -277,7 +277,6 @@ if __name__ == '__main__':
     else:
         wallet = electrum.wallet.Wallet(storage)
 
-    wallet.synchronize = lambda: None # prevent address creation by the wallet
     wallet.start_threads(network)
     network.register_callback('updated', on_wallet_update)
 
