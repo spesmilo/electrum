@@ -748,7 +748,8 @@ class Abstract_Wallet(object):
             #balance += value
             conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
             history.append( (tx_hash, conf, value, timestamp) )
-        history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
+        if self.verifier:
+            history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
 
         c, u = self.get_balance(domain)
         balance = c + u
