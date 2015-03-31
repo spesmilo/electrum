@@ -114,6 +114,12 @@ class Plugin(BasePlugin):
         if self.config.get('openalias_autoadd') == 'checked':
             self.win.wallet.add_contact(address, name)
 
+        self.win.payto_e.setFrozen(True)
+        if self.validate_dnssec(url):
+            self.win.payto_e.setGreen()
+        else:
+            self.win.payto_e.setExpired()
+
     @hook
     def before_send(self):
         '''
