@@ -228,7 +228,7 @@ class ElectrumWindow(QMainWindow):
         self.password_menu.setEnabled(self.wallet.can_change_password())
         self.seed_menu.setEnabled(self.wallet.has_seed())
         self.mpk_menu.setEnabled(self.wallet.is_deterministic())
-        self.import_menu.setEnabled(self.wallet.can_import())
+        self.import_menu.setVisible(self.wallet.can_import())
         self.export_menu.setEnabled(self.wallet.can_export())
 
         self.update_lock_icon()
