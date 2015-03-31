@@ -113,8 +113,10 @@ class Plugin(BasePlugin):
         self.win.payto_e.setFrozen(True)
         if self.validate_dnssec(url):
             self.win.payto_e.setGreen()
+            self.validated = True
         else:
             self.win.payto_e.setExpired()
+            self.validated = False
 
     @hook
     def before_send(self):
@@ -134,7 +136,7 @@ class Plugin(BasePlugin):
         except AttributeError:
             return False
 
-        if not self.validate_dnssec(url):
+        if not self.validated:
             msgBox = QMessageBox()
             msgBox.setText(_('WARNING: the address ' + address + ' could not be validated via an additional security check, DNSSEC, and thus may not be correct.'))
             msgBox.setInformativeText(_('Do you wish to continue?'))
