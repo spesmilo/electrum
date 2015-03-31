@@ -93,11 +93,7 @@ class Plugin(BasePlugin):
             return
         self.win.previous_payto_e = url
 
-        if ('.' in url) and (not '<' in url) and (not ' ' in url):
-            if not OA_READY:  # handle a failed DNSPython load
-                QMessageBox.warning(self.win, _('Error'), 'Could not load DNSPython libraries, please ensure they are available and/or Electrum has been built correctly', _('OK'))
-                return
-        else:
+        if not (('.' in url) and (not '<' in url) and (not ' ' in url)):
             return
 
         data = self.resolve(url)
@@ -137,10 +133,6 @@ class Plugin(BasePlugin):
             (url, address) = regex.search(payto_e).groups()
         except AttributeError:
             return False
-
-        if not OA_READY:  # handle a failed DNSPython load
-            QMessageBox.warning(self.win, _('Error'), 'Could not load DNSPython libraries, please ensure they are available and/or Electrum has been built correctly', _('OK'))
-            return True
 
         if not self.validate_dnssec(url):
             msgBox = QMessageBox()
