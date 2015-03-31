@@ -152,7 +152,7 @@ class ElectrumGui:
         last_wallet = self.config.get('gui_last_wallet')
         if last_wallet is not None and self.config.get('wallet_path') is None:
             if os.path.exists(last_wallet):
-                self.config.read_only_options['wallet_path'] = last_wallet
+                self.config.read_only_options['default_wallet_path'] = last_wallet
         try:
             storage = WalletStorage(self.config)
         except BaseException as e:

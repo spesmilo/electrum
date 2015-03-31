@@ -301,8 +301,8 @@ class ElectrumWindow(QMainWindow):
         # load new wallet in gui
         self.load_wallet(wallet)
         # save path
-        self.config.set_key('gui_last_wallet', filename)
-
+        if self.config.get('wallet_path') is None:
+            self.config.set_key('gui_last_wallet', filename)
 
 
     def backup_wallet(self):
