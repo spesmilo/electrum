@@ -109,6 +109,8 @@ def user_dir():
 
 def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespaces=False):
     from decimal import Decimal
+    if x is None:
+        return 'unknown'
     s = Decimal(x)
     sign, digits, exp = s.as_tuple()
     digits = map(str, digits)

@@ -85,7 +85,7 @@ class Plugin(BasePlugin):
             self.sender = self._send(parent=dialog, blob=blob)
             self.sender.start()
         b.clicked.connect(handler)
-        dialog.buttons.insertWidget(1, b)
+        dialog.buttons.insert(0, b)
 
     @hook
     def scan_text_edit(self, parent):

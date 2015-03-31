@@ -358,9 +358,9 @@ class Plugin(BasePlugin):
     @hook
     def load_wallet(self, wallet):
         tx_list = {}
-        for item in self.wallet.get_tx_history(self.wallet.storage.get("current_account", None)):
-            tx_hash, conf, is_mine, value, fee, balance, timestamp = item
-            tx_list[tx_hash] = {'value': value, 'timestamp': timestamp, 'balance': balance}
+        for item in self.wallet.get_history(self.wallet.storage.get("current_account", None)):
+            tx_hash, conf, value, timestamp, balance = item
+            tx_list[tx_hash] = {'value': value, 'timestamp': timestamp }
 
         self.tx_list = tx_list
         self.cur_exchange = self.config.get('use_exchange', "BTC-e")
@@ -436,20 +436,21 @@ class Plugin(BasePlugin):
             except Exception:
                 newtx = self.wallet.get_tx_history()
                 v = newtx[[x[0] for x in newtx].index(str(item.data(0, Qt.UserRole).toPyObject()))][3]
-                tx_info = {'timestamp':int(time.time()), 'value': v }
+                tx_info = {'timestamp':int(time.time()), 'value': v}
                 pass
             tx_time = int(tx_info['timestamp'])
+            tx_value = Decimal(str(tx_info['value'])) / 100000000
             if self.cur_exchange == "CoinDesk":
                 tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
                 try:
-                    tx_fiat_val = "%.2f %s" % (Decimal(str(tx_info['value'])) / 100000000 * Decimal(self.resp_hist['bpi'][tx_time_str]), "USD")
+                    tx_fiat_val = "%.2f %s" % (value * Decimal(self.resp_hist['bpi'][tx_time_str]), "USD")
                 except KeyError:
                     tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(str(tx_info['value']))/100000000 , "USD")
             elif self.cur_exchange == "Winkdex":
                 tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d') + "T16:00:00-04:00"
                 try:
                     tx_rate = self.resp_hist[[x['timestamp'] for x in self.resp_hist].index(tx_time_str)]['price']
-                    tx_fiat_val = "%.2f %s" % (Decimal(tx_info['value']) / 100000000 * Decimal(tx_rate)/Decimal("100.0"), "USD")
+                    tx_fiat_val = "%.2f %s" % (tx_value * Decimal(tx_rate)/Decimal("100.0"), "USD")
                 except ValueError:
                     tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(tx_info['value'])/100000000 , "USD")
                 except KeyError:
@@ -458,7 +459,7 @@ class Plugin(BasePlugin):
                 tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
                 try:
                     num = self.resp_hist[tx_time_str].replace(',','')
-                    tx_fiat_val = "%.2f %s" % (Decimal(str(tx_info['value'])) / 100000000 * Decimal(num), self.fiat_unit())
+                    tx_fiat_val = "%.2f %s" % (tx_value * Decimal(num), self.fiat_unit())
                 except KeyError:
                     tx_fiat_val = _("No data")
             elif self.cur_exchange == "Kraken":
