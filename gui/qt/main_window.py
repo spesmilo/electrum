@@ -223,12 +223,12 @@ class ElectrumWindow(QMainWindow):
         self.notify_transactions()
         self.update_account_selector()
         # update menus
-        self.new_account_menu.setEnabled(self.wallet.can_create_accounts())
+        self.new_account_menu.setVisible(self.wallet.can_create_accounts())
         self.private_keys_menu.setEnabled(not self.wallet.is_watching_only())
         self.password_menu.setEnabled(self.wallet.can_change_password())
         self.seed_menu.setEnabled(self.wallet.has_seed())
         self.mpk_menu.setEnabled(self.wallet.is_deterministic())
-        self.import_menu.setEnabled(self.wallet.can_import())
+        self.import_menu.setVisible(self.wallet.can_import())
         self.export_menu.setEnabled(self.wallet.can_export())
 
         self.update_lock_icon()
@@ -301,8 +301,8 @@ class ElectrumWindow(QMainWindow):
         # load new wallet in gui
         self.load_wallet(wallet)
         # save path
-        self.config.set_key('gui_last_wallet', filename)
-
+        if self.config.get('wallet_path') is None:
+            self.config.set_key('gui_last_wallet', filename)
 
 
     def backup_wallet(self):
@@ -687,6 +687,9 @@ class ElectrumWindow(QMainWindow):
         for item in self.wallet.get_history(self.current_account):
             tx_hash, conf, value, timestamp, balance = item
             time_str = _("unknown")
+            if conf is None and timestamp is None:
+                continue  # skip history in offline mode
+
             if conf > 0:
                 time_str = self.format_time(timestamp)
             if conf == -1:
@@ -1103,12 +1106,7 @@ class ElectrumWindow(QMainWindow):
             self.from_list.addTopLevelItem(QTreeWidgetItem( [format(item), self.format_amount(item['value']) ]))
 
     def update_completions(self):
-        l = []
-        for addr,label in self.wallet.labels.items():
-            if addr in self.wallet.addressbook:
-                l.append( label + '  <' + addr + '>')
-
-        run_hook('update_completions', l)
+        l = self.wallet.get_completions()
         self.completions.setStringList(l)
 
 

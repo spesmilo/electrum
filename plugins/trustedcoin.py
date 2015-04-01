@@ -450,12 +450,12 @@ class Plugin(BasePlugin):
 
     @hook
     def send_tx(self, tx):
-        print_error("twofactor:send_tx")
+        self.print_error("twofactor:send_tx")
         if self.wallet.storage.get('wallet_type') != '2fa':
             return
 
         if not self.need_server(tx):
-            print_error("twofactor: xpub3 not needed")
+            self.print_error("twofactor: xpub3 not needed")
             self.auth_code = None
             return
 
@@ -483,7 +483,7 @@ class Plugin(BasePlugin):
         price = int(self.price_per_tx.get(1))
         assert price <= 100000
         if tx.input_value() < price:
-            print_error("not charging for this tx")
+            self.print_error("not charging for this tx")
             return 0
         return price
 
@@ -496,9 +496,9 @@ class Plugin(BasePlugin):
 
     @hook
     def sign_transaction(self, tx, password):
-        print_error("twofactor:sign")
+        self.print_error("twofactor:sign")
         if self.wallet.storage.get('wallet_type') != '2fa':
-            print_error("twofactor: aborting")
+            self.print_error("twofactor: aborting")
             return
 
         self.long_user_id, self.user_id = self.get_user_id()
@@ -517,13 +517,13 @@ class Plugin(BasePlugin):
             tx.error = str(e)
             return
 
-        print_error( "received answer", r)
+        self.print_error( "received answer", r)
         if not r:
             return 
 
         raw_tx = r.get('transaction')
         tx.update(raw_tx)
-        print_error("twofactor: is complete", tx.is_complete())
+        self.print_error("twofactor: is complete", tx.is_complete())
 
 
     def auth_dialog(self ):

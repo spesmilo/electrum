@@ -159,7 +159,7 @@ class Abstract_Wallet(object):
         self.seed                  = storage.get('seed', '')               # encrypted
         self.labels                = storage.get('labels', {})
         self.frozen_addresses      = storage.get('frozen_addresses',[])
-        self.addressbook           = storage.get('contacts', [])
+        self.addressbook           = set(storage.get('contacts', []))
 
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
         self.fee_per_kb            = int(storage.get('fee_per_kb', RECOMMENDED_FEE))
@@ -242,7 +242,7 @@ class Abstract_Wallet(object):
         for k, v in d.items():
             if self.wallet_type == 'old' and k in [0, '0']:
                 v['mpk'] = self.storage.get('master_public_key')
-                self.accounts[k] = OldAccount(v)
+                self.accounts['0'] = OldAccount(v)
             elif v.get('imported'):
                 self.accounts[k] = ImportedAccount(v)
             elif v.get('xpub3'):
@@ -381,34 +381,30 @@ class Abstract_Wallet(object):
         return self.history.values() != [[]] * len(self.history)
 
     def add_contact(self, address, label=None):
-        self.addressbook.append(address)
-        self.storage.put('contacts', self.addressbook, True)
+        self.addressbook.add(address)
+        self.storage.put('contacts', list(self.addressbook), True)
         if label:
             self.set_label(address, label)
 
     def delete_contact(self, addr):
         if addr in self.addressbook:
             self.addressbook.remove(addr)
-            self.storage.put('addressbook', self.addressbook, True)
+            self.storage.put('contacts', list(self.addressbook), True)
 
-    def fill_addressbook(self):
-        # todo: optimize this
-        for tx_hash, tx in self.transactions.viewitems():
-            _, is_send, _, _ = self.get_tx_value(tx)
-            if is_send:
-                for addr in tx.get_output_addresses():
-                    if not self.is_mine(addr) and addr not in self.addressbook:
-                        self.addressbook.append(addr)
-        # redo labels
-        # self.update_tx_labels()
+    def get_completions(self):
+        l = []
+        for x in self.addressbook:
+            if bitcoin.is_address(x):
+                label = self.labels.get(x)
+                if label:
+                    l.append( label + '  <' + x + '>')
+            else:
+                l.append(x)
+        return l
 
     def get_num_tx(self, address):
         """ return number of transactions where address is involved """
         return len(self.history.get(address, []))
-        #n = 0
-        #for tx in self.transactions.values():
-        #    if address in tx.get_output_addresses(): n += 1
-        #return n
 
     def get_tx_delta(self, tx_hash, address):
         "effect of tx on address"
@@ -748,7 +744,8 @@ class Abstract_Wallet(object):
             #balance += value
             conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
             history.append( (tx_hash, conf, value, timestamp) )
-        history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
+        if self.verifier:
+            history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
 
         c, u = self.get_balance(domain)
         balance = c + u
@@ -1315,10 +1312,6 @@ class Deterministic_Wallet(Abstract_Wallet):
             wait_for_wallet()
         else:
             self.synchronize()
-
-        # disable this because it crashes android
-        #self.fill_addressbook()
-
 
     def is_beyond_limit(self, address, account, is_change):
         if type(account) == ImportedAccount:
