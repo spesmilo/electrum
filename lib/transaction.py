@@ -485,6 +485,10 @@ class Transaction:
     def __init__(self, raw):
         self.raw = raw
 
+    def update(self, raw):
+        self.raw = raw
+        self.deserialize()
+
     def deserialize(self):
         d = deserialize(self.raw)
         self.inputs = d['inputs']
