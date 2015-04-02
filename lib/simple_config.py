@@ -1,4 +1,5 @@
 import ast
+import json
 import threading
 import os
 
@@ -122,12 +123,12 @@ class SimpleConfig(object):
         return True
 
     def save_user_config(self):
-        if not self.path: return
-
+        if not self.path:
+            return
         path = os.path.join(self.path, "config")
-        s = repr(self.user_config)
-        f = open(path,"w")
-        f.write( s )
+        s = json.dumps(self.user_config, indent=4, sort_keys=True)
+        f = open(path, "w")
+        f.write(s)
         f.close()
         if self.get('gui') != 'android':
             import stat
@@ -155,22 +156,23 @@ def read_system_config(path=SYSTEM_CONFIG_PATH):
 
 def read_user_config(path):
     """Parse and store the user config settings in electrum.conf into user_config[]."""
-    if not path: return {}  # Return a dict, since we will call update() on it.
-
+    if not path:
+        return {}
     config_path = os.path.join(path, "config")
-    result = {}
-    if os.path.exists(config_path):
+    try:
+        with open(config_path, "r") as f:
+            data = f.read()
+    except IOError:
+        print_msg("Error: Cannot read config file.")
+        return {}
+    try:
+        result = json.loads(data)
+    except:
         try:
-
-            with open(config_path, "r") as f:
-                data = f.read()
-            result = ast.literal_eval( data )  #parse raw data from reading wallet file
-
-        except Exception:
+            result = ast.literal_eval(data)
+        except:
             print_msg("Error: Cannot read config file.")
-            result = {}
-
-        if not type(result) is dict:
             return {}
-
+    if not type(result) is dict:
+        return {}
     return result
