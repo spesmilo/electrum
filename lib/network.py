@@ -8,6 +8,7 @@ import traceback
 
 import socks
 import socket
+import json
 
 import util
 from bitcoin import *
@@ -147,7 +148,7 @@ class Network(util.DaemonThread):
 
         self.disconnected_servers = set([])
 
-        self.recent_servers = self.config.get('recent_servers',[]) # successful connections
+        self.recent_servers = self.read_recent_servers()
         self.pending_servers = set()
 
         self.banner = ''
@@ -165,6 +166,28 @@ class Network(util.DaemonThread):
         self.connection_status = 'connecting'
         self.requests_queue = Queue.Queue()
         self.set_proxy(deserialize_proxy(self.config.get('proxy')))
+
+    def read_recent_servers(self):
+        if not self.config.path:
+            return []
+        path = os.path.join(self.config.path, "recent_servers")
+        try:
+            with open(path, "r") as f:
+                data = f.read()
+                return json.loads(data)
+        except:
+            return []
+
+    def save_recent_servers(self):
+        if not self.config.path:
+            return
+        path = os.path.join(self.config.path, "recent_servers")
+        s = json.dumps(self.recent_servers, indent=4, sort_keys=True)
+        try:
+            with open(path, "w") as f:
+                f.write(s)
+        except:
+            pass
 
     def get_server_height(self):
         return self.heights.get(self.default_server, 0)
@@ -370,8 +393,7 @@ class Network(util.DaemonThread):
             self.recent_servers.remove(s)
         self.recent_servers.insert(0,s)
         self.recent_servers = self.recent_servers[0:20]
-        self.config.set_key('recent_servers', self.recent_servers)
-
+        self.save_recent_servers()
 
     def add_interface(self, i):
         self.interfaces[i.server] = i
