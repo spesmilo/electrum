@@ -591,24 +591,19 @@ class Plugin(BasePlugin):
         grid.addWidget(QLabel(self.window.format_amount(v) + ' ' + self.window.base_unit()), 0, 1)
 
         i = 1
+
+        if 10 not in self.price_per_tx:
+            self.price_per_tx[10] = 10 * self.price_per_tx.get(1)
+
         for k, v in sorted(self.price_per_tx.items()):
-            if k!=1:
-                grid.addWidget(QLabel("Price for %d prepaid transactions:"%k), i, 0)
-                grid.addWidget(QLabel("%d x "%k + self.window.format_amount(v/k) + ' ' + self.window.base_unit()), i, 1)
-                b = QPushButton(_("Buy"))
-                grid.addWidget(b, i, 2)
-                def on_buy():
-                    d.close()
-                    if self.window.pluginsdialog:
-                        self.window.pluginsdialog.close()
-                    uri = "bitcoin:" + self.billing_info['billing_address'] + "?message=TrustedCoin %d Prepaid Transactions&amount="%k + str(Decimal(v)/100000000)
-                    self.is_billing = True
-                    self.window.pay_from_URI(uri)
-                    self.window.payto_e.setFrozen(True)
-                    self.window.message_e.setFrozen(True)
-                    self.window.amount_e.setFrozen(True)
-                b.clicked.connect(on_buy)
-                i += 1
+            if k == 1:
+                continue
+            grid.addWidget(QLabel("Price for %d prepaid transactions:"%k), i, 0)
+            grid.addWidget(QLabel("%d x "%k + self.window.format_amount(v/k) + ' ' + self.window.base_unit()), i, 1)
+            b = QPushButton(_("Buy"))
+            b.clicked.connect(lambda k=k, v=v: self.on_buy(k, v, d))
+            grid.addWidget(b, i, 2)
+            i += 1
 
         n = self.billing_info.get('tx_remaining', 0)
         grid.addWidget(QLabel(_("Your wallet has %d prepaid transactions.")%n), i, 0)
@@ -626,6 +621,16 @@ class Plugin(BasePlugin):
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
+    def on_buy(self, k, v, d):
+        d.close()
+        if self.window.pluginsdialog:
+            self.window.pluginsdialog.close()
+        uri = "bitcoin:" + self.billing_info['billing_address'] + "?message=TrustedCoin %d Prepaid Transactions&amount="%k + str(Decimal(v)/100000000)
+        self.is_billing = True
+        self.window.pay_from_URI(uri)
+        self.window.payto_e.setFrozen(True)
+        self.window.message_e.setFrozen(True)
+        self.window.amount_e.setFrozen(True)
 
     def request_billing_info(self):
         billing_info = server.get(self.user_id)
