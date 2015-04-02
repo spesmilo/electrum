@@ -122,7 +122,8 @@ def process_request(amount, confirmations, expires_in, password):
         return "incorrect parameters"
 
     account = wallet.default_account()
-    addr = account.get_address(0, num)
+    pubkeys = account.derive_pubkeys(0, num)
+    addr = account.pubkeys_to_address(pubkeys)
     num += 1
 
     out_queue.put( ('request', (addr, amount, confirmations, expires_in) ))
