@@ -605,9 +605,6 @@ class Plugin(BasePlugin):
             if Decimal(str(tx_info['value'])) < 0:
                 item.setForeground(5, QBrush(QColor("#BC1E1E")))
 
-        for i, width in enumerate(self.win.column_widths['history']):
-            self.win.history_list.setColumnWidth(i, width)
-        self.win.history_list.setColumnWidth(4, 140)
         self.win.history_list.setColumnWidth(5, 120)
         self.win.is_edit = False
 

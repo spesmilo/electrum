@@ -80,12 +80,6 @@ class StatusBarButton(QPushButton):
 
 
 
-default_column_widths = {
-    "history":[40,140,350,140],
-    "contacts":[350,330],
-    "receive": [370,200,130]
-}
-
 # status of payment requests
 PR_UNPAID  = 0
 PR_EXPIRED = 1
@@ -130,7 +124,6 @@ class ElectrumWindow(QMainWindow):
         self.completions = QStringListModel()
 
         self.tabs = tabs = QTabWidget(self)
-        self.column_widths = self.config.get("column_widths_2", default_column_widths )
         tabs.addTab(self.create_history_tab(), _('History') )
         tabs.addTab(self.create_send_tab(), _('Send') )
         tabs.addTab(self.create_receive_tab(), _('Receive') )
@@ -561,18 +554,19 @@ class ElectrumWindow(QMainWindow):
         self.update_completions()
         self.update_invoices_tab()
 
-
     def create_history_tab(self):
+        column_width = [40, 140, 350, 140, 140]
         self.history_list = l = MyTreeWidget(self)
         l.setColumnCount(5)
-        for i,width in enumerate(self.column_widths['history']):
+        l.header().setResizeMode(2, QHeaderView.Stretch);
+        l.header().setStretchLastSection(False)
+        for i, width in enumerate(column_width):
             l.setColumnWidth(i, width)
         l.setHeaderLabels( [ '', _('Date'), _('Description') , _('Amount'), _('Balance')] )
         l.itemDoubleClicked.connect(self.edit_tx_label)
         l.itemChanged.connect(self.tx_label_changed)
         l.customContextMenuRequested.connect(self.create_history_menu)
         return l
-
 
     def create_history_menu(self, position):
         self.history_list.selectedIndexes()
@@ -720,7 +714,7 @@ class ElectrumWindow(QMainWindow):
                 item.setForeground(3, QBrush(QColor("#BC1E1E")))
             if tx_hash:
                 item.setData(0, Qt.UserRole, tx_hash)
-                item.setToolTip(0, "%d %s\nTxId:%s" % (conf, _('Confirmations'), tx_hash) )
+                #item.setToolTip(0, "%d %s\nTxId:%s" % (conf, _('Confirmations'), tx_hash) )
             if is_default_label:
                 item.setForeground(2, QBrush(QColor('lightgrey')))
 
@@ -1385,23 +1379,22 @@ class ElectrumWindow(QMainWindow):
         l = MyTreeWidget(self)
         l.setColumnCount( len(headers) )
         l.setHeaderLabels( headers )
-
         w = QWidget()
         vbox = QVBoxLayout()
         w.setLayout(vbox)
-
         vbox.setMargin(0)
         vbox.setSpacing(0)
         vbox.addWidget(l)
         buttons = QWidget()
         vbox.addWidget(buttons)
-
         return l, w
 
-
     def create_addresses_tab(self):
+        column_width = [370, 200, 130]
         l, w = self.create_list_tab([ _('Address'), _('Label'), _('Balance'), _('Tx')])
-        for i,width in enumerate(self.column_widths['receive']):
+        l.header().setResizeMode(1, QHeaderView.Stretch);
+        l.header().setStretchLastSection(False)
+        for i,width in enumerate(column_width):
             l.setColumnWidth(i, width)
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_receive_menu)
@@ -1412,30 +1405,14 @@ class ElectrumWindow(QMainWindow):
         self.address_list = l
         return w
 
-
-
-
-    def save_column_widths(self):
-        self.column_widths["receive"] = []
-        for i in range(self.address_list.columnCount() -1):
-            self.column_widths["receive"].append(self.address_list.columnWidth(i))
-
-        self.column_widths["history"] = []
-        for i in range(self.history_list.columnCount() - 1):
-            self.column_widths["history"].append(self.history_list.columnWidth(i))
-
-        self.column_widths["contacts"] = []
-        for i in range(self.contacts_list.columnCount() - 1):
-            self.column_widths["contacts"].append(self.contacts_list.columnWidth(i))
-
-        self.config.set_key("column_widths_2", self.column_widths, True)
-
-
     def create_contacts_tab(self):
+        column_width = [350,330]
         l, w = self.create_list_tab([_('Address'), _('Label'), _('Tx')])
+        l.header().setResizeMode(1, QHeaderView.Stretch);
+        l.header().setStretchLastSection(False)
         l.setContextMenuPolicy(Qt.CustomContextMenu)
         l.customContextMenuRequested.connect(self.create_contact_menu)
-        for i,width in enumerate(self.column_widths['contacts']):
+        for i,width in enumerate(column_width):
             l.setColumnWidth(i, width)
         l.itemDoubleClicked.connect(lambda a, b: self.address_label_clicked(a,b,l,0,1))
         l.itemChanged.connect(lambda a,b: self.address_label_changed(a,b,l,0,1))
@@ -2803,7 +2780,6 @@ class ElectrumWindow(QMainWindow):
         if not self.isMaximized():
             g = self.geometry()
             self.config.set_key("winpos-qt", [g.left(),g.top(),g.width(),g.height()])
-        self.save_column_widths()
         self.config.set_key("console-history", self.console.history[-50:], True)
         self.wallet.storage.put('accounts_expanded', self.accounts_expanded)
         event.accept()
