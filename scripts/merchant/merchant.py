@@ -122,7 +122,12 @@ def process_request(amount, confirmations, expires_in, password):
         return "incorrect parameters"
 
     account = wallet.default_account()
-    addr = account.get_address(0, num)
+    addr = None
+    while addr is None:
+        try:
+            addr = account.get_address(0, num)
+        except:
+            account.create_new_address(0)
     num += 1
 
     out_queue.put( ('request', (addr, amount, confirmations, expires_in) ))
@@ -277,7 +282,6 @@ if __name__ == '__main__':
     else:
         wallet = electrum.wallet.Wallet(storage)
 
-    wallet.synchronize = lambda: None # prevent address creation by the wallet
     wallet.start_threads(network)
     network.register_callback('updated', on_wallet_update)
 
