@@ -122,7 +122,12 @@ def process_request(amount, confirmations, expires_in, password):
         return "incorrect parameters"
 
     account = wallet.default_account()
-    addr = account.get_address(0, num)
+    addr = None
+    while addr is None:
+        try:
+            addr = account.get_address(0, num)
+        except:
+            account.create_new_address(0)
     num += 1
 
     out_queue.put( ('request', (addr, amount, confirmations, expires_in) ))
