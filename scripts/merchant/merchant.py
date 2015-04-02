@@ -258,8 +258,8 @@ if __name__ == '__main__':
 
     # start network
     c = electrum.SimpleConfig({'wallet_path':wallet_path})
-    daemon_socket = electrum.daemon.get_daemon(c,True)
-    network = electrum.NetworkProxy(daemon_socket,config)
+    daemon_socket = electrum.daemon.get_daemon(c, True)
+    network = electrum.NetworkProxy(daemon_socket, config)
     network.start()
 
     # wait until connected
@@ -267,7 +267,7 @@ if __name__ == '__main__':
         time.sleep(0.1)
 
     if not network.is_connected():
-        print_msg("daemon is not connected")
+        print "daemon is not connected"
         sys.exit(1)
 
     # create watching_only wallet
@@ -281,7 +281,6 @@ if __name__ == '__main__':
     wallet.synchronize = lambda: None # prevent address creation by the wallet
     wallet.start_threads(network)
     network.register_callback('updated', on_wallet_update)
-
 
     threading.Thread(target=db_thread, args=()).start()
     
