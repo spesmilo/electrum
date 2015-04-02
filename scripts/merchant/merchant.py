@@ -89,7 +89,7 @@ def on_wallet_update():
             if not tx: continue
             if wallet.verifier.get_confirmations(tx_hash) < requested_confs: continue
             for o in tx.outputs:
-                o_address, o_value = o
+                o_type, o_address, o_value = o
                 if o_address == addr:
                     value += o_value
 
