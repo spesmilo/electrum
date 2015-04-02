@@ -34,7 +34,8 @@ DEFAULT_SERVERS = {
     'us.electrum.be':DEFAULT_PORTS,
 }
 
-DISCONNECTED_RETRY_INTERVAL = 60
+NODES_RETRY_INTERVAL = 60
+SERVER_RETRY_INTERVAL = 10
 
 
 def parse_servers(result):
@@ -459,18 +460,20 @@ class Network(util.DaemonThread):
             time.sleep(0.1)
 
     def run(self):
-        disconnected_time = time.time()
+        server_retry_time = time.time()
+        nodes_retry_time = time.time()
         while self.is_running():
             try:
                 i, response = self.queue.get(timeout=0.1)
             except Queue.Empty:
+                now = time.time()
                 if len(self.interfaces) + len(self.pending_servers) < self.num_server:
                     self.start_random_interface()
                 if not self.interfaces:
-                    if time.time() - disconnected_time > DISCONNECTED_RETRY_INTERVAL:
+                    if now - nodes_retry_time > NODES_RETRY_INTERVAL:
                         self.print_error('network: retrying connections')
                         self.disconnected_servers = set([])
-                        disconnected_time = time.time()
+                        nodes_retry_time = now
                 if not self.interface.is_connected:
                     if self.config.get('auto_cycle'):
                         if self.interfaces:
@@ -479,9 +482,14 @@ class Network(util.DaemonThread):
                         if self.default_server in self.interfaces.keys():
                             self.switch_to_interface(self.interfaces[self.default_server])
                         else:
-                            if self.default_server not in self.disconnected_servers and self.default_server not in self.pending_servers:
-                                self.print_error("forcing reconnection")
-                                self.interface = self.start_interface(self.default_server)
+                            if self.default_server in self.disconnected_servers:
+                                if now - server_retry_time > SERVER_RETRY_INTERVAL:
+                                    self.disconnected_servers.remove(self.default_server)
+                                    server_retry_time = now
+                            else:
+                                if self.default_server not in self.pending_servers:
+                                    self.print_error("forcing reconnection")
+                                    self.interface = self.start_interface(self.default_server)
                 continue
 
             if response is not None:
