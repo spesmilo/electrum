@@ -308,15 +308,6 @@ class Network(util.DaemonThread):
 
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
-        proxy_str = serialize_proxy(proxy)
-        server_str = serialize_server(host, port, protocol)
-        self.config.set_key('auto_cycle', auto_connect, True)
-        self.config.set_key("proxy", proxy_str, True)
-        self.config.set_key("server", server_str, True)
-        # abort if changes were not allowed by config
-        if self.config.get('server') != server_str or self.config.get('proxy') != proxy_str:
-            return
-
         if self.proxy != proxy or self.protocol != protocol:
             self.print_error('restarting network')
             for i in self.interfaces.values():
@@ -336,6 +327,7 @@ class Network(util.DaemonThread):
                 if self.server_is_lagging():
                     self.stop_interface()
         else:
+            server_str = serialize_server(host, port, protocol)
             self.set_server(server_str)
 
 
@@ -352,7 +344,6 @@ class Network(util.DaemonThread):
         server = interface.server
         self.print_error("switching to", server)
         self.interface = interface
-        self.config.set_key('server', server, False)
         self.default_server = server
         self.send_subscriptions()
         self.set_status('connected')
@@ -378,7 +369,6 @@ class Network(util.DaemonThread):
         self.set_status('connecting')
         # start interface
         self.default_server = server
-        self.config.set_key("server", server, True)
 
         if server in self.interfaces.keys():
             self.switch_to_interface( self.interfaces[server] )

@@ -30,6 +30,7 @@ from network import Network
 from util import print_error, print_stderr, parse_json
 from simple_config import SimpleConfig
 from daemon import NetworkServer
+from network import serialize_proxy, serialize_server
 
 
 
@@ -205,8 +206,17 @@ class NetworkProxy(util.DaemonThread):
     def get_parameters(self):
         return self.synchronous_get([('network.get_parameters', [])])[0]
 
-    def set_parameters(self, *args):
-        return self.synchronous_get([('network.set_parameters', args)])[0]
+    def set_parameters(self, host, port, protocol, proxy, auto_connect):
+        proxy_str = serialize_proxy(proxy)
+        server_str = serialize_server(host, port, protocol)
+        self.config.set_key('auto_cycle', auto_connect, True)
+        self.config.set_key("proxy", proxy_str, True)
+        self.config.set_key("server", server_str, True)
+        # abort if changes were not allowed by config
+        if self.config.get('server') != server_str or self.config.get('proxy') != proxy_str:
+            return
+
+        return self.synchronous_get([('network.set_parameters', (host, port, protocol, proxy, auto_connect))])[0]
 
     def stop_daemon(self):
         return self.send([('daemon.stop',[])], None)
