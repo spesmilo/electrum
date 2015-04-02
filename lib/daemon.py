@@ -35,8 +35,9 @@ DAEMON_SOCKET = 'daemon.sock'
 
 def do_start_daemon(config):
     import subprocess
+    args = [sys.executable, __file__, config.path]
     logfile = open(os.path.join(config.path, 'daemon.log'),'w')
-    p = subprocess.Popen([sys.executable,__file__], stderr=logfile, stdout=logfile, close_fds=(os.name=="posix"))
+    p = subprocess.Popen(args, stderr=logfile, stdout=logfile, close_fds=(os.name=="posix"))
     print_stderr("starting daemon (PID %d)"%p.pid)
 
 
@@ -207,7 +208,10 @@ def daemon_loop(server):
 
 if __name__ == '__main__':
     import simple_config, util
-    config = simple_config.SimpleConfig()
+    _config = {}
+    if len(sys.argv) > 1:
+        _config['electrum_path'] = sys.argv[1]
+    config = simple_config.SimpleConfig(_config)
     util.set_verbosity(True)
     server = NetworkServer(config)
     server.start()
