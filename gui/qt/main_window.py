@@ -268,22 +268,10 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(None, _('Warning'), str(e), _('OK'))
             return
         action = wallet.get_action()
-        # ask for confirmation
-        if action is not None:
-            if not self.question(_("This file contains an incompletely created wallet.\nDo you want to complete its creation now?")):
-                return
         self.hide()
         # run wizard
         if action is not None:
-            import installwizard
-            wizard = installwizard.InstallWizard(self.config, self.network, storage)
-            wizard.show()
-            try:
-                wallet = wizard.run(action)
-            except BaseException as e:
-                traceback.print_exc(file=sys.stdout)
-                QMessageBox.information(None, _('Error'), str(e), _('OK'))
-                return
+            wallet = self.gui_object.run_wizard(storage, action)
             if not wallet:
                 self.show()
                 return

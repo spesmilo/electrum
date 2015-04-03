@@ -187,7 +187,8 @@ def text_dialog(parent, title, label, ok_label, default=None):
     if dialog.exec_():
         return unicode(txt.toPlainText())
 
-
+def question(msg):
+    return QMessageBox.question(None, _('Message'), msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes
 
 def address_field(addresses):
     hbox = QHBoxLayout()
