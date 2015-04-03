@@ -2448,7 +2448,7 @@ class ElectrumWindow(QMainWindow):
         history = wallet.get_history()
         lines = []
         for item in history:
-            tx_hash, confirmations, value, timestamp = item
+            tx_hash, confirmations, value, timestamp, balance = item
             if confirmations:
                 if timestamp is not None:
                     time_string = format_time(timestamp)
