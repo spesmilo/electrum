@@ -306,7 +306,7 @@ class BIP32_Account(Account):
     def get_pubkey_from_xpub(self, xpub, for_change, n):
         xpubs = self.get_master_pubkeys()
         i = xpubs.index(xpub)
-        pubkeys = self.get_pubkeys(sequence, n)
+        pubkeys = self.get_pubkeys(for_change, n)
         return pubkeys[i]
 
     def derive_pubkeys(self, for_change, n):
