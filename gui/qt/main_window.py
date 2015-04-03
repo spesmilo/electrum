@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import sys, time, datetime, re, threading
+import sys, time, re, threading
 from electrum.i18n import _, set_language
 from electrum.util import print_error, print_msg
 import os.path, json, ast, traceback
@@ -35,7 +35,7 @@ from electrum.plugins import run_hook
 
 import icons_rc
 
-from electrum.util import format_satoshis, NotEnoughFunds
+from electrum.util import format_satoshis, format_time, NotEnoughFunds
 from electrum import Transaction
 from electrum import mnemonic
 from electrum import util, bitcoin, commands, Interface, Wallet
@@ -657,14 +657,6 @@ class ElectrumWindow(QMainWindow):
         run_hook('current_item_changed', a)
 
 
-    def format_time(self, timestamp):
-        try:
-            time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
-        except Exception:
-            time_str = _("error")
-        return time_str
-
-
     def update_history_tab(self):
 
         self.history_list.clear()
@@ -675,7 +667,7 @@ class ElectrumWindow(QMainWindow):
                 continue  # skip history in offline mode
 
             if conf > 0:
-                time_str = self.format_time(timestamp)
+                time_str = format_time(timestamp)
             if conf == -1:
                 time_str = 'unverified'
                 icon = QIcon(":icons/unconfirmed.png")
@@ -913,7 +905,7 @@ class ElectrumWindow(QMainWindow):
             # only show requests for the current account
             if address not in domain:
                 continue
-            date = self.format_time(timestamp)
+            date = format_time(timestamp)
             account = self.wallet.get_account_name(self.wallet.get_account_from_address(address))
             item = QTreeWidgetItem( [ date, account, address, message, self.format_amount(amount) if amount else ""])
             item.setFont(2, QFont(MONOSPACE_FONT))
@@ -1430,7 +1422,7 @@ class ElectrumWindow(QMainWindow):
             domain, memo, amount, expiration_date, status, tx_hash = value
             if status == PR_UNPAID and expiration_date and expiration_date < time.time():
                 status = PR_EXPIRED
-            date_str = datetime.datetime.fromtimestamp(expiration_date).isoformat(' ')[:-3]
+            date_str = format_time(expiration_date)
             item = QTreeWidgetItem( [ date_str, domain, memo, self.format_amount(amount, whitespaces=True), ''] )
             icon = QIcon(pr_icons.get(status))
             item.setIcon(4, icon)
@@ -2477,11 +2469,7 @@ class ElectrumWindow(QMainWindow):
             tx_hash, confirmations, value, timestamp = item
             if confirmations:
                 if timestamp is not None:
-                    try:
-                        time_string = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
-                    except [RuntimeError, TypeError, NameError] as reason:
-                        time_string = "unknown"
-                        pass
+                    time_string = format_time(timestamp)
                 else:
                     time_string = "unknown"
             else:
