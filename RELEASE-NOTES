@@ -1,3 +1,10 @@
+# Release 2.1
+ * Faster startup: Transaction inputs and outputs are parsed once and
+   cached in the wallet file.
+ * Transaction window shows own addresses in green color.
+ * OpenAlias plugin was improved
+ * Various fixes.
+
 # Release 2.0.4 - Minor GUI improvements
  * The password dialog will ask for password again if the user enters
    a wrong password
@@ -24,7 +31,6 @@
 # Release 2.0.2 - bugfixes
  * Fix transaction sweep (#1066)
  * Fix thread timing bug (#1054)
-
 
 # Release 2.0.1 - bugfixes
  * Fix critical bug in Trezor address derivation: passphrases were not

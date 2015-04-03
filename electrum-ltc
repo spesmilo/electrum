@@ -276,6 +276,7 @@ if __name__ == '__main__':
             network.start()
             if arg == 'status':
                 print_json({
+                    'path': network.config.path,
                     'server': network.get_parameters()[0],
                     'blockchain_height': network.get_local_height(),
                     'server_height': network.get_server_height(),

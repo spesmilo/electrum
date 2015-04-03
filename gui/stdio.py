@@ -99,11 +99,11 @@ class ElectrumGui:
         b = 0 
         messages = []
 
-        for item in self.wallet.get_tx_history():
-            tx_hash, confirmations, is_mine, value, fee, balance, timestamp = item
+        for item in self.wallet.get_history():
+            tx_hash, confirmations, value, timestamp, balance = item
             if confirmations:
                 try:
-                    time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
+                    time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                 except Exception:
                     time_str = "unknown"
             else:
@@ -119,7 +119,7 @@ class ElectrumGui:
         print(self.get_balance())
 
     def get_balance(self):
-        if self.wallet.network.interface and self.wallet.network.interface.is_connected:
+        if self.wallet.network.is_connected():
             if not self.wallet.up_to_date:
                 msg = _( "Synchronizing..." )
             else: 
