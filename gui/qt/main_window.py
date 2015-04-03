@@ -634,7 +634,6 @@ class ElectrumWindow(QMainWindow):
             l.editItem( item, column )
             item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
 
-
     def address_label_changed(self, item, column, l, column_addr, column_label):
         if column == column_label:
             addr = unicode( item.text(column_addr) )
@@ -642,30 +641,26 @@ class ElectrumWindow(QMainWindow):
             is_editable = item.data(0, 32).toBool()
             if not is_editable:
                 return
-
             changed = self.wallet.set_label(addr, text)
             if changed:
                 self.update_history_tab()
                 self.update_completions()
-
             self.current_item_changed(item)
-
         run_hook('item_changed', item, column)
-
 
     def current_item_changed(self, a):
         run_hook('current_item_changed', a)
 
-
     def update_history_tab(self):
-
-        self.history_list.clear()
+        l = self.history_list
+        item = l.currentItem()
+        current_tx = item.data(0, Qt.UserRole).toString() if item else None
+        l.clear()
         for item in self.wallet.get_history(self.current_account):
             tx_hash, conf, value, timestamp, balance = item
             time_str = _("unknown")
             if conf is None and timestamp is None:
                 continue  # skip history in offline mode
-
             if conf > 0:
                 time_str = format_time(timestamp)
             if conf == -1:
@@ -678,14 +673,11 @@ class ElectrumWindow(QMainWindow):
                 icon = QIcon(":icons/clock%d.png"%conf)
             else:
                 icon = QIcon(":icons/confirmed.png")
-
             v_str = self.format_amount(value, True, whitespaces=True)
             balance_str = self.format_amount(balance, whitespaces=True)
-
             label, is_default_label = self.wallet.get_label(tx_hash)
             if is_default_label:
                 label = ''
-
             item = QTreeWidgetItem( [ '', time_str, label, v_str, balance_str] )
             item.setFont(2, QFont(MONOSPACE_FONT))
             item.setFont(3, QFont(MONOSPACE_FONT))
@@ -694,15 +686,13 @@ class ElectrumWindow(QMainWindow):
                 item.setForeground(3, QBrush(QColor("#BC1E1E")))
             if tx_hash:
                 item.setData(0, Qt.UserRole, tx_hash)
-                #item.setToolTip(0, "%d %s\nTxId:%s" % (conf, _('Confirmations'), tx_hash) )
             if is_default_label:
                 item.setForeground(2, QBrush(QColor('lightgrey')))
-
             item.setIcon(0, icon)
-            self.history_list.insertTopLevelItem(0,item)
+            l.insertTopLevelItem(0, item)
+            if current_tx == tx_hash:
+                l.setCurrentItem(item)
 
-
-        self.history_list.setCurrentItem(self.history_list.topLevelItem(0))
         run_hook('history_tab_update')
 
 
@@ -1627,31 +1617,24 @@ class ElectrumWindow(QMainWindow):
 
     def update_address_tab(self):
         l = self.address_list
-        # extend the syntax for consistency
-        l.addChild = l.addTopLevelItem
-        l.insertChild = l.insertTopLevelItem
-
+        item = l.currentItem()
+        current_address = item.data(0, Qt.UserRole+1).toString() if item else None
         l.clear()
-
         accounts = self.wallet.get_accounts()
         if self.current_account is None:
             account_items = sorted(accounts.items())
         else:
             account_items = [(self.current_account, accounts.get(self.current_account))]
-
-
         for k, account in account_items:
-
             if len(accounts) > 1:
                 name = self.wallet.get_account_name(k)
-                c,u = self.wallet.get_account_balance(k)
+                c, u = self.wallet.get_account_balance(k)
                 account_item = QTreeWidgetItem( [ name, '', self.format_amount(c+u), ''] )
                 l.addTopLevelItem(account_item)
                 account_item.setExpanded(self.accounts_expanded.get(k, True))
-                account_item.setData(0, 32, k)
+                account_item.setData(0, Qt.UserRole+1, k)
             else:
                 account_item = l
-
             sequences = [0,1] if account.has_change() else [0]
             for is_change in sequences:
                 if len(sequences) > 1:
@@ -1662,10 +1645,8 @@ class ElectrumWindow(QMainWindow):
                         seq_item.setExpanded(True)
                 else:
                     seq_item = account_item
-
                 used_item = QTreeWidgetItem( [ _("Used"), '', '', '', ''] )
                 used_flag = False
-
                 addr_list = account.get_addresses(is_change)
                 for address in addr_list:
                     num, is_used = self.wallet.is_used(address)
@@ -1674,7 +1655,8 @@ class ElectrumWindow(QMainWindow):
                     balance = self.format_amount(c + u)
                     item = QTreeWidgetItem( [ address, label, balance, "%d"%num] )
                     item.setFont(0, QFont(MONOSPACE_FONT))
-                    item.setData(0, 32, True) # label can be edited
+                    item.setData(0, Qt.UserRole, True) # label can be edited
+                    item.setData(0, Qt.UserRole+1, address)
                     if address in self.wallet.frozen_addresses:
                         item.setBackgroundColor(0, QColor('lightblue'))
                     if self.wallet.is_beyond_limit(address, account, is_change):
@@ -1686,28 +1668,28 @@ class ElectrumWindow(QMainWindow):
                         used_item.addChild(item)
                     else:
                         seq_item.addChild(item)
-
-        # we use column 1 because column 0 may be hidden
-        l.setCurrentItem(l.topLevelItem(0),1)
+                    if address == current_address:
+                        l.setCurrentItem(item)
 
 
     def update_contacts_tab(self):
         l = self.contacts_list
+        item = l.currentItem()
+        current_address = item.data(0, Qt.UserRole+1).toString() if item else None
         l.clear()
-
         for address in self.wallet.addressbook:
             label = self.wallet.labels.get(address,'')
             n = self.wallet.get_num_tx(address)
             item = QTreeWidgetItem( [ address, label, "%d"%n] )
             item.setFont(0, QFont(MONOSPACE_FONT))
             # 32 = label can be edited (bool)
-            item.setData(0,32, True)
+            item.setData(0, Qt.UserRole, True)
             # 33 = payto string
-            item.setData(0,33, address)
+            item.setData(0, Qt.UserRole+1, address)
             l.addTopLevelItem(item)
-
+            if address == current_address:
+                l.setCurrentItem(item)
         run_hook('update_contacts_tab', l)
-        l.setCurrentItem(l.topLevelItem(0))
 
 
     def create_console_tab(self):

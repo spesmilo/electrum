@@ -252,10 +252,14 @@ def filename_field(parent, config, defaultname, select_msg):
 
 
 class MyTreeWidget(QTreeWidget):
+
     def __init__(self, parent):
         QTreeWidget.__init__(self, parent)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.itemActivated.connect(self.on_activated)
+        # extend the syntax for consistency
+        self.addChild = self.addTopLevelItem
+        self.insertChild = self.insertTopLevelItem
 
     def on_activated(self, item):
         if not item: return
