@@ -1856,7 +1856,7 @@ class Wallet(object):
             name = "x%d/"%(i+1)
             if klass.is_seed(text):
                 if name == 'x1/':
-                    self.add_seed(text1, password)
+                    self.add_seed(text, password)
                     self.create_master_keys(password)
                 else:
                     self.add_cosigner_seed(text, name, password)
