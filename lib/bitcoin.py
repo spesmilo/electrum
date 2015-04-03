@@ -673,6 +673,15 @@ TESTNET_HEADER_PUB = "043587cf"
 BITCOIN_HEADERS = (BITCOIN_HEADER_PUB, BITCOIN_HEADER_PRIV)
 TESTNET_HEADERS = (TESTNET_HEADER_PUB, TESTNET_HEADER_PRIV)
 
+BITCOIN_HEADER_ALT_PRIV = "019d9cfe"
+BITCOIN_HEADER_ALT_PUB = "019da462"
+
+TESTNET_HEADER_ALT_PRIV = "0436ef7d"
+TESTNET_HEADER_ALT_PUB = "0436f6e1"
+
+BITCOIN_HEADERS_ALT = (BITCOIN_HEADER_ALT_PUB, BITCOIN_HEADER_ALT_PRIV)
+TESTNET_HEADERS_ALT = (TESTNET_HEADER_ALT_PUB, TESTNET_HEADER_ALT_PRIV)
+
 def _get_headers(testnet):
     """Returns the correct headers for either testnet or bitcoin, in the form
     of a 2-tuple, like (public, private)."""
@@ -693,6 +702,10 @@ def deserialize_xkey(xkey):
         head = TESTNET_HEADER_PRIV
     elif xkey_header in BITCOIN_HEADERS:
         head = BITCOIN_HEADER_PRIV
+    elif xkey_header in TESTNET_HEADERS_ALT:
+        head = TESTNET_HEADER_ALT_PRIV
+    elif xkey_header in BITCOIN_HEADERS_ALT:
+        head = BITCOIN_HEADER_ALT_PRIV
     else:
         raise Exception("Unknown xkey header: '%s'" % xkey_header)
 
