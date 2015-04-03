@@ -924,22 +924,22 @@ class ElectrumGui:
                 wallet = Wallet(storage)
                 seed = wallet.make_seed()
                 modal_dialog('Your seed is:', seed)
+                wallet.add_seed(seed, password)
+                wallet.create_master_keys(password)
+                wallet.create_main_account(password)
             elif action == 'restore':
                 seed = self.seed_dialog()
                 if not seed:
                     exit()
                 if not Wallet.is_seed(seed):
                     exit()
-                wallet = Wallet.from_seed(seed, storage)
+                wallet = Wallet.from_seed(seed, password, storage)
             else:
                 exit()
 
             msg = "Creating wallet" if action == 'create' else "Restoring wallet"
             droid.dialogCreateSpinnerProgress("Electrum", msg)
             droid.dialogShow()
-            wallet.add_seed(seed, password)
-            wallet.create_master_keys(password)
-            wallet.create_main_account(password)
             wallet.start_threads(network)
             if action == 'restore':
                 wallet.restore(lambda x: None)
