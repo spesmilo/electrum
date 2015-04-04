@@ -775,6 +775,15 @@ class Abstract_Wallet(object):
         return label, is_default
 
     def get_default_label(self, tx_hash):
+        if self.txi.get(tx_hash) == {}:
+            d = self.txo.get(tx_hash, {})
+            for addr in d.keys():
+                assert self.is_mine(addr)
+                label = self.labels.get(addr)
+                if label:
+                    break
+                label = ">" + addr
+            return label
         return tx_hash
 
     def get_tx_fee(self, tx):

@@ -676,8 +676,6 @@ class ElectrumWindow(QMainWindow):
             v_str = self.format_amount(value, True, whitespaces=True)
             balance_str = self.format_amount(balance, whitespaces=True)
             label, is_default_label = self.wallet.get_label(tx_hash)
-            if is_default_label:
-                label = ''
             item = QTreeWidgetItem( [ '', time_str, label, v_str, balance_str] )
             item.setFont(2, QFont(MONOSPACE_FONT))
             item.setFont(3, QFont(MONOSPACE_FONT))
@@ -687,7 +685,7 @@ class ElectrumWindow(QMainWindow):
             if tx_hash:
                 item.setData(0, Qt.UserRole, tx_hash)
             if is_default_label:
-                item.setForeground(2, QBrush(QColor('lightgrey')))
+                item.setForeground(2, QBrush(QColor('grey')))
             item.setIcon(0, icon)
             l.insertTopLevelItem(0, item)
             if current_tx == tx_hash:
