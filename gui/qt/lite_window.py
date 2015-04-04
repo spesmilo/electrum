@@ -23,7 +23,7 @@ import re
 import time
 from electrum.wallet import Wallet, WalletStorage
 import webbrowser
-import history_widget
+import history_widget_lite
 import receiving_widget
 from electrum import util
 import datetime
@@ -200,7 +200,7 @@ class MiniWindow(QDialog):
 
         self.send_button.setMaximumWidth(125)
 
-        self.history_list = history_widget.HistoryWidget()
+        self.history_list = history_widget_lite.HistoryWidget()
         self.history_list.setObjectName("history")
         self.history_list.hide()
         self.history_list.setAlternatingRowColors(True)

@@ -714,9 +714,10 @@ class Abstract_Wallet(object):
                 self.add_transaction(tx_hash, tx, tx_height)
 
 
-    def get_history(self, account=None):
+    def get_history(self, domain=None):
         # get domain
-        domain = self.get_account_addresses(account)
+        if domain is None:
+            domain = self.get_account_addresses(None)
 
         hh = []
         # 1. Get the history of each address in the domain

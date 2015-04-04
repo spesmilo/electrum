@@ -20,7 +20,6 @@ import sys, time, re, threading
 from electrum.i18n import _, set_language
 from electrum.util import print_error, print_msg
 import os.path, json, ast, traceback
-import webbrowser
 import shutil
 import StringIO
 
@@ -543,76 +542,19 @@ class ElectrumWindow(QMainWindow):
         self.update_invoices_tab()
 
     def create_history_tab(self):
-        column_width = [40, 140, 350, 140, 140]
-        self.history_list = l = MyTreeWidget(self)
-        l.setColumnCount(5)
-        l.header().setResizeMode(2, QHeaderView.Stretch);
-        l.header().setStretchLastSection(False)
-        for i, width in enumerate(column_width):
-            l.setColumnWidth(i, width)
-        l.setHeaderLabels( [ '', _('Date'), _('Description') , _('Amount'), _('Balance')] )
-        l.itemDoubleClicked.connect(self.edit_tx_label)
-        l.itemChanged.connect(self.tx_label_changed)
-        l.customContextMenuRequested.connect(self.create_history_menu)
+        from history_widget import HistoryWidget
+        self.history_list = l = HistoryWidget(self)
         return l
 
-    def create_history_menu(self, position):
-        self.history_list.selectedIndexes()
-        item = self.history_list.currentItem()
-        be = self.config.get('block_explorer', 'Blockchain.info')
-        if be == 'Blockchain.info':
-            block_explorer = 'https://blockchain.info/tx/'
-        elif be == 'Blockr.io':
-            block_explorer = 'https://blockr.io/tx/info/'
-        elif be == 'Insight.is':
-            block_explorer = 'http://live.insight.is/tx/'
-        elif be == "Blocktrail.com":
-            block_explorer = 'https://www.blocktrail.com/BTC/tx/'
-
-        if not item: return
-        tx_hash = str(item.data(0, Qt.UserRole).toString())
-        if not tx_hash: return
-        menu = QMenu()
-        menu.addAction(_("Copy ID to Clipboard"), lambda: self.app.clipboard().setText(tx_hash))
-        menu.addAction(_("Details"), lambda: self.show_transaction(self.wallet.transactions.get(tx_hash)))
-        menu.addAction(_("Edit description"), lambda: self.edit_tx_label(item,2))
-        menu.addAction(_("View on block explorer"), lambda: webbrowser.open(block_explorer + tx_hash))
-        menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
-
+    def show_address(self, addr):
+        import address_dialog
+        d = address_dialog.AddressDialog(addr, self)
+        d.exec_()
 
     def show_transaction(self, tx):
         import transaction_dialog
         d = transaction_dialog.TxDialog(tx, self)
         d.exec_()
-
-    def edit_tx_label(self, item, column):
-        if column==2 and item.isSelected():
-            text = unicode(item.text(column))
-            tx_hash = str(item.data(0, Qt.UserRole).toString())
-            self.is_edit = True
-            if text == self.wallet.get_default_label(tx_hash):
-                item.setText(column, '')
-            item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
-            self.history_list.editItem( item, column )
-            item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
-            self.is_edit = False
-
-    def tx_label_changed(self, item, column):
-        if self.is_edit:
-            return
-        self.is_edit = True
-        tx_hash = str(item.data(0, Qt.UserRole).toString())
-        tx = self.wallet.transactions.get(tx_hash)
-        text = unicode(item.text(2))
-        self.wallet.set_label(tx_hash, text)
-        if text:
-            item.setForeground(2, QBrush(QColor('black')))
-        else:
-            text = self.wallet.get_default_label(tx_hash)
-            item.setText(2, text)
-            item.setForeground(2, QBrush(QColor('gray')))
-        self.is_edit = False
-
 
     def edit_label(self, is_recv):
         l = self.address_list if is_recv else self.contacts_list
@@ -620,8 +562,6 @@ class ElectrumWindow(QMainWindow):
         item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
         l.editItem( item, 1 )
         item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
-
-
 
     def address_label_clicked(self, item, column, l, column_addr, column_label):
         if column == column_label and item.isSelected():
@@ -652,47 +592,9 @@ class ElectrumWindow(QMainWindow):
         run_hook('current_item_changed', a)
 
     def update_history_tab(self):
-        l = self.history_list
-        item = l.currentItem()
-        current_tx = item.data(0, Qt.UserRole).toString() if item else None
-        l.clear()
-        for item in self.wallet.get_history(self.current_account):
-            tx_hash, conf, value, timestamp, balance = item
-            time_str = _("unknown")
-            if conf is None and timestamp is None:
-                continue  # skip history in offline mode
-            if conf > 0:
-                time_str = format_time(timestamp)
-            if conf == -1:
-                time_str = 'unverified'
-                icon = QIcon(":icons/unconfirmed.png")
-            elif conf == 0:
-                time_str = 'pending'
-                icon = QIcon(":icons/unconfirmed.png")
-            elif conf < 6:
-                icon = QIcon(":icons/clock%d.png"%conf)
-            else:
-                icon = QIcon(":icons/confirmed.png")
-            v_str = self.format_amount(value, True, whitespaces=True)
-            balance_str = self.format_amount(balance, whitespaces=True)
-            label, is_default_label = self.wallet.get_label(tx_hash)
-            item = QTreeWidgetItem( [ '', time_str, label, v_str, balance_str] )
-            item.setFont(2, QFont(MONOSPACE_FONT))
-            item.setFont(3, QFont(MONOSPACE_FONT))
-            item.setFont(4, QFont(MONOSPACE_FONT))
-            if value < 0:
-                item.setForeground(3, QBrush(QColor("#BC1E1E")))
-            if tx_hash:
-                item.setData(0, Qt.UserRole, tx_hash)
-            if is_default_label:
-                item.setForeground(2, QBrush(QColor('grey')))
-            item.setIcon(0, icon)
-            l.insertTopLevelItem(0, item)
-            if current_tx == tx_hash:
-                l.setCurrentItem(item)
-
-        run_hook('history_tab_update')
-
+        domain = self.wallet.get_account_addresses(self.current_account)
+        h = self.wallet.get_history(domain)
+        self.history_list.update(h)
 
     def create_receive_tab(self):
         w = QWidget()
@@ -1480,7 +1382,8 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
             menu.addAction(_("Request payment"), lambda: self.receive_at(addr))
             menu.addAction(_("Edit label"), lambda: self.edit_label(True))
-            menu.addAction(_("Public keys"), lambda: self.show_public_keys(addr))
+            menu.addAction(_('History'), lambda: self.show_address(addr))
+            menu.addAction(_('Public Keys'), lambda: self.show_public_keys(addr))
             if self.wallet.can_export():
                 menu.addAction(_("Private key"), lambda: self.show_private_key(addr))
             if not self.wallet.is_watching_only():
