@@ -294,9 +294,9 @@ class MyTreeWidget(QTreeWidget):
     def edit_label(self, item, column):
         if column==self.edit_column and item.isSelected():
             text = unicode(item.text(column))
-            tx_hash = str(item.data(0, Qt.UserRole).toString())
+            key = str(item.data(0, Qt.UserRole).toString())
             self.is_edit = True
-            if text == self.parent.wallet.get_default_label(tx_hash):
+            if text == self.parent.wallet.get_default_label(key):
                 item.setText(column, '')
             item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
             self.editItem(item, column)

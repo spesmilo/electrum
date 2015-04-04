@@ -61,7 +61,7 @@ class AddressDialog(QDialog):
         vbox.addWidget(self.addr_e)
 
         vbox.addWidget(QLabel(_("History")))
-        self.hw = HistoryWidget(self)
+        self.hw = HistoryWidget(self.parent)
         vbox.addWidget(self.hw)
 
         vbox.addStretch(1)
