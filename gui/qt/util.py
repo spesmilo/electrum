@@ -291,7 +291,9 @@ class MyTreeWidget(QTreeWidget):
                 break
         self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), QPoint(50, i*5 + j - 1))
 
-    def edit_label(self, item, column):
+    def edit_label(self, item, column=None):
+        if column is None:
+            column = self.edit_column
         if column==self.edit_column and item.isSelected():
             text = unicode(item.text(column))
             key = str(item.data(0, Qt.UserRole).toString())

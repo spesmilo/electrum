@@ -94,7 +94,7 @@ class HistoryWidget(MyTreeWidget):
         menu = QMenu()
         menu.addAction(_("Copy ID to Clipboard"), lambda: self.parent.app.clipboard().setText(tx_hash))
         menu.addAction(_("Details"), lambda: self.parent.show_transaction(self.wallet.transactions.get(tx_hash)))
-        menu.addAction(_("Edit description"), lambda: self.edit_label(item, 2))
+        menu.addAction(_("Edit description"), lambda: self.edit_label(item))
         menu.addAction(_("View on block explorer"), lambda: webbrowser.open(block_explorer + tx_hash))
         menu.exec_(self.viewport().mapToGlobal(position))
 

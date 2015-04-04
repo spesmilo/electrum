@@ -1240,7 +1240,7 @@ class ElectrumWindow(QMainWindow):
             icon = QIcon(pr_icons.get(status))
             item.setIcon(4, icon)
             item.setToolTip(4, pr_tooltips.get(status,''))
-            item.setData(0, 32, key)
+            item.setData(0, Qt.UserRole, key)
             item.setFont(1, QFont(MONOSPACE_FONT))
             item.setFont(3, QFont(MONOSPACE_FONT))
             l.addTopLevelItem(item)
@@ -1289,8 +1289,8 @@ class ElectrumWindow(QMainWindow):
         addrs = [unicode(item.text(0)) for item in selected]
         if not multi_select:
             item = self.address_list.itemAt(position)
-            if not item: return
-
+            if not item:
+                return
             addr = addrs[0]
             if not is_valid(addr):
                 k = str(item.data(0,32).toString())
@@ -1304,7 +1304,7 @@ class ElectrumWindow(QMainWindow):
         if not multi_select:
             menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(addr))
             menu.addAction(_("Request payment"), lambda: self.receive_at(addr))
-            menu.addAction(_("Edit label"), lambda: self.edit_label(True))
+            menu.addAction(_("Edit label"), lambda: self.address_list.edit_label(item))
             menu.addAction(_('History'), lambda: self.show_address(addr))
             menu.addAction(_('Public Keys'), lambda: self.show_public_keys(addr))
             if self.wallet.can_export():
@@ -1380,7 +1380,7 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Pay to"), lambda: self.payto(payto_addr))
             menu.addAction(_("QR code"), lambda: self.show_qrcode("bitcoin:" + addr, _("Address")))
             if is_editable:
-                menu.addAction(_("Edit label"), lambda: self.edit_label(False))
+                menu.addAction(_("Edit label"), lambda: self.contacts_list.edit_label(item))
                 menu.addAction(_("Delete"), lambda: self.delete_contact(addr))
 
         run_hook('create_contact_menu', menu, item)
@@ -1456,7 +1456,7 @@ class ElectrumWindow(QMainWindow):
                 account_item = QTreeWidgetItem( [ name, '', self.format_amount(c+u), ''] )
                 l.addTopLevelItem(account_item)
                 account_item.setExpanded(self.accounts_expanded.get(k, True))
-                account_item.setData(0, Qt.UserRole+1, k)
+                account_item.setData(0, Qt.UserRole, k)
             else:
                 account_item = l
             sequences = [0,1] if account.has_change() else [0]
@@ -1479,8 +1479,8 @@ class ElectrumWindow(QMainWindow):
                     balance = self.format_amount(c + u)
                     item = QTreeWidgetItem( [ address, label, balance, "%d"%num] )
                     item.setFont(0, QFont(MONOSPACE_FONT))
-                    item.setData(0, Qt.UserRole, True) # label can be edited
-                    item.setData(0, Qt.UserRole+1, address)
+                    item.setData(0, Qt.UserRole, address)
+                    item.setData(0, Qt.UserRole+1, True) # label can be edited
                     if address in self.wallet.frozen_addresses:
                         item.setBackgroundColor(0, QColor('lightblue'))
                     if self.wallet.is_beyond_limit(address, account, is_change):
@@ -1506,10 +1506,8 @@ class ElectrumWindow(QMainWindow):
             n = self.wallet.get_num_tx(address)
             item = QTreeWidgetItem( [ address, label, "%d"%n] )
             item.setFont(0, QFont(MONOSPACE_FONT))
-            # 32 = label can be edited (bool)
-            item.setData(0, Qt.UserRole, True)
-            # 33 = payto string
             item.setData(0, Qt.UserRole+1, address)
+            item.setData(0, Qt.UserRole+1, True)
             l.addTopLevelItem(item)
             if address == current_address:
                 l.setCurrentItem(item)
