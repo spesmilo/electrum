@@ -556,41 +556,6 @@ class ElectrumWindow(QMainWindow):
         d = transaction_dialog.TxDialog(tx, self)
         d.exec_()
 
-    def edit_label(self, is_recv):
-        l = self.address_list if is_recv else self.contacts_list
-        item = l.currentItem()
-        item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
-        l.editItem( item, 1 )
-        item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
-
-    def address_label_clicked(self, item, column, l, column_addr, column_label):
-        if column == column_label and item.isSelected():
-            is_editable = item.data(0, 32).toBool()
-            if not is_editable:
-                return
-            addr = unicode( item.text(column_addr) )
-            label = unicode( item.text(column_label) )
-            item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
-            l.editItem( item, column )
-            item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
-
-    def address_label_changed(self, item, column, l, column_addr, column_label):
-        if column == column_label:
-            addr = unicode( item.text(column_addr) )
-            text = unicode( item.text(column_label) )
-            is_editable = item.data(0, 32).toBool()
-            if not is_editable:
-                return
-            changed = self.wallet.set_label(addr, text)
-            if changed:
-                self.update_history_tab()
-                self.update_completions()
-            self.current_item_changed(item)
-        run_hook('item_changed', item, column)
-
-    def current_item_changed(self, a):
-        run_hook('current_item_changed', a)
-
     def update_history_tab(self):
         domain = self.wallet.get_account_addresses(self.current_account)
         h = self.wallet.get_history(domain)
@@ -645,11 +610,9 @@ class ElectrumWindow(QMainWindow):
         grid.setRowStretch(6, 1)
 
         self.receive_requests_label = QLabel(_('Saved Requests'))
-        self.receive_list = MyTreeWidget(self)
-        self.receive_list.customContextMenuRequested.connect(self.receive_list_menu)
+        self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), _('Message'), _('Amount')], [])
         self.receive_list.currentItemChanged.connect(self.receive_item_changed)
         self.receive_list.itemClicked.connect(self.receive_item_changed)
-        self.receive_list.setHeaderLabels( [_('Date'), _('Account'), _('Address'), _('Message'), _('Amount')] )
         self.receive_list.setSortingEnabled(True)
         self.receive_list.setColumnWidth(0, 180)
         self.receive_list.hideColumn(1)     # the update will show it if necessary
@@ -843,14 +806,9 @@ class ElectrumWindow(QMainWindow):
 
         self.from_label = QLabel(_('From'))
         grid.addWidget(self.from_label, 3, 0)
-        self.from_list = MyTreeWidget(self)
-        self.from_list.setColumnCount(2)
-        self.from_list.setColumnWidth(0, 350)
-        self.from_list.setColumnWidth(1, 50)
+        self.from_list = MyTreeWidget(self, self.from_list_menu, ['',''], [350, 50])
         self.from_list.setHeaderHidden(True)
         self.from_list.setMaximumHeight(80)
-        self.from_list.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.from_list.customContextMenuRequested.connect(self.from_list_menu)
         grid.addWidget(self.from_list, 3, 1, 1, 3)
         self.set_pay_from([])
 
@@ -1242,13 +1200,7 @@ class ElectrumWindow(QMainWindow):
                 self.wallet.freeze(addr)
         self.update_address_tab()
 
-
-
-    def create_list_tab(self, headers):
-        "generic tab creation method"
-        l = MyTreeWidget(self)
-        l.setColumnCount( len(headers) )
-        l.setHeaderLabels( headers )
+    def create_list_tab(self, l):
         w = QWidget()
         vbox = QVBoxLayout()
         w.setLayout(vbox)
@@ -1257,52 +1209,23 @@ class ElectrumWindow(QMainWindow):
         vbox.addWidget(l)
         buttons = QWidget()
         vbox.addWidget(buttons)
-        return l, w
+        return w
 
     def create_addresses_tab(self):
-        column_width = [370, 200, 130]
-        l, w = self.create_list_tab([ _('Address'), _('Label'), _('Balance'), _('Tx')])
-        l.header().setResizeMode(1, QHeaderView.Stretch);
-        l.header().setStretchLastSection(False)
-        for i,width in enumerate(column_width):
-            l.setColumnWidth(i, width)
-        l.setContextMenuPolicy(Qt.CustomContextMenu)
-        l.customContextMenuRequested.connect(self.create_receive_menu)
+        l = MyTreeWidget(self, self.create_receive_menu, [ _('Address'), _('Label'), _('Balance'), _('Tx')], [370, None, 130])
         l.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        l.itemDoubleClicked.connect(lambda a, b: self.address_label_clicked(a,b,l,0,1))
-        l.itemChanged.connect(lambda a,b: self.address_label_changed(a,b,l,0,1))
-        l.currentItemChanged.connect(lambda a,b: self.current_item_changed(a))
         self.address_list = l
-        return w
+        return self.create_list_tab(l)
 
     def create_contacts_tab(self):
-        column_width = [350,330]
-        l, w = self.create_list_tab([_('Address'), _('Label'), _('Tx')])
-        l.header().setResizeMode(1, QHeaderView.Stretch);
-        l.header().setStretchLastSection(False)
-        l.setContextMenuPolicy(Qt.CustomContextMenu)
-        l.customContextMenuRequested.connect(self.create_contact_menu)
-        for i,width in enumerate(column_width):
-            l.setColumnWidth(i, width)
-        l.itemDoubleClicked.connect(lambda a, b: self.address_label_clicked(a,b,l,0,1))
-        l.itemChanged.connect(lambda a,b: self.address_label_changed(a,b,l,0,1))
+        l = MyTreeWidget(self, self.create_contact_menu, [_('Address'), _('Label'), _('Tx')], [350, None])
         self.contacts_list = l
-        return w
-
+        return self.create_list_tab(l)
 
     def create_invoices_tab(self):
-        l, w = self.create_list_tab([_('Date'), _('Requestor'), _('Memo'), _('Amount'), _('Status')])
-        l.setColumnWidth(0, 150)
-        l.setColumnWidth(1, 150)
-        l.setColumnWidth(3, 150)
-        l.setColumnWidth(4, 40)
-        h = l.header()
-        h.setStretchLastSection(False)
-        h.setResizeMode(2, QHeaderView.Stretch)
-        l.setContextMenuPolicy(Qt.CustomContextMenu)
-        l.customContextMenuRequested.connect(self.create_invoice_menu)
+        l = MyTreeWidget(self, self.create_invoice_menu, [_('Date'), _('Requestor'), _('Memo'), _('Amount'), _('Status')], [150, 150, None, 150, 40])
         self.invoices_list = l
-        return w
+        return self.create_list_tab(l)
 
     def update_invoices_tab(self):
         invoices = self.wallet.storage.get('invoices', {})

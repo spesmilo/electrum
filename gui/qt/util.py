@@ -253,16 +253,34 @@ def filename_field(parent, config, defaultname, select_msg):
 
 class MyTreeWidget(QTreeWidget):
 
-    def __init__(self, parent):
+    def __init__(self, parent, create_menu, headers, column_width):
         QTreeWidget.__init__(self, parent)
+        self.parent = parent
+        self.setColumnCount(len(headers))
+        self.setHeaderLabels(headers)
+        self.header().setStretchLastSection(False)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.itemActivated.connect(self.on_activated)
+        self.customContextMenuRequested.connect(create_menu)
         # extend the syntax for consistency
         self.addChild = self.addTopLevelItem
         self.insertChild = self.insertTopLevelItem
+        # editable column
+        self.is_edit = False
+        self.edit_column = None
+        self.itemDoubleClicked.connect(self.edit_label)
+        self.itemChanged.connect(self.label_changed)
+        # set column width
+        for i, width in enumerate(column_width):
+            if width is None:
+                self.header().setResizeMode(i, QHeaderView.Stretch)
+                self.edit_column = i
+            else:
+                self.setColumnWidth(i, width)
 
     def on_activated(self, item):
-        if not item: return
+        if not item:
+            return
         for i in range(0,self.viewport().height()/5):
             if self.itemAt(QPoint(0,i*5)) == item:
                 break
@@ -273,7 +291,35 @@ class MyTreeWidget(QTreeWidget):
                 break
         self.emit(SIGNAL('customContextMenuRequested(const QPoint&)'), QPoint(50, i*5 + j - 1))
 
+    def edit_label(self, item, column):
+        if column==self.edit_column and item.isSelected():
+            text = unicode(item.text(column))
+            tx_hash = str(item.data(0, Qt.UserRole).toString())
+            self.is_edit = True
+            if text == self.parent.wallet.get_default_label(tx_hash):
+                item.setText(column, '')
+            item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
+            self.editItem(item, column)
+            item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
+            self.is_edit = False
 
+    def label_changed(self, item, column):
+        if self.is_edit:
+            return
+        self.is_edit = True
+        key = str(item.data(0, Qt.UserRole).toString())
+        text = unicode(item.text(self.edit_column))
+        changed = self.parent.wallet.set_label(key, text)
+        if text:
+            item.setForeground(self.edit_column, QBrush(QColor('black')))
+        else:
+            text = self.wallet.get_default_label(key)
+            item.setText(self.edit_column, text)
+            item.setForeground(self.edit_column, QBrush(QColor('gray')))
+        self.is_edit = False
+        if changed:
+            self.parent.update_history_tab()
+            self.parent.update_completions()
 
 
 if __name__ == "__main__":
