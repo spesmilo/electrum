@@ -1442,7 +1442,7 @@ class ElectrumWindow(QMainWindow):
     def update_address_tab(self):
         l = self.address_list
         item = l.currentItem()
-        current_address = item.data(0, Qt.UserRole+1).toString() if item else None
+        current_address = item.data(0, Qt.UserRole).toString() if item else None
         l.clear()
         accounts = self.wallet.get_accounts()
         if self.current_account is None:
@@ -1499,14 +1499,14 @@ class ElectrumWindow(QMainWindow):
     def update_contacts_tab(self):
         l = self.contacts_list
         item = l.currentItem()
-        current_address = item.data(0, Qt.UserRole+1).toString() if item else None
+        current_address = item.data(0, Qt.UserRole).toString() if item else None
         l.clear()
         for address in self.wallet.addressbook:
             label = self.wallet.labels.get(address,'')
             n = self.wallet.get_num_tx(address)
             item = QTreeWidgetItem( [ address, label, "%d"%n] )
             item.setFont(0, QFont(MONOSPACE_FONT))
-            item.setData(0, Qt.UserRole+1, address)
+            item.setData(0, Qt.UserRole, address)
             item.setData(0, Qt.UserRole+1, True)
             l.addTopLevelItem(item)
             if address == current_address:
