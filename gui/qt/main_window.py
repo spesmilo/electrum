@@ -2471,7 +2471,7 @@ class ElectrumWindow(QMainWindow):
         unit_combo.currentIndexChanged.connect(on_unit)
         widgets.append((unit_label, unit_combo, unit_help))
 
-        block_explorers = ['explorer.litecoin.net', 'block-explorer.com', 'Blockr.io']
+        block_explorers = ['explorer.litecoin.net', 'block-explorer.com', 'Blockr.io', 'SoChain']
         block_ex_label = QLabel(_('Online Block Explorer') + ':')
         block_ex_combo = QComboBox()
         block_ex_combo.addItems(block_explorers)

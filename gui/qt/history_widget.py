@@ -81,9 +81,11 @@ class HistoryWidget(MyTreeWidget):
         if be == 'explorer.litecoin.net':
             block_explorer = 'http://explorer.litecoin.net/tx/'
         elif be == 'block-explorer.com':
-            block_explorer = 'http://block-explorer.com/tx/'
+            block_explorer = 'https://block-explorer.com/tx/'
         elif be == 'Blockr.io':
             block_explorer = 'https://ltc.blockr.io/tx/info/'
+        elif be == 'SoChain':
+            block_explorer = 'https://chain.so/tx/LTC/'
         if not item:
             return
         tx_hash = str(item.data(0, Qt.UserRole).toString())
