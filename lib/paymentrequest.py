@@ -30,7 +30,7 @@ import urlparse
 import requests
 
 try:
-    import paymentrequest_pb2
+    import paymentrequest_pb2 as pb2
 except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto'")
 
@@ -101,7 +101,7 @@ class PaymentRequest:
 
     def parse(self, r):
         try:
-            self.data = paymentrequest_pb2.PaymentRequest()
+            self.data = pb2.PaymentRequest()
             self.data.ParseFromString(r)
         except:
             self.error = "cannot parse payment request"
@@ -119,7 +119,7 @@ class PaymentRequest:
             self.error = "No signature"
             return
 
-        cert = paymentrequest_pb2.X509Certificates()
+        cert = pb2.X509Certificates()
         cert.ParseFromString(paymntreq.pki_data)
         cert_num = len(cert.certificate)
 
@@ -209,7 +209,7 @@ class PaymentRequest:
             return False
 
         ### SIG Verified
-        self.details = pay_det = paymentrequest_pb2.PaymentDetails()
+        self.details = pay_det = pb2.PaymentDetails()
         self.details.ParseFromString(paymntreq.serialized_payment_details)
 
         for o in pay_det.outputs:
@@ -278,13 +278,36 @@ class PaymentRequest:
             return False, r.reason
 
         try:
-            paymntack = paymentrequest_pb2.PaymentACK()
+            paymntack = pb2.PaymentACK()
             paymntack.ParseFromString(r.content)
         except Exception:
             return False, "PaymentACK could not be processed. Payment was sent; please manually verify that payment was received."
 
         print "PaymentACK message received: %s" % paymntack.memo
         return True, paymntack.memo
+
+
+
+def make_payment_request(amount, script, memo, rsakey=None):
+    """Generates a http PaymentRequest object"""
+    pd = pb2.PaymentDetails()
+    pd.outputs.add(amount=amount, script=script)
+    now = int(time.time())
+    pd.time = now
+    pd.expires = now + 15*60
+    pd.memo = memo
+    #pd.payment_url = 'http://payment_ack.url'
+    pr = pb2.PaymentRequest()
+    pr.serialized_payment_details = pd.SerializeToString()
+    pr.signature = ''
+    if rsakey:
+        pr.pki_type = 'x509+sha256'
+        pr.pki_data = certificates.SerializeToString()
+        msgBytes = bytearray(pr.SerializeToString())
+        hashBytes = bytearray(hashlib.sha256(msgBytes).digest())
+        sig = rsakey.sign(x509.PREFIX_RSA_SHA256 + hashBytes)
+        pr.signature = bytes(sig)
+    return pr.SerializeToString()
 
 
 
