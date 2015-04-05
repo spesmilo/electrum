@@ -211,7 +211,7 @@ def db_thread():
             # add a new request to the table.
             addr, amount, confs, minutes = params
             sql = "INSERT INTO electrum_payments (address, amount, confirmations, received_at, expires_at, paid, processed)"\
-                + " VALUES ('%s', %f, %d, datetime('now'), datetime('now', '+%d Minutes'), NULL, NULL);"%(addr, amount, confs, minutes)
+                + " VALUES ('%s', %.8f, %d, datetime('now'), datetime('now', '+%d Minutes'), NULL, NULL);"%(addr, amount, confs, minutes)
             print sql
             cur.execute(sql)
 
