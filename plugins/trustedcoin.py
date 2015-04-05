@@ -601,7 +601,7 @@ class Plugin(BasePlugin):
             grid.addWidget(QLabel("Price for %d prepaid transactions:"%k), i, 0)
             grid.addWidget(QLabel("%d x "%k + self.window.format_amount(v/k) + ' ' + self.window.base_unit()), i, 1)
             b = QPushButton(_("Buy"))
-            b.clicked.connect(lambda k=k, v=v: self.on_buy(k, v, d))
+            b.clicked.connect(lambda b, k=k, v=v: self.on_buy(k, v, d))
             grid.addWidget(b, i, 2)
             i += 1
 

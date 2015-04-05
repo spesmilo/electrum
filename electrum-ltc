@@ -334,10 +334,7 @@ if __name__ == '__main__':
                 seed = getpass.getpass(prompt="seed:", stream=None) if options.concealed else raw_input("seed:")
                 if not Wallet.is_seed(seed):
                     sys.exit("Error: Invalid seed")
-                wallet = Wallet.from_seed(seed, storage)
-                wallet.add_seed(seed, password)
-                wallet.create_master_keys(password)
-                wallet.create_main_account(password)
+                wallet = Wallet.from_seed(seed, password, storage)
 
             if not options.offline:
                 s = get_daemon(config, False)

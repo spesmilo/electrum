@@ -131,6 +131,15 @@ def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespa
     return s
 
 
+def format_time(timestamp):
+    import datetime
+    try:
+        time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
+    except:
+        time_str = "unknown"
+    return time_str
+
+
 # Takes a timestamp and returns a string with the approximation of the age
 def age(from_date, since_date = None, target_tz=None, include_seconds=False):
     if from_date is None:

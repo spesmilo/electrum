@@ -714,9 +714,10 @@ class Abstract_Wallet(object):
                 self.add_transaction(tx_hash, tx, tx_height)
 
 
-    def get_history(self, account=None):
+    def get_history(self, domain=None):
         # get domain
-        domain = self.get_account_addresses(account)
+        if domain is None:
+            domain = self.get_account_addresses(None)
 
         hh = []
         # 1. Get the history of each address in the domain
@@ -775,6 +776,15 @@ class Abstract_Wallet(object):
         return label, is_default
 
     def get_default_label(self, tx_hash):
+        if self.txi.get(tx_hash) == {}:
+            d = self.txo.get(tx_hash, {})
+            for addr in d.keys():
+                assert self.is_mine(addr)
+                label = self.labels.get(addr)
+                if label:
+                    break
+                label = ">" + addr
+            return label
         return tx_hash
 
     def get_tx_fee(self, tx):
@@ -1798,12 +1808,15 @@ class Wallet(object):
         return True
 
     @classmethod
-    def from_seed(self, seed, storage):
+    def from_seed(self, seed, password, storage):
         if is_old_seed(seed):
             klass = OldWallet
         elif is_new_seed(seed):
             klass = NewWallet
         w = klass(storage)
+        w.add_seed(text, password)
+        w.create_master_keys(password)
+        w.create_main_account(password)
         return w
 
     @classmethod
@@ -1840,3 +1853,30 @@ class Wallet(object):
         w = BIP32_Simple_Wallet(storage)
         w.create_xprv_wallet(xprv, password)
         return w
+
+    @classmethod
+    def from_multisig(klass, key_list, password, storage):
+        if len(key_list) == 2:
+            self = Wallet_2of2(storage)
+        elif len(key_list) == 3:
+            self = Wallet_2of3(storage)
+        key_list = sorted(key_list, key = lambda x: klass.is_xpub(x))
+        for i, text in enumerate(key_list):
+            assert klass.is_seed(text) or klass.is_xprv(text) or klass.is_xpub(text)
+            name = "x%d/"%(i+1)
+            if klass.is_seed(text):
+                if name == 'x1/':
+                    self.add_seed(text, password)
+                    self.create_master_keys(password)
+                else:
+                    self.add_cosigner_seed(text, name, password)
+            elif klass.is_xprv(text):
+                xpub = bitcoin.xpub_from_xprv(text)
+                self.add_master_public_key(name, xpub)
+                self.add_master_private_key(name, text, password)
+            elif klass.is_xpub(text):
+                self.add_master_public_key(name, text)
+        self.use_encryption = (password != None)
+        self.storage.put('use_encryption', self.use_encryption, True)
+        self.create_main_account(password)
+        return self

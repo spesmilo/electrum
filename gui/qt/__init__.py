@@ -142,10 +142,29 @@ class ElectrumGui:
         qtVersion = qVersion()
         return int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7
 
-
     def set_url(self, uri):
         self.current_window.pay_from_URI(uri)
 
+    def run_wizard(self, storage, action):
+        import installwizard
+        if storage.file_exists and action != 'new':
+            msg = _("The file '%s' contains an incompletely created wallet.")%storage.path + '\n'\
+                  + _("Do you want to complete its creation now?")
+            if not util.question(msg):
+                if util.question(_("Do you want to delete '%s'?")%storage.path):
+                    os.remove(storage.path)
+                    QMessageBox.information(None, _('Warning'), _('The file was removed'), _('OK'))
+                    return
+                return
+        wizard = installwizard.InstallWizard(self.config, self.network, storage)
+        wizard.show()
+        try:
+            wallet = wizard.run(action)
+        except BaseException as e:
+            traceback.print_exc(file=sys.stdout)
+            QMessageBox.information(None, _('Error'), str(e), _('OK'))
+            return
+        return wallet
 
     def main(self, url):
 
@@ -171,15 +190,7 @@ class ElectrumGui:
             action = 'new'
 
         if action is not None:
-            import installwizard
-            wizard = installwizard.InstallWizard(self.config, self.network, storage)
-            wizard.show()
-            try:
-                wallet = wizard.run(action)
-            except BaseException as e:
-                traceback.print_exc(file=sys.stdout)
-                QMessageBox.information(None, _('Error'), str(e), _('OK'))
-                return
+            wallet = self.run_wizard(storage, action)
             if not wallet:
                 return
         else:
