@@ -4,11 +4,11 @@ import tlslite
 import time
 import hashlib
 
-from electrum_ltc import paymentrequest_pb2 as pb2
 from electrum_ltc.transaction import Transaction
 from electrum_ltc import bitcoin
 from electrum_ltc import x509
-
+from electrum_ltc import paymentrequest
+from electrum_ltc import paymentrequest_pb2 as pb2
 
 chain_file = 'mychain.pem'
 cert_file = 'mycert.pem'
@@ -28,31 +28,10 @@ certificates.certificate.extend(map(lambda x: str(x.bytes), chain.x509List))
 with open(cert_file, 'r') as f:
     rsakey = tlslite.utils.python_rsakey.Python_RSAKey.parsePEM(f.read())
 
-
-def make_payment_request(amount, script, memo):
-    """Generates a http PaymentRequest object"""
-    pd = pb2.PaymentDetails()
-    pd.outputs.add(amount=amount, script=script)
-    now = int(time.time())
-    pd.time = now
-    pd.expires = now + 15*60
-    pd.memo = memo
-    pd.payment_url = 'http://payment_ack.url'
-    pr = pb2.PaymentRequest()
-    pr.serialized_payment_details = pd.SerializeToString()
-    pr.pki_type = 'x509+sha256'
-    pr.pki_data = certificates.SerializeToString()
-    pr.signature = ''
-    msgBytes = bytearray(pr.SerializeToString())
-    hashBytes = bytearray(hashlib.sha256(msgBytes).digest())
-    sig = rsakey.sign(x509.PREFIX_RSA_SHA256 + hashBytes)
-    pr.signature = bytes(sig)
-    return pr.SerializeToString()
-
-
 script = Transaction.pay_script('address', address).decode('hex')
 
-pr_string = make_payment_request(amount, script, memo)
+pr_string = paymentrequest.make_payment_request(amount, script, memo, rsakey)
+
 with open(out_file,'wb') as f:
     f.write(pr_string)
 
