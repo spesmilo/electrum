@@ -1814,7 +1814,7 @@ class Wallet(object):
         elif is_new_seed(seed):
             klass = NewWallet
         w = klass(storage)
-        w.add_seed(text, password)
+        w.add_seed(seed, password)
         w.create_master_keys(password)
         w.create_main_account(password)
         return w
