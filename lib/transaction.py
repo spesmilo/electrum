@@ -704,7 +704,6 @@ class Transaction:
         return out
 
     def sign(self, keypairs):
-        print_error("tx.sign(), keypairs:", keypairs)
         for i, txin in enumerate(self.inputs):
             signatures = filter(None, txin['signatures'])
             num = txin['num_sig']

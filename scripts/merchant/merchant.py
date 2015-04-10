@@ -134,7 +134,6 @@ def process_request(amount, confirmations, expires_in, password):
 def do_dump(password):
     if password != my_password:
         return "wrong password"
-
     conn = sqlite3.connect(database);
     cur = conn.cursor()
     # read pending requests from table
@@ -144,6 +143,8 @@ def do_dump(password):
 
 
 def getrequest(oid, password):
+    if password != my_password:
+        return "wrong password"
     oid = int(oid)
     conn = sqlite3.connect(database);
     cur = conn.cursor()
