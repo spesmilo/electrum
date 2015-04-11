@@ -75,6 +75,27 @@ class X509(tlslite.X509):
         self.subject = self.tbs.getComponentByName('subject')
         self.extensions = self.tbs.getComponentByName('extensions') or []
 
+    def get_issuer(self):
+        results = {'CN': None, 'OU': None,}
+        issuer = self.tbs.getComponentByName('issuer')
+        # Extract the CommonName(s) from the cert.
+        for rdnss in issuer:
+            for rdns in rdnss:
+                for name in rdns:
+                    oid = name.getComponentByName('type')
+                    value = name.getComponentByName('value')
+
+                    if oid == COMMON_NAME:
+                        value = decoder.decode(value, asn1Spec=DirectoryString())[0]
+                        value = decode_str(value.getComponent())
+                        results['CN'] = value
+
+                    elif oid == OU_NAME:
+                        value = decoder.decode(value, asn1Spec=DirectoryString())[0]
+                        value = decode_str(value.getComponent())
+                        results['OU'] = value
+        return results
+
     def extract_names(self):
         results = {'CN': None,
                    'DNS': set(),
