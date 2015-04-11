@@ -19,6 +19,10 @@ from electrum_ltc.wallet import BIP32_HD_Wallet
 from electrum_ltc.util import format_satoshis
 import hashlib
 
+def setAlternateCoinVersions(self, regular, p2sh):
+    apdu = [ self.BTCHIP_CLA, 0x14, 0x00, 0x00, 0x02, regular, p2sh ]
+    self.dongle.exchange(bytearray(apdu))
+
 try:
     from usb.core import USBError
     from btchip.btchipComm import getDongle, DongleWait
@@ -28,6 +32,7 @@ try:
     from btchip.btchipPersoWizard import StartBTChipPersoDialog
     from btchip.btchipFirmwareWizard import checkFirmware, updateFirmware
     from btchip.btchipException import BTChipException
+    btchip.setAlternateCoinVersions = setAlternateCoinVersions
     BTCHIP = True
     BTCHIP_DEBUG = False
 except ImportError:
@@ -156,7 +161,10 @@ class BTChipWallet(BIP32_HD_Wallet):
                 d = getDongle(BTCHIP_DEBUG)
                 d.setWaitImpl(DongleWaitQT(d))
                 self.client = btchip(d)
-                firmware = self.client.getFirmwareVersion()['version'].split(".")
+                ver = self.client.getFirmwareVersion()
+                firmware = ver['version'].split(".")
+                self.canAlternateCoinVersions = (ver['specialVersion'] >= 0x20 and
+                                                 map(int, firmware) >= [1, 0, 1])
                 if not checkFirmware(firmware):                    
                     d.close()
                     try:
@@ -193,6 +201,8 @@ class BTChipWallet(BIP32_HD_Wallet):
                         raise Exception('Aborted by user - please unplug the dongle and plug it again before retrying')
                     pin = pin.encode()                   
                     self.client.verifyPin(pin)
+                    if self.canAlternateCoinVersions:
+                        self.client.setAlternateCoinVersions(48, 5)
 
             except BTChipException, e:
                 try:
@@ -376,8 +386,11 @@ class BTChipWallet(BIP32_HD_Wallet):
             else:
                 if output <> None: # should never happen
                     self.give_error("Multiple outputs with no change not supported")
-                v, h = bc_address_to_hash_160(address)
-                output = hash_160_to_bc_address(h, 0) if v == 48 else address
+                output = address
+                if not self.canAlternateCoinVersions:
+                    v, h = bc_address_to_hash_160(address)
+                    if v == 48:
+                        output = hash_160_to_bc_address(h, 0)
                 outputAmount = amount
 
         self.get_client() # prompt for the PIN before displaying the dialog if necessary
