@@ -1,5 +1,3 @@
-from electrum.util import print_error
-
 import socket
 import requests
 import threading
@@ -49,7 +47,7 @@ class Plugin(BasePlugin):
         return decoded_message
 
     def set_nonce(self, nonce):
-        print_error("Set nonce to", nonce)
+        self.print_error("Set nonce to", nonce)
         self.wallet.storage.put("wallet_nonce", nonce, True)
         self.wallet_nonce = nonce
 
@@ -63,7 +61,7 @@ class Plugin(BasePlugin):
         self.wallet = wallet
 
         self.wallet_nonce = self.wallet.storage.get("wallet_nonce")
-        print_error("Wallet nonce is", self.wallet_nonce)
+        self.print_error("Wallet nonce is", self.wallet_nonce)
         if self.wallet_nonce is None:
             self.set_nonce(1)
 
@@ -84,7 +82,7 @@ class Plugin(BasePlugin):
             try:
                 self.pull_thread()
             except Exception as e:
-                print_error("could not retrieve labels:", e)
+                self.print_error("could not retrieve labels:", e)
         t = threading.Thread(target=do_pull_thread)
         t.setDaemon(True)
         t.start()
@@ -163,18 +161,14 @@ class Plugin(BasePlugin):
                 encoded_key = self.encode(key)
                 encoded_value = self.encode(value)
             except:
-                print_error('cannot encode', repr(key), repr(value))
+                self.print_error('cannot encode', repr(key), repr(value))
                 continue
             bundle["labels"].append({'encryptedLabel': encoded_value, 'externalId':  encoded_key})
         self.do_request("POST", "/labels", True, bundle)
 
     def pull_thread(self, force = False):
-        if force:
-            wallet_nonce = 1
-        else:
-            wallet_nonce = self.wallet_nonce - 1
-
-        print_error("Asking for labels since nonce", wallet_nonce)
+        wallet_nonce = 1 if force else self.wallet_nonce - 1
+        self.print_error("Asking for labels since nonce", wallet_nonce)
         response = self.do_request("GET", ("/labels/since/%d/for/%s" % (wallet_nonce, self.wallet_id) ))
         result = {}
         if not response["labels"] is None:
@@ -188,7 +182,7 @@ class Plugin(BasePlugin):
                     json.dumps(key)
                     json.dumps(value)
                 except:
-                    print_error('error: no json', key)
+                    self.print_error('error: no json', key)
                     continue
                 result[key] = value
 
@@ -201,4 +195,4 @@ class Plugin(BasePlugin):
 
             self.window.emit(SIGNAL('labels:pulled'))
             self.set_nonce(response["nonce"] + 1)
-            print_error("received %d labels"%len(response))
+            self.print_error("received %d labels"%len(response))
