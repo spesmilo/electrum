@@ -1377,15 +1377,31 @@ class ElectrumWindow(QMainWindow):
         self.show_pr_details(pr)
 
     def show_pr_details(self, pr):
-        msg = 'Requestor: ' + pr.get_domain()
-        msg += '\nExpires: ' + format_time(pr.get_expiration_date())
-        msg += '\nStatus: ' + pr.get_verify_status()
-        msg += '\nMemo: ' + pr.get_memo()
-        msg += '\nPayment URL: ' + pr.payment_url
-        msg += '\n\nOutputs:\n' + '\n'.join(map(lambda x: x[1] + ' ' + self.format_amount(x[2])+ self.base_unit(), pr.get_outputs()))
+        d = QDialog(self)
+        d.setWindowTitle(_("Invoice"))
+        vbox = QVBoxLayout(d)
+        grid = QGridLayout()
+        grid.addWidget(QLabel(_("Requestor") + ':'), 0, 0)
+        grid.addWidget(QLabel(pr.get_domain()), 0, 1)
+        grid.addWidget(QLabel(_("Expires") + ':'), 1, 0)
+        grid.addWidget(QLabel(format_time(pr.get_expiration_date())), 1, 1)
+        grid.addWidget(QLabel(_("Memo") + ':'), 2, 0)
+        grid.addWidget(QLabel(pr.get_memo()), 2, 1)
+        grid.addWidget(QLabel(_("Status") + ':'), 3, 0)
+        grid.addWidget(QLabel(pr.get_verify_status()), 3, 1)
+        grid.addWidget(QLabel(_("Payment URL") + ':'), 4, 0)
+        grid.addWidget(QLabel(pr.payment_url), 4, 1)
+        grid.addWidget(QLabel(_("Outputs") + ':'), 5, 0)
+        outputs_str = '\n'.join(map(lambda x: x[1] + ' ' + self.format_amount(x[2])+ self.base_unit(), pr.get_outputs()))
+        grid.addWidget(QLabel(outputs_str), 5, 1)
         if pr.tx:
-            msg += '\n\nTransaction ID: ' + pr.tx
-        QMessageBox.information(self, 'Invoice', msg , 'OK')
+            grid.addWidget(QLabel(_("Transaction ID") + ':'), 6, 0)
+            grid.addWidget(QLabel(pr.tx), 6, 1)
+        vbox.addLayout(grid)
+        vbox.addLayout(Buttons(CloseButton(d)))
+        d.exec_()
+        return
+
 
     def do_pay_invoice(self, key):
         pr = self.invoices.get(key)
@@ -1409,11 +1425,10 @@ class ElectrumWindow(QMainWindow):
         if status == PR_UNPAID:
             menu.addAction(_("Pay Now"), lambda: self.do_pay_invoice(key))
         def delete_invoice(key):
-            self.wallet.delete_invoice(key)
+            self.invoices.remove(key)
             self.update_invoices_tab()
         menu.addAction(_("Delete"), lambda: delete_invoice(key))
         menu.exec_(self.invoices_list.viewport().mapToGlobal(position))
-
 
 
     def update_address_tab(self):
