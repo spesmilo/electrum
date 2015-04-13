@@ -1,6 +1,3 @@
-from electrum_ltc.util import print_error
-
-
 import socket
 import requests
 import threading
@@ -28,17 +25,17 @@ from electrum_ltc_gui.qt.util import ThreadedButton, Buttons, CancelButton, OkBu
 
 class Plugin(BasePlugin):
 
-    target_host = 'labelectrum.herokuapp.com'
+    target_host = 'sync.bysh.me:8080'
     encode_password = None
 
     def fullname(self):
-        return _('Label Sync')
+        return _('LabelSync')
 
     def description(self):
-        return '%s\n\n%s%s%s' % (_("This plugin can sync your labels across multiple Electrum installs by using a remote database to save your data. Labels, transactions ids and addresses are encrypted before they are sent to the remote server. This code might increase the load of your wallet with a few microseconds as it will sync labels on each startup."), _("To get started visit"), " http://labelectrum.herokuapp.com/ ", _(" to sign up for an account."))
+        return '%s\n\n%s' % (_("The new and improved LabelSync plugin. This can sync your labels across multiple Electrum installs by using a remote database to save your data. Labels, transactions ids and addresses are encrypted before they are sent to the remote server."), _("The label sync's server software is open-source as well and can be found on github.com/maran/electrum-sync-server"))
 
     def version(self):
-        return "0.2.1"
+        return "0.0.1"
 
     def encode(self, message):
         encrypted = electrum.bitcoin.aes_encrypt_with_iv(self.encode_password, self.iv, message.encode('utf8'))
@@ -49,48 +46,47 @@ class Plugin(BasePlugin):
         decoded_message = electrum.bitcoin.aes_decrypt_with_iv(self.encode_password, self.iv, base64.b64decode(message)).decode('utf8')
         return decoded_message
 
+    def set_nonce(self, nonce):
+        self.print_error("Set nonce to", nonce)
+        self.wallet.storage.put("wallet_nonce", nonce, True)
+        self.wallet_nonce = nonce
+
     @hook
     def init_qt(self, gui):
         self.window = gui.main_window
-        if not self.auth_token(): # First run, throw plugin settings in your face
-            self.load_wallet(self.window.wallet)
-            if self.settings_dialog():
-                self.set_enabled(True)
-                return True
-            else:
-                self.set_enabled(False)
-                return False
-
         self.window.connect(self.window, SIGNAL('labels:pulled'), self.on_pulled)
 
     @hook
     def load_wallet(self, wallet):
         self.wallet = wallet
+
+        self.wallet_nonce = self.wallet.storage.get("wallet_nonce")
+        self.print_error("Wallet nonce is", self.wallet_nonce)
+        if self.wallet_nonce is None:
+            self.set_nonce(1)
+
         mpk = ''.join(sorted(self.wallet.get_master_public_keys().values()))
         self.encode_password = hashlib.sha1(mpk).digest().encode('hex')[:32]
         self.iv = hashlib.sha256(self.encode_password).digest()[:16]
         self.wallet_id = hashlib.sha256(mpk).digest().encode('hex')
 
-        addresses = [] 
+        addresses = []
         for account in self.wallet.accounts.values():
             for address in account.get_addresses(0):
                 addresses.append(address)
 
         self.addresses = addresses
 
-        if self.auth_token():
-            # If there is an auth token we can try to actually start syncing
-            def do_pull_thread():
-                try:
-                    self.pull_thread()
-                except:
-                    print_error("could not retrieve labels")
-            t = threading.Thread(target=do_pull_thread)
-            t.setDaemon(True)
-            t.start()
+        # If there is an auth token we can try to actually start syncing
+        def do_pull_thread():
+            try:
+                self.pull_thread()
+            except Exception as e:
+                self.print_error("could not retrieve labels:", e)
+        t = threading.Thread(target=do_pull_thread)
+        t.setDaemon(True)
+        t.start()
 
-    def auth_token(self):
-        return self.config.get("plugin_label_api_key")
 
     def is_available(self):
         return True
@@ -104,43 +100,21 @@ class Plugin(BasePlugin):
             return
         if not changed:
             return
-        bundle = {"label": {"external_id": self.encode(item), "text": self.encode(label)}}
-        t = threading.Thread(target=self.do_request, args=["POST", False, bundle])
+        bundle = {"walletId": self.wallet_id, "walletNonce": self.wallet.storage.get("wallet_nonce"), "externalId": self.encode(item), "encryptedLabel": self.encode(label)}
+        t = threading.Thread(target=self.do_request, args=["POST", "/label", False, bundle])
         t.start()
+        self.set_nonce(self.wallet.storage.get("wallet_nonce") + 1)
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'), self.settings_dialog)
 
     def settings_dialog(self):
-        def check_for_api_key(api_key):
-            if api_key and len(api_key) > 12:
-              self.config.set_key("plugin_label_api_key", str(self.auth_token_edit.text()))
-              self.upload.setEnabled(True)
-              self.download.setEnabled(True)
-              self.accept.setEnabled(True)
-            else:
-              self.upload.setEnabled(False)
-              self.download.setEnabled(False)
-              self.accept.setEnabled(False)
-
         d = QDialog()
         vbox = QVBoxLayout(d)
         layout = QGridLayout()
         vbox.addLayout(layout)
 
-        layout.addWidget(QLabel("API Key: "), 0, 0)
-
-        self.auth_token_edit = QLineEdit(self.auth_token())
-        self.auth_token_edit.textChanged.connect(check_for_api_key)
-
         layout.addWidget(QLabel("Label sync options: "),2,0)
-        layout.addWidget(self.auth_token_edit, 0,1,1,2)
-
-        decrypt_key_text =  QLineEdit(self.encode_password)
-        decrypt_key_text.setReadOnly(True)
-        layout.addWidget(decrypt_key_text, 1,1)
-        layout.addWidget(QLabel("Decryption key: "),1,0)
-        layout.addWidget(HelpButton("This key can be used on the LabElectrum website to decrypt your data in case you want to review it online."),1,2)
 
         self.upload = ThreadedButton("Force upload", self.push_thread, self.done_processing)
         layout.addWidget(self.upload, 2, 1)
@@ -150,8 +124,6 @@ class Plugin(BasePlugin):
 
         self.accept = OkButton(d, _("Done"))
         vbox.addLayout(Buttons(CancelButton(d), self.accept))
-
-        check_for_api_key(self.auth_token())
 
         if d.exec_():
             return True
@@ -166,8 +138,8 @@ class Plugin(BasePlugin):
     def done_processing(self):
         QMessageBox.information(None, _("Labels synchronised"), _("Your labels have been synchronised."))
 
-    def do_request(self, method, is_batch=False, data=None):
-        url = 'https://' + self.target_host + "/api/wallets/%s/%s?auth_token=%s" % (self.wallet_id, 'labels/batch.json' if is_batch else 'labels.json', self.auth_token())
+    def do_request(self, method, url = "/labels", is_batch=False, data=None):
+        url = 'http://' + self.target_host + url
         kwargs = {'headers': {}}
         if method == 'GET' and data:
             kwargs['params'] = data
@@ -183,40 +155,44 @@ class Plugin(BasePlugin):
         return response
 
     def push_thread(self):
-        bundle = {"labels": {}}
+        bundle = {"labels": [], "walletId": self.wallet_id, "walletNonce": self.wallet_nonce}
         for key, value in self.wallet.labels.iteritems():
             try:
                 encoded_key = self.encode(key)
                 encoded_value = self.encode(value)
             except:
-                print_error('cannot encode', repr(key), repr(value))
+                self.print_error('cannot encode', repr(key), repr(value))
                 continue
-            bundle["labels"][encoded_key] = encoded_value
-        self.do_request("POST", True, bundle)
+            bundle["labels"].append({'encryptedLabel': encoded_value, 'externalId':  encoded_key})
+        self.do_request("POST", "/labels", True, bundle)
 
     def pull_thread(self, force = False):
-        response = self.do_request("GET")
+        wallet_nonce = 1 if force else self.wallet_nonce - 1
+        self.print_error("Asking for labels since nonce", wallet_nonce)
+        response = self.do_request("GET", ("/labels/since/%d/for/%s" % (wallet_nonce, self.wallet_id) ))
         result = {}
-        for label in response:
-            try:
-                key = self.decode(label["external_id"])
-                value = self.decode(label["text"])
-            except:
-                continue
-            try:
-                json.dumps(key)
-                json.dumps(value)
-            except:
-                print_error('error: no json', key)
-                continue
-            result[key] = value
+        if not response["labels"] is None:
+            for label in response["labels"]:
+                try:
+                    key = self.decode(label["externalId"])
+                    value = self.decode(label["encryptedLabel"])
+                except:
+                    continue
+                try:
+                    json.dumps(key)
+                    json.dumps(value)
+                except:
+                    self.print_error('error: no json', key)
+                    continue
+                result[key] = value
 
-        wallet = self.wallet
-        if not wallet:
-            return
-        for key, value in result.items():
-            if force or not wallet.labels.get(key):
-                wallet.labels[key] = value
+            wallet = self.wallet
+            if not wallet:
+                return
+            for key, value in result.items():
+                if force or not wallet.labels.get(key):
+                    wallet.labels[key] = value
 
-        self.window.emit(SIGNAL('labels:pulled'))
-        print_error("received %d labels"%len(response))
+            self.window.emit(SIGNAL('labels:pulled'))
+            self.set_nonce(response["nonce"] + 1)
+            self.print_error("received %d labels"%len(response))
