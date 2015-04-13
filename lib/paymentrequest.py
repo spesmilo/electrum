@@ -59,11 +59,16 @@ import json
 
 def get_payment_request(url):
     u = urlparse.urlparse(url)
-    domain = u.netloc
-    connection = httplib.HTTPConnection(u.netloc) if u.scheme == 'http' else httplib.HTTPSConnection(u.netloc)
-    connection.request("GET", u.geturl(), headers=REQUEST_HEADERS)
-    response = connection.getresponse()
-    data = response.read()
+    if u.scheme in ['http', 'https']:
+        connection = httplib.HTTPConnection(u.netloc) if u.scheme == 'http' else httplib.HTTPSConnection(u.netloc)
+        connection.request("GET", u.geturl(), headers=REQUEST_HEADERS)
+        response = connection.getresponse()
+        data = response.read()
+    elif u.scheme == 'file':
+        with open(u.path, 'r') as f:
+            data = f.read()
+    else:
+        raise BaseException("unknown scheme", url)
     pr = PaymentRequest(data)
     return pr
 
@@ -127,6 +132,8 @@ class PaymentRequest:
                     self.error = str(e)
                     return
                 self.domain = x.get_common_name()
+                if self.domain.startswith('*.'):
+                    self.domain = self.domain[2:]
             else:
                 if not x.check_ca():
                     self.error = "ERROR: Supplied CA Certificate Error"
@@ -201,7 +208,7 @@ class PaymentRequest:
             self.error = "ERROR: Invalid Signature for Payment Request Data"
             return False
         ### SIG Verified
-        self.error = 'Signed by Trusted CA: ' + ca.extract_names()['OU']
+        self.error = 'Signed by Trusted CA: ' + ca.get_common_name()
         return True
 
     def has_expired(self):
