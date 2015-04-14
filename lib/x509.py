@@ -164,10 +164,10 @@ class X509(tlslite.X509):
         
 
     def get_common_name(self):
-        return self.subject.get('2.5.4.3')
+        return self.subject.get('2.5.4.3', 'unknown')
 
     def get_issuer(self):
-        return self.issuer.get('2.5.4.3')
+        return self.issuer.get('2.5.4.3', 'unknown')
 
     def get_signature(self):
         return self.cert_sig_algo, self.signature, self.data
