@@ -123,7 +123,6 @@ class PaymentRequest:
         for i in range(cert_num):
             x = x509.X509()
             x.parseBinary(bytearray(cert.certificate[i]))
-            x.slow_parse()
             x509_chain.append(x)
             if i == 0:
                 try:
@@ -143,23 +142,10 @@ class PaymentRequest:
             return False
         # if the root CA is not supplied, add it to the chain
         ca = x509_chain[cert_num-1]
-        supplied_CA_fingerprint = ca.getFingerprint()
-        x = ca_list.get(supplied_CA_fingerprint)
-        if x:
-            x.slow_parse()
-            assert x.get_common_name() == ca.get_common_name()
-        else:
-            issuer = ca.get_issuer()
-            for x in ca_list.values():
-                try:
-                    x.slow_parse()
-                    names = x.extract_names()
-                except Exception as e:
-                    util.print_error("cannot parse cert:", e)
-                    continue
-                if names.get('CN') == issuer.get('CN'):
-                    x509_chain.append(x)
-                    break
+        if ca.get_common_name() not in ca_list:
+            x = ca_list.get(ca.get_issuer())
+            if x:
+                x509_chain.append(x)
             else:
                 self.error = "Supplied CA Not Found in Trusted CA Store."
                 return False
@@ -168,18 +154,18 @@ class PaymentRequest:
         for i in range(1, cert_num):
             x = x509_chain[i]
             prev_x = x509_chain[i-1]
-            algo, sig, data = prev_x.extract_sig()
-            sig = bytearray(sig[5:])
+            algo, sig, data = prev_x.get_signature()
+            sig = bytearray(sig)
             pubkey = x.publicKey
-            if algo.getComponentByName('algorithm') == x509.ALGO_RSA_SHA1:
+            if algo == x509.ALGO_RSA_SHA1:
                 verify = pubkey.hashAndVerify(sig, data)
-            elif algo.getComponentByName('algorithm') == x509.ALGO_RSA_SHA256:
+            elif algo == x509.ALGO_RSA_SHA256:
                 hashBytes = bytearray(hashlib.sha256(data).digest())
                 verify = pubkey.verify(sig, x509.PREFIX_RSA_SHA256 + hashBytes)
-            elif algo.getComponentByName('algorithm') == x509.ALGO_RSA_SHA384:
+            elif algo == x509.ALGO_RSA_SHA384:
                 hashBytes = bytearray(hashlib.sha384(data).digest())
                 verify = pubkey.verify(sig, x509.PREFIX_RSA_SHA384 + hashBytes)
-            elif algo.getComponentByName('algorithm') == x509.ALGO_RSA_SHA512:
+            elif algo == x509.ALGO_RSA_SHA512:
                 hashBytes = bytearray(hashlib.sha512(data).digest())
                 verify = pubkey.verify(sig, x509.PREFIX_RSA_SHA512 + hashBytes)
             else:
