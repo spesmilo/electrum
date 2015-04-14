@@ -1154,7 +1154,9 @@ class ElectrumWindow(QMainWindow):
             else:
                 self.emit(SIGNAL('payment_request_error'))
 
-        self.pr_thread = threading.Thread(target=get_payment_request_thread).start()
+        t = threading.Thread(target=get_payment_request_thread)
+        t.setDaemon(True)
+        t.start()
         self.prepare_for_payment_request()
 
 
