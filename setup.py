@@ -33,8 +33,6 @@ setup(
         'ecdsa>=0.9',
         'pbkdf2',
         'requests',
-        'pyasn1-modules',
-        'pyasn1',
         'qrcode',
         'protobuf',
         'tlslite',
