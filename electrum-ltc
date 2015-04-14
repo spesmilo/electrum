@@ -47,8 +47,6 @@ try:
     import requests
     import six
     import qrcode
-    import pyasn1
-    import pyasn1_modules
     import tlslite
     import pbkdf2
     import google.protobuf
@@ -56,10 +54,6 @@ except ImportError as e:
     sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%e.message)
 
 # the following imports are for pyinstaller
-import pyasn1.codec
-import pyasn1.codec.der
-from pyasn1.codec.der import encoder, decoder
-from pyasn1_modules import rfc2459
 from google.protobuf import descriptor
 from google.protobuf import message
 from google.protobuf import reflection

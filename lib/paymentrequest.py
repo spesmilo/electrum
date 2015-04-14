@@ -38,7 +38,7 @@ import bitcoin
 import util
 import transaction
 import x509
-
+from util import print_error
 
 REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'}
 ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
@@ -47,59 +47,52 @@ ca_path = requests.certs.where()
 ca_list = x509.load_certificates(ca_path)
 
 
+# status of payment requests
+PR_UNPAID  = 0
+PR_EXPIRED = 1
+PR_SENT    = 2     # sent but not propagated
+PR_PAID    = 3     # send and propagated
+PR_ERROR   = 4     # could not parse
+
+import json
+
+
+def get_payment_request(url):
+    u = urlparse.urlparse(url)
+    if u.scheme in ['http', 'https']:
+        connection = httplib.HTTPConnection(u.netloc) if u.scheme == 'http' else httplib.HTTPSConnection(u.netloc)
+        connection.request("GET", u.geturl(), headers=REQUEST_HEADERS)
+        response = connection.getresponse()
+        data = response.read()
+    elif u.scheme == 'file':
+        with open(u.path, 'r') as f:
+            data = f.read()
+    else:
+        raise BaseException("unknown scheme", url)
+    pr = PaymentRequest(data)
+    return pr
+
+
 class PaymentRequest:
-    def __init__(self, config):
-        self.config = config
-        self.outputs = []
-        self.error = ""
-        self.dir_path = os.path.join( self.config.path, 'requests')
-        if not os.path.exists(self.dir_path):
-            os.mkdir(self.dir_path)
 
-    def read(self, url):
-        self.url = url
-        u = urlparse.urlparse(url)
-        self.domain = u.netloc
-        try:
-            connection = httplib.HTTPConnection(u.netloc) if u.scheme == 'http' else httplib.HTTPSConnection(u.netloc)
-            connection.request("GET",u.geturl(), headers=REQUEST_HEADERS)
-            response = connection.getresponse()
-        except:
-            self.error = "cannot read url"
-            return
+    def __init__(self, data):
+        self.raw = data
+        self.parse(data)
+        self.domain = None # known after verify
+        self.tx = None
 
-        try:
-            r = response.read()
-        except:
-            self.error = "cannot read"
-            return
-
-        self.id = bitcoin.sha256(r)[0:16].encode('hex')
-        filename = os.path.join(self.dir_path, self.id)
-        with open(filename,'wb') as f:
-            f.write(r)
-
-        return self.parse(r)
-
+    def __str__(self):
+        return self.raw
 
     def get_status(self):
-        if self.error:
-            return self.error
-        else:
-            return self.status
-
-
-    def read_file(self, key):
-        filename = os.path.join(self.dir_path, key)
-        with open(filename,'rb') as f:
-            r = f.read()
-
-        assert key == bitcoin.sha256(r)[0:16].encode('hex')
-        self.id = key
-        self.parse(r)
-
+        if self.tx is not None:
+            return PR_PAID
+        if self.has_expired():
+            return PR_EXPIRED
+        return PR_UNPAID
 
     def parse(self, r):
+        self.id = bitcoin.sha256(r)[0:16].encode('hex')
         try:
             self.data = pb2.PaymentRequest()
             self.data.ParseFromString(r)
@@ -108,12 +101,12 @@ class PaymentRequest:
             return
         self.details = pb2.PaymentDetails()
         self.details.ParseFromString(self.data.serialized_payment_details)
+        self.outputs = []
         for o in self.details.outputs:
             addr = transaction.get_address_from_output_script(o.script)[1]
             self.outputs.append(('address', addr, o.amount))
         self.memo = self.details.memo
         self.payment_url = self.details.payment_url
-
 
     def verify(self):
         if not ca_list:
@@ -130,15 +123,16 @@ class PaymentRequest:
         for i in range(cert_num):
             x = x509.X509()
             x.parseBinary(bytearray(cert.certificate[i]))
-            x.slow_parse()
             x509_chain.append(x)
             if i == 0:
                 try:
                     x.check_date()
-                    x.check_name(self.domain)
                 except Exception as e:
                     self.error = str(e)
                     return
+                self.domain = x.get_common_name()
+                if self.domain.startswith('*.'):
+                    self.domain = self.domain[2:]
             else:
                 if not x.check_ca():
                     self.error = "ERROR: Supplied CA Certificate Error"
@@ -148,26 +142,10 @@ class PaymentRequest:
             return False
         # if the root CA is not supplied, add it to the chain
         ca = x509_chain[cert_num-1]
-        supplied_CA_fingerprint = ca.getFingerprint()
-        supplied_CA_names = ca.extract_names()
-        CA_OU = supplied_CA_names['OU']
-        x = ca_list.get(supplied_CA_fingerprint)
-        if x:
-            x.slow_parse()
-            names = x.extract_names()
-            assert names['CN'] == supplied_CA_names['CN']
-        else:
-            issuer = ca.get_issuer()
-            for x in ca_list.values():
-                try:
-                    x.slow_parse()
-                    names = x.extract_names()
-                except Exception as e:
-                    util.print_error("cannot parse cert:", e)
-                    continue
-                if names.get('CN') == issuer.get('CN'):
-                    x509_chain.append(x)
-                    break
+        if ca.get_common_name() not in ca_list:
+            x = ca_list.get(ca.get_issuer())
+            if x:
+                x509_chain.append(x)
             else:
                 self.error = "Supplied CA Not Found in Trusted CA Store."
                 return False
@@ -176,18 +154,18 @@ class PaymentRequest:
         for i in range(1, cert_num):
             x = x509_chain[i]
             prev_x = x509_chain[i-1]
-            algo, sig, data = prev_x.extract_sig()
-            sig = bytearray(sig[5:])
+            algo, sig, data = prev_x.get_signature()
+            sig = bytearray(sig)
             pubkey = x.publicKey
-            if algo.getComponentByName('algorithm') == x509.ALGO_RSA_SHA1:
+            if algo == x509.ALGO_RSA_SHA1:
                 verify = pubkey.hashAndVerify(sig, data)
-            elif algo.getComponentByName('algorithm') == x509.ALGO_RSA_SHA256:
+            elif algo == x509.ALGO_RSA_SHA256:
                 hashBytes = bytearray(hashlib.sha256(data).digest())
                 verify = pubkey.verify(sig, x509.PREFIX_RSA_SHA256 + hashBytes)
-            elif algo.getComponentByName('algorithm') == x509.ALGO_RSA_SHA384:
+            elif algo == x509.ALGO_RSA_SHA384:
                 hashBytes = bytearray(hashlib.sha384(data).digest())
                 verify = pubkey.verify(sig, x509.PREFIX_RSA_SHA384 + hashBytes)
-            elif algo.getComponentByName('algorithm') == x509.ALGO_RSA_SHA512:
+            elif algo == x509.ALGO_RSA_SHA512:
                 hashBytes = bytearray(hashlib.sha512(data).digest())
                 verify = pubkey.verify(sig, x509.PREFIX_RSA_SHA512 + hashBytes)
             else:
@@ -216,7 +194,7 @@ class PaymentRequest:
             self.error = "ERROR: Invalid Signature for Payment Request Data"
             return False
         ### SIG Verified
-        self.status = 'Signed by Trusted CA:\n' + CA_OU
+        self.error = 'Signed by Trusted CA: ' + ca.get_common_name()
         return True
 
     def has_expired(self):
@@ -229,7 +207,10 @@ class PaymentRequest:
         return sum(map(lambda x:x[2], self.outputs))
 
     def get_domain(self):
-        return self.domain
+        return self.domain if self.domain else 'unknown'
+
+    def get_verify_status(self):
+        return self.error
 
     def get_memo(self):
         return self.memo
@@ -300,6 +281,65 @@ def make_payment_request(amount, script, memo, rsakey=None):
         sig = rsakey.sign(x509.PREFIX_RSA_SHA256 + hashBytes)
         pr.signature = bytes(sig)
     return pr.SerializeToString()
+
+
+
+
+class InvoiceStore(object):
+
+    def __init__(self, config):
+        self.config = config
+        self.invoices = {}
+        self.load_invoices()
+
+    def load_invoices(self):
+        path = os.path.join(self.config.path, 'invoices')
+        try:
+            with open(path, 'r') as f:
+                d = json.loads(f.read())
+        except:
+            return
+        for k, v in d.items():
+            ser, domain, tx = v
+            try:
+                pr = PaymentRequest(ser.decode('hex'))
+                pr.tx = tx
+                pr.domain = domain
+                self.invoices[k] = pr
+            except:
+                continue
+
+    def save(self):
+        l = {}
+        for k, pr in self.invoices.items():
+            l[k] = str(pr).encode('hex'), pr.domain, pr.tx
+        path = os.path.join(self.config.path, 'invoices')
+        with open(path, 'w') as f:
+            r = f.write(json.dumps(l))
+
+    def add(self, pr):
+        key = pr.get_id()
+        if key in self.invoices:
+            print_error('invoice already in list')
+            return False
+        self.invoices[key] = pr
+        self.save()
+        return key
+
+    def remove(self, key):
+        self.invoices.pop(key)
+        self.save()
+
+    def get(self, k):
+        return self.invoices.get(k)
+
+    def set_paid(self, key, tx_hash):
+        self.invoices[key].tx = tx_hash
+        self.save()
+
+    def sorted_list(self):
+        # sort
+        return self.invoices.values()
 
 
 

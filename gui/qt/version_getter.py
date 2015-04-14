@@ -30,6 +30,7 @@ class VersionGetter(threading.Thread):
     def __init__(self, label):
         threading.Thread.__init__(self)
         self.label = label
+        self.daemon = True
 
     def run(self):
         try:
