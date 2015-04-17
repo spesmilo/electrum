@@ -44,7 +44,7 @@ REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent':
 ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
 
 ca_path = requests.certs.where()
-ca_list = x509.load_certificates(ca_path)
+ca_list, ca_keyID = x509.load_certificates(ca_path)
 
 
 # status of payment requests
@@ -142,15 +142,17 @@ class PaymentRequest:
             return False
         # if the root CA is not supplied, add it to the chain
         ca = x509_chain[cert_num-1]
-        if ca.get_common_name() not in ca_list:
-            x = ca_list.get(ca.get_issuer())
-            if x:
-                x509_chain.append(x)
+        if ca.getFingerprint() not in ca_list:
+            keyID = ca.get_issuer_keyID()
+            f = ca_keyID.get(keyID)
+            if f:
+                root = ca_list[f]
+                x509_chain.append(root)
             else:
                 self.error = "Supplied CA Not Found in Trusted CA Store."
                 return False
         # verify the chain of signatures
-        cert_num = len(cert.certificate)
+        cert_num = len(x509_chain)
         for i in range(1, cert_num):
             x = x509_chain[i]
             prev_x = x509_chain[i-1]
