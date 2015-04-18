@@ -89,8 +89,8 @@ class InstallWizard(QDialog):
                 button.setChecked(True)
 
         vbox.addStretch(1)
-        vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _('Next'))))
         self.set_layout(vbox)
+        vbox.addLayout(Buttons(CancelButton(self), OkButton(self, _('Next'))))
         self.show()
         self.raise_()
 
