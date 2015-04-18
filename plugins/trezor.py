@@ -12,7 +12,7 @@ import electrum
 from electrum.account import BIP32_Account
 from electrum.bitcoin import EncodeBase58Check, public_key_to_bc_address, bc_address_to_hash_160
 from electrum.i18n import _
-from electrum.plugins import BasePlugin, hook
+from electrum.plugins import BasePlugin, hook, always_hook, run_hook
 from electrum.transaction import deserialize
 from electrum.wallet import BIP32_HD_Wallet
 from electrum.util import print_error
@@ -91,16 +91,24 @@ class Plugin(BasePlugin):
         return True
 
     @hook
+    def add_plugin(self, wallet):
+        wallet.plugin = self
+
+    @hook
     def close_wallet(self):
         print_error("trezor: clear session")
         if self.wallet and self.wallet.client:
             self.wallet.client.clear_session()
             self.wallet.client.transport.close()
+        self.wallet = None
+
+    @hook
+    def init_qt_app(self, app):
+        self.handler = TrezorQtHandler(app)
 
     @hook
     def load_wallet(self, wallet):
-        self.twd = TrezorQtHandler(self.window)
-        self.wallet.twd = self.twd
+        self.wallet = wallet
         if self.trezor_is_connected():
             if not self.wallet.check_proper_device():
                 QMessageBox.information(self.window, _('Error'), _("This wallet does not match your Trezor device"), _('OK'))
@@ -118,7 +126,7 @@ class Plugin(BasePlugin):
             return
         wallet = TrezorWallet(storage)
         self.wallet = wallet
-        passphrase = self.twd.get_passphrase(_("Please enter your Trezor passphrase.") + '\n' + _("Press OK if you do not use one."))
+        passphrase = self.handler.get_passphrase(_("Please enter your Trezor passphrase.") + '\n' + _("Press OK if you do not use one."))
         if passphrase is None:
             return
         password = wizard.password_dialog()
@@ -152,9 +160,9 @@ class Plugin(BasePlugin):
             if not response[1]:
                 return
             new_label = str(response[0])
-            self.twd.show_message("Please confirm label change on Trezor")
+            self.handler.show_message("Please confirm label change on Trezor")
             status = self.wallet.get_client().apply_settings(label=new_label)
-            self.twd.stop()
+            self.handler.stop()
             update_label()
 
         current_label_label = QLabel()
@@ -182,6 +190,7 @@ class TrezorWallet(BIP32_HD_Wallet):
         self.mpk = None
         self.device_checked = False
         self.force_watching_only = False
+        always_hook('add_plugin', self)
 
     def get_action(self):
         if not self.accounts:
@@ -192,7 +201,6 @@ class TrezorWallet(BIP32_HD_Wallet):
 
     def can_sign_xpubkey(self, x_pubkey):
         xpub, sequence = BIP32_Account.parse_xpubkey(x_pubkey)
-        print "z", xpub
         return xpub in self.master_public_keys.values()
 
     def can_export(self):
@@ -218,7 +226,7 @@ class TrezorWallet(BIP32_HD_Wallet):
             except:
                 give_error('Could not connect to your Trezor. Please verify the cable is connected and that no other app is using it.')
             self.client = QtGuiTrezorClient(self.transport)
-            self.client.twd = self.twd
+            self.client.handler = self.plugin.handler
             self.client.set_tx_api(self)
             #self.client.clear_session()# TODO Doesn't work with firmware 1.1, returns proto.Failure
             self.client.bad = False
@@ -305,7 +313,7 @@ class TrezorWallet(BIP32_HD_Wallet):
         except Exception, e:
             give_error(e)
         finally:
-            self.twd.stop()
+            self.plugin.handler.stop()
 
     def sign_message(self, address, message, password):
         if not self.check_proper_device():
@@ -320,7 +328,7 @@ class TrezorWallet(BIP32_HD_Wallet):
         except Exception, e:
             give_error(e)
         finally:
-            self.twd.stop()
+            self.plugin.handler.stop()
         b64_msg_sig = b64encode(msg_sig.signature)
         return str(b64_msg_sig)
 
@@ -337,7 +345,7 @@ class TrezorWallet(BIP32_HD_Wallet):
         except Exception, e:
             give_error(e)
         finally:
-            self.twd.stop()
+            self.plugin.handler.stop()
         #values = [i['value'] for i in tx.inputs]
         raw = signed_tx.encode('hex')
         tx.update(raw)
@@ -455,7 +463,7 @@ class TrezorGuiMixin(object):
             message = "Confirm address on Trezor device to continue"
         else:
             message = "Check Trezor device to continue"
-        self.twd.show_message(message)
+        self.handler.show_message(message)
         return proto.ButtonAck()
 
     def callback_PinMatrixRequest(self, msg):
@@ -467,14 +475,14 @@ class TrezorGuiMixin(object):
             desc = 'new PIN again'
         else:
             desc = 'PIN'
-        pin = self.twd.get_pin("Please enter Trezor %s" % desc)
+        pin = self.handler.get_pin("Please enter Trezor %s" % desc)
         if not pin:
             return proto.Cancel()
         return proto.PinMatrixAck(pin=pin)
 
     def callback_PassphraseRequest(self, req):
         msg = _("Please enter your Trezor passphrase.")
-        passphrase = self.twd.get_passphrase(msg)
+        passphrase = self.handler.get_passphrase(msg)
         if passphrase is None:
             return proto.Cancel()
         return proto.PassphraseAck(passphrase=passphrase)

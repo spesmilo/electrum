@@ -330,10 +330,6 @@ class Plugin(BasePlugin):
         wallet.add_master_public_key('x3/', xpub3)
 
     @hook
-    def init_qt(self, gui):
-        self.window = gui.main_window
-
-    @hook
     def do_clear(self):
         self.is_billing = False
 

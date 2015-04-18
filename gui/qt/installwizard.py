@@ -15,7 +15,7 @@ from amountedit import AmountEdit
 
 import sys
 import threading
-from electrum.plugins import run_hook
+from electrum.plugins import always_hook
 from electrum.mnemonic import prepare_seed
 
 MSG_ENTER_ANYTHING    = _("Please enter a wallet seed, a master public key, a list of Bitcoin addresses, or a list of private keys")
@@ -385,7 +385,7 @@ class InstallWizard(QDialog):
                 self.waiting_dialog(wallet.synchronize)
 
             else:
-                f = run_hook('get_wizard_action', self, wallet, action)
+                f = always_hook('get_wizard_action', self, wallet, action)
                 if not f:
                     raise BaseException('unknown wizard action', action)
                 r = f(wallet, self)
@@ -452,7 +452,7 @@ class InstallWizard(QDialog):
 
             else:
                 self.storage.put('wallet_type', t)
-                wallet = run_hook('installwizard_restore', self, self.storage)
+                wallet = always_hook('installwizard_restore', self, self.storage)
                 if not wallet:
                     return
 
