@@ -570,15 +570,17 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.receive_address_label, 0, 0)
         grid.addWidget(self.receive_address_e, 0, 1, 1, 3)
         self.receive_address_e.textChanged.connect(self.update_receive_qr)
+        self.receive_address_e.setStyleSheet("QWidget { background-color:none; border:none;}")
 
         self.copy_button = QPushButton()
         self.copy_button.setIcon(QIcon(":icons/copy.png"))
-        self.copy_button.setToolTip(_("Copy to clibboard"))
-        self.copy_button.clicked.connect(lambda: self.app.clipboard().setText(self.get_receive_URI()))
+        self.copy_button.setToolTip(_("Copy Address to Clibboard"))
+        self.copy_button.clicked.connect(lambda: self.app.clipboard().setText(str(self.receive_address_e.text())))
+        grid.addWidget(self.copy_button, 0, 4)
 
         self.receive_message_e = QLineEdit()
         grid.addWidget(QLabel(_('Description')), 1, 0)
-        grid.addWidget(self.receive_message_e, 1, 1, 1, 3)
+        grid.addWidget(self.receive_message_e, 1, 1, 1, 4)
         self.receive_message_e.textChanged.connect(self.update_receive_qr)
 
         self.receive_amount_e = BTCAmountEdit(self.get_decimal_point)
@@ -605,12 +607,17 @@ class ElectrumWindow(QMainWindow):
         self.receive_qr = QRCodeWidget(fixedSize=200)
         info_grid.addWidget(self.receive_qr, 0, 0, 1, 2)
 
+        self.copy_URI_button = QPushButton()
+        self.copy_URI_button.setIcon(QIcon(":icons/copy.png"))
+        self.copy_URI_button.setToolTip(_("Copy URI to clibboard"))
+        self.copy_URI_button.clicked.connect(lambda: self.app.clipboard().setText(self.get_receive_URI()))
+
         self.zoom_button = QPushButton()
         self.zoom_button.setIcon(QIcon(":icons/zoom.png"))
         self.zoom_button.setToolTip(_("Show Invoice Window"))
         self.zoom_button.clicked.connect(lambda x: self.toggle_qr_window())
 
-        info_grid.addWidget(self.copy_button, 1, 0)
+        info_grid.addWidget(self.copy_URI_button, 1, 0)
         info_grid.addWidget(self.zoom_button, 1, 1)
 
         self.receive_requests_label = QLabel(_('My Requests'))
