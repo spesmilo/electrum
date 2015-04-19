@@ -564,13 +564,12 @@ class ElectrumWindow(QMainWindow):
         self.receive_grid = grid = QGridLayout()
         grid.setColumnMinimumWidth(3, 300)
 
-        self.receive_address_e = QLineEdit()
-        self.receive_address_e.setReadOnly(True)
+        self.receive_address_e = MyLineEdit()
+        self.receive_address_e.setFrozen(True)
         self.receive_address_label = QLabel(_('Receiving address'))
+        self.receive_address_e.textChanged.connect(self.update_receive_qr)
         grid.addWidget(self.receive_address_label, 0, 0)
         grid.addWidget(self.receive_address_e, 0, 1, 1, 3)
-        self.receive_address_e.textChanged.connect(self.update_receive_qr)
-        self.receive_address_e.setStyleSheet("QWidget { background-color:none; border:none;}")
 
         self.copy_button = QPushButton()
         self.copy_button.setIcon(QIcon(":icons/copy.png"))
