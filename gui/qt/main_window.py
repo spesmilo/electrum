@@ -88,7 +88,7 @@ pr_icons = {
 }
 
 pr_tooltips = {
-    PR_UNPAID:_('Unpaid'),
+    PR_UNPAID:_('Waiting'),
     PR_PAID:_('Paid'),
     PR_EXPIRED:_('Expired')
 }
@@ -577,7 +577,7 @@ class ElectrumWindow(QMainWindow):
         self.copy_button.clicked.connect(lambda: self.app.clipboard().setText(self.get_receive_URI()))
 
         self.receive_message_e = QLineEdit()
-        grid.addWidget(QLabel(_('Message')), 1, 0)
+        grid.addWidget(QLabel(_('Description')), 1, 0)
         grid.addWidget(self.receive_message_e, 1, 1, 1, 3)
         self.receive_message_e.textChanged.connect(self.update_receive_qr)
 
@@ -614,7 +614,7 @@ class ElectrumWindow(QMainWindow):
         info_grid.addWidget(self.zoom_button, 1, 1)
 
         self.receive_requests_label = QLabel(_('My Requests'))
-        self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), _('Message'), _('Amount'), _('Status')], [])
+        self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), _('Description'), _('Amount'), _('Status')], [])
         self.receive_list.currentItemChanged.connect(self.receive_item_changed)
         self.receive_list.itemClicked.connect(self.receive_item_changed)
         self.receive_list.setSortingEnabled(True)
