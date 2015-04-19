@@ -36,7 +36,7 @@ import PyQt4.QtCore as QtCore
 
 from electrum_ltc.i18n import _, set_language
 from electrum_ltc.util import print_error, print_msg
-from electrum_ltc.plugins import run_hook
+from electrum_ltc.plugins import run_hook, always_hook
 from electrum_ltc import WalletStorage, Wallet
 from electrum_ltc.bitcoin import MIN_RELAY_TX_FEE
 
@@ -73,6 +73,8 @@ class ElectrumGui:
         if app is None:
             self.app = QApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
+        # let plugins know that we are using the qt gui
+        always_hook('init_qt_app', self.app)
 
 
     def build_tray_menu(self):
@@ -222,7 +224,7 @@ class ElectrumGui:
             else:
                 self.go_full()
 
-        # plugins that need to change the GUI do it here
+        # plugins interact with main window
         run_hook('init_qt', self)
 
         w.load_wallet(wallet)

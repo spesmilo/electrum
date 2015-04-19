@@ -33,23 +33,25 @@ hook_names = set()
 hooks = {}
 
 def hook(func):
-    n = func.func_name
-    if n not in hook_names:
-        hook_names.add(n)
+    hook_names.add(func.func_name)
     return func
 
-
 def run_hook(name, *args):
-    SPECIAL_HOOKS = ['get_wizard_action','installwizard_restore']
+    return _run_hook(name, False, *args)
+
+def always_hook(name, *args):
+    return _run_hook(name, True, *args)
+
+def _run_hook(name, always, *args):
     results = []
-    f_list = hooks.get(name,[])
+    f_list = hooks.get(name, [])
     for p, f in f_list:
         if name == 'load_wallet':
             p.wallet = args[0]
         if name == 'init_qt':
             gui = args[0]
             p.window = gui.main_window
-        if name in SPECIAL_HOOKS or p.is_enabled():
+        if always or p.is_enabled():
             try:
                 r = f(*args)
             except Exception:
