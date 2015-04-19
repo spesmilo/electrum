@@ -86,11 +86,14 @@ pr_icons = {
     PR_PAID:":icons/confirmed.png",
     PR_EXPIRED:":icons/expired.png"
 }
+
 pr_tooltips = {
     PR_UNPAID:_('Unpaid'),
     PR_PAID:_('Paid'),
     PR_EXPIRED:_('Expired')
 }
+
+expiration_values = [(_('1 hour'), 60*60), (_('1 day'), 24*64*64), (_('1 week'), 7*24*60*60), (_('Never'), None)]
 
 
 
@@ -557,8 +560,8 @@ class ElectrumWindow(QMainWindow):
         self.history_list.update(h)
 
     def create_receive_tab(self):
-        w = QWidget()
-        self.receive_grid = grid = QGridLayout(w)
+
+        self.receive_grid = grid = QGridLayout()
         grid.setColumnMinimumWidth(3, 300)
 
         self.receive_address_e = QLineEdit()
@@ -583,27 +586,32 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.receive_amount_e, 2, 1, 1, 2)
         self.receive_amount_e.textChanged.connect(self.update_receive_qr)
 
+        self.expires_combo = QComboBox()
+        self.expires_combo.addItems(map(lambda x:x[0], expiration_values))
+        self.expires_combo.setCurrentIndex(1)
+        grid.addWidget(QLabel(_('Expires in')), 3, 0)
+        grid.addWidget(self.expires_combo, 3, 1, 1, 2)
+
         self.save_request_button = QPushButton(_('Save'))
         self.save_request_button.clicked.connect(self.save_payment_request)
-        grid.addWidget(self.save_request_button, 3, 1)
+        grid.addWidget(self.save_request_button, 4, 1)
 
         self.new_request_button = QPushButton(_('New'))
         self.new_request_button.clicked.connect(self.new_receive_address)
-        grid.addWidget(self.new_request_button, 3, 2)
+        grid.addWidget(self.new_request_button, 4, 2)
+        grid.setRowStretch(5, 1)
 
+        info_grid = QGridLayout()
         self.receive_qr = QRCodeWidget(fixedSize=200)
-        grid.addWidget(self.receive_qr, 0, 5, 5, 2)
+        info_grid.addWidget(self.receive_qr, 0, 0, 1, 2)
 
         self.zoom_button = QPushButton()
         self.zoom_button.setIcon(QIcon(":icons/zoom.png"))
         self.zoom_button.setToolTip(_("Show Invoice Window"))
         self.zoom_button.clicked.connect(lambda x: self.toggle_qr_window())
 
-        grid.addWidget(self.copy_button, 5, 5)
-        grid.addWidget(self.zoom_button, 5, 6)
-
-        grid.setColumnStretch(4, 1)
-        grid.setRowStretch(6, 1)
+        info_grid.addWidget(self.copy_button, 1, 0)
+        info_grid.addWidget(self.zoom_button, 1, 1)
 
         self.receive_requests_label = QLabel(_('Saved Requests'))
         self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), _('Message'), _('Amount'), _('Status')], [])
@@ -617,8 +625,20 @@ class ElectrumWindow(QMainWindow):
         h = self.receive_list.header()
         h.setStretchLastSection(False)
         h.setResizeMode(3, QHeaderView.Stretch)
-        grid.addWidget(self.receive_requests_label, 7, 0)
-        grid.addWidget(self.receive_list, 8, 0, 1, 7)
+
+        # layout
+        hbox = QHBoxLayout()
+        hbox.addLayout(grid)
+        hbox.addStretch()
+        hbox.addLayout(info_grid)
+
+        w = QWidget()
+        vbox = QVBoxLayout(w)
+        vbox.addLayout(hbox)
+        vbox.addStretch(1)
+        vbox.addWidget(self.receive_requests_label)
+        vbox.addWidget(self.receive_list)
+
         return w
 
     def receive_item_changed(self, item):
@@ -664,11 +684,13 @@ class ElectrumWindow(QMainWindow):
         addr = str(self.receive_address_e.text())
         amount = self.receive_amount_e.get_amount()
         message = unicode(self.receive_message_e.text())
+        i = self.expires_combo.currentIndex()
+        expiration = map(lambda x: x[1], expiration_values)[i]
         if not message and not amount:
             QMessageBox.warning(self, _('Error'), _('No message or amount'), _('OK'))
             return
         self.receive_requests = self.wallet.storage.get('receive_requests2',{})
-        self.receive_requests[addr] = {'time':timestamp, 'amount':amount }
+        self.receive_requests[addr] = {'time':timestamp, 'amount':amount, 'expiration':expiration}
         self.wallet.storage.put('receive_requests2', self.receive_requests)
         self.wallet.set_label(addr, message)
         self.update_receive_tab()
@@ -756,6 +778,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_list.clear()
         for address, req in self.receive_requests.viewitems():
             timestamp, amount = req['time'], req['amount']
+            expiration = req.get('expiration', None)
             message = self.wallet.labels.get(address, '')
             # only show requests for the current account
             if address not in domain:
@@ -765,7 +788,9 @@ class ElectrumWindow(QMainWindow):
             amount_str = self.format_amount(amount) if amount else ""
             paid = amount <= self.wallet.get_addr_received(address)
             status = PR_PAID if paid else PR_UNPAID
-            item = QTreeWidgetItem( [ date, account, address, message, amount_str, pr_tooltips[status]])
+            if status == PR_UNPAID and expiration is not None and time.time() > timestamp + expiration:
+                status = PR_EXPIRED
+            item = QTreeWidgetItem([date, account, address, message, amount_str, pr_tooltips[status]])
             item.setIcon(5, QIcon(pr_icons.get(status)))
             self.receive_list.addTopLevelItem(item)
 
