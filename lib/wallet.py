@@ -792,10 +792,8 @@ class Abstract_Wallet(object):
                 assert self.is_mine(addr)
                 label = self.labels.get(addr)
                 if label:
-                    break
-                label = ">" + addr
-            return label
-        return tx_hash
+                    return label
+        return ''
 
     def get_tx_fee(self, tx):
         # this method can be overloaded
