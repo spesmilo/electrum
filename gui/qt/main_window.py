@@ -606,12 +606,13 @@ class ElectrumWindow(QMainWindow):
         grid.setRowStretch(6, 1)
 
         self.receive_requests_label = QLabel(_('Saved Requests'))
-        self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), _('Message'), _('Amount')], [])
+        self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), _('Message'), _('Amount'), _('Status')], [])
         self.receive_list.currentItemChanged.connect(self.receive_item_changed)
         self.receive_list.itemClicked.connect(self.receive_item_changed)
         self.receive_list.setSortingEnabled(True)
         self.receive_list.setColumnWidth(0, 180)
         self.receive_list.hideColumn(1)     # the update will show it if necessary
+        self.receive_list.hideColumn(2)     # don't show address
         self.receive_list.setColumnWidth(2, 340)
         h = self.receive_list.header()
         h.setStretchLastSection(False)
@@ -625,7 +626,8 @@ class ElectrumWindow(QMainWindow):
             return
         addr = str(item.text(2))
         req = self.receive_requests[addr]
-        time, amount, message = req['time'], req['amount'], req['msg']
+        time, amount = req['time'], req['amount']
+        message = self.wallet.labels.get(addr, '')
         self.receive_address_e.setText(addr)
         self.receive_message_e.setText(message)
         self.receive_amount_e.setAmount(amount)
@@ -649,7 +651,8 @@ class ElectrumWindow(QMainWindow):
         item = self.receive_list.itemAt(position)
         addr = str(item.text(2))
         req = self.receive_requests[addr]
-        time, amount, message = req['time'], req['amount'], req['msg']
+        time, amount = req['time'], req['amount']
+        message = self.wallet.labels.get(addr, '')
         URI = util.create_URI(addr, amount, message)
         menu = QMenu()
         menu.addAction(_("Copy to clipboard"), lambda: self.app.clipboard().setText(str(URI)))
@@ -665,9 +668,11 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(self, _('Error'), _('No message or amount'), _('OK'))
             return
         self.receive_requests = self.wallet.storage.get('receive_requests2',{})
-        self.receive_requests[addr] = {'time':timestamp, 'amount':amount, 'msg':message}
+        self.receive_requests[addr] = {'time':timestamp, 'amount':amount }
         self.wallet.storage.put('receive_requests2', self.receive_requests)
+        self.wallet.set_label(addr, message)
         self.update_receive_tab()
+        self.update_address_tab()
         self.save_request_button.setEnabled(False)
 
     def get_receive_address(self):
@@ -750,13 +755,17 @@ class ElectrumWindow(QMainWindow):
         # clear the list and fill it again
         self.receive_list.clear()
         for address, req in self.receive_requests.viewitems():
-            timestamp, amount, message = req['time'], req['amount'], req['msg']
+            timestamp, amount = req['time'], req['amount']
+            message = self.wallet.labels.get(address, '')
             # only show requests for the current account
             if address not in domain:
                 continue
             date = format_time(timestamp)
             account = self.wallet.get_account_name(self.wallet.get_account_from_address(address))
-            item = QTreeWidgetItem( [ date, account, address, message, self.format_amount(amount) if amount else ""])
+            amount_str = self.format_amount(amount) if amount else ""
+            paid = amount < self.wallet.get_addr_received(address)
+            status = PR_PAID if paid else PR_UNPAID
+            item = QTreeWidgetItem( [ date, account, address, message, amount_str, pr_tooltips[status]])
             item.setFont(2, QFont(MONOSPACE_FONT))
             self.receive_list.addTopLevelItem(item)
 
