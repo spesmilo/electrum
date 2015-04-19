@@ -613,7 +613,7 @@ class ElectrumWindow(QMainWindow):
         info_grid.addWidget(self.copy_button, 1, 0)
         info_grid.addWidget(self.zoom_button, 1, 1)
 
-        self.receive_requests_label = QLabel(_('Saved Requests'))
+        self.receive_requests_label = QLabel(_('My Requests'))
         self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), _('Message'), _('Amount'), _('Status')], [])
         self.receive_list.currentItemChanged.connect(self.receive_item_changed)
         self.receive_list.itemClicked.connect(self.receive_item_changed)
