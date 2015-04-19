@@ -763,7 +763,7 @@ class ElectrumWindow(QMainWindow):
             date = format_time(timestamp)
             account = self.wallet.get_account_name(self.wallet.get_account_from_address(address))
             amount_str = self.format_amount(amount) if amount else ""
-            paid = amount < self.wallet.get_addr_received(address)
+            paid = amount <= self.wallet.get_addr_received(address)
             status = PR_PAID if paid else PR_UNPAID
             item = QTreeWidgetItem( [ date, account, address, message, amount_str, pr_tooltips[status]])
             item.setFont(2, QFont(MONOSPACE_FONT))
