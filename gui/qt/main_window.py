@@ -766,7 +766,7 @@ class ElectrumWindow(QMainWindow):
             paid = amount <= self.wallet.get_addr_received(address)
             status = PR_PAID if paid else PR_UNPAID
             item = QTreeWidgetItem( [ date, account, address, message, amount_str, pr_tooltips[status]])
-            item.setFont(2, QFont(MONOSPACE_FONT))
+            item.setIcon(5, QIcon(pr_icons.get(status)))
             self.receive_list.addTopLevelItem(item)
 
 
@@ -1219,7 +1219,7 @@ class ElectrumWindow(QMainWindow):
         return self.create_list_tab(l)
 
     def create_invoices_tab(self):
-        l = MyTreeWidget(self, self.create_invoice_menu, [_('Date'), _('Requestor'), _('Memo'), _('Amount'), _('Status')], [150, 150, None, 150, 40])
+        l = MyTreeWidget(self, self.create_invoice_menu, [_('Date'), _('Requestor'), _('Memo'), _('Amount'), _('Status')], [150, 150, None, 150, 100])
         self.invoices_list = l
         return self.create_list_tab(l)
 
@@ -1231,10 +1231,8 @@ class ElectrumWindow(QMainWindow):
             status = pr.get_status()
             domain = pr.get_domain()
             date_str = format_time(pr.get_expiration_date())
-            item = QTreeWidgetItem( [ date_str, domain, pr.memo, self.format_amount(pr.get_amount(), whitespaces=True), ''] )
-            icon = QIcon(pr_icons.get(status))
-            item.setIcon(4, icon)
-            item.setToolTip(4, pr_tooltips.get(status,''))
+            item = QTreeWidgetItem( [ date_str, domain, pr.memo, self.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')] )
+            item.setIcon(4, QIcon(pr_icons.get(status)))
             item.setData(0, Qt.UserRole, key)
             item.setFont(1, QFont(MONOSPACE_FONT))
             item.setFont(3, QFont(MONOSPACE_FONT))
