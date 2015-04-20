@@ -583,6 +583,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_address_e.setReadOnly(True)
         self.receive_address_label = QLabel(_('Receiving address'))
         self.receive_address_e.textChanged.connect(self.update_receive_qr)
+        self.receive_address_e.setFocusPolicy(Qt.NoFocus)
         grid.addWidget(self.receive_address_label, 0, 0)
         grid.addWidget(self.receive_address_e, 0, 1, 1, 4)
 
