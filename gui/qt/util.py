@@ -330,8 +330,7 @@ class ButtonsWidget(QWidget):
         super(QWidget, self).__init__()
         self.buttons = []
 
-    def resizeEvent(self, e):
-        o = QWidget.resizeEvent(self, e)
+    def resizeButtons(self):
         frameWidth = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
         x = self.rect().right() - frameWidth
         y = self.rect().bottom() - frameWidth
@@ -339,7 +338,6 @@ class ButtonsWidget(QWidget):
             sz = button.sizeHint()
             x -= sz.width()
             button.move(x, y - sz.height())
-        return o
 
     def addButton(self, icon_name, on_click, tooltip):
         button = QToolButton(self)
@@ -356,12 +354,21 @@ class ButtonsLineEdit(QLineEdit, ButtonsWidget):
         QLineEdit.__init__(self, text)
         self.buttons = []
 
+    def resizeEvent(self, e):
+        o = QLineEdit.resizeEvent(self, e)
+        self.resizeButtons()
+        return o
+
 class ButtonsTextEdit(QPlainTextEdit, ButtonsWidget):
     def __init__(self, text=None):
         QPlainTextEdit.__init__(self, text)
         self.setText = self.setPlainText
         self.buttons = []
 
+    def resizeEvent(self, e):
+        o = QPlainTextEdit.resizeEvent(self, e)
+        self.resizeButtons()
+        return o
 
 
 if __name__ == "__main__":
