@@ -763,6 +763,8 @@ class Plugin(BasePlugin):
                 if fee_e: self.win.update_fee(False)
         fiat_e.textEdited.connect(fiat_changed)
         def btc_changed():
+            if self.exchanger is None:
+                return
             btc_amount = btc_e.get_amount()
             if btc_amount is None:
                 fiat_e.setText("")
