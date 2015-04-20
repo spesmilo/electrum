@@ -342,12 +342,17 @@ class ButtonsWidget(QWidget):
     def addButton(self, icon_name, on_click, tooltip):
         button = QToolButton(self)
         button.setIcon(QIcon(icon_name))
-        button.setStyleSheet("QToolButton { border: none; padding: 0px; }")
+        button.setStyleSheet("QToolButton { border: none; hover {border: 1px} pressed {border: 1px} padding: 0px; }")
         button.setVisible(True)
         button.setToolTip(tooltip)
         button.clicked.connect(on_click)
         self.buttons.append(button)
         return button
+
+    def addCopyButton(self, app):
+        self.app = app
+        f = lambda: self.app.clipboard().setText(str(self.text()))
+        self.addButton(":icons/copy.png", f, _("Copy to Clibboard"))
 
 class ButtonsLineEdit(QLineEdit, ButtonsWidget):
     def __init__(self, text=None):
@@ -363,6 +368,7 @@ class ButtonsTextEdit(QPlainTextEdit, ButtonsWidget):
     def __init__(self, text=None):
         QPlainTextEdit.__init__(self, text)
         self.setText = self.setPlainText
+        self.text = self.toPlainText
         self.buttons = []
 
     def resizeEvent(self, e):

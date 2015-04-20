@@ -579,7 +579,7 @@ class ElectrumWindow(QMainWindow):
         grid.setColumnMinimumWidth(3, 300)
 
         self.receive_address_e = ButtonsLineEdit()
-        self.receive_address_e.addButton(":icons/copy.png", lambda: self.app.clipboard().setText(str(self.receive_address_e.text())), _("Copy Address to Clibboard"))
+        self.receive_address_e.addCopyButton(self.app)
         self.receive_address_e.setReadOnly(True)
         self.receive_address_label = QLabel(_('Receiving address'))
         self.receive_address_e.textChanged.connect(self.update_receive_qr)
@@ -1749,7 +1749,8 @@ class ElectrumWindow(QMainWindow):
             mpk_text.setMaximumHeight(170)
             vbox.addWidget(mpk_text)
 
-        vbox.addLayout(Buttons(CopyButton(mpk_text, self.app), CloseButton(dialog)))
+        mpk_text.addCopyButton(self.app)
+        vbox.addLayout(Buttons(CloseButton(dialog)))
         dialog.setLayout(vbox)
         dialog.exec_()
 
@@ -1815,9 +1816,10 @@ class ElectrumWindow(QMainWindow):
         vbox = QVBoxLayout()
         vbox.addWidget( QLabel(_("Address") + ': ' + address))
         vbox.addWidget( QLabel(_("Public key") + ':'))
-        keys = ShowQRTextEdit(text='\n'.join(pubkey_list))
-        vbox.addWidget(keys)
-        vbox.addLayout(Buttons(CopyButton(keys, self.app), CloseButton(d)))
+        keys_e = ShowQRTextEdit(text='\n'.join(pubkey_list))
+        keys_e.addCopyButton(self.app)
+        vbox.addWidget(keys_e)
+        vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
 
@@ -1838,9 +1840,10 @@ class ElectrumWindow(QMainWindow):
         vbox = QVBoxLayout()
         vbox.addWidget( QLabel(_("Address") + ': ' + address))
         vbox.addWidget( QLabel(_("Private key") + ':'))
-        keys = ShowQRTextEdit(text='\n'.join(pk_list))
-        vbox.addWidget(keys)
-        vbox.addLayout(Buttons(CopyButton(keys, self.app), CloseButton(d)))
+        keys_e = ShowQRTextEdit(text='\n'.join(pk_list))
+        keys_e.addCopyButton(self.app)
+        vbox.addWidget(keys_e)
+        vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
 
