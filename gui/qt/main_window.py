@@ -576,14 +576,15 @@ class ElectrumWindow(QMainWindow):
     def create_receive_tab(self):
 
         self.receive_grid = grid = QGridLayout()
-        grid.setColumnMinimumWidth(3, 150)
+        grid.setColumnMinimumWidth(3, 300)
 
-        self.receive_address_e = MyLineEdit()
-        self.receive_address_e.setFrozen(True)
+        self.receive_address_e = ButtonsLineEdit()
+        self.receive_address_e.addButton(":icons/copy.png", lambda: self.app.clipboard().setText(str(self.receive_address_e.text())), _("Copy Address to Clibboard"))
+        self.receive_address_e.setReadOnly(True)
         self.receive_address_label = QLabel(_('Receiving address'))
         self.receive_address_e.textChanged.connect(self.update_receive_qr)
         grid.addWidget(self.receive_address_label, 0, 0)
-        grid.addWidget(self.receive_address_e, 0, 1, 1, 3)
+        grid.addWidget(self.receive_address_e, 0, 1, 1, 4)
 
         self.receive_message_e = QLineEdit()
         grid.addWidget(QLabel(_('Description')), 1, 0)
@@ -603,27 +604,22 @@ class ElectrumWindow(QMainWindow):
 
         self.save_request_button = QPushButton(_('Save'))
         self.save_request_button.clicked.connect(self.save_payment_request)
-        grid.addWidget(self.save_request_button, 4, 1)
 
         self.new_request_button = QPushButton(_('New'))
         self.new_request_button.clicked.connect(self.new_receive_address)
-        grid.addWidget(self.new_request_button, 4, 2)
-        grid.setRowStretch(5, 1)
-
-        self.copy_button = QPushButton()
-        self.copy_button.setIcon(QIcon(":icons/copy.png"))
-        self.copy_button.setToolTip(_("Copy Address to Clibboard"))
-        self.copy_button.clicked.connect(lambda: self.app.clipboard().setText(str(self.receive_address_e.text())))
 
         self.qr_button = QPushButton()
         self.qr_button.setIcon(QIcon(":icons/qrcode.png"))
-        self.qr_button.setToolTip(_("Show Payment Request with QR code"))
+        self.qr_button.setToolTip(_("Show/Hide QR code window"))
         self.qr_button.clicked.connect(lambda x: self.toggle_qr_window())
 
         buttons = QHBoxLayout()
-        buttons.addWidget(self.copy_button)
         buttons.addWidget(self.qr_button)
-        grid.addLayout(buttons, 0, 4)
+        buttons.addWidget(self.save_request_button)
+        buttons.addWidget(self.new_request_button)
+        buttons.addStretch(1)
+        grid.addLayout(buttons, 4, 1, 1, 3)
+        grid.setRowStretch(5, 1)
 
         self.receive_requests_label = QLabel(_('My Requests'))
         self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), _('Description'), _('Amount'), _('Status')], [])

@@ -324,6 +324,46 @@ class MyTreeWidget(QTreeWidget):
             self.parent.update_completions()
 
 
+class ButtonsWidget(QWidget):
+
+    def __init__(self):
+        super(QWidget, self).__init__()
+        self.buttons = []
+
+    def resizeEvent(self, e):
+        o = QWidget.resizeEvent(self, e)
+        frameWidth = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
+        x = self.rect().right() - frameWidth
+        y = self.rect().bottom() - frameWidth
+        for button in self.buttons:
+            sz = button.sizeHint()
+            x -= sz.width()
+            button.move(x, y - sz.height())
+        return o
+
+    def addButton(self, icon_name, on_click, tooltip):
+        button = QToolButton(self)
+        button.setIcon(QIcon(icon_name))
+        button.setStyleSheet("QToolButton { border: none; padding: 0px; }")
+        button.setVisible(True)
+        button.setToolTip(tooltip)
+        button.clicked.connect(on_click)
+        self.buttons.append(button)
+        return button
+
+class ButtonsLineEdit(QLineEdit, ButtonsWidget):
+    def __init__(self, text=None):
+        QLineEdit.__init__(self, text)
+        self.buttons = []
+
+class ButtonsTextEdit(QPlainTextEdit, ButtonsWidget):
+    def __init__(self, text=None):
+        QPlainTextEdit.__init__(self, text)
+        self.setText = self.setPlainText
+        self.buttons = []
+
+
+
 if __name__ == "__main__":
     app = QApplication([])
     t = WaitingDialog(None, 'testing ...', lambda: [time.sleep(1)], lambda x: QMessageBox.information(None, 'done', "done", _('OK')))
