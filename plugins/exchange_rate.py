@@ -306,8 +306,8 @@ class Plugin(BasePlugin):
     def close(self):
         self.exchanger.stop()
         self.exchanger = None
-        self.win.tabs.removeTab(1)
-        self.win.tabs.insertTab(1, self.win.create_send_tab(), _('Send'))
+        self.send_fiat_e.hide()
+        self.receive_fiat_e.hide()
         self.win.update_status()
 
     def set_currencies(self, currency_options):
@@ -607,18 +607,18 @@ class Plugin(BasePlugin):
         return self.config.get("currency", "EUR")
 
     def add_send_edit(self):
-        fiat_e = AmountEdit(self.fiat_unit)
+        self.send_fiat_e = AmountEdit(self.fiat_unit)
         btc_e = self.win.amount_e
         fee_e = self.win.fee_e
-        self.connect_fields(btc_e, fiat_e, fee_e)
-        self.win.send_grid.addWidget(fiat_e, 4, 3, Qt.AlignHCenter)
-        btc_e.frozen.connect(lambda: fiat_e.setFrozen(btc_e.isReadOnly()))
+        self.connect_fields(btc_e, self.send_fiat_e, fee_e)
+        self.win.send_grid.addWidget(self.send_fiat_e, 4, 3, Qt.AlignHCenter)
+        btc_e.frozen.connect(lambda: self.send_fiat_e.setFrozen(btc_e.isReadOnly()))
 
     def add_receive_edit(self):
-        fiat_e = AmountEdit(self.fiat_unit)
+        self.receive_fiat_e = AmountEdit(self.fiat_unit)
         btc_e = self.win.receive_amount_e
-        self.connect_fields(btc_e, fiat_e, None)
-        self.win.receive_grid.addWidget(fiat_e, 2, 3, Qt.AlignHCenter)
+        self.connect_fields(btc_e, self.receive_fiat_e, None)
+        self.win.receive_grid.addWidget(self.receive_fiat_e, 2, 3, Qt.AlignHCenter)
 
     def connect_fields(self, btc_e, fiat_e, fee_e):
         def fiat_changed():

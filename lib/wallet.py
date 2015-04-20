@@ -487,6 +487,16 @@ class Abstract_Wallet(object):
                 coins.pop(txi)
         return coins.items()
 
+    #return the total amount ever received by an address
+    def get_addr_received(self, address):
+        h = self.history.get(address, [])
+        received = 0
+        for tx_hash, height in h:
+            l = self.txo.get(tx_hash, {}).get(address, [])
+            for n, v, is_cb in l:
+                received += v
+        return received
+
     def get_addr_balance(self, address):
         "returns the confirmed balance and pending (unconfirmed) balance change of a bitcoin address"
         coins = self.get_addr_utxo(address)
@@ -782,10 +792,8 @@ class Abstract_Wallet(object):
                 assert self.is_mine(addr)
                 label = self.labels.get(addr)
                 if label:
-                    break
-                label = ">" + addr
-            return label
-        return tx_hash
+                    return label
+        return ''
 
     def get_tx_fee(self, tx):
         # this method can be overloaded
