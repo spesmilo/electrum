@@ -73,6 +73,7 @@ class ClientThread(util.DaemonThread):
         self.client_pipe = util.SocketPipe(s)
         self.response_queue = Queue.Queue()
         self.server.add_client(self)
+        self.subscriptions = set()
 
     def reading_thread(self):
         while self.is_running():
@@ -83,9 +84,13 @@ class ClientThread(util.DaemonThread):
             if request is None:
                 self.running = False
                 break
-            if request.get('method') == 'daemon.stop':
+            method = request.get('method')
+            params = request.get('params')
+            if method == 'daemon.stop':
                 self.server.stop()
                 continue
+            if method[-10:] == '.subscribe':
+                self.subscriptions.add(repr((method, params)))
             self.server.send_request(self, request)
 
     def run(self):
@@ -165,8 +170,11 @@ class NetworkServer(util.DaemonThread):
                 client.response_queue.put(response)
             else:
                 # notification
+                m = response.get('method')
+                v = response.get('params')
                 for client in self.clients:
-                    client.response_queue.put(response)
+                    if repr((m, v)) in client.subscriptions:
+                        client.response_queue.put(response)
 
         self.network.stop()
         print_error("server exiting")
