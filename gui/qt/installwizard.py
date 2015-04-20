@@ -314,13 +314,9 @@ class InstallWizard(QDialog):
         return run_password_dialog(self, None, self)[2]
 
 
+    def run(self, action, wallet_type):
 
-
-
-    def run(self, action):
-
-        if action == 'new':
-            action, wallet_type = self.restore_or_create()
+        if action in ['create', 'restore']:
             if wallet_type == 'multisig':
                 wallet_type = self.choice(_("Multi Signature Wallet"), 'Select wallet type', [('2of2', _("2 of 2")),('2of3',_("2 of 3"))])
                 if not wallet_type:
@@ -332,7 +328,6 @@ class InstallWizard(QDialog):
                     return
             elif wallet_type == 'twofactor':
                 wallet_type = '2fa'
-
             if action == 'create':
                 self.storage.put('wallet_type', wallet_type, False)
 

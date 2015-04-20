@@ -274,11 +274,12 @@ class ElectrumWindow(QMainWindow):
         # run wizard
         if action is not None:
             wallet = self.gui_object.run_wizard(storage, action)
-            if not wallet:
-                self.show()
-                return
         else:
             wallet.start_threads(self.network)
+        # keep current wallet
+        if not wallet:
+            self.show()
+            return
         # close current wallet
         self.close_wallet()
         # load new wallet in gui
@@ -329,11 +330,19 @@ class ElectrumWindow(QMainWindow):
 
         self.hide()
         wizard = installwizard.InstallWizard(self.config, self.network, storage)
-        wallet = wizard.run('new')
+        action, wallet_type = wizard.restore_or_create()
+        if not action:
+            self.show()
+            return
+        # close current wallet, but keep a reference to it
+        self.close_wallet()
+        wallet = wizard.run(action, wallet_type)
         if wallet:
-            if self.wallet:
-                self.close_wallet()
             self.load_wallet(wallet)
+        else:
+            self.wallet.start_threads()
+            self.load_wallet(self.wallet)
+
         self.show()
 
 
