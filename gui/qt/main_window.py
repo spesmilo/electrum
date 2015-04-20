@@ -340,7 +340,7 @@ class ElectrumWindow(QMainWindow):
         if wallet:
             self.load_wallet(wallet)
         else:
-            self.wallet.start_threads()
+            self.wallet.start_threads(self.network)
             self.load_wallet(self.wallet)
 
         self.show()
