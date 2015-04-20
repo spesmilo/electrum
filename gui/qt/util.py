@@ -315,7 +315,7 @@ class MyTreeWidget(QTreeWidget):
         if text:
             item.setForeground(self.edit_column, QBrush(QColor('black')))
         else:
-            text = self.wallet.get_default_label(key)
+            text = self.parent.wallet.get_default_label(key)
             item.setText(self.edit_column, text)
             item.setForeground(self.edit_column, QBrush(QColor('gray')))
         self.is_edit = False
