@@ -95,7 +95,9 @@ class TxDialog(QDialog):
         b.setIcon(QIcon(":icons/qrcode.png"))
         b.clicked.connect(self.show_qr)
 
-        self.buttons = [self.qr_button, self.sign_button, self.broadcast_button, self.save_button, self.cancel_button]
+        self.copy_button = CopyButton(lambda: str(self.tx), self.parent.app)
+
+        self.buttons = [self.copy_button, self.qr_button, self.sign_button, self.broadcast_button, self.save_button, self.cancel_button]
         run_hook('transaction_dialog', self)
 
         vbox.addLayout(Buttons(*self.buttons))

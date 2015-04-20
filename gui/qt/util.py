@@ -138,9 +138,9 @@ class CloseButton(QPushButton):
         self.setDefault(True)
 
 class CopyButton(QPushButton):
-    def __init__(self, text, app):
+    def __init__(self, text_getter, app):
         QPushButton.__init__(self, _("Copy"))
-        self.clicked.connect(lambda: app.clipboard().setText(str(text.toPlainText())))
+        self.clicked.connect(lambda: app.clipboard().setText(text_getter()))
 
 class OkButton(QPushButton):
     def __init__(self, dialog, label=None):
