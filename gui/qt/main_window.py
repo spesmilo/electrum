@@ -567,6 +567,7 @@ class ElectrumWindow(QMainWindow):
     def create_receive_tab(self):
 
         self.receive_grid = grid = QGridLayout()
+        grid.setColumnMinimumWidth(3, 150)
 
         self.receive_address_e = MyLineEdit()
         self.receive_address_e.setFrozen(True)
