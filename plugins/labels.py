@@ -102,6 +102,7 @@ class Plugin(BasePlugin):
             return
         bundle = {"walletId": self.wallet_id, "walletNonce": self.wallet.storage.get("wallet_nonce"), "externalId": self.encode(item), "encryptedLabel": self.encode(label)}
         t = threading.Thread(target=self.do_request, args=["POST", "/label", False, bundle])
+        t.setDaemon(True)
         t.start()
         self.set_nonce(self.wallet.storage.get("wallet_nonce") + 1)
 
