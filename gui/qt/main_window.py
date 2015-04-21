@@ -604,7 +604,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.expires_combo, 3, 1)
 
         self.save_request_button = QPushButton(_('Save'))
-        self.save_request_button.clicked.connect(self.add_payment_request)
+        self.save_request_button.clicked.connect(self.save_payment_request)
 
         self.new_request_button = QPushButton(_('New'))
         self.new_request_button.clicked.connect(self.new_receive_address)
@@ -612,7 +612,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_qr = QRCodeWidget(fixedSize=200)
         self.receive_qr.mouseReleaseEvent = lambda x: self.toggle_qr_window()
 
-        buttons = QHBoxLayout()
+        self.receive_buttons = buttons = QHBoxLayout()
         buttons.addStretch(1)
         buttons.addWidget(self.save_request_button)
         buttons.addWidget(self.new_request_button)
@@ -689,7 +689,7 @@ class ElectrumWindow(QMainWindow):
         menu.addAction(_("Delete"), lambda: self.delete_payment_request(item))
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
-    def add_payment_request(self):
+    def save_payment_request(self):
         now = int(time.time())
         addr = str(self.receive_address_e.text())
         amount = self.receive_amount_e.get_amount()
@@ -707,7 +707,7 @@ class ElectrumWindow(QMainWindow):
         self.update_address_tab()
         self.save_request_button.setEnabled(False)
 
-    def export_payment_request(self, addr):
+    def make_payment_request(self, addr):
         req = self.receive_requests[addr]
         time = req['time']
         amount = req['amount']
@@ -717,7 +717,10 @@ class ElectrumWindow(QMainWindow):
         outputs = [(script, amount)]
         cert_path = self.config.get('cert_path')
         chain_path = self.config.get('chain_path')
-        pr = make_payment_request(outputs, message, time, time + expiration, cert_path, chain_path)
+        return make_payment_request(outputs, message, time, time + expiration, cert_path, chain_path)
+
+    def export_payment_request(self, addr):
+        pr = self.make_payment_request(addr)
         name = 'request.bip70'
         fileName = self.getSaveFileName(_("Select where to save your payment request"), name, "*.bip70")
         if fileName:
