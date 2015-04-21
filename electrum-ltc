@@ -183,6 +183,10 @@ def run_command(cmd, password=None, args=None):
 
 if __name__ == '__main__':
 
+    #on osx, delete Process Serial Number arg generated for apps launched in Finder
+    if is_bundle == 'macosx_app' and sys.argv[1][:4] == '-psn':
+        del sys.argv[1]
+
     wallet = None
     parser = arg_parser()
     options, args = parser.parse_args()

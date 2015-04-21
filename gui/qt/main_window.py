@@ -274,11 +274,12 @@ class ElectrumWindow(QMainWindow):
         # run wizard
         if action is not None:
             wallet = self.gui_object.run_wizard(storage, action)
-            if not wallet:
-                self.show()
-                return
         else:
             wallet.start_threads(self.network)
+        # keep current wallet
+        if not wallet:
+            self.show()
+            return
         # close current wallet
         self.close_wallet()
         # load new wallet in gui
@@ -329,11 +330,19 @@ class ElectrumWindow(QMainWindow):
 
         self.hide()
         wizard = installwizard.InstallWizard(self.config, self.network, storage)
-        wallet = wizard.run('new')
+        action, wallet_type = wizard.restore_or_create()
+        if not action:
+            self.show()
+            return
+        # close current wallet, but keep a reference to it
+        self.close_wallet()
+        wallet = wizard.run(action, wallet_type)
         if wallet:
-            if self.wallet:
-                self.close_wallet()
             self.load_wallet(wallet)
+        else:
+            self.wallet.start_threads(self.network)
+            self.load_wallet(self.wallet)
+
         self.show()
 
 
@@ -567,14 +576,16 @@ class ElectrumWindow(QMainWindow):
     def create_receive_tab(self):
 
         self.receive_grid = grid = QGridLayout()
-        grid.setColumnMinimumWidth(3, 150)
+        grid.setColumnMinimumWidth(3, 300)
 
-        self.receive_address_e = MyLineEdit()
-        self.receive_address_e.setFrozen(True)
+        self.receive_address_e = ButtonsLineEdit()
+        self.receive_address_e.addCopyButton(self.app)
+        self.receive_address_e.setReadOnly(True)
         self.receive_address_label = QLabel(_('Receiving address'))
         self.receive_address_e.textChanged.connect(self.update_receive_qr)
+        self.receive_address_e.setFocusPolicy(Qt.NoFocus)
         grid.addWidget(self.receive_address_label, 0, 0)
-        grid.addWidget(self.receive_address_e, 0, 1, 1, 3)
+        grid.addWidget(self.receive_address_e, 0, 1, 1, 4)
 
         self.receive_message_e = QLineEdit()
         grid.addWidget(QLabel(_('Description')), 1, 0)
@@ -594,27 +605,22 @@ class ElectrumWindow(QMainWindow):
 
         self.save_request_button = QPushButton(_('Save'))
         self.save_request_button.clicked.connect(self.save_payment_request)
-        grid.addWidget(self.save_request_button, 4, 1)
 
         self.new_request_button = QPushButton(_('New'))
         self.new_request_button.clicked.connect(self.new_receive_address)
-        grid.addWidget(self.new_request_button, 4, 2)
-        grid.setRowStretch(5, 1)
-
-        self.copy_button = QPushButton()
-        self.copy_button.setIcon(QIcon(":icons/copy.png"))
-        self.copy_button.setToolTip(_("Copy Address to Clibboard"))
-        self.copy_button.clicked.connect(lambda: self.app.clipboard().setText(str(self.receive_address_e.text())))
 
         self.qr_button = QPushButton()
         self.qr_button.setIcon(QIcon(":icons/qrcode.png"))
-        self.qr_button.setToolTip(_("Show Payment Request with QR code"))
+        self.qr_button.setToolTip(_("Show/Hide QR code window"))
         self.qr_button.clicked.connect(lambda x: self.toggle_qr_window())
 
         buttons = QHBoxLayout()
-        buttons.addWidget(self.copy_button)
         buttons.addWidget(self.qr_button)
-        grid.addLayout(buttons, 0, 4)
+        buttons.addWidget(self.save_request_button)
+        buttons.addWidget(self.new_request_button)
+        buttons.addStretch(1)
+        grid.addLayout(buttons, 4, 1, 1, 3)
+        grid.setRowStretch(5, 1)
 
         self.receive_requests_label = QLabel(_('My Requests'))
         self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), _('Description'), _('Amount'), _('Status')], [])
@@ -1743,7 +1749,8 @@ class ElectrumWindow(QMainWindow):
             mpk_text.setMaximumHeight(170)
             vbox.addWidget(mpk_text)
 
-        vbox.addLayout(Buttons(CopyButton(mpk_text, self.app), CloseButton(dialog)))
+        mpk_text.addCopyButton(self.app)
+        vbox.addLayout(Buttons(CloseButton(dialog)))
         dialog.setLayout(vbox)
         dialog.exec_()
 
@@ -1809,9 +1816,10 @@ class ElectrumWindow(QMainWindow):
         vbox = QVBoxLayout()
         vbox.addWidget( QLabel(_("Address") + ': ' + address))
         vbox.addWidget( QLabel(_("Public key") + ':'))
-        keys = ShowQRTextEdit(text='\n'.join(pubkey_list))
-        vbox.addWidget(keys)
-        vbox.addLayout(Buttons(CopyButton(keys, self.app), CloseButton(d)))
+        keys_e = ShowQRTextEdit(text='\n'.join(pubkey_list))
+        keys_e.addCopyButton(self.app)
+        vbox.addWidget(keys_e)
+        vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
 
@@ -1832,9 +1840,10 @@ class ElectrumWindow(QMainWindow):
         vbox = QVBoxLayout()
         vbox.addWidget( QLabel(_("Address") + ': ' + address))
         vbox.addWidget( QLabel(_("Private key") + ':'))
-        keys = ShowQRTextEdit(text='\n'.join(pk_list))
-        vbox.addWidget(keys)
-        vbox.addLayout(Buttons(CopyButton(keys, self.app), CloseButton(d)))
+        keys_e = ShowQRTextEdit(text='\n'.join(pk_list))
+        keys_e.addCopyButton(self.app)
+        vbox.addWidget(keys_e)
+        vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
 

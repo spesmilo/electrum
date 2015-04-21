@@ -92,7 +92,7 @@ class Plugin(BasePlugin):
         def handler():
             self.receiver = self._recv(parent=parent)
             self.receiver.start()
-        parent.add_button(':icons/microphone.png', handler, _("Read from microphone"))
+        parent.addButton(':icons/microphone.png', handler, _("Read from microphone"))
 
     @hook
     def show_text_edit(self, parent):
@@ -100,7 +100,7 @@ class Plugin(BasePlugin):
             blob = str(parent.toPlainText())
             self.sender = self._send(parent=parent, blob=blob)
             self.sender.start()
-        parent.add_button(':icons/speaker.png', handler, _("Send to speaker"))
+        parent.addButton(':icons/speaker.png', handler, _("Send to speaker"))
 
     def _audio_interface(self):
         interface = amodem.audio.Interface(config=self.modem_config)

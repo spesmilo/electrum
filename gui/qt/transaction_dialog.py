@@ -58,7 +58,9 @@ class TxDialog(QDialog):
         self.setLayout(vbox)
 
         vbox.addWidget(QLabel(_("Transaction ID:")))
-        self.tx_hash_e  = QLineEdit()
+        self.tx_hash_e  = ButtonsLineEdit()
+        qr_show = lambda: self.parent.show_qrcode(str(self.tx_hash_e.text()), 'Transaction ID')
+        self.tx_hash_e.addButton(":icons/qrcode.png", qr_show, _("Show as QR code"))
         self.tx_hash_e.setReadOnly(True)
         vbox.addWidget(self.tx_hash_e)
         self.status_label = QLabel()
@@ -93,7 +95,9 @@ class TxDialog(QDialog):
         b.setIcon(QIcon(":icons/qrcode.png"))
         b.clicked.connect(self.show_qr)
 
-        self.buttons = [self.qr_button, self.sign_button, self.broadcast_button, self.save_button, self.cancel_button]
+        self.copy_button = CopyButton(lambda: str(self.tx), self.parent.app)
+
+        self.buttons = [self.copy_button, self.qr_button, self.sign_button, self.broadcast_button, self.save_button, self.cancel_button]
         run_hook('transaction_dialog', self)
 
         vbox.addLayout(Buttons(*self.buttons))

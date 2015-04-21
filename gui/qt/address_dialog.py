@@ -55,8 +55,9 @@ class AddressDialog(QDialog):
         self.setLayout(vbox)
 
         vbox.addWidget(QLabel(_("Address:")))
-        self.addr_e = QLineEdit()
-        self.addr_e.setText(self.address)
+        self.addr_e = ButtonsLineEdit(self.address)
+        self.addr_e.addCopyButton(self.app)
+        self.addr_e.addButton(":icons/qrcode.png", self.show_qr, _("Show QR Code"))
         self.addr_e.setReadOnly(True)
         vbox.addWidget(self.addr_e)
 
@@ -65,17 +66,7 @@ class AddressDialog(QDialog):
         vbox.addWidget(self.hw)
 
         vbox.addStretch(1)
-
-        self.close_button = b = QPushButton(_("Close"))
-        b.clicked.connect(self.close)
-        b.setDefault(True)
-
-        self.qr_button = b = QPushButton()
-        b.setIcon(QIcon(":icons/qrcode.png"))
-        b.clicked.connect(self.show_qr)
-
-        self.buttons = [self.qr_button, self.close_button]
-        vbox.addLayout(Buttons(*self.buttons))
+        vbox.addLayout(Buttons(CloseButton(self)))
         self.format_amount = self.parent.format_amount
 
         h = self.wallet.get_history([self.address])

@@ -138,9 +138,9 @@ class CloseButton(QPushButton):
         self.setDefault(True)
 
 class CopyButton(QPushButton):
-    def __init__(self, text, app):
+    def __init__(self, text_getter, app):
         QPushButton.__init__(self, _("Copy"))
-        self.clicked.connect(lambda: app.clipboard().setText(str(text.toPlainText())))
+        self.clicked.connect(lambda: app.clipboard().setText(text_getter()))
 
 class OkButton(QPushButton):
     def __init__(self, dialog, label=None):
@@ -315,13 +315,66 @@ class MyTreeWidget(QTreeWidget):
         if text:
             item.setForeground(self.edit_column, QBrush(QColor('black')))
         else:
-            text = self.wallet.get_default_label(key)
+            text = self.parent.wallet.get_default_label(key)
             item.setText(self.edit_column, text)
             item.setForeground(self.edit_column, QBrush(QColor('gray')))
         self.is_edit = False
         if changed:
             self.parent.update_history_tab()
             self.parent.update_completions()
+
+
+class ButtonsWidget(QWidget):
+
+    def __init__(self):
+        super(QWidget, self).__init__()
+        self.buttons = []
+
+    def resizeButtons(self):
+        frameWidth = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
+        x = self.rect().right() - frameWidth
+        y = self.rect().bottom() - frameWidth
+        for button in self.buttons:
+            sz = button.sizeHint()
+            x -= sz.width()
+            button.move(x, y - sz.height())
+
+    def addButton(self, icon_name, on_click, tooltip):
+        button = QToolButton(self)
+        button.setIcon(QIcon(icon_name))
+        button.setStyleSheet("QToolButton { border: none; hover {border: 1px} pressed {border: 1px} padding: 0px; }")
+        button.setVisible(True)
+        button.setToolTip(tooltip)
+        button.clicked.connect(on_click)
+        self.buttons.append(button)
+        return button
+
+    def addCopyButton(self, app):
+        self.app = app
+        f = lambda: self.app.clipboard().setText(str(self.text()))
+        self.addButton(":icons/copy.png", f, _("Copy to Clibboard"))
+
+class ButtonsLineEdit(QLineEdit, ButtonsWidget):
+    def __init__(self, text=None):
+        QLineEdit.__init__(self, text)
+        self.buttons = []
+
+    def resizeEvent(self, e):
+        o = QLineEdit.resizeEvent(self, e)
+        self.resizeButtons()
+        return o
+
+class ButtonsTextEdit(QPlainTextEdit, ButtonsWidget):
+    def __init__(self, text=None):
+        QPlainTextEdit.__init__(self, text)
+        self.setText = self.setPlainText
+        self.text = self.toPlainText
+        self.buttons = []
+
+    def resizeEvent(self, e):
+        o = QPlainTextEdit.resizeEvent(self, e)
+        self.resizeButtons()
+        return o
 
 
 if __name__ == "__main__":

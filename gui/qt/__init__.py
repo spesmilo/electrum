@@ -160,8 +160,12 @@ class ElectrumGui:
                 return
         wizard = installwizard.InstallWizard(self.config, self.network, storage)
         wizard.show()
+        if action == 'new':
+            action, wallet_type = wizard.restore_or_create()
+        else:
+            wallet_type = None
         try:
-            wallet = wizard.run(action)
+            wallet = wizard.run(action, wallet_type)
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
             QMessageBox.information(None, _('Error'), str(e), _('OK'))
