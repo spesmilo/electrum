@@ -263,19 +263,29 @@ class PaymentRequest:
 
 
 
-def make_payment_request(amount, script, memo, rsakey=None):
-    """Generates a http PaymentRequest object"""
+
+def make_payment_request(outputs, memo, time, expires, cert_path, chain_path):
     pd = pb2.PaymentDetails()
-    pd.outputs.add(amount=amount, script=script)
-    now = int(time.time())
-    pd.time = now
-    pd.expires = now + 15*60
+    for script, amount in outputs:
+        pd.outputs.add(amount=amount, script=script)
+    pd.time = time
+    pd.expires = expires
     pd.memo = memo
-    #pd.payment_url = 'http://payment_ack.url'
     pr = pb2.PaymentRequest()
     pr.serialized_payment_details = pd.SerializeToString()
     pr.signature = ''
-    if rsakey:
+    pr = pb2.PaymentRequest()
+    pr.serialized_payment_details = pd.SerializeToString()
+    pr.signature = ''
+    if cert_path and chain_path:
+        import tlslite
+        with open(cert_path, 'r') as f:
+            rsakey = tlslite.utils.python_rsakey.Python_RSAKey.parsePEM(f.read())
+        with open(chain_path, 'r') as f:
+            chain = tlslite.X509CertChain()
+            chain.parsePemList(f.read())
+        certificates = pb2.X509Certificates()
+        certificates.certificate.extend(map(lambda x: str(x.bytes), chain.x509List))
         pr.pki_type = 'x509+sha256'
         pr.pki_data = certificates.SerializeToString()
         msgBytes = bytearray(pr.SerializeToString())

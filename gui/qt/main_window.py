@@ -79,7 +79,7 @@ class StatusBarButton(QPushButton):
 
 
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
-from electrum.paymentrequest import PaymentRequest, InvoiceStore, get_payment_request
+from electrum.paymentrequest import PaymentRequest, InvoiceStore, get_payment_request, make_payment_request
 
 pr_icons = {
     PR_UNPAID:":icons/unpaid.png",
@@ -604,23 +604,18 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.expires_combo, 3, 1)
 
         self.save_request_button = QPushButton(_('Save'))
-        self.save_request_button.clicked.connect(self.save_payment_request)
+        self.save_request_button.clicked.connect(self.add_payment_request)
 
         self.new_request_button = QPushButton(_('New'))
         self.new_request_button.clicked.connect(self.new_receive_address)
 
-        self.qr_button = QPushButton()
-        self.qr_button.setIcon(QIcon(":icons/qrcode.png"))
-        self.qr_button.setToolTip(_("Show/Hide QR code window"))
-        self.qr_button.clicked.connect(lambda x: self.toggle_qr_window())
+        self.receive_qr = QRCodeWidget(fixedSize=200)
+        self.receive_qr.mouseReleaseEvent = lambda x: self.toggle_qr_window()
 
         buttons = QHBoxLayout()
-        buttons.addWidget(self.qr_button)
+        buttons.addStretch(1)
         buttons.addWidget(self.save_request_button)
         buttons.addWidget(self.new_request_button)
-        buttons.addStretch(1)
-        grid.addLayout(buttons, 4, 1, 1, 3)
-        grid.setRowStretch(5, 1)
 
         self.receive_requests_label = QLabel(_('My Requests'))
         self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), _('Description'), _('Amount'), _('Status')], [])
@@ -636,9 +631,14 @@ class ElectrumWindow(QMainWindow):
         h.setResizeMode(3, QHeaderView.Stretch)
 
         # layout
+        vbox_g = QVBoxLayout()
+        vbox_g.addLayout(grid)
+        vbox_g.addLayout(buttons)
+
         hbox = QHBoxLayout()
-        hbox.addLayout(grid)
+        hbox.addLayout(vbox_g)
         hbox.addStretch()
+        hbox.addWidget(self.receive_qr)
 
         w = QWidget()
         vbox = QVBoxLayout(w)
@@ -661,7 +661,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_amount_e.setAmount(amount)
         self.new_request_button.setEnabled(True)
 
-    def receive_list_delete(self, item):
+    def delete_payment_request(self, item):
         addr = str(item.text(2))
         self.receive_requests.pop(addr)
         self.wallet.storage.put('receive_requests2', self.receive_requests)
@@ -685,11 +685,12 @@ class ElectrumWindow(QMainWindow):
         menu = QMenu()
         menu.addAction(_("Copy Address"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("Copy URI"), lambda: self.app.clipboard().setText(str(URI)))
-        menu.addAction(_("Delete"), lambda: self.receive_list_delete(item))
+        menu.addAction(_("Save as BIP70 file"), lambda: self.export_payment_request(addr))
+        menu.addAction(_("Delete"), lambda: self.delete_payment_request(item))
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
-    def save_payment_request(self):
-        timestamp = int(time.time())
+    def add_payment_request(self):
+        now = int(time.time())
         addr = str(self.receive_address_e.text())
         amount = self.receive_amount_e.get_amount()
         message = unicode(self.receive_message_e.text())
@@ -699,12 +700,31 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(self, _('Error'), _('No message or amount'), _('OK'))
             return
         self.receive_requests = self.wallet.storage.get('receive_requests2',{})
-        self.receive_requests[addr] = {'time':timestamp, 'amount':amount, 'expiration':expiration}
+        self.receive_requests[addr] = {'time':now, 'amount':amount, 'expiration':expiration}
         self.wallet.storage.put('receive_requests2', self.receive_requests)
         self.wallet.set_label(addr, message)
         self.update_receive_tab()
         self.update_address_tab()
         self.save_request_button.setEnabled(False)
+
+    def export_payment_request(self, addr):
+        req = self.receive_requests[addr]
+        time = req['time']
+        amount = req['amount']
+        expiration = req['expiration']
+        message = self.wallet.labels.get(addr, '')
+        script = Transaction.pay_script('address', addr).decode('hex')
+        outputs = [(script, amount)]
+        cert_path = self.config.get('cert_path')
+        chain_path = self.config.get('chain_path')
+        pr = make_payment_request(outputs, message, time, time + expiration, cert_path, chain_path)
+        name = 'request.bip70'
+        fileName = self.getSaveFileName(_("Select where to save your payment request"), name, "*.bip70")
+        if fileName:
+            with open(fileName, "wb+") as f:
+                f.write(str(pr))
+            self.show_message(_("Request saved successfully"))
+            self.saved = True
 
     def get_receive_address(self):
         domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
@@ -813,8 +833,9 @@ class ElectrumWindow(QMainWindow):
         amount = self.receive_amount_e.get_amount()
         message = unicode(self.receive_message_e.text()).encode('utf8')
         self.save_request_button.setEnabled((amount is not None) or (message != ""))
+        uri = util.create_URI(addr, amount, message)
+        self.receive_qr.setData(uri)
         if self.qr_window and self.qr_window.isVisible():
-            uri = util.create_URI(addr, amount, message)
             self.qr_window.set_content(addr, amount, message, uri)
 
 
