@@ -85,6 +85,8 @@ class Plugin(BasePlugin):
             return
         if self.win.payto_e.is_multiline():  # only supports single line entries atm
             return
+        if self.win.payto_e.is_pr:
+            return
 
         url = str(self.win.payto_e.toPlainText())
         url = url.replace('@', '.')  # support email-style addresses, per the OA standard
