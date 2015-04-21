@@ -1454,7 +1454,7 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(QLabel(format_time(pr.get_expiration_date())), 1, 1)
         grid.addWidget(QLabel(_("Memo") + ':'), 2, 0)
         grid.addWidget(QLabel(pr.get_memo()), 2, 1)
-        grid.addWidget(QLabel(_("Status") + ':'), 3, 0)
+        grid.addWidget(QLabel(_("Signature") + ':'), 3, 0)
         grid.addWidget(QLabel(pr.get_verify_status()), 3, 1)
         grid.addWidget(QLabel(_("Payment URL") + ':'), 4, 0)
         grid.addWidget(QLabel(pr.payment_url), 4, 1)
