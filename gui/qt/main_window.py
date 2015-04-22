@@ -1193,8 +1193,6 @@ class ElectrumWindow(QMainWindow):
             self.payment_request = None
             return
 
-        self.payto_help.show()
-        self.payto_help.set_alt(lambda: self.show_pr_details(pr))
         if not pr.has_expired():
             self.payto_e.setGreen()
         else:
@@ -1261,7 +1259,6 @@ class ElectrumWindow(QMainWindow):
             e.setText('')
             e.setFrozen(False)
 
-        self.payto_help.set_alt(None)
         self.set_pay_from([])
         self.update_status()
         run_hook('do_clear')
