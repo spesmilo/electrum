@@ -110,6 +110,16 @@ class ThreadedButton(QPushButton):
         t.start()
 
 
+class HelpLabel(QLabel):
+
+    def __init__(self, text, help_text):
+        QLabel.__init__(self, text)
+        self.help_text = help_text
+
+    def mouseReleaseEvent(self, x):
+        QMessageBox.information(self, 'Help', self.help_text, 'OK')
+
+
 class HelpButton(QPushButton):
     def __init__(self, text):
         QPushButton.__init__(self, '?')

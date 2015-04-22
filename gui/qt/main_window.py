@@ -863,21 +863,23 @@ class ElectrumWindow(QMainWindow):
         from paytoedit import PayToEdit
         self.amount_e = BTCAmountEdit(self.get_decimal_point)
         self.payto_e = PayToEdit(self)
-        self.payto_help = HelpButton(_('Recipient of the funds.') + '\n\n' + _('You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)'))
-        grid.addWidget(QLabel(_('Pay to')), 1, 0)
+        msg = _('Recipient of the funds.') + '\n\n'\
+              + _('You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)')
+        payto_label = HelpLabel(_('Pay to'), msg)
+        grid.addWidget(payto_label, 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, 3)
-        grid.addWidget(self.payto_help, 1, 4)
 
         completer = QCompleter()
         completer.setCaseSensitivity(False)
         self.payto_e.setCompleter(completer)
         completer.setModel(self.completions)
 
+        msg = _('Description of the transaction (not mandatory).') + '\n\n'\
+              + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.')
+        description_label = HelpLabel(_('Description'), msg)
+        grid.addWidget(description_label, 2, 0)
         self.message_e = MyLineEdit()
-        self.message_help = HelpButton(_('Description of the transaction (not mandatory).') + '\n\n' + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.'))
-        grid.addWidget(QLabel(_('Description')), 2, 0)
         grid.addWidget(self.message_e, 2, 1, 1, 3)
-        grid.addWidget(self.message_help, 2, 4)
 
         self.from_label = QLabel(_('From'))
         grid.addWidget(self.from_label, 3, 0)
@@ -887,29 +889,29 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.from_list, 3, 1, 1, 3)
         self.set_pay_from([])
 
-        self.amount_help = HelpButton(_('Amount to be sent.') + '\n\n' \
-                                      + _('The amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') \
-                                      + '\n\n' + _('Keyboard shortcut: type "!" to send all your coins.'))
-        grid.addWidget(QLabel(_('Amount')), 4, 0)
+        msg = _('Amount to be sent.') + '\n\n' \
+              + _('The amount will be displayed in red if you do not have enough funds in your wallet.') + ' ' \
+              + _('Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') + '\n\n' \
+              + _('Keyboard shortcut: type "!" to send all your coins.')
+        amount_label = HelpLabel(_('Amount'), msg)
+        grid.addWidget(amount_label, 4, 0)
         grid.addWidget(self.amount_e, 4, 1, 1, 2)
-        grid.addWidget(self.amount_help, 4, 3)
 
-        self.fee_e_label = QLabel(_('Fee'))
-        self.fee_e = BTCAmountEdit(self.get_decimal_point)
-        grid.addWidget(self.fee_e_label, 5, 0)
-        grid.addWidget(self.fee_e, 5, 1, 1, 2)
         msg = _('Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
               + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
               + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')
-        self.fee_e_help = HelpButton(msg)
-        grid.addWidget(self.fee_e_help, 5, 3)
+        self.fee_e_label = HelpLabel(_('Fee'), msg)
+        self.fee_e = BTCAmountEdit(self.get_decimal_point)
+        grid.addWidget(self.fee_e_label, 5, 0)
+        grid.addWidget(self.fee_e, 5, 1, 1, 2)
         self.update_fee_edit()
+
         self.send_button = EnterButton(_("Send"), self.do_send)
-        grid.addWidget(self.send_button, 6, 1)
-        b = EnterButton(_("Clear"), self.do_clear)
-        grid.addWidget(b, 6, 2)
-        self.payto_sig = QLabel('')
-        grid.addWidget(self.payto_sig, 7, 0, 1, 4)
+        self.clear_button = EnterButton(_("Clear"), self.do_clear)
+        buttons = QHBoxLayout()
+        buttons.addStretch(1)
+        buttons.addWidget(self.send_button)
+        buttons.addWidget(self.clear_button)
 
         def on_shortcut():
             sendable = self.get_sendable_balance()
@@ -947,13 +949,18 @@ class ElectrumWindow(QMainWindow):
         self.amount_e.textChanged.connect(entry_changed)
         self.fee_e.textChanged.connect(entry_changed)
 
-
         self.invoices_label = QLabel(_('Invoices'))
         self.invoices_list = MyTreeWidget(self, self.create_invoice_menu, [_('Date'), _('Requestor'), _('Memo'), _('Amount'), _('Status')], [150, 150, None, 150, 100])
 
+        vbox0 = QVBoxLayout()
+        vbox0.addLayout(grid)
+        vbox0.addLayout(buttons)
+        hbox = QHBoxLayout()
+        hbox.addLayout(vbox0)
+        hbox.addStretch(1)
         w = QWidget()
         vbox = QVBoxLayout(w)
-        vbox.addLayout(grid)
+        vbox.addLayout(hbox)
         vbox.addStretch()
         vbox.addWidget(self.invoices_label)
         vbox.addWidget(self.invoices_list)
@@ -985,7 +992,6 @@ class ElectrumWindow(QMainWindow):
         b = self.config.get('can_edit_fees', False)
         self.fee_e.setVisible(b)
         self.fee_e_label.setVisible(b)
-        self.fee_e_help.setVisible(b)
 
     def from_list_delete(self, item):
         i = self.from_list.indexOfTopLevelItem(item)
@@ -1173,8 +1179,6 @@ class ElectrumWindow(QMainWindow):
         self.payto_e.is_pr = True
         for e in [self.payto_e, self.amount_e, self.message_e]:
             e.setFrozen(True)
-        for h in [self.payto_help, self.amount_help, self.message_help]:
-            h.hide()
         self.payto_e.setText(_("please wait..."))
         return True
 
@@ -1253,13 +1257,9 @@ class ElectrumWindow(QMainWindow):
     def do_clear(self):
         self.not_enough_funds = False
         self.payto_e.is_pr = False
-        self.payto_sig.setVisible(False)
         for e in [self.payto_e, self.message_e, self.amount_e, self.fee_e]:
             e.setText('')
             e.setFrozen(False)
-
-        for h in [self.payto_help, self.amount_help, self.message_help]:
-            h.show()
 
         self.payto_help.set_alt(None)
         self.set_pay_from([])
