@@ -757,6 +757,7 @@ class ElectrumWindow(QMainWindow):
         self.expires_label.hide()
         self.expires_combo.show()
         self.new_request_button.setEnabled(False)
+        self.receive_message_e.setFocus(1)
 
     def set_receive_address(self, addr):
         self.receive_address_e.setText(addr)
