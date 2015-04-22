@@ -1189,12 +1189,12 @@ class ElectrumWindow(QMainWindow):
 
     def payment_request_ok(self):
         pr = self.payment_request
-        status = pr.get_status()
         key = self.invoices.add(pr)
+        status = self.invoices.get_status(key)
         self.update_invoices_list()
         if status == PR_PAID:
-            self.do_clear()
             self.show_message("invoice already paid")
+            self.do_clear()
             self.payment_request = None
             return
 
@@ -1306,7 +1306,7 @@ class ElectrumWindow(QMainWindow):
         l.clear()
         for pr in inv_list:
             key = pr.get_id()
-            status = pr.get_status()
+            status = self.invoices.get_status(key)
             domain = pr.get_domain()
             date_str = format_time(pr.get_expiration_date())
             item = QTreeWidgetItem( [ date_str, domain, pr.memo, self.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')] )
@@ -1485,7 +1485,9 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(QLabel(outputs_str), 5, 1)
         if pr.tx:
             grid.addWidget(QLabel(_("Transaction ID") + ':'), 6, 0)
-            grid.addWidget(QLabel(pr.tx), 6, 1)
+            l = QLineEdit(pr.tx)
+            l.setReadOnly(True)
+            grid.addWidget(l, 6, 1)
         vbox.addLayout(grid)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
@@ -1508,7 +1510,7 @@ class ElectrumWindow(QMainWindow):
             return
         key = str(item.data(0, 32).toString())
         pr = self.invoices.get(key)
-        status = pr.get_status()
+        status = self.invoices.get_status(key)
         menu = QMenu()
         menu.addAction(_("Details"), lambda: self.show_invoice(key))
         if status == PR_UNPAID:

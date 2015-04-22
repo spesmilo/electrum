@@ -84,13 +84,6 @@ class PaymentRequest:
     def __str__(self):
         return self.raw
 
-    def get_status(self):
-        if self.tx is not None:
-            return PR_PAID
-        if self.has_expired():
-            return PR_EXPIRED
-        return PR_UNPAID
-
     def parse(self, r):
         self.id = bitcoin.sha256(r)[0:16].encode('hex')
         try:
@@ -330,11 +323,19 @@ class InvoiceStore(object):
         with open(path, 'w') as f:
             r = f.write(json.dumps(l))
 
+    def get_status(self, key):
+        pr = self.get(key)
+        if pr.tx is not None:
+            return PR_PAID
+        if pr.has_expired():
+            return PR_EXPIRED
+        return PR_UNPAID
+
     def add(self, pr):
         key = pr.get_id()
         if key in self.invoices:
             print_error('invoice already in list')
-            return False
+            return key
         self.invoices[key] = pr
         self.save()
         return key
