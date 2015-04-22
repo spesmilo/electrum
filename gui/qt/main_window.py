@@ -658,7 +658,7 @@ class ElectrumWindow(QMainWindow):
             return
         addr = str(item.text(2))
         req = self.receive_requests[addr]
-        expires = req['time'] + req['expiration']
+        expires = _('Never') if req.get('expiration') is None else format_time(req['time'] + req['expiration'])
         amount = req['amount']
         message = self.wallet.labels.get(addr, '')
         self.receive_address_e.setText(addr)
@@ -666,7 +666,7 @@ class ElectrumWindow(QMainWindow):
         self.receive_amount_e.setAmount(amount)
         self.expires_combo.hide()
         self.expires_label.show()
-        self.expires_label.setText(format_time(expires))
+        self.expires_label.setText(expires)
         self.new_request_button.setEnabled(True)
 
     def delete_payment_request(self, item):
