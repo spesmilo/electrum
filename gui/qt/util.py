@@ -73,8 +73,9 @@ class EnterButton(QPushButton):
 
 
 class ThreadedButton(QPushButton):
-    def __init__(self, text, func, on_success=None):
+    def __init__(self, text, func, on_success=None, before=None):
         QPushButton.__init__(self, text)
+        self.before = before
         self.run_task = func
         self.on_success = on_success
         self.clicked.connect(self.do_exec)
@@ -95,15 +96,28 @@ class ThreadedButton(QPushButton):
         try:
             self.result = self.run_task()
         except BaseException as e:
+            traceback.print_exc(file=sys.stdout)
             self.error = str(e.message)
             self.emit(SIGNAL('error'))
             return
         self.emit(SIGNAL('done'))
 
     def do_exec(self):
+        if self.before:
+            self.before()
         t = threading.Thread(target=self.do_func)
         t.setDaemon(True)
         t.start()
+
+
+class HelpLabel(QLabel):
+
+    def __init__(self, text, help_text):
+        QLabel.__init__(self, text)
+        self.help_text = help_text
+
+    def mouseReleaseEvent(self, x):
+        QMessageBox.information(self, 'Help', self.help_text, 'OK')
 
 
 class HelpButton(QPushButton):
@@ -112,17 +126,10 @@ class HelpButton(QPushButton):
         self.help_text = text
         self.setFocusPolicy(Qt.NoFocus)
         self.setFixedWidth(20)
-        self.alt = None
         self.clicked.connect(self.onclick)
 
-    def set_alt(self, func):
-        self.alt = func
-
     def onclick(self):
-        if self.alt:
-            apply(self.alt)
-        else:
-            QMessageBox.information(self, 'Help', self.help_text, 'OK')
+        QMessageBox.information(self, 'Help', self.help_text, 'OK')
 
 class Buttons(QHBoxLayout):
     def __init__(self, *buttons):

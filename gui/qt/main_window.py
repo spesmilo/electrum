@@ -79,7 +79,7 @@ class StatusBarButton(QPushButton):
 
 
 from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
-from electrum_ltc.paymentrequest import PaymentRequest, InvoiceStore, get_payment_request
+from electrum_ltc.paymentrequest import PaymentRequest, InvoiceStore, get_payment_request, make_payment_request
 
 pr_icons = {
     PR_UNPAID:":icons/unpaid.png",
@@ -132,7 +132,6 @@ class ElectrumWindow(QMainWindow):
         tabs.addTab(self.create_receive_tab(), _('Receive') )
         tabs.addTab(self.create_addresses_tab(), _('Addresses') )
         tabs.addTab(self.create_contacts_tab(), _('Contacts') )
-        tabs.addTab(self.create_invoices_tab(), _('Invoices') )
         tabs.addTab(self.create_console_tab(), _('Console') )
         tabs.setMinimumSize(600, 400)
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -551,7 +550,7 @@ class ElectrumWindow(QMainWindow):
         self.update_address_tab()
         self.update_contacts_tab()
         self.update_completions()
-        self.update_invoices_tab()
+        self.update_invoices_list()
 
     def create_history_tab(self):
         from history_widget import HistoryWidget
@@ -602,25 +601,25 @@ class ElectrumWindow(QMainWindow):
         self.expires_combo.setCurrentIndex(1)
         grid.addWidget(QLabel(_('Expires in')), 3, 0)
         grid.addWidget(self.expires_combo, 3, 1)
+        self.expires_label = QLineEdit('')
+        self.expires_label.setReadOnly(1)
+        self.expires_label.setFocusPolicy(Qt.NoFocus)
+        self.expires_label.hide()
+        grid.addWidget(self.expires_label, 3, 1, 1, 2)
 
         self.save_request_button = QPushButton(_('Save'))
         self.save_request_button.clicked.connect(self.save_payment_request)
 
         self.new_request_button = QPushButton(_('New'))
-        self.new_request_button.clicked.connect(self.new_receive_address)
+        self.new_request_button.clicked.connect(self.new_payment_request)
 
-        self.qr_button = QPushButton()
-        self.qr_button.setIcon(QIcon(":icons/qrcode.png"))
-        self.qr_button.setToolTip(_("Show/Hide QR code window"))
-        self.qr_button.clicked.connect(lambda x: self.toggle_qr_window())
+        self.receive_qr = QRCodeWidget(fixedSize=200)
+        self.receive_qr.mouseReleaseEvent = lambda x: self.toggle_qr_window()
 
-        buttons = QHBoxLayout()
-        buttons.addWidget(self.qr_button)
+        self.receive_buttons = buttons = QHBoxLayout()
+        buttons.addStretch(1)
         buttons.addWidget(self.save_request_button)
         buttons.addWidget(self.new_request_button)
-        buttons.addStretch(1)
-        grid.addLayout(buttons, 4, 1, 1, 3)
-        grid.setRowStretch(5, 1)
 
         self.receive_requests_label = QLabel(_('My Requests'))
         self.receive_list = MyTreeWidget(self, self.receive_list_menu, [_('Date'), _('Account'), _('Address'), _('Description'), _('Amount'), _('Status')], [])
@@ -636,9 +635,14 @@ class ElectrumWindow(QMainWindow):
         h.setResizeMode(3, QHeaderView.Stretch)
 
         # layout
+        vbox_g = QVBoxLayout()
+        vbox_g.addLayout(grid)
+        vbox_g.addLayout(buttons)
+
         hbox = QHBoxLayout()
-        hbox.addLayout(grid)
+        hbox.addLayout(vbox_g)
         hbox.addStretch()
+        hbox.addWidget(self.receive_qr)
 
         w = QWidget()
         vbox = QVBoxLayout(w)
@@ -654,14 +658,18 @@ class ElectrumWindow(QMainWindow):
             return
         addr = str(item.text(2))
         req = self.receive_requests[addr]
-        time, amount = req['time'], req['amount']
+        expires = _('Never') if req.get('expiration') is None else format_time(req['time'] + req['expiration'])
+        amount = req['amount']
         message = self.wallet.labels.get(addr, '')
         self.receive_address_e.setText(addr)
         self.receive_message_e.setText(message)
         self.receive_amount_e.setAmount(amount)
+        self.expires_combo.hide()
+        self.expires_label.show()
+        self.expires_label.setText(expires)
         self.new_request_button.setEnabled(True)
 
-    def receive_list_delete(self, item):
+    def delete_payment_request(self, item):
         addr = str(item.text(2))
         self.receive_requests.pop(addr)
         self.wallet.storage.put('receive_requests2', self.receive_requests)
@@ -685,11 +693,12 @@ class ElectrumWindow(QMainWindow):
         menu = QMenu()
         menu.addAction(_("Copy Address"), lambda: self.app.clipboard().setText(addr))
         menu.addAction(_("Copy URI"), lambda: self.app.clipboard().setText(str(URI)))
-        menu.addAction(_("Delete"), lambda: self.receive_list_delete(item))
+        menu.addAction(_("Save as BIP70 file"), lambda: self.export_payment_request(addr))
+        menu.addAction(_("Delete"), lambda: self.delete_payment_request(item))
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
     def save_payment_request(self):
-        timestamp = int(time.time())
+        now = int(time.time())
         addr = str(self.receive_address_e.text())
         amount = self.receive_amount_e.get_amount()
         message = unicode(self.receive_message_e.text())
@@ -699,12 +708,34 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(self, _('Error'), _('No message or amount'), _('OK'))
             return
         self.receive_requests = self.wallet.storage.get('receive_requests2',{})
-        self.receive_requests[addr] = {'time':timestamp, 'amount':amount, 'expiration':expiration}
+        self.receive_requests[addr] = {'time':now, 'amount':amount, 'expiration':expiration}
         self.wallet.storage.put('receive_requests2', self.receive_requests)
         self.wallet.set_label(addr, message)
         self.update_receive_tab()
         self.update_address_tab()
         self.save_request_button.setEnabled(False)
+
+    def make_payment_request(self, addr):
+        req = self.receive_requests[addr]
+        time = req['time']
+        amount = req['amount']
+        expiration = req['expiration']
+        message = self.wallet.labels.get(addr, '')
+        script = Transaction.pay_script('address', addr).decode('hex')
+        outputs = [(script, amount)]
+        cert_path = self.config.get('cert_path')
+        chain_path = self.config.get('chain_path')
+        return make_payment_request(outputs, message, time, time + expiration, cert_path, chain_path)
+
+    def export_payment_request(self, addr):
+        pr = self.make_payment_request(addr)
+        name = 'request.bip70'
+        fileName = self.getSaveFileName(_("Select where to save your payment request"), name, "*.bip70")
+        if fileName:
+            with open(fileName, "wb+") as f:
+                f.write(str(pr))
+            self.show_message(_("Request saved successfully"))
+            self.saved = True
 
     def get_receive_address(self):
         domain = self.wallet.get_account_addresses(self.current_account, include_change=False)
@@ -712,7 +743,7 @@ class ElectrumWindow(QMainWindow):
             if not self.wallet.history.get(addr) and addr not in self.receive_requests.keys():
                 return addr
 
-    def new_receive_address(self):
+    def new_payment_request(self):
         addr = self.get_receive_address()
         if addr is None:
             if isinstance(self.wallet, Imported_Wallet):
@@ -722,7 +753,10 @@ class ElectrumWindow(QMainWindow):
                 return
             addr = self.wallet.create_new_address(self.current_account, False)
         self.set_receive_address(addr)
+        self.expires_label.hide()
+        self.expires_combo.show()
         self.new_request_button.setEnabled(False)
+        self.receive_message_e.setFocus(1)
 
     def set_receive_address(self, addr):
         self.receive_address_e.setText(addr)
@@ -771,6 +805,9 @@ class ElectrumWindow(QMainWindow):
         b = len(self.receive_requests) > 0
         self.receive_list.setVisible(b)
         self.receive_requests_label.setVisible(b)
+        if not b:
+            self.expires_label.hide()
+            self.expires_combo.show()
 
         # check if it is necessary to show the account
         self.receive_list.setColumnHidden(1, len(self.wallet.get_accounts()) == 1)
@@ -813,15 +850,14 @@ class ElectrumWindow(QMainWindow):
         amount = self.receive_amount_e.get_amount()
         message = unicode(self.receive_message_e.text()).encode('utf8')
         self.save_request_button.setEnabled((amount is not None) or (message != ""))
+        uri = util.create_URI(addr, amount, message)
+        self.receive_qr.setData(uri)
         if self.qr_window and self.qr_window.isVisible():
-            uri = util.create_URI(addr, amount, message)
             self.qr_window.set_content(addr, amount, message, uri)
 
 
     def create_send_tab(self):
-        w = QWidget()
-
-        self.send_grid = grid = QGridLayout(w)
+        self.send_grid = grid = QGridLayout()
         grid.setSpacing(8)
         grid.setColumnMinimumWidth(3,300)
         grid.setColumnStretch(5,1)
@@ -830,21 +866,23 @@ class ElectrumWindow(QMainWindow):
         from paytoedit import PayToEdit
         self.amount_e = BTCAmountEdit(self.get_decimal_point)
         self.payto_e = PayToEdit(self)
-        self.payto_help = HelpButton(_('Recipient of the funds.') + '\n\n' + _('You may enter a Litecoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Litecoin address)'))
-        grid.addWidget(QLabel(_('Pay to')), 1, 0)
+        msg = _('Recipient of the funds.') + '\n\n'\
+              + _('You may enter a Litecoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Litecoin address)')
+        payto_label = HelpLabel(_('Pay to'), msg)
+        grid.addWidget(payto_label, 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, 3)
-        grid.addWidget(self.payto_help, 1, 4)
 
         completer = QCompleter()
         completer.setCaseSensitivity(False)
         self.payto_e.setCompleter(completer)
         completer.setModel(self.completions)
 
+        msg = _('Description of the transaction (not mandatory).') + '\n\n'\
+              + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.')
+        description_label = HelpLabel(_('Description'), msg)
+        grid.addWidget(description_label, 2, 0)
         self.message_e = MyLineEdit()
-        self.message_help = HelpButton(_('Description of the transaction (not mandatory).') + '\n\n' + _('The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.'))
-        grid.addWidget(QLabel(_('Description')), 2, 0)
         grid.addWidget(self.message_e, 2, 1, 1, 3)
-        grid.addWidget(self.message_help, 2, 4)
 
         self.from_label = QLabel(_('From'))
         grid.addWidget(self.from_label, 3, 0)
@@ -854,30 +892,29 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(self.from_list, 3, 1, 1, 3)
         self.set_pay_from([])
 
-        self.amount_help = HelpButton(_('Amount to be sent.') + '\n\n' \
-                                      + _('The amount will be displayed in red if you do not have enough funds in your wallet. Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') \
-                                      + '\n\n' + _('Keyboard shortcut: type "!" to send all your coins.'))
-        grid.addWidget(QLabel(_('Amount')), 4, 0)
+        msg = _('Amount to be sent.') + '\n\n' \
+              + _('The amount will be displayed in red if you do not have enough funds in your wallet.') + ' ' \
+              + _('Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') + '\n\n' \
+              + _('Keyboard shortcut: type "!" to send all your coins.')
+        amount_label = HelpLabel(_('Amount'), msg)
+        grid.addWidget(amount_label, 4, 0)
         grid.addWidget(self.amount_e, 4, 1, 1, 2)
-        grid.addWidget(self.amount_help, 4, 3)
 
-        self.fee_e_label = QLabel(_('Fee'))
-        self.fee_e = BTCAmountEdit(self.get_decimal_point)
-        grid.addWidget(self.fee_e_label, 5, 0)
-        grid.addWidget(self.fee_e, 5, 1, 1, 2)
         msg = _('Litecoin transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
               + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
               + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')
-        self.fee_e_help = HelpButton(msg)
-        grid.addWidget(self.fee_e_help, 5, 3)
+        self.fee_e_label = HelpLabel(_('Fee'), msg)
+        self.fee_e = BTCAmountEdit(self.get_decimal_point)
+        grid.addWidget(self.fee_e_label, 5, 0)
+        grid.addWidget(self.fee_e, 5, 1, 1, 2)
         self.update_fee_edit()
+
         self.send_button = EnterButton(_("Send"), self.do_send)
-        grid.addWidget(self.send_button, 6, 1)
-        b = EnterButton(_("Clear"), self.do_clear)
-        grid.addWidget(b, 6, 2)
-        self.payto_sig = QLabel('')
-        grid.addWidget(self.payto_sig, 7, 0, 1, 4)
-        w.setLayout(grid)
+        self.clear_button = EnterButton(_("Clear"), self.do_clear)
+        buttons = QHBoxLayout()
+        buttons.addStretch(1)
+        buttons.addWidget(self.send_button)
+        buttons.addWidget(self.clear_button)
 
         def on_shortcut():
             sendable = self.get_sendable_balance()
@@ -915,6 +952,23 @@ class ElectrumWindow(QMainWindow):
         self.amount_e.textChanged.connect(entry_changed)
         self.fee_e.textChanged.connect(entry_changed)
 
+        self.invoices_label = QLabel(_('Invoices'))
+        self.invoices_list = MyTreeWidget(self, self.create_invoice_menu, [_('Date'), _('Requestor'), _('Memo'), _('Amount'), _('Status')], [150, 150, None, 150, 100])
+
+        vbox0 = QVBoxLayout()
+        vbox0.addLayout(grid)
+        vbox0.addLayout(buttons)
+        vbox0.addStretch(1)
+        hbox = QHBoxLayout()
+        hbox.addLayout(vbox0)
+        hbox.addStretch(1)
+        w = QWidget()
+        vbox = QVBoxLayout(w)
+        vbox.addLayout(hbox)
+        vbox.addStretch()
+        vbox.addWidget(self.invoices_label)
+        vbox.addWidget(self.invoices_list)
+
         run_hook('create_send_tab', grid)
         return w
 
@@ -942,7 +996,6 @@ class ElectrumWindow(QMainWindow):
         b = self.config.get('can_edit_fees', False)
         self.fee_e.setVisible(b)
         self.fee_e_label.setVisible(b)
-        self.fee_e_help.setVisible(b)
 
     def from_list_delete(self, item):
         i = self.from_list.indexOfTopLevelItem(item)
@@ -1075,12 +1128,12 @@ class ElectrumWindow(QMainWindow):
             return tx
 
         def sign_done(tx):
+            if label and tx.is_complete():
+                self.wallet.set_label(tx.hash(), label)
             if not tx.is_complete() or self.config.get('show_before_broadcast'):
                 self.show_transaction(tx)
                 self.do_clear()
                 return
-            if label:
-                self.wallet.set_label(tx.hash(), label)
             self.broadcast_transaction(tx)
 
         # keep a reference to WaitingDialog or the gui might crash
@@ -1094,6 +1147,7 @@ class ElectrumWindow(QMainWindow):
         def broadcast_thread():
             # non-GUI thread
             pr = self.payment_request
+            key = pr.get_id()
             if pr is None:
                 return self.wallet.sendtx(tx)
             if pr.has_expired():
@@ -1102,7 +1156,7 @@ class ElectrumWindow(QMainWindow):
             status, msg =  self.wallet.sendtx(tx)
             if not status:
                 return False, msg
-            pr.set_paid(tx.hash())
+            self.invoices.set_paid(key, tx.hash())
             self.payment_request = None
             refund_address = self.wallet.addresses()[0]
             ack_status, ack_msg = pr.send_ack(str(tx), refund_address)
@@ -1114,7 +1168,7 @@ class ElectrumWindow(QMainWindow):
             # GUI thread
             if status:
                 QMessageBox.information(self, '', _('Payment sent.') + '\n' + msg, _('OK'))
-                self.update_invoices_tab()
+                self.update_invoices_list()
                 self.do_clear()
             else:
                 QMessageBox.warning(self, _('Error'), msg, _('OK'))
@@ -1130,30 +1184,26 @@ class ElectrumWindow(QMainWindow):
         self.payto_e.is_pr = True
         for e in [self.payto_e, self.amount_e, self.message_e]:
             e.setFrozen(True)
-        for h in [self.payto_help, self.amount_help, self.message_help]:
-            h.hide()
         self.payto_e.setText(_("please wait..."))
         return True
 
     def payment_request_ok(self):
         pr = self.payment_request
-        status = pr.get_status()
         key = self.invoices.add(pr)
-        self.update_invoices_tab()
+        status = self.invoices.get_status(key)
+        self.update_invoices_list()
         if status == PR_PAID:
-            self.do_clear()
             self.show_message("invoice already paid")
+            self.do_clear()
             self.payment_request = None
             return
 
-        self.payto_help.show()
-        self.payto_help.set_alt(lambda: self.show_pr_details(pr))
         if not pr.has_expired():
             self.payto_e.setGreen()
         else:
             self.payto_e.setExpired()
 
-        self.payto_e.setText(pr.domain)
+        self.payto_e.setText(pr.get_requestor())
         self.amount_e.setText(self.format_amount(pr.get_amount()))
         self.message_e.setText(pr.get_memo())
         # signal to set fee
@@ -1210,15 +1260,10 @@ class ElectrumWindow(QMainWindow):
     def do_clear(self):
         self.not_enough_funds = False
         self.payto_e.is_pr = False
-        self.payto_sig.setVisible(False)
         for e in [self.payto_e, self.message_e, self.amount_e, self.fee_e]:
             e.setText('')
             e.setFrozen(False)
 
-        for h in [self.payto_help, self.amount_help, self.message_help]:
-            h.show()
-
-        self.payto_help.set_alt(None)
         self.set_pay_from([])
         self.update_status()
         run_hook('do_clear')
@@ -1255,26 +1300,24 @@ class ElectrumWindow(QMainWindow):
         self.contacts_list = l
         return self.create_list_tab(l)
 
-    def create_invoices_tab(self):
-        l = MyTreeWidget(self, self.create_invoice_menu, [_('Date'), _('Requestor'), _('Memo'), _('Amount'), _('Status')], [150, 150, None, 150, 100])
-        self.invoices_list = l
-        return self.create_list_tab(l)
-
-    def update_invoices_tab(self):
+    def update_invoices_list(self):
+        inv_list = self.invoices.sorted_list()
         l = self.invoices_list
         l.clear()
-        for pr in self.invoices.sorted_list():
+        for pr in inv_list:
             key = pr.get_id()
-            status = pr.get_status()
-            domain = pr.get_domain()
+            status = self.invoices.get_status(key)
+            requestor = pr.get_requestor()
             date_str = format_time(pr.get_expiration_date())
-            item = QTreeWidgetItem( [ date_str, domain, pr.memo, self.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')] )
+            item = QTreeWidgetItem( [ date_str, requestor, pr.memo, self.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')] )
             item.setIcon(4, QIcon(pr_icons.get(status)))
             item.setData(0, Qt.UserRole, key)
             item.setFont(1, QFont(MONOSPACE_FONT))
             item.setFont(3, QFont(MONOSPACE_FONT))
             l.addTopLevelItem(item)
         l.setCurrentItem(l.topLevelItem(0))
+        self.invoices_list.setVisible(len(inv_list))
+        self.invoices_label.setVisible(len(inv_list))
 
     def delete_imported_key(self, addr):
         if self.question(_("Do you want to remove")+" %s "%addr +_("from your wallet?")):
@@ -1428,12 +1471,12 @@ class ElectrumWindow(QMainWindow):
         vbox = QVBoxLayout(d)
         grid = QGridLayout()
         grid.addWidget(QLabel(_("Requestor") + ':'), 0, 0)
-        grid.addWidget(QLabel(pr.get_domain()), 0, 1)
+        grid.addWidget(QLabel(pr.get_requestor()), 0, 1)
         grid.addWidget(QLabel(_("Expires") + ':'), 1, 0)
         grid.addWidget(QLabel(format_time(pr.get_expiration_date())), 1, 1)
         grid.addWidget(QLabel(_("Memo") + ':'), 2, 0)
         grid.addWidget(QLabel(pr.get_memo()), 2, 1)
-        grid.addWidget(QLabel(_("Status") + ':'), 3, 0)
+        grid.addWidget(QLabel(_("Signature") + ':'), 3, 0)
         grid.addWidget(QLabel(pr.get_verify_status()), 3, 1)
         grid.addWidget(QLabel(_("Payment URL") + ':'), 4, 0)
         grid.addWidget(QLabel(pr.payment_url), 4, 1)
@@ -1442,7 +1485,9 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(QLabel(outputs_str), 5, 1)
         if pr.tx:
             grid.addWidget(QLabel(_("Transaction ID") + ':'), 6, 0)
-            grid.addWidget(QLabel(pr.tx), 6, 1)
+            l = QLineEdit(pr.tx)
+            l.setReadOnly(True)
+            grid.addWidget(l, 6, 1)
         vbox.addLayout(grid)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
@@ -1465,14 +1510,14 @@ class ElectrumWindow(QMainWindow):
             return
         key = str(item.data(0, 32).toString())
         pr = self.invoices.get(key)
-        status = pr.get_status()
+        status = self.invoices.get_status(key)
         menu = QMenu()
         menu.addAction(_("Details"), lambda: self.show_invoice(key))
         if status == PR_UNPAID:
             menu.addAction(_("Pay Now"), lambda: self.do_pay_invoice(key))
         def delete_invoice(key):
             self.invoices.remove(key)
-            self.update_invoices_tab()
+            self.update_invoices_list()
         menu.addAction(_("Delete"), lambda: delete_invoice(key))
         menu.exec_(self.invoices_list.viewport().mapToGlobal(position))
 
@@ -2506,7 +2551,6 @@ class ElectrumWindow(QMainWindow):
             self.update_history_tab()
             self.update_receive_tab()
             self.update_address_tab()
-            self.update_invoices_tab()
             fee_e.setAmount(self.wallet.fee_per_kb)
             self.update_status()
         unit_combo.currentIndexChanged.connect(on_unit)

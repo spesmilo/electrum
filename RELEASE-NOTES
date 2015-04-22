@@ -1,9 +1,16 @@
 # Release 2.1
- * Faster startup: Transaction inputs and outputs are parsed once and
-   cached in the wallet file.
- * Transaction window shows own addresses in green color.
- * OpenAlias plugin was improved
- * Various fixes.
+ * Faster startup, thanks to the following optimizations:
+   1. Transaction input/outputs are cached in the wallet file
+   2. Fast X509 certificate parser, not using pyasn1 anymore.
+   3. The Label Sync plugin only requests modified labels.
+ * The 'Invoices' and 'Send' tabs have been merged.
+ * Payment requests have an expiration date and can be exported in
+   BIP70 format.
+ * Local files are supported in BIP72 URIs: "bitcoin:?r=file:///..."
+ * The Transaction dialog shows own addresses in green color.
+ * New Address History dialog.
+ * The OpenAlias plugin was improved.
+ * Various bug fixes and GUI improvements.
 
 # Release 2.0.4 - Minor GUI improvements
  * The password dialog will ask for password again if the user enters

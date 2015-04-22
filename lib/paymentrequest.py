@@ -78,18 +78,11 @@ class PaymentRequest:
     def __init__(self, data):
         self.raw = data
         self.parse(data)
-        self.domain = None # known after verify
+        self.requestor = None # known after verify
         self.tx = None
 
     def __str__(self):
         return self.raw
-
-    def get_status(self):
-        if self.tx is not None:
-            return PR_PAID
-        if self.has_expired():
-            return PR_EXPIRED
-        return PR_UNPAID
 
     def parse(self, r):
         self.id = bitcoin.sha256(r)[0:16].encode('hex')
@@ -112,7 +105,8 @@ class PaymentRequest:
         if not ca_list:
             self.error = "Trusted certificate authorities list not found"
             return False
-        paymntreq = self.data
+        paymntreq = pb2.PaymentRequest()
+        paymntreq.ParseFromString(self.raw)
         if not paymntreq.signature:
             self.error = "No signature"
             return
@@ -130,9 +124,9 @@ class PaymentRequest:
                 except Exception as e:
                     self.error = str(e)
                     return
-                self.domain = x.get_common_name()
-                if self.domain.startswith('*.'):
-                    self.domain = self.domain[2:]
+                self.requestor = x.get_common_name()
+                if self.requestor.startswith('*.'):
+                    self.requestor = self.requestor[2:]
             else:
                 if not x.check_ca():
                     self.error = "ERROR: Supplied CA Certificate Error"
@@ -208,8 +202,8 @@ class PaymentRequest:
     def get_amount(self):
         return sum(map(lambda x:x[2], self.outputs))
 
-    def get_domain(self):
-        return self.domain if self.domain else 'unknown'
+    def get_requestor(self):
+        return self.requestor if self.requestor else 'unknown'
 
     def get_verify_status(self):
         return self.error
@@ -263,19 +257,29 @@ class PaymentRequest:
 
 
 
-def make_payment_request(amount, script, memo, rsakey=None):
-    """Generates a http PaymentRequest object"""
+
+def make_payment_request(outputs, memo, time, expires, cert_path, chain_path):
     pd = pb2.PaymentDetails()
-    pd.outputs.add(amount=amount, script=script)
-    now = int(time.time())
-    pd.time = now
-    pd.expires = now + 15*60
+    for script, amount in outputs:
+        pd.outputs.add(amount=amount, script=script)
+    pd.time = time
+    pd.expires = expires
     pd.memo = memo
-    #pd.payment_url = 'http://payment_ack.url'
     pr = pb2.PaymentRequest()
     pr.serialized_payment_details = pd.SerializeToString()
     pr.signature = ''
-    if rsakey:
+    pr = pb2.PaymentRequest()
+    pr.serialized_payment_details = pd.SerializeToString()
+    pr.signature = ''
+    if cert_path and chain_path:
+        import tlslite
+        with open(cert_path, 'r') as f:
+            rsakey = tlslite.utils.python_rsakey.Python_RSAKey.parsePEM(f.read())
+        with open(chain_path, 'r') as f:
+            chain = tlslite.X509CertChain()
+            chain.parsePemList(f.read())
+        certificates = pb2.X509Certificates()
+        certificates.certificate.extend(map(lambda x: str(x.bytes), chain.x509List))
         pr.pki_type = 'x509+sha256'
         pr.pki_data = certificates.SerializeToString()
         msgBytes = bytearray(pr.SerializeToString())
@@ -302,11 +306,10 @@ class InvoiceStore(object):
         except:
             return
         for k, v in d.items():
-            ser, domain, tx = v
             try:
-                pr = PaymentRequest(ser.decode('hex'))
-                pr.tx = tx
-                pr.domain = domain
+                pr = PaymentRequest(v.get('hex').decode('hex'))
+                pr.tx = v.get('txid')
+                pr.requestor = v.get('requestor')
                 self.invoices[k] = pr
             except:
                 continue
@@ -314,16 +317,29 @@ class InvoiceStore(object):
     def save(self):
         l = {}
         for k, pr in self.invoices.items():
-            l[k] = str(pr).encode('hex'), pr.domain, pr.tx
+            l[k] = {
+                'hex': str(pr).encode('hex'),
+                'requestor': pr.get_requestor(), 
+                'txid': pr.tx
+            }
         path = os.path.join(self.config.path, 'invoices')
         with open(path, 'w') as f:
-            r = f.write(json.dumps(l))
+            s = json.dumps(l, indent=4, sort_keys=True)
+            r = f.write(s)
+
+    def get_status(self, key):
+        pr = self.get(key)
+        if pr.tx is not None:
+            return PR_PAID
+        if pr.has_expired():
+            return PR_EXPIRED
+        return PR_UNPAID
 
     def add(self, pr):
         key = pr.get_id()
         if key in self.invoices:
             print_error('invoice already in list')
-            return False
+            return key
         self.invoices[key] = pr
         self.save()
         return key
@@ -343,32 +359,3 @@ class InvoiceStore(object):
         # sort
         return self.invoices.values()
 
-
-
-if __name__ == "__main__":
-
-    util.set_verbosity(True)
-
-    try:
-        uri = sys.argv[1]
-    except:
-        print "usage: %s url"%sys.argv[0]
-        print "example url: \"bitcoin:17KjQgnXC96jakzJe9yo8zxqerhqNptmhq?amount=0.0018&r=https%3A%2F%2Fbitpay.com%2Fi%2FMXc7qTM5f87EC62SWiS94z\""
-        sys.exit(1)
-
-    address, amount, label, message, request_url = util.parse_URI(uri)
-    from simple_config import SimpleConfig
-    config = SimpleConfig()
-    pr = PaymentRequest(config)
-    pr.read(request_url)
-    if not pr.verify():
-        print 'verify failed'
-        print pr.error
-        sys.exit(1)
-
-    print 'Payment Request Verified Domain: ', pr.domain
-    print 'outputs', pr.outputs
-    print 'Payment Memo: ', pr.details.memo
-
-    tx = "blah"
-    pr.send_ack(tx, refund_addr = "1vXAXUnGitimzinpXrqDWVU4tyAAQ34RA")
