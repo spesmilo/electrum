@@ -78,7 +78,7 @@ class PaymentRequest:
     def __init__(self, data):
         self.raw = data
         self.parse(data)
-        self.domain = None # known after verify
+        self.requestor = None # known after verify
         self.tx = None
 
     def __str__(self):
@@ -124,9 +124,9 @@ class PaymentRequest:
                 except Exception as e:
                     self.error = str(e)
                     return
-                self.domain = x.get_common_name()
-                if self.domain.startswith('*.'):
-                    self.domain = self.domain[2:]
+                self.requestor = x.get_common_name()
+                if self.requestor.startswith('*.'):
+                    self.requestor = self.requestor[2:]
             else:
                 if not x.check_ca():
                     self.error = "ERROR: Supplied CA Certificate Error"
@@ -202,8 +202,8 @@ class PaymentRequest:
     def get_amount(self):
         return sum(map(lambda x:x[2], self.outputs))
 
-    def get_domain(self):
-        return self.domain if self.domain else 'unknown'
+    def get_requestor(self):
+        return self.requestor if self.requestor else 'unknown'
 
     def get_verify_status(self):
         return self.error
@@ -306,11 +306,10 @@ class InvoiceStore(object):
         except:
             return
         for k, v in d.items():
-            ser, domain, tx = v
             try:
-                pr = PaymentRequest(ser.decode('hex'))
-                pr.tx = tx
-                pr.domain = domain
+                pr = PaymentRequest(v.get('hex').decode('hex'))
+                pr.tx = v.get('txid')
+                pr.requestor = v.get('requestor')
                 self.invoices[k] = pr
             except:
                 continue
@@ -318,10 +317,15 @@ class InvoiceStore(object):
     def save(self):
         l = {}
         for k, pr in self.invoices.items():
-            l[k] = str(pr).encode('hex'), pr.domain, pr.tx
+            l[k] = {
+                'hex': str(pr).encode('hex'),
+                'requestor': pr.get_requestor(), 
+                'txid': pr.tx
+            }
         path = os.path.join(self.config.path, 'invoices')
         with open(path, 'w') as f:
-            r = f.write(json.dumps(l))
+            s = json.dumps(l, indent=4, sort_keys=True)
+            r = f.write(s)
 
     def get_status(self, key):
         pr = self.get(key)
@@ -355,32 +359,3 @@ class InvoiceStore(object):
         # sort
         return self.invoices.values()
 
-
-
-if __name__ == "__main__":
-
-    util.set_verbosity(True)
-
-    try:
-        uri = sys.argv[1]
-    except:
-        print "usage: %s url"%sys.argv[0]
-        print "example url: \"bitcoin:17KjQgnXC96jakzJe9yo8zxqerhqNptmhq?amount=0.0018&r=https%3A%2F%2Fbitpay.com%2Fi%2FMXc7qTM5f87EC62SWiS94z\""
-        sys.exit(1)
-
-    address, amount, label, message, request_url = util.parse_URI(uri)
-    from simple_config import SimpleConfig
-    config = SimpleConfig()
-    pr = PaymentRequest(config)
-    pr.read(request_url)
-    if not pr.verify():
-        print 'verify failed'
-        print pr.error
-        sys.exit(1)
-
-    print 'Payment Request Verified Domain: ', pr.domain
-    print 'outputs', pr.outputs
-    print 'Payment Memo: ', pr.details.memo
-
-    tx = "blah"
-    pr.send_ack(tx, refund_addr = "1vXAXUnGitimzinpXrqDWVU4tyAAQ34RA")

@@ -1203,7 +1203,7 @@ class ElectrumWindow(QMainWindow):
         else:
             self.payto_e.setExpired()
 
-        self.payto_e.setText(pr.domain)
+        self.payto_e.setText(pr.get_requestor())
         self.amount_e.setText(self.format_amount(pr.get_amount()))
         self.message_e.setText(pr.get_memo())
         # signal to set fee
@@ -1307,9 +1307,9 @@ class ElectrumWindow(QMainWindow):
         for pr in inv_list:
             key = pr.get_id()
             status = self.invoices.get_status(key)
-            domain = pr.get_domain()
+            requestor = pr.get_requestor()
             date_str = format_time(pr.get_expiration_date())
-            item = QTreeWidgetItem( [ date_str, domain, pr.memo, self.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')] )
+            item = QTreeWidgetItem( [ date_str, requestor, pr.memo, self.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')] )
             item.setIcon(4, QIcon(pr_icons.get(status)))
             item.setData(0, Qt.UserRole, key)
             item.setFont(1, QFont(MONOSPACE_FONT))
@@ -1471,7 +1471,7 @@ class ElectrumWindow(QMainWindow):
         vbox = QVBoxLayout(d)
         grid = QGridLayout()
         grid.addWidget(QLabel(_("Requestor") + ':'), 0, 0)
-        grid.addWidget(QLabel(pr.get_domain()), 0, 1)
+        grid.addWidget(QLabel(pr.get_requestor()), 0, 1)
         grid.addWidget(QLabel(_("Expires") + ':'), 1, 0)
         grid.addWidget(QLabel(format_time(pr.get_expiration_date())), 1, 1)
         grid.addWidget(QLabel(_("Memo") + ':'), 2, 0)
