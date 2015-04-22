@@ -805,6 +805,9 @@ class ElectrumWindow(QMainWindow):
         b = len(self.receive_requests) > 0
         self.receive_list.setVisible(b)
         self.receive_requests_label.setVisible(b)
+        if not b:
+            self.expires_label.hide()
+            self.expires_combo.show()
 
         # check if it is necessary to show the account
         self.receive_list.setColumnHidden(1, len(self.wallet.get_accounts()) == 1)
