@@ -602,12 +602,16 @@ class ElectrumWindow(QMainWindow):
         self.expires_combo.setCurrentIndex(1)
         grid.addWidget(QLabel(_('Expires in')), 3, 0)
         grid.addWidget(self.expires_combo, 3, 1)
+        self.expires_label = QLineEdit('')
+        self.expires_label.setReadOnly(1)
+        self.expires_label.hide()
+        grid.addWidget(self.expires_label, 3, 1)
 
         self.save_request_button = QPushButton(_('Save'))
         self.save_request_button.clicked.connect(self.save_payment_request)
 
         self.new_request_button = QPushButton(_('New'))
-        self.new_request_button.clicked.connect(self.new_receive_address)
+        self.new_request_button.clicked.connect(self.new_payment_request)
 
         self.receive_qr = QRCodeWidget(fixedSize=200)
         self.receive_qr.mouseReleaseEvent = lambda x: self.toggle_qr_window()
@@ -654,11 +658,15 @@ class ElectrumWindow(QMainWindow):
             return
         addr = str(item.text(2))
         req = self.receive_requests[addr]
-        time, amount = req['time'], req['amount']
+        expires = req['time'] + req['expiration']
+        amount = req['amount']
         message = self.wallet.labels.get(addr, '')
         self.receive_address_e.setText(addr)
         self.receive_message_e.setText(message)
         self.receive_amount_e.setAmount(amount)
+        self.expires_combo.hide()
+        self.expires_label.show()
+        self.expires_label.setText(format_time(expires))
         self.new_request_button.setEnabled(True)
 
     def delete_payment_request(self, item):
@@ -735,7 +743,7 @@ class ElectrumWindow(QMainWindow):
             if not self.wallet.history.get(addr) and addr not in self.receive_requests.keys():
                 return addr
 
-    def new_receive_address(self):
+    def new_payment_request(self):
         addr = self.get_receive_address()
         if addr is None:
             if isinstance(self.wallet, Imported_Wallet):
@@ -745,6 +753,8 @@ class ElectrumWindow(QMainWindow):
                 return
             addr = self.wallet.create_new_address(self.current_account, False)
         self.set_receive_address(addr)
+        self.expires_label.hide()
+        self.expires_combo.show()
         self.new_request_button.setEnabled(False)
 
     def set_receive_address(self, addr):
