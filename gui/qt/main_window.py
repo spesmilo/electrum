@@ -132,7 +132,6 @@ class ElectrumWindow(QMainWindow):
         tabs.addTab(self.create_receive_tab(), _('Receive') )
         tabs.addTab(self.create_addresses_tab(), _('Addresses') )
         tabs.addTab(self.create_contacts_tab(), _('Contacts') )
-        tabs.addTab(self.create_invoices_tab(), _('Invoices') )
         tabs.addTab(self.create_console_tab(), _('Console') )
         tabs.setMinimumSize(600, 400)
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -551,7 +550,7 @@ class ElectrumWindow(QMainWindow):
         self.update_address_tab()
         self.update_contacts_tab()
         self.update_completions()
-        self.update_invoices_tab()
+        self.update_invoices_list()
 
     def create_history_tab(self):
         from history_widget import HistoryWidget
@@ -855,9 +854,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def create_send_tab(self):
-        w = QWidget()
-
-        self.send_grid = grid = QGridLayout(w)
+        self.send_grid = grid = QGridLayout()
         grid.setSpacing(8)
         grid.setColumnMinimumWidth(3,300)
         grid.setColumnStretch(5,1)
@@ -913,7 +910,6 @@ class ElectrumWindow(QMainWindow):
         grid.addWidget(b, 6, 2)
         self.payto_sig = QLabel('')
         grid.addWidget(self.payto_sig, 7, 0, 1, 4)
-        w.setLayout(grid)
 
         def on_shortcut():
             sendable = self.get_sendable_balance()
@@ -950,6 +946,17 @@ class ElectrumWindow(QMainWindow):
 
         self.amount_e.textChanged.connect(entry_changed)
         self.fee_e.textChanged.connect(entry_changed)
+
+
+        self.invoices_label = QLabel(_('Invoices'))
+        self.invoices_list = MyTreeWidget(self, self.create_invoice_menu, [_('Date'), _('Requestor'), _('Memo'), _('Amount'), _('Status')], [150, 150, None, 150, 100])
+
+        w = QWidget()
+        vbox = QVBoxLayout(w)
+        vbox.addLayout(grid)
+        vbox.addStretch()
+        vbox.addWidget(self.invoices_label)
+        vbox.addWidget(self.invoices_list)
 
         run_hook('create_send_tab', grid)
         return w
@@ -1150,7 +1157,7 @@ class ElectrumWindow(QMainWindow):
             # GUI thread
             if status:
                 QMessageBox.information(self, '', _('Payment sent.') + '\n' + msg, _('OK'))
-                self.update_invoices_tab()
+                self.update_invoices_list()
                 self.do_clear()
             else:
                 QMessageBox.warning(self, _('Error'), msg, _('OK'))
@@ -1175,7 +1182,7 @@ class ElectrumWindow(QMainWindow):
         pr = self.payment_request
         status = pr.get_status()
         key = self.invoices.add(pr)
-        self.update_invoices_tab()
+        self.update_invoices_list()
         if status == PR_PAID:
             self.do_clear()
             self.show_message("invoice already paid")
@@ -1291,15 +1298,11 @@ class ElectrumWindow(QMainWindow):
         self.contacts_list = l
         return self.create_list_tab(l)
 
-    def create_invoices_tab(self):
-        l = MyTreeWidget(self, self.create_invoice_menu, [_('Date'), _('Requestor'), _('Memo'), _('Amount'), _('Status')], [150, 150, None, 150, 100])
-        self.invoices_list = l
-        return self.create_list_tab(l)
-
-    def update_invoices_tab(self):
+    def update_invoices_list(self):
+        inv_list = self.invoices.sorted_list()
         l = self.invoices_list
         l.clear()
-        for pr in self.invoices.sorted_list():
+        for pr in inv_list:
             key = pr.get_id()
             status = pr.get_status()
             domain = pr.get_domain()
@@ -1311,6 +1314,8 @@ class ElectrumWindow(QMainWindow):
             item.setFont(3, QFont(MONOSPACE_FONT))
             l.addTopLevelItem(item)
         l.setCurrentItem(l.topLevelItem(0))
+        self.invoices_list.setVisible(len(inv_list))
+        self.invoices_label.setVisible(len(inv_list))
 
     def delete_imported_key(self, addr):
         if self.question(_("Do you want to remove")+" %s "%addr +_("from your wallet?")):
@@ -1508,7 +1513,7 @@ class ElectrumWindow(QMainWindow):
             menu.addAction(_("Pay Now"), lambda: self.do_pay_invoice(key))
         def delete_invoice(key):
             self.invoices.remove(key)
-            self.update_invoices_tab()
+            self.update_invoices_list()
         menu.addAction(_("Delete"), lambda: delete_invoice(key))
         menu.exec_(self.invoices_list.viewport().mapToGlobal(position))
 
@@ -2542,7 +2547,6 @@ class ElectrumWindow(QMainWindow):
             self.update_history_tab()
             self.update_receive_tab()
             self.update_address_tab()
-            self.update_invoices_tab()
             fee_e.setAmount(self.wallet.fee_per_kb)
             self.update_status()
         unit_combo.currentIndexChanged.connect(on_unit)
