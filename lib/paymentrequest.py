@@ -112,7 +112,8 @@ class PaymentRequest:
         if not ca_list:
             self.error = "Trusted certificate authorities list not found"
             return False
-        paymntreq = self.data
+        paymntreq = pb2.PaymentRequest()
+        paymntreq.ParseFromString(self.raw)
         if not paymntreq.signature:
             self.error = "No signature"
             return
