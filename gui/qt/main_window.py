@@ -958,6 +958,7 @@ class ElectrumWindow(QMainWindow):
         vbox0 = QVBoxLayout()
         vbox0.addLayout(grid)
         vbox0.addLayout(buttons)
+        vbox0.addStretch(1)
         hbox = QHBoxLayout()
         hbox.addLayout(vbox0)
         hbox.addStretch(1)
