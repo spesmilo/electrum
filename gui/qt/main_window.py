@@ -34,7 +34,7 @@ from electrum_ltc.plugins import run_hook
 
 import icons_rc
 
-from electrum_ltc.util import format_satoshis, format_time, NotEnoughFunds
+from electrum_ltc.util import format_satoshis, format_time, NotEnoughFunds, StoreDict
 from electrum_ltc import Transaction
 from electrum_ltc import mnemonic
 from electrum_ltc import util, bitcoin, commands, Interface, Wallet
@@ -117,6 +117,7 @@ class ElectrumWindow(QMainWindow):
         self.app = gui_object.app
 
         self.invoices = InvoiceStore(self.config)
+        self.contacts = StoreDict(self.config, 'contacts')
 
         self.create_status_bar()
         self.need_update = threading.Event()
@@ -201,11 +202,12 @@ class ElectrumWindow(QMainWindow):
     def load_wallet(self, wallet):
         import electrum_ltc as electrum
         self.wallet = wallet
+        # backward compatibility
         self.update_wallet_format()
+        self.import_old_contacts()
         # address used to create a dummy transaction and estimate transaction fee
         a = self.wallet.addresses(False)
         self.dummy_address = a[0] if a else None
-
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
         title = 'Electrum-LTC ' + self.wallet.electrum_version + '  -  ' + os.path.basename(self.wallet.storage.path)
@@ -224,16 +226,22 @@ class ElectrumWindow(QMainWindow):
         self.mpk_menu.setEnabled(self.wallet.is_deterministic())
         self.import_menu.setVisible(self.wallet.can_import())
         self.export_menu.setEnabled(self.wallet.can_export())
-
         self.update_lock_icon()
         self.update_buttons_on_seed()
         self.update_console()
-
         self.clear_receive_tab()
         self.update_receive_tab()
         self.show()
         run_hook('load_wallet', wallet)
 
+    def import_old_contacts(self):
+        # backward compatibility: import contacts
+        addressbook = set(self.wallet.storage.get('contacts', []))
+        for k in addressbook:
+            l = self.wallet.labels.get(k)
+            if bitcoin.is_address(k) and l:
+                self.contacts[l] = ('address', k)
+        self.wallet.storage.put('contacts', None)
 
     def update_wallet_format(self):
         # convert old-format imported keys
@@ -247,7 +255,6 @@ class ElectrumWindow(QMainWindow):
         # call synchronize to regenerate addresses in case we are offline
         if self.wallet.get_master_public_keys() and self.wallet.addresses() == []:
             self.wallet.synchronize()
-
 
     def open_wallet(self):
         wallet_folder = self.wallet.storage.path
@@ -375,6 +382,7 @@ class ElectrumWindow(QMainWindow):
         self.import_menu = self.private_keys_menu.addAction(_("&Import"), self.do_import_privkey)
         self.export_menu = self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
         wallet_menu.addAction(_("&Export History"), self.export_history_dialog)
+        wallet_menu.addAction(_("Search"), self.toggle_search).setShortcut(QKeySequence("Ctrl+S"))
 
         tools_menu = menubar.addMenu(_("&Tools"))
 
@@ -656,6 +664,8 @@ class ElectrumWindow(QMainWindow):
     def receive_item_changed(self, item):
         if item is None:
             return
+        if not self.receive_list.isItemSelected(item):
+            return
         addr = str(item.text(2))
         req = self.receive_requests[addr]
         expires = _('Never') if req.get('expiration') is None else format_time(req['time'] + req['expiration'])
@@ -698,17 +708,21 @@ class ElectrumWindow(QMainWindow):
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
     def save_payment_request(self):
-        now = int(time.time())
         addr = str(self.receive_address_e.text())
         amount = self.receive_amount_e.get_amount()
         message = unicode(self.receive_message_e.text())
-        i = self.expires_combo.currentIndex()
-        expiration = map(lambda x: x[1], expiration_values)[i]
         if not message and not amount:
             QMessageBox.warning(self, _('Error'), _('No message or amount'), _('OK'))
             return
-        self.receive_requests = self.wallet.storage.get('receive_requests2',{})
-        self.receive_requests[addr] = {'time':now, 'amount':amount, 'expiration':expiration}
+        self.receive_requests = self.wallet.storage.get('receive_requests2', {})
+        if addr in self.receive_requests:
+            self.receive_requests[addr]['amount'] = amount
+        else:
+            now = int(time.time())
+            i = self.expires_combo.currentIndex()
+            expiration = map(lambda x: x[1], expiration_values)[i]
+            self.receive_requests[addr] = {'time':now, 'amount':amount, 'expiration':expiration}
+
         self.wallet.storage.put('receive_requests2', self.receive_requests)
         self.wallet.set_label(addr, message)
         self.update_receive_tab()
@@ -774,6 +788,8 @@ class ElectrumWindow(QMainWindow):
         self.receive_address_e.setText(addr)
         self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)
+        self.expires_label.hide()
+        self.expires_combo.show()
 
     def toggle_qr_window(self):
         import qrwindow
@@ -1024,21 +1040,21 @@ class ElectrumWindow(QMainWindow):
         for item in self.pay_from:
             self.from_list.addTopLevelItem(QTreeWidgetItem( [format(item), self.format_amount(item['value']) ]))
 
-    def update_completions(self):
-        l = self.wallet.get_completions()
-        self.completions.setStringList(l)
+    def get_contact_payto(self, key):
+        _type, value = self.contacts.get(key)
+        return key + '  <' + value + '>' if _type == 'address' else key
 
+    def update_completions(self):
+        l = [self.get_contact_payto(key) for key in self.contacts.keys()]
+        self.completions.setStringList(l)
 
     def protected(func):
         return lambda s, *args: s.do_protect(func, args)
 
-
     def read_send_tab(self):
-
         if self.payment_request and self.payment_request.has_expired():
             QMessageBox.warning(self, _('Error'), _('Payment request has expired'), _('OK'))
             return
-
         label = unicode( self.message_e.text() )
 
         if self.payment_request:
@@ -1147,7 +1163,6 @@ class ElectrumWindow(QMainWindow):
         def broadcast_thread():
             # non-GUI thread
             pr = self.payment_request
-            key = pr.get_id()
             if pr is None:
                 return self.wallet.sendtx(tx)
             if pr.has_expired():
@@ -1156,6 +1171,7 @@ class ElectrumWindow(QMainWindow):
             status, msg =  self.wallet.sendtx(tx)
             if not status:
                 return False, msg
+            key = pr.get_id()
             self.invoices.set_paid(key, tx.hash())
             self.payment_request = None
             refund_address = self.wallet.addresses()[0]
@@ -1296,7 +1312,7 @@ class ElectrumWindow(QMainWindow):
         return self.create_list_tab(l)
 
     def create_contacts_tab(self):
-        l = MyTreeWidget(self, self.create_contact_menu, [_('Address'), _('Label'), _('Tx')], [350, None])
+        l = MyTreeWidget(self, self.create_contact_menu, [_('Key'), _('Value'), _('Type')], [250, None, 130])
         self.contacts_list = l
         return self.create_list_tab(l)
 
@@ -1422,22 +1438,19 @@ class ElectrumWindow(QMainWindow):
 
 
     def payto(self, addr):
-        if not addr: return
-        label = self.wallet.labels.get(addr)
-        m_addr = label + '  <' + addr + '>' if label else addr
+        if not addr:
+            return
         self.tabs.setCurrentIndex(1)
-        self.payto_e.setText(m_addr)
+        self.payto_e.setText(addr)
         self.amount_e.setFocus()
 
-
     def delete_contact(self, x):
-        if self.question(_("Do you want to remove")+" %s "%x +_("from your list of contacts?")):
-            self.wallet.delete_contact(x)
-            self.wallet.set_label(x, None)
-            self.update_history_tab()
-            self.update_contacts_tab()
-            self.update_completions()
-
+        if not self.question(_("Do you want to remove")+" %s "%x +_("from your list of contacts?")):
+            return
+        self.contacts.pop(x)
+        self.update_history_tab()
+        self.update_contacts_tab()
+        self.update_completions()
 
     def create_contact_menu(self, position):
         item = self.contacts_list.itemAt(position)
@@ -1445,16 +1458,10 @@ class ElectrumWindow(QMainWindow):
         if not item:
             menu.addAction(_("New contact"), lambda: self.new_contact_dialog())
         else:
-            addr = unicode(item.text(0))
-            label = unicode(item.text(1))
-            is_editable = item.data(0,32).toBool()
-            payto_addr = item.data(0,33).toString()
-            menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(addr))
-            menu.addAction(_("Pay to"), lambda: self.payto(payto_addr))
-            menu.addAction(_("QR code"), lambda: self.show_qrcode("litecoin:" + addr, _("Address")))
-            if is_editable:
-                menu.addAction(_("Edit label"), lambda: self.contacts_list.edit_label(item))
-                menu.addAction(_("Delete"), lambda: self.delete_contact(addr))
+            key = unicode(item.text(0))
+            menu.addAction(_("Copy to Clipboard"), lambda: self.app.clipboard().setText(key))
+            menu.addAction(_("Pay to"), lambda: self.payto(self.get_contact_payto(key)))
+            menu.addAction(_("Delete"), lambda: self.delete_contact(key))
 
         run_hook('create_contact_menu', menu, item)
         menu.exec_(self.contacts_list.viewport().mapToGlobal(position))
@@ -1582,17 +1589,14 @@ class ElectrumWindow(QMainWindow):
     def update_contacts_tab(self):
         l = self.contacts_list
         item = l.currentItem()
-        current_address = item.data(0, Qt.UserRole).toString() if item else None
+        current_key = item.data(0, Qt.UserRole).toString() if item else None
         l.clear()
-        for address in self.wallet.addressbook:
-            label = self.wallet.labels.get(address,'')
-            n = self.wallet.get_num_tx(address)
-            item = QTreeWidgetItem( [ address, label, "%d"%n] )
-            item.setFont(0, QFont(MONOSPACE_FONT))
-            item.setData(0, Qt.UserRole, address)
-            item.setData(0, Qt.UserRole+1, True)
+        for key in sorted(self.contacts.keys()):
+            _type, value = self.contacts[key]
+            item = QTreeWidgetItem([key, value, _type])
+            item.setData(0, Qt.UserRole, key)
             l.addTopLevelItem(item)
-            if address == current_address:
+            if key == current_key:
                 l.setCurrentItem(item)
         run_hook('update_contacts_tab', l)
 
@@ -1652,6 +1656,11 @@ class ElectrumWindow(QMainWindow):
         self.connect(self.account_selector,SIGNAL("activated(QString)"),self.change_account)
         sb.addPermanentWidget(self.account_selector)
 
+        self.search_box = QLineEdit()
+        self.search_box.textChanged.connect(self.do_search)
+        self.search_box.hide()
+        sb.addPermanentWidget(self.search_box)
+
         if (int(qtVersion[0]) >= 4 and int(qtVersion[2]) >= 7):
             sb.addPermanentWidget( StatusBarButton( QIcon(":icons/switchgui.png"), _("Switch to Lite Mode"), self.go_lite ) )
 
@@ -1688,13 +1697,32 @@ class ElectrumWindow(QMainWindow):
         self.update_lock_icon()
 
 
-    def new_contact_dialog(self):
+    def toggle_search(self):
+        self.search_box.setHidden(not self.search_box.isHidden())
+        if not self.search_box.isHidden():
+            self.search_box.setFocus(1)
+        else:
+            self.do_search('')
 
+    def do_search(self, t):
+        i = self.tabs.currentIndex()
+        if i == 0:
+            self.history_list.filter(t, 2)
+        elif i == 1:
+            self.invoices_list.filter(t, 1)
+        elif i == 2:
+            self.receive_list.filter(t, 3)
+        elif i == 3:
+            self.address_list.filter(t, 1)
+        elif i == 4:
+            self.contacts_list.filter(t, 0)
+
+
+    def new_contact_dialog(self):
         d = QDialog(self)
         d.setWindowTitle(_("New Contact"))
         vbox = QVBoxLayout(d)
-        vbox.addWidget(QLabel(_('New Contact')+':'))
-
+        vbox.addWidget(QLabel(_('New Contact') + ':'))
         grid = QGridLayout()
         line1 = QLineEdit()
         line2 = QLineEdit()
@@ -1716,9 +1744,7 @@ class ElectrumWindow(QMainWindow):
             QMessageBox.warning(self, _('Error'), _('Invalid Address'), _('OK'))
             return
 
-        self.wallet.add_contact(address)
-        if label:
-            self.wallet.set_label(address, label)
+        self.contacts[label] = ('address', address)
 
         self.update_contacts_tab()
         self.update_history_tab()

@@ -30,6 +30,7 @@ class HistoryWidget(MyTreeWidget):
     def __init__(self, parent=None):
         MyTreeWidget.__init__(self, parent, self.create_menu, [ '', _('Date'), _('Description') , _('Amount'), _('Balance')], [40, 140, None, 140, 140])
         self.config = self.parent.config
+        self.setSortingEnabled(False)
 
     def update(self, h):
         self.wallet = self.parent.wallet

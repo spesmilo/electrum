@@ -3,6 +3,7 @@ from decimal import Decimal
 _ = lambda x:x
 #from i18n import _
 from electrum_ltc.util import format_satoshis, set_verbosity
+from electrum_ltc.util import StoreDict
 from electrum_ltc.bitcoin import is_valid
 
 from electrum_ltc import Wallet, WalletStorage
@@ -23,6 +24,7 @@ class ElectrumGui:
 
         self.wallet = Wallet(storage)
         self.wallet.start_threads(self.network)
+        self.contacts = StoreDict(self.config, 'contacts')
 
         locale.setlocale(locale.LC_ALL, '')
         self.encoding = locale.getpreferredencoding()
@@ -145,8 +147,8 @@ class ElectrumGui:
 
 
     def print_contacts(self):
-        messages = map(lambda addr: "%30s    %30s       "%(addr, self.wallet.labels.get(addr,"")), self.wallet.addressbook)
-        self.print_list(messages, "%19s  %25s "%("Address", "Label"))
+        messages = map(lambda x: "%20s   %45s "%(x[0], x[1][1]), self.contacts.items())
+        self.print_list(messages, "%19s  %15s "%("Key", "Value"))
 
     def print_receive(self):
         fmt = "%-35s  %-30s"
@@ -248,12 +250,12 @@ class ElectrumGui:
             out = self.run_popup('Address', ["Edit label", "Freeze", "Prioritize"])
             
     def run_contacts_tab(self, c):
-        if c == 10 and self.wallet.addressbook:
+        if c == 10 and self.contacts:
             out = self.run_popup('Adress', ["Copy", "Pay to", "Edit label", "Delete"]).get('button')
-            address = self.wallet.addressbook[self.pos%len(self.wallet.addressbook)]
+            key = self.contacts.keys()[self.pos%len(self.contacts.keys())]
             if out == "Pay to":
                 self.tab = 1
-                self.str_recipient = address 
+                self.str_recipient = key
                 self.pos = 2
             elif out == "Edit label":
                 s = self.get_string(6 + self.pos, 18)

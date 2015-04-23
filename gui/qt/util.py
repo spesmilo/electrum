@@ -284,6 +284,7 @@ class MyTreeWidget(QTreeWidget):
                 self.edit_column = i
             else:
                 self.setColumnWidth(i, width)
+        self.setSortingEnabled(True)
 
     def on_activated(self, item):
         if not item:
@@ -329,6 +330,19 @@ class MyTreeWidget(QTreeWidget):
         if changed:
             self.parent.update_history_tab()
             self.parent.update_completions()
+
+    def get_leaves(self, root):
+        child_count = root.childCount()
+        if child_count == 0:
+            yield root
+        for i in range(child_count):
+            item = root.child(i)
+            for x in self.get_leaves(item):
+                yield x
+
+    def filter(self, p, column):
+        for item in self.get_leaves(self.invisibleRootItem()):
+            item.setHidden(unicode(item.text(column)).lower().find(p) == -1)
 
 
 class ButtonsWidget(QWidget):

@@ -136,8 +136,9 @@ class WalletStorage(object):
     def write(self):
         assert not threading.currentThread().isDaemon()
         s = json.dumps(self.data, indent=4, sort_keys=True)
-        with open(self.path,"w") as f:
+        with open(self.path + '.tmp', "w") as f:
             f.write(s)
+        os.rename(self.path + '.tmp', self.path)
         if 'ANDROID_DATA' not in os.environ:
             import stat
             os.chmod(self.path,stat.S_IREAD | stat.S_IWRITE)
@@ -159,7 +160,6 @@ class Abstract_Wallet(object):
         self.seed                  = storage.get('seed', '')               # encrypted
         self.labels                = storage.get('labels', {})
         self.frozen_addresses      = storage.get('frozen_addresses',[])
-        self.addressbook           = set(storage.get('contacts', []))
 
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
         self.fee_per_kb            = int(storage.get('fee_per_kb', RECOMMENDED_FEE))
@@ -379,28 +379,6 @@ class Abstract_Wallet(object):
 
     def is_found(self):
         return self.history.values() != [[]] * len(self.history)
-
-    def add_contact(self, address, label=None):
-        self.addressbook.add(address)
-        self.storage.put('contacts', list(self.addressbook), True)
-        if label:
-            self.set_label(address, label)
-
-    def delete_contact(self, addr):
-        if addr in self.addressbook:
-            self.addressbook.remove(addr)
-            self.storage.put('contacts', list(self.addressbook), True)
-
-    def get_completions(self):
-        l = []
-        for x in self.addressbook:
-            if bitcoin.is_address(x):
-                label = self.labels.get(x)
-                if label:
-                    l.append( label + '  <' + x + '>')
-            else:
-                l.append(x)
-        return l
 
     def get_num_tx(self, address):
         """ return number of transactions where address is involved """
@@ -737,8 +715,7 @@ class Abstract_Wallet(object):
                 delta = self.get_tx_delta(tx_hash, addr)
                 hh.append([addr, tx_hash, height, delta])
 
-        # 2. merge 
-        # the delta of a tx on the domain is the sum of its deltas on addresses
+        # 2. merge: the delta of a tx on the domain is the sum of its deltas on addresses
         merged = {}
         for addr, tx_hash, height, delta in hh:
             if tx_hash not in merged:
@@ -749,31 +726,28 @@ class Abstract_Wallet(object):
 
         # 3. create sorted list
         history = []
-        #balance = 0
         for tx_hash, v in merged.items():
             height, value = v
-            #balance += value
             conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
-            history.append( (tx_hash, conf, value, timestamp) )
-        if self.verifier:
-            history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
+            history.append((tx_hash, conf, value, timestamp))
+        history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
 
+        # 4. add balance
         c, u = self.get_balance(domain)
         balance = c + u
         h2 = []
         for item in history[::-1]:
             tx_hash, conf, value, timestamp = item
-            h2.insert( 0, (tx_hash, conf, value, timestamp, balance))
+            h2.insert(0, (tx_hash, conf, value, timestamp, balance))
             if balance is not None and value is not None:
                 balance -= value
             else:
                 balance = None
 
-        assert balance in [None, 0]
-        #if balance not in [None, 0]:
-        #    print_error("history error")
-        #    self.clear_history()
-        #    self.update()
+        # fixme: this may happen if history is incomplete
+        if balance not in [None, 0]:
+            print_error("Error: history not synchronized")
+            return []
 
         return h2
 

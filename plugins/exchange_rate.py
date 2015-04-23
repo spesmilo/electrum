@@ -8,8 +8,8 @@ import json
 import threading
 import time
 import re
-from decimal import Decimal
 from ssl import SSLError
+from decimal import Decimal
 
 from electrum_ltc.plugins import BasePlugin, hook
 from electrum_ltc.i18n import _
@@ -364,7 +364,9 @@ class Plugin(BasePlugin):
 
         self.tx_list = tx_list
         self.cur_exchange = self.config.get('use_exchange', "BTC-e")
-        threading.Thread(target=self.request_history_rates, args=()).start()
+        t = threading.Thread(target=self.request_history_rates, args=())
+        t.setDaemon(True)
+        t.start()
 
 
     def requires_settings(self):

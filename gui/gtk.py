@@ -466,6 +466,9 @@ class ElectrumWindow:
         self.window.set_default_size(720, 350)
         self.wallet_updated = False
 
+        from electrum_ltc.util import StoreDict
+        self.contacts = StoreDict(self.config, 'contacts')
+
         vbox = Gtk.VBox()
 
         self.notebook = Gtk.Notebook()
@@ -1154,17 +1157,10 @@ class ElectrumWindow:
             self.recv_list.append((address, label, tx, format_satoshis(c,False,self.num_zeros), Type ))
 
     def update_sending_tab(self):
-        # detect addresses that are not mine in history, add them here...
         self.addressbook_list.clear()
-        #for alias, v in self.wallet.aliases.items():
-        #    s, target = v
-        #    label = self.wallet.labels.get(alias)
-        #    self.addressbook_list.append((alias, label, '-'))
-            
-        for address in self.wallet.addressbook:
-            label = self.wallet.labels.get(address)
-            n = self.wallet.get_num_tx(address)
-            self.addressbook_list.append((address, label, "%d"%n))
+        for k, v in self.contacts.items():
+            t, v = v
+            self.addressbook_list.append((k, v, t))
 
     def update_history_tab(self):
         cursor = self.history_treeview.get_cursor()[0]
@@ -1268,7 +1264,7 @@ class ElectrumWindow:
 
         if result == 1:
             if is_valid(address):
-                self.wallet.add_contact(address,label)
+                self.contacts[label] = address
                 self.update_sending_tab()
             else:
                 errorDialog = Gtk.MessageDialog(
