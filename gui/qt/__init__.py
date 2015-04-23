@@ -218,6 +218,11 @@ class ElectrumGui:
         #lite window
         self.init_lite()
 
+        # plugins interact with main window
+        run_hook('init_qt', self)
+
+        w.load_wallet(wallet)
+
         # initial configuration
         if self.config.get('hide_gui') is True and self.tray.isVisible():
             self.main_window.hide()
@@ -227,11 +232,6 @@ class ElectrumGui:
                 self.go_lite()
             else:
                 self.go_full()
-
-        # plugins interact with main window
-        run_hook('init_qt', self)
-
-        w.load_wallet(wallet)
 
         s = Timer()
         s.start()
