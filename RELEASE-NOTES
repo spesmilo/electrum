@@ -4,6 +4,8 @@
    2. Fast X509 certificate parser, not using pyasn1 anymore.
    3. The Label Sync plugin only requests modified labels.
  * The 'Invoices' and 'Send' tabs have been merged.
+ * Contacts are stored in a separate file, shared between wallets.
+ * A Search Box is available (Ctrl-S)
  * Payment requests have an expiration date and can be exported in
    BIP70 format.
  * Local files are supported in BIP72 URIs: "bitcoin:?r=file:///..."
