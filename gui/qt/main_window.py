@@ -1147,7 +1147,6 @@ class ElectrumWindow(QMainWindow):
         def broadcast_thread():
             # non-GUI thread
             pr = self.payment_request
-            key = pr.get_id()
             if pr is None:
                 return self.wallet.sendtx(tx)
             if pr.has_expired():
@@ -1156,6 +1155,7 @@ class ElectrumWindow(QMainWindow):
             status, msg =  self.wallet.sendtx(tx)
             if not status:
                 return False, msg
+            key = pr.get_id()
             self.invoices.set_paid(key, tx.hash())
             self.payment_request = None
             refund_address = self.wallet.addresses()[0]
