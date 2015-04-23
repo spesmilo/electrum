@@ -38,6 +38,14 @@ class ScanQRTextEdit(ButtonsTextEdit):
         self.addButton(":icons/qrcode.png", self.qr_input, _("Read QR code"))
         run_hook('scan_text_edit', self)
 
+    def file_input(self):
+        fileName = unicode(QFileDialog.getOpenFileName(self, 'select file'))
+        if not fileName:
+            return
+        with open(fileName, "r") as f:
+            data = f.read()
+        self.setText(data)
+
     def qr_input(self):
         from electrum import qrscanner
         try:

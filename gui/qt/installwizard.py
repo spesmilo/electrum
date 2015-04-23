@@ -128,6 +128,7 @@ class InstallWizard(QDialog):
         if func is None:
             func = self.is_any
         vbox, seed_e = seed_dialog.enter_seed_box(msg, self, sid)
+        seed_e.addButton(":icons/copy.png", seed_e.file_input, _("Read file"))
         vbox.addStretch(1)
         button = OkButton(self, _('Next'))
         vbox.addLayout(Buttons(CancelButton(self), button))
