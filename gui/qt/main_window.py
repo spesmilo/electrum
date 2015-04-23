@@ -700,17 +700,21 @@ class ElectrumWindow(QMainWindow):
         menu.exec_(self.receive_list.viewport().mapToGlobal(position))
 
     def save_payment_request(self):
-        now = int(time.time())
         addr = str(self.receive_address_e.text())
         amount = self.receive_amount_e.get_amount()
         message = unicode(self.receive_message_e.text())
-        i = self.expires_combo.currentIndex()
-        expiration = map(lambda x: x[1], expiration_values)[i]
         if not message and not amount:
             QMessageBox.warning(self, _('Error'), _('No message or amount'), _('OK'))
             return
-        self.receive_requests = self.wallet.storage.get('receive_requests2',{})
-        self.receive_requests[addr] = {'time':now, 'amount':amount, 'expiration':expiration}
+        self.receive_requests = self.wallet.storage.get('receive_requests2', {})
+        if addr in self.receive_requests:
+            self.receive_requests[addr]['amount'] = amount
+        else:
+            now = int(time.time())
+            i = self.expires_combo.currentIndex()
+            expiration = map(lambda x: x[1], expiration_values)[i]
+            self.receive_requests[addr] = {'time':now, 'amount':amount, 'expiration':expiration}
+
         self.wallet.storage.put('receive_requests2', self.receive_requests)
         self.wallet.set_label(addr, message)
         self.update_receive_tab()
@@ -776,6 +780,8 @@ class ElectrumWindow(QMainWindow):
         self.receive_address_e.setText(addr)
         self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)
+        self.expires_label.hide()
+        self.expires_combo.show()
 
     def toggle_qr_window(self):
         import qrwindow
