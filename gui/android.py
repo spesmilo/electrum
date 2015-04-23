@@ -76,11 +76,7 @@ def edit_label(addr):
 def select_from_contacts():
     title = 'Contacts:'
     droid.dialogCreateAlert(title)
-    l = []
-    for i in range(len(wallet.addressbook)):
-        addr = wallet.addressbook[i]
-        label = wallet.labels.get(addr,addr)
-        l.append( label )
+    l = contacts.keys()
     droid.dialogSetItems(l)
     droid.dialogSetPositiveButtonText('New contact')
     droid.dialogShow()
@@ -92,8 +88,8 @@ def select_from_contacts():
 
     result = response.get('item')
     if result is not None:
-        addr = wallet.addressbook[result]
-        return addr
+        t, v = contacts.get(result)
+        return v
 
 
 
@@ -483,7 +479,8 @@ def make_new_contact():
                 address = None
             if address:
                 if modal_question('Add to contacts?', address):
-                    wallet.add_contact(address)
+                    # fixme: ask for key
+                    contacts[address] = ('address', address)
         else:
             modal_dialog('Invalid address', data)
 
@@ -893,17 +890,20 @@ droid = android.Android()
 menu_commands = ["send", "receive", "settings", "contacts", "main"]
 wallet = None
 network = None
+contacts = None
 
 class ElectrumGui:
 
     def __init__(self, config, _network):
-        global wallet, network
+        global wallet, network, contacts
         network = _network
         network.register_callback('updated', update_callback)
         network.register_callback('connected', update_callback)
         network.register_callback('disconnected', update_callback)
         network.register_callback('disconnecting', update_callback)
         
+        contacts = util.StoreDict(config, 'contacts')
+
         storage = WalletStorage(config)
         if not storage.file_exists:
             action = self.restore_or_create()

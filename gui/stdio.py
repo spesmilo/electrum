@@ -2,7 +2,7 @@ from decimal import Decimal
 _ = lambda x:x
 #from i18n import _
 from electrum.wallet import WalletStorage, Wallet
-from electrum.util import format_satoshis, set_verbosity
+from electrum.util import format_satoshis, set_verbosity, StoreDict
 from electrum.bitcoin import is_valid
 from electrum.network import filter_protocol
 import sys, getpass, datetime
@@ -32,6 +32,7 @@ class ElectrumGui:
 
         self.wallet = Wallet(storage)
         self.wallet.start_threads(network)
+        self.contacts = StoreDict(self.config, 'contacts')
         
         self.wallet.network.register_callback('updated', self.updated)
         self.wallet.network.register_callback('connected', self.connected)
@@ -133,8 +134,8 @@ class ElectrumGui:
 
 
     def print_contacts(self):
-        messages = map(lambda addr: "%30s    %30s       "%(addr, self.wallet.labels.get(addr,"")), self.wallet.addressbook)
-        self.print_list(messages, "%19s  %25s "%("Address", "Label"))
+        messages = map(lambda x: "%20s   %45s "%(x[0], x[1][1]), self.contacts.items())
+        self.print_list(messages, "%19s  %25s "%("Key", "Value"))
 
     def print_addresses(self):
         messages = map(lambda addr: "%30s    %30s       "%(addr, self.wallet.labels.get(addr,"")), self.wallet.addresses())
@@ -239,14 +240,3 @@ class ElectrumGui:
             
     def run_contacts_tab(self, c):
         pass
-#        if c == 10 and self.wallet.addressbook:
-#            out = self.run_popup('Adress', ["Copy", "Pay to", "Edit label", "Delete"]).get('button')
-#            address = self.wallet.addressbook[self.pos%len(self.wallet.addressbook)]
-#            if out == "Pay to":
-#                self.tab = 1
-#                self.str_recipient = address 
-#                self.pos = 2
-#            elif out == "Edit label":
-#                s = self.get_string(6 + self.pos, 18)
-#                if s:
-#                    self.wallet.labels[address] = s
