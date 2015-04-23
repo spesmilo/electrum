@@ -737,8 +737,7 @@ class Abstract_Wallet(object):
                 delta = self.get_tx_delta(tx_hash, addr)
                 hh.append([addr, tx_hash, height, delta])
 
-        # 2. merge 
-        # the delta of a tx on the domain is the sum of its deltas on addresses
+        # 2. merge: the delta of a tx on the domain is the sum of its deltas on addresses
         merged = {}
         for addr, tx_hash, height, delta in hh:
             if tx_hash not in merged:
@@ -749,31 +748,28 @@ class Abstract_Wallet(object):
 
         # 3. create sorted list
         history = []
-        #balance = 0
         for tx_hash, v in merged.items():
             height, value = v
-            #balance += value
             conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
-            history.append( (tx_hash, conf, value, timestamp) )
-        if self.verifier:
-            history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
+            history.append((tx_hash, conf, value, timestamp))
+        history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
 
+        # 4. add balance
         c, u = self.get_balance(domain)
         balance = c + u
         h2 = []
         for item in history[::-1]:
             tx_hash, conf, value, timestamp = item
-            h2.insert( 0, (tx_hash, conf, value, timestamp, balance))
+            h2.insert(0, (tx_hash, conf, value, timestamp, balance))
             if balance is not None and value is not None:
                 balance -= value
             else:
                 balance = None
 
-        assert balance in [None, 0]
-        #if balance not in [None, 0]:
-        #    print_error("history error")
-        #    self.clear_history()
-        #    self.update()
+        # fixme: this may happen if history is incomplete
+        if balance not in [None, 0]:
+            print_error("Error: history not synchronized")
+            return []
 
         return h2
 
