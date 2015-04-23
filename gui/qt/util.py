@@ -330,6 +330,13 @@ class MyTreeWidget(QTreeWidget):
             self.parent.update_history_tab()
             self.parent.update_completions()
 
+    def filter(self, p, column):
+        root = self.invisibleRootItem()
+        child_count = root.childCount()
+        for i in range(child_count):
+            item = root.child(i)
+            item.setHidden(unicode(item.text(column)).lower().find(p) == -1)
+
 
 class ButtonsWidget(QWidget):
 
