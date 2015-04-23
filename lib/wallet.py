@@ -159,7 +159,6 @@ class Abstract_Wallet(object):
         self.seed                  = storage.get('seed', '')               # encrypted
         self.labels                = storage.get('labels', {})
         self.frozen_addresses      = storage.get('frozen_addresses',[])
-        self.addressbook           = set(storage.get('contacts', []))
 
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
         self.fee_per_kb            = int(storage.get('fee_per_kb', RECOMMENDED_FEE))
@@ -379,28 +378,6 @@ class Abstract_Wallet(object):
 
     def is_found(self):
         return self.history.values() != [[]] * len(self.history)
-
-    def add_contact(self, address, label=None):
-        self.addressbook.add(address)
-        self.storage.put('contacts', list(self.addressbook), True)
-        if label:
-            self.set_label(address, label)
-
-    def delete_contact(self, addr):
-        if addr in self.addressbook:
-            self.addressbook.remove(addr)
-            self.storage.put('contacts', list(self.addressbook), True)
-
-    def get_completions(self):
-        l = []
-        for x in self.addressbook:
-            if bitcoin.is_address(x):
-                label = self.labels.get(x)
-                if label:
-                    l.append( label + '  <' + x + '>')
-            else:
-                l.append(x)
-        return l
 
     def get_num_tx(self, address):
         """ return number of transactions where address is involved """
