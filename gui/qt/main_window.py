@@ -656,6 +656,8 @@ class ElectrumWindow(QMainWindow):
     def receive_item_changed(self, item):
         if item is None:
             return
+        if not self.receive_list.isItemSelected(item):
+            return
         addr = str(item.text(2))
         req = self.receive_requests[addr]
         expires = _('Never') if req.get('expiration') is None else format_time(req['time'] + req['expiration'])
