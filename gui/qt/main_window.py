@@ -1590,8 +1590,8 @@ class ElectrumWindow(QMainWindow):
         item = l.currentItem()
         current_key = item.data(0, Qt.UserRole).toString() if item else None
         l.clear()
-        for key, v in self.contacts.items():
-            _type, value = v
+        for key in sorted(self.contacts.keys()):
+            _type, value = self.contacts[key]
             item = QTreeWidgetItem([key, value, _type])
             item.setData(0, Qt.UserRole, key)
             l.addTopLevelItem(item)
