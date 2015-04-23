@@ -284,6 +284,7 @@ class MyTreeWidget(QTreeWidget):
                 self.edit_column = i
             else:
                 self.setColumnWidth(i, width)
+        self.setSortingEnabled(True)
 
     def on_activated(self, item):
         if not item:
