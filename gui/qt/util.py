@@ -330,11 +330,17 @@ class MyTreeWidget(QTreeWidget):
             self.parent.update_history_tab()
             self.parent.update_completions()
 
-    def filter(self, p, column):
-        root = self.invisibleRootItem()
+    def get_leaves(self, root):
         child_count = root.childCount()
+        if child_count == 0:
+            yield root
         for i in range(child_count):
             item = root.child(i)
+            for x in self.get_leaves(item):
+                yield x
+
+    def filter(self, p, column):
+        for item in self.get_leaves(self.invisibleRootItem()):
             item.setHidden(unicode(item.text(column)).lower().find(p) == -1)
 
 
