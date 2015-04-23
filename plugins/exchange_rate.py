@@ -8,6 +8,7 @@ import json
 import threading
 import time
 import re
+from ssl import SSLError
 from decimal import Decimal
 from ssl import SSLError
 
