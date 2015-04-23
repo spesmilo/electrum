@@ -1708,6 +1708,10 @@ class ElectrumWindow(QMainWindow):
         i = self.tabs.currentIndex()
         if i == 0:
             self.history_list.filter(t, 2)
+        elif i == 1:
+            self.invoices_list.filter(t, 1)
+        elif i == 2:
+            self.receive_list.filter(t, 2)
         elif i == 3:
             self.address_list.filter(t, 1)
         elif i == 4:
