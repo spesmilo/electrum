@@ -506,7 +506,9 @@ class Plugin(BasePlugin):
 
         self.tx_list = tx_list
         self.cur_exchange = self.config.get('use_exchange', "Blockchain")
-        threading.Thread(target=self.request_history_rates, args=()).start()
+        t = threading.Thread(target=self.request_history_rates, args=())
+        t.setDaemon(True)
+        t.start()
 
 
     def requires_settings(self):
