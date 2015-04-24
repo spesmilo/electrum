@@ -1,3 +1,6 @@
+# Release 2.1.1
+ * patch a bug that prevents new wallet creation.
+
 # Release 2.1
  * Faster startup, thanks to the following optimizations:
    1. Transaction input/outputs are cached in the wallet file
