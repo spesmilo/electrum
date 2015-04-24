@@ -13,6 +13,9 @@
  * Address History dialog.
  * The OpenAlias plugin was improved.
  * Various bug fixes and GUI improvements.
+ * A new LabelSync backend is being used an import of the old
+   database was made but since the release came later it's
+   recommended that you do a full push when you upgrade.
 
 # Release 2.0.4 - Minor GUI improvements
  * The password dialog will ask for password again if the user enters
