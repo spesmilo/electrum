@@ -1308,6 +1308,7 @@ class ElectrumWindow(QMainWindow):
     def create_addresses_tab(self):
         l = MyTreeWidget(self, self.create_receive_menu, [ _('Address'), _('Label'), _('Balance'), _('Tx')], [370, None, 130])
         l.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        l.setSortingEnabled(False)
         self.address_list = l
         return self.create_list_tab(l)
 
