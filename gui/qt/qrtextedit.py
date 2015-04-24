@@ -35,6 +35,7 @@ class ScanQRTextEdit(ButtonsTextEdit):
         assert win, "You must pass a window with access to the config to ScanQRTextEdit constructor."
         if win:
             assert hasattr(win,"config"), "You must pass a window with access to the config to ScanQRTextEdit constructor."
+        self.addButton(":icons/file.png", self.file_input, _("Read file"))
         self.addButton(":icons/qrcode.png", self.qr_input, _("Read QR code"))
         run_hook('scan_text_edit', self)
 
