@@ -170,7 +170,8 @@ class PayToEdit(ScanQRTextEdit):
         msg = '\n'.join([
             _('Please enter a list of outputs.'),
             _('Format: address, amount.'),
-            _('One output per line.')
+            _('One output per line.'),
+            _('You may load a CSV file using the file icon.')
         ])
         QMessageBox.warning(self, _('Pay to many'), msg, _('OK'))
 
