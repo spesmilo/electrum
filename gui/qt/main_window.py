@@ -395,9 +395,7 @@ class ElectrumWindow(QMainWindow):
         tools_menu.addAction(_("&Encrypt/decrypt message"), self.encrypt_message)
         tools_menu.addSeparator()
 
-        csv_transaction_menu = tools_menu.addMenu(_("&Create transaction"))
-        csv_transaction_menu.addAction(_("&From CSV file"), self.do_process_from_csv_file)
-        csv_transaction_menu.addAction(_("&From CSV text"), self.do_process_from_csv_text)
+        paytomany_menu = tools_menu.addAction(_("&Pay to many"), self.paytomany)
 
         raw_transaction_menu = tools_menu.addMenu(_("&Load transaction"))
         raw_transaction_menu.addAction(_("&From file"), self.do_process_from_file)
@@ -1437,6 +1435,9 @@ class ElectrumWindow(QMainWindow):
         self.set_pay_from( addrs )
         self.tabs.setCurrentIndex(1)
 
+    def paytomany(self):
+        self.tabs.setCurrentIndex(1)
+        self.payto_e.paytomany()
 
     def payto(self, addr):
         if not addr:
@@ -2212,28 +2213,6 @@ class ElectrumWindow(QMainWindow):
             return
 
         self.show_transaction(tx)
-
-    def do_process_from_csv_file(self):
-        fileName = self.getOpenFileName(_("Select your transaction CSV"), "*.csv")
-        if not fileName:
-            return
-        try:
-            with open(fileName, "r") as f:
-                csvReader = csv.reader(f)
-                self.do_process_from_csvReader(csvReader)
-        except (ValueError, IOError, os.error), reason:
-            QMessageBox.critical(None, _("Unable to read file or no transaction found"), _("Electrum was unable to open your transaction file") + "\n" + str(reason))
-            return
-
-    def do_process_from_csv_text(self):
-        text = text_dialog(self, _('Input CSV'), _("Please enter a list of outputs.") + '\n' \
-                               + _("Format: address, amount. One output per line"), _("Load CSV"))
-        if not text:
-            return
-        f = StringIO.StringIO(text)
-        csvReader = csv.reader(f)
-        self.do_process_from_csvReader(csvReader)
-
 
 
     @protected
