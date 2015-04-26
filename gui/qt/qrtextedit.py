@@ -35,8 +35,17 @@ class ScanQRTextEdit(ButtonsTextEdit):
         assert win, "You must pass a window with access to the config to ScanQRTextEdit constructor."
         if win:
             assert hasattr(win,"config"), "You must pass a window with access to the config to ScanQRTextEdit constructor."
+        self.addButton(":icons/file.png", self.file_input, _("Read file"))
         self.addButton(":icons/qrcode.png", self.qr_input, _("Read QR code"))
         run_hook('scan_text_edit', self)
+
+    def file_input(self):
+        fileName = unicode(QFileDialog.getOpenFileName(self, 'select file'))
+        if not fileName:
+            return
+        with open(fileName, "r") as f:
+            data = f.read()
+        self.setText(data)
 
     def qr_input(self):
         from electrum_ltc import qrscanner

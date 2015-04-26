@@ -1,3 +1,6 @@
+# Release 2.1.1
+ * patch a bug that prevents new wallet creation.
+
 # Release 2.1
  * Faster startup, thanks to the following optimizations:
    1. Transaction input/outputs are cached in the wallet file
@@ -5,14 +8,17 @@
    3. The Label Sync plugin only requests modified labels.
  * The 'Invoices' and 'Send' tabs have been merged.
  * Contacts are stored in a separate file, shared between wallets.
- * A Search Box is available (Ctrl-S)
- * Payment requests have an expiration date and can be exported in
-   BIP70 format.
- * Local files are supported in BIP72 URIs: "bitcoin:?r=file:///..."
- * The Transaction dialog shows own addresses in green color.
- * New Address History dialog.
+ * A Search Box is available in the GUI (Ctrl-S)
+ * Payment requests have an expiration date and can be exported to
+   BIP70 files.
+ * file: scheme support in BIP72 URIs: "bitcoin:?r=file:///..."
+ * Own addresses are shown in green in the Transaction dialog.
+ * Address History dialog.
  * The OpenAlias plugin was improved.
  * Various bug fixes and GUI improvements.
+ * A new LabelSync backend is being used an import of the old
+   database was made but since the release came later it's
+   recommended that you do a full push when you upgrade.
 
 # Release 2.0.4 - Minor GUI improvements
  * The password dialog will ask for password again if the user enters
