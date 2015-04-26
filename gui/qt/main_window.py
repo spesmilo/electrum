@@ -968,8 +968,12 @@ class ElectrumWindow(QMainWindow):
         self.fee_e.textChanged.connect(entry_changed)
 
         self.invoices_label = QLabel(_('Invoices'))
-        self.invoices_list = MyTreeWidget(self, self.create_invoice_menu, [_('Date'), _('Requestor'), _('Memo'), _('Amount'), _('Status')], [150, 150, None, 150, 100])
-
+        self.invoices_list = MyTreeWidget(
+            self,
+            self.create_invoice_menu,
+            [_('Date'), _('Requestor'), _('Description'), _('Amount'), _('Status')],
+            [150, 150, None, 150, 100]
+        )
         vbox0 = QVBoxLayout()
         vbox0.addLayout(grid)
         vbox0.addLayout(buttons)
@@ -1715,7 +1719,7 @@ class ElectrumWindow(QMainWindow):
         if i == 0:
             self.history_list.filter(t, 2)
         elif i == 1:
-            self.invoices_list.filter(t, 1)
+            self.invoices_list.filter(t, 2)
         elif i == 2:
             self.receive_list.filter(t, 3)
         elif i == 3:
