@@ -373,7 +373,7 @@ class ButtonsWidget(QWidget):
     def addCopyButton(self, app):
         self.app = app
         f = lambda: self.app.clipboard().setText(str(self.text()))
-        self.addButton(":icons/copy.png", f, _("Copy to Clibboard"))
+        self.addButton(":icons/copy.png", f, _("Copy to Clipboard"))
 
 class ButtonsLineEdit(QLineEdit, ButtonsWidget):
     def __init__(self, text=None):

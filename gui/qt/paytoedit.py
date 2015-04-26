@@ -163,6 +163,17 @@ class PayToEdit(ScanQRTextEdit):
     def is_multiline(self):
         return len(self.lines()) > 1
 
+    def paytomany(self):
+        from electrum_ltc.i18n import _
+        self.setText("\n\n\n")
+        self.update_size()
+        msg = '\n'.join([
+            _('Enter a list of outputs in the \'Pay to\' field.'),
+            _('One output per line.'),
+            _('Format: address, amount.'),
+            _('You may load a CSV file using the file icon.')
+        ])
+        QMessageBox.warning(self, _('Pay to many'), msg, _('OK'))
 
     def update_size(self):
         docHeight = self.document().size().height()
