@@ -18,6 +18,7 @@
 
 import sys, time, re, threading
 from electrum.i18n import _, set_language
+from electrum.util import block_explorer, block_explorer_info, block_explorer_URL
 from electrum.util import print_error, print_msg
 import os.path, json, ast, traceback
 import shutil
@@ -1406,6 +1407,9 @@ class ElectrumWindow(QMainWindow):
                 menu.addAction(_("Encrypt/decrypt message"), lambda: self.encrypt_message(addr))
             if self.wallet.is_imported(addr):
                 menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
+            addr_URL = block_explorer_URL(self.config, 'addr', addr)
+            if addr_URL:
+                menu.addAction(_("View on block explorer"), lambda: webbrowser.open(addr_URL))
 
         if any(addr not in self.wallet.frozen_addresses for addr in addrs):
             menu.addAction(_("Freeze"), lambda: self.set_addrs_frozen(addrs, True))
@@ -2566,11 +2570,11 @@ class ElectrumWindow(QMainWindow):
         unit_combo.currentIndexChanged.connect(on_unit)
         widgets.append((unit_label, unit_combo, unit_help))
 
-        block_explorers = ['Blockchain.info', 'Blockr.io', 'Insight.is', "Blocktrail.com"]
+        block_explorers = sorted(block_explorer_info.keys())
         block_ex_label = QLabel(_('Online Block Explorer') + ':')
         block_ex_combo = QComboBox()
         block_ex_combo.addItems(block_explorers)
-        block_ex_combo.setCurrentIndex(block_explorers.index(self.config.get('block_explorer', 'Blockchain.info')))
+        block_ex_combo.setCurrentIndex(block_explorers.index(block_explorer(self.config)))
         block_ex_help = HelpButton(_('Choose which online block explorer to use for functions that open a web browser'))
         def on_be(x):
             be_result = block_explorers[block_ex_combo.currentIndex()]
