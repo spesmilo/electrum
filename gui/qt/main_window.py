@@ -1717,15 +1717,15 @@ class ElectrumWindow(QMainWindow):
     def do_search(self, t):
         i = self.tabs.currentIndex()
         if i == 0:
-            self.history_list.filter(t, 2)
+            self.history_list.filter(t, [1, 2, 3])  # Date, Description, Amount
         elif i == 1:
-            self.invoices_list.filter(t, 2)
+            self.invoices_list.filter(t, [0, 1, 2, 3]) # Date, Requestor, Description, Amount
         elif i == 2:
-            self.receive_list.filter(t, 3)
+            self.receive_list.filter(t, [0, 1, 2, 3, 4]) # Date, Account, Address, Description, Amount
         elif i == 3:
-            self.address_list.filter(t, 1)
+            self.address_list.filter(t, [0,1, 2])  # Address, Label, Balance
         elif i == 4:
-            self.contacts_list.filter(t, 0)
+            self.contacts_list.filter(t, [0, 1])  # Key, Value
 
 
     def new_contact_dialog(self):

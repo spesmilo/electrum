@@ -340,9 +340,11 @@ class MyTreeWidget(QTreeWidget):
             for x in self.get_leaves(item):
                 yield x
 
-    def filter(self, p, column):
+    def filter(self, p, columns):
+        p = unicode(p).lower()
         for item in self.get_leaves(self.invisibleRootItem()):
-            item.setHidden(unicode(item.text(column)).lower().find(p) == -1)
+            item.setHidden(all([unicode(item.text(column)).lower().find(p) == -1
+                                for column in columns]))
 
 
 class ButtonsWidget(QWidget):
