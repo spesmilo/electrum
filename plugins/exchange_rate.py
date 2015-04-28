@@ -3,7 +3,7 @@ from PyQt4.QtCore import *
 
 import datetime
 import decimal
-import httplib
+import requests
 import json
 import threading
 import time
@@ -53,19 +53,8 @@ class Exchanger(threading.Thread):
         self.is_running = False
 
     def get_json(self, site, get_string):
-        try:
-            connection = httplib.HTTPSConnection(site)
-            connection.request("GET", get_string, headers={"User-Agent":"Electrum"})
-        except Exception:
-            raise
-        resp = connection.getresponse()
-        if resp.reason == httplib.responses[httplib.NOT_FOUND]:
-            raise
-        try:
-            json_resp = json.loads(resp.read())
-        except Exception:
-            raise
-        return json_resp
+        resp = requests.request('GET', 'https://' + site + get_string, headers={"User-Agent":"Electrum"})
+        return resp.json()
         
     def exchange(self, btc_amount, quote_currency):
         with self.lock:
