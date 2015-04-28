@@ -166,15 +166,15 @@ class Exchanger(threading.Thread):
 
     def update_cb(self):
         jsonresp = self.get_json('coinbase.com', "/api/v1/currencies/exchange_rates")
-        return dict([(r[7:].upper(), self._lookup_rate_cb(jsonresp, r)) for r in jsonresp if r.startswith("btc_to_")])
+        return dict([(r[7:].upper(), Decimal(str(jsonresp[r]))) for r in jsonresp if r.startswith("btc_to_")])
 
     def update_bc(self):
         jsonresp = self.get_json('blockchain.info', "/ticker")
-        return dict([(r, self._lookup_rate(jsonresp, r)) for r in jsonresp])
+        return dict([(r, Decimal(str(jsonresp[r]["15m"]))) for r in jsonresp])
 
     def update_lb(self):
         jsonresp = self.get_json('localbitcoins.com', "/bitcoinaverage/ticker-all-currencies/")
-        return dict([(r, self._lookup_rate_lb(jsonresp, r)) for r in jsonresp])
+        return dict([(r, Decimal(jsonresp[r]["rates"]["last"])) for r in jsonresp])
 
     def update_bv(self):
         jsonresp = self.get_json('api.bitcoinvenezuela.com', "/")
@@ -186,16 +186,7 @@ class Exchanger(threading.Thread):
 
     def update_ba(self):
         jsonresp = self.get_json('api.bitcoinaverage.com', "/ticker/global/all")
-        return dict([(r, self._lookup_rate_ba(jsonresp, r)) for r in jsonresp if not r == "timestamp"])
-
-    def _lookup_rate(self, response, quote_id):
-        return decimal.Decimal(str(response[str(quote_id)]["15m"]))
-    def _lookup_rate_cb(self, response, quote_id):
-        return decimal.Decimal(str(response[str(quote_id)]))
-    def _lookup_rate_ba(self, response, quote_id):
-        return decimal.Decimal(response[str(quote_id)]["last"])
-    def _lookup_rate_lb(self, response, quote_id):
-        return decimal.Decimal(response[str(quote_id)]["rates"]["last"])
+        return dict([(r, Decimal(jsonresp[r]["last"])) for r in jsonresp if not r == "timestamp"])
 
 
 class Plugin(BasePlugin):
