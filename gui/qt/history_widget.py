@@ -40,8 +40,6 @@ class HistoryWidget(MyTreeWidget):
         for item in h:
             tx_hash, conf, value, timestamp, balance = item
             time_str = _("unknown")
-            if conf is None and timestamp is None:
-                continue  # skip history in offline mode
             if conf > 0:
                 time_str = format_time(timestamp)
             if conf == -1:

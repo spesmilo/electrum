@@ -733,11 +733,17 @@ class Abstract_Wallet(object):
 
         # 3. create sorted list
         history = []
-        for tx_hash, v in merged.items():
-            height, value = v
-            conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
-            history.append((tx_hash, conf, value, timestamp))
-        history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
+        if self.verifier:
+            for tx_hash, (height, value) in merged.items():
+                conf, timestamp = self.verifier.get_confirmations(tx_hash)
+                history.append((tx_hash, conf, value, timestamp))
+            history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
+        else:
+            for tx_hash, (height, value) in merged.items():
+                history.append((tx_hash, height, value))
+            # Sort by height, but then set confs to -1 so shows as unverified
+            history.sort(key = lambda x: x[1])
+            history = map(lambda (th, h, v): (th, -1, v, None), history)
 
         # 4. add balance
         c, u = self.get_balance(domain)
