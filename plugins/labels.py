@@ -25,7 +25,7 @@ from electrum_gui.qt.util import ThreadedButton, Buttons, CancelButton, OkButton
 
 class Plugin(BasePlugin):
 
-    target_host = 'sync.bysh.me:8080'
+    target_host = 'sync.bysh.me:9090'
     encode_password = None
 
     def fullname(self):
@@ -140,8 +140,8 @@ class Plugin(BasePlugin):
         QMessageBox.information(None, _("Labels synchronised"), _("Your labels have been synchronised."))
 
     def do_request(self, method, url = "/labels", is_batch=False, data=None):
-        url = 'http://' + self.target_host + url
-        kwargs = {'headers': {}}
+        url = 'https://' + self.target_host + url
+        kwargs = {'headers': {}, 'verify': False}
         if method == 'GET' and data:
             kwargs['params'] = data
         elif method == 'POST' and data:
