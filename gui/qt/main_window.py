@@ -211,9 +211,7 @@ class ElectrumWindow(QMainWindow):
         self.dummy_address = a[0] if a else None
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
-        title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + os.path.basename(self.wallet.storage.path)
-        if self.wallet.is_watching_only(): title += ' [%s]' % (_('watching only'))
-        self.setWindowTitle( title )
+        self.setWindowTitle( self.wallet.title() )
         self.update_history_tab()
         self.update_wallet()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
@@ -536,7 +534,7 @@ class ElectrumWindow(QMainWindow):
                     text += "%s"%quote
 
                 if self.tray:
-                    self.tray.setToolTip(text)
+                    self.tray.setToolTip("%s (%s)" % (text, self.wallet.basename()))
                 icon = QIcon(":icons/status_connected.png")
         else:
             text = _("Not connected")
