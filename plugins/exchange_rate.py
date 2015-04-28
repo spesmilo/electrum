@@ -67,27 +67,6 @@ class Exchanger(threading.Thread):
             raise
         return json_resp
         
-    def get_json_insecure(self, site, get_string):
-        """ get_json_insecure shouldn't be used in production releases
-        It doesn't use SSL, and so prices could be manipulated by a middle man
-        This should be used ONLY when developing plugins when you don't have a
-        SSL certificate that validates against HTTPSConnection
-        """
-        try:
-            connection = httplib.HTTPConnection(site)
-            connection.request("GET", get_string, headers={"User-Agent":"Electrum"})
-        except Exception:
-            raise
-        resp = connection.getresponse()
-        if resp.reason == httplib.responses[httplib.NOT_FOUND]:
-            raise
-        try:
-            json_resp = json.loads(resp.read())
-        except Exception:
-            raise
-        return json_resp
-
-
     def exchange(self, btc_amount, quote_currency):
         with self.lock:
             if self.quote_currencies is None:
@@ -342,8 +321,7 @@ class Exchanger(threading.Thread):
 
     def update_bv(self):
         try:
-            jsonresp = self.get_json_insecure('api.bitcoinvenezuela.com', "/")
-            print("**WARNING**: update_bv is using an insecure connection, shouldn't be used on production")
+            jsonresp = self.get_json('api.bitcoinvenezuela.com', "/")
         except SSLError:
             print("SSL Error when accesing bitcoinvenezuela")
             return
@@ -364,14 +342,12 @@ class Exchanger(threading.Thread):
         
     def update_bpl(self):
         try:
-            jsonresp = self.get_json_insecure('btcparalelo.com', "/api/price")
-            print("**WARNING**: update_bpl is using an insecure connection, shouldn't be used on production")
+            jsonresp = self.get_json('btcparalelo.com', "/api/price")
         except SSLError:
             print("SSL Error when accesing btcparalelo")
             return
         except Exception:
             return
-        
         
         quote_currencies = {}
         try:
