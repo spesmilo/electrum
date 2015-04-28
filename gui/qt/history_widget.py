@@ -21,7 +21,7 @@ import webbrowser
 
 from util import *
 from electrum_ltc.i18n import _
-from electrum_ltc.util import format_satoshis, format_time
+from electrum_ltc.util import block_explorer_URL, format_satoshis, format_time
 from electrum_ltc.plugins import run_hook
 
 
@@ -78,24 +78,18 @@ class HistoryWidget(MyTreeWidget):
     def create_menu(self, position):
         self.selectedIndexes()
         item = self.currentItem()
-        be = self.config.get('block_explorer', 'explorer.litecoin.net')
-        if be == 'explorer.litecoin.net':
-            block_explorer = 'http://explorer.litecoin.net/tx/'
-        elif be == 'block-explorer.com':
-            block_explorer = 'https://block-explorer.com/tx/'
-        elif be == 'Blockr.io':
-            block_explorer = 'https://ltc.blockr.io/tx/info/'
-        elif be == 'SoChain':
-            block_explorer = 'https://chain.so/tx/LTC/'
         if not item:
             return
         tx_hash = str(item.data(0, Qt.UserRole).toString())
         if not tx_hash:
             return
+        tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
+        if not tx_URL:
+            return
         menu = QMenu()
         menu.addAction(_("Copy ID to Clipboard"), lambda: self.parent.app.clipboard().setText(tx_hash))
         menu.addAction(_("Details"), lambda: self.parent.show_transaction(self.wallet.transactions.get(tx_hash)))
         menu.addAction(_("Edit description"), lambda: self.edit_label(item))
-        menu.addAction(_("View on block explorer"), lambda: webbrowser.open(block_explorer + tx_hash))
+        menu.addAction(_("View on block explorer"), lambda: webbrowser.open(tx_URL))
         menu.exec_(self.viewport().mapToGlobal(position))
 

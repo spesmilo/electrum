@@ -18,6 +18,7 @@
 
 import sys, time, re, threading
 from electrum_ltc.i18n import _, set_language
+from electrum_ltc.util import block_explorer, block_explorer_info, block_explorer_URL
 from electrum_ltc.util import print_error, print_msg
 import os.path, json, ast, traceback
 import shutil
@@ -1406,6 +1407,9 @@ class ElectrumWindow(QMainWindow):
                 menu.addAction(_("Encrypt/decrypt message"), lambda: self.encrypt_message(addr))
             if self.wallet.is_imported(addr):
                 menu.addAction(_("Remove from wallet"), lambda: self.delete_imported_key(addr))
+            addr_URL = block_explorer_URL(self.config, 'addr', addr)
+            if addr_URL:
+                menu.addAction(_("View on block explorer"), lambda: webbrowser.open(addr_URL))
 
         if any(addr not in self.wallet.frozen_addresses for addr in addrs):
             menu.addAction(_("Freeze"), lambda: self.set_addrs_frozen(addrs, True))
@@ -1713,15 +1717,15 @@ class ElectrumWindow(QMainWindow):
     def do_search(self, t):
         i = self.tabs.currentIndex()
         if i == 0:
-            self.history_list.filter(t, 2)
+            self.history_list.filter(t, [1, 2, 3])  # Date, Description, Amount
         elif i == 1:
-            self.invoices_list.filter(t, 2)
+            self.invoices_list.filter(t, [0, 1, 2, 3]) # Date, Requestor, Description, Amount
         elif i == 2:
-            self.receive_list.filter(t, 3)
+            self.receive_list.filter(t, [0, 1, 2, 3, 4]) # Date, Account, Address, Description, Amount
         elif i == 3:
-            self.address_list.filter(t, 1)
+            self.address_list.filter(t, [0,1, 2])  # Address, Label, Balance
         elif i == 4:
-            self.contacts_list.filter(t, 0)
+            self.contacts_list.filter(t, [0, 1])  # Key, Value
 
 
     def new_contact_dialog(self):
@@ -2566,11 +2570,11 @@ class ElectrumWindow(QMainWindow):
         unit_combo.currentIndexChanged.connect(on_unit)
         widgets.append((unit_label, unit_combo, unit_help))
 
-        block_explorers = ['explorer.litecoin.net', 'block-explorer.com', 'Blockr.io', 'SoChain']
+        block_explorers = sorted(block_explorer_info.keys())
         block_ex_label = QLabel(_('Online Block Explorer') + ':')
         block_ex_combo = QComboBox()
         block_ex_combo.addItems(block_explorers)
-        block_ex_combo.setCurrentIndex(block_explorers.index(self.config.get('block_explorer', 'explorer.litecoin.net')))
+        block_ex_combo.setCurrentIndex(block_explorers.index(block_explorer(self.config)))
         block_ex_help = HelpButton(_('Choose which online block explorer to use for functions that open a web browser'))
         def on_be(x):
             be_result = block_explorers[block_ex_combo.currentIndex()]
