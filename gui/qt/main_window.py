@@ -214,8 +214,12 @@ class ElectrumWindow(QMainWindow):
         title = 'Electrum ' + self.wallet.electrum_version + '  -  ' + os.path.basename(self.wallet.storage.path)
         if self.wallet.is_watching_only(): title += ' [%s]' % (_('watching only'))
         self.setWindowTitle( title )
-        self.update_history_tab()
-        self.update_wallet()
+        # The history tab is a little slow to redraw so we try to
+        # avoid redundant refreshes.  Schedule a wallet_update() to
+        # ensure we do at least one.  It normally merges with the
+        # first timer-generated update to give a single redraw.
+        self.updated_history_tab = False
+        self.need_update.set()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         self.notify_transactions()
         self.update_account_selector()
@@ -550,6 +554,9 @@ class ElectrumWindow(QMainWindow):
         self.update_status()
         if self.wallet.up_to_date or not self.network or not self.network.is_connected():
             self.update_tabs()
+        # In case nothing has updated the history tab yet
+        if not self.updated_history_tab:
+            self.update_history_tab()
 
     def update_tabs(self):
         self.update_history_tab()
@@ -578,6 +585,7 @@ class ElectrumWindow(QMainWindow):
         domain = self.wallet.get_account_addresses(self.current_account)
         h = self.wallet.get_history(domain)
         self.history_list.update(h)
+        self.updated_history_tab = True
 
     def create_receive_tab(self):
 
