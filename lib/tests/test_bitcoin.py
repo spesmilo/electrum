@@ -11,61 +11,81 @@ from lib.bitcoin import (
 try:
     import ecdsa
 except ImportError:
-    sys.exit("Error: python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'")
+    sys.exit("Error: python-ecdsa does not seem to be installed. "
+             "Try 'sudo pip install ecdsa'")
 
 
 class Test_bitcoin(unittest.TestCase):
 
     def test_crypto(self):
-        for message in ["Chancellor on brink of second bailout for banks", chr(255)*512]:
+        for message in ["Chancellor on brink of second bailout for banks",
+                        chr(255)*512]:
             self._do_test_crypto(message)
 
     def _do_test_crypto(self, message):
         G = generator_secp256k1
-        _r  = G.order()
-        pvk = ecdsa.util.randrange( pow(2,256) ) %_r
+        _r = G.order()
+        pvk = ecdsa.util.randrange(pow(2, 256)) % _r
 
         Pub = pvk*G
-        pubkey_c = point_to_ser(Pub,True)
-        #pubkey_u = point_to_ser(Pub,False)
+        pubkey_c = point_to_ser(Pub, True)
+        # pubkey_u = point_to_ser(Pub,False)
         addr_c = public_key_to_bc_address(pubkey_c)
-        #addr_u = public_key_to_bc_address(pubkey_u)
+        # addr_u = public_key_to_bc_address(pubkey_u)
 
-        #print "Private key            ", '%064x'%pvk
-        eck = EC_KEY(number_to_string(pvk,_r))
+        # print "Private key            ", '%064x'%pvk
+        eck = EC_KEY(number_to_string(pvk, _r))
 
-        #print "Compressed public key  ", pubkey_c.encode('hex')
+        # print "Compressed public key  ", pubkey_c.encode('hex')
         enc = EC_KEY.encrypt_message(message, pubkey_c)
         dec = eck.decrypt_message(enc)
         assert dec == message
 
-        #print "Uncompressed public key", pubkey_u.encode('hex')
-        #enc2 = EC_KEY.encrypt_message(message, pubkey_u)
+        # print "Uncompressed public key", pubkey_u.encode('hex')
+        # enc2 = EC_KEY.encrypt_message(message, pubkey_u)
         dec2 = eck.decrypt_message(enc)
         assert dec2 == message
 
         signature = eck.sign_message(message, True, addr_c)
-        #print signature
+        # print signature
         EC_KEY.verify_message(addr_c, signature, message)
 
     def test_bip32(self):
         # see https://en.bitcoin.it/wiki/BIP_0032_TestVectors
-        xpub, xprv = self._do_test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000", testnet=False)
-        assert xpub == "xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy"
-        assert xprv == "xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76"
+        xpub, xprv = self._do_test_bip32(
+            "000102030405060708090a0b0c0d0e0f",
+            "m/0'/1/2'/2/1000000000", testnet=False)
+        assert (xpub == "xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA"
+                "8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy")
+        assert (xprv == "xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze"
+                "1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76")
 
-        xpub, xprv = self._do_test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","m/0/2147483647'/1/2147483646'/2", testnet=False)
-        assert xpub == "xpub6FnCn6nSzZAw5Tw7cgR9bi15UV96gLZhjDstkXXxvCLsUXBGXPdSnLFbdpq8p9HmGsApME5hQTZ3emM2rnY5agb9rXpVGyy3bdW6EEgAtqt"
-        assert xprv == "xprvA2nrNbFZABcdryreWet9Ea4LvTJcGsqrMzxHx98MMrotbir7yrKCEXw7nadnHM8Dq38EGfSh6dqA9QWTyefMLEcBYJUuekgW4BYPJcr9E7j"
+        xpub, xprv = self._do_test_bip32(
+            "fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a2"
+            "9f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542",
+            "m/0/2147483647'/1/2147483646'/2", testnet=False)
+        assert (xpub == "xpub6FnCn6nSzZAw5Tw7cgR9bi15UV96gLZhjDstkXXxvCLsUXBG"
+                "XPdSnLFbdpq8p9HmGsApME5hQTZ3emM2rnY5agb9rXpVGyy3bdW6EEgAtqt")
+        assert (xprv == "xprvA2nrNbFZABcdryreWet9Ea4LvTJcGsqrMzxHx98MMrotbir7"
+                "yrKCEXw7nadnHM8Dq38EGfSh6dqA9QWTyefMLEcBYJUuekgW4BYPJcr9E7j")
 
     def test_bip32_testnet(self):
-        xpub, xprv = self._do_test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000", testnet=True)
-        assert xpub == "tpubDHNy3kAG39ThyiwwsgoKY4iRenXDRtce8qdCFJZXPMCJg5dsCUHayp84raLTpvyiNA9sXPob5rgqkKvkN8S7MMyXbnEhGJMW64Cf4vFAoaF"
-        assert xprv == "tprv8kgvuL81tmn36Fv9z38j8f4K5m1HGZRjZY2QxnXDy5PuqbP6a5TzoKWCgTcGHBu66W3TgSbAu2yX6sPza5FkHmy564Sh6gmCPUNeUt4yj2x"
+        xpub, xprv = self._do_test_bip32(
+            "000102030405060708090a0b0c0d0e0f",
+            "m/0'/1/2'/2/1000000000", testnet=True)
+        assert (xpub == "tpubDHNy3kAG39ThyiwwsgoKY4iRenXDRtce8qdCFJZXPMCJg5d"
+                "sCUHayp84raLTpvyiNA9sXPob5rgqkKvkN8S7MMyXbnEhGJMW64Cf4vFAoaF")
+        assert (xprv == "tprv8kgvuL81tmn36Fv9z38j8f4K5m1HGZRjZY2QxnXDy5PuqbP"
+                "6a5TzoKWCgTcGHBu66W3TgSbAu2yX6sPza5FkHmy564Sh6gmCPUNeUt4yj2x")
 
-        xpub, xprv = self._do_test_bip32("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542","m/0/2147483647'/1/2147483646'/2", testnet=True)
-        assert xpub == "tpubDG9qJLc8hq8PMG7y4sQEodLSocEkfj4mGrUC75b7G76mDoqybcUXvmvRsruvLeF14mhixobZwZP6LwqeFePKU83Sv8ZnxWdHBb6VzE6zbvC"
-        assert xprv == "tprv8jTo9vZtZTSiTo6BBDjeQDgLEaipWPsrhYsQpZYoqqJNPKbCyDewkHJZhkoSHiWYCUf1Gm4TFzQxcG4D6s1J9Hsn4whDK7QYyHHokJeUuac"
+        xpub, xprv = self._do_test_bip32(
+            "fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a2"
+            "9f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542",
+            "m/0/2147483647'/1/2147483646'/2", testnet=True)
+        assert (xpub == "tpubDG9qJLc8hq8PMG7y4sQEodLSocEkfj4mGrUC75b7G76mDoqy"
+                "bcUXvmvRsruvLeF14mhixobZwZP6LwqeFePKU83Sv8ZnxWdHBb6VzE6zbvC")
+        assert (xprv == "tprv8jTo9vZtZTSiTo6BBDjeQDgLEaipWPsrhYsQpZYoqqJNPKbC"
+                "yDewkHJZhkoSHiWYCUf1Gm4TFzQxcG4D6s1J9Hsn4whDK7QYyHHokJeUuac")
 
     def _do_test_bip32(self, seed, sequence, testnet):
         xprv, xpub = bip32_root(seed.decode('hex'), testnet)
@@ -75,8 +95,11 @@ class Test_bitcoin(unittest.TestCase):
         for n in sequence.split('/'):
             child_path = path + '/' + n
             if n[-1] != "'":
-                xpub2 = bip32_public_derivation(xpub, path, child_path, testnet)
-            xprv, xpub = bip32_private_derivation(xprv, path, child_path, testnet)
+                xpub2 = bip32_public_derivation(xpub, path,
+                                                child_path, testnet)
+            xprv, xpub = bip32_private_derivation(
+                xprv, path, child_path, testnet
+            )
             if n[-1] != "'":
                 assert xpub == xpub2
             path = child_path
@@ -114,24 +137,30 @@ class Test_bitcoin(unittest.TestCase):
     def test_hash(self):
         """Make sure the Hash function does sha256 twice"""
         payload = u"test"
-        expected = '\x95MZI\xfdp\xd9\xb8\xbc\xdb5\xd2R&x)\x95\x7f~\xf7\xfalt\xf8\x84\x19\xbd\xc5\xe8"\t\xf4'
+        expected = ('\x95MZI\xfdp\xd9\xb8\xbc\xdb5\xd2R&x)\x95\x7f~\xf7\xfa'
+                    'lt\xf8\x84\x19\xbd\xc5\xe8"\t\xf4')
 
         result = Hash(payload)
         self.assertEqual(expected, result)
 
     def test_xpub_from_xprv(self):
         """We can derive the xpub key from a xprv."""
-        # Taken from test vectors in https://en.bitcoin.it/wiki/BIP_0032_TestVectors
-        xpub = "xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy"
-        xprv = "xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76"
+        # Taken from test vectors in:
+        # https://en.bitcoin.it/wiki/BIP_0032_TestVectors
+        xpub = ("xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTE"
+                "cYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy")
+        xprv = ("xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8k"
+                "mHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76")
 
         result = xpub_from_xprv(xprv)
         self.assertEqual(result, xpub)
 
     def test_xpub_from_xprv_testnet(self):
         """We can derive the xpub key from a xprv using testnet headers."""
-        xpub = "tpubDHNy3kAG39ThyiwwsgoKY4iRenXDRtce8qdCFJZXPMCJg5dsCUHayp84raLTpvyiNA9sXPob5rgqkKvkN8S7MMyXbnEhGJMW64Cf4vFAoaF"
-        xprv = "tprv8kgvuL81tmn36Fv9z38j8f4K5m1HGZRjZY2QxnXDy5PuqbP6a5TzoKWCgTcGHBu66W3TgSbAu2yX6sPza5FkHmy564Sh6gmCPUNeUt4yj2x"
+        xpub = ("tpubDHNy3kAG39ThyiwwsgoKY4iRenXDRtce8qdCFJZXPMCJg5dsCUHayp8"
+                "4raLTpvyiNA9sXPob5rgqkKvkN8S7MMyXbnEhGJMW64Cf4vFAoaF")
+        xprv = ("tprv8kgvuL81tmn36Fv9z38j8f4K5m1HGZRjZY2QxnXDy5PuqbP6a5TzoKW"
+                "CgTcGHBu66W3TgSbAu2yX6sPza5FkHmy564Sh6gmCPUNeUt4yj2x")
         result = xpub_from_xprv(xprv, testnet=True)
         self.assertEqual(result, xpub)
 
@@ -141,7 +170,8 @@ class Test_keyImport(unittest.TestCase):
         https://en.bitcoin.it/wiki/BIP_0032_TestVectors"""
 
     private_key = "L52XzL2cMkHxqxBXRyEpnPQZGUs3uKiL3R11XbAdHigRzDozKZeW"
-    public_key_hex = "0339a36013301597daef41fbe593a02cc513d0b55527ec2df1050e2e8ff49c85c2"
+    public_key_hex = ("0339a36013301597daef41fbe593a02cc513d0b55527ec2df1050"
+                      "e2e8ff49c85c2")
     main_address = "15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma"
 
     def test_public_key_from_private_key(self):
@@ -159,5 +189,3 @@ class Test_keyImport(unittest.TestCase):
     def test_is_private_key(self):
         self.assertTrue(is_private_key(self.private_key))
         self.assertFalse(is_private_key(self.public_key_hex))
-
-
