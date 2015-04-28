@@ -3,7 +3,7 @@ from PyQt4.QtCore import *
 
 import datetime
 import decimal
-import httplib
+import requests
 import json
 import threading
 import time
@@ -22,6 +22,7 @@ EXCHANGES = ["Bit2C",
              "Bitfinex",
              "BTC-e",
              "BTCChina",
+             "CaVirtEx",
              "GoCoin",
              "HitBTC",
              "Kraken",
@@ -50,41 +51,9 @@ class Exchanger(threading.Thread):
         self.is_running = False
 
     def get_json(self, site, get_string):
-        try:
-            connection = httplib.HTTPSConnection(site)
-            connection.request("GET", get_string, headers={"User-Agent":"Electrum"})
-        except Exception:
-            raise
-        resp = connection.getresponse()
-        if resp.reason == httplib.responses[httplib.NOT_FOUND]:
-            raise
-        try:
-            json_resp = json.loads(resp.read())
-        except Exception:
-            raise
-        return json_resp
+        resp = requests.request('GET', 'https://' + site + get_string, verify=False, headers={"User-Agent":"Electrum"})
+        return resp.json()
         
-    def get_json_insecure(self, site, get_string):
-        """ get_json_insecure shouldn't be used in production releases
-        It doesn't use SSL, and so prices could be manipulated by a middle man
-        This should be used ONLY when developing plugins when you don't have a
-        SSL certificate that validates against HTTPSConnection
-        """
-        try:
-            connection = httplib.HTTPConnection(site)
-            connection.request("GET", get_string, headers={"User-Agent":"Electrum"})
-        except Exception:
-            raise
-        resp = connection.getresponse()
-        if resp.reason == httplib.responses[httplib.NOT_FOUND]:
-            raise
-        try:
-            json_resp = json.loads(resp.read())
-        except Exception:
-            raise
-        return json_resp
-
-
     def exchange(self, btc_amount, quote_currency):
         with self.lock:
             if self.quote_currencies is None:
@@ -92,7 +61,7 @@ class Exchanger(threading.Thread):
             quote_currencies = self.quote_currencies.copy()
         if quote_currency not in quote_currencies:
             return None
-        return btc_amount * decimal.Decimal(str(quote_currencies[quote_currency]))
+        return btc_amount * Decimal(str(quote_currencies[quote_currency]))
 
     def stop(self):
         self.is_running = False
@@ -105,15 +74,20 @@ class Exchanger(threading.Thread):
             "Bitfinex": self.update_bf,
             "BTC-e": self.update_be,
             "BTCChina": self.update_CNY,
+            "CaVirtEx": self.update_cv,
             "GoCoin": self.update_gc,
             "HitBTC": self.update_hb,
             "Kraken": self.update_kk,
             "OKCoin": self.update_ok,
         }
         try:
-            update_rates[self.use_exchange]()
-        except KeyError:
-            return
+            rates = update_rates[self.use_exchange]()
+        except Exception as e:
+            self.parent.print_error(e)
+            rates = {}
+        with self.lock:
+            self.quote_currencies = rates
+            self.parent.set_currencies(rates)
 
     def run(self):
         self.is_running = True
@@ -124,151 +98,60 @@ class Exchanger(threading.Thread):
 
 
     def update_b2c(self):
-        quote_currencies = {"NIS": 0.0}
-        for cur in quote_currencies:
-            try:
-                quote_currencies[cur] = self.get_json('www.bit2c.co.il', "/Exchanges/LTC" + cur + "/Ticker.json")["ll"]
-            except SSLError:
-                print("SSL Error when accesing Bit2C")
-                return
-            except Exception:
-                return
-        with self.lock:
-            self.quote_currencies = quote_currencies
-        self.parent.set_currencies(quote_currencies)
+        jsonresp = self.get_json('www.bit2c.co.il', "/Exchanges/LTCNIS/Ticker.json")
+        return {"NIS": Decimal(str(jsonresp["ll"]))}
 
     def update_bv(self):
-        try:
-            jsonresp = self.get_json('api.bitcoinvenezuela.com', "/")
-        except SSLError:
-            print("SSL Error when accesing BitcoinVenezuela")
-            return
-        except Exception:
-            return
-        quote_currencies = {}
-        try:
-            for r in jsonresp["LTC"]:
-                quote_currencies[r] = Decimal(jsonresp["LTC"][r])
-            with self.lock:
-                self.quote_currencies = quote_currencies
-        except KeyError:
-            pass
-        self.parent.set_currencies(quote_currencies)
+        jsonresp = self.get_json('api.bitcoinvenezuela.com', "/")
+        return dict([(r, Decimal(jsonresp["LTC"][r])) for r in jsonresp["LTC"]])
 
     def update_bf(self):
-        quote_currencies = {"USD": 0.0}
-        for cur in quote_currencies:
-            try:
-                quote_currencies[cur] = self.get_json('api.bitfinex.com', "/v1/pubticker/ltc" + cur.lower())["last_price"]
-            except SSLError:
-                print("SSL Error when accesing Bitfinex")
-                return
-            except Exception:
-                return
-        with self.lock:
-            self.quote_currencies = quote_currencies
-        self.parent.set_currencies(quote_currencies)
+        jsonresp = self.get_json('api.bitfinex.com', "/v1/pubticker/ltcusd")
+        return {"USD": Decimal(jsonresp["last_price"])}
 
     def update_be(self):
         quote_currencies = {"CNH": 0.0, "EUR": 0.0, "GBP": 0.0, "RUR": 0.0, "USD": 0.0}
+        jsonresp = self.get_json('btc-e.com', "/api/3/ticker/" + ('-'.join(['ltc_'+c.lower() for c in quote_currencies])))
         for cur in quote_currencies:
-            try:
-                quote_currencies[cur] = self.get_json('btc-e.com', "/api/2/ltc_" + cur.lower() + "/ticker")["ticker"]["last"]
-            except SSLError:
-                print("SSL Error when accesing BTC-e")
-                return
-            except Exception:
-                return
-        with self.lock:
-            self.quote_currencies = quote_currencies
-        self.parent.set_currencies(quote_currencies)
+            quote_currencies[cur] = Decimal(str(jsonresp['ltc_'+cur.lower()]["last"]))
+        return quote_currencies
+
+    def update_cv(self):
+        jsonresp = self.get_json('www.cavirtex.com', "/api2/ticker.json?currencypair=LTCCAD")
+        cadprice = jsonresp["ticker"]["LTCCAD"]["last"]
+        return {"CAD": Decimal(str(cadprice))}
 
     def update_CNY(self):
-        try:
-            jsonresp = self.get_json('data.btcchina.com', "/data/ticker?market=ltccny")
-        except SSLError:
-            print("SSL Error when accesing BTCChina")
-            return
-        except Exception:
-            return
-        quote_currencies = {"CNY": 0.0}
+        jsonresp = self.get_json('data.btcchina.com', "/data/ticker?market=ltccny")
         cnyprice = jsonresp["ticker"]["last"]
-        try:
-            quote_currencies["CNY"] = decimal.Decimal(str(cnyprice))
-            with self.lock:
-                self.quote_currencies = quote_currencies
-        except KeyError:
-            pass
-        self.parent.set_currencies(quote_currencies)
+        return {"CNY": Decimal(str(cnyprice))}
 
     def update_gc(self):
-        try:
-            jsonresp = self.get_json('x.g0cn.com', "/prices")
-        except SSLError:
-            print("SSL Error when accesing GoCoin")
-            return
-        except Exception:
-            return
+        jsonresp = self.get_json('x.g0cn.com', "/prices")
         quote_currencies = {}
-        try:
-            for r in jsonresp["prices"]["LTC"]:
-                quote_currencies[r] = Decimal(jsonresp["prices"]["LTC"][r])
-            with self.lock:
-                self.quote_currencies = quote_currencies
-        except KeyError:
-            pass
-        self.parent.set_currencies(quote_currencies)
+        for r in jsonresp["prices"]["LTC"]:
+            quote_currencies[r] = Decimal(jsonresp["prices"]["LTC"][r])
+        return quote_currencies
 
     def update_hb(self):
         quote_currencies = {"EUR": 0.0, "USD": 0.0}
         for cur in quote_currencies:
-            try:
-                quote_currencies[cur] = self.get_json('api.hitbtc.com', "/api/1/public/LTC" + cur + "/ticker")["last"]
-            except SSLError:
-                print("SSL Error when accesing HitBTC")
-                return
-            except Exception:
-                return
-        with self.lock:
-            self.quote_currencies = quote_currencies
-        self.parent.set_currencies(quote_currencies)
+            quote_currencies[cur] = Decimal(str(self.get_json('api.hitbtc.com', "/api/1/public/LTC" + cur + "/ticker")["last"]))
+        return quote_currencies
 
     def update_kk(self):
-        try:
-            resp_currencies = self.get_json('api.kraken.com', "/0/public/AssetPairs")["result"]
-            pairs = ','.join([k for k in resp_currencies if k.startswith("XLTCZ")])
-            resp_rate = self.get_json('api.kraken.com', "/0/public/Ticker?pair=" + pairs)["result"]
-        except SSLError:
-            print("SSL Error when accesing Kraken")
-            return
-        except Exception:
-            return
+        resp_currencies = self.get_json('api.kraken.com', "/0/public/AssetPairs")["result"]
+        pairs = ','.join([k for k in resp_currencies if k.startswith("XLTCZ")])
+        resp_rate = self.get_json('api.kraken.com', "/0/public/Ticker?pair=" + pairs)["result"]
         quote_currencies = {}
         for cur in resp_rate:
-            quote_currencies[cur[5:]] = resp_rate[cur]["c"][0]
-        with self.lock:
-            self.quote_currencies = quote_currencies
-        self.parent.set_currencies(quote_currencies)
+            quote_currencies[cur[5:]] = Decimal(str(resp_rate[cur]["c"][0]))
+        return quote_currencies
 
     def update_ok(self):
-        try:
-            jsonresp = self.get_json('www.okcoin.cn', "/api/ticker.do?symbol=ltc_cny")
-        except SSLError:
-            print("SSL Error when accesing OKCoin")
-            return
-        except Exception:
-            return
-        quote_currencies = {"CNY": 0.0}
+        jsonresp = self.get_json('www.okcoin.cn', "/api/ticker.do?symbol=ltc_cny")
         cnyprice = jsonresp["ticker"]["last"]
-        try:
-            quote_currencies["CNY"] = decimal.Decimal(str(cnyprice))
-            with self.lock:
-                self.quote_currencies = quote_currencies
-        except KeyError:
-            print ("KeyError")
-        self.parent.set_currencies(quote_currencies)
-
-
+        return {"CNY": Decimal(str(cnyprice))}
 
 
 class Plugin(BasePlugin):
