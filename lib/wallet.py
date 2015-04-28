@@ -109,6 +109,9 @@ class WalletStorage(object):
                 self.data[key] = value
         self.file_exists = True
 
+    def basename(self):
+        return os.path.basename(self.path)
+
     def get(self, key, default=None):
         with self.lock:
             v = self.data.get(key)
@@ -230,6 +233,15 @@ class Abstract_Wallet(object):
     # wizard action
     def get_action(self):
         pass
+
+    def basename(self):
+        return self.storage.basename()
+
+    def title(self):
+        s = 'Electrum %s  -  %s' % (self.electrum_version, self.basename())
+        if self.is_watching_only():
+            s += ' [%s]' % (_('watching only'))
+        return s
 
     def convert_imported_keys(self, password):
         for k, v in self.imported_keys.items():
