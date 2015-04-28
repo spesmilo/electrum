@@ -237,12 +237,6 @@ class Abstract_Wallet(object):
     def basename(self):
         return self.storage.basename()
 
-    def title(self):
-        s = 'Electrum %s  -  %s' % (self.electrum_version, self.basename())
-        if self.is_watching_only():
-            s += ' [%s]' % (_('watching only'))
-        return s
-
     def convert_imported_keys(self, password):
         for k, v in self.imported_keys.items():
             sec = pw_decode(v, password)

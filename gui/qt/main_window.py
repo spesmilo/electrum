@@ -200,6 +200,12 @@ class ElectrumWindow(QMainWindow):
         self.wallet.stop_threads()
         run_hook('close_wallet')
 
+    def title(self):
+        s = 'Electrum %s  -  %s' % (self.wallet.electrum_version, self.wallet.basename())
+        if self.wallet.is_watching_only():
+            s += ' [%s]' % (_('watching only'))
+        return s
+
     def load_wallet(self, wallet):
         import electrum
         self.wallet = wallet
@@ -211,7 +217,7 @@ class ElectrumWindow(QMainWindow):
         self.dummy_address = a[0] if a else None
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
-        self.setWindowTitle( self.wallet.title() )
+        self.setWindowTitle( self.title() )
         self.update_history_tab()
         self.update_wallet()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
