@@ -138,88 +138,55 @@ class Exchanger(threading.Thread):
 
     def update_wd(self):
         winkresp = self.get_json('winkdex.com', "/api/v0/price")
-        quote_currencies = {"USD": 0.0}
-        usdprice = decimal.Decimal(str(winkresp["price"]))/decimal.Decimal("100.0")
-        quote_currencies["USD"] = usdprice
-        return quote_currencies
+        return {"USD": decimal.Decimal(str(winkresp["price"]))/decimal.Decimal("100.0")}
 
     def update_cv(self):
         jsonresp = self.get_json('www.cavirtex.com', "/api/CAD/ticker.json")
-        quote_currencies = {"CAD": 0.0}
         cadprice = jsonresp["last"]
-        quote_currencies["CAD"] = decimal.Decimal(str(cadprice))
-        return quote_currencies
+        return {"CAD": decimal.Decimal(str(cadprice))}
 
     def update_bm(self):
         jsonresp = self.get_json('www.bitmarket.pl', "/json/BTCPLN/ticker.json")
-        quote_currencies = {"PLN": 0.0}
         pln_price = jsonresp["last"]
-        quote_currencies["PLN"] = decimal.Decimal(str(pln_price))
-        return quote_currencies
+        return {"PLN": decimal.Decimal(str(pln_price))}
 
     def update_bx(self):
         jsonresp = self.get_json('pln.bitcurex.com', "/data/ticker.json")
-        quote_currencies = {"PLN": 0.0}
         pln_price = jsonresp["last"]
-        quote_currencies["PLN"] = decimal.Decimal(str(pln_price))
-        return quote_currencies
+        return {"PLN": decimal.Decimal(str(pln_price))}
 
     def update_CNY(self):
         jsonresp = self.get_json('data.btcchina.com', "/data/ticker")
-        quote_currencies = {"CNY": 0.0}
         cnyprice = jsonresp["ticker"]["last"]
-        quote_currencies["CNY"] = decimal.Decimal(str(cnyprice))
-        return quote_currencies
+        return {"CNY": decimal.Decimal(str(cnyprice))}
 
     def update_bp(self):
         jsonresp = self.get_json('bitpay.com', "/api/rates")
-        quote_currencies = {}
-        for r in jsonresp:
-            quote_currencies[str(r["code"])] = decimal.Decimal(r["rate"])
-        return quote_currencies
+        return dict([(str(r["code"]), decimal.Decimal(r["rate"])) for r in jsonresp])
 
     def update_cb(self):
         jsonresp = self.get_json('coinbase.com', "/api/v1/currencies/exchange_rates")
-        quote_currencies = {}
-        for r in jsonresp:
-            if r[:7] == "btc_to_":
-                quote_currencies[r[7:].upper()] = self._lookup_rate_cb(jsonresp, r)
-        return quote_currencies
+        return dict([(r[7:].upper(), self._lookup_rate_cb(jsonresp, r)) for r in jsonresp if r.startswith("btc_to_")])
 
     def update_bc(self):
         jsonresp = self.get_json('blockchain.info', "/ticker")
-        quote_currencies = {}
-        for r in jsonresp:
-            quote_currencies[r] = self._lookup_rate(jsonresp, r)
-        return quote_currencies
+        return dict([(r, self._lookup_rate(jsonresp, r)) for r in jsonresp])
 
     def update_lb(self):
         jsonresp = self.get_json('localbitcoins.com', "/bitcoinaverage/ticker-all-currencies/")
-        quote_currencies = {}
-        for r in jsonresp:
-            quote_currencies[r] = self._lookup_rate_lb(jsonresp, r)
-        return quote_currencies
+        return dict([(r, self._lookup_rate_lb(jsonresp, r)) for r in jsonresp])
 
     def update_bv(self):
         jsonresp = self.get_json('api.bitcoinvenezuela.com', "/")
-        quote_currencies = {}
-        for r in jsonresp["BTC"]:
-            quote_currencies[r] = Decimal(jsonresp["BTC"][r])
-        return quote_currencies
+        return dict([(r, Decimal(jsonresp["BTC"][r])) for r in jsonresp["BTC"]])
 
     def update_bpl(self):
         jsonresp = self.get_json('btcparalelo.com', "/api/price")
-        quote_currencies = {}
-        quote_currencies = {"VEF": Decimal(jsonresp["price"])}
-        return quote_currencies
+        return {"VEF": Decimal(jsonresp["price"])}
 
     def update_ba(self):
         jsonresp = self.get_json('api.bitcoinaverage.com', "/ticker/global/all")
-        quote_currencies = {}
-        for r in jsonresp:
-            if not r == "timestamp":
-                quote_currencies[r] = self._lookup_rate_ba(jsonresp, r)
-        return quote_currencies
+        return dict([(r, self._lookup_rate_ba(jsonresp, r)) for r in jsonresp if not r == "timestamp"])
 
     def _lookup_rate(self, response, quote_id):
         return decimal.Decimal(str(response[str(quote_id)]["15m"]))
