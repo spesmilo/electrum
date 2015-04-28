@@ -343,7 +343,7 @@ class Commands:
         balance = 0
         out = []
         for item in self.wallet.get_history():
-            tx_hash, conf, is_mine, value, fee, balance, timestamp = item
+            tx_hash, conf, value, timestamp, balance = item
             try:
                 time_str = datetime.datetime.fromtimestamp( timestamp).isoformat(' ')[:-3]
             except Exception:
