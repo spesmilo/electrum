@@ -74,7 +74,7 @@ class Exchanger(threading.Thread):
             quote_currencies = self.quote_currencies.copy()
         if quote_currency not in quote_currencies:
             return None
-        return btc_amount * decimal.Decimal(str(quote_currencies[quote_currency]))
+        return btc_amount * Decimal(str(quote_currencies[quote_currency]))
 
     def stop(self):
         self.is_running = False
@@ -122,7 +122,7 @@ class Exchanger(threading.Thread):
         current_cur = self.parent.config.get("currency", "EUR")
         if current_cur in quote_currencies:
             resp_rate = self.get_json('api.coindesk.com', "/v1/bpi/currentprice/" + str(current_cur) + ".json")
-            quote_currencies[str(current_cur)] = decimal.Decimal(str(resp_rate["bpi"][str(current_cur)]["rate_float"]))
+            quote_currencies[str(current_cur)] = Decimal(str(resp_rate["bpi"][str(current_cur)]["rate_float"]))
         return quote_currencies
 
     def update_ib(self):
@@ -133,36 +133,36 @@ class Exchanger(threading.Thread):
         current_cur = self.parent.config.get("currency", "EUR")
         if current_cur in available_currencies:
             resp_rate = self.get_json('api.itbit.com', "/v1/markets/XBT" + str(current_cur) + "/ticker")
-            quote_currencies[str(current_cur)] = decimal.Decimal(str(resp_rate["lastPrice"]))
+            quote_currencies[str(current_cur)] = Decimal(str(resp_rate["lastPrice"]))
         return quote_currencies
 
     def update_wd(self):
         winkresp = self.get_json('winkdex.com', "/api/v0/price")
-        return {"USD": decimal.Decimal(str(winkresp["price"]))/decimal.Decimal("100.0")}
+        return {"USD": Decimal(str(winkresp["price"]))/Decimal("100.0")}
 
     def update_cv(self):
         jsonresp = self.get_json('www.cavirtex.com', "/api/CAD/ticker.json")
         cadprice = jsonresp["last"]
-        return {"CAD": decimal.Decimal(str(cadprice))}
+        return {"CAD": Decimal(str(cadprice))}
 
     def update_bm(self):
         jsonresp = self.get_json('www.bitmarket.pl', "/json/BTCPLN/ticker.json")
         pln_price = jsonresp["last"]
-        return {"PLN": decimal.Decimal(str(pln_price))}
+        return {"PLN": Decimal(str(pln_price))}
 
     def update_bx(self):
         jsonresp = self.get_json('pln.bitcurex.com', "/data/ticker.json")
         pln_price = jsonresp["last"]
-        return {"PLN": decimal.Decimal(str(pln_price))}
+        return {"PLN": Decimal(str(pln_price))}
 
     def update_CNY(self):
         jsonresp = self.get_json('data.btcchina.com', "/data/ticker")
         cnyprice = jsonresp["ticker"]["last"]
-        return {"CNY": decimal.Decimal(str(cnyprice))}
+        return {"CNY": Decimal(str(cnyprice))}
 
     def update_bp(self):
         jsonresp = self.get_json('bitpay.com', "/api/rates")
-        return dict([(str(r["code"]), decimal.Decimal(r["rate"])) for r in jsonresp])
+        return dict([(str(r["code"]), Decimal(r["rate"])) for r in jsonresp])
 
     def update_cb(self):
         jsonresp = self.get_json('coinbase.com', "/api/v1/currencies/exchange_rates")
