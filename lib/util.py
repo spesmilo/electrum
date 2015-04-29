@@ -110,12 +110,12 @@ def user_dir():
 def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespaces=False):
     from locale import localeconv
     x = int(x)  # Some callers pass Decimal
-    if is_diff:
-        fmt = "{:+n}"
-    else:
-        fmt = "{:n}"
     scale_factor = pow (10, decimal_point)
-    integer_part = fmt.format(int(x / float(scale_factor)))
+    integer_part = "{:n}".format(int(abs(x) / float(scale_factor)))
+    if x < 0:
+        integer_part = '-' + integer_part
+    elif is_diff:
+        integer_part = '+' + integer_part
     dp = localeconv()['decimal_point']
     fract_part = ("{:0" + str(decimal_point) + "}").format(abs(x) % scale_factor)
     fract_part = fract_part.rstrip('0')
