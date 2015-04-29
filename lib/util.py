@@ -108,28 +108,23 @@ def user_dir():
 
 
 def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespaces=False):
-    from decimal import Decimal
-    if x is None:
-        return 'unknown'
-    s = Decimal(x)
-    sign, digits, exp = s.as_tuple()
-    digits = map(str, digits)
-    while len(digits) < decimal_point + 1:
-        digits.insert(0,'0')
-    digits.insert(-decimal_point,'.')
-    s = ''.join(digits).rstrip('0')
-    if sign:
-        s = '-' + s
-    elif is_diff:
-        s = "+" + s
-
-    p = s.find('.')
-    s += "0"*( 1 + num_zeros - ( len(s) - p ))
+    from locale import localeconv
+    if is_diff:
+        fmt = "{:+n}"
+    else:
+        fmt = "{:n}"
+    scale_factor = pow (10, decimal_point)
+    integer_part = fmt.format(int(x / float(scale_factor)))
+    dp = localeconv()['decimal_point']
+    fract_part = ("{:0" + str(decimal_point) + "}").format(abs(x) % scale_factor)
+    fract_part = fract_part.rstrip('0')
+    if len(fract_part) < num_zeros:
+        fract_part += "0" * (num_zeros - len(fract_part))
+    result = integer_part + dp + fract_part
     if whitespaces:
-        s += " "*( 1 + decimal_point - ( len(s) - p ))
-        s = " "*( 13 - decimal_point - ( p )) + s
-    return s
-
+        result += " " * (decimal_point - len(fract_part))
+        result = " " * (17 - len(result)) + result
+    return result
 
 def format_time(timestamp):
     import datetime
