@@ -109,6 +109,7 @@ def user_dir():
 
 def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespaces=False):
     from locale import localeconv
+    x = int(x)  # Some callers pass Decimal
     if is_diff:
         fmt = "{:+n}"
     else:
