@@ -260,7 +260,7 @@ def filename_field(parent, config, defaultname, select_msg):
 
 class MyTreeWidget(QTreeWidget):
 
-    def __init__(self, parent, create_menu, headers, column_width):
+    def __init__(self, parent, create_menu, headers, stretch_column=0):
         QTreeWidget.__init__(self, parent)
         self.parent = parent
         self.setColumnCount(len(headers))
@@ -277,13 +277,9 @@ class MyTreeWidget(QTreeWidget):
         self.edit_column = None
         self.itemDoubleClicked.connect(self.edit_label)
         self.itemChanged.connect(self.label_changed)
-        # set column width
-        for i, width in enumerate(column_width):
-            if width is None:
-                self.header().setResizeMode(i, QHeaderView.Stretch)
-                self.edit_column = i
-            else:
-                self.setColumnWidth(i, width)
+        # stretch
+        for i in range(len(headers)):
+            self.header().setResizeMode(i, QHeaderView.Stretch if i == stretch_column else QHeaderView.ResizeToContents)
         self.setSortingEnabled(True)
 
     def on_activated(self, item):
