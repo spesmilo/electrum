@@ -216,7 +216,7 @@ class ElectrumWindow(QMainWindow):
             title += ' [%s]' % (_('watching only'))
         self.setWindowTitle( title )
         self.update_history_tab()
-        self.update_wallet()
+        self.need_update.set()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         self.notify_transactions()
         self.update_account_selector()
