@@ -28,7 +28,7 @@ from electrum.plugins import run_hook
 class HistoryWidget(MyTreeWidget):
 
     def __init__(self, parent=None):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [ '', _('Date'), _('Description') , _('Amount'), _('Balance')], [40, 140, None, 140, 140])
+        MyTreeWidget.__init__(self, parent, self.create_menu, [ '', _('Date'), _('Description') , _('Amount'), _('Balance')], 2)
         self.config = self.parent.config
         self.setSortingEnabled(False)
 
