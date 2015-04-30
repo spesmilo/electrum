@@ -109,9 +109,6 @@ class WalletStorage(object):
                 self.data[key] = value
         self.file_exists = True
 
-    def basename(self):
-        return os.path.basename(self.path)
-
     def get(self, key, default=None):
         with self.lock:
             v = self.data.get(key)
@@ -235,7 +232,7 @@ class Abstract_Wallet(object):
         pass
 
     def basename(self):
-        return self.storage.basename()
+        return os.path.basename(self.storage.path)
 
     def convert_imported_keys(self, password):
         for k, v in self.imported_keys.items():
