@@ -922,7 +922,6 @@ class ElectrumWindow(QMainWindow):
         self.fee_e = BTCAmountEdit(self.get_decimal_point)
         grid.addWidget(self.fee_e_label, 5, 0)
         grid.addWidget(self.fee_e, 5, 1, 1, 2)
-        self.update_fee_edit()
 
         self.send_button = EnterButton(_("Send"), self.do_send)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
@@ -986,6 +985,9 @@ class ElectrumWindow(QMainWindow):
         vbox.addStretch()
         vbox.addWidget(self.invoices_label)
         vbox.addWidget(self.invoices_list)
+
+        # Defer this until grid is parented to avoid ugly flash during startup
+        self.update_fee_edit()
 
         run_hook('create_send_tab', grid)
         return w
