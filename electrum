@@ -37,9 +37,6 @@ if is_local or is_android:
 elif is_bundle and sys.platform=='darwin':
     sys.path.insert(0, os.getcwd() + "/lib/python2.7/packages")
 
-import __builtin__
-__builtin__.use_local_modules = is_local or is_android
-
 # pure-python dependencies need to be imported here for pyinstaller
 try:
     import aes
