@@ -441,8 +441,6 @@ class Plugin(BasePlugin):
                 self.config.set_key('history_rates', 'unchecked')
                 self.win.history_list.setHeaderLabels( [ '', _('Date'), _('Description') , _('Amount'), _('Balance')] )
                 self.win.history_list.setColumnCount(5)
-                for i,width in enumerate(self.win.column_widths['history']):
-                    self.win.history_list.setColumnWidth(i, width)
 
         def set_hist_check(hist_checkbox):
             cur_exchange = self.config.get('use_exchange', "Blockchain")
