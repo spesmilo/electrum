@@ -241,7 +241,6 @@ class ElectrumGui:
             self.set_url(url)
 
         w.connect_slots(s)
-        w.update_wallet()
 
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())
         self.app.exec_()

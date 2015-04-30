@@ -231,6 +231,9 @@ class Abstract_Wallet(object):
     def get_action(self):
         pass
 
+    def basename(self):
+        return os.path.basename(self.storage.path)
+
     def convert_imported_keys(self, password):
         for k, v in self.imported_keys.items():
             sec = pw_decode(v, password)

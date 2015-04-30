@@ -211,11 +211,12 @@ class ElectrumWindow(QMainWindow):
         self.dummy_address = a[0] if a else None
         self.accounts_expanded = self.wallet.storage.get('accounts_expanded',{})
         self.current_account = self.wallet.storage.get("current_account", None)
-        title = 'Electrum-LTC ' + self.wallet.electrum_version + '  -  ' + os.path.basename(self.wallet.storage.path)
-        if self.wallet.is_watching_only(): title += ' [%s]' % (_('watching only'))
+        title = 'Electrum-LTC %s  -  %s' % (self.wallet.electrum_version, self.wallet.basename())
+        if self.wallet.is_watching_only():
+            title += ' [%s]' % (_('watching only'))
         self.setWindowTitle( title )
         self.update_history_tab()
-        self.update_wallet()
+        self.need_update.set()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         self.notify_transactions()
         self.update_account_selector()
@@ -536,7 +537,7 @@ class ElectrumWindow(QMainWindow):
                     text += "%s"%quote
 
                 if self.tray:
-                    self.tray.setToolTip(text)
+                    self.tray.setToolTip("%s (%s)" % (text, self.wallet.basename()))
                 icon = QIcon(":icons/status_connected.png")
         else:
             text = _("Not connected")
@@ -922,7 +923,6 @@ class ElectrumWindow(QMainWindow):
         self.fee_e = BTCAmountEdit(self.get_decimal_point)
         grid.addWidget(self.fee_e_label, 5, 0)
         grid.addWidget(self.fee_e, 5, 1, 1, 2)
-        self.update_fee_edit()
 
         self.send_button = EnterButton(_("Send"), self.do_send)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
@@ -986,6 +986,9 @@ class ElectrumWindow(QMainWindow):
         vbox.addStretch()
         vbox.addWidget(self.invoices_label)
         vbox.addWidget(self.invoices_list)
+
+        # Defer this until grid is parented to avoid ugly flash during startup
+        self.update_fee_edit()
 
         run_hook('create_send_tab', grid)
         return w

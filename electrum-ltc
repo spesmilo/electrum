@@ -29,16 +29,13 @@ import traceback
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
-is_local = not is_bundle and script_dir == os.getcwd()
+is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "setup-release.py"))
 is_android = 'ANDROID_DATA' in os.environ
 
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
 elif is_bundle and sys.platform=='darwin':
     sys.path.insert(0, os.getcwd() + "/lib/python2.7/packages")
-
-import __builtin__
-__builtin__.use_local_modules = is_local or is_android
 
 # pure-python dependencies need to be imported here for pyinstaller
 try:

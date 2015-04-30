@@ -260,7 +260,7 @@ def filename_field(parent, config, defaultname, select_msg):
 
 class MyTreeWidget(QTreeWidget):
 
-    def __init__(self, parent, create_menu, headers, stretch_column=0):
+    def __init__(self, parent, create_menu, headers, stretch_column=None):
         QTreeWidget.__init__(self, parent)
         self.parent = parent
         self.setColumnCount(len(headers))
@@ -274,7 +274,7 @@ class MyTreeWidget(QTreeWidget):
         self.insertChild = self.insertTopLevelItem
         # editable column
         self.is_edit = False
-        self.edit_column = None
+        self.edit_column = stretch_column
         self.itemDoubleClicked.connect(self.edit_label)
         self.itemChanged.connect(self.label_changed)
         # stretch
