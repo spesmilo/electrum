@@ -347,7 +347,7 @@ class Plugin(BasePlugin):
             if self.cur_exchange == "CoinDesk":
                 tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
                 try:
-                    tx_fiat_val = "%.2f %s" % (value * Decimal(self.resp_hist['bpi'][tx_time_str]), "USD")
+                    tx_fiat_val = "%.2f %s" % (tx_value * Decimal(self.resp_hist['bpi'][tx_time_str]), "USD")
                 except KeyError:
                     tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(str(tx_info['value']))/100000000 , "USD")
             elif self.cur_exchange == "Winkdex":
