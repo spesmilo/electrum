@@ -737,9 +737,9 @@ class ElectrumWindow(QMainWindow):
         message = self.wallet.labels.get(addr, '')
         script = Transaction.pay_script('address', addr).decode('hex')
         outputs = [(script, amount)]
-        cert_path = self.config.get('cert_path')
-        chain_path = self.config.get('chain_path')
-        return make_payment_request(outputs, message, time, time + expiration, cert_path, chain_path)
+        key_path = self.config.get('ssl_key_path')
+        cert_path = self.config.get('ssl_cert_path')
+        return make_payment_request(outputs, message, time, time + expiration, key_path, cert_path)
 
     def export_payment_request(self, addr):
         pr = self.make_payment_request(addr)

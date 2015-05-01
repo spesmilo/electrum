@@ -328,7 +328,7 @@ class Plugin(BasePlugin):
             if self.cur_exchange == "CoinDesk":
                 tx_time_str = datetime.datetime.fromtimestamp(tx_time).strftime('%Y-%m-%d')
                 try:
-                    tx_fiat_val = "%.2f %s" % (value * Decimal(self.resp_hist['bpi'][tx_time_str]), "USD")
+                    tx_fiat_val = "%.2f %s" % (tx_value * Decimal(self.resp_hist['bpi'][tx_time_str]), "USD")
                 except KeyError:
                     tx_fiat_val = "%.2f %s" % (self.btc_rate * Decimal(str(tx_info['value']))/100000000 , "USD")
             elif self.cur_exchange == "Winkdex":
@@ -428,8 +428,6 @@ class Plugin(BasePlugin):
                 self.config.set_key('history_rates', 'unchecked')
                 self.win.history_list.setHeaderLabels( [ '', _('Date'), _('Description') , _('Amount'), _('Balance')] )
                 self.win.history_list.setColumnCount(5)
-                for i,width in enumerate(self.win.column_widths['history']):
-                    self.win.history_list.setColumnWidth(i, width)
 
         def set_hist_check(hist_checkbox):
             cur_exchange = self.config.get('use_exchange', "BTC-e")
