@@ -462,7 +462,11 @@ class Abstract_Wallet(object):
                 fee = v_out - v_in
         return is_relevant, is_send, v, fee
 
-    def get_addr_utxo(self, address):
+    # Returns all the unspent TXOs of an address. Unconfirmed receipts are always
+    # included; unconfirmed spends are included only if UNCONFIRMED_SPENDS is True
+    # When creating a new txn exclude unconfirmed spends to avoid double spending
+    # When calculating balance information both should be included for consistency
+    def get_addr_utxo(self, address, unconfirmed_spends):
         h = self.history.get(address, [])
         coins = {}
         for tx_hash, height in h:
@@ -470,6 +474,8 @@ class Abstract_Wallet(object):
             for n, v, is_cb in l:
                 coins[tx_hash + ':%d'%n] = (height, v, is_cb)
         for tx_hash, height in h:
+            if height == 0 and unconfirmed_spends:
+                continue
             l = self.txi.get(tx_hash, {}).get(address, [])
             for txi, v in l:
                 coins.pop(txi)
@@ -487,7 +493,7 @@ class Abstract_Wallet(object):
 
     def get_addr_balance(self, address):
         "returns the confirmed balance and pending (unconfirmed) balance change of a bitcoin address"
-        coins = self.get_addr_utxo(address)
+        coins = self.get_addr_utxo(address, True)
         c = u = 0
         for txo, v in coins:
             tx_height, v, is_cb = v
@@ -503,7 +509,7 @@ class Abstract_Wallet(object):
         if domain is None:
             domain = self.addresses(True)
         for addr in domain:
-            c = self.get_addr_utxo(addr)
+            c = self.get_addr_utxo(addr, False)
             for txo, v in c:
                 tx_height, value, is_cb = v
                 prevout_hash, prevout_n = txo.split(':')
@@ -527,7 +533,7 @@ class Abstract_Wallet(object):
 
     def get_addr_balance2(self, address):
         "returns the confirmed balance and pending (unconfirmed) balance change of a bitcoin address"
-        coins = self.get_addr_utxo(address)
+        coins = self.get_addr_utxo(address, True)
         c = u = 0
         for txo, v, height in coins:
             if height > 0:
