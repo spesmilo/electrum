@@ -708,6 +708,7 @@ class Abstract_Wallet(object):
 
 
     def get_history(self, domain=None):
+        from collections import defaultdict
         # get domain
         if domain is None:
             domain = self.get_account_addresses(None)
