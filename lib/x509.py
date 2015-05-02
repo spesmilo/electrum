@@ -237,11 +237,10 @@ def int_to_bytestr(i):
         s = chr(i % 256) + s
     return s
 
-def create_csr(commonName, challenge, secexp):
-
+def create_csr(commonName, challenge, k):
     import ecdsa, hashlib
     from bitcoin import point_to_ser
-    private_key = ecdsa.SigningKey.from_secret_exponent(secexp, curve = ecdsa.SECP256k1)
+    private_key = ecdsa.SigningKey.from_string(k, curve = ecdsa.SECP256k1)
     public_key = private_key.get_verifying_key()
     pubkey = point_to_ser(public_key.pubkey.point, False)
     asn1_type_table = {
@@ -295,10 +294,3 @@ def create_csr(commonName, challenge, secexp):
 
 
 
-if __name__ == "__main__":
-    import os
-    csr = create_csr('test@electrum.org', 'blah', 123456)
-    with open('test.csr', 'w') as f:
-        o = tlslite.utils.pem.pem(bytearray(csr), "CERTIFICATE REQUEST")
-        f.write(o)
-    os.system('openssl asn1parse -i -in test.csr')
