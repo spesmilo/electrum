@@ -230,6 +230,8 @@ class TxDialog(QDialog):
                     _addr = self.wallet.find_pay_to_pubkey_address(prevout_hash, prevout_n)
                     if _addr:
                         addr = _addr
+                if addr is None:
+                    addr = _('unknown')
                 cursor.insertText(addr, own if self.wallet.is_mine(addr) else ext)
             cursor.insertBlock()
 
