@@ -339,7 +339,7 @@ class Plugin(BasePlugin):
                 tx_info = self.tx_list[str(item.data(0, Qt.UserRole).toPyObject())]
             except Exception:
                 newtx = self.wallet.get_history()
-                v = newtx[[x[0] for x in newtx].index(str(item.data(0, Qt.UserRole).toPyObject()))][3]
+                v = newtx[[x[0] for x in newtx].index(str(item.data(0, Qt.UserRole).toPyObject()))][2]
                 tx_info = {'timestamp':int(time.time()), 'value': v}
                 pass
             tx_time = int(tx_info['timestamp'])
