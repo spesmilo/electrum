@@ -712,42 +712,38 @@ class Abstract_Wallet(object):
         if domain is None:
             domain = self.get_account_addresses(None)
 
-        hh = []
-        # 1. Get the history of each address in the domain
+        # 1. Get the history of each address in the domain, maintain the
+        #    delta of a tx as the sum of its deltas on domain addresses
+        tx_deltas = defaultdict(int)
         for addr in domain:
             h = self.get_address_history(addr)
             for tx_hash, height in h:
                 delta = self.get_tx_delta(tx_hash, addr)
-                hh.append([addr, tx_hash, height, delta])
+                if delta is None or tx_deltas[tx_hash] is None:
+                    tx_deltas[tx_hash] = None
+                else:
+                    tx_deltas[tx_hash] += delta
 
-        # 2. merge: the delta of a tx on the domain is the sum of its deltas on addresses
-        merged = {}
-        for addr, tx_hash, height, delta in hh:
-            if tx_hash not in merged:
-                merged[tx_hash] = (height, delta)
-            else:
-                h, d = merged.get(tx_hash)
-                merged[tx_hash] = (h, d + delta if (d is not None and delta is not None) else None)
-
-        # 3. create sorted list
+        # 2. create sorted history
         history = []
-        for tx_hash, v in merged.items():
-            height, value = v
+        for tx_hash, delta in tx_deltas.items():
             conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
-            history.append((tx_hash, conf, value, timestamp))
+            history.append((tx_hash, conf, delta, timestamp))
         history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
+        history.reverse()
 
-        # 4. add balance
+        # 3. add balance
         c, u = self.get_balance(domain)
         balance = c + u
         h2 = []
-        for item in history[::-1]:
-            tx_hash, conf, value, timestamp = item
-            h2.insert(0, (tx_hash, conf, value, timestamp, balance))
-            if balance is not None and value is not None:
-                balance -= value
-            else:
+        for item in history:
+            tx_hash, conf, delta, timestamp = item
+            h2.append((tx_hash, conf, delta, timestamp, balance))
+            if balance is None or delta is None:
                 balance = None
+            else:
+                balance -= delta
+        h2.reverse()
 
         # fixme: this may happen if history is incomplete
         if balance not in [None, 0]:
