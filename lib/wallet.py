@@ -462,11 +462,7 @@ class Abstract_Wallet(object):
                 fee = v_out - v_in
         return is_relevant, is_send, v, fee
 
-    # Returns all the unspent TXOs of an address. Unconfirmed receipts are always
-    # included; unconfirmed spends are included only if UNCONFIRMED_SPENDS is True
-    # When creating a new txn exclude unconfirmed spends to avoid double spending
-    # When calculating balance information both should be included for consistency
-    def get_addr_utxo(self, address, unconfirmed_spends):
+    def get_addr_utxo(self, address):
         h = self.history.get(address, [])
         coins = {}
         for tx_hash, height in h:
@@ -474,8 +470,6 @@ class Abstract_Wallet(object):
             for n, v, is_cb in l:
                 coins[tx_hash + ':%d'%n] = (height, v, is_cb)
         for tx_hash, height in h:
-            if height == 0 and unconfirmed_spends:
-                continue
             l = self.txi.get(tx_hash, {}).get(address, [])
             for txi, v in l:
                 coins.pop(txi)
@@ -493,11 +487,25 @@ class Abstract_Wallet(object):
 
     def get_addr_balance(self, address):
         "returns the confirmed balance and pending (unconfirmed) balance change of a bitcoin address"
-        coins = self.get_addr_utxo(address, True)
         c = u = 0
-        for txo, v in coins:
-            tx_height, v, is_cb = v
-            if tx_height > 0:
+        # Similar to get_addr_utxo, except unconfirmed spends do not remove what they are spending,
+        # but instead record a negative unconfirmed amount
+        h = self.history.get(address, [])
+        coins = {}
+        for tx_hash, height in h:
+            l = self.txo.get(tx_hash, {}).get(address, [])
+            for n, v, is_cb in l:
+                coins[tx_hash + ':%d'%n] = (height, v)
+        for tx_hash, height in h:
+            l = self.txi.get(tx_hash, {}).get(address, [])
+            for txi, v in l:
+                if height > 0:
+                    coins.pop(txi)
+                else:
+                    u -= v
+        for v in coins.values():
+            height, v = v
+            if height > 0:
                 c += v
             else:
                 u += v
@@ -509,7 +517,7 @@ class Abstract_Wallet(object):
         if domain is None:
             domain = self.addresses(True)
         for addr in domain:
-            c = self.get_addr_utxo(addr, False)
+            c = self.get_addr_utxo(addr)
             for txo, v in c:
                 tx_height, value, is_cb = v
                 prevout_hash, prevout_n = txo.split(':')
@@ -530,17 +538,6 @@ class Abstract_Wallet(object):
                 while coins[0][0] == 0:
                     coins = coins[1:] + [ coins[0] ]
         return [value for height, value in coins]
-
-    def get_addr_balance2(self, address):
-        "returns the confirmed balance and pending (unconfirmed) balance change of a bitcoin address"
-        coins = self.get_addr_utxo(address, True)
-        c = u = 0
-        for txo, v, height in coins:
-            if height > 0:
-                c += v
-            else:
-                u += v
-        return c, u
 
     def get_account_name(self, k):
         return self.labels.get(k, self.accounts[k].get_name(k))
