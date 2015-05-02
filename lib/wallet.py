@@ -394,6 +394,15 @@ class Abstract_Wallet(object):
         """ return number of transactions where address is involved """
         return len(self.history.get(address, []))
 
+    def get_coinbase_txs(self):
+        """Returns a set containing all tx hashes that are coinbases"""
+        cbs = set()
+        for tx_hash, tx in self.transactions.iteritems():
+            tx_dict = tx.as_dict()
+            if any(i.get('is_coinbase', False) for i in tx.inputs):
+                cbs.add(tx_hash)
+        return cbs
+        
     def get_tx_delta(self, tx_hash, address):
         "effect of tx on address"
         # pruned
