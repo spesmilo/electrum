@@ -115,9 +115,23 @@ class HelpLabel(QLabel):
     def __init__(self, text, help_text):
         QLabel.__init__(self, text)
         self.help_text = help_text
+        self.app = QCoreApplication.instance()
+        self.font = QFont()
 
     def mouseReleaseEvent(self, x):
         QMessageBox.information(self, 'Help', self.help_text, 'OK')
+
+    def enterEvent(self, event):
+        self.font.setUnderline(True)
+        self.setFont(self.font)
+        self.app.setOverrideCursor(QCursor(Qt.PointingHandCursor))
+        return QLabel.enterEvent(self, event)
+
+    def leaveEvent(self, event):
+        self.font.setUnderline(False)
+        self.setFont(self.font)
+        self.app.setOverrideCursor(QCursor(Qt.ArrowCursor))
+        return QLabel.leaveEvent(self, event)
 
 
 class HelpButton(QPushButton):

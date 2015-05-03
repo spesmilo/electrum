@@ -2066,37 +2066,27 @@ class ElectrumWindow(QMainWindow):
         d = QDialog(self)
         d.setModal(1)
         d.setWindowTitle(_("Enter Password"))
-
         pw = QLineEdit()
         pw.setEchoMode(2)
-
         vbox = QVBoxLayout()
         if not msg:
             msg = _('Please enter your password')
         vbox.addWidget(QLabel(msg))
-
         grid = QGridLayout()
         grid.setSpacing(8)
         grid.addWidget(QLabel(_('Password')), 1, 0)
         grid.addWidget(pw, 1, 1)
         vbox.addLayout(grid)
-
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         d.setLayout(vbox)
-
         run_hook('password_dialog', pw, grid, 1)
         if not d.exec_(): return
         return unicode(pw.text())
 
 
-
-
-
-
-
-
     def tx_from_text(self, txt):
         "json or raw hexadecimal"
+        txt = txt.strip()
         try:
             txt.decode('hex')
             is_hex = True
@@ -2752,3 +2742,16 @@ class ElectrumWindow(QMainWindow):
         text.setText(mpk_text)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
+
+    @protected
+    def create_csr(self, alias, challenge, password):
+        from electrum_ltc import x509
+        import tlslite
+        xprv = self.wallet.get_master_private_key(self.wallet.root_name, password)
+        _, _, _, c, k = bitcoin.deserialize_xkey(xprv)
+        csr = x509.create_csr(alias, challenge, k)
+        csr = tlslite.utils.pem.pem(bytearray(csr), "CERTIFICATE REQUEST")
+        with open('test.csr', 'w') as f:
+            f.write(csr)
+        #os.system('openssl asn1parse -i -in test.csr')
+        return 'test.csr'

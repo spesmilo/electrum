@@ -462,39 +462,45 @@ class Abstract_Wallet(object):
                 fee = v_out - v_in
         return is_relevant, is_send, v, fee
 
-    def get_addr_utxo(self, address):
+    def get_addr_io(self, address):
         h = self.history.get(address, [])
-        coins = {}
+        received = {}
+        sent = {}
         for tx_hash, height in h:
             l = self.txo.get(tx_hash, {}).get(address, [])
             for n, v, is_cb in l:
-                coins[tx_hash + ':%d'%n] = (height, v, is_cb)
+                received[tx_hash + ':%d'%n] = (height, v, is_cb)
         for tx_hash, height in h:
             l = self.txi.get(tx_hash, {}).get(address, [])
             for txi, v in l:
-                coins.pop(txi)
+                sent[txi] = height
+        return received, sent
+
+    def get_addr_utxo(self, address):
+        coins, spent = self.get_addr_io(address)
+        for txi in spent:
+            coins.pop(txi)
         return coins.items()
 
-    #return the total amount ever received by an address
+    # return the total amount ever received by an address
     def get_addr_received(self, address):
-        h = self.history.get(address, [])
-        received = 0
-        for tx_hash, height in h:
-            l = self.txo.get(tx_hash, {}).get(address, [])
-            for n, v, is_cb in l:
-                received += v
-        return received
+        received, sent = self.get_addr_io(address)
+        return sum([v for height, v, is_cb in received.values()])
 
+    # return the confirmed balance and pending (unconfirmed) balance change of a bitcoin address
     def get_addr_balance(self, address):
-        "returns the confirmed balance and pending (unconfirmed) balance change of a bitcoin address"
-        coins = self.get_addr_utxo(address)
+        received, sent = self.get_addr_io(address)
         c = u = 0
-        for txo, v in coins:
-            tx_height, v, is_cb = v
+        for txo, (tx_height, v, is_cb) in received.items():
             if tx_height > 0:
                 c += v
             else:
                 u += v
+            if txo in sent:
+                if sent[txo] > 0:
+                    c -= v
+                else:
+                    u -= v
         return c, u
 
 
@@ -524,17 +530,6 @@ class Abstract_Wallet(object):
                 while coins[0][0] == 0:
                     coins = coins[1:] + [ coins[0] ]
         return [value for height, value in coins]
-
-    def get_addr_balance2(self, address):
-        "returns the confirmed balance and pending (unconfirmed) balance change of a bitcoin address"
-        coins = self.get_addr_utxo(address)
-        c = u = 0
-        for txo, v, height in coins:
-            if height > 0:
-                c += v
-            else:
-                u += v
-        return c, u
 
     def get_account_name(self, k):
         return self.labels.get(k, self.accounts[k].get_name(k))
@@ -713,46 +708,43 @@ class Abstract_Wallet(object):
 
 
     def get_history(self, domain=None):
+        from collections import defaultdict
         # get domain
         if domain is None:
             domain = self.get_account_addresses(None)
 
-        hh = []
-        # 1. Get the history of each address in the domain
+        # 1. Get the history of each address in the domain, maintain the
+        #    delta of a tx as the sum of its deltas on domain addresses
+        tx_deltas = defaultdict(int)
         for addr in domain:
             h = self.get_address_history(addr)
             for tx_hash, height in h:
                 delta = self.get_tx_delta(tx_hash, addr)
-                hh.append([addr, tx_hash, height, delta])
+                if delta is None or tx_deltas[tx_hash] is None:
+                    tx_deltas[tx_hash] = None
+                else:
+                    tx_deltas[tx_hash] += delta
 
-        # 2. merge: the delta of a tx on the domain is the sum of its deltas on addresses
-        merged = {}
-        for addr, tx_hash, height, delta in hh:
-            if tx_hash not in merged:
-                merged[tx_hash] = (height, delta)
-            else:
-                h, d = merged.get(tx_hash)
-                merged[tx_hash] = (h, d + delta if (d is not None and delta is not None) else None)
-
-        # 3. create sorted list
+        # 2. create sorted history
         history = []
-        for tx_hash, v in merged.items():
-            height, value = v
+        for tx_hash, delta in tx_deltas.items():
             conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
-            history.append((tx_hash, conf, value, timestamp))
+            history.append((tx_hash, conf, delta, timestamp))
         history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
+        history.reverse()
 
-        # 4. add balance
+        # 3. add balance
         c, u = self.get_balance(domain)
         balance = c + u
         h2 = []
-        for item in history[::-1]:
-            tx_hash, conf, value, timestamp = item
-            h2.insert(0, (tx_hash, conf, value, timestamp, balance))
-            if balance is not None and value is not None:
-                balance -= value
-            else:
+        for item in history:
+            tx_hash, conf, delta, timestamp = item
+            h2.append((tx_hash, conf, delta, timestamp, balance))
+            if balance is None or delta is None:
                 balance = None
+            else:
+                balance -= delta
+        h2.reverse()
 
         # fixme: this may happen if history is incomplete
         if balance not in [None, 0]:
