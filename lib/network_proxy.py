@@ -189,7 +189,7 @@ class NetworkProxy(util.DaemonThread):
         return self.synchronous_get([('network.get_header', [height])])[0]
 
     def get_local_height(self):
-        return self.blockchain_height
+        return self.config.height
 
     def get_server_height(self):
         return self.server_height
