@@ -17,28 +17,33 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import random, ast, re, errno, os
-import threading, traceback, sys, time, json, Queue
+import re, errno, os
+import threading, traceback, sys, time, Queue
 import socket
 import ssl
 
+import x509
+import util
 import requests
 ca_path = requests.certs.where()
 
 from version import ELECTRUM_VERSION, PROTOCOL_VERSION
-import util
 from simple_config import SimpleConfig
-
-import x509
-import util
-
-DEFAULT_TIMEOUT = 5
-
 
 
 def Interface(server, config = None):
+    """Interface factory function.  The returned interface class handles the connection
+    to a single remote electrum server.  The object handles all necessary locking.  It's
+    exposed API is:
+
+    - Inherits everything from threading.Thread.
+    - Member functions start(), send_request(), stop()
+    - Member variables is_connected, server.
+    
+    "is_connected" is currently racy.  "server" is constant for the object's lifetime and hence
+    synchronization is unnecessary.
+    """
     host, port, protocol = server.split(':')
-    port = int(port)
     if protocol in 'st':
         return TcpInterface(server, config)
     else:
