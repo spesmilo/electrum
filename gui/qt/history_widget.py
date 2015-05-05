@@ -23,7 +23,7 @@ from util import *
 from electrum.i18n import _
 from electrum.util import block_explorer_URL, format_satoshis, format_time
 from electrum.plugins import run_hook
-
+from electrum.bitcoin import COINBASE_MATURITY
 
 class HistoryWidget(MyTreeWidget):
 
@@ -37,6 +37,7 @@ class HistoryWidget(MyTreeWidget):
         item = self.currentItem()
         current_tx = item.data(0, Qt.UserRole).toString() if item else None
         self.clear()
+        coinbases = self.wallet.get_coinbase_txs()
         for item in h:
             tx_hash, conf, value, timestamp, balance = item
             time_str = _("unknown")
@@ -44,16 +45,17 @@ class HistoryWidget(MyTreeWidget):
                 continue  # skip history in offline mode
             if conf > 0:
                 time_str = format_time(timestamp)
+            icon = ":icons/confirmed.png"
             if conf == -1:
                 time_str = 'unverified'
-                icon = QIcon(":icons/unconfirmed.png")
+                icon = ":icons/unconfirmed.png"
             elif conf == 0:
                 time_str = 'pending'
-                icon = QIcon(":icons/unconfirmed.png")
+                icon = ":icons/unconfirmed.png"
+            elif tx_hash in coinbases and conf < COINBASE_MATURITY:
+                icon = ":icons/clock%d.png" % (1 + 5 * conf / COINBASE_MATURITY)
             elif conf < 6:
-                icon = QIcon(":icons/clock%d.png"%conf)
-            else:
-                icon = QIcon(":icons/confirmed.png")
+                icon = ":icons/clock%d.png" % conf
             v_str = self.parent.format_amount(value, True, whitespaces=True)
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             label, is_default_label = self.wallet.get_label(tx_hash)
@@ -67,7 +69,7 @@ class HistoryWidget(MyTreeWidget):
                 item.setData(0, Qt.UserRole, tx_hash)
             if is_default_label:
                 item.setForeground(2, QBrush(QColor('grey')))
-            item.setIcon(0, icon)
+            item.setIcon(0, QIcon(icon))
             self.insertTopLevelItem(0, item)
             if current_tx == tx_hash:
                 self.setCurrentItem(item)
