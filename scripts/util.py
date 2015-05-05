@@ -6,9 +6,9 @@ from electrum.network import filter_protocol, parse_servers
 
 def get_peers():
     # 1. start interface and wait for connection
-    interface = electrum.Interface('ecdsa.net:110:s')
     q = Queue.Queue()
-    interface.start(q)
+    interface = electrum.Interface('ecdsa.net:110:s', q)
+    interface.start()
     i, r = q.get()
     if not interface.is_connected():
         raise BaseException("not connected")
@@ -25,7 +25,7 @@ def send_request(peers, request):
     # start interfaces
     q2 = Queue.Queue()
     config = SimpleConfig()
-    interfaces = map( lambda server: Interface(server, q2, config), peers )
+    interfaces = map(lambda server: Interface(server, q2, config), peers)
     reached_servers = []
     for i in interfaces:
         i.start()
