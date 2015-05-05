@@ -135,7 +135,7 @@ class WalletSynchronizer(util.DaemonThread):
 
             elif method == 'blockchain.address.get_history':
                 addr = params[0]
-                self.print_error("receiving history", addr, result)
+                self.print_error("receiving history", addr, len(result))
                 hist = []
                 # check that txids are unique
                 txids = []
