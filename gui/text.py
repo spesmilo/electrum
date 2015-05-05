@@ -132,9 +132,12 @@ class ElectrumGui:
             if not self.wallet.up_to_date:
                 msg = _("Synchronizing...")
             else: 
-                c, u =  self.wallet.get_balance()
-                msg = _("Balance")+": %f  "%(Decimal( c ) / 100000000)
-                if u: msg += "  [%f unconfirmed]"%(Decimal( u ) / 100000000)
+                c, u, x =  self.wallet.get_balance()
+                msg = _("Balance")+": %f  "%(Decimal(c) / 100000000)
+                if u:
+                    msg += "  [%f unconfirmed]"%(Decimal(u) / 100000000)
+                if x:
+                    msg += "  [%f unmatured]"%(Decimal(x) / 100000000)
         else:
             msg = _("Not connected")
             

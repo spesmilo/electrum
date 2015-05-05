@@ -231,12 +231,14 @@ class Commands:
 
     def getbalance(self, account= None):
         if account is None:
-            c, u = self.wallet.get_balance()
+            c, u, x = self.wallet.get_balance()
         else:
-            c, u = self.wallet.get_account_balance(account)
-
-        out = { "confirmed": str(Decimal(c)/100000000) }
-        if u: out["unconfirmed"] = str(Decimal(u)/100000000)
+            c, u, x = self.wallet.get_account_balance(account)
+        out = {"confirmed": str(Decimal(c)/100000000)}
+        if u:
+            out["unconfirmed"] = str(Decimal(u)/100000000)
+        if x:
+            out["unmatured"] = str(Decimal(x)/100000000)
         return out
 
     def getaddressbalance(self, addr):

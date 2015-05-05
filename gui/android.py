@@ -410,9 +410,12 @@ def update_layout():
     elif not wallet.up_to_date:
         text = "Synchronizing..."
     else:
-        c, u = wallet.get_balance()
+        c, u, x = wallet.get_balance()
         text = "Balance:"+format_satoshis(c) 
-        if u : text += '   [' + format_satoshis(u,True).strip() + ']'
+        if u:
+            text += '   [' + format_satoshis(u,True).strip() + ']'
+        if x:
+            text += '   [' + format_satoshis(x,True).strip() + ']'
 
 
     # vibrate if status changed

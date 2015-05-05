@@ -850,8 +850,8 @@ class MiniDriver(QObject):
         self.window.activate()
 
     def update_balance(self):
-        conf_balance, unconf_balance = self.g.wallet.get_balance()
-        balance = D(conf_balance + unconf_balance)
+        conf_balance, unconf_balance, x = self.g.wallet.get_balance()
+        balance = D(conf_balance + unconf_balance + x)
         self.window.set_balances(balance)
 
     def update_completions(self):
