@@ -204,7 +204,7 @@ class Network(util.DaemonThread):
         self.notify('status')
 
     def is_connected(self):
-        return self.interface and self.interface.is_connected
+        return self.interface and self.interface.is_connected()
 
     def send_subscriptions(self):
         for addr in self.addresses:
@@ -269,9 +269,9 @@ class Network(util.DaemonThread):
     def start_interface(self, server):
         if server in self.interfaces.keys():
             return
-        i = interface.Interface(server, self.config)
+        i = interface.Interface(server, self.queue, self.config)
         self.pending_servers.add(server)
-        i.start(self.queue)
+        i.start()
         return i
 
     def start_random_interface(self):
@@ -320,7 +320,7 @@ class Network(util.DaemonThread):
                 return
 
         if auto_connect:
-            if not self.interface.is_connected:
+            if not self.interface.is_connected():
                 self.switch_to_random_interface()
             else:
                 if self.server_is_lagging():
@@ -333,7 +333,7 @@ class Network(util.DaemonThread):
     def switch_to_random_interface(self):
         while self.interfaces:
             i = random.choice(self.interfaces.values())
-            if i.is_connected:
+            if i.is_connected():
                 self.switch_to_interface(i)
                 break
             else:
@@ -354,14 +354,14 @@ class Network(util.DaemonThread):
 
 
     def set_server(self, server):
-        if self.default_server == server and self.interface.is_connected:
+        if self.default_server == server and self.interface.is_connected():
             return
 
         if self.protocol != deserialize_server(server)[2]:
             return
 
         # stop the interface in order to terminate subscriptions
-        if self.interface.is_connected:
+        if self.interface.is_connected():
             self.stop_interface()
 
         # notify gui
@@ -472,7 +472,7 @@ class Network(util.DaemonThread):
                         self.print_error('network: retrying connections')
                         self.disconnected_servers = set([])
                         nodes_retry_time = now
-                if not self.interface.is_connected:
+                if not self.interface.is_connected():
                     if self.config.get('auto_cycle'):
                         if self.interfaces:
                             self.switch_to_random_interface()
@@ -498,7 +498,7 @@ class Network(util.DaemonThread):
             if i.server in self.pending_servers:
                 self.pending_servers.remove(i.server)
 
-            if i.is_connected:
+            if i.is_connected():
                 self.add_interface(i)
                 self.add_recent_server(i)
                 i.send_request({'method':'blockchain.headers.subscribe','params':[]})

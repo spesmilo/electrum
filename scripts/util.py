@@ -6,11 +6,11 @@ from electrum_ltc.network import filter_protocol, parse_servers
 
 def get_peers():
     # 1. start interface and wait for connection
-    interface = electrum.Interface('electrum-ltc.bysh.me:50002:s')
     q = Queue.Queue()
-    interface.start(q)
+    interface = electrum.Interface('electrum-ltc.bysh.me:50002:s', q)
+    interface.start()
     i, r = q.get()
-    if not interface.is_connected:
+    if not interface.is_connected():
         raise BaseException("not connected")
     # 2. get list of peers
     interface.send_request({'id':0, 'method':'server.peers.subscribe','params':[]})
@@ -25,10 +25,10 @@ def send_request(peers, request):
     # start interfaces
     q2 = Queue.Queue()
     config = SimpleConfig()
-    interfaces = map ( lambda server: Interface(server, config), peers )
+    interfaces = map(lambda server: Interface(server, q2, config), peers)
     reached_servers = []
     for i in interfaces:
-        i.start(q2)
+        i.start()
     t0 = time.time()
     while peers:
         try:
@@ -41,7 +41,7 @@ def send_request(peers, request):
                 continue
         if i.server in peers:
             peers.remove(i.server)
-        if i.is_connected:
+        if i.is_connected():
             reached_servers.append(i)
         else:
             print "Connection failed:", i.server
