@@ -38,7 +38,7 @@ import icons_rc
 from electrum.util import format_satoshis, format_time, NotEnoughFunds, StoreDict
 from electrum import Transaction
 from electrum import mnemonic
-from electrum import util, bitcoin, commands, Interface, Wallet
+from electrum import util, bitcoin, commands, Wallet
 from electrum import SimpleConfig, Wallet, WalletStorage
 from electrum import Imported_Wallet
 
