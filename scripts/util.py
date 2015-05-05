@@ -10,7 +10,7 @@ def get_peers():
     q = Queue.Queue()
     interface.start(q)
     i, r = q.get()
-    if not interface.is_connected:
+    if not interface.is_connected():
         raise BaseException("not connected")
     # 2. get list of peers
     interface.send_request({'id':0, 'method':'server.peers.subscribe','params':[]})
@@ -41,7 +41,7 @@ def send_request(peers, request):
                 continue
         if i.server in peers:
             peers.remove(i.server)
-        if i.is_connected:
+        if i.is_connected():
             reached_servers.append(i)
         else:
             print "Connection failed:", i.server

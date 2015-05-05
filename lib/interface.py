@@ -37,10 +37,10 @@ def Interface(server, config = None):
     exposed API is:
 
     - Inherits everything from threading.Thread.
-    - Member functions start(), send_request(), stop()
-    - Member variables is_connected, server.
+    - Member functions start(), send_request(), stop(), is_connected()
+    - Member variable server.
     
-    "is_connected" is currently racy.  "server" is constant for the object's lifetime and hence
+    "is_connected()" is currently racy.  "server" is constant for the object's lifetime and hence
     synchronization is unnecessary.
     """
     host, port, protocol = server.split(':')
@@ -56,7 +56,7 @@ class TcpInterface(threading.Thread):
         self.daemon = True
         self.config = config if config is not None else SimpleConfig()
         self.lock = threading.Lock()
-        self.is_connected = False
+        self.connected = False
         self.debug = False # dump network messages. can be changed at runtime using the console
         self.message_id = 0
         self.unanswered_requests = {}
@@ -260,16 +260,19 @@ class TcpInterface(threading.Thread):
                     self.print_error("-->", r)
             except socket.error, e:
                 self.print_error("socked error:", e)
-                self.is_connected = False
+                self.connected = False
                 return
             self.unanswered_requests[self.message_id] = method, params, _id, queue
             self.message_id += 1
 
+    def is_connected(self):
+        return self.connected
+
     def stop(self):
-        if self.is_connected and self.protocol in 'st' and self.s:
+        if self.connected and self.protocol in 'st' and self.s:
             self.s.shutdown(socket.SHUT_RDWR)
             self.s.close()
-        self.is_connected = False
+        self.connected = False
         self.print_error("stopped")
 
     def start(self, response_queue):
@@ -281,23 +284,23 @@ class TcpInterface(threading.Thread):
         if self.s:
             self.pipe = util.SocketPipe(self.s)
             self.s.settimeout(2)
-            self.is_connected = True
+            self.connected = True
             self.print_error("connected")
 
         self.change_status()
-        if not self.is_connected:
+        if not self.connected:
             return
 
         # ping timer
         ping_time = 0
         # request timer
         request_time = False
-        while self.is_connected:
+        while self.connected:
             # ping the server with server.version
             if time.time() - ping_time > 60:
                 if self.is_ping:
                     self.print_error("ping timeout")
-                    self.is_connected = False
+                    self.connected = False
                     break
                 else:
                     self.send_request({'method':'server.version', 'params':[ELECTRUM_VERSION, PROTOCOL_VERSION]})
@@ -313,11 +316,11 @@ class TcpInterface(threading.Thread):
                     else:
                         if time.time() - request_time > 10:
                             self.print_error("request timeout", len(self.unanswered_requests))
-                            self.is_connected = False
+                            self.connected = False
                             break
                 continue
             if response is None:
-                self.is_connected = False
+                self.connected = False
                 break
             if request_time is not False:
                 self.print_error("stopping timer")
@@ -326,12 +329,8 @@ class TcpInterface(threading.Thread):
 
         self.change_status()
 
-
     def change_status(self):
-        # print_error( "change status", self.server, self.is_connected)
         self.response_queue.put((self, None))
-
-
 
 
 
