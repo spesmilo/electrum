@@ -271,9 +271,9 @@ class Network(util.DaemonThread):
     def start_interface(self, server):
         if server in self.interfaces.keys():
             return
-        i = interface.Interface(server, self.config)
+        i = interface.Interface(server, self.queue, self.config)
         self.pending_servers.add(server)
-        i.start(self.queue)
+        i.start()
         return i
 
     def start_random_interface(self):

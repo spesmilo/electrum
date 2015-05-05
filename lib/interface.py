@@ -31,13 +31,13 @@ from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from simple_config import SimpleConfig
 
 
-def Interface(server, config = None):
+def Interface(server, response_queue, config = None):
     """Interface factory function.  The returned interface class handles the connection
     to a single remote electrum server.  The object handles all necessary locking.  It's
     exposed API is:
 
     - Inherits everything from threading.Thread.
-    - Member functions start(), send_request(), stop(), is_connected()
+    - Member functions send_request(), stop(), is_connected()
     - Member variable server.
     
     "is_connected()" is currently racy.  "server" is constant for the object's lifetime and hence
@@ -45,13 +45,13 @@ def Interface(server, config = None):
     """
     host, port, protocol = server.split(':')
     if protocol in 'st':
-        return TcpInterface(server, config)
+        return TcpInterface(server, response_queue, config)
     else:
         raise Exception('Unknown protocol: %s'%protocol)
 
 class TcpInterface(threading.Thread):
 
-    def __init__(self, server, config = None):
+    def __init__(self, server, response_queue, config = None):
         threading.Thread.__init__(self)
         self.daemon = True
         self.config = config if config is not None else SimpleConfig()
@@ -59,6 +59,7 @@ class TcpInterface(threading.Thread):
         self.connected = False
         self.debug = False # dump network messages. can be changed at runtime using the console
         self.message_id = 0
+        self.response_queue = response_queue
         self.unanswered_requests = {}
         # are we waiting for a pong?
         self.is_ping = False
@@ -274,10 +275,6 @@ class TcpInterface(threading.Thread):
             self.s.close()
         self.connected = False
         self.print_error("stopped")
-
-    def start(self, response_queue):
-        self.response_queue = response_queue
-        threading.Thread.start(self)
 
     def run(self):
         self.s = self.get_socket()

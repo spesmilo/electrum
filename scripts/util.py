@@ -25,10 +25,10 @@ def send_request(peers, request):
     # start interfaces
     q2 = Queue.Queue()
     config = SimpleConfig()
-    interfaces = map ( lambda server: Interface(server, config), peers )
+    interfaces = map( lambda server: Interface(server, q2, config), peers )
     reached_servers = []
     for i in interfaces:
-        i.start(q2)
+        i.start()
     t0 = time.time()
     while peers:
         try:
