@@ -55,7 +55,6 @@ class TcpInterface(threading.Thread):
         threading.Thread.__init__(self)
         self.daemon = True
         self.config = config if config is not None else SimpleConfig()
-        self.lock = threading.Lock()
         self.connected = False
         self.debug = False # dump network messages. can be changed at runtime using the console
         self.message_id = 0
@@ -83,8 +82,7 @@ class TcpInterface(threading.Thread):
         result = response.get('result')
 
         if msg_id is not None:
-            with self.lock:
-                method, params, _id, queue = self.unanswered_requests.pop(msg_id)
+            method, params, _id, queue = self.unanswered_requests.pop(msg_id)
             if queue is None:
                 queue = self.response_queue
         else:
