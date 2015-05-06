@@ -82,7 +82,7 @@ class TcpInterface(threading.Thread):
         result = response.get('result')
 
         if msg_id is not None:
-            method, params, _id, queue = self.unanswered_requests.pop(msg_id)
+            method, params, _id, queue, req_time = self.unanswered_requests.pop(msg_id)
             if queue is None:
                 queue = self.response_queue
         else:
@@ -263,11 +263,11 @@ class TcpInterface(threading.Thread):
                 self.pipe.send(r)
             except socket.error, e:
                 self.print_error("socket error:", e)
-                self.connected = False
+                self.stop()
                 return
             if self.debug:
                 self.print_error("-->", r)
-            self.unanswered_requests[self.message_id] = method, params, request.get('id'), response_queue
+            self.unanswered_requests[self.message_id] = method, params, request.get('id'), response_queue, time.time()
             self.message_id += 1
 
     def is_connected(self):
@@ -291,6 +291,25 @@ class TcpInterface(threading.Thread):
                 self.is_ping = True
                 self.ping_time = time.time()
 
+    def get_and_process_one_response(self):
+        if self.is_connected():
+            try:
+                response = self.pipe.get()
+            except util.timeout:
+                if self.unanswered_requests:
+                    earliest = min(t for (m, p, i, q, t) in self.unanswered_requests.values())
+                    delay = time.time() - earliest
+                    if delay > 10:
+                        self.print_error("request timeout: %f (%d)", delay, len(self.unanswered_requests))
+                        self.stop()
+                return
+
+            # If remote side closed the socket, SocketPipe closes our socket and returns None
+            if response is None:
+                self.connected = False
+            else:
+                self.process_response(response)
+        
     def run(self):
         self.s = self.get_socket()
         if self.s:
@@ -303,33 +322,10 @@ class TcpInterface(threading.Thread):
         if not self.connected:
             return
 
-        # request timer
-        request_time = False
         while self.connected:
             self.maybe_ping()
             self.send_requests()
-            if not self.connected:
-                break
-            try:
-                response = self.pipe.get()
-            except util.timeout:
-                if self.unanswered_requests:
-                    if request_time is False:
-                        request_time = time.time()
-                        self.print_error("setting timer")
-                    else:
-                        if time.time() - request_time > 10:
-                            self.print_error("request timeout", len(self.unanswered_requests))
-                            self.connected = False
-                            break
-                continue
-            if response is None:
-                self.connected = False
-                break
-            if request_time is not False:
-                self.print_error("stopping timer")
-                request_time = False
-            self.process_response(response)
+            self.get_and_process_one_response()
 
         self.change_status()
 
