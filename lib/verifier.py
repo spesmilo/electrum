@@ -36,40 +36,9 @@ class SPV(util.DaemonThread):
         self.network = network
         self.transactions    = {}                                 # requested verifications (with height sent by the requestor)
         self.verified_tx     = storage.get('verified_tx3',{})      # height, timestamp of verified transactions
-        self.merkle_roots    = storage.get('merkle_roots',{})      # hashed by me
+        self.merkle_roots    = {}                                  # hashed by me
         self.lock = threading.Lock()
         self.queue = Queue.Queue()
-
-    def get_confirmations(self, tx):
-        """ return the number of confirmations of a monitored transaction. """
-        with self.lock:
-            if tx in self.verified_tx:
-                height, timestamp, pos = self.verified_tx[tx]
-                conf = (self.network.get_local_height() - height + 1)
-                if conf <= 0: timestamp = None
-            elif tx in self.transactions:
-                conf = -1
-                timestamp = None
-            else:
-                conf = 0
-                timestamp = None
-
-        return conf, timestamp
-
-
-    def get_txpos(self, tx_hash):
-        "return position, even if the tx is unverified"
-        with self.lock:
-            x = self.verified_tx.get(tx_hash)
-            y = self.transactions.get(tx_hash)
-        if x:
-            height, timestamp, pos = x
-            return height, pos
-        elif y:
-            return y, 0
-        else:
-            return 1e12, 0
-
 
     def get_height(self, tx_hash):
         with self.lock:

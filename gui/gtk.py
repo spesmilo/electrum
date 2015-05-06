@@ -813,7 +813,7 @@ class ElectrumWindow:
             self.show_message(str(e))
             return
 
-        if tx.requires_fee(self.wallet.verifier) and fee < MIN_RELAY_TX_FEE:
+        if tx.requires_fee(self.wallet) and fee < MIN_RELAY_TX_FEE:
             self.show_message( "This transaction requires a higher fee, or it will not be propagated by the network." )
             return
 
@@ -1200,7 +1200,7 @@ class ElectrumWindow:
         tx = self.wallet.transactions.get(tx_hash)
         tx.deserialize()
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-        conf, timestamp = self.wallet.verifier.get_confirmations(tx_hash)
+        conf, timestamp = self.wallet.get_confirmations(tx_hash)
 
         if timestamp:
             time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]

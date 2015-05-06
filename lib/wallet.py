@@ -387,6 +387,41 @@ class Abstract_Wallet(object):
         decrypted = ec.decrypt_message(message)
         return decrypted
 
+    def add_unverified_tx(self, tx_hash, tx_height):
+        if self.verifier and tx_height > 0:
+            self.verifier.add(tx_hash, tx_height)
+
+    def get_confirmations(self, tx):
+        """ return the number of confirmations of a monitored transaction. """
+        if not self.verifier:
+            return (None, None)
+        with self.verifier.lock:
+            if tx in self.verifier.verified_tx:
+                height, timestamp, pos = self.verifier.verified_tx[tx]
+                conf = (self.network.get_local_height() - height + 1)
+                if conf <= 0: timestamp = None
+            elif tx in self.verifier.transactions:
+                conf = -1
+                timestamp = None
+            else:
+                conf = 0
+                timestamp = None
+
+        return conf, timestamp
+
+    def get_txpos(self, tx_hash):
+        "return position, even if the tx is unverified"
+        with self.verifier.lock:
+            x = self.verifier.verified_tx.get(tx_hash)
+            y = self.verifier.transactions.get(tx_hash)
+        if x:
+            height, timestamp, pos = x
+            return height, pos
+        elif y:
+            return y, 0
+        else:
+            return 1e12, 0
+
     def is_found(self):
         return self.history.values() != [[]] * len(self.history)
 
@@ -685,8 +720,7 @@ class Abstract_Wallet(object):
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         self.add_transaction(tx_hash, tx, tx_height)
         #self.network.pending_transactions_for_notifications.append(tx)
-        if self.verifier and tx_height>0:
-            self.verifier.add(tx_hash, tx_height)
+        self.add_unverified_tx(tx_hash, tx_height)
 
 
     def receive_history_callback(self, addr, hist):
@@ -701,10 +735,8 @@ class Abstract_Wallet(object):
             self.storage.put('addr_history', self.history, True)
 
         for tx_hash, tx_height in hist:
-            if tx_height>0:
-                # add it in case it was previously unconfirmed
-                if self.verifier:
-                    self.verifier.add(tx_hash, tx_height)
+            # add it in case it was previously unconfirmed
+            self.add_unverified_tx (tx_hash, tx_height)
 
             # if addr is new, we have to recompute txi and txo
             tx = self.transactions.get(tx_hash)
@@ -734,9 +766,9 @@ class Abstract_Wallet(object):
         # 2. create sorted history
         history = []
         for tx_hash, delta in tx_deltas.items():
-            conf, timestamp = self.verifier.get_confirmations(tx_hash) if self.verifier else (None, None)
+            conf, timestamp = self.get_confirmations(tx_hash)
             history.append((tx_hash, conf, delta, timestamp))
-        history.sort(key = lambda x: self.verifier.get_txpos(x[0]))
+        history.sort(key = lambda x: self.get_txpos(x[0]))
         history.reverse()
 
         # 3. add balance
@@ -784,7 +816,7 @@ class Abstract_Wallet(object):
     def estimated_fee(self, tx):
         estimated_size = len(tx.serialize(-1))/2
         fee = int(self.fee_per_kb*estimated_size/1000.)
-        if fee < MIN_RELAY_TX_FEE: # and tx.requires_fee(self.verifier):
+        if fee < MIN_RELAY_TX_FEE: # and tx.requires_fee(self):
             fee = MIN_RELAY_TX_FEE
         return fee
 
@@ -963,9 +995,8 @@ class Abstract_Wallet(object):
         # review transactions that are in the history
         for addr, hist in self.history.items():
             for tx_hash, tx_height in hist:
-                if tx_height>0:
-                    # add it in case it was previously unconfirmed
-                    self.verifier.add(tx_hash, tx_height)
+                # add it in case it was previously unconfirmed
+                self.add_unverified_tx (tx_hash, tx_height)
 
         # if we are on a pruning server, remove unverified transactions
         vr = self.verifier.transactions.keys() + self.verifier.verified_tx.keys()
@@ -1022,7 +1053,7 @@ class Abstract_Wallet(object):
                             height = item.get('height')
                 if height:
                     print_error("found height for", tx_hash, height)
-                    self.verifier.add(tx_hash, height)
+                    self.add_unverified_tx(tx_hash, height)
                 else:
                     print_error("removing orphaned tx from history", tx_hash)
                     self.transactions.pop(tx_hash)
