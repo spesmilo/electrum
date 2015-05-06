@@ -525,10 +525,12 @@ class ElectrumWindow(QMainWindow):
                 text = _("Server is lagging (%d blocks)"%server_lag)
                 icon = QIcon(":icons/status_lagging.png")
             else:
-                c, u = self.wallet.get_account_balance(self.current_account)
-                text =  _( "Balance" ) + ": %s "%( self.format_amount(c) ) + self.base_unit()
-                if u: text +=  " [%s unconfirmed]"%( self.format_amount(u,True).strip() )
-
+                c, u, x = self.wallet.get_account_balance(self.current_account)
+                text =  _("Balance" ) + ": %s "%(self.format_amount(c)) + self.base_unit()
+                if u:
+                    text +=  " [%s unconfirmed]"%(self.format_amount(u, True).strip())
+                if x:
+                    text +=  " [%s unmatured]"%(self.format_amount(x, True).strip())
                 # append fiat balance and price from exchange rate plugin
                 r = {}
                 run_hook('get_fiat_status_text', c+u, r)
@@ -958,8 +960,9 @@ class ElectrumWindow(QMainWindow):
                 palette = QPalette()
                 palette.setColor(self.amount_e.foregroundRole(), QColor('red'))
                 text = _( "Not enough funds" )
-                c, u = self.wallet.get_frozen_balance()
-                if c+u: text += ' (' + self.format_amount(c+u).strip() + ' ' + self.base_unit() + ' ' +_("are frozen") + ')'
+                c, u, x = self.wallet.get_frozen_balance()
+                if c+u+x:
+                    text += ' (' + self.format_amount(c+u+x).strip() + ' ' + self.base_unit() + ' ' +_("are frozen") + ')'
             self.statusBar().showMessage(text)
             self.amount_e.setPalette(palette)
             self.fee_e.setPalette(palette)
@@ -1030,7 +1033,7 @@ class ElectrumWindow(QMainWindow):
         menu.exec_(self.from_list.viewport().mapToGlobal(position))
 
     def set_pay_from(self, domain = None):
-        self.pay_from = [] if domain == [] else self.wallet.get_unspent_coins(domain)
+        self.pay_from = [] if domain == [] else self.wallet.get_spendable_coins(domain)
         self.redraw_from_list()
 
     def redraw_from_list(self):
@@ -1438,7 +1441,7 @@ class ElectrumWindow(QMainWindow):
             domain = self.wallet.get_account_addresses(self.current_account)
             for i in self.wallet.frozen_addresses:
                 if i in domain: domain.remove(i)
-            return self.wallet.get_unspent_coins(domain)
+            return self.wallet.get_spendable_coins(domain)
 
 
     def send_from_addresses(self, addrs):
@@ -1554,8 +1557,8 @@ class ElectrumWindow(QMainWindow):
         for k, account in account_items:
             if len(accounts) > 1:
                 name = self.wallet.get_account_name(k)
-                c, u = self.wallet.get_account_balance(k)
-                account_item = QTreeWidgetItem( [ name, '', self.format_amount(c+u), ''] )
+                c, u, x = self.wallet.get_account_balance(k)
+                account_item = QTreeWidgetItem([ name, '', self.format_amount(c + u + x), ''])
                 l.addTopLevelItem(account_item)
                 account_item.setExpanded(self.accounts_expanded.get(k, True))
                 account_item.setData(0, Qt.UserRole, k)
@@ -1577,8 +1580,8 @@ class ElectrumWindow(QMainWindow):
                 for address in addr_list:
                     num, is_used = self.wallet.is_used(address)
                     label = self.wallet.labels.get(address,'')
-                    c, u = self.wallet.get_addr_balance(address)
-                    balance = self.format_amount(c + u)
+                    c, u, x = self.wallet.get_addr_balance(address)
+                    balance = self.format_amount(c + u + x)
                     item = QTreeWidgetItem( [ address, label, balance, "%d"%num] )
                     item.setFont(0, QFont(MONOSPACE_FONT))
                     item.setData(0, Qt.UserRole, address)

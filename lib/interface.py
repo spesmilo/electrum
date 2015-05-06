@@ -61,9 +61,9 @@ class TcpInterface(threading.Thread):
         self.response_queue = response_queue
         self.request_queue = Queue.Queue()
         self.unanswered_requests = {}
-        # are we waiting for a pong?
-        self.is_ping = False
-        self.ping_time = 0
+        # request timeouts
+        self.request_time = time.time()
+        self.ping_time = time.time()
         # parse server
         self.server = server
         self.host, self.port, self.protocol = self.server.split(':')
@@ -105,7 +105,6 @@ class TcpInterface(threading.Thread):
 
         if method == 'server.version':
             self.server_version = result
-            self.is_ping = False
             return
 
         if error:
@@ -250,6 +249,7 @@ class TcpInterface(threading.Thread):
 
     def send_request(self, request, response_queue = None):
         '''Queue a request.  Blocking only if called from other threads.'''
+        self.request_time = time.time()
         self.request_queue.put((request, response_queue), threading.current_thread() != self)
 
     def send_requests(self):
@@ -263,7 +263,7 @@ class TcpInterface(threading.Thread):
                 self.pipe.send(r)
             except socket.error, e:
                 self.print_error("socket error:", e)
-                self.connected = False
+                self.stop()
                 return
             if self.debug:
                 self.print_error("-->", r)
@@ -281,21 +281,31 @@ class TcpInterface(threading.Thread):
         self.print_error("stopped")
 
     def maybe_ping(self):
-        # ping the server with server.version?
+        # ping the server with server.version
         if time.time() - self.ping_time > 60:
-            if self.is_ping:
-                self.print_error("ping timeout")
-                self.stop()
-            else:
-                self.send_request({'method':'server.version', 'params':[ELECTRUM_VERSION, PROTOCOL_VERSION]})
-                self.is_ping = True
-                self.ping_time = time.time()
+            self.send_request({'method':'server.version', 'params':[ELECTRUM_VERSION, PROTOCOL_VERSION]})
+            self.ping_time = time.time()
+        # stop interface if we have been waiting for more than 10 seconds
+        if self.unanswered_requests and time.time() - self.request_time > 10:
+            self.print_error("interface timeout", len(self.unanswered_requests))
+            self.stop()
+
+    def get_response(self):
+        if self.is_connected():
+            try:
+                response = self.pipe.get()
+            except util.timeout:
+                return
+            # If remote side closed the socket, SocketPipe closes our socket and returns None
+            if response is None:
+                self.connected = False
+            return response
 
     def run(self):
         self.s = self.get_socket()
         if self.s:
             self.pipe = util.SocketPipe(self.s)
-            self.s.settimeout(2)
+            self.s.settimeout(0.1)
             self.connected = True
             self.print_error("connected")
 
@@ -303,33 +313,12 @@ class TcpInterface(threading.Thread):
         if not self.connected:
             return
 
-        # request timer
-        request_time = False
         while self.connected:
             self.maybe_ping()
             self.send_requests()
-            if not self.connected:
-                break
-            try:
-                response = self.pipe.get()
-            except util.timeout:
-                if self.unanswered_requests:
-                    if request_time is False:
-                        request_time = time.time()
-                        self.print_error("setting timer")
-                    else:
-                        if time.time() - request_time > 10:
-                            self.print_error("request timeout", len(self.unanswered_requests))
-                            self.connected = False
-                            break
-                continue
-            if response is None:
-                self.connected = False
-                break
-            if request_time is not False:
-                self.print_error("stopping timer")
-                request_time = False
-            self.process_response(response)
+            response = self.get_response()
+            if response:
+                self.process_response(response)
 
         self.change_status()
 

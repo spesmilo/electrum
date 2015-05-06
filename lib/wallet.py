@@ -480,19 +480,21 @@ class Abstract_Wallet(object):
         coins, spent = self.get_addr_io(address)
         for txi in spent:
             coins.pop(txi)
-        return coins.items()
+        return coins
 
     # return the total amount ever received by an address
     def get_addr_received(self, address):
         received, sent = self.get_addr_io(address)
         return sum([v for height, v, is_cb in received.values()])
 
-    # return the confirmed balance and pending (unconfirmed) balance change of a bitcoin address
+    # return the balance of a bitcoin address: confirmed and matured, unconfirmed, unmatured
     def get_addr_balance(self, address):
         received, sent = self.get_addr_io(address)
-        c = u = 0
+        c = u = x = 0
         for txo, (tx_height, v, is_cb) in received.items():
-            if tx_height > 0:
+            if is_cb and tx_height + COINBASE_MATURITY > self.network.get_local_height():
+                x += v
+            elif tx_height > 0:
                 c += v
             else:
                 u += v
@@ -501,17 +503,19 @@ class Abstract_Wallet(object):
                     c -= v
                 else:
                     u -= v
-        return c, u
+        return c, u, x
 
 
-    def get_unspent_coins(self, domain=None):
+    def get_spendable_coins(self, domain=None):
         coins = []
         if domain is None:
             domain = self.addresses(True)
         for addr in domain:
             c = self.get_addr_utxo(addr)
-            for txo, v in c:
+            for txo, v in c.items():
                 tx_height, value, is_cb = v
+                if is_cb and tx_height + COINBASE_MATURITY > self.network.get_local_height():
+                    continue
                 prevout_hash, prevout_n = txo.split(':')
                 output = {
                     'address':addr,
@@ -564,13 +568,15 @@ class Abstract_Wallet(object):
         return self.get_balance(self.frozen_addresses)
 
     def get_balance(self, domain=None):
-        if domain is None: domain = self.addresses(True)
-        cc = uu = 0
+        if domain is None:
+            domain = self.addresses(True)
+        cc = uu = xx = 0
         for addr in domain:
-            c, u = self.get_addr_balance(addr)
+            c, u, x = self.get_addr_balance(addr)
             cc += c
             uu += u
-        return cc, uu
+            xx += x
+        return cc, uu, xx
 
     def set_fee(self, fee):
         if self.fee_per_kb != fee:
@@ -597,7 +603,7 @@ class Abstract_Wallet(object):
                     return addr
 
     def add_transaction(self, tx_hash, tx, tx_height):
-        is_coinbase = tx.inputs[0].get('prevout_hash') == '0'*64
+        is_coinbase = tx.inputs[0].get('is_coinbase') == True
         with self.transaction_lock:
             # add inputs
             self.txi[tx_hash] = d = {}
@@ -734,8 +740,8 @@ class Abstract_Wallet(object):
         history.reverse()
 
         # 3. add balance
-        c, u = self.get_balance(domain)
-        balance = c + u
+        c, u, x = self.get_balance(domain)
+        balance = c + u + x
         h2 = []
         for item in history:
             tx_hash, conf, delta, timestamp = item
@@ -793,16 +799,15 @@ class Abstract_Wallet(object):
             if domain is None:
                 domain = self.addresses(True)
             for i in self.frozen_addresses:
-                if i in domain: domain.remove(i)
-            coins = self.get_unspent_coins(domain)
+                if i in domain:
+                    domain.remove(i)
+            coins = self.get_spendable_coins(domain)
 
-        amount = sum( map(lambda x:x[2], outputs) )
+        amount = sum(map(lambda x:x[2], outputs))
         total = fee = 0
         inputs = []
         tx = Transaction.from_io(inputs, outputs)
         for item in coins:
-            if item.get('coinbase') and item.get('height') + COINBASE_MATURITY > self.network.get_local_height():
-                continue
             v = item.get('value')
             total += v
             self.add_input_info(item)
@@ -1066,7 +1071,7 @@ class Abstract_Wallet(object):
 
     def is_used(self, address):
         h = self.history.get(address,[])
-        c, u = self.get_addr_balance(address)
+        c, u, x = self.get_addr_balance(address)
         return len(h), len(h) > 0 and c == -u
 
     def address_is_old(self, address, age_limit=2):
