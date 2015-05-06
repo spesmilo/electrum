@@ -59,7 +59,7 @@ class TcpInterface(threading.Thread):
         self.debug = False # dump network messages. can be changed at runtime using the console
         self.message_id = 0
         self.response_queue = response_queue
-        self.request_queue = Queue.Queue()
+        self.lock = threading.Lock()
         self.unanswered_requests = {}
         # request timeouts
         self.request_time = False
@@ -84,7 +84,8 @@ class TcpInterface(threading.Thread):
         result = response.get('result')
 
         if msg_id is not None:
-            method, params, _id, queue = self.unanswered_requests.pop(msg_id)
+            with self.lock:
+                method, params, _id, queue = self.unanswered_requests.pop(msg_id)
             if queue is None:
                 queue = self.response_queue
         else:
@@ -251,13 +252,7 @@ class TcpInterface(threading.Thread):
         return s
 
     def send_request(self, request, response_queue = None):
-        '''Queue a request.  Blocking only if called from other threads.'''
-        self.request_queue.put((request, response_queue), threading.current_thread() != self)
-
-    def send_requests(self):
-        '''Sends all queued requests'''
-        while self.is_connected() and not self.request_queue.empty():
-            request, response_queue = self.request_queue.get()
+        with self.lock:
             method = request.get('method')
             params = request.get('params')
             r = {'id': self.message_id, 'method': method, 'params': params}
@@ -332,7 +327,6 @@ class TcpInterface(threading.Thread):
 
         while self.connected:
             self.maybe_ping()
-            self.send_requests()
             self.get_and_process_one_response()
 
         self.change_status()
