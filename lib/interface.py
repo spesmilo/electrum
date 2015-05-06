@@ -62,7 +62,7 @@ class TcpInterface(threading.Thread):
         self.request_queue = Queue.Queue()
         self.unanswered_requests = {}
         # request timeouts
-        self.response_time = time.time()
+        self.request_time = time.time()
         self.ping_time = time.time()
         # parse server
         self.server = server
@@ -249,6 +249,7 @@ class TcpInterface(threading.Thread):
 
     def send_request(self, request, response_queue = None):
         '''Queue a request.  Blocking only if called from other threads.'''
+        self.request_time = time.time()
         self.request_queue.put((request, response_queue), threading.current_thread() != self)
 
     def send_requests(self):
@@ -285,7 +286,7 @@ class TcpInterface(threading.Thread):
             self.send_request({'method':'server.version', 'params':[ELECTRUM_VERSION, PROTOCOL_VERSION]})
             self.ping_time = time.time()
         # stop interface if we have been waiting for more than 10 seconds
-        if self.unanswered_requests and time.time() - self.response_time > 10:
+        if self.unanswered_requests and time.time() - self.request_time > 10:
             self.print_error("interface timeout", len(self.unanswered_requests))
             self.stop()
 
@@ -293,7 +294,6 @@ class TcpInterface(threading.Thread):
         if self.is_connected():
             try:
                 response = self.pipe.get()
-                self.response_time = time.time()
             except util.timeout:
                 return
             # If remote side closed the socket, SocketPipe closes our socket and returns None
