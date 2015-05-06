@@ -40,8 +40,7 @@ def Interface(server, response_queue, config = None):
     - Member functions send_request(), stop(), is_connected()
     - Member variable server.
     
-    "is_connected()" is currently racy.  "server" is constant for the object's lifetime and hence
-    synchronization is unnecessary.
+    "server" is constant for the object's lifetime and hence synchronization is unnecessary.
     """
     host, port, protocol = server.split(':')
     if protocol in 'st':
@@ -55,7 +54,12 @@ class TcpInterface(threading.Thread):
         threading.Thread.__init__(self)
         self.daemon = True
         self.config = config if config is not None else SimpleConfig()
-        self.connected = False
+        # Set by stop(); no more data is exchanged and the thread exits after gracefully
+        # closing the socket
+        self.disconnect = False
+        # Initially True to avoid a race; set to False on failure to create a socket or when
+        # it is closed
+        self.connected = True
         self.debug = False # dump network messages. can be changed at runtime using the console
         self.message_id = 0
         self.response_queue = response_queue
@@ -273,14 +277,11 @@ class TcpInterface(threading.Thread):
             self.message_id += 1
 
     def is_connected(self):
-        return self.connected
+        return self.connected and not self.disconnect
 
     def stop(self):
-        if self.connected and self.protocol in 'st' and self.s:
-            self.s.shutdown(socket.SHUT_RDWR)
-            self.s.close()
-        self.connected = False
-        self.print_error("stopped")
+        self.disconnect = True
+        self.print_error("disconnecting")
 
     def maybe_ping(self):
         # ping the server with server.version?
@@ -312,29 +313,36 @@ class TcpInterface(threading.Thread):
                 self.print_error("stopping timer")
                 self.request_time = False
 
-            # If remote side closed the socket, SocketPipe closes our socket and returns None
+            # If remote side closed the socket
             if response is None:
-                self.connected = False
+                self.print_error("connection closed remotely")
+                self.connected = False  # SocketPipe closed our socket
             else:
                 self.process_response(response)
 
     def run(self):
-        self.s = self.get_socket()
-        if self.s:
-            self.pipe = util.SocketPipe(self.s)
-            self.s.settimeout(2)
-            self.connected = True
+        s = self.get_socket()
+        if s:
+            self.pipe = util.SocketPipe(s)
+            s.settimeout(2)
             self.print_error("connected")
+            # Indicate to parent that we've connected
+            self.change_status()
 
-        self.change_status()
-        if not self.connected:
-            return
+            while self.is_connected():
+                self.maybe_ping()
+                self.send_requests()
+                self.get_and_process_one_response()
 
-        while self.connected:
-            self.maybe_ping()
-            self.send_requests()
-            self.get_and_process_one_response()
+            # Cannot shutdown() a closed socket (by SocketPipe)
+            if self.connected:
+                s.shutdown(socket.SHUT_RDWR)
+                s.close()
 
+        # Also for the s is None case 
+        self.connected = False
+ 
+        # Indicate to parent that the connection is now down
         self.change_status()
 
     def change_status(self):
