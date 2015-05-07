@@ -182,6 +182,11 @@ class Abstract_Wallet(object):
 
         # spv
         self.verifier = None
+        # Transactions pending verification.  Each value is the transaction height.  Access with self.lock.
+        self.unverified_tx = {}
+        # Verified transactions.  Each value is a (height, timestamp, block_pos) tuple.  Access with self.lock.
+        self.verified_tx   = storage.get('verified_tx3',{})
+        
         # there is a difference between wallet.up_to_date and interface.is_up_to_date()
         # interface.is_up_to_date() returns true when all requests have been answered and processed
         # wallet.up_to_date is true when the wallet is synchronized (stronger requirement)
@@ -388,32 +393,48 @@ class Abstract_Wallet(object):
         return decrypted
 
     def add_unverified_tx(self, tx_hash, tx_height):
-        if self.verifier and tx_height > 0:
-            self.verifier.add(tx_hash, tx_height)
+        if tx_height > 0:
+            with self.lock:
+                self.unverified_tx[tx_hash] = tx_height
+
+    def add_verified_tx(self, tx_hash, info):
+        with self.lock:
+            self.verified_tx[tx_hash] = info  # (tx_height, timestamp, pos)
+        self.storage.put('verified_tx3', self.verified_tx, True)
+        self.network.trigger_callback('updated')
+
+    def unverify_txs(self, txs):
+        '''Used by the verifier when a reorg has happened'''
+        with self.lock:
+            for tx_hash in txs:
+                self.verified_tx.pop(tx_hash, None)
+
+    def get_transactions(self):
+        '''Return the verified and unverified tx dicts'''
+        with self.lock:
+            return self.verified_tx, self.unverified_tx
 
     def get_confirmations(self, tx):
         """ return the number of confirmations of a monitored transaction. """
-        if not self.verifier:
-            return (None, None)
-        with self.verifier.lock:
-            if tx in self.verifier.verified_tx:
-                height, timestamp, pos = self.verifier.verified_tx[tx]
-                conf = (self.network.get_local_height() - height + 1)
-                if conf <= 0: timestamp = None
-            elif tx in self.verifier.transactions:
-                conf = -1
-                timestamp = None
-            else:
-                conf = 0
-                timestamp = None
+        verified_tx, unverified_tx = self.get_transactions()
+        if tx in verified_tx:
+            height, timestamp, pos = verified_tx[tx]
+            conf = (self.network.get_local_height() - height + 1)
+            if conf <= 0: timestamp = None
+        elif tx in unverified_tx:
+            conf = -1
+            timestamp = None
+        else:
+            conf = 0
+            timestamp = None
 
         return conf, timestamp
 
     def get_txpos(self, tx_hash):
         "return position, even if the tx is unverified"
-        with self.verifier.lock:
-            x = self.verifier.verified_tx.get(tx_hash)
-            y = self.verifier.transactions.get(tx_hash)
+        verified_tx, unverified_tx = self.get_transactions()
+        x = verified_tx.get(tx_hash)
+        y = unverified_tx.get(tx_hash)
         if x:
             height, timestamp, pos = x
             return height, pos
@@ -1000,7 +1021,8 @@ class Abstract_Wallet(object):
                 self.add_unverified_tx (tx_hash, tx_height)
 
         # if we are on a pruning server, remove unverified transactions
-        vr = self.verifier.transactions.keys() + self.verifier.verified_tx.keys()
+        verified_tx, unverified_tx = self.get_transactions()
+        vr = verified_tx.keys() + unverified_tx.keys()
         for tx_hash in self.transactions.keys():
             if tx_hash not in vr:
                 print_error("removing transaction", tx_hash)
@@ -1016,6 +1038,7 @@ class Abstract_Wallet(object):
                 return False
 
         # check that we are not "orphaning" a transaction
+        verified_tx, unverified_tx = self.get_transactions()
         old_hist = self.history.get(addr,[])
         for tx_hash, height in old_hist:
             if tx_hash in map(lambda x:x[0], hist):
@@ -1035,7 +1058,7 @@ class Abstract_Wallet(object):
                 if not tx: continue
 
                 # already verified?
-                if self.verifier.get_height(tx_hash):
+                if tx_hash in verified_tx:
                     continue
                 # unconfirmed tx
                 print_error("new history is orphaning transaction:", tx_hash)
@@ -1065,7 +1088,7 @@ class Abstract_Wallet(object):
         from verifier import SPV
         self.network = network
         if self.network is not None:
-            self.verifier = SPV(self.network, self.storage)
+            self.verifier = SPV(self.network, self)
             self.verifier.start()
             self.set_verifier(self.verifier)
             self.synchronizer = WalletSynchronizer(self, network)
