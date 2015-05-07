@@ -802,11 +802,12 @@ class Abstract_Wallet(object):
     def get_default_label(self, tx_hash):
         if self.txi.get(tx_hash) == {}:
             d = self.txo.get(tx_hash, {})
+            labels = []
             for addr in d.keys():
-                assert self.is_mine(addr)
                 label = self.labels.get(addr)
                 if label:
-                    return label
+                    labels.append(label)
+            return ', '.join(labels)
         return ''
 
     def get_tx_fee(self, tx):
