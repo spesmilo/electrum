@@ -769,7 +769,7 @@ class Transaction:
         return out
 
 
-    def required_fee(self, verifier):
+    def required_fee(self, wallet):
         # see https://en.bitcoin.it/wiki/Transaction_fees
         size = len(self.serialize(-1))/2
         fee = 0
@@ -779,7 +779,7 @@ class Transaction:
         threshold = 57600000*4
         weight = 0
         for txin in self.inputs:
-            age = verifier.get_confirmations(txin["prevout_hash"])[0]
+            age = wallet.get_confirmations(txin["prevout_hash"])[0]
             weight += txin["value"] * age
         priority = weight / size
         print_error(priority, threshold)

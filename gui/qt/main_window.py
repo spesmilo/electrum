@@ -1121,7 +1121,7 @@ class ElectrumWindow(QMainWindow):
             self.show_message(str(e))
             return
 
-        if tx.get_fee() < tx.required_fee(self.wallet.verifier):
+        if tx.get_fee() < tx.required_fee(self.wallet):
             QMessageBox.warning(self, _('Error'), _("This transaction requires a higher fee, or it will not be propagated by the network."), _('OK'))
             return
 
