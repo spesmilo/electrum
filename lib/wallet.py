@@ -403,38 +403,48 @@ class Abstract_Wallet(object):
         self.storage.put('verified_tx3', self.verified_tx, True)
         self.network.trigger_callback('updated')
 
-    def unverify_txs(self, txs):
+    def get_unverified_txs(self):
+        '''Returns a list of tuples (tx_hash, height) that are unverified and not beyond local height'''
+        txs = []
+        with self.lock:
+            for tx_hash, tx_height in self.unverified_tx.items():
+                # do not request merkle branch before headers are available
+                if tx_hash not in self.verified_tx and tx_height <= self.network.get_local_height():
+                    txs.append((tx_hash, tx_height))
+        return txs
+    
+    def undo_verifications(self, height):
         '''Used by the verifier when a reorg has happened'''
+        txs = []
         with self.lock:
-            for tx_hash in txs:
-                self.verified_tx.pop(tx_hash, None)
-
-    def get_transactions(self):
-        '''Return the verified and unverified tx dicts'''
-        with self.lock:
-            return self.verified_tx, self.unverified_tx
+            for tx_hash, item in self.verified_tx:
+                tx_height, timestamp, pos = item
+                if tx_height >= height:
+                    self.verified_tx.pop(tx_hash, None)
+                    txs.append(tx_hash)
+        return txs
 
     def get_confirmations(self, tx):
         """ return the number of confirmations of a monitored transaction. """
-        verified_tx, unverified_tx = self.get_transactions()
-        if tx in verified_tx:
-            height, timestamp, pos = verified_tx[tx]
-            conf = (self.network.get_local_height() - height + 1)
-            if conf <= 0: timestamp = None
-        elif tx in unverified_tx:
-            conf = -1
-            timestamp = None
-        else:
-            conf = 0
-            timestamp = None
+        with self.lock:
+            if tx in self.verified_tx:
+                height, timestamp, pos = self.verified_tx[tx]
+                conf = (self.network.get_local_height() - height + 1)
+                if conf <= 0: timestamp = None
+            elif tx in self.unverified_tx:
+                conf = -1
+                timestamp = None
+            else:
+                conf = 0
+                timestamp = None
 
         return conf, timestamp
 
     def get_txpos(self, tx_hash):
         "return position, even if the tx is unverified"
-        verified_tx, unverified_tx = self.get_transactions()
-        x = verified_tx.get(tx_hash)
-        y = unverified_tx.get(tx_hash)
+        with self.lock:
+            x = self.verified_tx.get(tx_hash)
+            y = self.unverified_tx.get(tx_hash)
         if x:
             height, timestamp, pos = x
             return height, pos
@@ -1021,8 +1031,8 @@ class Abstract_Wallet(object):
                 self.add_unverified_tx (tx_hash, tx_height)
 
         # if we are on a pruning server, remove unverified transactions
-        verified_tx, unverified_tx = self.get_transactions()
-        vr = verified_tx.keys() + unverified_tx.keys()
+        with self.lock:
+            vr = self.verified_tx.keys() + self.unverified_tx.keys()
         for tx_hash in self.transactions.keys():
             if tx_hash not in vr:
                 print_error("removing transaction", tx_hash)
@@ -1038,7 +1048,6 @@ class Abstract_Wallet(object):
                 return False
 
         # check that we are not "orphaning" a transaction
-        verified_tx, unverified_tx = self.get_transactions()
         old_hist = self.history.get(addr,[])
         for tx_hash, height in old_hist:
             if tx_hash in map(lambda x:x[0], hist):
@@ -1058,8 +1067,9 @@ class Abstract_Wallet(object):
                 if not tx: continue
 
                 # already verified?
-                if tx_hash in verified_tx:
-                    continue
+                with self.lock:
+                    if tx_hash in self.verified_tx:
+                        continue
                 # unconfirmed tx
                 print_error("new history is orphaning transaction:", tx_hash)
                 # check that all outputs are not mine, request histories

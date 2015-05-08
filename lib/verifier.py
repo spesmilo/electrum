@@ -36,19 +36,14 @@ class SPV(util.DaemonThread):
         self.queue = Queue.Queue()
 
     def run(self):
-        requested_merkle = []
+        requested_merkle = set()
         while self.is_running():
-            verified_tx, unverified_tx = self.wallet.get_transactions()
-            # request missing tx
-            for tx_hash, tx_height in unverified_tx.items():
-                if tx_hash not in verified_tx:
-                    # do not request merkle branch before headers are available
-                    if tx_height > self.network.get_local_height():
-                        continue
-                    if self.merkle_roots.get(tx_hash) is None and tx_hash not in requested_merkle:
-                        if self.network.send([ ('blockchain.transaction.get_merkle',[tx_hash, tx_height]) ], self.queue.put):
-                            self.print_error('requesting merkle', tx_hash)
-                            requested_merkle.append(tx_hash)
+            unverified = self.wallet.get_unverified_txs()
+            for (tx_hash, tx_height) in unverified:
+                if self.merkle_roots.get(tx_hash) is None and tx_hash not in requested_merkle:
+                    if self.network.send([ ('blockchain.transaction.get_merkle',[tx_hash, tx_height]) ], self.queue.put):
+                        self.print_error('requesting merkle', tx_hash)
+                        requested_merkle.add(tx_hash)
             try:
                 r = self.queue.get(timeout=0.1)
             except Queue.Empty:
@@ -97,12 +92,7 @@ class SPV(util.DaemonThread):
 
 
     def undo_verifications(self, height):
-        verified_tx, unverified_tx = self.wallet.get_transactions()
-        txs = []
-        for tx_hash, item in verified_tx:
-            tx_height, timestamp, pos = item
-            if tx_height >= height:
-                self.print_error("redoing", tx_hash)
-                txs.append(tx_hash)
-                self.merkle_roots.pop(tx_hash, None)
-        self.wallet.unverify_txs(txs)
+        tx_hashes = selt.wallet.undo_verifications(height)
+        for tx_hash in tx_hashes:
+            self.print_error("redoing", tx_hash)
+            self.merkle_roots.pop(tx_hash, None)
