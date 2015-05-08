@@ -162,8 +162,11 @@ class Network(util.DaemonThread):
         if not os.path.exists(dir_path):
             os.mkdir(dir_path)
 
-        # address subscriptions and cached results
-        self.addresses = {}
+        # address subscriptions
+        self.addresses = set()
+        # cached results
+        self.addr_responses = {}
+
         self.connection_status = 'connecting'
         self.requests_queue = Queue.Queue()
         self.set_proxy(deserialize_proxy(self.config.get('proxy')))
@@ -209,6 +212,7 @@ class Network(util.DaemonThread):
         return self.interface and self.interface.is_connected()
 
     def send_subscriptions(self):
+        self.print_error('sending subscriptions to', self.interface.server, len(self.addresses))
         for addr in self.addresses:
             self.interface.send_request({'method':'blockchain.address.subscribe', 'params':[addr]})
         self.interface.send_request({'method':'server.banner','params':[]})
@@ -447,8 +451,9 @@ class Network(util.DaemonThread):
 
         if method == 'blockchain.address.subscribe':
             addr = params[0]
-            if addr in self.addresses:
-                self.response_queue.put({'id':_id, 'result':self.addresses[addr]})
+            self.addresses.add(addr)
+            if addr in self.addr_responses:
+                self.response_queue.put({'id':_id, 'result':self.addr_responses[addr]})
                 return
 
         try:
@@ -505,7 +510,6 @@ class Network(util.DaemonThread):
                 self.add_recent_server(i)
                 i.send_request({'method':'blockchain.headers.subscribe','params':[]})
                 if i == self.interface:
-                    self.print_error('sending subscriptions to', self.interface.server)
                     self.send_subscriptions()
                     self.set_status('connected')
             else:
@@ -555,7 +559,7 @@ class Network(util.DaemonThread):
     def on_address(self, i, r):
         addr = r.get('params')[0]
         result = r.get('result')
-        self.addresses[addr] = result
+        self.addr_responses[addr] = result
         self.response_queue.put(r)
 
     def get_header(self, tx_height):
