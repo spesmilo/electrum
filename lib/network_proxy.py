@@ -27,7 +27,7 @@ import Queue
 
 import util
 from network import Network
-from util import print_error, print_stderr, parse_json
+from util import get_file_height, print_error, print_stderr, parse_json
 from simple_config import SimpleConfig
 from daemon import NetworkServer
 from network import serialize_proxy, serialize_server

@@ -304,8 +304,18 @@ def parse_json(message):
         j = None
     return j, message[n+1:]
 
+# Until we find a better place to put it
+_file_height = 0
 
+def get_file_height():
+    return _file_height
 
+def refresh_file_height(headers_filename):
+    global _file_height
+    if os.path.exists(headers_filename):
+        _file_height = os.path.getsize(headers_filename) / 80 - 1
+    else:
+        _file_height = 0
 
 class timeout(Exception):
     pass

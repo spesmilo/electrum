@@ -18,7 +18,7 @@
 
 
 import threading, time, Queue, os, sys, shutil
-from util import user_dir, print_error
+from util import user_dir, print_error, get_file_height, refresh_file_height
 import util
 from bitcoin import *
 
@@ -35,7 +35,7 @@ class Blockchain(util.DaemonThread):
 
     def run(self):
         self.init_headers_file()
-        self.print_error("%d blocks" % self.config.height)
+        self.print_error("%d blocks" % get_file_height())
 
         while self.is_running():
             try:
@@ -48,12 +48,12 @@ class Blockchain(util.DaemonThread):
             if not header:
                 continue
             height = header.get('block_height')
-            if height <= self.config.height:
+            if height <= get_file_height():
                 continue
-            if height > self.config.height + 50:
+            if height > get_file_height() + 50:
                 if not self.get_and_verify_chunks(i, header, height):
                     continue
-            if height > self.config.height:
+            if height > get_file_height():
                 # get missing parts from interface (until it connects to my chain)
                 chain = self.get_chain( i, header )
                 # skip that server if the result is not consistent
@@ -178,7 +178,7 @@ class Blockchain(util.DaemonThread):
         f.seek(index*2016*80)
         h = f.write(chunk)
         f.close()
-        self.config.refresh_height()
+        refresh_file_height(self.config.headers_filename())
 
     def save_header(self, header):
         data = self.header_to_string(header).decode('hex')
@@ -189,7 +189,7 @@ class Blockchain(util.DaemonThread):
         f.seek(height*80)
         h = f.write(data)
         f.close()
-        self.config.refresh_height()
+        refresh_file_height(self.config.headers_filename())
 
     def read_header(self, block_height):
         name = self.path()
@@ -307,7 +307,7 @@ class Blockchain(util.DaemonThread):
     def get_and_verify_chunks(self, i, header, height):
 
         queue = Queue.Queue()
-        min_index = (self.config.height + 1)/2016
+        min_index = (get_file_height() + 1)/2016
         max_index = (height + 1)/2016
         n = min_index
         while n < max_index + 1:
