@@ -139,6 +139,7 @@ class Abstract_Wallet(object):
         self.seed                  = storage.get('seed', '')               # encrypted
         self.labels                = storage.get('labels', {})
         self.frozen_addresses      = storage.get('frozen_addresses',[])
+        self.stored_height         = storage.get('stored_height', 0)       # last known height (for offline mode)
 
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
         self.fee_per_kb            = int(storage.get('fee_per_kb', RECOMMENDED_FEE))
@@ -397,9 +398,8 @@ class Abstract_Wallet(object):
         return txs
 
     def get_local_height(self):
-        """ todo: fetch height in offline mode """
-        return self.network.get_local_height() if self.network else 0
-
+        """ return last known height if we are offline """
+        return self.network.get_local_height() if self.network else self.stored_height
 
     def get_confirmations(self, tx):
         """ return the number of confirmations of a monitored transaction. """
@@ -1088,6 +1088,7 @@ class Abstract_Wallet(object):
         if self.network:
             self.verifier.stop()
             self.synchronizer.stop()
+            self.storage.put('stored_height', self.get_local_height(), True)
 
     def restore(self, cb):
         pass

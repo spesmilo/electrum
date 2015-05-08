@@ -32,10 +32,15 @@ class Blockchain(util.DaemonThread):
         self.lock = threading.Lock()
         self.headers_url = 'http://headers.electrum.org/blockchain_headers'
         self.queue = Queue.Queue()
+        self.local_height = 0
+        self.set_local_height()
+
+    def height(self):
+        return self.local_height
 
     def run(self):
         self.init_headers_file()
-        self.print_error("%d blocks" % self.config.height)
+        self.print_error("%d blocks" % self.local_height)
 
         while self.is_running():
             try:
@@ -48,12 +53,12 @@ class Blockchain(util.DaemonThread):
             if not header:
                 continue
             height = header.get('block_height')
-            if height <= self.config.height:
+            if height <= self.local_height:
                 continue
-            if height > self.config.height + 50:
+            if height > self.local_height + 50:
                 if not self.get_and_verify_chunks(i, header, height):
                     continue
-            if height > self.config.height:
+            if height > self.local_height:
                 # get missing parts from interface (until it connects to my chain)
                 chain = self.get_chain( i, header )
                 # skip that server if the result is not consistent
@@ -155,7 +160,7 @@ class Blockchain(util.DaemonThread):
         return rev_hex(Hash(self.header_to_string(header).decode('hex')).encode('hex'))
 
     def path(self):
-        return self.config.headers_filename()
+        return os.path.join(self.config.path, 'blockchain_headers')
 
     def init_headers_file(self):
         filename = self.path()
@@ -178,7 +183,7 @@ class Blockchain(util.DaemonThread):
         f.seek(index*2016*80)
         h = f.write(chunk)
         f.close()
-        self.config.refresh_height()
+        self.set_local_height()
 
     def save_header(self, header):
         data = self.header_to_string(header).decode('hex')
@@ -189,7 +194,14 @@ class Blockchain(util.DaemonThread):
         f.seek(height*80)
         h = f.write(data)
         f.close()
-        self.config.refresh_height()
+        self.set_local_height()
+
+    def set_local_height(self):
+        name = self.path()
+        if os.path.exists(name):
+            h = os.path.getsize(name)/80 - 1
+            if self.local_height != h:
+                self.local_height = h
 
     def read_header(self, block_height):
         name = self.path()
@@ -201,7 +213,6 @@ class Blockchain(util.DaemonThread):
             if len(h) == 80:
                 h = self.header_from_string(h)
                 return h
-
 
     def get_target(self, index, chain=None):
         if chain is None:
@@ -307,7 +318,7 @@ class Blockchain(util.DaemonThread):
     def get_and_verify_chunks(self, i, header, height):
 
         queue = Queue.Queue()
-        min_index = (self.config.height + 1)/2016
+        min_index = (self.local_height + 1)/2016
         max_index = (height + 1)/2016
         n = min_index
         while n < max_index + 1:
