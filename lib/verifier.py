@@ -25,48 +25,25 @@ import util
 from bitcoin import *
 
 
-
-
 class SPV(util.DaemonThread):
     """ Simple Payment Verification """
 
-    def __init__(self, network, storage):
+    def __init__(self, network, wallet):
         util.DaemonThread.__init__(self)
-        self.storage = storage
+        self.wallet = wallet
         self.network = network
-        self.transactions    = {}                                 # requested verifications (with height sent by the requestor)
-        self.verified_tx     = storage.get('verified_tx3',{})      # height, timestamp of verified transactions
         self.merkle_roots    = {}                                  # hashed by me
-        self.lock = threading.Lock()
         self.queue = Queue.Queue()
 
-    def get_height(self, tx_hash):
-        with self.lock:
-            v = self.verified_tx.get(tx_hash)
-        height = v[0] if v else None
-        return height
-
-
-    def add(self, tx_hash, tx_height):
-        """ add a transaction to the list of monitored transactions. """
-        assert tx_height > 0
-        with self.lock:
-            if tx_hash not in self.transactions.keys():
-                self.transactions[tx_hash] = tx_height
-
     def run(self):
-        requested_merkle = []
+        requested_merkle = set()
         while self.is_running():
-            # request missing tx
-            for tx_hash, tx_height in self.transactions.items():
-                if tx_hash not in self.verified_tx:
-                    # do not request merkle branch before headers are available
-                    if tx_height > self.network.get_local_height():
-                        continue
-                    if self.merkle_roots.get(tx_hash) is None and tx_hash not in requested_merkle:
-                        if self.network.send([ ('blockchain.transaction.get_merkle',[tx_hash, tx_height]) ], self.queue.put):
-                            self.print_error('requesting merkle', tx_hash)
-                            requested_merkle.append(tx_hash)
+            unverified = self.wallet.get_unverified_txs()
+            for (tx_hash, tx_height) in unverified:
+                if self.merkle_roots.get(tx_hash) is None and tx_hash not in requested_merkle:
+                    if self.network.send([ ('blockchain.transaction.get_merkle',[tx_hash, tx_height]) ], self.queue.put):
+                        self.print_error('requesting merkle', tx_hash)
+                        requested_merkle.add(tx_hash)
             try:
                 r = self.queue.get(timeout=0.1)
             except Queue.Empty:
@@ -102,12 +79,8 @@ class SPV(util.DaemonThread):
 
         # we passed all the tests
         self.merkle_roots[tx_hash] = merkle_root
-        timestamp = header.get('timestamp')
-        with self.lock:
-            self.verified_tx[tx_hash] = (tx_height, timestamp, pos)
-        self.print_error("verified %s"%tx_hash)
-        self.storage.put('verified_tx3', self.verified_tx, True)
-        self.network.trigger_callback('updated')
+        self.print_error("verified %s" % tx_hash)
+        self.wallet.add_verified_tx(tx_hash, (tx_height, header.get('timestamp'), pos))
 
 
     def hash_merkle_root(self, merkle_s, target_hash, pos):
@@ -118,15 +91,8 @@ class SPV(util.DaemonThread):
         return hash_encode(h)
 
 
-
     def undo_verifications(self, height):
-        with self.lock:
-            items = self.verified_tx.items()[:]
-        for tx_hash, item in items:
-            tx_height, timestamp, pos = item
-            if tx_height >= height:
-                self.print_error("redoing", tx_hash)
-                with self.lock:
-                    self.verified_tx.pop(tx_hash)
-                    if tx_hash in self.merkle_roots:
-                        self.merkle_roots.pop(tx_hash)
+        tx_hashes = selt.wallet.undo_verifications(height)
+        for tx_hash in tx_hashes:
+            self.print_error("redoing", tx_hash)
+            self.merkle_roots.pop(tx_hash, None)

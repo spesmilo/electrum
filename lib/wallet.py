@@ -48,42 +48,14 @@ IMPORTED_ACCOUNT = '/x'
 
 class WalletStorage(object):
 
-    def __init__(self, config):
+    def __init__(self, path):
         self.lock = threading.RLock()
-        self.config = config
         self.data = {}
+        self.path = path
         self.file_exists = False
-        self.path = self.init_path(config)
         print_error( "wallet path", self.path )
         if self.path:
             self.read(self.path)
-
-    def init_path(self, config):
-        """Set the path of the wallet."""
-
-        # command line -w option
-        path = config.get('wallet_path')
-        if path:
-            return path
-
-        # path in config file
-        path = config.get('default_wallet_path')
-        if path and os.path.exists(path):
-            return path
-
-        # default path
-        dirpath = os.path.join(config.path, "wallets")
-        if not os.path.exists(dirpath):
-            os.mkdir(dirpath)
-
-        new_path = os.path.join(config.path, "wallets", "default_wallet")
-
-        # default path in pre 1.9 versions
-        old_path = os.path.join(config.path, "electrum-ltc.dat")
-        if os.path.exists(old_path) and not os.path.exists(new_path):
-            os.rename(old_path, new_path)
-
-        return new_path
 
     def read(self, path):
         """Read the contents of the wallet file."""
@@ -182,6 +154,11 @@ class Abstract_Wallet(object):
 
         # spv
         self.verifier = None
+        # Transactions pending verification.  Each value is the transaction height.  Access with self.lock.
+        self.unverified_tx = {}
+        # Verified transactions.  Each value is a (height, timestamp, block_pos) tuple.  Access with self.lock.
+        self.verified_tx   = storage.get('verified_tx3',{})
+        
         # there is a difference between wallet.up_to_date and interface.is_up_to_date()
         # interface.is_up_to_date() returns true when all requests have been answered and processed
         # wallet.up_to_date is true when the wallet is synchronized (stronger requirement)
@@ -388,19 +365,50 @@ class Abstract_Wallet(object):
         return decrypted
 
     def add_unverified_tx(self, tx_hash, tx_height):
-        if self.verifier and tx_height > 0:
-            self.verifier.add(tx_hash, tx_height)
+        if tx_height > 0:
+            with self.lock:
+                self.unverified_tx[tx_hash] = tx_height
+
+    def add_verified_tx(self, tx_hash, info):
+        with self.lock:
+            self.verified_tx[tx_hash] = info  # (tx_height, timestamp, pos)
+        self.storage.put('verified_tx3', self.verified_tx, True)
+        self.network.trigger_callback('updated')
+
+    def get_unverified_txs(self):
+        '''Returns a list of tuples (tx_hash, height) that are unverified and not beyond local height'''
+        txs = []
+        with self.lock:
+            for tx_hash, tx_height in self.unverified_tx.items():
+                # do not request merkle branch before headers are available
+                if tx_hash not in self.verified_tx and tx_height <= self.get_local_height():
+                    txs.append((tx_hash, tx_height))
+        return txs
+    
+    def undo_verifications(self, height):
+        '''Used by the verifier when a reorg has happened'''
+        txs = []
+        with self.lock:
+            for tx_hash, item in self.verified_tx:
+                tx_height, timestamp, pos = item
+                if tx_height >= height:
+                    self.verified_tx.pop(tx_hash, None)
+                    txs.append(tx_hash)
+        return txs
+
+    def get_local_height(self):
+        """ todo: fetch height in offline mode """
+        return self.network.get_local_height() if self.network else 0
+
 
     def get_confirmations(self, tx):
         """ return the number of confirmations of a monitored transaction. """
-        if not self.verifier:
-            return (None, None)
-        with self.verifier.lock:
-            if tx in self.verifier.verified_tx:
-                height, timestamp, pos = self.verifier.verified_tx[tx]
-                conf = (self.network.get_local_height() - height + 1)
+        with self.lock:
+            if tx in self.verified_tx:
+                height, timestamp, pos = self.verified_tx[tx]
+                conf = (self.get_local_height() - height + 1)
                 if conf <= 0: timestamp = None
-            elif tx in self.verifier.transactions:
+            elif tx in self.unverified_tx:
                 conf = -1
                 timestamp = None
             else:
@@ -411,9 +419,9 @@ class Abstract_Wallet(object):
 
     def get_txpos(self, tx_hash):
         "return position, even if the tx is unverified"
-        with self.verifier.lock:
-            x = self.verifier.verified_tx.get(tx_hash)
-            y = self.verifier.transactions.get(tx_hash)
+        with self.lock:
+            x = self.verified_tx.get(tx_hash)
+            y = self.unverified_tx.get(tx_hash)
         if x:
             height, timestamp, pos = x
             return height, pos
@@ -527,7 +535,7 @@ class Abstract_Wallet(object):
         received, sent = self.get_addr_io(address)
         c = u = x = 0
         for txo, (tx_height, v, is_cb) in received.items():
-            if is_cb and tx_height + COINBASE_MATURITY > self.network.get_local_height():
+            if is_cb and tx_height + COINBASE_MATURITY > self.get_local_height():
                 x += v
             elif tx_height > 0:
                 c += v
@@ -549,7 +557,7 @@ class Abstract_Wallet(object):
             c = self.get_addr_utxo(addr)
             for txo, v in c.items():
                 tx_height, value, is_cb = v
-                if is_cb and tx_height + COINBASE_MATURITY > self.network.get_local_height():
+                if is_cb and tx_height + COINBASE_MATURITY > self.get_local_height():
                     continue
                 prevout_hash, prevout_n = txo.split(':')
                 output = {
@@ -1000,7 +1008,8 @@ class Abstract_Wallet(object):
                 self.add_unverified_tx (tx_hash, tx_height)
 
         # if we are on a pruning server, remove unverified transactions
-        vr = self.verifier.transactions.keys() + self.verifier.verified_tx.keys()
+        with self.lock:
+            vr = self.verified_tx.keys() + self.unverified_tx.keys()
         for tx_hash in self.transactions.keys():
             if tx_hash not in vr:
                 print_error("removing transaction", tx_hash)
@@ -1035,8 +1044,9 @@ class Abstract_Wallet(object):
                 if not tx: continue
 
                 # already verified?
-                if self.verifier.get_height(tx_hash):
-                    continue
+                with self.lock:
+                    if tx_hash in self.verified_tx:
+                        continue
                 # unconfirmed tx
                 print_error("new history is orphaning transaction:", tx_hash)
                 # check that all outputs are not mine, request histories
@@ -1065,7 +1075,7 @@ class Abstract_Wallet(object):
         from verifier import SPV
         self.network = network
         if self.network is not None:
-            self.verifier = SPV(self.network, self.storage)
+            self.verifier = SPV(self.network, self)
             self.verifier.start()
             self.set_verifier(self.verifier)
             self.synchronizer = WalletSynchronizer(self, network)
@@ -1113,7 +1123,7 @@ class Abstract_Wallet(object):
             if tx_height == 0:
                 tx_age = 0
             else:
-                tx_age = self.network.get_local_height() - tx_height + 1
+                tx_age = self.get_local_height() - tx_height + 1
             if tx_age > age:
                 age = tx_age
         return age > age_limit
@@ -1447,7 +1457,8 @@ class BIP32_Wallet(Deterministic_Wallet):
         return Mnemonic.mnemonic_to_seed(seed, password)
 
     def make_seed(self):
-        lang = self.storage.config.get('language')
+        # fixme lang = self.storage.config.get('language')
+        lang = None
         return Mnemonic(lang).make_seed()
 
     def format_seed(self, seed):

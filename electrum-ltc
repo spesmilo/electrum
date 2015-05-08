@@ -296,7 +296,7 @@ if __name__ == '__main__':
     cmd = known_commands[cmd]
 
     # instanciate wallet for command-line
-    storage = WalletStorage(config)
+    storage = WalletStorage(config.get_wallet_path())
 
     if cmd.name in ['create', 'restore']:
         if storage.file_exists:

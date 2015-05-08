@@ -146,6 +146,35 @@ class SimpleConfig(object):
             import stat
             os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
 
+    def get_wallet_path(self):
+        """Set the path of the wallet."""
+
+        # command line -w option
+        path = self.get('wallet_path')
+        if path:
+            return path
+
+        # path in config file
+        path = self.get('default_wallet_path')
+        if path and os.path.exists(path):
+            return path
+
+        # default path
+        dirpath = os.path.join(self.path, "wallets")
+        if not os.path.exists(dirpath):
+            os.mkdir(dirpath)
+
+        new_path = os.path.join(self.path, "wallets", "default_wallet")
+
+        # default path in pre 1.9 versions
+        old_path = os.path.join(self.path, "electrum-ltc.dat")
+        if os.path.exists(old_path) and not os.path.exists(new_path):
+            os.rename(old_path, new_path)
+
+        return new_path
+
+
+
 def read_system_config(path=SYSTEM_CONFIG_PATH):
     """Parse and return the system config settings in /etc/electrum-ltc.conf."""
     result = {}

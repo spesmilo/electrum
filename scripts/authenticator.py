@@ -174,7 +174,7 @@ class Authenticator:
     def __init__(self):
         global wallet
         self.qr_data = None
-        storage = WalletStorage({'wallet_path':'/sdcard/electrum-ltc/authenticator'})
+        storage = WalletStorage('/sdcard/electrum-ltc/authenticator')
         if not storage.file_exists:
 
             action = self.restore_or_create()
