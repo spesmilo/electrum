@@ -3,7 +3,7 @@ import json
 import threading
 import os
 
-from util import user_dir, print_error, print_msg
+from util import user_dir, print_error, print_msg, refresh_file_height
 
 SYSTEM_CONFIG_PATH = "/etc/electrum.conf"
 
@@ -78,7 +78,7 @@ class SimpleConfig(object):
         # user config.
         self.user_config = read_user_config_function(self.path)
 
-        self.refresh_height()
+        refresh_file_height(self.headers_filename())
 
         set_config(self)  # Make a singleton instance of 'self'
 
@@ -126,13 +126,6 @@ class SimpleConfig(object):
 
     def headers_filename(self):
         return os.path.join(self.path, 'blockchain_headers')
-
-    def refresh_height(self):
-        name = self.headers_filename()
-        if os.path.exists(name):
-            self.height = os.path.getsize(name) / 80 - 1
-        else:
-            self.height = 0
 
     def save_user_config(self):
         if not self.path:
