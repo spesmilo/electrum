@@ -9,7 +9,7 @@ from util import ButtonsTextEdit
 class ShowQRTextEdit(ButtonsTextEdit):
 
     def __init__(self, text=None):
-        ButtonsTextEdit__init__(self, text)
+        ButtonsTextEdit.__init__(self, text)
         self.setReadOnly(1)
         self.addButton(":icons/qrcode.png", self.qr_show, _("Show as QR code"))
         run_hook('show_text_edit', self)
