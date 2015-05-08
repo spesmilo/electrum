@@ -287,7 +287,7 @@ class TcpInterface(threading.Thread):
             self.send_request({'method':'server.version', 'params':[ELECTRUM_VERSION, PROTOCOL_VERSION]})
             self.ping_time = time.time()
         # stop interface if we have been waiting for more than 10 seconds
-        if self.unanswered_requests and time.time() - self.self.request_time > 10 and self.pipe.idle_time() > 10:
+        if self.unanswered_requests and time.time() - self.request_time > 10 and self.pipe.idle_time() > 10:
             self.print_error("interface timeout", len(self.unanswered_requests))
             self.stop()
 
