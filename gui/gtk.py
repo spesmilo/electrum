@@ -1290,7 +1290,7 @@ class ElectrumGui():
 
     def main(self, url=None):
 
-        storage = WalletStorage(self.config)
+        storage = WalletStorage(self.config.get_wallet_path())
         if not storage.file_exists:
             action = self.restore_or_create()
             if not action:

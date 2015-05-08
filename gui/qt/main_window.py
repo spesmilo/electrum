@@ -264,7 +264,7 @@ class ElectrumWindow(QMainWindow):
         if not filename:
             return
         try:
-            storage = WalletStorage({'wallet_path': filename})
+            storage = WalletStorage(filename)
         except Exception as e:
             self.show_message(str(e))
             return

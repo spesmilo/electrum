@@ -48,42 +48,14 @@ IMPORTED_ACCOUNT = '/x'
 
 class WalletStorage(object):
 
-    def __init__(self, config):
+    def __init__(self, path):
         self.lock = threading.RLock()
-        self.config = config
         self.data = {}
+        self.path = path
         self.file_exists = False
-        self.path = self.init_path(config)
         print_error( "wallet path", self.path )
         if self.path:
             self.read(self.path)
-
-    def init_path(self, config):
-        """Set the path of the wallet."""
-
-        # command line -w option
-        path = config.get('wallet_path')
-        if path:
-            return path
-
-        # path in config file
-        path = config.get('default_wallet_path')
-        if path and os.path.exists(path):
-            return path
-
-        # default path
-        dirpath = os.path.join(config.path, "wallets")
-        if not os.path.exists(dirpath):
-            os.mkdir(dirpath)
-
-        new_path = os.path.join(config.path, "wallets", "default_wallet")
-
-        # default path in pre 1.9 versions
-        old_path = os.path.join(config.path, "electrum.dat")
-        if os.path.exists(old_path) and not os.path.exists(new_path):
-            os.rename(old_path, new_path)
-
-        return new_path
 
     def read(self, path):
         """Read the contents of the wallet file."""
@@ -425,8 +397,9 @@ class Abstract_Wallet(object):
         return txs
 
     def get_local_height(self):
-        '''This does not require a network so works in offline mode'''
-        return self.storage.config.height
+        """ todo: fetch height in offline mode """
+        return self.network.get_local_height() if self.network else 0
+
 
     def get_confirmations(self, tx):
         """ return the number of confirmations of a monitored transaction. """
@@ -1484,7 +1457,8 @@ class BIP32_Wallet(Deterministic_Wallet):
         return Mnemonic.mnemonic_to_seed(seed, password)
 
     def make_seed(self):
-        lang = self.storage.config.get('language')
+        # fixme lang = self.storage.config.get('language')
+        lang = None
         return Mnemonic(lang).make_seed()
 
     def format_seed(self, seed):

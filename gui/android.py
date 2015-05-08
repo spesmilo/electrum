@@ -907,7 +907,7 @@ class ElectrumGui:
         
         contacts = util.StoreDict(config, 'contacts')
 
-        storage = WalletStorage(config)
+        storage = WalletStorage(config.get_wallet_path())
         if not storage.file_exists:
             action = self.restore_or_create()
             if not action:

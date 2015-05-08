@@ -179,7 +179,7 @@ class ElectrumGui:
             if os.path.exists(last_wallet):
                 self.config.read_only_options['default_wallet_path'] = last_wallet
         try:
-            storage = WalletStorage(self.config)
+            storage = WalletStorage(self.config.get_wallet_path())
         except BaseException as e:
             QMessageBox.warning(None, _('Warning'), str(e), _('OK'))
             self.config.set_key('gui_last_wallet', None)
