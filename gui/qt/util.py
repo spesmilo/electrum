@@ -200,7 +200,7 @@ def text_dialog(parent, title, label, ok_label, default=None):
     l = QVBoxLayout()
     dialog.setLayout(l)
     l.addWidget(QLabel(label))
-    txt = ScanQRTextEdit(parent)
+    txt = ScanQRTextEdit()
     if default:
         txt.setText(default)
     l.addWidget(txt)
