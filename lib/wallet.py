@@ -409,7 +409,7 @@ class Abstract_Wallet(object):
         with self.lock:
             for tx_hash, tx_height in self.unverified_tx.items():
                 # do not request merkle branch before headers are available
-                if tx_hash not in self.verified_tx and tx_height <= self.network.get_local_height():
+                if tx_hash not in self.verified_tx and tx_height <= self.get_local_height():
                     txs.append((tx_hash, tx_height))
         return txs
     
@@ -424,12 +424,16 @@ class Abstract_Wallet(object):
                     txs.append(tx_hash)
         return txs
 
+    def get_local_height(self):
+        '''This does not require a network so works in offline mode'''
+        return self.storage.config.height
+
     def get_confirmations(self, tx):
         """ return the number of confirmations of a monitored transaction. """
         with self.lock:
             if tx in self.verified_tx:
                 height, timestamp, pos = self.verified_tx[tx]
-                conf = (self.network.get_local_height() - height + 1)
+                conf = (self.get_local_height() - height + 1)
                 if conf <= 0: timestamp = None
             elif tx in self.unverified_tx:
                 conf = -1
@@ -558,7 +562,7 @@ class Abstract_Wallet(object):
         received, sent = self.get_addr_io(address)
         c = u = x = 0
         for txo, (tx_height, v, is_cb) in received.items():
-            if is_cb and tx_height + COINBASE_MATURITY > self.network.get_local_height():
+            if is_cb and tx_height + COINBASE_MATURITY > self.get_local_height():
                 x += v
             elif tx_height > 0:
                 c += v
@@ -580,7 +584,7 @@ class Abstract_Wallet(object):
             c = self.get_addr_utxo(addr)
             for txo, v in c.items():
                 tx_height, value, is_cb = v
-                if is_cb and tx_height + COINBASE_MATURITY > self.network.get_local_height():
+                if is_cb and tx_height + COINBASE_MATURITY > self.get_local_height():
                     continue
                 prevout_hash, prevout_n = txo.split(':')
                 output = {
@@ -1146,7 +1150,7 @@ class Abstract_Wallet(object):
             if tx_height == 0:
                 tx_age = 0
             else:
-                tx_age = self.network.get_local_height() - tx_height + 1
+                tx_age = self.get_local_height() - tx_height + 1
             if tx_age > age:
                 age = tx_age
         return age > age_limit
