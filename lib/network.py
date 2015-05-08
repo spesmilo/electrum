@@ -170,6 +170,9 @@ class Network(util.DaemonThread):
         self.connection_status = 'connecting'
         self.requests_queue = Queue.Queue()
         self.set_proxy(deserialize_proxy(self.config.get('proxy')))
+        # retry times
+        self.server_retry_time = time.time()
+        self.nodes_retry_time = time.time()
 
     def read_recent_servers(self):
         if not self.config.path:
@@ -464,37 +467,38 @@ class Network(util.DaemonThread):
             self.requests_queue.put(request)
             time.sleep(0.1)
 
+    def check_interfaces(self):
+        now = time.time()
+        if len(self.interfaces) + len(self.pending_servers) < self.num_server:
+            self.start_random_interface()
+        if not self.interfaces:
+            if now - self.nodes_retry_time > NODES_RETRY_INTERVAL:
+                self.print_error('network: retrying connections')
+                self.disconnected_servers = set([])
+                self.nodes_retry_time = now
+        if not self.interface.is_connected():
+            if self.config.get('auto_cycle'):
+                if self.interfaces:
+                    self.switch_to_random_interface()
+            else:
+                if self.default_server in self.interfaces.keys():
+                    self.switch_to_interface(self.interfaces[self.default_server])
+                else:
+                    if self.default_server in self.disconnected_servers:
+                        if now - self.server_retry_time > SERVER_RETRY_INTERVAL:
+                            self.disconnected_servers.remove(self.default_server)
+                            self.server_retry_time = now
+                    else:
+                        if self.default_server not in self.pending_servers:
+                            self.print_error("forcing reconnection")
+                            self.interface = self.start_interface(self.default_server)
+
     def run(self):
-        server_retry_time = time.time()
-        nodes_retry_time = time.time()
         while self.is_running():
+            self.check_interfaces()
             try:
                 i, response = self.queue.get(timeout=0.1)
             except Queue.Empty:
-                now = time.time()
-                if len(self.interfaces) + len(self.pending_servers) < self.num_server:
-                    self.start_random_interface()
-                if not self.interfaces:
-                    if now - nodes_retry_time > NODES_RETRY_INTERVAL:
-                        self.print_error('network: retrying connections')
-                        self.disconnected_servers = set([])
-                        nodes_retry_time = now
-                if not self.interface.is_connected():
-                    if self.config.get('auto_cycle'):
-                        if self.interfaces:
-                            self.switch_to_random_interface()
-                    else:
-                        if self.default_server in self.interfaces.keys():
-                            self.switch_to_interface(self.interfaces[self.default_server])
-                        else:
-                            if self.default_server in self.disconnected_servers:
-                                if now - server_retry_time > SERVER_RETRY_INTERVAL:
-                                    self.disconnected_servers.remove(self.default_server)
-                                    server_retry_time = now
-                            else:
-                                if self.default_server not in self.pending_servers:
-                                    self.print_error("forcing reconnection")
-                                    self.interface = self.start_interface(self.default_server)
                 continue
 
             if response is not None:
