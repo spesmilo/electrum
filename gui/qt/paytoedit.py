@@ -31,8 +31,9 @@ frozen_style = "QWidget { background-color:none; border:none;}"
 normal_style = "QPlainTextEdit { }"
 
 class PayToEdit(ScanQRTextEdit):
+
     def __init__(self, win):
-        super(PayToEdit,self).__init__(win=win)
+        ScanQRTextEdit.__init__(self)
         self.amount_edit = win.amount_e
         self.document().contentsChanged.connect(self.update_size)
         self.heightMin = 0
@@ -42,7 +43,7 @@ class PayToEdit(ScanQRTextEdit):
         self.outputs = []
         self.errors = []
         self.is_pr = False
-        self.scan_f = self.win.pay_from_URI
+        self.scan_f = win.pay_from_URI
         self.update_size()
         self.payto_address = None
 

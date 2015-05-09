@@ -71,16 +71,12 @@ class SimpleConfig(object):
         # update the current options with the command line options last (to
         # override both others).
         self.read_only_options.update(options)
-
         # init path
         self.init_path()
-
         # user config.
         self.user_config = read_user_config_function(self.path)
-
-        self.refresh_height()
-
-        set_config(self)  # Make a singleton instance of 'self'
+        # Make a singleton instance of 'self'
+        set_config(self)
 
     def init_path(self):
         # Read electrum path in the command line configuration
@@ -106,7 +102,6 @@ class SimpleConfig(object):
             self.user_config[key] = value
             if save:
                 self.save_user_config()
-
         return
 
     def get(self, key, default=None):
@@ -123,16 +118,6 @@ class SimpleConfig(object):
         if key in self.system_config_keys:
             return False
         return True
-
-    def headers_filename(self):
-        return os.path.join(self.path, 'blockchain_headers')
-
-    def refresh_height(self):
-        name = self.headers_filename()
-        if os.path.exists(name):
-            self.height = os.path.getsize(name) / 80 - 1
-        else:
-            self.height = 0
 
     def save_user_config(self):
         if not self.path:

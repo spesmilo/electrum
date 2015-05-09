@@ -321,9 +321,13 @@ class SocketPipe:
         self.socket = socket
         self.message = ''
         self.set_timeout(0.1)
+        self.recv_time = time.time()
 
     def set_timeout(self, t):
         self.socket.settimeout(t)
+
+    def idle_time(self):
+        return time.time() - self.recv_time
 
     def get(self):
         while True:
@@ -354,6 +358,7 @@ class SocketPipe:
                 self.socket.close()
                 return None
             self.message += data
+            self.recv_time = time.time()
 
     def send(self, request):
         out = json.dumps(request) + '\n'
