@@ -353,7 +353,7 @@ class ElectrumGui:
     def network_dialog(self):
         if not self.network: return
         auto_connect = self.network.config.get('auto_cycle')
-	host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
+        host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
         srv = 'auto-connect' if auto_connect else self.network.default_server
 
         out = self.run_dialog('Network', [
