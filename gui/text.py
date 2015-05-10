@@ -353,7 +353,7 @@ class ElectrumGui:
     def network_dialog(self):
         if not self.network: return
         auto_connect = self.network.config.get('auto_cycle')
-        host, port, protocol = self.network.default_server.split(':')
+	host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
         srv = 'auto-connect' if auto_connect else self.network.default_server
 
         out = self.run_dialog('Network', [
@@ -383,7 +383,7 @@ class ElectrumGui:
     def settings_dialog(self):
         out = self.run_dialog('Settings', [
             {'label':'Default GUI', 'type':'list', 'choices':['classic','lite','gtk','text'], 'value':self.config.get('gui')},
-            {'label':'Default fee', 'type':'satoshis', 'value': format_satoshis(self.wallet.fee).strip() }
+            {'label':'Default fee', 'type':'satoshis', 'value': format_satoshis(self.wallet.fee_per_kb).strip() }
             ], buttons = 1)
         if out:
             if out.get('Default GUI'):
