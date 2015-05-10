@@ -316,7 +316,6 @@ class ElectrumWindow(QMainWindow):
 
     def new_wallet(self):
         import installwizard
-
         wallet_folder = os.path.dirname(os.path.abspath(self.wallet.storage.path))
         i = 1
         while True:
@@ -325,17 +324,14 @@ class ElectrumWindow(QMainWindow):
                 i += 1
             else:
                 break
-
         filename = line_dialog(self, _('New Wallet'), _('Enter file name') + ':', _('OK'), filename)
         if not filename:
             return
-
         full_path = os.path.join(wallet_folder, filename)
-        storage = WalletStorage({'wallet_path': full_path})
+        storage = WalletStorage(full_path)
         if storage.file_exists:
             QMessageBox.critical(None, "Error", _("File exists"))
             return
-
         self.hide()
         wizard = installwizard.InstallWizard(self.config, self.network, storage)
         action, wallet_type = wizard.restore_or_create()
@@ -350,9 +346,7 @@ class ElectrumWindow(QMainWindow):
         else:
             self.wallet.start_threads(self.network)
             self.load_wallet(self.wallet)
-
         self.show()
-
 
 
     def init_menubar(self):

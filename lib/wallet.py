@@ -1457,9 +1457,7 @@ class BIP32_Wallet(Deterministic_Wallet):
     def mnemonic_to_seed(self, seed, password):
         return Mnemonic.mnemonic_to_seed(seed, password)
 
-    def make_seed(self):
-        # fixme lang = self.storage.config.get('language')
-        lang = None
+    def make_seed(self, lang=None):
         return Mnemonic(lang).make_seed()
 
     def format_seed(self, seed):
