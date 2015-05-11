@@ -73,7 +73,8 @@ class WalletStorage(object):
                 raise IOError("Cannot read wallet file '%s'" % self.path)
             self.data = {}
             # In old versions of Electrum labels were latin1 encoded, this fixes breakage.
-            for i, label in d['labels'].items():
+            labels = d.get('labels', {})
+            for i, label in labels.items():
                 try:
                     unicode(label)
                 except UnicodeDecodeError:
@@ -83,7 +84,8 @@ class WalletStorage(object):
                     json.dumps(key)
                     json.dumps(value)
                 except:
-                    raise Exception('Failed to convert wallet to 2.x format')
+                    print_error('Failed to convert label to json format', key)
+                    continue
                 self.data[key] = value
         self.file_exists = True
 
