@@ -429,8 +429,10 @@ class ElectrumGui:
                     value = '*'*len(item.get('value',''))
                 else:
                     value = ''
-
-                if len(value)<20: value += ' '*(20-len(value))
+                if value is None:
+                    value = ''
+                if len(value)<20:
+                    value += ' '*(20-len(value))
 
                 if item.has_key('value'):
                     w.addstr( 2+interval*i, 2, label)
