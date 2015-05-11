@@ -349,7 +349,8 @@ class InstallWizard(QDialog):
             util.print_error("installwizard:", wallet, action)
 
             if action == 'create_seed':
-                seed = wallet.make_seed()
+                lang = self.config.get('language')
+                seed = wallet.make_seed(lang)
                 if not self.show_seed(seed, None):
                     return
                 if not self.verify_seed(seed, None):

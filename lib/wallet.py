@@ -72,11 +72,19 @@ class WalletStorage(object):
             except Exception as e:
                 raise IOError("Cannot read wallet file '%s'" % self.path)
             self.data = {}
+            # In old versions of Electrum labels were latin1 encoded, this fixes breakage.
+            labels = d.get('labels', {})
+            for i, label in labels.items():
+                try:
+                    unicode(label)
+                except UnicodeDecodeError:
+                    d['labels'][i] = unicode(label.decode('latin1'))
             for key, value in d.items():
                 try:
                     json.dumps(key)
                     json.dumps(value)
                 except:
+                    print_error('Failed to convert label to json format', key)
                     continue
                 self.data[key] = value
         self.file_exists = True
@@ -1457,9 +1465,7 @@ class BIP32_Wallet(Deterministic_Wallet):
     def mnemonic_to_seed(self, seed, password):
         return Mnemonic.mnemonic_to_seed(seed, password)
 
-    def make_seed(self):
-        # fixme lang = self.storage.config.get('language')
-        lang = None
+    def make_seed(self, lang=None):
         return Mnemonic(lang).make_seed()
 
     def format_seed(self, seed):
