@@ -107,7 +107,8 @@ register_command('verifymessage',        3,-1, False, False, False, 'Verifies a 
 
 register_command('encrypt',              2,-1, False, False, False, 'encrypt a message with pubkey','encrypt <pubkey> <message>')
 register_command('decrypt',              2,-1, False, True, True,   'decrypt a message encrypted with pubkey','decrypt <pubkey> <message>')
-register_command('getproof',             1, 1, True, False, False, 'get merkle proof', 'getproof <address>')
+register_command('getmerkle',            2, 2, True, False, False, 'Get Merkle branch of a transaction included in a block', 'getmerkle <txid> <height>')
+register_command('getproof',             1, 1, True, False, False, 'Get Merkle branch of an address in the UTXO set', 'getproof <address>')
 register_command('getutxoaddress',       2, 2, True, False, False, 'get the address of an unspent transaction output','getutxoaddress <txid> <pos>')
 register_command('sweep',                2, 3, True, False, False, 'Sweep a private key.', 'sweep privkey addr [fee]')
 register_command('make_seed',            3, 3, False, False, False, 'Create a seed.','options: --nbits --entropy --lang')
@@ -253,6 +254,9 @@ class Commands:
         for i,s in p:
             out.append(i)
         return out
+
+    def getmerkle(self, txid, height):
+        return self.network.synchronous_get([ ('blockchain.transaction.get_merkle', [txid, int(height)]) ])[0]
 
     def getservers(self):
         while not self.network.is_up_to_date():
