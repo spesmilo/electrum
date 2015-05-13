@@ -38,8 +38,7 @@ ALGO_RSA_SHA1   = '1.2.840.113549.1.1.5'
 ALGO_RSA_SHA256 = '1.2.840.113549.1.1.11'
 ALGO_RSA_SHA384 = '1.2.840.113549.1.1.12'
 ALGO_RSA_SHA512 = '1.2.840.113549.1.1.13'
-
-
+ALGO_ECDSA_SHA256 = '1.2.840.10045.4.3.2'
 
 # prefixes, see http://stackoverflow.com/questions/3713774/c-sharp-how-to-calculate-asn-1-der-encoding-of-a-particular-hash-algorithm
 PREFIX_RSA_SHA256 = bytearray([0x30,0x31,0x30,0x0d,0x06,0x09,0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x01,0x05,0x00,0x04,0x20])
@@ -58,13 +57,23 @@ def decode_OID(s):
     r.append(s[0] % 40)
     k = 0 
     for i in s[1:]:
-        if i<128:
+        if i < 128:
             r.append(i + 128*k)
             k = 0
         else:
             k = (i - 128) + 128*k
-    return '.'.join(map(str,r))
+    return '.'.join(map(str, r))
 
+def encode_OID(oid):
+    x = map(int, oid.split('.'))
+    s = chr(x[0]*40 + x[1])
+    for i in x[2:]:
+        ss = chr(i % 128)
+        while i > 128:
+            i = i / 128
+            ss = chr(128 + i % 128) + ss
+        s += ss
+    return s
 
 def asn1_get_children(der, i):
     nodes = []
@@ -219,3 +228,69 @@ def load_certificates(ca_path):
         ca_keyID[x.get_keyID()] = fp
 
     return ca_list, ca_keyID
+
+
+def int_to_bytestr(i):
+    s = chr(i % 256)
+    while i > 256:
+        i >>= 8
+        s = chr(i % 256) + s
+    return s
+
+def create_csr(commonName, challenge, k):
+    import ecdsa, hashlib
+    from bitcoin import point_to_ser
+    private_key = ecdsa.SigningKey.from_string(k, curve = ecdsa.SECP256k1)
+    public_key = private_key.get_verifying_key()
+    pubkey = point_to_ser(public_key.pubkey.point, False)
+    asn1_type_table = {
+	'BOOLEAN':           0x01,	'INTEGER':           0x02,
+	'BIT STRING':        0x03,	'OCTET STRING':      0x04,
+	'NULL':              0x05,	'OBJECT IDENTIFIER': 0x06,
+	'SEQUENCE':          0x30,	'SET':               0x31,
+	'PrintableString':   0x13,	'IA5String':         0x16,
+	'UTCTime':           0x17,	'ENUMERATED':        0x0A,
+	'UTF8String':        0x0C,	'PrintableString':   0x13,
+    }
+    def x(t, s):
+        c = asn1_type_table[t] & 0x3f if type(t) == str else t
+        l = len(s)
+        if l < 128:
+            ls = chr(l)
+        else:
+            n = int_to_bytestr(l)
+            ls = chr(len(n) + 128) + n
+        return chr(c) + ls + s
+    x_int = lambda i: x('INTEGER', int_to_bytestr(i))
+    x_seq = lambda *items: x('SEQUENCE', ''.join(items))
+    x_bitstring = lambda s: x('BIT STRING', s)
+    x_utf8 = lambda s: x('UTF8String', s)
+    x_set = lambda *items: x('SET', ''.join(items))
+    x_printable = lambda s: x('PrintableString', s)
+    x_obj = lambda oid: x('OBJECT IDENTIFIER', encode_OID(oid))
+    body = x_seq(
+        x_int(0),
+        x_seq(
+            x_set(x_seq(x_obj('2.5.4.3'), x_utf8(commonName)))
+        ),
+        x_seq(
+            x_seq(
+                x_obj('1.2.840.10045.2.1'),
+                x_obj('1.3.132.0.10')
+            ),
+            x_bitstring(chr(0) + pubkey)
+        ),
+        x(0xa0, x_seq(x_obj('1.2.840.113549.1.9.7'), x_set(x_utf8(challenge)))
+        )
+    )
+    signature = private_key.sign_deterministic(body, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
+    assert public_key.verify(signature, body, hashfunc=hashlib.sha256, sigdecode = ecdsa.util.sigdecode_der)
+    csr = x_seq(
+        body,
+        x_seq(x_obj(ALGO_ECDSA_SHA256)),
+        x_bitstring(chr(0) + signature)
+    )
+    return csr
+
+
+

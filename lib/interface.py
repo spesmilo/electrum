@@ -17,46 +17,57 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import random, ast, re, errno, os
-import threading, traceback, sys, time, json, Queue
+import copy, re, errno, os
+import threading, traceback, sys, time, Queue
 import socket
 import ssl
 
 import requests
 ca_path = requests.certs.where()
 
-from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 import util
+import x509
+from version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from simple_config import SimpleConfig
 
-import x509
-import util
 
-DEFAULT_TIMEOUT = 5
+def Interface(server, response_queue, config = None):
+    """Interface factory function.  The returned interface class handles the connection
+    to a single remote electrum server.  The object handles all necessary locking.  It's
+    exposed API is:
 
-
-
-def Interface(server, config = None):
+    - Inherits everything from threading.Thread.
+    - Member functions send_request(), stop(), is_connected()
+    - Member variable server.
+    
+    "server" is constant for the object's lifetime and hence synchronization is unnecessary.
+    """
     host, port, protocol = server.split(':')
-    port = int(port)
     if protocol in 'st':
-        return TcpInterface(server, config)
+        return TcpInterface(server, response_queue, config)
     else:
         raise Exception('Unknown protocol: %s'%protocol)
 
 class TcpInterface(threading.Thread):
 
-    def __init__(self, server, config = None):
+    def __init__(self, server, response_queue, config = None):
         threading.Thread.__init__(self)
         self.daemon = True
         self.config = config if config is not None else SimpleConfig()
-        self.lock = threading.Lock()
-        self.is_connected = False
+        # Set by stop(); no more data is exchanged and the thread exits after gracefully
+        # closing the socket
+        self.disconnect = False
+        # Initially True to avoid a race; set to False on failure to create a socket or when
+        # it is closed
+        self.connected = True
         self.debug = False # dump network messages. can be changed at runtime using the console
         self.message_id = 0
+        self.response_queue = response_queue
+        self.request_queue = Queue.Queue()
         self.unanswered_requests = {}
-        # are we waiting for a pong?
-        self.is_ping = False
+        # request timeouts
+        self.request_time = time.time()
+        self.ping_time = time.time()
         # parse server
         self.server = server
         self.host, self.port, self.protocol = self.server.split(':')
@@ -75,8 +86,7 @@ class TcpInterface(threading.Thread):
         result = response.get('result')
 
         if msg_id is not None:
-            with self.lock:
-                method, params, _id, queue = self.unanswered_requests.pop(msg_id)
+            method, params, _id, queue = self.unanswered_requests.pop(msg_id)
             if queue is None:
                 queue = self.response_queue
         else:
@@ -99,7 +109,6 @@ class TcpInterface(threading.Thread):
 
         if method == 'server.version':
             self.server_version = result
-            self.is_ping = False
             return
 
         if error:
@@ -242,91 +251,82 @@ class TcpInterface(threading.Thread):
 
         return s
 
+    def send_request(self, request, response_queue = None):
+        '''Queue a request.  Blocking only if called from other threads.'''
+        self.request_time = time.time()
+        self.request_queue.put((copy.deepcopy(request), response_queue), threading.current_thread() != self)
 
-    def send_request(self, request, queue=None):
-        _id = request.get('id')
-        method = request.get('method')
-        params = request.get('params')
-        with self.lock:
+    def send_requests(self):
+        '''Sends all queued requests'''
+        while self.is_connected() and not self.request_queue.empty():
+            request, response_queue = self.request_queue.get()
+            method = request.get('method')
+            params = request.get('params')
+            r = {'id': self.message_id, 'method': method, 'params': params}
             try:
-                r = {'id':self.message_id, 'method':method, 'params':params}
                 self.pipe.send(r)
-                if self.debug:
-                    self.print_error("-->", r)
             except socket.error, e:
-                self.print_error("socked error:", e)
-                self.is_connected = False
+                self.print_error("socket error:", e)
+                self.stop()
                 return
-            self.unanswered_requests[self.message_id] = method, params, _id, queue
+            if self.debug:
+                self.print_error("-->", r)
+            self.unanswered_requests[self.message_id] = method, params, request.get('id'), response_queue
             self.message_id += 1
 
+    def is_connected(self):
+        return self.connected and not self.disconnect
+
     def stop(self):
-        if self.is_connected and self.protocol in 'st' and self.s:
-            self.s.shutdown(socket.SHUT_RDWR)
-            self.s.close()
-        self.is_connected = False
-        self.print_error("stopped")
+        self.disconnect = True
+        self.print_error("disconnecting")
 
-    def start(self, response_queue):
-        self.response_queue = response_queue
-        threading.Thread.start(self)
+    def maybe_ping(self):
+        # ping the server with server.version
+        if time.time() - self.ping_time > 60:
+            self.send_request({'method':'server.version', 'params':[ELECTRUM_VERSION, PROTOCOL_VERSION]})
+            self.ping_time = time.time()
+        # stop interface if we have been waiting for more than 10 seconds
+        if self.unanswered_requests and time.time() - self.request_time > 10 and self.pipe.idle_time() > 10:
+            self.print_error("interface timeout", len(self.unanswered_requests))
+            self.stop()
 
-    def run(self):
-        self.s = self.get_socket()
-        if self.s:
-            self.pipe = util.SocketPipe(self.s)
-            self.s.settimeout(2)
-            self.is_connected = True
-            self.print_error("connected")
-
-        self.change_status()
-        if not self.is_connected:
-            return
-
-        # ping timer
-        ping_time = 0
-        # request timer
-        request_time = False
-        while self.is_connected:
-            # ping the server with server.version
-            if time.time() - ping_time > 60:
-                if self.is_ping:
-                    self.print_error("ping timeout")
-                    self.is_connected = False
-                    break
-                else:
-                    self.send_request({'method':'server.version', 'params':[ELECTRUM_VERSION, PROTOCOL_VERSION]})
-                    self.is_ping = True
-                    ping_time = time.time()
+    def get_and_process_response(self):
+        if self.is_connected():
             try:
                 response = self.pipe.get()
             except util.timeout:
-                if self.unanswered_requests:
-                    if request_time is False:
-                        request_time = time.time()
-                        self.print_error("setting timer")
-                    else:
-                        if time.time() - request_time > 10:
-                            self.print_error("request timeout", len(self.unanswered_requests))
-                            self.is_connected = False
-                            break
-                continue
+                return
+            # If remote side closed the socket, SocketPipe closes our socket and returns None
             if response is None:
-                self.is_connected = False
-                break
-            if request_time is not False:
-                self.print_error("stopping timer")
-                request_time = False
-            self.process_response(response)
+                self.connected = False  # Don't re-close the socket
+                self.print_error("connection closed remotely")
+            else:
+                self.process_response(response)
 
+    def run(self):
+        s = self.get_socket()
+        if s:
+            self.pipe = util.SocketPipe(s)
+            s.settimeout(0.1)
+            self.print_error("connected")
+            # Indicate to parent that we've connected
+            self.change_status()
+            while self.is_connected():
+                self.maybe_ping()
+                self.send_requests()
+                self.get_and_process_response()
+            if self.connected:  # Don't shutdown() a closed socket
+                s.shutdown(socket.SHUT_RDWR)
+                s.close()
+
+        # Also for the s is None case 
+        self.connected = False
+        # Indicate to parent that the connection is now down
         self.change_status()
 
-
     def change_status(self):
-        # print_error( "change status", self.server, self.is_connected)
         self.response_queue.put((self, None))
-
-
 
 
 

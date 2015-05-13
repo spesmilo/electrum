@@ -410,9 +410,12 @@ def update_layout():
     elif not wallet.up_to_date:
         text = "Synchronizing..."
     else:
-        c, u = wallet.get_balance()
+        c, u, x = wallet.get_balance()
         text = "Balance:"+format_satoshis(c) 
-        if u : text += '   [' + format_satoshis(u,True).strip() + ']'
+        if u:
+            text += '   [' + format_satoshis(u,True).strip() + ']'
+        if x:
+            text += '   [' + format_satoshis(x,True).strip() + ']'
 
 
     # vibrate if status changed
@@ -904,7 +907,7 @@ class ElectrumGui:
         
         contacts = util.StoreDict(config, 'contacts')
 
-        storage = WalletStorage(config)
+        storage = WalletStorage(config.get_wallet_path())
         if not storage.file_exists:
             action = self.restore_or_create()
             if not action:

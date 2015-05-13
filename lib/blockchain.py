@@ -30,18 +30,17 @@ class Blockchain(util.DaemonThread):
         self.config = config
         self.network = network
         self.lock = threading.Lock()
-        self.local_height = 0
         self.headers_url = 'http://headers.electrum.org/blockchain_headers'
-        self.set_local_height()
         self.queue = Queue.Queue()
+        self.local_height = 0
+        self.set_local_height()
 
     def height(self):
         return self.local_height
 
     def run(self):
         self.init_headers_file()
-        self.set_local_height()
-        self.print_error("%d blocks"%self.local_height)
+        self.print_error("%d blocks" % self.local_height)
 
         while self.is_running():
             try:
@@ -161,7 +160,7 @@ class Blockchain(util.DaemonThread):
         return rev_hex(Hash(self.header_to_string(header).decode('hex')).encode('hex'))
 
     def path(self):
-        return os.path.join( self.config.path, 'blockchain_headers')
+        return os.path.join(self.config.path, 'blockchain_headers')
 
     def init_headers_file(self):
         filename = self.path()
@@ -197,14 +196,12 @@ class Blockchain(util.DaemonThread):
         f.close()
         self.set_local_height()
 
-
     def set_local_height(self):
         name = self.path()
         if os.path.exists(name):
             h = os.path.getsize(name)/80 - 1
             if self.local_height != h:
                 self.local_height = h
-
 
     def read_header(self, block_height):
         name = self.path()
@@ -216,7 +213,6 @@ class Blockchain(util.DaemonThread):
             if len(h) == 80:
                 h = self.header_from_string(h)
                 return h
-
 
     def get_target(self, index, chain=None):
         if chain is None:

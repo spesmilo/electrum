@@ -17,7 +17,7 @@ class ElectrumGui:
 
         self.config = config
         self.network = network
-        storage = WalletStorage(config)
+        storage = WalletStorage(config.get_wallet_path())
         if not storage.file_exists:
             print "Wallet not found. try 'electrum create'"
             exit()
@@ -132,9 +132,12 @@ class ElectrumGui:
             if not self.wallet.up_to_date:
                 msg = _("Synchronizing...")
             else: 
-                c, u =  self.wallet.get_balance()
-                msg = _("Balance")+": %f  "%(Decimal( c ) / 100000000)
-                if u: msg += "  [%f unconfirmed]"%(Decimal( u ) / 100000000)
+                c, u, x =  self.wallet.get_balance()
+                msg = _("Balance")+": %f  "%(Decimal(c) / 100000000)
+                if u:
+                    msg += "  [%f unconfirmed]"%(Decimal(u) / 100000000)
+                if x:
+                    msg += "  [%f unmatured]"%(Decimal(x) / 100000000)
         else:
             msg = _("Not connected")
             
@@ -350,7 +353,7 @@ class ElectrumGui:
     def network_dialog(self):
         if not self.network: return
         auto_connect = self.network.config.get('auto_cycle')
-        host, port, protocol = self.network.default_server.split(':')
+        host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
         srv = 'auto-connect' if auto_connect else self.network.default_server
 
         out = self.run_dialog('Network', [
@@ -380,7 +383,7 @@ class ElectrumGui:
     def settings_dialog(self):
         out = self.run_dialog('Settings', [
             {'label':'Default GUI', 'type':'list', 'choices':['classic','lite','gtk','text'], 'value':self.config.get('gui')},
-            {'label':'Default fee', 'type':'satoshis', 'value': format_satoshis(self.wallet.fee).strip() }
+            {'label':'Default fee', 'type':'satoshis', 'value': format_satoshis(self.wallet.fee_per_kb).strip() }
             ], buttons = 1)
         if out:
             if out.get('Default GUI'):
@@ -426,8 +429,10 @@ class ElectrumGui:
                     value = '*'*len(item.get('value',''))
                 else:
                     value = ''
-
-                if len(value)<20: value += ' '*(20-len(value))
+                if value is None:
+                    value = ''
+                if len(value)<20:
+                    value += ' '*(20-len(value))
 
                 if item.has_key('value'):
                     w.addstr( 2+interval*i, 2, label)

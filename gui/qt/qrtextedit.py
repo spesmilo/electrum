@@ -7,8 +7,9 @@ from util import ButtonsTextEdit
 
 
 class ShowQRTextEdit(ButtonsTextEdit):
+
     def __init__(self, text=None):
-        super(ShowQRTextEdit, self).__init__(text)
+        ButtonsTextEdit.__init__(self, text)
         self.setReadOnly(1)
         self.addButton(":icons/qrcode.png", self.qr_show, _("Show as QR code"))
         run_hook('show_text_edit', self)
@@ -28,13 +29,10 @@ class ShowQRTextEdit(ButtonsTextEdit):
 
 
 class ScanQRTextEdit(ButtonsTextEdit):
-    def __init__(self, win, text=""):
-        super(ScanQRTextEdit,self).__init__(text)
+
+    def __init__(self, text=""):
+        ButtonsTextEdit.__init__(self, text)
         self.setReadOnly(0)
-        self.win = win
-        assert win, "You must pass a window with access to the config to ScanQRTextEdit constructor."
-        if win:
-            assert hasattr(win,"config"), "You must pass a window with access to the config to ScanQRTextEdit constructor."
         self.addButton(":icons/file.png", self.file_input, _("Read file"))
         self.addButton(":icons/qrcode.png", self.qr_input, _("Read QR code"))
         run_hook('scan_text_edit', self)
@@ -48,9 +46,9 @@ class ScanQRTextEdit(ButtonsTextEdit):
         self.setText(data)
 
     def qr_input(self):
-        from electrum import qrscanner
+        from electrum import qrscanner, get_config
         try:
-            data = qrscanner.scan_qr(self.win.config)
+            data = qrscanner.scan_qr(get_config())
         except BaseException, e:
             QMessageBox.warning(self, _('Error'), _(e), _('OK'))
             return ""

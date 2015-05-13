@@ -9,19 +9,6 @@ from StringIO import StringIO
 from lib.wallet import WalletStorage, NewWallet
 
 
-class FakeConfig(object):
-    """A stub config file to be used in tests"""
-    def __init__(self, path):
-        self.path = path
-        self.store = {}
-
-    def set(self, key, value):
-        self.store[key] = value
-
-    def get(self, key, default=None):
-        return self.store.get(key, default)
-
-
 class FakeSynchronizer(object):
 
     def __init__(self):
@@ -37,7 +24,7 @@ class WalletTestCase(unittest.TestCase):
         super(WalletTestCase, self).setUp()
         self.user_dir = tempfile.mkdtemp()
 
-        self.fake_config = FakeConfig(self.user_dir)
+        self.wallet_path = os.path.join(self.user_dir, "somewallet")
 
         self._saved_stdout = sys.stdout
         self._stdout_buffer = StringIO()
@@ -52,36 +39,20 @@ class WalletTestCase(unittest.TestCase):
 
 class TestWalletStorage(WalletTestCase):
 
-    def test_init_wallet_default_path(self):
-        storage = WalletStorage(self.fake_config)
-        expected = os.path.join(self.user_dir, "wallets", "default_wallet")
-        self.assertEqual(expected, storage.path)
-
-    def test_init_wallet_explicit_path(self):
-        path = os.path.join(self.user_dir, "somewallet")
-        self.fake_config.set("wallet_path", path)
-
-        storage = WalletStorage(self.fake_config)
-        self.assertEqual(path, storage.path)
-
     def test_read_dictionnary_from_file(self):
-        path = os.path.join(self.user_dir, "somewallet")
-        self.fake_config.set("wallet_path", path)
 
         some_dict = {"a": "b", "c": "d"}
         contents = repr(some_dict)
-        with open(path, "w") as f:
+        with open(self.wallet_path, "w") as f:
             contents = f.write(contents)
 
-        storage = WalletStorage(self.fake_config)
+        storage = WalletStorage(self.wallet_path)
         self.assertEqual("b", storage.get("a"))
         self.assertEqual("d", storage.get("c"))
 
     def test_write_dictionnary_to_file(self):
-        path = os.path.join(self.user_dir, "somewallet")
-        self.fake_config.set("wallet_path", path)
 
-        storage = WalletStorage(self.fake_config)
+        storage = WalletStorage(self.wallet_path)
 
         some_dict = {"a": "b", "c": "d"}
         storage.data = some_dict
@@ -89,7 +60,7 @@ class TestWalletStorage(WalletTestCase):
         storage.write()
 
         contents = ""
-        with open(path, "r") as f:
+        with open(self.wallet_path, "r") as f:
             contents = f.read()
         self.assertEqual(some_dict, json.loads(contents))
 
@@ -107,7 +78,7 @@ class TestNewWallet(WalletTestCase):
 
     def setUp(self):
         super(TestNewWallet, self).setUp()
-        self.storage = WalletStorage(self.fake_config)
+        self.storage = WalletStorage(self.wallet_path)
         self.wallet = NewWallet(self.storage)
         # This cannot be constructed by electrum at random, it should be safe
         # from eventual collisions.
@@ -122,8 +93,7 @@ class TestNewWallet(WalletTestCase):
         # We need a new storage , since the default storage was already seeded
         # in setUp()
         new_dir = tempfile.mkdtemp()
-        config = FakeConfig(new_dir)
-        storage = WalletStorage(config)
+        storage = WalletStorage(os.path.join(new_dir, "somewallet"))
         wallet = NewWallet(storage)
         self.assertTrue(wallet.is_watching_only())
         shutil.rmtree(new_dir)  # Don't leave useless stuff in /tmp

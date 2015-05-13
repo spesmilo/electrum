@@ -258,7 +258,7 @@ class PaymentRequest:
 
 
 
-def make_payment_request(outputs, memo, time, expires, cert_path, chain_path):
+def make_payment_request(outputs, memo, time, expires, key_path, cert_path):
     pd = pb2.PaymentDetails()
     for script, amount in outputs:
         pd.outputs.add(amount=amount, script=script)
@@ -271,11 +271,11 @@ def make_payment_request(outputs, memo, time, expires, cert_path, chain_path):
     pr = pb2.PaymentRequest()
     pr.serialized_payment_details = pd.SerializeToString()
     pr.signature = ''
-    if cert_path and chain_path:
+    if key_path and cert_path:
         import tlslite
-        with open(cert_path, 'r') as f:
+        with open(key_path, 'r') as f:
             rsakey = tlslite.utils.python_rsakey.Python_RSAKey.parsePEM(f.read())
-        with open(chain_path, 'r') as f:
+        with open(cert_path, 'r') as f:
             chain = tlslite.X509CertChain()
             chain.parsePemList(f.read())
         certificates = pb2.X509Certificates()

@@ -149,7 +149,7 @@ class TxDialog(QDialog):
             status = _("Signed")
 
             if tx_hash in self.wallet.transactions.keys():
-                conf, timestamp = self.wallet.verifier.get_confirmations(tx_hash)
+                conf, timestamp = self.wallet.get_confirmations(tx_hash)
                 if timestamp:
                     time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                 else:
@@ -230,6 +230,8 @@ class TxDialog(QDialog):
                     _addr = self.wallet.find_pay_to_pubkey_address(prevout_hash, prevout_n)
                     if _addr:
                         addr = _addr
+                if addr is None:
+                    addr = _('unknown')
                 cursor.insertText(addr, own if self.wallet.is_mine(addr) else ext)
             cursor.insertBlock()
 
