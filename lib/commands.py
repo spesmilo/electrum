@@ -173,7 +173,7 @@ class Commands:
             else:
                 raise BaseException('Transaction output not in wallet', prevout_hash+":%d"%prevout_n)
         outputs = map(lambda x: ('address', x[0], int(1e8*x[1])), outputs.items())
-        tx = Transaction(tx_inputs, outputs)
+        tx = Transaction.from_io(tx_inputs, outputs)
         return tx
 
     def signtxwithkey(self, raw_tx, sec):
@@ -184,11 +184,13 @@ class Commands:
 
     def signtxwithwallet(self, raw_tx):
         tx = Transaction(raw_tx)
+        tx.deserialize()
         self.wallet.sign_transaction(tx, self.password)
         return tx
 
     def decoderawtransaction(self, raw):
         tx = Transaction(raw)
+        tx.deserialize()
         return {'inputs':tx.inputs, 'outputs':tx.outputs}
 
     def sendrawtransaction(self, raw):
