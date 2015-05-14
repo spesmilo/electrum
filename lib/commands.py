@@ -107,7 +107,8 @@ register_command('verifymessage',        3,-1, False, False, False, 'Verifies a 
 
 register_command('encrypt',              2,-1, False, False, False, 'encrypt a message with pubkey','encrypt <pubkey> <message>')
 register_command('decrypt',              2,-1, False, True, True,   'decrypt a message encrypted with pubkey','decrypt <pubkey> <message>')
-register_command('getproof',             1, 1, True, False, False, 'get merkle proof', 'getproof <address>')
+register_command('getmerkle',            2, 2, True, False, False, 'Get Merkle branch of a transaction included in a block', 'getmerkle <txid> <height>')
+register_command('getproof',             1, 1, True, False, False, 'Get Merkle branch of an address in the UTXO set', 'getproof <address>')
 register_command('getutxoaddress',       2, 2, True, False, False, 'get the address of an unspent transaction output','getutxoaddress <txid> <pos>')
 register_command('sweep',                2, 3, True, False, False, 'Sweep a private key.', 'sweep privkey addr [fee]')
 register_command('make_seed',            3, 3, False, False, False, 'Create a seed.','options: --nbits --entropy --lang')
@@ -172,7 +173,7 @@ class Commands:
             else:
                 raise BaseException('Transaction output not in wallet', prevout_hash+":%d"%prevout_n)
         outputs = map(lambda x: ('address', x[0], int(1e8*x[1])), outputs.items())
-        tx = Transaction(tx_inputs, outputs)
+        tx = Transaction.from_io(tx_inputs, outputs)
         return tx
 
     def signtxwithkey(self, raw_tx, sec):
@@ -183,11 +184,13 @@ class Commands:
 
     def signtxwithwallet(self, raw_tx):
         tx = Transaction(raw_tx)
+        tx.deserialize()
         self.wallet.sign_transaction(tx, self.password)
         return tx
 
     def decoderawtransaction(self, raw):
         tx = Transaction(raw)
+        tx.deserialize()
         return {'inputs':tx.inputs, 'outputs':tx.outputs}
 
     def sendrawtransaction(self, raw):
@@ -253,6 +256,9 @@ class Commands:
         for i,s in p:
             out.append(i)
         return out
+
+    def getmerkle(self, txid, height):
+        return self.network.synchronous_get([ ('blockchain.transaction.get_merkle', [txid, int(height)]) ])[0]
 
     def getservers(self):
         while not self.network.is_up_to_date():
