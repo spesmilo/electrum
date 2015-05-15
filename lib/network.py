@@ -162,10 +162,12 @@ class Network(util.DaemonThread):
         if not os.path.exists(dir_path):
             os.mkdir(dir_path)
 
-        # address subscriptions
-        self.addresses = set()
-        # cached results
+        # subscriptions and requests
+        self.subscribed_addresses = set()
+        # cached address status
         self.addr_responses = {}
+        # unanswered requests
+        self.unanswered_requests = {}
 
         self.connection_status = 'connecting'
         self.requests_queue = Queue.Queue()
@@ -215,9 +217,13 @@ class Network(util.DaemonThread):
         return self.interface and self.interface.is_connected()
 
     def send_subscriptions(self):
-        self.print_error('sending subscriptions to', self.interface.server, len(self.addresses))
-        for addr in self.addresses:
-            self.interface.send_request({'method':'blockchain.address.subscribe', 'params':[addr]})
+        # clear cache
+        self.cached_responses = {}
+        self.print_error('sending subscriptions to', self.interface.server, len(self.unanswered_requests), len(self.subscribed_addresses))
+        for r in self.unanswered_requests.values():
+            self.interface.send_request(r)
+        for addr in self.subscribed_addresses:
+            self.interface.send_request({'method':'blockchain.address.subscribe','params':[addr]})
         self.interface.send_request({'method':'server.banner','params':[]})
         self.interface.send_request({'method':'server.peers.subscribe','params':[]})
 
@@ -411,6 +417,10 @@ class Network(util.DaemonThread):
 
 
     def process_response(self, i, response):
+        # the id comes from the daemon or the network proxy
+        _id = response.get('id')
+        if _id is not None:
+            self.unanswered_requests.pop(_id)
         method = response['method']
         if method == 'blockchain.address.subscribe':
             self.on_address(i, response)
@@ -448,13 +458,14 @@ class Network(util.DaemonThread):
                 out['error'] = str(e)
                 traceback.print_exc(file=sys.stdout)
                 self.print_error("network error", str(e))
-
             self.response_queue.put(out)
             return
 
+        # store request
+        self.unanswered_requests[_id] = request
         if method == 'blockchain.address.subscribe':
             addr = params[0]
-            self.addresses.add(addr)
+            self.subscribed_addresses.add(addr)
             if addr in self.addr_responses:
                 self.response_queue.put({'id':_id, 'result':self.addr_responses[addr]})
                 return
