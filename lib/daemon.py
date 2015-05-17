@@ -115,7 +115,7 @@ class NetworkServer(util.DaemonThread):
 
     def __init__(self, config):
         util.DaemonThread.__init__(self)
-        self.debug = 1
+        self.debug = False
         self.config = config
         self.network = Network(config)
         # network sends responses on that queue
