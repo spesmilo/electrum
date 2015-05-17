@@ -115,7 +115,7 @@ class NetworkServer(util.DaemonThread):
 
     def __init__(self, config):
         util.DaemonThread.__init__(self)
-        self.debug = False
+        self.debug = 1
         self.config = config
         self.network = Network(config)
         # network sends responses on that queue
@@ -130,7 +130,7 @@ class NetworkServer(util.DaemonThread):
         self.requests = {}
 
     def add_client(self, client):
-        for key in ['status','banner','updated','servers','interfaces']:
+        for key in ['status', 'banner', 'updated', 'servers', 'interfaces']:
             value = self.network.get_status_value(key)
             client.response_queue.put({'method':'network.status', 'params':[key, value]})
         with self.lock:

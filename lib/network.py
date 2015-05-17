@@ -461,14 +461,15 @@ class Network(util.DaemonThread):
             self.response_queue.put(out)
             return
 
-        # store request
-        self.unanswered_requests[_id] = request
         if method == 'blockchain.address.subscribe':
             addr = params[0]
             self.subscribed_addresses.add(addr)
             if addr in self.addr_responses:
                 self.response_queue.put({'id':_id, 'result':self.addr_responses[addr]})
                 return
+
+        # store unanswered request
+        self.unanswered_requests[_id] = request
 
         try:
             self.interface.send_request(request)
