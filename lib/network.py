@@ -480,13 +480,14 @@ class Network(util.DaemonThread):
 
     def check_interfaces(self):
         now = time.time()
+        # nodes
         if len(self.interfaces) + len(self.pending_servers) < self.num_server:
             self.start_random_interface()
-        if not self.interfaces:
             if now - self.nodes_retry_time > NODES_RETRY_INTERVAL:
                 self.print_error('network: retrying connections')
                 self.disconnected_servers = set([])
                 self.nodes_retry_time = now
+        # main interface
         if not self.interface.is_connected():
             if self.config.get('auto_cycle'):
                 if self.interfaces:
