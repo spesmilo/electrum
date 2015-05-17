@@ -278,8 +278,9 @@ class TcpInterface(threading.Thread):
         return self.connected and not self.disconnect
 
     def stop(self):
-        self.disconnect = True
-        self.print_error("disconnecting")
+        if not self.disconnect:
+            self.disconnect = True
+            self.print_error("disconnecting")
 
     def maybe_ping(self):
         # ping the server with server.version
