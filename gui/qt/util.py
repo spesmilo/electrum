@@ -316,8 +316,6 @@ class MyTreeWidget(QTreeWidget):
             text = unicode(item.text(column))
             key = str(item.data(0, Qt.UserRole).toString())
             self.is_edit = True
-            if text == self.parent.wallet.get_default_label(key):
-                item.setText(column, '')
             item.setFlags(Qt.ItemIsEditable|Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
             self.editItem(item, column)
             item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
