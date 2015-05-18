@@ -619,6 +619,8 @@ class ElectrumWindow(QMainWindow):
 
         self.receive_qr = QRCodeWidget(fixedSize=200)
         self.receive_qr.mouseReleaseEvent = lambda x: self.toggle_qr_window()
+        self.receive_qr.enterEvent = lambda x: self.app.setOverrideCursor(QCursor(Qt.PointingHandCursor))
+        self.receive_qr.leaveEvent = lambda x: self.app.setOverrideCursor(QCursor(Qt.ArrowCursor))
 
         self.receive_buttons = buttons = QHBoxLayout()
         buttons.addStretch(1)
