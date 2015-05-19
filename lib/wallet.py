@@ -119,6 +119,8 @@ class WalletStorage(object):
         s = json.dumps(self.data, indent=4, sort_keys=True)
         with open(temp_path, "w") as f:
             f.write(s)
+            f.flush()
+            os.fsync(f.fileno())
         # perform atomic write on POSIX systems
         try:
             os.rename(temp_path, self.path)

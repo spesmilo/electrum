@@ -1,4 +1,3 @@
-import threading
 import time
 import Queue
 import os
@@ -127,7 +126,6 @@ class Network(util.DaemonThread):
             config = {}  # Do not use mutables as default values!
         util.DaemonThread.__init__(self)
         self.config = SimpleConfig(config) if type(config) == type({}) else config
-        self.lock = threading.Lock()
         self.num_server = 8 if not self.config.get('oneserver') else 0
         self.blockchain = Blockchain(self.config, self)
         self.interfaces = {}
@@ -301,8 +299,6 @@ class Network(util.DaemonThread):
         self.running = True
         self.response_queue = response_queue
         self.start_interfaces()
-        t = threading.Thread(target=self.process_requests_thread)
-        t.start()
         self.blockchain.start()
         util.DaemonThread.start(self)
 
@@ -431,12 +427,12 @@ class Network(util.DaemonThread):
         else:
             self.response_queue.put(response)
 
-    def process_requests_thread(self):
-        while self.is_running():
+    def handle_requests(self):
+        while True:
             try:
-                request = self.requests_queue.get(timeout=0.1)
+                request = self.requests_queue.get_nowait()
             except Queue.Empty:
-                continue
+                break
             self.process_request(request)
 
     def process_request(self, request):
@@ -468,14 +464,7 @@ class Network(util.DaemonThread):
 
         # store unanswered request
         self.unanswered_requests[_id] = request
-
-        try:
-            self.interface.send_request(request)
-        except:
-            # put it back in the queue
-            self.print_error("warning: interface not ready for", request)
-            self.requests_queue.put(request)
-            time.sleep(0.1)
+        self.interface.send_request(request)
 
     def check_interfaces(self):
         now = time.time()
@@ -507,6 +496,7 @@ class Network(util.DaemonThread):
     def run(self):
         while self.is_running():
             self.check_interfaces()
+            self.handle_requests()
             try:
                 i, response = self.queue.get(timeout=0.1)
             except Queue.Empty:
