@@ -430,11 +430,12 @@ class Network(util.DaemonThread):
             self.response_queue.put(response)
 
     def handle_requests(self):
-        try:
-            request = self.requests_queue.get(timeout=0.1)
-        except Queue.Empty:
-            return
-        self.process_request(request)
+        while True:
+            try:
+                request = self.requests_queue.get_nowait()
+            except Queue.Empty:
+                break
+            self.process_request(request)
 
     def process_request(self, request):
         method = request['method']
