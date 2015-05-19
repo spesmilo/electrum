@@ -67,7 +67,7 @@ class TcpInterface(threading.Thread):
         self.unanswered_requests = {}
         # request timeouts
         self.request_time = time.time()
-        self.ping_time = time.time()
+        self.ping_time = 0
         # parse server
         self.server = server
         self.host, self.port, self.protocol = self.server.split(':')
