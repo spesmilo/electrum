@@ -55,7 +55,7 @@ class Exchanger(threading.Thread):
     def get_json(self, site, get_string):
         resp = requests.request('GET', 'https://' + site + get_string, headers={"User-Agent":"Electrum"})
         return resp.json()
-        
+
     def exchange(self, btc_amount, quote_currency):
         with self.lock:
             if self.quote_currencies is None:
@@ -209,6 +209,13 @@ class Plugin(BasePlugin):
             self.add_send_edit()
             self.add_receive_edit()
             self.win.update_status()
+
+    def shutdown(self):
+        if self.exchanger:
+            self.exchanger.stop()
+            self.exchanger.join(0.25)
+        BasePlugin.shutdown(self)
+        self.print_error("shut down")
 
     def close(self):
         self.exchanger.stop()

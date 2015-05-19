@@ -28,6 +28,10 @@ def init_plugins(config, local):
             print_msg(_("Error: cannot initialize plugin"),p)
             traceback.print_exc(file=sys.stdout)
 
+def shutdown_plugins():
+    global plugins
+    for plugin in plugins:
+        plugin.shutdown()
 
 hook_names = set()
 hooks = {}
@@ -102,6 +106,8 @@ class BasePlugin:
         return True
 
     def init_qt(self, gui): pass
+
+    def shutdown(self): pass
 
     @hook
     def load_wallet(self, wallet): pass
