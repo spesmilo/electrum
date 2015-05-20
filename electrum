@@ -75,7 +75,7 @@ from electrum import util
 from electrum import SimpleConfig, Network, Wallet, WalletStorage, NetworkProxy, Commands, known_commands, pick_random_server
 from electrum.util import print_msg, print_error, print_stderr, print_json, set_verbosity, InvalidPassword
 from electrum.daemon import get_daemon
-from electrum.plugins import init_plugins
+from electrum.plugins import init_plugins, shutdown_plugins
 
 
 # get password routine
@@ -248,7 +248,7 @@ if __name__ == '__main__':
 
         gui = gui.ElectrumGui(config, network)
         gui.main(url)
-
+        shutdown_plugins()
         if network:
             network.stop()
 

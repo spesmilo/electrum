@@ -531,6 +531,9 @@ class Network(util.DaemonThread):
         self.print_error("stopping interfaces")
         for i in self.interfaces.values():
             i.stop()
+        # Wait for interfaces to shut down cleanly before continuing
+        for i in self.interfaces.values():
+            i.join(0.25)
 
         self.print_error("stopped")
 
