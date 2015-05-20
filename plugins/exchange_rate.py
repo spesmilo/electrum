@@ -41,7 +41,6 @@ class Exchanger(DaemonThread):
 
     def __init__(self, parent):
         DaemonThread.__init__(self)
-        self.daemon = True
         self.parent = parent
         self.quote_currencies = None
         self.lock = threading.Lock()
