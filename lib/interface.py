@@ -48,11 +48,10 @@ def Interface(server, response_queue, config = None):
     else:
         raise Exception('Unknown protocol: %s'%protocol)
 
-class TcpInterface(threading.Thread):
+class TcpInterface(util.DaemonThread):
 
     def __init__(self, server, response_queue, config = None):
-        threading.Thread.__init__(self)
-        self.daemon = True
+        util.DaemonThread.__init__(self)
         self.config = config if config is not None else SimpleConfig()
         # Set by stop(); no more data is exchanged and the thread exits after gracefully
         # closing the socket
