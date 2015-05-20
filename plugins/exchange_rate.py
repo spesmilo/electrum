@@ -15,7 +15,7 @@ from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
 from electrum_gui.qt.util import *
 from electrum_gui.qt.amountedit import AmountEdit
-
+from electrum.util import DaemonThread
 
 EXCHANGES = ["BitcoinAverage",
              "BitcoinVenezuela",
@@ -37,11 +37,10 @@ EXCH_SUPPORT_HIST = [("CoinDesk", "USD"),
                      ("BitcoinVenezuela", "ARS"),
                      ("BitcoinVenezuela", "VEF")]
 
-class Exchanger(threading.Thread):
+class Exchanger(DaemonThread):
 
     def __init__(self, parent):
-        threading.Thread.__init__(self)
-        self.daemon = True
+        DaemonThread.__init__(self)
         self.parent = parent
         self.quote_currencies = None
         self.lock = threading.Lock()
