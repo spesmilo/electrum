@@ -117,9 +117,10 @@ class NetworkServer(util.DaemonThread):
         util.DaemonThread.__init__(self)
         self.debug = False
         self.config = config
-        self.network = Network(config)
         # network sends responses on that queue
         self.network_queue = Queue.Queue()
+        self.requests_queue = Queue.Queue()
+        self.network = Network(self.requests_queue, self.network_queue, config)
 
         self.running = False
         self.lock = threading.RLock()
@@ -150,11 +151,11 @@ class NetworkServer(util.DaemonThread):
 
         if self.debug:
             print_error("-->", request)
-        self.network.requests_queue.put(request)
+        self.requests_queue.put(request)
 
 
     def run(self):
-        self.network.start(self.network_queue)
+        self.network.start()
         while self.is_running():
             try:
                 response = self.network_queue.get(timeout=0.1)

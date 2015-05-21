@@ -123,7 +123,7 @@ def serialize_server(host, port, protocol):
 
 class Network(util.DaemonThread):
 
-    def __init__(self, config=None):
+    def __init__(self, requests_queue, response_queue, config=None):
         if config is None:
             config = {}  # Do not use mutables as default values!
         util.DaemonThread.__init__(self)
@@ -132,6 +132,8 @@ class Network(util.DaemonThread):
         self.blockchain = Blockchain(self.config, self)
         self.interfaces = {}
         self.queue = Queue.Queue()
+        self.requests_queue = requests_queue
+        self.response_queue = response_queue
         # Server for addresses and transactions
         self.default_server = self.config.get('server')
         # Sanitize default server
@@ -168,7 +170,6 @@ class Network(util.DaemonThread):
         self.unanswered_requests = {}
 
         self.connection_status = 'connecting'
-        self.requests_queue = Queue.Queue()
         self.set_proxy(deserialize_proxy(self.config.get('proxy')))
         # retry times
         self.server_retry_time = time.time()
@@ -297,9 +298,8 @@ class Network(util.DaemonThread):
         for i in range(self.num_server):
             self.start_random_interface()
 
-    def start(self, response_queue):
+    def start(self):
         self.running = True
-        self.response_queue = response_queue
         self.start_interfaces()
         self.blockchain.start()
         util.DaemonThread.start(self)
