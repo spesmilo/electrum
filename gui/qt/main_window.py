@@ -159,6 +159,7 @@ class ElectrumWindow(QMainWindow):
         for i in range(tabs.count()):
             QShortcut(QKeySequence("Alt+" + str(i + 1)), self, lambda i=i: tabs.setCurrentIndex(i))
 
+        self.connect(self, QtCore.SIGNAL('stop'), self.close)
         self.connect(self, QtCore.SIGNAL('update_status'), self.update_status)
         self.connect(self, QtCore.SIGNAL('banner_signal'), lambda: self.console.showMessage(self.network.banner) )
         self.connect(self, QtCore.SIGNAL('transaction_signal'), lambda: self.notify_transactions() )
@@ -174,7 +175,7 @@ class ElectrumWindow(QMainWindow):
             self.network.register_callback('banner', lambda: self.emit(QtCore.SIGNAL('banner_signal')))
             self.network.register_callback('status', lambda: self.emit(QtCore.SIGNAL('update_status')))
             self.network.register_callback('new_transaction', lambda: self.emit(QtCore.SIGNAL('transaction_signal')))
-            self.network.register_callback('stop', self.close)
+            self.network.register_callback('stop', lambda: self.emit(QtCore.SIGNAL('stop')))
 
             # set initial message
             self.console.showMessage(self.network.banner)
