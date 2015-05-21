@@ -130,7 +130,6 @@ class Network(util.DaemonThread):
         self.config = SimpleConfig(config) if type(config) == type({}) else config
         self.num_server = 8 if not self.config.get('oneserver') else 0
         self.blockchain = Blockchain(self.config, self)
-        self.interfaces = {}
         self.queue = Queue.Queue()
         self.requests_queue = pipe.send_queue
         self.response_queue = pipe.get_queue
@@ -144,11 +143,7 @@ class Network(util.DaemonThread):
         if not self.default_server:
             self.default_server = pick_random_server('s')
 
-        self.protocol = deserialize_server(self.default_server)[2]
         self.irc_servers = {} # returned by interface (list from irc)
-
-        self.disconnected_servers = set([])
-
         self.recent_servers = self.read_recent_servers()
         self.pending_servers = set()
 
@@ -168,12 +163,14 @@ class Network(util.DaemonThread):
         self.addr_responses = {}
         # unanswered requests
         self.unanswered_requests = {}
-
-        self.connection_status = 'connecting'
-        self.set_proxy(deserialize_proxy(self.config.get('proxy')))
         # retry times
         self.server_retry_time = time.time()
         self.nodes_retry_time = time.time()
+        # kick off the network
+        self.interface = None
+        self.interfaces = {}
+        self.start_network(deserialize_server(self.default_server)[2],
+                           deserialize_proxy(self.config.get('proxy')))
 
     def read_recent_servers(self):
         if not self.config.path:
@@ -316,22 +313,31 @@ class Network(util.DaemonThread):
             socket.socket = socket._socketobject
             socket.getaddrinfo = socket._socket.getaddrinfo
 
+    def start_network(self, protocol, proxy):
+        assert not self.interface and not self.interfaces
+        self.print_error('starting network')
+        self.set_status('connecting')
+        self.disconnected_servers = set([])
+        self.protocol = protocol
+        self.set_proxy(proxy)
+
+    def stop_network(self):
+        # FIXME: this forgets to handle pending servers...
+        self.print_error("stopping network")
+        for i in self.interfaces.values():
+            i.stop()
+        self.interface = None
+        self.interfaces = {}
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
         if self.proxy != proxy or self.protocol != protocol:
-            self.print_error('restarting network')
-            for i in self.interfaces.values():
-                i.stop()
-                self.interfaces.pop(i.server)
-            self.set_proxy(proxy)
-            self.protocol = protocol
-            self.disconnected_servers = set([])
+            self.stop_network()
+            self.start_network(protocol, proxy)
             if auto_connect:
-                #self.interface = None
                 return
 
         if auto_connect:
-            if not self.interface.is_connected():
+            if not self.is_connected():
                 self.switch_to_random_interface()
             else:
                 if self.server_is_lagging():
@@ -365,14 +371,14 @@ class Network(util.DaemonThread):
 
 
     def set_server(self, server):
-        if self.default_server == server and self.interface.is_connected():
+        if self.default_server == server and self.is_connected():
             return
 
         if self.protocol != deserialize_server(server)[2]:
             return
 
         # stop the interface in order to terminate subscriptions
-        if self.interface.is_connected():
+        if self.is_connected():
             self.stop_interface()
 
         # notify gui
@@ -497,7 +503,7 @@ class Network(util.DaemonThread):
                 self.disconnected_servers = set([])
                 self.nodes_retry_time = now
         # main interface
-        if not self.interface.is_connected():
+        if not self.is_connected():
             if self.config.get('auto_cycle'):
                 if self.interfaces:
                     self.switch_to_random_interface()
@@ -529,10 +535,7 @@ class Network(util.DaemonThread):
             else:
                 self.process_response(i, response)
 
-        self.print_error("stopping interfaces")
-        for i in self.interfaces.values():
-            i.stop()
-
+        self.stop_network()
         self.print_error("stopped")
 
 
