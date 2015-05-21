@@ -411,6 +411,25 @@ class Network(util.DaemonThread):
                     self.set_server(i.server)
         self.notify('updated')
 
+    def process_if_notification(self, i):
+        if i.server in self.pending_servers:
+            self.pending_servers.remove(i.server)
+
+        if i.is_connected():
+            self.add_interface(i)
+            self.add_recent_server(i)
+            i.send_request({'method':'blockchain.headers.subscribe','params':[]})
+            if i == self.interface:
+                self.send_subscriptions()
+                self.set_status('connected')
+        else:
+            if i.server in self.interfaces:
+                self.remove_interface(i)
+            if i.server in self.heights:
+                self.heights.pop(i.server)
+            if i == self.interface:
+                self.set_status('disconnected')
+            self.disconnected_servers.add(i.server)
 
     def process_response(self, i, response):
         # the id comes from the daemon or the network proxy
@@ -504,29 +523,11 @@ class Network(util.DaemonThread):
             except Queue.Empty:
                 continue
 
-            if response is not None:
-                self.process_response(i, response)
-                continue
-
             # if response is None it is a notification about the interface
-            if i.server in self.pending_servers:
-                self.pending_servers.remove(i.server)
-
-            if i.is_connected():
-                self.add_interface(i)
-                self.add_recent_server(i)
-                i.send_request({'method':'blockchain.headers.subscribe','params':[]})
-                if i == self.interface:
-                    self.send_subscriptions()
-                    self.set_status('connected')
+            if response is None:
+                self.process_if_notification(i)
             else:
-                if i.server in self.interfaces:
-                    self.remove_interface(i)
-                if i.server in self.heights:
-                    self.heights.pop(i.server)
-                if i == self.interface:
-                    self.set_status('disconnected')
-                self.disconnected_servers.add(i.server)
+                self.process_response(i, response)
 
         self.print_error("stopping interfaces")
         for i in self.interfaces.values():
