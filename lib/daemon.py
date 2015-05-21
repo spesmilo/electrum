@@ -117,14 +117,9 @@ class NetworkServer(util.DaemonThread):
         util.DaemonThread.__init__(self)
         self.debug = False
         self.config = config
-        # network sends responses on that queue
-        self.network_queue = Queue.Queue()
-        self.requests_queue = Queue.Queue()
-        self.network = Network(self.requests_queue, self.network_queue, config)
-
-        self.running = False
+        self.pipe = util.QueuePipe()
+        self.network = Network(self.pipe, config)
         self.lock = threading.RLock()
-
         # each GUI is a client of the daemon
         self.clients = []
         self.request_id = 0
@@ -148,18 +143,16 @@ class NetworkServer(util.DaemonThread):
             self.request_id += 1
             self.requests[self.request_id] = (request['id'], client)
             request['id'] = self.request_id
-
         if self.debug:
             print_error("-->", request)
-        self.requests_queue.put(request)
-
+        self.pipe.send(request)
 
     def run(self):
         self.network.start()
         while self.is_running():
             try:
-                response = self.network_queue.get(timeout=0.1)
-            except Queue.Empty:
+                response = self.pipe.get()
+            except util.timeout:
                 continue
             if self.debug:
                 print_error("<--", response)
@@ -176,10 +169,8 @@ class NetworkServer(util.DaemonThread):
                 for client in self.clients:
                     if repr((m, v)) in client.subscriptions:
                         client.response_queue.put(response)
-
         self.network.stop()
         print_error("server exiting")
-
 
 
 def daemon_loop(server):

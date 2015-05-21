@@ -123,7 +123,7 @@ def serialize_server(host, port, protocol):
 
 class Network(util.DaemonThread):
 
-    def __init__(self, requests_queue, response_queue, config=None):
+    def __init__(self, pipe, config=None):
         if config is None:
             config = {}  # Do not use mutables as default values!
         util.DaemonThread.__init__(self)
@@ -132,8 +132,8 @@ class Network(util.DaemonThread):
         self.blockchain = Blockchain(self.config, self)
         self.interfaces = {}
         self.queue = Queue.Queue()
-        self.requests_queue = requests_queue
-        self.response_queue = response_queue
+        self.requests_queue = pipe.send_queue
+        self.response_queue = pipe.get_queue
         # Server for addresses and transactions
         self.default_server = self.config.get('server')
         # Sanitize default server
