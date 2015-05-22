@@ -368,7 +368,7 @@ class Network(util.DaemonThread):
             self.send_subscriptions()
             self.set_status('connected')
             self.notify('updated')
-        else:
+        elif server not in self.pending_servers:
             self.print_error("starting %s; will switch once connected" % server)
             self.start_interface(server)
 
