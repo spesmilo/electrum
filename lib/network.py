@@ -346,13 +346,9 @@ class Network(util.DaemonThread):
 
 
     def switch_to_random_interface(self):
-        while self.interfaces:
-            i = random.choice(self.interfaces.values())
-            if i.is_connected():
-                self.switch_to_interface(i.server)
-                break
-            else:
-                self.remove_interface(i)
+        if self.interfaces:
+            server = random.choice(self.interfaces.keys())
+            self.switch_to_interface(server)
 
     def switch_to_interface(self, server):
         '''Switch to server as our interface, it must be in self.interfaces'''
@@ -501,8 +497,7 @@ class Network(util.DaemonThread):
         # main interface
         if not self.is_connected():
             if self.config.get('auto_cycle'):
-                if self.interfaces:
-                    self.switch_to_random_interface()
+                self.switch_to_random_interface()
             else:
                 if self.default_server in self.interfaces.keys():
                     self.switch_to_interface(self.default_server)
