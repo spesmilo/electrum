@@ -278,12 +278,10 @@ class Network(util.DaemonThread):
         return out
 
     def start_interface(self, server):
-        if server in self.interfaces.keys():
-            return
-        i = interface.Interface(server, self.queue, self.config)
-        self.pending_servers.add(server)
-        i.start()
-        return i
+        if not server in self.interfaces.keys():
+            i = interface.Interface(server, self.queue, self.config)
+            self.pending_servers.add(server)
+            i.start()
 
     def start_random_interface(self):
         server = self.random_server()
@@ -291,13 +289,12 @@ class Network(util.DaemonThread):
             self.start_interface(server)
 
     def start_interfaces(self):
-        self.interface = self.start_interface(self.default_server)
-        for i in range(self.num_server):
+        self.start_interface(self.default_server)
+        for i in range(self.num_server - 1):
             self.start_random_interface()
 
     def start(self):
         self.running = True
-        self.start_interfaces()
         self.blockchain.start()
         util.DaemonThread.start(self)
 
@@ -320,6 +317,7 @@ class Network(util.DaemonThread):
         self.disconnected_servers = set([])
         self.protocol = protocol
         self.set_proxy(proxy)
+        self.start_interfaces()
 
     def stop_network(self):
         # FIXME: this forgets to handle pending servers...
@@ -351,15 +349,16 @@ class Network(util.DaemonThread):
         while self.interfaces:
             i = random.choice(self.interfaces.values())
             if i.is_connected():
-                self.switch_to_interface(i)
+                self.switch_to_interface(i.server)
                 break
             else:
                 self.remove_interface(i)
 
-    def switch_to_interface(self, interface):
-        server = interface.server
+    def switch_to_interface(self, server):
+        '''Switch to server as our interface, it must be in self.interfaces'''
+        assert server in self.interfaces
         self.print_error("switching to", server)
-        self.interface = interface
+        self.interface = self.interfaces[server]
         self.default_server = server
         self.send_subscriptions()
         self.set_status('connected')
@@ -368,7 +367,7 @@ class Network(util.DaemonThread):
 
     def stop_interface(self):
         self.interface.stop()
-
+        self.interface = None
 
     def set_server(self, server):
         if self.default_server == server and self.is_connected():
@@ -387,9 +386,9 @@ class Network(util.DaemonThread):
         self.default_server = server
 
         if server in self.interfaces.keys():
-            self.switch_to_interface( self.interfaces[server] )
+            self.switch_to_interface(server)
         else:
-            self.interface = self.start_interface(server)
+            self.start_interface(server)
 
 
     def add_recent_server(self, i):
@@ -425,9 +424,8 @@ class Network(util.DaemonThread):
             self.add_interface(i)
             self.add_recent_server(i)
             i.send_request({'method':'blockchain.headers.subscribe','params':[]})
-            if i == self.interface:
-                self.send_subscriptions()
-                self.set_status('connected')
+            if i.server == self.default_server:
+                self.switch_to_interface(i.server)
         else:
             if i.server in self.interfaces:
                 self.remove_interface(i)
@@ -509,7 +507,7 @@ class Network(util.DaemonThread):
                     self.switch_to_random_interface()
             else:
                 if self.default_server in self.interfaces.keys():
-                    self.switch_to_interface(self.interfaces[self.default_server])
+                    self.switch_to_interface(self.default_server)
                 else:
                     if self.default_server in self.disconnected_servers:
                         if now - self.server_retry_time > SERVER_RETRY_INTERVAL:
@@ -518,7 +516,7 @@ class Network(util.DaemonThread):
                     else:
                         if self.default_server not in self.pending_servers:
                             self.print_error("forcing reconnection")
-                            self.interface = self.start_interface(self.default_server)
+                            self.start_interface(self.default_server)
 
     def run(self):
         while self.is_running():
