@@ -435,16 +435,24 @@ class Network(util.DaemonThread):
         # the id comes from the daemon or the network proxy
         _id = response.get('id')
         if _id is not None:
+            if i != self.interface:
+                return
             self.unanswered_requests.pop(_id)
-        method = response['method']
-        if method == 'blockchain.address.subscribe':
-            self.on_address(i, response)
-        elif method == 'blockchain.headers.subscribe':
+
+        method = response.get('method')
+        result = response.get('result')
+        if method == 'blockchain.headers.subscribe':
             self.on_header(i, response)
         elif method == 'server.peers.subscribe':
-            self.on_peers(i, response)
+            self.irc_servers = parse_servers(result)
+            self.notify('servers')
         elif method == 'server.banner':
-            self.on_banner(i, response)
+            self.banner = result
+            self.notify('banner')
+        elif method == 'blockchain.address.subscribe':
+            addr = response.get('params')[0]
+            self.addr_responses[addr] = result
+            self.response_queue.put(response)
         else:
             self.response_queue.put(response)
 
@@ -550,20 +558,6 @@ class Network(util.DaemonThread):
                 self.stop_interface()
             self.notify('updated')
 
-    def on_peers(self, i, r):
-        if not r: return
-        self.irc_servers = parse_servers(r.get('result'))
-        self.notify('servers')
-
-    def on_banner(self, i, r):
-        self.banner = r.get('result')
-        self.notify('banner')
-
-    def on_address(self, i, r):
-        addr = r.get('params')[0]
-        result = r.get('result')
-        self.addr_responses[addr] = result
-        self.response_queue.put(r)
 
     def get_header(self, tx_height):
         return self.blockchain.read_header(tx_height)
