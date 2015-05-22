@@ -120,16 +120,25 @@ def serialize_server(host, port, protocol):
 
 
 class Network(util.DaemonThread):
+    """The Network class manages a set of connections to remote
+    electrum servers, each connection is handled by its own
+    thread object returned from Interface().  Its external API:
 
-    def __init__(self, config=None):
+    - Member functions get_header(), get_parameters(), get_status_value(),
+                       new_blockchain_height(), set_parameters(), start(),
+                       stop()
+    """
+
+    def __init__(self, pipe, config=None):
         if config is None:
             config = {}  # Do not use mutables as default values!
         util.DaemonThread.__init__(self)
         self.config = SimpleConfig(config) if type(config) == type({}) else config
         self.num_server = 8 if not self.config.get('oneserver') else 0
         self.blockchain = Blockchain(self.config, self)
-        self.interfaces = {}
         self.queue = Queue.Queue()
+        self.requests_queue = pipe.send_queue
+        self.response_queue = pipe.get_queue
         # Server for addresses and transactions
         self.default_server = self.config.get('server')
         # Sanitize default server
@@ -140,16 +149,11 @@ class Network(util.DaemonThread):
         if not self.default_server:
             self.default_server = pick_random_server('s')
 
-        self.protocol = deserialize_server(self.default_server)[2]
         self.irc_servers = {} # returned by interface (list from irc)
-
-        self.disconnected_servers = set([])
-
         self.recent_servers = self.read_recent_servers()
         self.pending_servers = set()
 
         self.banner = ''
-        self.interface = None
         self.heights = {}
         self.merkle_roots = {}
         self.utxo_roots = {}
@@ -164,13 +168,14 @@ class Network(util.DaemonThread):
         self.addr_responses = {}
         # unanswered requests
         self.unanswered_requests = {}
-
-        self.connection_status = 'connecting'
-        self.requests_queue = Queue.Queue()
-        self.set_proxy(deserialize_proxy(self.config.get('proxy')))
         # retry times
         self.server_retry_time = time.time()
         self.nodes_retry_time = time.time()
+        # kick off the network
+        self.interface = None
+        self.interfaces = {}
+        self.start_network(deserialize_server(self.default_server)[2],
+                           deserialize_proxy(self.config.get('proxy')))
 
     def read_recent_servers(self):
         if not self.config.path:
@@ -278,12 +283,12 @@ class Network(util.DaemonThread):
         return out
 
     def start_interface(self, server):
-        if server in self.interfaces.keys():
-            return
-        i = interface.Interface(server, self.queue, self.config)
-        self.pending_servers.add(server)
-        i.start()
-        return i
+        if not server in self.interfaces.keys():
+            if server == self.default_server:
+                self.set_status('connecting')
+            i = interface.Interface(server, self.queue, self.config)
+            self.pending_servers.add(server)
+            i.start()
 
     def start_random_interface(self):
         server = self.random_server()
@@ -291,14 +296,12 @@ class Network(util.DaemonThread):
             self.start_interface(server)
 
     def start_interfaces(self):
-        self.interface = self.start_interface(self.default_server)
-        for i in range(self.num_server):
+        self.start_interface(self.default_server)
+        for i in range(self.num_server - 1):
             self.start_random_interface()
 
-    def start(self, response_queue):
+    def start(self):
         self.running = True
-        self.response_queue = response_queue
-        self.start_interfaces()
         self.blockchain.start()
         util.DaemonThread.start(self)
 
@@ -314,22 +317,31 @@ class Network(util.DaemonThread):
             socket.socket = socket._socketobject
             socket.getaddrinfo = socket._socket.getaddrinfo
 
+    def start_network(self, protocol, proxy):
+        assert not self.interface and not self.interfaces
+        self.print_error('starting network')
+        self.disconnected_servers = set([])
+        self.protocol = protocol
+        self.set_proxy(proxy)
+        self.start_interfaces()
+
+    def stop_network(self):
+        # FIXME: this forgets to handle pending servers...
+        self.print_error("stopping network")
+        for i in self.interfaces.values():
+            i.stop()
+        self.interface = None
+        self.interfaces = {}
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
         if self.proxy != proxy or self.protocol != protocol:
-            self.print_error('restarting network')
-            for i in self.interfaces.values():
-                i.stop()
-                self.interfaces.pop(i.server)
-            self.set_proxy(proxy)
-            self.protocol = protocol
-            self.disconnected_servers = set([])
+            self.stop_network()
+            self.start_network(protocol, proxy)
             if auto_connect:
-                #self.interface = None
                 return
 
         if auto_connect:
-            if not self.interface.is_connected():
+            if not self.is_connected():
                 self.switch_to_random_interface()
             else:
                 if self.server_is_lagging():
@@ -340,18 +352,15 @@ class Network(util.DaemonThread):
 
 
     def switch_to_random_interface(self):
-        while self.interfaces:
-            i = random.choice(self.interfaces.values())
-            if i.is_connected():
-                self.switch_to_interface(i)
-                break
-            else:
-                self.remove_interface(i)
+        if self.interfaces:
+            server = random.choice(self.interfaces.keys())
+            self.switch_to_interface(server)
 
-    def switch_to_interface(self, interface):
-        server = interface.server
+    def switch_to_interface(self, server):
+        '''Switch to server as our interface, it must be in self.interfaces'''
+        assert server in self.interfaces
         self.print_error("switching to", server)
-        self.interface = interface
+        self.interface = self.interfaces[server]
         self.default_server = server
         self.send_subscriptions()
         self.set_status('connected')
@@ -360,28 +369,26 @@ class Network(util.DaemonThread):
 
     def stop_interface(self):
         self.interface.stop()
-
+        self.interface = None
 
     def set_server(self, server):
-        if self.default_server == server and self.interface.is_connected():
+        if self.default_server == server and self.is_connected():
             return
 
         if self.protocol != deserialize_server(server)[2]:
             return
 
         # stop the interface in order to terminate subscriptions
-        if self.interface.is_connected():
+        if self.is_connected():
             self.stop_interface()
 
-        # notify gui
-        self.set_status('connecting')
         # start interface
         self.default_server = server
 
         if server in self.interfaces.keys():
-            self.switch_to_interface( self.interfaces[server] )
+            self.switch_to_interface(server)
         else:
-            self.interface = self.start_interface(server)
+            self.start_interface(server)
 
 
     def add_recent_server(self, i):
@@ -393,14 +400,6 @@ class Network(util.DaemonThread):
         self.recent_servers = self.recent_servers[0:20]
         self.save_recent_servers()
 
-    def add_interface(self, i):
-        self.interfaces[i.server] = i
-        self.notify('interfaces')
-
-    def remove_interface(self, i):
-        self.interfaces.pop(i.server)
-        self.notify('interfaces')
-
     def new_blockchain_height(self, blockchain_height, i):
         if self.is_connected():
             if self.server_is_lagging():
@@ -408,6 +407,26 @@ class Network(util.DaemonThread):
                 if self.config.get('auto_cycle'):
                     self.set_server(i.server)
         self.notify('updated')
+
+    def process_if_notification(self, i):
+        '''Handle interface addition and removal through notifications'''
+        if i.server in self.pending_servers:
+            self.pending_servers.remove(i.server)
+
+        if i.is_connected():
+            self.interfaces[i.server] = i
+            self.add_recent_server(i)
+            i.send_request({'method':'blockchain.headers.subscribe','params':[]})
+            if i.server == self.default_server:
+                self.switch_to_interface(i.server)
+        else:
+            self.interfaces.pop(i.server, None)
+            self.heights.pop(i.server, None)
+            if i == self.interface:
+                self.set_status('disconnected')
+            self.disconnected_servers.add(i.server)
+        # Our set of interfaces changed
+        self.notify('interfaces')
 
 
     def process_response(self, i, response):
@@ -444,10 +463,9 @@ class Network(util.DaemonThread):
             out = {'id':_id}
             try:
                 f = getattr(self, method[8:])
+                out['result'] = f(*params)
             except AttributeError:
                 out['error'] = "unknown method"
-            try:
-                out['result'] = f(*params)
             except BaseException as e:
                 out['error'] = str(e)
                 traceback.print_exc(file=sys.stdout)
@@ -476,13 +494,12 @@ class Network(util.DaemonThread):
                 self.disconnected_servers = set([])
                 self.nodes_retry_time = now
         # main interface
-        if not self.interface.is_connected():
+        if not self.is_connected():
             if self.config.get('auto_cycle'):
-                if self.interfaces:
-                    self.switch_to_random_interface()
+                self.switch_to_random_interface()
             else:
                 if self.default_server in self.interfaces.keys():
-                    self.switch_to_interface(self.interfaces[self.default_server])
+                    self.switch_to_interface(self.default_server)
                 else:
                     if self.default_server in self.disconnected_servers:
                         if now - self.server_retry_time > SERVER_RETRY_INTERVAL:
@@ -491,7 +508,7 @@ class Network(util.DaemonThread):
                     else:
                         if self.default_server not in self.pending_servers:
                             self.print_error("forcing reconnection")
-                            self.interface = self.start_interface(self.default_server)
+                            self.start_interface(self.default_server)
 
     def run(self):
         while self.is_running():
@@ -502,34 +519,13 @@ class Network(util.DaemonThread):
             except Queue.Empty:
                 continue
 
-            if response is not None:
-                self.process_response(i, response)
-                continue
-
             # if response is None it is a notification about the interface
-            if i.server in self.pending_servers:
-                self.pending_servers.remove(i.server)
-
-            if i.is_connected():
-                self.add_interface(i)
-                self.add_recent_server(i)
-                i.send_request({'method':'blockchain.headers.subscribe','params':[]})
-                if i == self.interface:
-                    self.send_subscriptions()
-                    self.set_status('connected')
+            if response is None:
+                self.process_if_notification(i)
             else:
-                if i.server in self.interfaces:
-                    self.remove_interface(i)
-                if i.server in self.heights:
-                    self.heights.pop(i.server)
-                if i == self.interface:
-                    self.set_status('disconnected')
-                self.disconnected_servers.add(i.server)
+                self.process_response(i, response)
 
-        self.print_error("stopping interfaces")
-        for i in self.interfaces.values():
-            i.stop()
-
+        self.stop_network()
         self.print_error("stopped")
 
 
