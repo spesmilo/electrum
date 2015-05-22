@@ -402,14 +402,6 @@ class Network(util.DaemonThread):
         self.recent_servers = self.recent_servers[0:20]
         self.save_recent_servers()
 
-    def add_interface(self, i):
-        self.interfaces[i.server] = i
-        self.notify('interfaces')
-
-    def remove_interface(self, i):
-        self.interfaces.pop(i.server)
-        self.notify('interfaces')
-
     def new_blockchain_height(self, blockchain_height, i):
         if self.is_connected():
             if self.server_is_lagging():
@@ -419,23 +411,25 @@ class Network(util.DaemonThread):
         self.notify('updated')
 
     def process_if_notification(self, i):
+        '''Handle interface addition and removal through notifications'''
         if i.server in self.pending_servers:
             self.pending_servers.remove(i.server)
 
         if i.is_connected():
-            self.add_interface(i)
+            self.interfaces[i.server] = i
             self.add_recent_server(i)
             i.send_request({'method':'blockchain.headers.subscribe','params':[]})
             if i.server == self.default_server:
                 self.switch_to_interface(i.server)
         else:
-            if i.server in self.interfaces:
-                self.remove_interface(i)
-            if i.server in self.heights:
-                self.heights.pop(i.server)
+            self.interfaces.pop(i.server, None)
+            self.heights.pop(i.server, None)
             if i == self.interface:
                 self.set_status('disconnected')
             self.disconnected_servers.add(i.server)
+        # Our set of interfaces changed
+        self.notify('interfaces')
+
 
     def process_response(self, i, response):
         # the id comes from the daemon or the network proxy
