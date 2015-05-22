@@ -148,7 +148,6 @@ class Network(util.DaemonThread):
         self.pending_servers = set()
 
         self.banner = ''
-        self.interface = None
         self.heights = {}
         self.merkle_roots = {}
         self.utxo_roots = {}
@@ -279,6 +278,8 @@ class Network(util.DaemonThread):
 
     def start_interface(self, server):
         if not server in self.interfaces.keys():
+            if server == self.default_server:
+                self.set_status('connecting')
             i = interface.Interface(server, self.queue, self.config)
             self.pending_servers.add(server)
             i.start()
@@ -313,7 +314,6 @@ class Network(util.DaemonThread):
     def start_network(self, protocol, proxy):
         assert not self.interface and not self.interfaces
         self.print_error('starting network')
-        self.set_status('connecting')
         self.disconnected_servers = set([])
         self.protocol = protocol
         self.set_proxy(proxy)
@@ -380,8 +380,6 @@ class Network(util.DaemonThread):
         if self.is_connected():
             self.stop_interface()
 
-        # notify gui
-        self.set_status('connecting')
         # start interface
         self.default_server = server
 
