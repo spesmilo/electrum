@@ -122,6 +122,14 @@ def serialize_server(host, port, protocol):
 
 
 class Network(util.DaemonThread):
+    """The Network class manages a set of connections to remote
+    electrum servers, each connection is handled by its own
+    thread object returned from Interface().  Its external API:
+
+    - Member functions get_header(), get_parameters(), get_status_value(),
+                       new_blockchain_height(), set_parameters(), start(),
+                       stop()
+    """
 
     def __init__(self, pipe, config=None):
         if config is None:
@@ -467,10 +475,9 @@ class Network(util.DaemonThread):
             out = {'id':_id}
             try:
                 f = getattr(self, method[8:])
+                out['result'] = f(*params)
             except AttributeError:
                 out['error'] = "unknown method"
-            try:
-                out['result'] = f(*params)
             except BaseException as e:
                 out['error'] = str(e)
                 traceback.print_exc(file=sys.stdout)
