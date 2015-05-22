@@ -104,8 +104,10 @@ def user_dir():
         #raise Exception("No home directory found in environment variables.")
         return
 
-
-
+def format_satoshis_plain(x):
+    '''Display a satoshi amount in BTC with 8 decimal places.  Always
+       uses a '.' as a decimal point and has no thousands separator'''
+    return "{:.8f}".format(x / 100000000.0)
 
 def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespaces=False):
     from locale import localeconv
@@ -273,7 +275,7 @@ def create_URI(addr, amount, message):
         return ""
     query = []
     if amount:
-        query.append('amount=%s'%format_satoshis(amount))
+        query.append('amount=%s'%format_satoshis_plain(amount))
     if message:
         if type(message) == unicode:
             message = message.encode('utf8')
