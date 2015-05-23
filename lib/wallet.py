@@ -654,6 +654,7 @@ class Abstract_Wallet(object):
         for addr, l in dd.items():
             for n, v, is_cb in l:
                 if n == prevout_n:
+                    print_error("found pay-to-pubkey address:", addr)
                     return addr
 
     def add_transaction(self, tx_hash, tx, tx_height):
@@ -669,10 +670,6 @@ class Abstract_Wallet(object):
                     ser = prevout_hash + ':%d'%prevout_n
                 if addr == "(pubkey)":
                     addr = self.find_pay_to_pubkey_address(prevout_hash, prevout_n)
-                    if addr:
-                        print_error("found pay-to-pubkey address:", addr)
-                    else:
-                        self.pruned_txo[ser] = tx_hash
                 # find value from prev output
                 if addr and self.is_mine(addr):
                     dd = self.txo.get(prevout_hash, {})
