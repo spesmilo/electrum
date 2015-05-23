@@ -336,22 +336,16 @@ class Network(util.DaemonThread):
         self.interfaces = {}
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
+        server = serialize_server(host, port, protocol)
         if self.proxy != proxy or self.protocol != protocol:
+            # Restart the network defaulting to the given server
             self.stop_network()
+            self.default_server = server
             self.start_network(protocol, proxy)
-            if auto_connect:
-                return
-
-        if auto_connect:
-            if not self.is_connected():
-                self.switch_to_random_interface()
-            else:
-                if self.server_is_lagging():
-                    self.stop_interface()
-        else:
-            server_str = serialize_server(host, port, protocol)
-            self.set_server(server_str)
-
+        elif self.default_server != server:
+            self.switch_to_interface(server)
+        elif auto_connect and (not self.is_connected() or self.server_is_lagging()):
+            self.switch_to_random_interface()
 
     def switch_to_random_interface(self):
         if self.interfaces:
@@ -364,6 +358,8 @@ class Network(util.DaemonThread):
         self.default_server = server
         if server in self.interfaces:
             self.print_error("switching to", server)
+            # stop any current interface in order to terminate subscriptions
+            self.stop_interface()
             self.interface = self.interfaces[server]
             self.send_subscriptions()
             self.set_status('connected')
@@ -373,8 +369,9 @@ class Network(util.DaemonThread):
             self.start_interface(server)
 
     def stop_interface(self):
-        self.interface.stop()
-        self.interface = None
+        if self.interface:
+            self.interface.stop()
+            self.interface = None
 
     def set_server(self, server):
         if self.default_server == server and self.is_connected():
@@ -382,10 +379,6 @@ class Network(util.DaemonThread):
 
         if self.protocol != deserialize_server(server)[2]:
             return
-
-        # stop the interface in order to terminate subscriptions
-        if self.is_connected():
-            self.stop_interface()
 
         self.switch_to_interface(server)
 
