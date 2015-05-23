@@ -48,6 +48,9 @@ def Interface(server, response_queue, config = None):
     else:
         raise Exception('Unknown protocol: %s'%protocol)
 
+# Connection status
+CS_OPENING, CS_CONNECTED, CS_FAILED = range(3)
+
 class TcpInterface(threading.Thread):
 
     def __init__(self, server, response_queue, config = None):
@@ -57,9 +60,8 @@ class TcpInterface(threading.Thread):
         # Set by stop(); no more data is exchanged and the thread exits after gracefully
         # closing the socket
         self.disconnect = False
-        # Initially True to avoid a race; set to False on failure to create a socket or when
-        # it is closed
-        self.connected = True
+        self._status = CS_OPENING
+        self.needs_shutdown = True
         self.debug = False # dump network messages. can be changed at runtime using the console
         self.message_id = 0
         self.response_queue = response_queue
@@ -275,11 +277,13 @@ class TcpInterface(threading.Thread):
             self.message_id += 1
 
     def is_connected(self):
-        return self.connected and not self.disconnect
+        '''True if status is connected'''
+        return self._status == CS_CONNECTED and not self.disconnect
 
     def stop(self):
-        self.disconnect = True
-        self.print_error("disconnecting")
+        if not self.disconnect:
+            self.disconnect = True
+            self.print_error("disconnecting")
 
     def maybe_ping(self):
         # ping the server with server.version
@@ -299,7 +303,8 @@ class TcpInterface(threading.Thread):
                 return
             # If remote side closed the socket, SocketPipe closes our socket and returns None
             if response is None:
-                self.connected = False  # Don't re-close the socket
+                self.needs_shutdown = False  # Don't re-close the socket
+                self.disconnect = True
                 self.print_error("connection closed remotely")
             else:
                 self.process_response(response)
@@ -310,22 +315,25 @@ class TcpInterface(threading.Thread):
             self.pipe = util.SocketPipe(s)
             s.settimeout(0.1)
             self.print_error("connected")
+            self._status = CS_CONNECTED
             # Indicate to parent that we've connected
-            self.change_status()
+            self.notify_status()
             while self.is_connected():
                 self.maybe_ping()
                 self.send_requests()
                 self.get_and_process_response()
-            if self.connected:  # Don't shutdown() a closed socket
+            if self.needs_shutdown:
                 s.shutdown(socket.SHUT_RDWR)
                 s.close()
 
         # Also for the s is None case 
-        self.connected = False
+        self._status = CS_FAILED
         # Indicate to parent that the connection is now down
-        self.change_status()
+        self.notify_status()
 
-    def change_status(self):
+    def notify_status(self):
+        '''Notify owner that we have just connected or just failed the connection.
+        Owner determines which through e.g. testing is_connected()'''
         self.response_queue.put((self, None))
 
 
