@@ -269,8 +269,8 @@ class Network(util.DaemonThread):
         return host, port, protocol, self.proxy, auto_connect
 
     def get_interfaces(self):
-        '''Returns the live interfaces'''
-        return {s: i for s, i in self.interfaces.items() if i.is_connected()}
+        '''Returns the live servers'''
+        return [s for s, i in self.interfaces.items() if i.is_connected()]
 
     def get_servers(self):
         if self.irc_servers:
@@ -356,7 +356,7 @@ class Network(util.DaemonThread):
 
     def switch_to_random_interface(self):
         '''Switch to a live interface'''
-        servers = self.get_interfaces().keys()
+        servers = self.get_interfaces()
         if servers:
             self.switch_to_interface(random.choice(servers))
 
