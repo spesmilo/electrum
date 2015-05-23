@@ -1,5 +1,6 @@
 # Release 2.2
- * Show thousands separators in GUI
+ * Show amounts (thousands separators and decimal point)
+   according to locale in GUI
  * Show unmatured coins in balance
  * Fix exchange rates plugin
  * Network layer: refactoring and fixes
