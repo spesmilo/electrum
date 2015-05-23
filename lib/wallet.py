@@ -115,7 +115,7 @@ class WalletStorage(object):
 
     def write(self):
         assert not threading.currentThread().isDaemon()
-        temp_path = self.path + '.tmp'
+        temp_path = "%s.tmp.%s" % (self.path, os.getpid())
         s = json.dumps(self.data, indent=4, sort_keys=True)
         with open(temp_path, "w") as f:
             f.write(s)
