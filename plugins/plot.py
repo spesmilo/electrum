@@ -22,13 +22,6 @@ except:
 
 class Plugin(BasePlugin):
 
-
-    def fullname(self):
-        return 'Plot History'
-
-    def description(self):
-        return '%s\n%s' % (_("Ability to plot transaction history in graphical mode."), _("Warning: Requires matplotlib library."))
-
     def is_available(self):
         if flag_matlib:
             return True

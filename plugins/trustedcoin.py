@@ -210,17 +210,12 @@ class Plugin(BasePlugin):
 
     def __init__(self, x, y):
         BasePlugin.__init__(self, x, y)
-        electrum.wallet.wallet_types.append(('twofactor', '2fa', _("Wallet with two-factor authentication"), Wallet_2fa))
         self.seed_func = lambda x: bitcoin.is_new_seed(x, SEED_PREFIX)
         self.billing_info = None
         self.is_billing = False
 
-    def fullname(self):
-        return 'Two Factor Authentication'
-
-    def description(self):
-        return _("This plugin adds two-factor authentication to your wallet.") + '<br/>'\
-            + _("For more information, visit") + " <a href=\"https://api.trustedcoin.com/#/electrum-help\">https://api.trustedcoin.com/#/electrum-help</a>"
+    def get_wallet_type(self):
+        return ('twofactor', '2fa', _("Wallet with two-factor authentication"), Wallet_2fa)
 
     def is_available(self):
         if not self.wallet:
@@ -265,13 +260,6 @@ class Plugin(BasePlugin):
         cK, c = bitcoin.CKD_pub(cK, c, num)
         address = public_key_to_bc_address( cK )
         return address
-
-    def enable(self):
-        if self.is_enabled():
-            self.window.show_message('Error: Two-factor authentication is already activated on this wallet')
-            return
-        self.set_enabled(True)
-        self.window.show_message('Two-factor authentication is enabled.')
 
     def create_extended_seed(self, wallet, window):
         seed = wallet.make_seed()

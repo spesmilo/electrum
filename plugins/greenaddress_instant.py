@@ -31,18 +31,10 @@ from electrum.i18n import _
 from electrum.bitcoin import regenerate_key
 
 
-description = _("Allows validating if your transactions have instant confirmations by GreenAddress")
-
 
 class Plugin(BasePlugin):
 
     button_label = _("Verify GA instant")
-
-    def fullname(self):
-        return 'GreenAddress instant'
-
-    def description(self):
-        return description
 
     @hook 
     def init_qt(self, gui):

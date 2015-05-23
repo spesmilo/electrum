@@ -28,12 +28,6 @@ class Plugin(BasePlugin):
     target_host = 'sync.bytesized-hosting.com:9090'
     encode_password = None
 
-    def fullname(self):
-        return _('LabelSync')
-
-    def description(self):
-        return '%s\n\n%s' % (_("The new and improved LabelSync plugin. This can sync your labels across multiple Electrum installs by using a remote database to save your data. Labels, transactions ids and addresses are encrypted before they are sent to the remote server."), _("The label sync's server software is open-source as well and can be found on github.com/maran/electrum-sync-server"))
-
     def version(self):
         return "0.0.1"
 
