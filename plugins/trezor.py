@@ -41,19 +41,14 @@ def give_error(message):
 
 class Plugin(BasePlugin):
 
-    def fullname(self):
-        return 'Trezor Wallet'
-
-    def description(self):
-        return 'Provides support for Trezor hardware wallet\n\nRequires github.com/trezor/python-trezor'
-
     def __init__(self, config, name):
         BasePlugin.__init__(self, config, name)
         self._is_available = self._init()
         self._requires_settings = True
         self.wallet = None
-        if self._is_available:
-            electrum.wallet.wallet_types.append(('hardware', 'trezor', _("Trezor wallet"), TrezorWallet))
+
+    def get_wallet_type(self):
+        return ('hardware', 'trezor', _("Trezor wallet"), TrezorWallet)
 
     def _init(self):
         return TREZOR
@@ -79,9 +74,6 @@ class Plugin(BasePlugin):
         if self.wallet.has_seed():
             return False
         return True
-
-    def enable(self):
-        return BasePlugin.enable(self)
 
     def trezor_is_connected(self):
         try:

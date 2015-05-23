@@ -40,18 +40,13 @@ except ImportError:
 
 class Plugin(BasePlugin):
 
-    def fullname(self):
-        return 'BTChip Wallet'
-
-    def description(self):
-        return 'Provides support for BTChip hardware wallet\n\nRequires github.com/btchip/btchip-python'
-
     def __init__(self, gui, name):
         BasePlugin.__init__(self, gui, name)
         self._is_available = self._init()
         self.wallet = None
-        if self._is_available:
-            electrum.wallet.wallet_types.append(('hardware', 'btchip', _("BTChip wallet"), BTChipWallet))
+
+    def get_wallet_type(self):
+        return ('hardware', 'btchip', _("BTChip wallet"), BTChipWallet)
 
     def _init(self):
         return BTCHIP
@@ -74,9 +69,6 @@ class Plugin(BasePlugin):
         if self.wallet.has_seed():
             return False
         return True
-
-    def enable(self):
-        return BasePlugin.enable(self)
 
     def btchip_is_connected(self):
         try:

@@ -2657,7 +2657,7 @@ class ElectrumWindow(QMainWindow):
 
 
     def plugins_dialog(self):
-        from electrum_ltc.plugins import plugins
+        from electrum_ltc.plugins import plugins, descriptions, is_available, loader
 
         self.pluginsdialog = d = QDialog(self)
         d.setWindowTitle(_('Electrum Plugins'))
@@ -2680,37 +2680,44 @@ class ElectrumWindow(QMainWindow):
         grid.setColumnStretch(0,1)
         w.setLayout(grid)
 
-        def do_toggle(cb, p, w):
-            if p.is_enabled():
-                if p.disable():
-                    p.close()
+        def do_toggle(cb, name, w):
+            p = plugins.get(name)
+            if p:
+                p.disable()
+                p.close()
+                plugins.pop(name)
             else:
-                if p.enable():
-                    p.load_wallet(self.wallet)
-                    p.init_qt(self.gui_object)
+                module = loader(name)
+                plugins[name] = p = module.Plugin(self.config, name)
+                p.enable()
+                p.wallet = self.wallet
+                p.load_wallet(self.wallet)
+                p.init_qt(self.gui_object)
             r = p.is_enabled()
             cb.setChecked(r)
             if w: w.setEnabled(r)
 
-        def mk_toggle(cb, p, w):
-            return lambda: do_toggle(cb,p,w)
+        def mk_toggle(cb, name, w):
+            return lambda: do_toggle(cb, name, w)
 
-        for i, p in enumerate(plugins):
+        for i, descr in enumerate(descriptions):
+            name = descr['name']
+            p = plugins.get(name)
             try:
-                cb = QCheckBox(p.fullname())
-                cb.setDisabled(not p.is_available())
-                cb.setChecked(p.is_enabled())
+                cb = QCheckBox(descr['fullname'])
+                cb.setEnabled(is_available(name, self.wallet))
+                cb.setChecked(p is not None)
                 grid.addWidget(cb, i, 0)
-                if p.requires_settings():
+                if p and p.requires_settings():
                     w = p.settings_widget(self)
-                    w.setEnabled( p.is_enabled() )
+                    w.setEnabled(p.is_enabled())
                     grid.addWidget(w, i, 1)
                 else:
                     w = None
-                cb.clicked.connect(mk_toggle(cb,p,w))
-                grid.addWidget(HelpButton(p.description()), i, 2)
+                cb.clicked.connect(mk_toggle(cb, name, w))
+                grid.addWidget(HelpButton(descr['description']), i, 2)
             except Exception:
-                print_msg("Error: cannot display plugin", p)
+                print_msg("Error: cannot display plugin", name)
                 traceback.print_exc(file=sys.stdout)
         grid.setRowStretch(i+1,1)
         vbox.addLayout(Buttons(CloseButton(d)))

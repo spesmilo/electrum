@@ -46,8 +46,8 @@ class Exchanger(threading.Thread):
         self.query_rates = threading.Event()
         self.use_exchange = self.parent.config.get('use_exchange', "BTC-e")
         self.parent.exchanges = EXCHANGES
-        self.parent.win.emit(SIGNAL("refresh_exchanges_combo()"))
-        self.parent.win.emit(SIGNAL("refresh_currencies_combo()"))
+        #self.parent.win.emit(SIGNAL("refresh_exchanges_combo()"))
+        #self.parent.win.emit(SIGNAL("refresh_currencies_combo()"))
         self.is_running = False
 
     def get_json(self, site, get_string):
@@ -156,18 +156,14 @@ class Exchanger(threading.Thread):
 
 class Plugin(BasePlugin):
 
-    def fullname(self):
-        return "Exchange rates"
-
-    def description(self):
-        return """exchange rates, retrieved from BTC-e and other market exchanges"""
-
-
     def __init__(self,a,b):
         BasePlugin.__init__(self,a,b)
         self.currencies = [self.fiat_unit()]
         self.exchanges = [self.config.get('use_exchange', "BTC-e")]
-        self.exchanger = None
+        # Do price discovery
+        self.exchanger = Exchanger(self)
+        self.exchanger.start()
+        self.win = None
 
     @hook
     def init_qt(self, gui):
@@ -177,26 +173,25 @@ class Plugin(BasePlugin):
         self.btc_rate = Decimal("0.0")
         self.resp_hist = {}
         self.tx_list = {}
-        if self.exchanger is None:
-            # Do price discovery
-            self.exchanger = Exchanger(self)
-            self.exchanger.start()
-            self.gui.exchanger = self.exchanger #
-            self.add_send_edit()
-            self.add_receive_edit()
-            self.win.update_status()
+        self.gui.exchanger = self.exchanger #
+        self.add_send_edit()
+        self.add_receive_edit()
+        self.win.update_status()
 
     def close(self):
+        BasePlugin.close(self)
         self.exchanger.stop()
         self.exchanger = None
+        self.gui.exchanger = None
         self.send_fiat_e.hide()
         self.receive_fiat_e.hide()
         self.win.update_status()
 
     def set_currencies(self, currency_options):
         self.currencies = sorted(currency_options)
-        self.win.emit(SIGNAL("refresh_currencies()"))
-        self.win.emit(SIGNAL("refresh_currencies_combo()"))
+        if self.win:
+            self.win.emit(SIGNAL("refresh_currencies()"))
+            self.win.emit(SIGNAL("refresh_currencies_combo()"))
 
     @hook
     def get_fiat_balance_text(self, btc_balance, r):

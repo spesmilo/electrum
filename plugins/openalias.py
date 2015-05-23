@@ -54,12 +54,6 @@ except ImportError:
 
 
 class Plugin(BasePlugin):
-    def fullname(self):
-        return 'OpenAlias'
-
-    def description(self):
-        return 'Allow for payments to OpenAlias addresses.\nRequires dnspython'
-
     def is_available(self):
         return OA_READY
 

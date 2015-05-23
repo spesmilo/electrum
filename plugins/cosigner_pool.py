@@ -37,7 +37,6 @@ import traceback
 
 PORT = 12344
 HOST = 'ecdsa.net'
-description = _("This plugin facilitates the use of multi-signatures wallets. It sends and receives partially signed transactions from/to your cosigner wallet. Transactions are encrypted and stored on a remote server.") 
 server = xmlrpclib.ServerProxy('http://%s:%d'%(HOST,PORT), allow_none=True)
 
 
@@ -85,20 +84,10 @@ class Plugin(BasePlugin):
     wallet = None
     listener = None
 
-    def fullname(self):
-        return 'Cosigner Pool'
-
-    def description(self):
-        return description
-
     @hook
     def init_qt(self, gui):
         self.win = gui.main_window
         self.win.connect(self.win, SIGNAL('cosigner:receive'), self.on_receive)
-
-    def enable(self):
-        self.set_enabled(True)
-        return True
 
     def is_available(self):
         if self.wallet is None:

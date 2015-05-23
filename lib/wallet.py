@@ -115,7 +115,7 @@ class WalletStorage(object):
 
     def write(self):
         assert not threading.currentThread().isDaemon()
-        temp_path = self.path + '.tmp'
+        temp_path = "%s.tmp.%s" % (self.path, os.getpid())
         s = json.dumps(self.data, indent=4, sort_keys=True)
         with open(temp_path, "w") as f:
             f.write(s)
@@ -202,10 +202,11 @@ class Abstract_Wallet(object):
             tx = {}
             for k,v in self.transactions.items():
                 tx[k] = str(v)
-            self.storage.put('transactions', tx)
-            self.storage.put('txi', self.txi)
-            self.storage.put('txo', self.txo)
-            self.storage.put('pruned_txo', self.pruned_txo)
+            # Flush storage only with the last put
+            self.storage.put('transactions', tx, False)
+            self.storage.put('txi', self.txi, False)
+            self.storage.put('txo', self.txo, False)
+            self.storage.put('pruned_txo', self.pruned_txo, True)
 
     def clear_history(self):
         with self.transaction_lock:
@@ -653,6 +654,7 @@ class Abstract_Wallet(object):
         for addr, l in dd.items():
             for n, v, is_cb in l:
                 if n == prevout_n:
+                    print_error("found pay-to-pubkey address:", addr)
                     return addr
 
     def add_transaction(self, tx_hash, tx, tx_height):
@@ -668,10 +670,6 @@ class Abstract_Wallet(object):
                     ser = prevout_hash + ':%d'%prevout_n
                 if addr == "(pubkey)":
                     addr = self.find_pay_to_pubkey_address(prevout_hash, prevout_n)
-                    if addr:
-                        print_error("found pay-to-pubkey address:", addr)
-                    else:
-                        self.pruned_txo[ser] = tx_hash
                 # find value from prev output
                 if addr and self.is_mine(addr):
                     dd = self.txo.get(prevout_hash, {})
@@ -1263,8 +1261,8 @@ class Deterministic_Wallet(Abstract_Wallet):
         else:
             self.use_encryption = False
 
-        self.storage.put('seed', self.seed, True)
-        self.storage.put('seed_version', self.seed_version, True)
+        self.storage.put('seed', self.seed, False)
+        self.storage.put('seed_version', self.seed_version, False)
         self.storage.put('use_encryption', self.use_encryption,True)
 
     def get_seed(self, password):
@@ -1718,7 +1716,7 @@ class OldWallet(Deterministic_Wallet):
 
     def create_watching_only_wallet(self, mpk):
         self.seed_version = OLD_SEED_VERSION
-        self.storage.put('seed_version', self.seed_version, True)
+        self.storage.put('seed_version', self.seed_version, False)
         self.storage.put('master_public_key', mpk, True)
         self.create_account(mpk)
 

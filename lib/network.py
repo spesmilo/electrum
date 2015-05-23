@@ -334,22 +334,16 @@ class Network(util.DaemonThread):
         self.interfaces = {}
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
+        server = serialize_server(host, port, protocol)
         if self.proxy != proxy or self.protocol != protocol:
+            # Restart the network defaulting to the given server
             self.stop_network()
+            self.default_server = server
             self.start_network(protocol, proxy)
-            if auto_connect:
-                return
-
-        if auto_connect:
-            if not self.is_connected():
-                self.switch_to_random_interface()
-            else:
-                if self.server_is_lagging():
-                    self.stop_interface()
-        else:
-            server_str = serialize_server(host, port, protocol)
-            self.set_server(server_str)
-
+        elif self.default_server != server:
+            self.switch_to_interface(server)
+        elif auto_connect and (not self.is_connected() or self.server_is_lagging()):
+            self.switch_to_random_interface()
 
     def switch_to_random_interface(self):
         if self.interfaces:
@@ -357,19 +351,25 @@ class Network(util.DaemonThread):
             self.switch_to_interface(server)
 
     def switch_to_interface(self, server):
-        '''Switch to server as our interface, it must be in self.interfaces'''
-        assert server in self.interfaces
-        self.print_error("switching to", server)
-        self.interface = self.interfaces[server]
+        '''Switch to server as our interface.  If not already connected, start a
+        connection - we will switch on receipt of the connection notification'''
         self.default_server = server
-        self.send_subscriptions()
-        self.set_status('connected')
-        self.notify('updated')
-
+        if server in self.interfaces:
+            self.print_error("switching to", server)
+            # stop any current interface in order to terminate subscriptions
+            self.stop_interface()
+            self.interface = self.interfaces[server]
+            self.send_subscriptions()
+            self.set_status('connected')
+            self.notify('updated')
+        elif server not in self.pending_servers:
+            self.print_error("starting %s; will switch once connected" % server)
+            self.start_interface(server)
 
     def stop_interface(self):
-        self.interface.stop()
-        self.interface = None
+        if self.interface:
+            self.interface.stop()
+            self.interface = None
 
     def set_server(self, server):
         if self.default_server == server and self.is_connected():
@@ -378,17 +378,7 @@ class Network(util.DaemonThread):
         if self.protocol != deserialize_server(server)[2]:
             return
 
-        # stop the interface in order to terminate subscriptions
-        if self.is_connected():
-            self.stop_interface()
-
-        # start interface
-        self.default_server = server
-
-        if server in self.interfaces.keys():
-            self.switch_to_interface(server)
-        else:
-            self.start_interface(server)
+        self.switch_to_interface(server)
 
 
     def add_recent_server(self, i):
@@ -433,16 +423,24 @@ class Network(util.DaemonThread):
         # the id comes from the daemon or the network proxy
         _id = response.get('id')
         if _id is not None:
+            if i != self.interface:
+                return
             self.unanswered_requests.pop(_id)
-        method = response['method']
-        if method == 'blockchain.address.subscribe':
-            self.on_address(i, response)
-        elif method == 'blockchain.headers.subscribe':
+
+        method = response.get('method')
+        result = response.get('result')
+        if method == 'blockchain.headers.subscribe':
             self.on_header(i, response)
         elif method == 'server.peers.subscribe':
-            self.on_peers(i, response)
+            self.irc_servers = parse_servers(result)
+            self.notify('servers')
         elif method == 'server.banner':
-            self.on_banner(i, response)
+            self.banner = result
+            self.notify('banner')
+        elif method == 'blockchain.address.subscribe':
+            addr = response.get('params')[0]
+            self.addr_responses[addr] = result
+            self.response_queue.put(response)
         else:
             self.response_queue.put(response)
 
@@ -498,17 +496,12 @@ class Network(util.DaemonThread):
             if self.config.get('auto_cycle'):
                 self.switch_to_random_interface()
             else:
-                if self.default_server in self.interfaces.keys():
-                    self.switch_to_interface(self.default_server)
+                if self.default_server in self.disconnected_servers:
+                    if now - self.server_retry_time > SERVER_RETRY_INTERVAL:
+                        self.disconnected_servers.remove(self.default_server)
+                        self.server_retry_time = now
                 else:
-                    if self.default_server in self.disconnected_servers:
-                        if now - self.server_retry_time > SERVER_RETRY_INTERVAL:
-                            self.disconnected_servers.remove(self.default_server)
-                            self.server_retry_time = now
-                    else:
-                        if self.default_server not in self.pending_servers:
-                            self.print_error("forcing reconnection")
-                            self.start_interface(self.default_server)
+                    self.switch_to_interface(self.default_server)
 
     def run(self):
         while self.is_running():
@@ -548,20 +541,6 @@ class Network(util.DaemonThread):
                 self.stop_interface()
             self.notify('updated')
 
-    def on_peers(self, i, r):
-        if not r: return
-        self.irc_servers = parse_servers(r.get('result'))
-        self.notify('servers')
-
-    def on_banner(self, i, r):
-        self.banner = r.get('result')
-        self.notify('banner')
-
-    def on_address(self, i, r):
-        addr = r.get('params')[0]
-        result = r.get('result')
-        self.addr_responses[addr] = result
-        self.response_queue.put(r)
 
     def get_header(self, tx_height):
         return self.blockchain.read_header(tx_height)
