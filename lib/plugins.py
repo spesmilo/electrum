@@ -37,7 +37,7 @@ def is_available(name, w):
     else:
         return False
     deps = d.get('requires', [])
-    for dep in deps:
+    for dep, s in deps:
         try:
             __import__(dep)
         except ImportError:
@@ -84,7 +84,7 @@ def init_plugins(config, is_local, gui_name):
             p = loader(name)
             plugins[name] = p.Plugin(config, name)
         except Exception:
-            print_msg(_("Error: cannot initialize plugin"), p)
+            print_msg(_("Error: cannot initialize plugin"), name)
             traceback.print_exc(file=sys.stdout)
 
 hook_names = set()
