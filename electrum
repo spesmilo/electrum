@@ -222,14 +222,14 @@ if __name__ == '__main__':
     else:
         cmd = args[0]
 
-    # initialize plugins.
-    # FIXME: check gui
-    init_plugins(config, is_bundle or is_local or is_android, cmd=='gui')
+    gui_name = config.get('gui', 'qt') if cmd == 'gui' else 'cmdline'
+    if gui_name in ['lite', 'classic']:
+        gui_name = 'qt'
 
-    if cmd == 'gui':
-        gui_name = config.get('gui', 'classic')
-        if gui_name in ['lite', 'classic']:
-            gui_name = 'qt'
+    # initialize plugins.
+    init_plugins(config, is_bundle or is_local or is_android, gui_name)
+
+    if gui_name != 'cmdline':
         try:
             gui = __import__('electrum_gui.' + gui_name, fromlist=['electrum_gui'])
         except ImportError:

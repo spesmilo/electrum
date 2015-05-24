@@ -24,7 +24,7 @@ import pkgutil
 
 from util import *
 from i18n import _
-from util import print_error
+from util import print_error, profiler
 
 plugins = {}
 descriptions = []
@@ -49,7 +49,8 @@ def is_available(name, w):
     return True
 
 
-def init_plugins(config, is_local, is_gui):
+@profiler
+def init_plugins(config, is_local, gui_name):
     global plugins, descriptions, loader
     if is_local:
         fp, pathname, description = imp.find_module('plugins')
@@ -73,6 +74,8 @@ def init_plugins(config, is_local, is_gui):
     descriptions = electrum_plugins.descriptions
     for item in descriptions:
         name = item['name']
+        if gui_name not in item.get('available_for', []):
+            continue
         if item.get('registers_wallet_type'):
             register_wallet_type(name)
         if not config.get('use_' + name):
