@@ -235,6 +235,7 @@ class ElectrumWindow(QMainWindow):
         self.clear_receive_tab()
         self.update_receive_tab()
         self.show()
+        run_hook('init_qt', self.gui_object)
         run_hook('load_wallet', wallet)
 
     def import_old_contacts(self):

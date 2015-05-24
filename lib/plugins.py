@@ -60,15 +60,18 @@ def init_plugins(config, is_local, gui_name):
         electrum_plugins = __import__('electrum_plugins')
         loader = lambda name: __import__('electrum_plugins.' + name, fromlist=['electrum_plugins'])
 
-    def register_wallet_type(name):
-        # fixme: load plugins only if really needed
+    def constructor(name, storage):
+        if plugins.get(name) is None:
+            try:
+                p = loader(name)
+                plugins[name] = p.Plugin(config, name)
+            except:
+                return
+        return plugins[name].constructor(storage)
+
+    def register_wallet_type(name, x, constructor):
         import wallet
-        try:
-            p = loader(name)
-            plugins[name] = p.Plugin(config, name)
-        except:
-            return
-        x = plugins[name].get_wallet_type()
+        x += (lambda storage: constructor(name, storage),)
         wallet.wallet_types.append(x)
 
     descriptions = electrum_plugins.descriptions
@@ -76,8 +79,9 @@ def init_plugins(config, is_local, gui_name):
         name = item['name']
         if gui_name not in item.get('available_for', []):
             continue
-        if item.get('registers_wallet_type'):
-            register_wallet_type(name)
+        x = item.get('registers_wallet_type')
+        if x:
+            register_wallet_type(name, x, constructor)
         if not config.get('use_' + name):
             continue
         try:
@@ -86,6 +90,7 @@ def init_plugins(config, is_local, gui_name):
         except Exception:
             print_msg(_("Error: cannot initialize plugin"), name)
             traceback.print_exc(file=sys.stdout)
+
 
 hook_names = set()
 hooks = {}

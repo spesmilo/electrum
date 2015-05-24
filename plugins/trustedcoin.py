@@ -214,8 +214,8 @@ class Plugin(BasePlugin):
         self.billing_info = None
         self.is_billing = False
 
-    def get_wallet_type(self):
-        return ('twofactor', '2fa', _("Wallet with two-factor authentication"), Wallet_2fa)
+    def constructor(self, s):
+        return Wallet_2fa(s)
 
     def is_available(self):
         if not self.wallet:

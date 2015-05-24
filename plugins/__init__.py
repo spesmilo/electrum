@@ -32,7 +32,7 @@ descriptions = [
         'description': _('Provides support for BTChip hardware wallet'),
         'requires': [('btchip', 'github.com/btchip/btchip-python')],
         'requires_wallet_type': ['btchip'],
-        'registers_wallet_type': True,
+        'registers_wallet_type': ('hardware', 'btchip', _("BTChip wallet")),
         'available_for': ['qt'],
     },
     {
@@ -88,7 +88,7 @@ descriptions = [
         'available_for': ['qt'],
         'requires': [('trezorlib','github.com/trezor/python-trezor')],
         'requires_wallet_type': ['trezor'],
-        'registers_wallet_type': True,
+        'registers_wallet_type': ('hardware', 'trezor', _("Trezor wallet")),
         'available_for': ['qt', 'cmdline'],
     },
     {
@@ -100,7 +100,7 @@ descriptions = [
             " <a href=\"https://api.trustedcoin.com/#/electrum-help\">https://api.trustedcoin.com/#/electrum-help</a>"
         ]),
         'requires_wallet_type': ['2fa'],
-        'registers_wallet_type': True,
+        'registers_wallet_type': ('twofactor', '2fa', _("Wallet with two-factor authentication")),
         'available_for': ['qt', 'cmdline'],
     },
     {
