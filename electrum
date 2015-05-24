@@ -309,11 +309,7 @@ if __name__ == '__main__':
         else:
             password = prompt_password("Password (hit return if you do not wish to encrypt your wallet):")
 
-        # if config.server is set, the user either passed the server on command line
-        # or chose it previously already. if he didn't pass a server on the command line,
-        # we just pick up a random one.
-        if not config.get('server'):
-            config.set_key('server', pick_random_server())
+        # If config doesn't have a server, network.py will pick a random one
 
         #fee = options.tx_fee if options.tx_fee else raw_input("fee (default:%s):" % (str(Decimal(wallet.fee)/100000000)))
         #gap = options.gap_limit if options.gap_limit else raw_input("gap limit (default 5):")
