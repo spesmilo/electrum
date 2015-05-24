@@ -41,7 +41,7 @@ class TestWalletStorage(WalletTestCase):
 
     def test_read_dictionnary_from_file(self):
 
-        some_dict = {"a":"b", "c":"d"}
+        some_dict = {"a": "b", "c": "d"}
         contents = repr(some_dict)
         with open(self.wallet_path, "w") as f:
             contents = f.write(contents)
@@ -54,7 +54,7 @@ class TestWalletStorage(WalletTestCase):
 
         storage = WalletStorage(self.wallet_path)
 
-        some_dict = {"a":"b", "c":"d"}
+        some_dict = {"a": "b", "c": "d"}
         storage.data = some_dict
 
         storage.write()
@@ -67,7 +67,8 @@ class TestWalletStorage(WalletTestCase):
 
 class TestNewWallet(WalletTestCase):
 
-    seed_text = "travel nowhere air position hill peace suffer parent beautiful rise blood power home crumble teach"
+    seed_text = ("travel nowhere air position hill peace suffer parent "
+                 "beautiful rise blood power home crumble teach")
     password = "secret"
 
     first_account_name = "account1"
@@ -102,7 +103,6 @@ class TestNewWallet(WalletTestCase):
 
     def test_get_seed_returns_correct_seed(self):
         self.assertEqual(self.wallet.get_seed(self.password), self.seed_text)
-
 
     def test_key_import(self):
         # Wallets have no imported keys by default.
