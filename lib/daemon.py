@@ -167,7 +167,7 @@ class NetworkServer(util.DaemonThread):
                 m = response.get('method')
                 v = response.get('params')
                 for client in self.clients:
-                    if repr((m, v)) in client.subscriptions:
+                    if repr((m, v)) in client.subscriptions or m == 'network.status':
                         client.response_queue.put(response)
         self.network.stop()
         print_error("server exiting")
