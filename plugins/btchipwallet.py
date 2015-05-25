@@ -130,7 +130,12 @@ class BTChipWallet(BIP32_HD_Wallet):
             return 'create_accounts'
 
     def can_create_accounts(self):
-        return True
+        return False
+
+    def synchronize(self):
+        # synchronize existing accounts
+        BIP32_Wallet.synchronize(self)
+        # no further accounts for the moment
 
     def can_change_password(self):
         return False
