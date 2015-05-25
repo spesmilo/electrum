@@ -4,7 +4,7 @@ import threading
 import os
 
 from copy import deepcopy
-from util import user_dir, print_error, print_msg
+from util import user_dir, print_error, print_msg, print_stderr
 
 SYSTEM_CONFIG_PATH = "/etc/electrum.conf"
 
@@ -83,7 +83,7 @@ class SimpleConfig(object):
 
     def set_key(self, key, value, save = True):
         if not self.is_modifiable(key):
-            print_error("Warning: not changing config key '%s' set on the command line" % key)
+            print_stderr("Warning: not changing config key '%s' set on the command line" % key)
             return
 
         with self.lock:
