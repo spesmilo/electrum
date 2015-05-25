@@ -62,15 +62,14 @@ class Test_SimpleConfig(unittest.TestCase):
     def test_simple_config_system_config_ignored_if_portable(self):
         """If electrum is started with the "portable" flag, system
         configuration is completely ignored."""
-        another_path = tempfile.mkdtemp()
-        fake_read_system = lambda : {"electrum_path": self.electrum_dir}
-        fake_read_user = lambda _: {"electrum_path": another_path}
+        fake_read_system = lambda : {"some_key": "some_value"}
+        fake_read_user = lambda _: {}
         read_user_dir = lambda : self.user_dir
         config = SimpleConfig(options={"portable": True},
                               read_system_config_function=fake_read_system,
                               read_user_config_function=fake_read_user,
                               read_user_dir_function=read_user_dir)
-        self.assertEqual(another_path, config.get("electrum_path"))
+        self.assertEqual(config.get("some_key"), None)
 
     def test_simple_config_user_config_is_used_if_others_arent_specified(self):
         """If no system-wide configuration and no command-line options are

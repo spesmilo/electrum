@@ -56,9 +56,9 @@ class SimpleConfig(object):
 
         # Portable wallets don't use a system config
         if self.cmdline_options.get('portable', False):
-            self.system_config = read_system_config_function()
-        else:
             self.system_config = {}
+        else:
+            self.system_config = read_system_config_function()
 
         # Set self.path and read the user config
         self.user_config = {}  # for self.get in electrum_path()
