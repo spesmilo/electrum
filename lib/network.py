@@ -114,6 +114,7 @@ def deserialize_proxy(s):
 def deserialize_server(server_str):
     host, port, protocol = str(server_str).split(':')
     assert protocol in 'st'
+    int(port)    # Throw if cannot be converted to int
     return host, port, protocol
 
 def serialize_server(host, port, protocol):
