@@ -34,7 +34,6 @@ import platform
 MONOSPACE_FONT = 'Lucida Console' if platform.system() == 'Windows' else 'monospace'
 
 from electrum_ltc.util import format_satoshis, parse_URI
-from electrum_ltc.network import DEFAULT_SERVERS
 from electrum_ltc.bitcoin import MIN_RELAY_TX_FEE
 
 def numbify(entry, is_int = False):

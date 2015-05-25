@@ -45,8 +45,8 @@ class Plugin(BasePlugin):
         self._is_available = self._init()
         self.wallet = None
 
-    def get_wallet_type(self):
-        return ('hardware', 'btchip', _("BTChip wallet"), BTChipWallet)
+    def constructor(self, s):
+        return BTChipWallet(s)
 
     def _init(self):
         return BTCHIP

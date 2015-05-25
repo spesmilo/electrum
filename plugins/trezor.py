@@ -47,8 +47,8 @@ class Plugin(BasePlugin):
         self._requires_settings = True
         self.wallet = None
 
-    def get_wallet_type(self):
-        return ('hardware', 'trezor', _("Trezor wallet"), TrezorWallet)
+    def constructor(self, s):
+        return TrezorWallet(s)
 
     def _init(self):
         return TREZOR

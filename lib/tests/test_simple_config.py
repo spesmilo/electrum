@@ -48,17 +48,16 @@ class Test_SimpleConfig(unittest.TestCase):
         self.assertEqual(self.options.get("electrum_path"),
                          config.get("electrum_path"))
 
-    def test_simple_config_system_config_overrides_user_config(self):
-        """Options passed in system config override user config."""
+    def test_simple_config_user_config_overrides_system_config(self):
+        """Options passed in user config override system config."""
         fake_read_system = lambda : {"electrum_path": self.electrum_dir}
         fake_read_user = lambda _: {"electrum_path": "b"}
         read_user_dir = lambda : self.user_dir
-        config = SimpleConfig(options=None,
+        config = SimpleConfig(options={},
                               read_system_config_function=fake_read_system,
                               read_user_config_function=fake_read_user,
                               read_user_dir_function=read_user_dir)
-        self.assertEqual(self.options.get("electrum_path"),
-                         config.get("electrum_path"))
+        self.assertEqual("b", config.get("electrum_path"))
 
     def test_simple_config_system_config_ignored_if_portable(self):
         """If electrum is started with the "portable" flag, system
@@ -79,7 +78,7 @@ class Test_SimpleConfig(unittest.TestCase):
         fake_read_system = lambda : {}
         fake_read_user = lambda _: {"electrum_path": self.electrum_dir}
         read_user_dir = lambda : self.user_dir
-        config = SimpleConfig(options=None,
+        config = SimpleConfig(options={},
                               read_system_config_function=fake_read_system,
                               read_user_config_function=fake_read_user,
                               read_user_dir_function=read_user_dir)
@@ -98,7 +97,7 @@ class Test_SimpleConfig(unittest.TestCase):
         self.assertEqual(self.options.get("electrum_path"),
                          config.get("electrum_path"))
 
-    def test_cannot_set_options_from_system_config(self):
+    def test_can_set_options_from_system_config(self):
         fake_read_system = lambda : {"electrum_path": self.electrum_dir}
         fake_read_user = lambda _: {}
         read_user_dir = lambda : self.user_dir
@@ -107,8 +106,7 @@ class Test_SimpleConfig(unittest.TestCase):
                               read_user_config_function=fake_read_user,
                               read_user_dir_function=read_user_dir)
         config.set_key("electrum_path", "c")
-        self.assertEqual(self.options.get("electrum_path"),
-                         config.get("electrum_path"))
+        self.assertEqual("c", config.get("electrum_path"))
 
     def test_can_set_options_set_in_user_config(self):
         another_path = tempfile.mkdtemp()

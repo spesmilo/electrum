@@ -3,7 +3,8 @@ import json
 import threading
 import os
 
-from util import user_dir, print_error, print_msg
+from copy import deepcopy
+from util import user_dir, print_error, print_msg, print_stderr
 
 SYSTEM_CONFIG_PATH = "/etc/electrum-ltc.conf"
 
@@ -32,19 +33,12 @@ class SimpleConfig(object):
     They are taken in order (1. overrides config options set in 2., that
     override config set in 3.)
     """
-    def __init__(self, options=None, read_system_config_function=None,
+    def __init__(self, options={}, read_system_config_function=None,
                  read_user_config_function=None, read_user_dir_function=None):
 
-        # This is the holder of actual options for the current user.
-        self.read_only_options = {}
         # This lock needs to be acquired for updating and reading the config in
         # a thread-safe way.
         self.lock = threading.RLock()
-        # The path for the config directory. This is set later by init_path()
-        self.path = None
-
-        if options is None:
-            options = {}  # Having a mutable as a default value is a bad idea.
 
         # The following two functions are there for dependency injection when
         # testing.
@@ -57,45 +51,39 @@ class SimpleConfig(object):
         else:
             self.user_dir = read_user_dir_function
 
-        # Save the command-line keys to make sure we don't override them.
-        self.command_line_keys = options.keys()
-        # Save the system config keys to make sure we don't override them.
-        self.system_config_keys = []
+        # The command line options
+        self.cmdline_options = deepcopy(options)
 
-        if options.get('portable') is not True:
-            # system conf
-            system_config = read_system_config_function()
-            self.system_config_keys = system_config.keys()
-            self.read_only_options.update(system_config)
+        # Portable wallets don't use a system config
+        if self.cmdline_options.get('portable', False):
+            self.system_config = read_system_config_function()
+        else:
+            self.system_config = {}
 
-        # update the current options with the command line options last (to
-        # override both others).
-        self.read_only_options.update(options)
-        # init path
-        self.init_path()
-        # user config.
+        # Set self.path and read the user config
+        self.user_config = {}  # for self.get in electrum_path()
+        self.path = self.electrum_path()
         self.user_config = read_user_config_function(self.path)
         # Make a singleton instance of 'self'
         set_config(self)
 
-    def init_path(self):
-        # Read electrum path in the command line configuration
-        self.path = self.read_only_options.get('electrum_path')
-
-        # If not set, use the user's default data directory.
-        if self.path is None:
-            self.path = self.user_dir()
+    def electrum_path(self):
+        # Read electrum_path from command line / system configuration
+        # Otherwise use the user's default data directory.
+        path = self.get('electrum_path')
+        if path is None:
+            path = self.user_dir()
 
         # Make directory if it does not yet exist.
-        if not os.path.exists(self.path):
-            os.mkdir(self.path)
+        if not os.path.exists(path):
+            os.mkdir(path)
 
-        print_error( "electrum directory", self.path)
+        print_error("electrum directory", path)
+        return path
 
     def set_key(self, key, value, save = True):
         if not self.is_modifiable(key):
-            print "Warning: not changing key '%s' because it is not modifiable" \
-                  " (passed as command line option or defined in /etc/electrum-ltc.conf)"%key
+            print_stderr("Warning: not changing config key '%s' set on the command line" % key)
             return
 
         with self.lock:
@@ -105,19 +93,16 @@ class SimpleConfig(object):
         return
 
     def get(self, key, default=None):
-        out = None
         with self.lock:
-            out = self.read_only_options.get(key)
+            out = self.cmdline_options.get(key)
             if out is None:
-                out = self.user_config.get(key, default)
+                out = self.user_config.get(key)
+                if out is None:
+                    out = self.system_config.get(key, default)
         return out
 
     def is_modifiable(self, key):
-        if key in self.command_line_keys:
-            return False
-        if key in self.system_config_keys:
-            return False
-        return True
+        return not key in self.cmdline_options
 
     def save_user_config(self):
         if not self.path:

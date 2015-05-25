@@ -66,19 +66,19 @@ def parse_servers(result):
 
     return servers
 
+def filter_protocol(hostmap = DEFAULT_SERVERS, protocol = 's'):
+    '''Filters the hostmap for those implementing protocol.
+    The result is a list in serialized form.'''
+    eligible = []
+    for host, portmap in hostmap.items():
+        port = portmap.get(protocol)
+        if port:
+            eligible.append(serialize_server(host, port, protocol))
+    return eligible
 
-
-def filter_protocol(servers, p):
-    l = []
-    for k, protocols in servers.items():
-        if p in protocols:
-            s = serialize_server(k, protocols[p], p)
-            l.append(s)
-    return l
-
-
-def pick_random_server(p='s'):
-    return random.choice( filter_protocol(DEFAULT_SERVERS,p) )
+def pick_random_server(hostmap = DEFAULT_SERVERS, protocol = 's', exclude_set = set()):
+    eligible = list(set(filter_protocol(hostmap, protocol)) - exclude_set)
+    return random.choice(eligible) if eligible else None
 
 from simple_config import SimpleConfig
 
@@ -147,7 +147,7 @@ class Network(util.DaemonThread):
         except:
             self.default_server = None
         if not self.default_server:
-            self.default_server = pick_random_server('s')
+            self.default_server = pick_random_server()
 
         self.irc_servers = {} # returned by interface (list from irc)
         self.recent_servers = self.read_recent_servers()
@@ -245,25 +245,12 @@ class Network(util.DaemonThread):
         value = self.get_status_value(key)
         self.response_queue.put({'method':'network.status', 'params':[key, value]})
 
-    def random_server(self):
-        choice_list = []
-        l = filter_protocol(self.get_servers(), self.protocol)
-        for s in l:
-            if s in self.pending_servers or s in self.disconnected_servers or s in self.interfaces.keys():
-                continue
-            else:
-                choice_list.append(s)
-
-        if not choice_list:
-            return
-
-        server = random.choice( choice_list )
-        return server
-
     def get_parameters(self):
         host, port, protocol = deserialize_server(self.default_server)
-        auto_connect = self.config.get('auto_cycle', True)
-        return host, port, protocol, self.proxy, auto_connect
+        return host, port, protocol, self.proxy, self.auto_connect()
+
+    def auto_connect(self):
+        return self.config.get('auto_cycle', False)
 
     def get_interfaces(self):
         return self.interfaces.keys()
@@ -291,7 +278,8 @@ class Network(util.DaemonThread):
             i.start()
 
     def start_random_interface(self):
-        server = self.random_server()
+        exclude_set = self.disconnected_servers.union(self.pending_servers).union(set(self.interfaces))
+        server = pick_random_server(self.get_servers(), self.protocol, exclude_set)
         if server:
             self.start_interface(server)
 
@@ -394,7 +382,7 @@ class Network(util.DaemonThread):
         if self.is_connected():
             if self.server_is_lagging():
                 self.print_error("Server is lagging", blockchain_height, self.get_server_height())
-                if self.config.get('auto_cycle'):
+                if self.auto_connect():
                     self.set_server(i.server)
         self.notify('updated')
 
@@ -493,7 +481,7 @@ class Network(util.DaemonThread):
                 self.nodes_retry_time = now
         # main interface
         if not self.is_connected():
-            if self.config.get('auto_cycle'):
+            if self.auto_connect():
                 self.switch_to_random_interface()
             else:
                 if self.default_server in self.disconnected_servers:
@@ -536,7 +524,7 @@ class Network(util.DaemonThread):
         self.blockchain.queue.put((i,result))
 
         if i == self.interface:
-            if self.server_is_lagging() and self.config.get('auto_cycle'):
+            if self.server_is_lagging() and self.auto_connect():
                 self.print_error("Server lagging, stopping interface")
                 self.stop_interface()
             self.notify('updated')

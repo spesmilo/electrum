@@ -24,7 +24,7 @@ import pkgutil
 
 from util import *
 from i18n import _
-from util import print_error
+from util import print_error, profiler
 
 plugins = {}
 descriptions = []
@@ -37,7 +37,7 @@ def is_available(name, w):
     else:
         return False
     deps = d.get('requires', [])
-    for dep in deps:
+    for dep, s in deps:
         try:
             __import__(dep)
         except ImportError:
@@ -49,7 +49,8 @@ def is_available(name, w):
     return True
 
 
-def init_plugins(config, is_local, is_gui):
+@profiler
+def init_plugins(config, is_local, gui_name):
     global plugins, descriptions, loader
     if is_local:
         fp, pathname, description = imp.find_module('plugins')
@@ -59,30 +60,37 @@ def init_plugins(config, is_local, is_gui):
         electrum_plugins = __import__('electrum_ltc_plugins')
         loader = lambda name: __import__('electrum_ltc_plugins.' + name, fromlist=['electrum_ltc_plugins'])
 
-    def register_wallet_type(name):
-        # fixme: load plugins only if really needed
+    def constructor(name, storage):
+        if plugins.get(name) is None:
+            try:
+                p = loader(name)
+                plugins[name] = p.Plugin(config, name)
+            except:
+                return
+        return plugins[name].constructor(storage)
+
+    def register_wallet_type(name, x, constructor):
         import wallet
-        try:
-            p = loader(name)
-            plugins[name] = p.Plugin(config, name)
-        except:
-            return
-        x = plugins[name].get_wallet_type()
+        x += (lambda storage: constructor(name, storage),)
         wallet.wallet_types.append(x)
 
     descriptions = electrum_plugins.descriptions
     for item in descriptions:
         name = item['name']
-        if item.get('registers_wallet_type'):
-            register_wallet_type(name)
+        if gui_name not in item.get('available_for', []):
+            continue
+        x = item.get('registers_wallet_type')
+        if x:
+            register_wallet_type(name, x, constructor)
         if not config.get('use_' + name):
             continue
         try:
             p = loader(name)
             plugins[name] = p.Plugin(config, name)
         except Exception:
-            print_msg(_("Error: cannot initialize plugin"), p)
+            print_msg(_("Error: cannot initialize plugin"), name)
             traceback.print_exc(file=sys.stdout)
+
 
 hook_names = set()
 hooks = {}

@@ -235,6 +235,7 @@ class ElectrumWindow(QMainWindow):
         self.clear_receive_tab()
         self.update_receive_tab()
         self.show()
+        run_hook('init_qt', self.gui_object)
         run_hook('load_wallet', wallet)
 
     def import_old_contacts(self):
@@ -2715,7 +2716,10 @@ class ElectrumWindow(QMainWindow):
                 else:
                     w = None
                 cb.clicked.connect(mk_toggle(cb, name, w))
-                grid.addWidget(HelpButton(descr['description']), i, 2)
+                msg = descr['description']
+                if descr.get('requires'):
+                    msg += '\n\n' + _('Requires') + ':\n' + '\n'.join(map(lambda x: x[1], descr.get('requires')))
+                grid.addWidget(HelpButton(msg), i, 2)
             except Exception:
                 print_msg("Error: cannot display plugin", name)
                 traceback.print_exc(file=sys.stdout)

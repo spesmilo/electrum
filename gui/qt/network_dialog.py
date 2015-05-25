@@ -23,7 +23,7 @@ import os.path, json, ast, traceback
 
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
-from electrum_ltc import DEFAULT_SERVERS, DEFAULT_PORTS
+from electrum_ltc import DEFAULT_PORTS
 
 from util import *
 

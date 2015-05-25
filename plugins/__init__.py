@@ -22,18 +22,18 @@ descriptions = [
     {
         'name': 'audio_modem',
         'fullname': _('Audio MODEM'),
-        'description': ('Provides support for air-gapped transaction signing.\n\n'
-                        'Requires http://github.com/romanz/amodem/'),
-        'requires': ['amodem'],
-        'GUI': ['qt']
+        'description': _('Provides support for air-gapped transaction signing.'),
+        'requires': [('amodem', 'http://github.com/romanz/amodem/')],
+        'available_for': ['qt'],
     },
     {
         'name': 'btchipwallet',
         'fullname': _('BTChip Wallet'),
-        'description': _('Provides support for BTChip hardware wallet') + '\n\n' + _('Requires github.com/btchip/btchip-python'),
-        'requires': ['btchip'],
+        'description': _('Provides support for BTChip hardware wallet'),
+        'requires': [('btchip', 'github.com/btchip/btchip-python')],
         'requires_wallet_type': ['btchip'],
-        'registers_wallet_type': True
+        'registers_wallet_type': ('hardware', 'btchip', _("BTChip wallet")),
+        'available_for': ['qt'],
     },
     {
         'name': 'cosigner_pool',
@@ -42,48 +42,53 @@ descriptions = [
             _("This plugin facilitates the use of multi-signatures wallets."),
             _("It sends and receives partially signed transactions from/to your cosigner wallet."),
             _("Transactions are encrypted and stored on a remote server.")
-            ]),
-        'GUI': ['qt'],
-        'requires_wallet_type': ['2of2', '2of3']
+        ]),
+        'requires_wallet_type': ['2of2', '2of3'],
+        'available_for': ['qt'],
     },
     {
         'name': 'exchange_rate',
         'fullname': _("Exchange rates"),
-        'description': """exchange rates, retrieved from BTC-e and other market exchanges"""
+        'description': _("Exchange rates and currency conversion tools."),
+        'available_for': ['qt'],
     },
     {
         'name': 'labels',
         'fullname': _('LabelSync'),
-        'description': '%s\n\n%s' % (_("The new and improved LabelSync plugin. This can sync your labels across multiple Electrum installs by using a remote database to save your data. Labels, transactions ids and addresses are encrypted before they are sent to the remote server."), _("The label sync's server software is open-source as well and can be found on github.com/maran/electrum-sync-server"))
+        'description': '\n'.join([
+            _("The new and improved LabelSync plugin. This can sync your labels across multiple Electrum installs by using a remote database to save your data. Labels, transactions ids and addresses are encrypted before they are sent to the remote server."),
+            _("The label sync's server software is open-source as well and can be found on github.com/maran/electrum-sync-server")
+        ]),
+        'available_for': ['qt']
     },
     {
         'name': 'openalias',
         'fullname': 'OpenAlias',
-        'description': 'Allow for payments to OpenAlias addresses.\nRequires dnspython',
-        'requires': ['dns']
+        'description': _('Allow for payments to OpenAlias addresses.'),
+        'requires': [('dns', 'dnspython')],
+        'available_for': ['qt']
     },
     {
         'name': 'plot',
         'fullname': 'Plot History',
-        'description': '\n'.join([
-            _("Ability to plot transaction history in graphical mode."),
-            _("Warning: Requires matplotlib library.")
-        ]),
-        'requires': ['matplotlib'],
-        'GUI': ['qt']
+        'description': _("Ability to plot transaction history in graphical mode."),
+        'requires': [('matplotlib', 'matplotlib')],
+        'available_for': ['qt'],
     },
     {
         'name':'trezor',
         'fullname': 'Trezor Wallet',
-        'description': 'Provides support for Trezor hardware wallet\n\nRequires github.com/trezor/python-trezor',
-        'GUI': ['qt'],
-        'requires': ['trezorlib'],
+        'description': _('Provides support for Trezor hardware wallet'),
+        'available_for': ['qt'],
+        'requires': [('trezorlib','github.com/trezor/python-trezor')],
         'requires_wallet_type': ['trezor'],
-        'registers_wallet_type': True
+        'registers_wallet_type': ('hardware', 'trezor', _("Trezor wallet")),
+        'available_for': ['qt', 'cmdline'],
     },
     {
         'name': 'virtualkeyboard',
         'fullname': 'Virtual Keyboard',
         'description': '%s\n%s' % (_("Add an optional virtual keyboard to the password dialog."), _("Warning: do not use this if it makes you pick a weaker password.")),
+        'available_for': ['qt'],
     }
 ]
