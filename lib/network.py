@@ -114,7 +114,6 @@ def deserialize_proxy(s):
 def deserialize_server(server_str):
     host, port, protocol = str(server_str).split(':')
     assert protocol in 'st'
-    int(port)
     return host, port, protocol
 
 def serialize_server(host, port, protocol):
@@ -205,12 +204,15 @@ class Network(util.DaemonThread):
         return self.heights.get(self.default_server, 0)
 
     def server_is_lagging(self):
-        h = self.get_server_height()
-        if not h:
+        sh = self.get_server_height()
+        if not sh:
             self.print_error('no height for main interface')
             return False
-        lag = self.get_local_height() - self.get_server_height()
-        return lag > 1
+        lh = self.get_local_height()
+        result = (lh - sh) > 1
+        if result:
+            self.print_error('%s is lagging (%d vs %d)' % (self.default_server, sh, lh))
+        return result
 
     def set_status(self, status):
         self.connection_status = status
@@ -332,8 +334,6 @@ class Network(util.DaemonThread):
             self.start_network(protocol, proxy)
         elif self.default_server != server:
             self.switch_to_interface(server)
-        elif auto_connect and (not self.is_connected() or self.server_is_lagging()):
-            self.switch_to_random_interface()
 
     def switch_to_random_interface(self):
         if self.interfaces:
@@ -361,16 +361,6 @@ class Network(util.DaemonThread):
             self.interface.stop()
             self.interface = None
 
-    def set_server(self, server):
-        if self.default_server == server and self.is_connected():
-            return
-
-        if self.protocol != deserialize_server(server)[2]:
-            return
-
-        self.switch_to_interface(server)
-
-
     def add_recent_server(self, i):
         # list is ordered
         s = i.server
@@ -381,11 +371,7 @@ class Network(util.DaemonThread):
         self.save_recent_servers()
 
     def new_blockchain_height(self, blockchain_height, i):
-        if self.is_connected():
-            if self.server_is_lagging():
-                self.print_error("Server is lagging", blockchain_height, self.get_server_height())
-                if self.auto_connect():
-                    self.set_server(i.server)
+        self.switch_interface_if_stale(i.server)
         self.notify('updated')
 
     def process_if_notification(self, i):
@@ -472,26 +458,33 @@ class Network(util.DaemonThread):
         self.unanswered_requests[_id] = request
         self.interface.send_request(request)
 
-    def check_interfaces(self):
-        now = time.time()
-        # nodes
-        if len(self.interfaces) + len(self.pending_servers) < self.num_server:
-            self.start_random_interface()
-            if now - self.nodes_retry_time > NODES_RETRY_INTERVAL:
-                self.print_error('network: retrying connections')
-                self.disconnected_servers = set([])
-                self.nodes_retry_time = now
-        # main interface
-        if not self.is_connected():
+    def switch_interface_if_stale(self, suggestion = None):
+        if self.server_is_lagging() or not self.is_connected():
             if self.auto_connect():
-                self.switch_to_random_interface()
+                if suggestion and self.protocol == deserialize_server(suggestion)[2]:
+                    self.switch_to_interface(suggestion)
+                else:
+                    self.switch_to_random_interface()
             else:
                 if self.default_server in self.disconnected_servers:
+                    now = time.time()
                     if now - self.server_retry_time > SERVER_RETRY_INTERVAL:
                         self.disconnected_servers.remove(self.default_server)
                         self.server_retry_time = now
                 else:
                     self.switch_to_interface(self.default_server)
+
+    def check_interfaces(self):
+        # nodes
+        if len(self.interfaces) + len(self.pending_servers) < self.num_server:
+            self.start_random_interface()
+            now = time.time()
+            if now - self.nodes_retry_time > NODES_RETRY_INTERVAL:
+                self.print_error('network: retrying connections')
+                self.disconnected_servers = set([])
+                self.nodes_retry_time = now
+        # main interface
+        self.switch_interface_if_stale()
 
     def run(self):
         while self.is_running():
@@ -526,9 +519,6 @@ class Network(util.DaemonThread):
         self.blockchain.queue.put((i,result))
 
         if i == self.interface:
-            if self.server_is_lagging() and self.auto_connect():
-                self.print_error("Server lagging, stopping interface")
-                self.stop_interface()
             self.notify('updated')
 
 
