@@ -249,8 +249,10 @@ class Network(util.DaemonThread):
 
     def get_parameters(self):
         host, port, protocol = deserialize_server(self.default_server)
-        auto_connect = self.config.get('auto_cycle', True)
-        return host, port, protocol, self.proxy, auto_connect
+        return host, port, protocol, self.proxy, self.auto_connect()
+
+    def auto_connect(self):
+        return self.config.get('auto_cycle', False)
 
     def get_interfaces(self):
         return self.interfaces.keys()
@@ -382,7 +384,7 @@ class Network(util.DaemonThread):
         if self.is_connected():
             if self.server_is_lagging():
                 self.print_error("Server is lagging", blockchain_height, self.get_server_height())
-                if self.config.get('auto_cycle'):
+                if self.auto_connect():
                     self.set_server(i.server)
         self.notify('updated')
 
@@ -481,7 +483,7 @@ class Network(util.DaemonThread):
                 self.nodes_retry_time = now
         # main interface
         if not self.is_connected():
-            if self.config.get('auto_cycle'):
+            if self.auto_connect():
                 self.switch_to_random_interface()
             else:
                 if self.default_server in self.disconnected_servers:
@@ -524,7 +526,7 @@ class Network(util.DaemonThread):
         self.blockchain.queue.put((i,result))
 
         if i == self.interface:
-            if self.server_is_lagging() and self.config.get('auto_cycle'):
+            if self.server_is_lagging() and self.auto_connect():
                 self.print_error("Server lagging, stopping interface")
                 self.stop_interface()
             self.notify('updated')
