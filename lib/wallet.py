@@ -26,6 +26,7 @@ import time
 import math
 import json
 import copy
+from operator import itemgetter
 
 from util import print_msg, print_error, NotEnoughFunds
 from util import profiler
@@ -856,6 +857,7 @@ class Abstract_Wallet(object):
         total = fee = 0
         inputs = []
         tx = Transaction.from_io(inputs, outputs)
+        # add old inputs first
         for item in coins:
             v = item.get('value')
             total += v
@@ -865,6 +867,16 @@ class Abstract_Wallet(object):
             if total >= amount + fee: break
         else:
             raise NotEnoughFunds()
+        # remove unneeded inputs
+        for item in sorted(tx.inputs, key=itemgetter('value')):
+            v = item.get('value')
+            if total - v >= amount + fee:
+                tx.inputs.remove(item)
+                total -= v
+                fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx)
+            else:
+                break
+        print_error("using %d inputs"%len(tx.inputs))
 
         # change address
         if not change_addr:
