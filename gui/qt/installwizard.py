@@ -241,7 +241,7 @@ class InstallWizard(QDialog):
         if b2.isChecked():
             return NetworkDialog(self.network, self.config, None).do_exec()
         else:
-            self.config.set_key('auto_cycle', True, True)
+            self.config.set_key('auto_connect', True, True)
             return
 
 

@@ -96,10 +96,10 @@ class NetworkDialog(QDialog):
         self.ssl_cb.stateChanged.connect(self.change_protocol)
 
         # auto connect
-        self.autocycle_cb = QCheckBox(_('Auto-connect'))
-        self.autocycle_cb.setChecked(auto_connect)
-        grid.addWidget(self.autocycle_cb, 0, 1)
-        if not self.config.is_modifiable('auto_cycle'): self.autocycle_cb.setEnabled(False)
+        self.autoconnect_cb = QCheckBox(_('Auto-connect'))
+        self.autoconnect_cb.setChecked(auto_connect)
+        grid.addWidget(self.autoconnect_cb, 0, 1)
+        self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
         msg = _("If auto-connect is enabled, Electrum will always use a server that is on the longest blockchain.") + " " \
             + _("If it is disabled, Electrum will warn you if your server is lagging.")
         grid.addWidget(HelpButton(msg), 0, 4)
@@ -122,15 +122,15 @@ class NetworkDialog(QDialog):
 
         def enable_set_server():
             if config.is_modifiable('server'):
-                enabled = not self.autocycle_cb.isChecked()
+                enabled = not self.autoconnect_cb.isChecked()
                 self.server_host.setEnabled(enabled)
                 self.server_port.setEnabled(enabled)
                 self.servers_list_widget.setEnabled(enabled)
             else:
-                for w in [self.autocycle_cb, self.server_host, self.server_port, self.ssl_cb, self.servers_list_widget]:
+                for w in [self.autoconnect_cb, self.server_host, self.server_port, self.ssl_cb, self.servers_list_widget]:
                     w.setEnabled(False)
 
-        self.autocycle_cb.clicked.connect(enable_set_server)
+        self.autoconnect_cb.clicked.connect(enable_set_server)
         enable_set_server()
 
         # proxy setting
@@ -235,7 +235,7 @@ class NetworkDialog(QDialog):
         else:
             proxy = None
 
-        auto_connect = self.autocycle_cb.isChecked()
+        auto_connect = self.autoconnect_cb.isChecked()
 
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
         return True

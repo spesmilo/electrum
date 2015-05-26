@@ -250,7 +250,7 @@ class Network(util.DaemonThread):
         return host, port, protocol, self.proxy, self.auto_connect()
 
     def auto_connect(self):
-        return self.config.get('auto_cycle', False)
+        return self.config.get('auto_connect', False)
 
     def get_interfaces(self):
         return self.interfaces.keys()

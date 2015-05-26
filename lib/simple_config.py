@@ -56,14 +56,16 @@ class SimpleConfig(object):
 
         # Portable wallets don't use a system config
         if self.cmdline_options.get('portable', False):
-            self.system_config = read_system_config_function()
-        else:
             self.system_config = {}
+        else:
+            self.system_config = read_system_config_function()
 
         # Set self.path and read the user config
         self.user_config = {}  # for self.get in electrum_path()
         self.path = self.electrum_path()
         self.user_config = read_user_config_function(self.path)
+        # Upgrade obsolete keys
+        self.fixup_keys({'auto_cycle': 'auto_connect'})
         # Make a singleton instance of 'self'
         set_config(self)
 
@@ -80,6 +82,23 @@ class SimpleConfig(object):
 
         print_error("electrum directory", path)
         return path
+
+    def fixup_config_keys(self, config, keypairs):
+        updated = False
+        for old_key, new_key in keypairs.iteritems():
+            if old_key in config:
+                if not new_key in config:
+                    config[new_key] = config[old_key]
+                del config[old_key]
+                updated = True
+        return updated
+
+    def fixup_keys(self, keypairs):
+        '''Migrate old key names to new ones'''
+        self.fixup_config_keys(self.cmdline_options, keypairs)
+        self.fixup_config_keys(self.system_config, keypairs)
+        if self.fixup_config_keys(self.user_config, keypairs):
+            self.save_user_config()
 
     def set_key(self, key, value, save = True):
         if not self.is_modifiable(key):
