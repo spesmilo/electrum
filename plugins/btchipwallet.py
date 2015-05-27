@@ -14,7 +14,7 @@ from electrum.bitcoin import EncodeBase58Check, DecodeBase58Check, public_key_to
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, hook
 from electrum.transaction import deserialize
-from electrum.wallet import BIP32_HD_Wallet
+from electrum.wallet import BIP32_HD_Wallet, BIP32_Wallet
 
 from electrum.util import format_satoshis
 import hashlib
@@ -130,7 +130,12 @@ class BTChipWallet(BIP32_HD_Wallet):
             return 'create_accounts'
 
     def can_create_accounts(self):
-        return True
+        return False
+
+    def synchronize(self):
+        # synchronize existing accounts
+        BIP32_Wallet.synchronize(self)
+        # no further accounts for the moment
 
     def can_change_password(self):
         return False
