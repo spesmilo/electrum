@@ -72,16 +72,13 @@ class QRCodeWidget(QWidget):
         qp.setBrush(white)
         qp.setPen(white)
         qp.drawRect(left-margin, top-margin, size+(margin*2), size+(margin*2))
+        qp.setBrush(black)
+        qp.setPen(black)
 
         for r in range(k):
             for c in range(k):
                 if matrix[r][c]:
-                    qp.setBrush(black)
-                    qp.setPen(black)
-                else:
-                    qp.setBrush(white)
-                    qp.setPen(white)
-                qp.drawRect(left+c*boxsize, top+r*boxsize, boxsize, boxsize)
+                    qp.drawRect(left+c*boxsize, top+r*boxsize, boxsize - 1, boxsize - 1)
         qp.end()
 
 

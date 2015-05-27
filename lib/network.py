@@ -112,7 +112,7 @@ def deserialize_proxy(s):
 def deserialize_server(server_str):
     host, port, protocol = str(server_str).split(':')
     assert protocol in 'st'
-    int(port)
+    int(port)    # Throw if cannot be converted to int
     return host, port, protocol
 
 def serialize_server(host, port, protocol):
@@ -203,12 +203,15 @@ class Network(util.DaemonThread):
         return self.heights.get(self.default_server, 0)
 
     def server_is_lagging(self):
-        h = self.get_server_height()
-        if not h:
+        sh = self.get_server_height()
+        if not sh:
             self.print_error('no height for main interface')
             return False
-        lag = self.get_local_height() - self.get_server_height()
-        return lag > 1
+        lh = self.get_local_height()
+        result = (lh - sh) > 1
+        if result:
+            self.print_error('%s is lagging (%d vs %d)' % (self.default_server, sh, lh))
+        return result
 
     def set_status(self, status):
         self.connection_status = status
@@ -330,13 +333,21 @@ class Network(util.DaemonThread):
             self.start_network(protocol, proxy)
         elif self.default_server != server:
             self.switch_to_interface(server)
-        elif auto_connect and (not self.is_connected() or self.server_is_lagging()):
-            self.switch_to_random_interface()
+        else:
+            self.switch_lagging_interface()
 
     def switch_to_random_interface(self):
         if self.interfaces:
             server = random.choice(self.interfaces.keys())
             self.switch_to_interface(server)
+
+    def switch_lagging_interface(self, suggestion = None):
+        '''If auto_connect and lagging, switch interface'''
+        if self.server_is_lagging() and self.auto_connect():
+            if suggestion and self.protocol == deserialize_server(suggestion)[2]:
+                self.switch_to_interface(suggestion)
+            else:
+                self.switch_to_random_interface()
 
     def switch_to_interface(self, server):
         '''Switch to server as our interface.  If not already connected, start a
@@ -359,16 +370,6 @@ class Network(util.DaemonThread):
             self.interface.stop()
             self.interface = None
 
-    def set_server(self, server):
-        if self.default_server == server and self.is_connected():
-            return
-
-        if self.protocol != deserialize_server(server)[2]:
-            return
-
-        self.switch_to_interface(server)
-
-
     def add_recent_server(self, i):
         # list is ordered
         s = i.server
@@ -379,11 +380,7 @@ class Network(util.DaemonThread):
         self.save_recent_servers()
 
     def new_blockchain_height(self, blockchain_height, i):
-        if self.is_connected():
-            if self.server_is_lagging():
-                self.print_error("Server is lagging", blockchain_height, self.get_server_height())
-                if self.auto_connect():
-                    self.set_server(i.server)
+        self.switch_lagging_interface(i.server)
         self.notify('updated')
 
     def process_if_notification(self, i):
@@ -524,9 +521,7 @@ class Network(util.DaemonThread):
         self.blockchain.queue.put((i,result))
 
         if i == self.interface:
-            if self.server_is_lagging() and self.auto_connect():
-                self.print_error("Server lagging, stopping interface")
-                self.stop_interface()
+            self.switch_lagging_interface()
             self.notify('updated')
 
 

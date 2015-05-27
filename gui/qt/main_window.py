@@ -35,7 +35,7 @@ from electrum_ltc.plugins import run_hook
 
 import icons_rc
 
-from electrum_ltc.util import format_satoshis, format_time, NotEnoughFunds, StoreDict
+from electrum_ltc.util import format_satoshis, format_satoshis_plain, format_time, NotEnoughFunds, StoreDict
 from electrum_ltc import Transaction
 from electrum_ltc import mnemonic
 from electrum_ltc import util, bitcoin, commands, Wallet
@@ -1226,7 +1226,7 @@ class ElectrumWindow(QMainWindow):
             self.payto_e.setExpired()
 
         self.payto_e.setText(pr.get_requestor())
-        self.amount_e.setText(self.format_amount(pr.get_amount()))
+        self.amount_e.setText(format_satoshis_plain(pr.get_amount(), self.decimal_point))
         self.message_e.setText(pr.get_memo())
         # signal to set fee
         self.amount_e.textEdited.emit("")

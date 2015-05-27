@@ -16,6 +16,8 @@
 # Todo: optionally use OA resolvers; add DNSCrypt support
 
 import re
+import traceback
+
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
@@ -108,12 +110,16 @@ class Plugin(BasePlugin):
             self.win.update_contacts_tab()
 
         self.win.payto_e.setFrozen(True)
-        if self.validate_dnssec(url):
+        try:
+            self.validated = self.validate_dnssec(url)
+        except:
+            self.validated = False
+            traceback.print_exc(file=sys.stderr)
+
+        if self.validated:
             self.win.payto_e.setGreen()
-            self.validated = True
         else:
             self.win.payto_e.setExpired()
-            self.validated = False
 
     @hook
     def before_send(self):

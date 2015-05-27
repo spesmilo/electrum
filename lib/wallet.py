@@ -863,8 +863,12 @@ class Abstract_Wallet(object):
             total += v
             self.add_input_info(item)
             tx.add_input(item)
+            # no need to estimate fee until we have reached desired amount
+            if total < amount:
+                continue
             fee = fixed_fee if fixed_fee is not None else self.estimated_fee(tx)
-            if total >= amount + fee: break
+            if total >= amount + fee:
+                break
         else:
             raise NotEnoughFunds()
         # remove unneeded inputs

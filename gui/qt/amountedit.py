@@ -4,6 +4,7 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
 from decimal import Decimal
+from electrum_ltc.util import format_satoshis_plain
 
 class MyLineEdit(QLineEdit):
     frozen = pyqtSignal()
@@ -93,8 +94,5 @@ class BTCAmountEdit(AmountEdit):
     def setAmount(self, amount):
         if amount is None:
             self.setText("")
-            return
-
-        p = pow(10, self.decimal_point())
-        x = amount / Decimal(p)
-        self.setText(str(x))
+        else:
+            self.setText(format_satoshis_plain(amount, self.decimal_point()))
