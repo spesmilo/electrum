@@ -15,7 +15,7 @@ from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin, hook, always_hook, run_hook
 from electrum_ltc.transaction import deserialize
 from electrum_ltc.wallet import BIP32_HD_Wallet
-from electrum_ltc.util import print_error
+from electrum_ltc.util import print_error, print_msg
 from electrum_ltc.wallet import pw_decode, bip32_private_derivation, bip32_root
 
 from electrum_ltc_gui.qt.util import *
@@ -97,6 +97,10 @@ class Plugin(BasePlugin):
     @hook
     def init_qt_app(self, app):
         self.handler = TrezorQtHandler(app)
+
+    @hook
+    def init_cmdline(self):
+        self.handler = TrezorCmdLineHandler()
 
     @hook
     def load_wallet(self, wallet):
@@ -484,6 +488,17 @@ class TrezorGuiMixin(object):
         log("Enter one word of mnemonic: ")
         word = raw_input()
         return proto.WordAck(word=word)
+
+
+class TrezorCmdLineHandler:
+
+    def get_passphrase(self, msg):
+        print_msg(msg)
+        return raw_input()
+
+    def get_pin(self, msg):
+        print_msg(msg)
+        return raw_input()
 
 
 class TrezorQtHandler:
