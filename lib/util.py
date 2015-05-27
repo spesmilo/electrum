@@ -104,10 +104,11 @@ def user_dir():
         #raise Exception("No home directory found in environment variables.")
         return
 
-def format_satoshis_plain(x):
-    '''Display a satoshi amount in BTC with 8 decimal places.  Always
-       uses a '.' as a decimal point and has no thousands separator'''
-    return "{:.8f}".format(x / 100000000.0)
+def format_satoshis_plain(x, decimal_point = 8):
+    '''Display a satoshi amount scaled.  Always uses a '.' as a decimal
+    point and has no thousands separator'''
+    scale_factor = pow(10, decimal_point)
+    return "{:.8f}".format(x / float(scale_factor)).rstrip('0').rstrip('.')
 
 def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespaces=False):
     from locale import localeconv
