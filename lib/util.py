@@ -2,6 +2,7 @@ import os, sys, re, json
 import platform
 import shutil
 from datetime import datetime
+from decimal import Decimal
 import urlparse
 import urllib
 import threading
@@ -104,10 +105,11 @@ def user_dir():
         #raise Exception("No home directory found in environment variables.")
         return
 
-def format_satoshis_plain(x):
-    '''Display a satoshi amount in BTC with 8 decimal places.  Always
-       uses a '.' as a decimal point and has no thousands separator'''
-    return "{:.8f}".format(x / 100000000.0)
+def format_satoshis_plain(x, decimal_point = 8):
+    '''Display a satoshi amount scaled.  Always uses a '.' as a decimal
+    point and has no thousands separator'''
+    scale_factor = pow(10, decimal_point)
+    return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
 
 def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespaces=False):
     from locale import localeconv
@@ -223,7 +225,6 @@ def block_explorer_URL(config, kind, item):
 
 def parse_URI(uri):
     import bitcoin
-    from decimal import Decimal
 
     if ':' not in uri:
         assert bitcoin.is_address(uri)
