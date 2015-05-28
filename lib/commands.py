@@ -277,7 +277,6 @@ class Commands:
         return s.encode('utf8')
 
     def importprivkey(self, sec):
-        assert self.wallet.can_import()
         try:
             addr = self.wallet.import_key(sec,self.password)
             out = "Keypair imported: ", addr
