@@ -633,10 +633,9 @@ class Abstract_Wallet(object):
             xx += x
         return cc, uu, xx
 
-    def set_fee(self, fee):
-        if self.fee_per_kb != fee:
-            self.fee_per_kb = fee
-            self.storage.put('fee_per_kb', self.fee_per_kb, True)
+    def set_fee(self, fee, save = True):
+        self.fee_per_kb = fee
+        self.storage.put('fee_per_kb', self.fee_per_kb, save)
 
     def get_address_history(self, address):
         with self.lock:
