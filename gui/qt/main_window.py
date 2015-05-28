@@ -1445,6 +1445,7 @@ class ElectrumWindow(QMainWindow):
     def send_from_addresses(self, addrs):
         self.set_pay_from( addrs )
         self.tabs.setCurrentIndex(1)
+        self.update_fee(False)
 
     def paytomany(self):
         self.tabs.setCurrentIndex(1)
@@ -2527,10 +2528,13 @@ class ElectrumWindow(QMainWindow):
         fee_e.setAmount(self.wallet.fee_per_kb)
         if not self.config.is_modifiable('fee_per_kb'):
             for w in [fee_e, fee_label]: w.setEnabled(False)
-        def on_fee():
-            fee = fee_e.get_amount()
-            self.wallet.set_fee(fee)
-        fee_e.editingFinished.connect(on_fee)
+        def on_fee(is_done):
+            self.wallet.set_fee(fee_e.get_amount(), is_done)
+            if not is_done:
+                self.update_fee(False)
+        fee_e.editingFinished.connect(lambda: on_fee(True))
+        fee_e.textEdited.connect(lambda: on_fee(False))
+
         widgets.append((fee_label, fee_e, fee_help))
 
         units = ['BTC', 'mBTC', 'bits']
