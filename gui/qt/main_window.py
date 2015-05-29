@@ -1299,6 +1299,7 @@ class ElectrumWindow(QMainWindow):
             elif addr not in self.wallet.frozen_addresses and freeze:
                 self.wallet.freeze(addr)
         self.update_address_tab()
+        self.update_fee(False)
 
     def create_list_tab(self, l):
         w = QWidget()
@@ -2529,7 +2530,7 @@ class ElectrumWindow(QMainWindow):
         if not self.config.is_modifiable('fee_per_kb'):
             for w in [fee_e, fee_label]: w.setEnabled(False)
         def on_fee(is_done):
-            self.wallet.set_fee(fee_e.get_amount(), is_done)
+            self.wallet.set_fee(fee_e.get_amount() or 0, is_done)
             if not is_done:
                 self.update_fee(False)
         fee_e.editingFinished.connect(lambda: on_fee(True))
