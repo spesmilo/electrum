@@ -16,9 +16,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import sys
 import datetime
 import time
 import copy
+import argparse
+
 from util import print_msg, format_satoshis, print_stderr
 from bitcoin import is_valid, hash_160_to_bc_address, hash_160
 from decimal import Decimal
@@ -27,20 +30,16 @@ from transaction import Transaction
 
 
 class Command:
-    def __init__(self, name, min_args, max_args, requires_network, requires_wallet, requires_password, description, syntax = '', options_syntax = ''):
+    def __init__(self, name, requires_network, requires_wallet, requires_password, params, options, description):
         self.name = name
-        self.min_args=min_args
-        self.max_args = max_args
+        self.params = params
+        self.options = options
         self.requires_network = requires_network
         self.requires_wallet = requires_wallet
         self.requires_password = requires_password
         self.description = description
-        self.syntax = syntax
-        self.options = options_syntax
-
 
 known_commands = {}
-
 
 def register_command(*args):
     global known_commands
@@ -48,71 +47,158 @@ def register_command(*args):
     known_commands[name] = Command(*args)
 
 
-
-payto_options = ' --fee, -f: set transaction fee\n --fromaddr, -F: send from address -\n --changeaddr, -c: send change to address'
-listaddr_options = " -a: show all addresses, including change addresses\n -l: include labels in results"
-restore_options = " accepts a seed or master public key."
-mksendmany_syntax = 'mksendmanytx <recipient> <amount> [<recipient> <amount> ...]'
-payto_syntax = "payto <recipient> <amount> [label]\n<recipient> can be a litecoin address or a label"
-paytomany_syntax = "paytomany <recipient> <amount> [<recipient> <amount> ...]\n<recipient> can be a litecoin address or a label"
-signmessage_syntax = 'signmessage <address> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "'
-verifymessage_syntax = 'verifymessage <address> <signature> <message>\nIf you want to lead or end a message with spaces, or want double spaces inside the message make sure you quote the string. I.e. " Hello  This is a weird String "'
-
 #                command
-#                                              requires_network
-#                                                     requires_wallet
-#                                                            requires_password
-register_command('contacts',             0, 0, False, True,  False, 'Show your list of contacts')
-register_command('create',               0, 0, False, True,  False, 'Create a new wallet')
-register_command('createmultisig',       2, 2, False, True,  False, 'similar to litecoind\'s command')
-register_command('createrawtransaction', 2, 2, False, True,  False, 'Create an unsigned transaction. The syntax is similar to litecoind.')
-register_command('deseed',               0, 0, False, True,  False, 'Remove seed from wallet, creating a seedless, watching-only wallet.')
-register_command('decoderawtransaction', 1, 1, False, False, False, 'similar to litecoind\'s command')
-register_command('getprivatekeys',       1, 1, False, True,  True,  'Get the private keys of a given address', 'getprivatekeys <litecoin address>')
-register_command('dumpprivkeys',         0, 0, False, True,  True,  'Dump all private keys in your wallet')
-register_command('freeze',               1, 1, False, True,  True,  'Freeze the funds at one of your wallet\'s addresses', 'freeze <address>')
-register_command('getbalance',           0, 1, True,  True,  False, 'Return the balance of your wallet, or of one account in your wallet', 'getbalance [<account>]')
-register_command('getservers',           0, 0, True,  False, False, 'Return the list of available servers')
-register_command('getversion',           0, 0, False, False, False, 'Return the version of your client', 'getversion')
-register_command('getaddressbalance',    1, 1, True,  False, False, 'Return the balance of an address', 'getaddressbalance <address>')
-register_command('getaddresshistory',    1, 1, True,  False, False, 'Return the transaction history of a wallet address', 'getaddresshistory <address>')
-register_command('getconfig',            1, 1, False, False, False, 'Return a configuration variable', 'getconfig <name>')
-register_command('getpubkeys',           1, 1, False, True,  False, 'Return the public keys for a wallet address', 'getpubkeys <litecoin address>')
-register_command('getrawtransaction',    1, 1, True,  False, False, 'Retrieve a transaction', 'getrawtransaction <txhash>')
-register_command('getseed',              0, 0, False, True,  True,  'Print the generation seed of your wallet.')
-register_command('getmpk',               0, 0, False, True,  False, 'Return your wallet\'s master public key', 'getmpk')
-register_command('help',                 0, 1, False, False, False, 'Prints this help')
-register_command('history',              0, 0, True,  True,  False, 'Returns the transaction history of your wallet')
-register_command('importprivkey',        1, 1, False, True,  True,  'Import a private key', 'importprivkey <privatekey>')
-register_command('ismine',               1, 1, False, True,  False, 'Return true if and only if address is in wallet', 'ismine <address>')
-register_command('listaddresses',        2, 2, False, True,  False, 'Returns your list of addresses.', '', listaddr_options)
-register_command('listunspent',          0, 0, True,  True,  False, 'Returns the list of unspent inputs in your wallet.')
-register_command('getaddressunspent',    1, 1, True,  False, False, 'Returns the list of unspent inputs for an address.')
-register_command('mktx',                 5, 5, False, True,  True,  'Create a signed transaction', 'mktx <recipient> <amount> [label]', payto_options)
-register_command('mksendmanytx',         4, 4, False, True,  True,  'Create a signed transaction', mksendmany_syntax, payto_options)
-register_command('payto',                5, 5, True,  True,  True,  'Create and broadcast a transaction.', payto_syntax, payto_options)
-register_command('paytomany',            4, 4, True,  True,  True,  'Create and broadcast a transaction.', paytomany_syntax, payto_options)
-register_command('password',             0, 0, False, True,  True,  'Change your password')
-register_command('restore',              0, 0, True,  True,  False, 'Restore a wallet', '', restore_options)
-register_command('searchcontacts',       1, 1, False, True,  False,  'Search through contacts, return matching entries', 'searchcontacts <query>')
-register_command('setconfig',            2, 2, False, False, False, 'Set a configuration variable', 'setconfig <name> <value>')
-register_command('setlabel',             2,-1, False, True,  False, 'Assign a label to an item', 'setlabel <tx_hash> <label>')
-register_command('sendrawtransaction',   1, 1, True,  False, False, 'Broadcasts a transaction to the network.', 'sendrawtransaction <tx in hexadecimal>')
-register_command('signtxwithkey',        1, 3, False, False, False, 'Sign a serialized transaction with a key','signtxwithkey <tx> <key>')
-register_command('signtxwithwallet',     1, 3, False, True,  True,  'Sign a serialized transaction with a wallet','signtxwithwallet <tx>')
-register_command('signmessage',          2,-1, False, True,  True,  'Sign a message with a key', signmessage_syntax)
-register_command('unfreeze',             1, 1, False, True,  False, 'Unfreeze the funds at one of your wallet\'s address', 'unfreeze <address>')
-register_command('validateaddress',      1, 1, False, False, False, 'Check that the address is valid', 'validateaddress <address>')
-register_command('verifymessage',        3,-1, False, False, False, 'Verifies a signature', verifymessage_syntax)
+#                                        requires_network
+#                                               requires_wallet
+#                                                      requires_password
+#                                                             args
+#                                                                 optional args
+register_command('contacts',             False, True,  False, [], [], 'Show your list of contacts')
+register_command('create',               False, True,  False, [], [], 'Create a new wallet')
+register_command('createmultisig',       False, True,  False, ['num','pubkeys'], [], 'Create multisig address')
+register_command('createrawtransaction', False, True,  False, ['inputs', 'outputs'], [], 'Create an unsigned transaction. The syntax is similar to litecoind.')
+register_command('deseed',               False, True,  False, [], [], 'Remove seed from wallet, creating a seedless, watching-only wallet.')
+register_command('decoderawtransaction', False, False, False, ['raw_tx'], [], 'Decode raw transaction')
+register_command('getprivatekeys',       False, True,  True,  ['address'], [], 'Get the private keys of a given address')
+register_command('dumpprivkeys',         False, True,  True,  [], [], 'Dump private keys from your wallet')
+register_command('freeze',               False, True,  True,  ['address'], [], 'Freeze the funds at one of your wallet\'s addresses')
+register_command('getbalance',           True,  True,  False, [], [], 'Return the balance of your wallet, or of one account in your wallet')
+register_command('getservers',           True,  False, False, [], [], 'Return the list of available servers')
+register_command('getaddressbalance',    True,  False, False, ['address'], [], 'Return the balance of an address')
+register_command('getaddresshistory',    True,  False, False, ['address'], [], 'Return the transaction history of a wallet address')
+register_command('getconfig',            False, False, False, ['key'], [], 'Return a configuration variable')
+register_command('getpubkeys',           False, True,  False, ['address'], [], 'Return the public keys for a wallet address')
+register_command('getrawtransaction',    True,  False, False, ['txid'], [], 'Retrieve a transaction')
+register_command('getseed',              False, True,  True,  [], [], 'Print the generation seed of your wallet.')
+register_command('getmpk',               False, True,  False, [], [], 'Return your wallet\'s master public key')
+register_command('help',                 False, False, False, [], [], 'Print help on a command.')
+register_command('history',              True,  True,  False, [], [], 'Returns the transaction history of your wallet')
+register_command('importprivkey',        False, True,  True,  ['privatekey'], [], 'Import a private key')
+register_command('ismine',               False, True,  False, ['address'], [], 'Return true if and only if address is in wallet')
+register_command('listaddresses',        False, True,  False, [], ['show_all', 'show_labels'], 'Returns your list of addresses.')
+register_command('listunspent',          True,  True,  False, [], [], 'Returns the list of unspent inputs in your wallet.')
+register_command('getaddressunspent',    True,  False, False, ['address'], [], 'Returns the list of unspent inputs for an address.')
+register_command('mktx',                 False, True,  True,  ['recipient', 'amount'], ['tx_fee', 'from_addr', 'change_addr'], 'Create a signed transaction')
+register_command('payto',                True,  True,  True,  ['recipient', 'amount'], ['tx_fee', 'from_addr', 'change_addr'], 'Create and broadcast a transaction.')
+register_command('mktx_csv',             False, True,  True,  ['csv_file'], ['tx_fee', 'from_addr', 'change_addr'], 'Create a signed transaction')
+register_command('payto_csv',            True,  True,  True,  ['csv_file'], ['tx_fee', 'from_addr', 'change_addr'], 'Create and broadcast a transaction.')
+register_command('password',             False, True,  True,  [], [], 'Change your password')
+register_command('restore',              True,  True,  False, [], ['gap_limit', 'mpk', 'concealed'], 'Restore a wallet')
+register_command('searchcontacts',       False, True,  False, ['query'], [], 'Search through contacts, return matching entries')
+register_command('setconfig',            False, False, False, ['key', 'value'], [], 'Set a configuration variable')
+register_command('setlabel',             False, True,  False, ['txid', 'label'], [], 'Assign a label to an item')
+register_command('sendrawtransaction',   True,  False, False, ['raw_tx'], [], 'Broadcast a transaction to the network.')
+register_command('signtxwithkey',        False, False, False, ['raw_tx', 'key'], [], 'Sign a serialized transaction with a key')
+register_command('signtxwithwallet',     False, True,  True,  ['raw_tx'], [], 'Sign a serialized transaction with a wallet')
+register_command('signmessage',          False, True,  True,  ['address', 'message'], [], 'Sign a message with a key')
+register_command('unfreeze',             False, True,  False, ['address'], [], 'Unfreeze the funds at one of your wallet\'s address')
+register_command('validateaddress',      False, False, False, ['address'], [], 'Check that the address is valid')
+register_command('verifymessage',        False, False, False, ['address', 'message'], [], 'Verify a signature')
+register_command('version',              False, False, False, [], [], 'Return the version of your client')
+register_command('encrypt',              False, False, False, ['pubkey', 'message'], [], 'Encrypt a message with a public key')
+register_command('decrypt',              False, True,  True,  ['pubkey', 'message'], [], 'Decrypt a message encrypted with a public key')
+register_command('getmerkle',            True,  False, False, ['txid', 'height'], [], 'Get Merkle branch of a transaction included in a block')
+register_command('getproof',             True,  False, False, ['address'], [], 'Get Merkle branch of an address in the UTXO set')
+register_command('getutxoaddress',       True,  False, False, ['txid', 'pos'], [], 'Get the address of an unspent transaction output')
+register_command('sweep',                True, False, False,  ['privkey', 'destination_address'], ['tx_fee'], 'Sweep a private key.')
+register_command('make_seed',            False, False, False, [], ['nbits', 'entropy', 'language'], 'Create a seed.')
+register_command('check_seed',           False, False, False, ['seed'], ['entropy'], 'Check that a seed was generated with external entropy.')
 
-register_command('encrypt',              2,-1, False, False, False, 'encrypt a message with pubkey','encrypt <pubkey> <message>')
-register_command('decrypt',              2,-1, False, True, True,   'decrypt a message encrypted with pubkey','decrypt <pubkey> <message>')
-register_command('getmerkle',            2, 2, True, False, False, 'Get Merkle branch of a transaction included in a block', 'getmerkle <txid> <height>')
-register_command('getproof',             1, 1, True, False, False, 'Get Merkle branch of an address in the UTXO set', 'getproof <address>')
-register_command('getutxoaddress',       2, 2, True, False, False, 'get the address of an unspent transaction output','getutxoaddress <txid> <pos>')
-register_command('sweep',                2, 3, True, False, False, 'Sweep a private key.', 'sweep privkey addr [fee]')
-register_command('make_seed',            3, 3, False, False, False, 'Create a seed.','options: --nbits --entropy --lang')
-register_command('check_seed',           1,-1, False, False, False, 'Check that a seed was generated with external entropy. Option: --entropy --lang')
+
+
+command_options = {
+    'password':    ("-W", "--password",   None,  "Password"),
+    'concealed':   ("-C", "--concealed",  False, "Don't echo seed to console when restoring"),
+    'show_all':    ("-a", "--all",        False, "Show all addresses"),
+    'show_labels': ("-l", "--labels",     False, "Show the labels of listed addresses"),
+    'tx_fee':      ("-f", "--fee",        None,  "set tx fee"),
+    'from_addr':   ("-F", "--fromaddr",   None,  "set source address for payto/mktx. if it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet."),
+    'change_addr': ("-c", "--changeaddr", None,  "set the change address for payto/mktx. default is a spare address, or the source address if it's not in the wallet"),
+    'nbits':       (None, "--nbits",     "128",  "Number of bits of entropy"),
+    'entropy':     (None, "--entropy",   "1",    "Custom entropy"),
+    'language':    ("-L", "--lang",       None,  "Default language for wordlist"),
+    'gap_limit':   ("-G", "--gap",        None,  "Gap limit"),
+    'mpk':         (None, "--mpk",        None,  "Restore from master public key"),
+}
+
+
+
+def set_default_subparser(self, name, args=None):
+    """see http://stackoverflow.com/questions/5176691/argparse-how-to-specify-a-default-subcommand"""
+    subparser_found = False
+    for arg in sys.argv[1:]:
+        if arg in ['-h', '--help']:  # global help if no subparser
+            break
+    else:
+        for x in self._subparsers._actions:
+            if not isinstance(x, argparse._SubParsersAction):
+                continue
+            for sp_name in x._name_parser_map.keys():
+                if sp_name in sys.argv[1:]:
+                    subparser_found = True
+        if not subparser_found:
+            # insert default in first position, this implies no
+            # global options without a sub_parsers specified
+            if args is None:
+                sys.argv.insert(1, name)
+            else:
+                args.insert(0, name)
+
+argparse.ArgumentParser.set_default_subparser = set_default_subparser
+
+add_offline_option = lambda parser: parser.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Remain offline")
+def add_wallet_options(p):
+    p.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
+    p.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Portable wallet")
+
+def get_parser(run_gui, run_daemon, run_cmdline):
+    # parent parser, because set_default_subparser removes global options
+    parent_parser = argparse.ArgumentParser('parent', add_help=False)
+    parent_parser.add_argument("-v", "--verbose", action="store_true", dest="verbose", default=False, help="Show debugging information")
+    # connection
+    conn_parser = argparse.ArgumentParser(add_help=False)
+    conn_parser.add_argument("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
+    conn_parser.add_argument("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is either t (tcp) or s (ssl)")
+    conn_parser.add_argument("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
+    # create main parser
+    parser = argparse.ArgumentParser(parents=[parent_parser])
+    subparsers = parser.add_subparsers(dest='cmd')
+    # gui
+    parser_gui = subparsers.add_parser('gui', parents=[parent_parser, conn_parser], description="Run Electrum's Graphical User Interface.", help="Run GUI (default)")
+    parser_gui.add_argument("url", nargs='?', default=None, help="litecoin URI (or bip70 file)")
+    parser_gui.set_defaults(func=run_gui)
+    parser_gui.add_argument("-g", "--gui", dest="gui", help="select graphical user interface", choices=['qt', 'lite', 'gtk', 'text', 'stdio'])
+    parser_gui.add_argument("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
+    parser.add_argument("-L", "--lang", dest="language", default=None, help="default language used in GUI")
+    add_offline_option(parser)
+    add_wallet_options(parser)
+    # daemon
+    parser_daemon = subparsers.add_parser('daemon', help="Run Daemon")
+    parser_daemon.add_argument("subcommand", choices=['start', 'status', 'stop'])
+    parser_daemon.set_defaults(func=run_daemon)
+    # create a parser for each command
+    for cmdname in sorted(known_commands.keys()):
+        cmd = known_commands[cmdname]
+        parents = [parent_parser]
+        p = subparsers.add_parser(cmdname, parents=parents, description=cmd.description, help=cmd.description)
+        p.set_defaults(func=run_cmdline)
+        if cmd.requires_network:
+            add_offline_option(p)
+        if cmd.requires_wallet:
+            add_wallet_options(p)
+        if cmd.requires_password:
+            p.add_argument("-W", "--password", dest="password", default=None, help="password")
+        for optname in cmd.options:
+            a, b, default, help = command_options[optname]
+            action = "store_true" if type(default) is bool else 'store'
+            args = (a, b) if a else (b,)
+            p.add_argument(*args, dest=optname, action=action, default=default, help=help)
+        for param in cmd.params:
+            p.add_argument(param)
+    # default command is gui
+    parser.set_default_subparser('gui')
+    return parser
+
 
 
 class Commands:
@@ -265,8 +351,8 @@ class Commands:
             time.sleep(0.1)
         return self.network.get_servers()
 
-    def getversion(self):
-        import electrum_ltc as electrum   # Needs to stay here to prevent ciruclar imports
+    def version(self):
+        import electrum_ltc as electrum  # Needs to stay here to prevent ciruclar imports
         return electrum.ELECTRUM_VERSION
 
     def getmpk(self):
@@ -333,7 +419,20 @@ class Commands:
         tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
         return tx
 
-    def mksendmanytx(self, outputs, fee = None, change_addr = None, domain = None):
+    def _read_csv(self, csvpath):
+        import csv
+        outputs = []
+        with open(csvpath, 'rb') as csvfile:
+            csvReader = csv.reader(csvfile, delimiter=',')
+            for row in csvReader:
+                address, amount = row
+                assert bitcoin.is_address(address)
+                amount = Decimal(amount)
+                outputs.append((address, amount))
+        return outputs
+
+    def mktx_csv(self, path, fee = None, change_addr = None, domain = None):
+        outputs = self._read_csv(path)
         tx = self._mktx(outputs, fee, change_addr, domain)
         return tx
 
@@ -342,7 +441,8 @@ class Commands:
         r, h = self.wallet.sendtx( tx )
         return h
 
-    def paytomany(self, outputs, fee = None, change_addr = None, domain = None):
+    def payto_csv(self, path, fee = None, change_addr = None, domain = None):
+        outputs = self._read_csv(path)
         tx = self._mktx(outputs, fee, change_addr, domain)
         r, h = self.wallet.sendtx( tx )
         return h
@@ -392,16 +492,6 @@ class Commands:
                     item = addr
                 out.append( item )
         return out
-
-    def help(self, cmd=None):
-        if cmd not in known_commands:
-            print_msg("\nList of commands:", ', '.join(sorted(known_commands)))
-        else:
-            cmd = known_commands[cmd]
-            print_msg(cmd.description)
-            if cmd.syntax: print_msg("Syntax: " + cmd.syntax)
-            if cmd.options: print_msg("options:\n" + cmd.options)
-        return None
 
     def getrawtransaction(self, tx_hash):
         if self.wallet:
