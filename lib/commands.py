@@ -433,7 +433,6 @@ class Commands:
 
     def mktx_csv(self, path, fee = None, change_addr = None, domain = None):
         outputs = self._read_csv(path)
-        print outputs
         tx = self._mktx(outputs, fee, change_addr, domain)
         return tx
 
