@@ -80,6 +80,8 @@ register_command('listunspent',          True,  True,  False, [], [], 'Returns t
 register_command('getaddressunspent',    True,  False, False, ['address'], [], 'Returns the list of unspent inputs for an address.')
 register_command('mktx',                 False, True,  True,  ['recipient', 'amount'], ['tx_fee', 'from_addr', 'change_addr'], 'Create a signed transaction')
 register_command('payto',                True,  True,  True,  ['recipient', 'amount'], ['tx_fee', 'from_addr', 'change_addr'], 'Create and broadcast a transaction.')
+register_command('mktx_csv',             False, True,  True,  ['csv_file'], ['tx_fee', 'from_addr', 'change_addr'], 'Create a signed transaction')
+register_command('payto_csv',            True,  True,  True,  ['csv_file'], ['tx_fee', 'from_addr', 'change_addr'], 'Create and broadcast a transaction.')
 register_command('password',             False, True,  True,  [], [], 'Change your password')
 register_command('restore',              True,  True,  False, [], ['gap_limit', 'mpk', 'concealed'], 'Restore a wallet')
 register_command('searchcontacts',       False, True,  False, ['query'], [], 'Search through contacts, return matching entries')
@@ -101,8 +103,6 @@ register_command('getutxoaddress',       True,  False, False, ['txid', 'pos'], [
 register_command('sweep',                True, False, False,  ['privkey', 'destination_address'], ['tx_fee'], 'Sweep a private key.')
 register_command('make_seed',            False, False, False, [], ['nbits', 'entropy', 'language'], 'Create a seed.')
 register_command('check_seed',           False, False, False, ['seed'], ['entropy'], 'Check that a seed was generated with external entropy.')
-#register_command('mksendmanytx',        False, True,  True,  'Create a signed transaction', mksendmany_syntax, payto_options)
-#register_command('paytomany',           True,  True,  True,  'Create and broadcast a transaction.', paytomany_syntax, payto_options)
 
 
 
@@ -419,7 +419,21 @@ class Commands:
         tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
         return tx
 
-    def mksendmanytx(self, outputs, fee = None, change_addr = None, domain = None):
+    def _read_csv(self, csvpath):
+        import csv
+        outputs = []
+        with open(csvpath, 'rb') as csvfile:
+            csvReader = csv.reader(csvfile, delimiter=',')
+            for row in csvReader:
+                address, amount = row
+                assert bitcoin.is_address(address)
+                amount = Decimal(amount)
+                outputs.append((address, amount))
+        return outputs
+
+    def mktx_csv(self, path, fee = None, change_addr = None, domain = None):
+        outputs = self._read_csv(path)
+        print outputs
         tx = self._mktx(outputs, fee, change_addr, domain)
         return tx
 
@@ -428,7 +442,8 @@ class Commands:
         r, h = self.wallet.sendtx( tx )
         return h
 
-    def paytomany(self, outputs, fee = None, change_addr = None, domain = None):
+    def payto_csv(self, path, fee = None, change_addr = None, domain = None):
+        outputs = self._read_csv(path)
         tx = self._mktx(outputs, fee, change_addr, domain)
         r, h = self.wallet.sendtx( tx )
         return h

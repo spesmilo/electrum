@@ -2186,36 +2186,6 @@ class ElectrumWindow(QMainWindow):
                 else:
                     self.show_message("unknown transaction")
 
-    def do_process_from_csvReader(self, csvReader):
-        outputs = []
-        errors = []
-        errtext = ""
-        try:
-            for position, row in enumerate(csvReader):
-                address = row[0]
-                if not bitcoin.is_address(address):
-                    errors.append((position, address))
-                    continue
-                amount = Decimal(row[1])
-                amount = int(100000000*amount)
-                outputs.append(('address', address, amount))
-        except (ValueError, IOError, os.error), reason:
-            QMessageBox.critical(None, _("Unable to read file or no transaction found"), _("Electrum was unable to open your transaction file") + "\n" + str(reason))
-            return
-        if errors != []:
-            for x in errors:
-                errtext += "CSV Row " + str(x[0]+1) + ": " + x[1] + "\n"
-            QMessageBox.critical(None, _("Invalid Addresses"), _("ABORTING! Invalid Addresses found:") + "\n\n" + errtext)
-            return
-
-        try:
-            tx = self.wallet.make_unsigned_transaction(outputs, None, None)
-        except Exception as e:
-            self.show_message(str(e))
-            return
-
-        self.show_transaction(tx)
-
 
     @protected
     def export_privkeys_dialog(self, password):
