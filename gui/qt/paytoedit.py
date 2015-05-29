@@ -135,8 +135,6 @@ class PayToEdit(ScanQRTextEdit):
         else:
             self.amount_edit.setText("")
 
-        self.amount_edit.textEdited.emit("")
-
         if total or len(lines)>1:
             self.lock_amount()
         else:
