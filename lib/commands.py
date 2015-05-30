@@ -149,20 +149,21 @@ def set_default_subparser(self, name, args=None):
 
 argparse.ArgumentParser.set_default_subparser = set_default_subparser
 
+def add_network_options(parser):
+    parser.add_argument("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
+    parser.add_argument("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is either t (tcp) or s (ssl)")
+    parser.add_argument("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
 
 def get_parser(run_gui, run_daemon, run_cmdline):
     # parent parser, because set_default_subparser removes global options
     parent_parser = argparse.ArgumentParser('parent', add_help=False)
     parent_parser.add_argument("-v", "--verbose", action="store_true", dest="verbose", default=False, help="Show debugging information")
-    parent_parser.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
-    parent_parser.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Portable wallet")
-    parent_parser.add_argument("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
-    parent_parser.add_argument("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is either t (tcp) or s (ssl)")
-    parent_parser.add_argument("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
-    parent_parser.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Remain offline")
+    parent_parser.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum_data' directory")
     # create main parser
-    parser = argparse.ArgumentParser(parents=[parent_parser])
-    subparsers = parser.add_subparsers(dest='cmd')
+    parser = argparse.ArgumentParser(
+        parents=[parent_parser],
+        epilog="Run 'electrum help <command>' to see the help for a command")
+    subparsers = parser.add_subparsers(dest='cmd', metavar='<command>')
     # gui
     parser_gui = subparsers.add_parser('gui', parents=[parent_parser], description="Run Electrum's Graphical User Interface.", help="Run GUI (default)")
     parser_gui.add_argument("url", nargs='?', default=None, help="bitcoin URI (or bip70 file)")
@@ -170,17 +171,25 @@ def get_parser(run_gui, run_daemon, run_cmdline):
     parser_gui.add_argument("-g", "--gui", dest="gui", help="select graphical user interface", choices=['qt', 'lite', 'gtk', 'text', 'stdio'])
     parser_gui.add_argument("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
     parser_gui.add_argument("-L", "--lang", dest="language", default=None, help="default language used in GUI")
+    parser_gui.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run the GUI offline")
+    parser_gui.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
+    add_network_options(parser_gui)
     # daemon
     parser_daemon = subparsers.add_parser('daemon', parents=[parent_parser], help="Run Daemon")
     parser_daemon.add_argument("subcommand", choices=['start', 'status', 'stop'])
     parser_daemon.set_defaults(func=run_daemon)
-    # create a parser for each command
+    add_network_options(parser_daemon)
+    # commands
     for cmdname in sorted(known_commands.keys()):
         cmd = known_commands[cmdname]
         p = subparsers.add_parser(cmdname, parents=[parent_parser], description=cmd.description, help=cmd.description)
         p.set_defaults(func=run_cmdline)
         if cmd.requires_password:
             p.add_argument("-W", "--password", dest="password", default=None, help="password")
+        if cmd.requires_network:
+            p.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run command offline")
+        if cmd.requires_wallet:
+            p.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
         for optname in cmd.options:
             a, b, default, help = command_options[optname]
             action = "store_true" if type(default) is bool else 'store'
@@ -188,7 +197,7 @@ def get_parser(run_gui, run_daemon, run_cmdline):
             p.add_argument(*args, dest=optname, action=action, default=default, help=help)
         for param, h in cmd.params.items():
             p.add_argument(param, help=h)
-    # default command is gui
+    # 'gui' is the default command
     parser.set_default_subparser('gui')
     return parser
 
