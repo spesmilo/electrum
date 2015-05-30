@@ -180,7 +180,7 @@ def run_cmdline(config):
     cmd = known_commands[cmdname]
 
     # arguments passed to function
-    args = map(lambda x: config.get(x), cmd.params)
+    args = map(lambda x: config.get(x), map(lambda x: x[0], cmd.params))
 
     # instanciate wallet for command-line
     storage = WalletStorage(config.get_wallet_path())
