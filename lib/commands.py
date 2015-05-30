@@ -249,6 +249,9 @@ class Commands:
             apply(self._callback, ())
         return result
 
+    def help(self):
+        return sorted(known_commands.keys())
+
     def make_seed(self, nbits, custom_entropy, language):
         from mnemonic import Mnemonic
         s = Mnemonic(language).make_seed(nbits, custom_entropy=custom_entropy)
