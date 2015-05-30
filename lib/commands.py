@@ -169,9 +169,9 @@ def get_parser(run_gui, run_daemon, run_cmdline):
     parser_gui.set_defaults(func=run_gui)
     parser_gui.add_argument("-g", "--gui", dest="gui", help="select graphical user interface", choices=['qt', 'lite', 'gtk', 'text', 'stdio'])
     parser_gui.add_argument("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
-    parser.add_argument("-L", "--lang", dest="language", default=None, help="default language used in GUI")
-    add_offline_option(parser)
-    add_wallet_options(parser)
+    parser_gui.add_argument("-L", "--lang", dest="language", default=None, help="default language used in GUI")
+    add_offline_option(parser_gui)
+    add_wallet_options(parser_gui)
     # daemon
     parser_daemon = subparsers.add_parser('daemon', help="Run Daemon")
     parser_daemon.add_argument("subcommand", choices=['start', 'status', 'stop'])
