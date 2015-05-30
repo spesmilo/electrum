@@ -21,6 +21,7 @@ import datetime
 import time
 import copy
 import argparse
+import json
 
 from util import print_msg, format_satoshis, print_stderr
 from util import StoreDict
@@ -57,8 +58,8 @@ def register_command(*args):
 #                                                    options
 register_command('listcontacts',       0, 0, 0, [], [], 'Show your list of contacts', '')
 register_command('create',             0, 1, 0, [], [], 'Create a new wallet', '')
-register_command('createmultisig',     0, 1, 0, [('num','number'), ('pubkeys', 'Public keys (json)')], [], 'Create multisig address', '')
-register_command('createrawtx',        0, 1, 0, [('inputs', ''), ('outputs', '')], [], 'Create an unsigned transaction.', 'The syntax is similar to bitcoind.')
+register_command('createmultisig',     0, 1, 0, [('num', 'number'), ('pubkeys', 'Public keys (json)')], [], 'Create multisig address', '')
+register_command('createrawtx',        0, 1, 0, [('inputs', 'json'), ('outputs', 'json')], [], 'Create an unsigned transaction.', 'The syntax is similar to bitcoind.')
 register_command('deseed',             0, 1, 0, [], [], 'Remove seed from wallet.', 'This creates a seedless, watching-only wallet.')
 register_command('decoderawtx',        0, 0, 0, [('tx', 'Serialized transaction')], [], 'Decode raw transaction.', '')
 register_command('getprivatekeys',     0, 1, 1, [('address', 'Bitcoin address')], [], 'Get the private keys of a wallet address.', '')
@@ -77,7 +78,8 @@ register_command('help',               0, 0, 0, [], [], 'Print help on a command
 register_command('history',            1, 1, 0, [], [], 'Wallet history', 'Returns the transaction history of your wallet')
 register_command('importprivkey',      0, 1, 1, [('privkey', 'Private key')], [], 'Import a private key', '')
 register_command('ismine',             0, 1, 0, [('address', 'Bitcoin address')], [], 'Check if address is in wallet', 'Return true if and only if address is in wallet')
-register_command('listaddresses',      0, 1, 0, [], ['show_all', 'show_labels'], 'List wallet addresses', 'Returns your list of addresses.')
+register_command('listaddresses',      0, 1, 0, [], ['show_all', 'show_labels', 'frozen', 'unused', 'funded', 'show_balance'],
+                 'List wallet addresses', 'Returns your list of addresses.')
 register_command('listunspent',        1, 1, 0, [], [], 'List unspent outputs', 'Returns the list of unspent transaction outputs in your wallet.')
 register_command('getaddressunspent',  1, 0, 0, [('address', 'Bitcoin address')], [], 'Returns the list of unspent inputs for an address.', '')
 register_command('mktx',               0, 1, 1, [('recipient', 'Bitcoin address'), ('amount', 'Amount in BTC')],
@@ -106,7 +108,8 @@ register_command('decrypt',            0, 1, 1, [('pubkey', 'public key'), ('mes
 register_command('getmerkle',          1, 0, 0, [('txid', 'Transaction ID'), ('height', 'Block height')], [], 'Get Merkle branch of a transaction included in a block', '')
 register_command('getproof',           1, 0, 0, [('address', '')], [], 'Get Merkle branch of an address in the UTXO set', '')
 register_command('getutxoaddress',     1, 0, 0, [('txid', 'Transction ID'), ('pos', 'Position')], [], 'Get the address of an unspent transaction output', '')
-register_command('sweep',              1, 0, 0, [('privkey', 'Private key'), ('address', 'Destination address')], ['tx_fee'], 'Sweep a private key.', '')
+register_command('sweep',              1, 0, 0, [('privkey', 'Private key'), ('address', 'Destination address')], ['tx_fee'],
+                 'Sweep private key.', 'Returns a transaction that sends all UTXOs to the destination address. The transactoin is not broadcasted.')
 register_command('make_seed',          0, 0, 0, [], ['nbits', 'entropy', 'language'], 'Create a seed.', '')
 register_command('check_seed',         0, 0, 0, [('seed', 'Seed phrase')], ['entropy', 'language'], 'Check that a seed was generated with external entropy.', '')
 
@@ -115,18 +118,32 @@ register_command('check_seed',         0, 0, 0, [('seed', 'Seed phrase')], ['ent
 command_options = {
     'password':    ("-W", "--password",   None,  "Password"),
     'concealed':   ("-C", "--concealed",  False, "Don't echo seed to console when restoring"),
-    'show_all':    ("-a", "--all",        False, "Show all addresses"),
+    'show_all':    ("-a", "--all",        False, "Include change addresses"),
+    'frozen':      (None, "--frozen",     False, "Show only frozen addresses"),
+    'unused':      (None, "--unused",     False, "Show only unused addresses"),
+    'funded':      (None, "--funded",     False, "Show only funded addresses"),
+    'show_balance':("-b", "--balance",    False, "Show the balances of listed addresses"),
     'show_labels': ("-l", "--labels",     False, "Show the labels of listed addresses"),
     'tx_fee':      ("-f", "--fee",        None,  "Transaction fee"),
     'from_addr':   ("-F", "--fromaddr",   None,  "Source address. If it isn't in the wallet, it will ask for the private key unless supplied in the format public_key:private_key. It's not saved in the wallet."),
     'change_addr': ("-c", "--changeaddr", None,  "Change address. Default is a spare address, or the source address if it's not in the wallet"),
-    'nbits':       (None, "--nbits",     "128",  "Number of bits of entropy"),
-    'entropy':     (None, "--entropy",   "1",    "Custom entropy"),
+    'nbits':       (None, "--nbits",      128,  "Number of bits of entropy"),
+    'entropy':     (None, "--entropy",    1,    "Custom entropy"),
     'language':    ("-L", "--lang",       None,  "Default language for wordlist"),
     'gap_limit':   ("-G", "--gap",        None,  "Gap limit"),
     'mpk':         (None, "--mpk",        None,  "Restore from master public key"),
 }
 
+
+arg_types = {
+    'num':int,
+    'nbits':int,
+    'entropy':long,
+    'pubkeys':json.loads,
+    'inputs': json.loads,
+    'outputs':json.loads,
+    'tx_fee':lambda x: (Decimal(x) if x is not None else None)
+}
 
 
 def set_default_subparser(self, name, args=None):
@@ -197,9 +214,15 @@ def get_parser(run_gui, run_daemon, run_cmdline):
             a, b, default, help = command_options[optname]
             action = "store_true" if type(default) is bool else 'store'
             args = (a, b) if a else (b,)
-            p.add_argument(*args, dest=optname, action=action, default=default, help=help)
+            if action == 'store':
+                _type = arg_types.get(optname, str)
+                p.add_argument(*args, dest=optname, action=action, default=default, help=help, type=_type)
+            else:
+                p.add_argument(*args, dest=optname, action=action, default=default, help=help)
+
         for param, h in cmd.params:
-            p.add_argument(param, help=h)
+            _type = arg_types.get(param, str)
+            p.add_argument(param, help=h, type=_type)
     # 'gui' is the default command
     parser.set_default_subparser('gui')
     return parser
@@ -244,7 +267,7 @@ class Commands:
         return l
 
     def getaddressunspent(self, addr):
-        return self.network.synchronous_get([ ('blockchain.address.listunspent',[addr]) ])[0]
+        return self.network.synchronous_get([('blockchain.address.listunspent',[addr])])[0]
 
     def getutxoaddress(self, txid, num):
         r = self.network.synchronous_get([ ('blockchain.utxo.get_address',[txid, num]) ])
@@ -290,7 +313,7 @@ class Commands:
         return self.network.synchronous_get([('blockchain.transaction.broadcast', [str(tx)])])[0]
 
     def createmultisig(self, num, pubkeys):
-        assert isinstance(pubkeys, list)
+        assert isinstance(pubkeys, list), (type(num), type(pubkeys))
         redeem_script = Transaction.multisig_script(pubkeys, num)
         address = hash_160_to_bc_address(hash_160(redeem_script.decode('hex')), 5)
         return {'address':address, 'redeemScript':redeem_script}
@@ -421,10 +444,6 @@ class Commands:
         if fee is not None: fee = int(100000000*fee)
         return self.wallet.mktx(final_outputs, self.password, fee , change_addr, domain)
 
-    def mktx(self, to_address, amount, fee = None, change_addr = None, domain = None):
-        tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
-        return tx
-
     def _read_csv(self, csvpath):
         import csv
         outputs = []
@@ -437,17 +456,25 @@ class Commands:
                 outputs.append((address, amount))
         return outputs
 
-    def mktx_csv(self, path, fee = None, change_addr = None, domain = None):
+    def mktx(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
+        domain = [from_addr] if from_addr else None
+        tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
+        return tx
+
+    def mktx_csv(self, path, fee = None, change_addr = None, from_addr = None):
+        domain = [from_addr] if from_addr else None
         outputs = self._read_csv(path)
         tx = self._mktx(outputs, fee, change_addr, domain)
         return tx
 
-    def payto(self, to_address, amount, fee = None, change_addr = None, domain = None):
+    def payto(self, to_address, amount, fee = None, change_addr = None, from_addr = None):
+        domain = [from_addr] if from_addr else None
         tx = self._mktx([(to_address, amount)], fee, change_addr, domain)
         r, h = self.wallet.sendtx( tx )
         return h
 
-    def payto_csv(self, path, fee = None, change_addr = None, domain = None):
+    def payto_csv(self, path, fee = None, change_addr = None, from_addr = None):
+        domain = [from_addr] if from_addr else None
         outputs = self._read_csv(path)
         tx = self._mktx(outputs, fee, change_addr, domain)
         r, h = self.wallet.sendtx( tx )
@@ -483,19 +510,23 @@ class Commands:
                 results[key] = value
         return results
 
-    def listaddresses(self, show_all = False, show_label = False):
+    def listaddresses(self, show_change=False, show_label=False, frozen=False, unused=False, funded=False, show_balance=False):
         out = []
         for addr in self.wallet.addresses(True):
-            if show_all or not self.wallet.is_change(addr):
-                if show_label:
-                    item = { 'address': addr }
-                    if show_label:
-                        label = self.wallet.labels.get(addr,'')
-                        if label:
-                            item['label'] = label
-                else:
-                    item = addr
-                out.append( item )
+            if frozen and not self.wallet.is_frozen(addr):
+                continue
+            if not show_change and self.wallet.is_change(addr):
+                continue
+            if unused and self.wallet.is_used(addr):
+                continue
+            if funded and self.wallet.is_empty(addr):
+                continue
+            item = addr
+            if show_balance:
+                item += ", "+ format_satoshis(sum(self.wallet.get_addr_balance(addr)))
+            if show_label:
+                item += ', ' + self.wallet.labels.get(addr,'')
+            out.append(item)
         return out
 
     def getrawtransaction(self, tx_hash):
@@ -503,8 +534,7 @@ class Commands:
             tx = self.wallet.transactions.get(tx_hash)
             if tx:
                 return tx
-
-        raw = self.network.synchronous_get([ ('blockchain.transaction.get',[tx_hash]) ])[0]
+        raw = self.network.synchronous_get([('blockchain.transaction.get',[tx_hash])])[0]
         if raw:
             return Transaction(raw)
         else:

@@ -1013,8 +1013,11 @@ class Abstract_Wallet(object):
         self.use_encryption = (new_password != None)
         self.storage.put('use_encryption', self.use_encryption,True)
 
+    def is_frozen(self, addr):
+        return addr in self.frozen_addresses
+
     def freeze(self,addr):
-        if self.is_mine(addr) and addr not in self.frozen_addresses:
+        if self.is_mine(addr) and self.is_frozen(addr):
             self.frozen_addresses.append(addr)
             self.storage.put('frozen_addresses', self.frozen_addresses, True)
             return True
@@ -1022,7 +1025,7 @@ class Abstract_Wallet(object):
             return False
 
     def unfreeze(self,addr):
-        if self.is_mine(addr) and addr in self.frozen_addresses:
+        if self.is_mine(addr) and self.is_frozen(addr):
             self.frozen_addresses.remove(addr)
             self.storage.put('frozen_addresses', self.frozen_addresses, True)
             return True
@@ -1147,6 +1150,10 @@ class Abstract_Wallet(object):
         h = self.history.get(address,[])
         c, u, x = self.get_addr_balance(address)
         return len(h), len(h) > 0 and c == -u
+
+    def is_empty(self, address):
+        c, u, x = self.get_addr_balance(address)
+        return c+u+x == 0
 
     def address_is_old(self, address, age_limit=2):
         age = -1
