@@ -366,7 +366,7 @@ def run_cmdline(config):
         wallet.update_password(password, new_password)
 
     else:
-        cmd_runner = Commands(wallet, network)
+        cmd_runner = Commands(config, wallet, network)
         func = getattr(cmd_runner, cmd.name)
         cmd_runner.password = password
         try:

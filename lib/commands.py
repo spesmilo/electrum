@@ -23,6 +23,7 @@ import copy
 import argparse
 
 from util import print_msg, format_satoshis, print_stderr
+from util import StoreDict
 from bitcoin import is_valid, hash_160_to_bc_address, hash_160
 from decimal import Decimal
 import bitcoin
@@ -53,7 +54,7 @@ def register_command(*args):
 #                                          requires_password
 #                                               arguments
 #                                                    options
-register_command('contacts',           0, 1, 0, {}, [], 'Show your list of contacts')
+register_command('listcontacts',       0, 0, 0, {}, [], 'Show your list of contacts')
 register_command('create',             0, 1, 0, {}, [], 'Create a new wallet')
 register_command('createmultisig',     0, 1, 0, {'num':'number','pubkeys':'pubkeys'}, [], 'Create multisig address')
 register_command('createrawtx',        0, 1, 0, {'inputs':'', 'outputs':''}, [], 'Create an unsigned transaction. The syntax is similar to bitcoind.')
@@ -195,7 +196,8 @@ def get_parser(run_gui, run_daemon, run_cmdline):
 
 class Commands:
 
-    def __init__(self, wallet, network, callback = None):
+    def __init__(self, config, wallet, network, callback = None):
+        self.config = config
         self.wallet = wallet
         self.network = network
         self._callback = callback
@@ -457,17 +459,16 @@ class Commands:
     def setlabel(self, key, label):
         self.wallet.set_label(key, label)
 
-    def contacts(self):
-        c = {}
-        for addr in self.wallet.addressbook:
-            c[addr] = self.wallet.labels.get(addr)
-        return c
+    def listcontacts(self):
+        contacts = StoreDict(self.config, 'contacts')
+        return contacts
 
     def searchcontacts(self, query):
+        contacts = StoreDict(self.config, 'contacts')
         results = {}
-        for addr in self.wallet.addressbook:
-            if query.lower() in self.wallet.labels.get(addr).lower():
-                results[addr] = self.wallet.labels.get(addr)
+        for key, value in contacts.items():
+            if query.lower() in key.lower():
+                results[key] = value
         return results
 
     def listaddresses(self, show_all = False, show_label = False):
